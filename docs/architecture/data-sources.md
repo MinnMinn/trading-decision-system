@@ -65,3 +65,18 @@ Unlike Wyckoff/ICT/Footprint, there is no ingested book/course covering Heatmap/
 ## Instrument coverage in mock fixtures (v1)
 
 `BTCUSDT` only, across `1D/4H/1H/15m` (market-data) and all five CoinGlass endpoints. This is enough to exercise the full pipeline end-to-end once. Add `ETHUSDT`, `SOLUSDT` fixtures the same shape when needed (both are Binance-coverable the same way as BTCUSDT). For `XAUUSD`/`XAGUSD`/`USOIL`/`UKOIL`: CoinGlass's `liquidation-heatmap`/`open-interest`/`funding` endpoints don't apply to commodities at all (crypto-derivatives-specific) — `HeatmapSkill` should report those `UNAVAILABLE`, not mocked, for these instruments; only `orderbook-heatmap` and `footprint-history` concepts could ever translate to a commodities venue, and only once a specific CFD/futures broker's real API is wired in — do not mock a CoinGlass-shaped commodities integration that doesn't exist.
+
+## Chart refresh cadence & event triggers (2026-09-09)
+
+Published report artifacts (scalping 1m/180, day-trade 15m/288, swing 1D/120) are kept current by two layers:
+
+| Style | Data + preliminary read (Haiku, ~2 min, no LLM prose) | Full narrative (Sonnet) |
+|---|---|---|
+| Scalping | every 3 min, local cron | every 30 min local, **or immediately on a new structural event** |
+| Day-trade | every 15 min, local cron | hourly cloud routine `day-trade-chart-refresh` (bounded verdict refresh), **run on demand on a new event** |
+| Swing | every 4 h, local cron | daily 00:15 UTC cloud routine `swing-chart-refresh`, run on demand on a new event |
+
+- `scripts/ict-scan.py --tf <tf> --n <bars> --style <style>` is the deterministic scanner (same rules as the artifacts' client-side `ictAnalyze`): 3-bar pivots, equal highs/lows (BSL/SSL) + ERL, sweeps, FVGs to mitigation, MSS, Order Blocks, premium/discount, volume outliers. It writes a Vietnamese preliminary read per symbol to `data/live/prelim/<style>.<SYM>.html` (with docs/ citations; thresholds flagged as system parameters) and exits 3 when a **new** sweep / ERL touch / MSS appeared since the last scan (state in `data/live/scan-state.<style>.json`). FVG formation and volume spikes feed the text only — they do not trigger alerts.
+- `scripts/inject-prelim.py <artifact.html> <style>` places those snippets into `<div class="prelim">` blocks (idempotent).
+- Event handling: a new structural event → one PushNotification (Vietnamese, ≤200 chars) + a full re-analysis (local Sonnet for scalping; `RemoteTrigger run` of the cloud routine for day-trade/swing). Dedup is at the scanner-state level, so the same event never alerts twice. Local crons are session-scoped and expire after 7 days; the cloud routines persist.
+- Lesson from the first Haiku data patch: a *resumed* subagent had its Artifact publish blocked by the permission classifier; fresh dispatches publish fine — cron prompts therefore always dispatch a new agent.
