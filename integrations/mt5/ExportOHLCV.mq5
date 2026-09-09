@@ -17,8 +17,7 @@
 //| needs fixing.                                                      |
 //+------------------------------------------------------------------+
 #property copyright "Institutional Trading System MT5 Bridge"
-#property version   "1.00"
-#property strict
+#property version   "1.01"
 
 input int InpBarsToExport     = 200;  // How many recent bars to export per timeframe
 input int InpExportIntervalSec = 60;  // Seconds between timer-driven exports
@@ -105,8 +104,8 @@ void ExportOne(ENUM_TIMEFRAMES tf, string timeframeLabel)
       // CAVEAT (flag this to the reading Skill): most CFD/commodity brokers report 0 for
       // real_volume. tick_volume (number of price changes, not real traded size) is used
       // here instead -- this is the same "not real volume" limitation the Wyckoff book
-      // itself warns about for Forex-style tick-based Delta proxies (knowledge/07 SS3.2
-      // caveats). Effort-vs-Result reads off this field are weaker evidence than genuine
+      // itself warns about for Forex-style tick-based Delta proxies (knowledge/07 section 7,
+      // WMT p131-p132). Effort-vs-Result reads off this field are weaker evidence than genuine
       // traded volume and should be scored accordingly, not treated as equivalent to
       // Binance's real trade volume.
       json += "\"volume\": " + IntegerToString((long)rates[i].tick_volume);
@@ -117,6 +116,7 @@ void ExportOne(ENUM_TIMEFRAMES tf, string timeframeLabel)
 
    json += "  ],\n";
    json += "  \"last_updated\": \"" + IsoTime(TimeCurrent()) + "\",\n";
+   json += "  \"_server_utc_offset_sec\": " + IntegerToString((long)(TimeCurrent() - TimeGMT())) + ",\n";
    json += "  \"_source\": \"mt5_bridge_live\",\n";
    json += "  \"_volume_caveat\": \"tick_volume, not real traded volume -- see comment in ExportOHLCV.mq5\"\n";
    json += "}\n";
@@ -133,8 +133,13 @@ void ExportOne(ENUM_TIMEFRAMES tf, string timeframeLabel)
 }
 
 //+------------------------------------------------------------------+
-string IsoTime(datetime t)
+// Bar times from CopyRates and TimeCurrent() are BROKER SERVER time (often UTC+2/+3), not UTC.
+// Convert with the live server-vs-GMT offset before labelling the string "Z", so these files
+// line up with the Binance connector's genuine UTC timestamps.
+string IsoTime(datetime serverTime)
 {
+   datetime offset = TimeCurrent() - TimeGMT();
+   datetime t = serverTime - offset;
    MqlDateTime dt;
    TimeToStruct(t, dt);
    return StringFormat("%04d-%02d-%02dT%02d:%02d:%02dZ", dt.year, dt.mon, dt.day, dt.hour, dt.min, dt.sec);

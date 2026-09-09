@@ -17,6 +17,18 @@ MetaQuotes' official `MetaTrader5` Python package only works on **Windows** — 
    - **MT5 runs as a Mac-native app** (many brokers ship a Wine-wrapped "MetaTrader 5 for Mac" — it looks native but is Wine underneath): the Common\Files folder lives inside that app's Wine prefix on the same Mac. The EA's startup log prints the exact path via `TerminalInfoString(TERMINAL_COMMONDATA_PATH)` — once you have that path, either symlink it directly (`ln -s "<that path>/Files" data/live/mt5-bridge`) or copy the 4 files over periodically.
    - Whichever you use, tell me the concrete path once you find it and I'll wire up whichever sync mechanism fits (symlink is simplest if it's all on one machine).
 
+   **Resolved on 2026-09-09 (this Mac):** MT5 for Mac is installed as a Wine-wrapped app; its prefix is
+   `~/Library/Application Support/net.metaquotes.wine.metatrader5/`. Concrete paths:
+   - terminal + MetaEditor: `<prefix>/drive_c/Program Files/MetaTrader 5/{terminal64.exe,metaeditor64.exe}`
+   - EA source installed at: `<prefix>/drive_c/Program Files/MetaTrader 5/MQL5/Experts/ExportOHLCV.mq5` (copy of `integrations/mt5/ExportOHLCV.mq5`)
+   - Common data folder: `<prefix>/drive_c/users/user/AppData/Roaming/MetaQuotes/Terminal/Common/Files`
+   - `data/live/mt5-bridge` is now a **symlink** to that `Common/Files` folder — no copy step needed; the EA's output appears in the project instantly.
+   - `scripts/mt5-bridge-check.sh [SYMBOL] [MAX_AGE_SEC]` reports AVAILABLE / STALE / UNAVAILABLE per timeframe (this is the freshness check `data-validation-status` expects).
+   - `integrations/mt5/startup-ExportOHLCV.ini` + `ExportOHLCV.set` (also copied into the terminal's `config\` and `MQL5\Presets\`) auto-attach the EA to XAUUSD H1 when the terminal is started with `/config:startup-ExportOHLCV.ini`.
+   Still required by hand (GUI): compile the EA once in MetaEditor (F7) and attach it to a chart; the EA is untested until that first run.
+
+   **Timestamp caveat (fixed in EA v1.01):** `CopyRates` times and `TimeCurrent()` are broker *server* time, not UTC. The EA now subtracts the live `TimeCurrent() - TimeGMT()` offset before writing the `...Z` strings and records `_server_utc_offset_sec` in each file, so bridge timestamps line up with the Binance connector's UTC.
+
 3. **Where this system reads from**: `data/live/mt5-bridge/ohlcv.<SYMBOL>.<TIMEFRAME>.json` (mirrors `data/live/market-data/` for crypto). `/analyze` and `/status` check this path's freshness before falling back to `UNAVAILABLE`.
 
 ## Staleness rule
