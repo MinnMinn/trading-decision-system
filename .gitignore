@@ -36,3 +36,4 @@ config/secrets*.local.*
 !docs/mistakes/**
 !docs/backtests/
 !docs/backtests/**
+__pycache__/
