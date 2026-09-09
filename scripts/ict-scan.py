@@ -206,6 +206,11 @@ def main():
         result[sym] = {"last": a["last"], "pct": round(a["pct"], 4), "eq": a["eq"], "stance": stance,
                        "events_recent": a["events"], "new_events": fresh, "prelim_file": f"data/live/prelim/{args.style}.{sym}.html"}
     json.dump(state, open(state_path, "w"))
+    first_t = load(args.symbols.split(",")[0], args.tf)[-args.n:][0]["time"]
+    meta = {"tf": args.tf, "n": args.n, "window_first": first_t,
+            "window_last": max(load(sym, args.tf)[-1]["time"] for sym in args.symbols.split(",")),
+            "symbols": {sym: {"last": result[sym]["last"], "pct": result[sym]["pct"], "stance": result[sym]["stance"]} for sym in args.symbols.split(",")}}
+    json.dump(meta, open(f"{out_dir}/{args.style}.meta.json", "w"), ensure_ascii=False)
     result["_new_events"] = new_events
     result["_scanned_at"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     print(json.dumps(result, ensure_ascii=False, indent=1))
