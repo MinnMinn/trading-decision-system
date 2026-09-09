@@ -36,7 +36,8 @@
     "final_score": { "type": "number", "minimum": 0, "maximum": 100, "description": "max(0, raw_pct + penalty_total)" },
     "dimension_count_met": { "type": "boolean", "description": "true only if engaged_count meets the active mode's minimum -- evaluated independently of final_score" },
     "threshold_met": { "type": "boolean", "description": "final_score >= mode threshold (70/80/85)" },
-    "verdict": { "type": "string", "enum": ["TRADE", "WAIT", "NO_TRADE"], "description": "TRADE requires threshold_met AND dimension_count_met AND no blocking event-risk-window contradiction" }
+    "unresolved_high_impact_contradictions": { "type": "integer", "minimum": 0, "description": "count of HIGH-impact contradictions still unresolved after Contradiction Analysis; STRICT mode additionally requires this to be 0 (SYSTEM-DESIGN.md section 6.1)" },
+    "verdict": { "type": "string", "enum": ["TRADE", "WAIT", "NO_TRADE"], "description": "TRADE requires threshold_met AND dimension_count_met AND no blocking event-risk-window contradiction; in STRICT mode also unresolved_high_impact_contradictions == 0" }
   },
   "definitions": {
     "dimensionScore": {

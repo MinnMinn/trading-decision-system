@@ -19,7 +19,7 @@ Used for: price/candles, market structure, timeframes, technical context. **Real
 | Field | Type | Notes |
 |---|---|---|
 | `symbol` | string | e.g. `BTCUSDT` |
-| `timeframe` | string | `1D`, `4H`, `1H`, `15m` per the master spec's MTF framework |
+| `timeframe` | string | `1D`, `4H`, `1H`, `15m` per the master spec's MTF framework; the live connector also accepts `5m` and `1m` (used by the scalping report) |
 | `candles[]` | array of `{time, open, high, low, close, volume}` | volume here is exchange-reported bar volume, not order-flow — Footprint/Delta come from CoinGlass, not this |
 | `last_updated` | ISO8601 timestamp | staleness = now − last_updated > 1.5× the timeframe's own bar interval |
 | `_source` | string | `"binance_public_rest_live"` when written by the real connector — distinguishes it from a mock fixture without needing a separate directory check |

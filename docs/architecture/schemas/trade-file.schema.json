@@ -20,7 +20,7 @@
     "stop_loss": { "type": "number" },
     "targets": { "type": "array", "items": { "type": "number" } },
     "risk_pct": { "type": "number" },
-    "position_size": { "type": "number" },
+    "position_size": { "type": ["number", "null"], "description": "base-asset units from RiskSkill; null until a position size has actually been approved (e.g. NO_TRADE/WAIT rehearsals)" },
     "status": { "type": "string", "enum": ["PLANNED", "OPEN", "CLOSED", "CANCELLED"] },
     "result": { "type": "string", "enum": ["WIN", "LOSS", "BREAKEVEN"] },
     "r_multiple": { "type": "number" },

@@ -18,6 +18,8 @@ Data: `data/live/market-data/ohlcv.BTCUSDT.1D.json` (120 days, fetched live) and
 | Aug 17–21 | **Sign of Strength (SOS)** | Aug 20 (vol 35,905) and Aug 21 (vol 44,340 — 2nd-largest of the dataset) break the entire multi-month range high (66,956) with matching effort and result — clean SOS |
 | Aug 21 – Sep 9 | **Reaccumulation at a new, higher range** | See worked example below |
 
+*Label sourcing note:* the event labels above (Selling Climax, Automatic Rally, Secondary Test, Sign of Strength) are classic Wyckoff-Advance schematic vocabulary — general market knowledge, **not** sourced from `knowledge/07-wyckoff-and-modern-tools.md`, whose §2.5 and §8 state that book deliberately omits PS/SC/AR/ST/SOS/LPS/UT/UTAD from its prose and declines to redefine them. Only the Spring/Upthrust typing (§2.6–2.7), Trading Range (§2.4) and phase structure (§2.5) claims in this document are grounded in the ingested corpus.
+
 ## 2. Worked example: the Aug 28 – Sep 2 Spring, with real outcome
 
 ### Setup identification (Wyckoff)

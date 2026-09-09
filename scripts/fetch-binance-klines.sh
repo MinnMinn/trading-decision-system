@@ -34,10 +34,10 @@ OUT_DIR="$PROJECT_ROOT/data/live/market-data"
 OUT_FILE="$OUT_DIR/ohlcv.${SYMBOL}.${TIMEFRAME}.json"
 mkdir -p "$OUT_DIR"
 
-RAW=$(curl -sf -m 15 "https://api.binance.com/api/v3/klines?symbol=${SYMBOL}&interval=${BINANCE_INTERVAL}&limit=${LIMIT}")
-
-if [ -z "$RAW" ]; then
-  echo "ERROR: empty response from Binance for ${SYMBOL} ${TIMEFRAME} -- treat crypto_market_data as UNAVAILABLE, do not proceed as if this succeeded." >&2
+# --fail-with-body keeps Binance's error JSON (e.g. {"code":-1121,"msg":"Invalid symbol."}) so the
+# failure is loud; a bare `curl -sf` would abort under set -e with nothing on stderr.
+if ! RAW=$(curl -sS --fail-with-body -m 15 "https://api.binance.com/api/v3/klines?symbol=${SYMBOL}&interval=${BINANCE_INTERVAL}&limit=${LIMIT}") || [ -z "$RAW" ]; then
+  echo "ERROR: Binance klines fetch failed for ${SYMBOL} ${TIMEFRAME}: ${RAW:-<no response body>} -- treat crypto_market_data as UNAVAILABLE, do not proceed as if this succeeded." >&2
   exit 1
 fi
 

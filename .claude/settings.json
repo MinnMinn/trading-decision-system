@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"SessionStart\\\",\\\"additionalContext\\\":\\\"TRADING SYSTEM HARD SAFETY RULES: capital preservation first; NEVER trade Forex; only BTCUSDT/ETHUSDT/SOLUSDT/XAUUSD/XAGUSD/USOIL/UKOIL; max 1% risk per trade; analysis and execution are separately permissioned (/execute never places a real broker order -- no broker integration exists); see docs/architecture/SYSTEM-DESIGN.md for the full architecture before making any design changes.\\\"}}\""
+            "command": "echo \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"SessionStart\\\",\\\"additionalContext\\\":\\\"TRADING SYSTEM HARD SAFETY RULES: capital preservation first; NEVER trade Forex; only BTCUSDT/ETHUSDT/SOLUSDT/XAUUSD/XAGUSD/USOIL/UKOIL; max 1% risk per trade; analysis and execution are separately permissioned (/execute only ever places Binance SPOT TESTNET orders via scripts/binance-testnet-order.sh, LONG-only, BTCUSDT/ETHUSDT/SOLUSDT only, after one explicit human confirmation -- never mainnet, never unattended); see docs/architecture/SYSTEM-DESIGN.md for the full architecture before making any design changes.\\\"}}\""
           }
         ]
       }

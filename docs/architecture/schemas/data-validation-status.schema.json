@@ -10,7 +10,7 @@
       "type": "object",
       "properties": {
         "crypto_market_data":       { "$ref": "#/definitions/sourceStatus", "description": "Binance public REST klines, for BTCUSDT/ETHUSDT/SOLUSDT" },
-        "commodities_market_data":  { "$ref": "#/definitions/sourceStatus", "description": "provider not yet selected -- see data-sources.md; report UNAVAILABLE for XAUUSD/XAGUSD/USOIL/UKOIL until wired" },
+        "commodities_market_data":  { "$ref": "#/definitions/sourceStatus", "description": "MT5 file-bridge (integrations/mt5/ExportOHLCV.mq5 -> data/live/mt5-bridge/), see docs/architecture/mt5-bridge.md; AVAILABLE only when the bridge file passes the freshness check, else STALE/UNAVAILABLE. Bridge is built but UNTESTED against a real terminal as of 2026-09-09." },
         "coinglass_footprint": { "$ref": "#/definitions/sourceStatus" },
         "coinglass_heatmap":   { "$ref": "#/definitions/sourceStatus" },
         "coinglass_oi":        { "$ref": "#/definitions/sourceStatus" },
