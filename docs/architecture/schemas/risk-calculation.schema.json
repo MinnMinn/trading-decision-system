@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RiskCalculation",
+  "description": "RiskAgent/RiskSkill output. See SYSTEM-DESIGN.md section 7. Every field must be computed, never estimated.",
+  "type": "object",
+  "required": ["account_equity", "risk_pct", "entry", "stop_loss", "position_size", "dollar_risk", "targets", "hard_checks", "consecutive_losses", "throttle_active"],
+  "properties": {
+    "account_equity": { "type": "number", "description": "user-supplied; no live broker-balance source in v1" },
+    "risk_pct": { "type": "number", "minimum": 0, "maximum": 1, "description": "as a fraction, e.g. 0.0075 = 0.75%. Hard ceiling 0.01 (1%)." },
+    "entry": { "type": "number" },
+    "stop_loss": { "type": "number" },
+    "position_size": { "type": "number" },
+    "dollar_risk": { "type": "number" },
+    "targets": {
+      "type": "array",
+      "items": { "type": "object", "properties": { "price": { "type": "number" }, "rr": { "type": "number" } } }
+    },
+    "hard_checks": {
+      "type": "object",
+      "required": ["risk_within_ceiling", "stop_defined", "invalidation_defined_and_distinct_from_stop", "no_averaging_down", "no_widened_stop"],
+      "properties": {
+        "risk_within_ceiling": { "type": "boolean" },
+        "stop_defined": { "type": "boolean" },
+        "invalidation_defined_and_distinct_from_stop": { "type": "boolean", "description": "price invalidation, thesis invalidation, and data invalidation per master spec section 21 are each considered" },
+        "no_averaging_down": { "type": "boolean", "description": "false = a violation was requested and refused" },
+        "no_widened_stop": { "type": "boolean", "description": "false = a violation was requested and refused" }
+      }
+    },
+    "consecutive_losses": { "type": "integer", "minimum": 0, "description": "read from the last closed trades in trades/*.md" },
+    "throttle_active": { "type": "boolean", "description": "true after 2 consecutive losses per master spec section 20; recommend half-size or pause" }
+  }
+}

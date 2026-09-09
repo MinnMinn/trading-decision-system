@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DataValidationStatus",
+  "description": "Emitted at the start of every command that touches market data. Referenced by SYSTEM-DESIGN.md section 3 and data-sources.md's mock-mode integrity rule.",
+  "type": "object",
+  "required": ["timestamp", "sources"],
+  "properties": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "sources": {
+      "type": "object",
+      "properties": {
+        "crypto_market_data":       { "$ref": "#/definitions/sourceStatus", "description": "Binance public REST klines, for BTCUSDT/ETHUSDT/SOLUSDT" },
+        "commodities_market_data":  { "$ref": "#/definitions/sourceStatus", "description": "provider not yet selected -- see data-sources.md; report UNAVAILABLE for XAUUSD/XAGUSD/USOIL/UKOIL until wired" },
+        "coinglass_footprint": { "$ref": "#/definitions/sourceStatus" },
+        "coinglass_heatmap":   { "$ref": "#/definitions/sourceStatus" },
+        "coinglass_oi":        { "$ref": "#/definitions/sourceStatus" },
+        "coinglass_funding":   { "$ref": "#/definitions/sourceStatus" }
+      },
+      "required": ["crypto_market_data", "commodities_market_data", "coinglass_footprint", "coinglass_heatmap", "coinglass_oi", "coinglass_funding"]
+    },
+    "rehearsal_mode": {
+      "type": "boolean",
+      "description": "true if ANY source above is MOCK. When true, every downstream output must carry the REHEARSAL MODE banner and no methodology dimension fed by a MOCK source may count toward the Independent-Confluence Check."
+    }
+  },
+  "definitions": {
+    "sourceStatus": {
+      "type": "object",
+      "required": ["state"],
+      "properties": {
+        "state": { "type": "string", "enum": ["AVAILABLE", "STALE", "UNAVAILABLE", "MOCK"] },
+        "last_updated": { "type": "string", "format": "date-time" },
+        "note": { "type": "string", "description": "e.g. why UNAVAILABLE, or which mock fixture file was used" }
+      }
+    }
+  }
+}

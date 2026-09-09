@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TradeFile",
+  "description": "YAML frontmatter schema for one file under trades/<YYYY-MM-DD>-<PAIR>-<seq>.md. This single record serves as the Journal entry, the Edge Log entry, and (if flagged) a Mistake DB entry per SYSTEM-DESIGN.md section 8. The Markdown body below the frontmatter holds the full Decision Output (master spec section 23) and, once closed, the Post-Trade Review (section 26).",
+  "type": "object",
+  "required": ["id", "instrument", "date_opened", "setup_type", "direction", "methodology_mode", "market_regime", "confluence_score", "entry", "stop_loss", "targets", "risk_pct", "status"],
+  "properties": {
+    "id": { "type": "string", "description": "e.g. 2026-09-09-BTCUSDT-01" },
+    "instrument": { "type": "string", "enum": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XAUUSD", "XAGUSD", "USOIL", "UKOIL"] },
+    "date_opened": { "type": "string", "format": "date-time" },
+    "date_closed": { "type": "string", "format": "date-time" },
+    "setup_type": { "type": "string", "description": "e.g. Wyckoff Spring Type 2, Liquidity Sweep Reversal, Trend Continuation" },
+    "direction": { "type": "string", "enum": ["LONG", "SHORT"] },
+    "methodology_mode": { "type": "string", "enum": ["NORMAL", "ENHANCED", "STRICT"] },
+    "market_regime": { "type": "string", "enum": ["TRENDING", "RANGING", "TRANSITIONAL", "UNCLEAR"] },
+    "rehearsal_mode": { "type": "boolean", "description": "true if this trade record came from a MOCK-data rehearsal run, not a live decision. Rehearsal trades must never be counted in the consecutive-loss throttle or Edge Log win-rate rollups." },
+    "confluence_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "dimensions_used": { "type": "array", "items": { "type": "string", "enum": ["wyckoff", "ict", "footprint", "heatmap"] } },
+    "entry": { "type": "number" },
+    "stop_loss": { "type": "number" },
+    "targets": { "type": "array", "items": { "type": "number" } },
+    "risk_pct": { "type": "number" },
+    "position_size": { "type": "number" },
+    "status": { "type": "string", "enum": ["PLANNED", "OPEN", "CLOSED", "CANCELLED"] },
+    "result": { "type": "string", "enum": ["WIN", "LOSS", "BREAKEVEN"] },
+    "r_multiple": { "type": "number" },
+    "mfe": { "type": "number", "description": "maximum favorable excursion" },
+    "mae": { "type": "number", "description": "maximum adverse excursion" },
+    "exit_reason": { "type": "string" },
+    "root_cause": {
+      "type": "string",
+      "enum": [
+        "false_breakout", "liquidity_misread", "weak_footprint_confirmation",
+        "incorrect_wyckoff_interpretation", "incorrect_ict_location", "opposing_liquidity_ignored",
+        "poor_timing", "poor_stop_placement", "poor_rr", "event_risk", "data_quality_issue",
+        "execution_error", "discipline_error", "other", "n/a_win_as_planned"
+      ]
+    },
+    "is_mistake": { "type": "boolean", "description": "set true so this record surfaces in the Mistake-DB rollup view" },
+    "lessons": { "type": "string" }
+  }
+}

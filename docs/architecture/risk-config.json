@@ -1,0 +1,13 @@
+{
+  "_comment": "User-edited defaults read by RiskSkill (SYSTEM-DESIGN.md section 7). Override per-call with explicit /risk parameters when needed. account_equity has no live source in v1 -- keep this updated by hand.",
+  "account_equity": 0,
+  "account_currency": "USD",
+  "default_risk_pct": 0.0075,
+  "max_risk_pct": 0.01,
+  "consecutive_loss_throttle": {
+    "trigger_after_losses": 2,
+    "throttled_risk_pct": 0.00375,
+    "reset_condition": "one subsequent WIN, or explicit logged override via /risk"
+  },
+  "last_updated": "2026-09-09"
+}

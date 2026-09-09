@@ -24,3 +24,13 @@ data/live/
 config/secrets*.json
 config/secrets*.local.*
 *.secrets.json
+
+# Re-include docs/ subdirectories this project needs tracked -- a machine-wide
+# global gitignore (~/.gitignore_global) has a blanket "docs/*" rule that would
+# otherwise silently exclude these from every commit.
+!docs/architecture/
+!docs/architecture/**
+!docs/edge-log/
+!docs/edge-log/**
+!docs/mistakes/
+!docs/mistakes/**
