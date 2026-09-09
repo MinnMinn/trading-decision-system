@@ -1,0 +1,16 @@
+{
+  "_mock": true,
+  "_disclaimer": "SYNTHETIC FIXTURE DATA — not real market history. Rehearsal only.",
+  "symbol": "BTCUSDT",
+  "timeframe": "15m",
+  "last_updated": "2026-09-09T08:00:00Z",
+  "candles": [
+    { "time": "2026-09-08T13:30:00Z", "open": 65100, "high": 65150, "low": 64950, "close": 65000, "volume": 480 },
+    { "time": "2026-09-08T13:45:00Z", "open": 65000, "high": 65020, "low": 64850, "close": 64900, "volume": 610 },
+    { "time": "2026-09-08T14:00:00Z", "open": 64900, "high": 64950, "low": 64700, "close": 64760, "volume": 1050 },
+    { "time": "2026-09-08T14:15:00Z", "open": 64760, "high": 64980, "low": 64720, "close": 64950, "volume": 940 },
+    { "time": "2026-09-08T14:30:00Z", "open": 64950, "high": 65180, "low": 64900, "close": 65120, "volume": 720 },
+    { "time": "2026-09-08T14:45:00Z", "open": 65120, "high": 65300, "low": 65080, "close": 65250, "volume": 560 }
+  ],
+  "notes": "15m zoom on the exact Spring candle: 14:00 bar prints the low of the whole structure (64700) on the largest 15m volume (1050), with a lower wick down to 64700 and a close back at 64760 — already off the low within the same candle. The very next candle (14:15) fails to make a new low (64720 > 64700) and closes higher (64950), and by 14:45 price has cleared 65100+. This is the exact bar CandleFootprintSkill should anchor its Spring-candle Footprint/Delta read to."
+}

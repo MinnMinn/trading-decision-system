@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"SessionStart\\\",\\\"additionalContext\\\":\\\"TRADING SYSTEM HARD SAFETY RULES: capital preservation first; NEVER trade Forex; only BTCUSDT/ETHUSDT/SOLUSDT/XAUUSD/XAGUSD/USOIL/UKOIL; max 1% risk per trade; analysis and execution are separately permissioned (/execute never places a real broker order -- no broker integration exists); see docs/architecture/SYSTEM-DESIGN.md for the full architecture before making any design changes.\\\"}}\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"{\\\"systemMessage\\\":\\\"If a TRADE/WAIT/NO_TRADE verdict was just produced, confirm it is recorded via /journal.\\\"}\""
+          }
+        ]
+      }
+    ]
+  }
+}

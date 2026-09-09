@@ -1,0 +1,52 @@
+{
+  "_mock": true,
+  "_disclaimer": "SYNTHETIC FIXTURE DATA — not real order-flow. Rehearsal only.",
+  "symbol": "BTCUSDT",
+  "timeframe": "15m",
+  "last_updated": "2026-09-09T08:00:00Z",
+  "bars": [
+    {
+      "time": "2026-09-08T14:00:00Z",
+      "price_levels": [
+        { "price": 64950, "bid_vol": 12, "ask_vol": 4 },
+        { "price": 64900, "bid_vol": 38, "ask_vol": 9 },
+        { "price": 64850, "bid_vol": 61, "ask_vol": 11 },
+        { "price": 64800, "bid_vol": 94, "ask_vol": 14 },
+        { "price": 64760, "bid_vol": 118, "ask_vol": 22 },
+        { "price": 64720, "bid_vol": 71, "ask_vol": 55 },
+        { "price": 64700, "bid_vol": 33, "ask_vol": 62 }
+      ],
+      "delta": -320,
+      "cumulative_delta": -1840,
+      "note": "Heavy BID-column stacking (94-118 contracts) at 64800-64760 with thin ASK response — a stacked sell imbalance absorbed near the low without price breaking cleanly through 64700; ASK volume actually grows (55-62) at the very lowest prices (64720-64700), the book's own 'passive buy absorbing active sell' signature for an emerging Spring."
+    },
+    {
+      "time": "2026-09-08T14:15:00Z",
+      "price_levels": [
+        { "price": 64980, "bid_vol": 8, "ask_vol": 41 },
+        { "price": 64950, "bid_vol": 6, "ask_vol": 58 },
+        { "price": 64900, "bid_vol": 5, "ask_vol": 47 },
+        { "price": 64850, "bid_vol": 9, "ask_vol": 33 },
+        { "price": 64800, "bid_vol": 11, "ask_vol": 22 },
+        { "price": 64760, "bid_vol": 7, "ask_vol": 14 },
+        { "price": 64720, "bid_vol": 4, "ask_vol": 9 }
+      ],
+      "delta": +176,
+      "cumulative_delta": -1664,
+      "note": "Delta flips positive; strong ASK-column dominance (41-58 vs single-digit BID) from 64850 up through 64980 — active buying stepping in immediately after the sweep, consistent with 'development' following absorption."
+    },
+    {
+      "time": "2026-09-08T14:30:00Z",
+      "price_levels": [
+        { "price": 65180, "bid_vol": 3, "ask_vol": 29 },
+        { "price": 65120, "bid_vol": 5, "ask_vol": 24 },
+        { "price": 65050, "bid_vol": 6, "ask_vol": 19 },
+        { "price": 64980, "bid_vol": 8, "ask_vol": 15 },
+        { "price": 64900, "bid_vol": 9, "ask_vol": 9 }
+      ],
+      "delta": +59,
+      "cumulative_delta": -1605,
+      "note": "Continued ASK-side lean but volume tapering off — the sharpest development impulse was the prior bar; this bar shows the initial thrust extending rather than a fresh surge."
+    }
+  ]
+}

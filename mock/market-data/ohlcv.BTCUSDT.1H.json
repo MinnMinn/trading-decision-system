@@ -1,0 +1,22 @@
+{
+  "_mock": true,
+  "_disclaimer": "SYNTHETIC FIXTURE DATA — not real market history. Rehearsal only.",
+  "symbol": "BTCUSDT",
+  "timeframe": "1H",
+  "last_updated": "2026-09-09T08:00:00Z",
+  "candles": [
+    { "time": "2026-09-08T09:00:00Z", "open": 66150, "high": 66300, "low": 65900, "close": 66000, "volume": 950 },
+    { "time": "2026-09-08T10:00:00Z", "open": 66000, "high": 66100, "low": 65600, "close": 65700, "volume": 1300 },
+    { "time": "2026-09-08T11:00:00Z", "open": 65700, "high": 65800, "low": 65300, "close": 65450, "volume": 1500 },
+    { "time": "2026-09-08T12:00:00Z", "open": 65450, "high": 65600, "low": 65100, "close": 65200, "volume": 1700 },
+    { "time": "2026-09-08T13:00:00Z", "open": 65200, "high": 65350, "low": 64900, "close": 65000, "volume": 1900 },
+    { "time": "2026-09-08T14:00:00Z", "open": 65000, "high": 65100, "low": 64700, "close": 64800, "volume": 2600 },
+    { "time": "2026-09-08T15:00:00Z", "open": 64800, "high": 65500, "low": 64750, "close": 65400, "volume": 2400 },
+    { "time": "2026-09-08T16:00:00Z", "open": 65400, "high": 65650, "low": 65250, "close": 65550, "volume": 1300 },
+    { "time": "2026-09-08T17:00:00Z", "open": 65550, "high": 65850, "low": 65450, "close": 65750, "volume": 1100 },
+    { "time": "2026-09-08T18:00:00Z", "open": 65750, "high": 66000, "low": 65650, "close": 65900, "volume": 950 },
+    { "time": "2026-09-08T19:00:00Z", "open": 65900, "high": 66050, "low": 65800, "close": 65950, "volume": 800 },
+    { "time": "2026-09-08T20:00:00Z", "open": 65950, "high": 66100, "low": 65850, "close": 65900, "volume": 700 }
+  ],
+  "notes": "1H zoom on the sweep: steady grind down 09-08T09:00-14:00 into the 64700 low (14:00 bar, volume spike 2600 — the largest of the sequence), then immediate reclaim through 65400 within the very next hour (15:00, still elevated volume 2400) — the classic Spring 'quick recovery' signature. Volume falls off steadily after 16:00 as price consolidates back inside the range, consistent with a Type-2 Spring (moderate-volume break, fast reclaim, no immediate strong retest yet)."
+}

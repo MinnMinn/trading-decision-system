@@ -1,0 +1,26 @@
+# OS / IDE cruft
+.DS_Store
+.idea/
+
+# Claude Code session-local runtime state -- not project config
+.claude/scheduled_tasks.lock
+
+# Raw source material for the knowledge base (PDFs, book photos) -- large,
+# likely-copyrighted binaries, and not needed at runtime: knowledge/*.md is
+# the derivative synthesis actually used by Skills/Agents. Keep these local.
+docs/Footprint/
+docs/TTrades PDFs/
+docs/Wyckoff and Modern Tools/
+.cache/
+
+# Ephemeral fetched market data -- regenerated on demand by scripts/, not
+# meaningful to version. Smoke-test marker files also live under data/live/.
+data/live/
+
+# Secrets -- CoinGlass API key, Binance Testnet key/secret, etc. go in one of
+# these once provided; never commit them, even to a private repo.
+.env
+.env.*
+config/secrets*.json
+config/secrets*.local.*
+*.secrets.json

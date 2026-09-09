@@ -1,0 +1,16 @@
+{
+  "_mock": true,
+  "_disclaimer": "SYNTHETIC FIXTURE DATA — not real OI history. Rehearsal only.",
+  "symbol": "BTCUSDT",
+  "last_updated": "2026-09-09T08:00:00Z",
+  "series": [
+    { "time": "2026-09-08T12:00:00Z", "oi": 18420000000 },
+    { "time": "2026-09-08T13:00:00Z", "oi": 18310000000 },
+    { "time": "2026-09-08T14:00:00Z", "oi": 17650000000 },
+    { "time": "2026-09-08T15:00:00Z", "oi": 17700000000 },
+    { "time": "2026-09-08T16:00:00Z", "oi": 17850000000 },
+    { "time": "2026-09-08T20:00:00Z", "oi": 18010000000 },
+    { "time": "2026-09-09T08:00:00Z", "oi": 18250000000 }
+  ],
+  "note": "OI drops sharply into the 14:00 sweep bar (18.31B to 17.65B, roughly a 3.6% drop in one hour) — consistent with a long-liquidation flush rather than fresh short-building, then stabilizes and rebuilds afterward as price reclaims the range. This is a supporting, not independently-counted, Heatmap-dimension observation per section 6.1's duplicate-evidence rule."
+}
