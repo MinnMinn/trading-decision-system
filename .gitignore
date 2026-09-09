@@ -34,3 +34,5 @@ config/secrets*.local.*
 !docs/edge-log/**
 !docs/mistakes/
 !docs/mistakes/**
+!docs/backtests/
+!docs/backtests/**

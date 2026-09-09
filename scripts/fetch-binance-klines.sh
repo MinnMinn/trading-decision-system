@@ -5,7 +5,7 @@
 #
 # Usage: fetch-binance-klines.sh <SYMBOL> <TIMEFRAME> [LIMIT]
 #   SYMBOL:    e.g. BTCUSDT, ETHUSDT, SOLUSDT
-#   TIMEFRAME: 1D | 4H | 1H | 15m  (mapped to Binance's own interval codes below)
+#   TIMEFRAME: 1D | 4H | 1H | 15m | 5m | 1m  (mapped to Binance's own interval codes below)
 #   LIMIT:     number of candles, default 100, max 1000 (Binance limit)
 #
 # Output: data/live/market-data/ohlcv.<SYMBOL>.<TIMEFRAME>.json (same field shape as mock/market-data/*.json)
@@ -23,7 +23,9 @@ case "$TIMEFRAME" in
   4H)  BINANCE_INTERVAL="4h" ;;
   1H)  BINANCE_INTERVAL="1h" ;;
   15m) BINANCE_INTERVAL="15m" ;;
-  *) echo "Unsupported timeframe: $TIMEFRAME (expected one of 1D 4H 1H 15m)" >&2; exit 1 ;;
+  5m)  BINANCE_INTERVAL="5m" ;;
+  1m)  BINANCE_INTERVAL="1m" ;;
+  *) echo "Unsupported timeframe: $TIMEFRAME (expected one of 1D 4H 1H 15m 5m 1m)" >&2; exit 1 ;;
 esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
