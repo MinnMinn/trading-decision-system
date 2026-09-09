@@ -19,6 +19,7 @@
 #   binance-testnet-order.sh market-buy-qty <SYMBOL> <QUANTITY>
 #   binance-testnet-order.sh market-sell-qty <SYMBOL> <QUANTITY>
 #   binance-testnet-order.sh oco-sell <SYMBOL> <QUANTITY> <TAKE_PROFIT_PRICE> <STOP_PRICE> <STOP_LIMIT_PRICE>
+#   binance-testnet-order.sh price <SYMBOL> | open-orders [SYMBOL] | my-trades <SYMBOL> [LIMIT] | cancel-order <SYMBOL> <ORDER_ID>
 #   binance-testnet-order.sh order-status <SYMBOL> <ORDER_ID>
 #   binance-testnet-order.sh cancel-oco <SYMBOL> <ORDER_LIST_ID>
 #
@@ -169,6 +170,29 @@ for f in d["symbols"][0]["filters"]:
       | _pretty
     ;;
 
+  price)
+    symbol="${2:?Usage: price <SYMBOL>}"
+    _public_get "${BASE_URL}/api/v3/ticker/price?symbol=${symbol}" | _pretty
+    ;;
+
+  open-orders)
+    symbol="${2:-}"
+    if [ -n "$symbol" ]; then _signed GET "/api/v3/openOrders" "symbol=${symbol}" | _pretty; else _signed GET "/api/v3/openOrders" "" | _pretty; fi
+    ;;
+
+  my-trades)
+    # Fills for a symbol (read-only) -- the source of truth for realised P&L.
+    symbol="${2:?Usage: my-trades <SYMBOL> [LIMIT]}"
+    limit="${3:-50}"
+    _signed GET "/api/v3/myTrades" "symbol=${symbol}&limit=${limit}" | _pretty
+    ;;
+
+  cancel-order)
+    symbol="${2:?Usage: cancel-order <SYMBOL> <ORDER_ID>}"
+    order_id="${3:?}"
+    _signed DELETE "/api/v3/order" "symbol=${symbol}&orderId=${order_id}" | _pretty
+    ;;
+
   order-status)
     symbol="${2:?Usage: order-status <SYMBOL> <ORDER_ID>}"
     order_id="${3:?}"
@@ -182,7 +206,7 @@ for f in d["symbols"][0]["filters"]:
     ;;
 
   *)
-    echo "Usage: $0 {account|filters|round-qty|round-price|market-buy|market-buy-qty|market-sell-qty|oco-sell|order-status|cancel-oco} ..." >&2
+    echo "Usage: $0 {account|filters|price|open-orders|my-trades|round-qty|round-price|market-buy|market-buy-qty|market-sell-qty|oco-sell|order-status|cancel-order|cancel-oco} ..." >&2
     exit 1
     ;;
 esac

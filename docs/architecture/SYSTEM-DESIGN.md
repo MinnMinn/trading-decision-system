@@ -174,3 +174,13 @@ LearningAgent may propose changes to scoring weights, thresholds, or methodology
 3. **XAUUSD/XAGUSD/USOIL/UKOIL are structurally capped at NORMAL mode** even once the MT5 bridge is live and CoinGlass is connected — Footprint and Heatmap dimensions have no data source for commodities (CoinGlass is crypto-derivatives-only), so only Wyckoff + ICT (2 of 4 dimensions) can ever be engaged for these instruments in the current design. This is a structural limit, not a temporary gap — closing it would require finding or building a genuine order-flow/liquidity source for MT5 markets.
 4. **Stage 1 execution is live on Binance SPOT TESTNET only** (`scripts/binance-testnet-order.sh`, credentials in macOS Keychain via `scripts/get-secret.sh`) — mainnet and MT5 execution remain unbuilt by design; wiring either is separate, larger scope requiring explicit authorization and, for mainnet specifically, Security review first (real credential/secret-handling + real financial trust boundary, not a demo).
 5. **Account equity is user-supplied, not fetched** — RiskSkill has no live balance source in v1.
+
+### 9.x Stage-2 demo pilot (2026-09-09, user-authorised, 24 h, SPOT TESTNET)
+
+`scripts/demo-pilot.py` is a deterministic, LONG-only pilot on Binance SPOT TESTNET (fake funds): 15m closes,
+entry = discount + SSL/ERL-low sweep + bullish MSS + bullish FVG + Effort-vs-Result volume check; 0.5% risk,
+25% notional cap, max 2 open / 3 per symbol per day, OCO exits, 6 h time-stop, halt after 3 consecutive
+losses or −2% day. `scripts/pilot-loop.sh` runs it every 15 min; `data/live/pilot/STOP` is the kill switch;
+`--report` prints realised/unrealised P&L from exchange order status. Claude Code's auto-mode classifier
+refuses to *schedule* unattended order placement (correctly), so the loop is run by the user in a separate
+terminal; Claude only schedules read-only reports. This pilot does not change the Stage-1 rule for mainnet.
