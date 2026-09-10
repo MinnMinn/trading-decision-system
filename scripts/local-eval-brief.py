@@ -34,11 +34,22 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("style", choices=TF.keys()); ap.add_argument("--bars", type=int, default=40)
     ap.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT"); ap.add_argument("--events", default="")
+    ap.add_argument("--snapshot-dir", default=os.environ.get("TMPDIR", "/tmp"), help="where to freeze facts + candles for this read")
     a = ap.parse_args()
     tf, n = TF[a.style]
-    facts = json.load(open(f"{ROOT}/data/live/prelim/{a.style}.facts.json", encoding="utf-8"))
+    # Freeze the scanner outputs for THIS read: the background scanner rewrites facts.json every minute (scalping),
+    # so the model must be judged against the snapshot it was given, not against whatever is newest at check time.
+    import shutil, time
+    snap_dir = os.path.join(a.snapshot_dir, f"local-eval-{a.style}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}")
+    os.makedirs(snap_dir, exist_ok=True)
+    facts_path = os.path.join(snap_dir, "facts.json")
+    shutil.copy(f"{ROOT}/data/live/prelim/{a.style}.facts.json", facts_path)
     syms = a.symbols.split(",")
+    for sym in syms:
+        shutil.copy(f"{ROOT}/data/live/market-data/ohlcv.{sym}.{tf}.json", os.path.join(snap_dir, f"ohlcv.{sym}.{tf}.json"))
+    facts = json.load(open(facts_path, encoding="utf-8"))
     print(f"# Đánh giá cục bộ · {a.style} · {tf}×{n} · dữ liệu tới {facts['window_last']} · scanner chạy {facts['scanned_at']}")
+    print(f"SNAPSHOT: {snap_dir}  (facts + candles đã đóng băng cho lần đọc này; scanner nền vẫn cập nhật file gốc)")
     if a.events: print(f"\nSự kiện kích hoạt: {a.events}")
     print("""
 ## Luật viết (bắt buộc)
@@ -51,7 +62,9 @@ def main():
    data/live/prelim/<style>.<SYM>.model.html với cấu trúc:
    <div class="prelim-head">Đánh giá cục bộ (Sonnet) · dữ liệu tới HH:MM UTC · <strong>VERDICT</strong></div><p>…<span class="cite">…</span></p>…
    (HH:MM = giờ của nến cuối trong FACTS của mã đó; VERDICT = một trong bốn kết luận ở mục 4.)
-7. Sau khi ghi, chạy `python3 scripts/check-model-prose.py <style>` và sửa cho tới khi nó báo OK.
+7. Sau khi ghi, chạy ĐÚNG lệnh này (so với snapshot của lần đọc này, không so với facts mới hơn):
+   python3 scripts/check-model-prose.py <style> --facts <SNAPSHOT>/facts.json
+   và sửa cho tới khi nó in `RESULT: OK`. Không chạy lại brief để "đuổi" dữ liệu mới hơn.
 
 ## Bản đồ trích dẫn
 """ + CITES)
@@ -92,7 +105,7 @@ def main():
             print("- Setup ứng viên: không có chuỗi quét→MSS cùng chiều trong các nến gần đây")
     print(f"\n## {a.bars} nến gần nhất (time, open, high, low, close, volume/avg)")
     for sym in syms:
-        rows = json.load(open(f"{ROOT}/data/live/market-data/ohlcv.{sym}.{tf}.json"))["candles"][-n:]
+        rows = json.load(open(os.path.join(snap_dir, f"ohlcv.{sym}.{tf}.json")))["candles"][-n:]
         avg = sum(r.get("volume", 0) for r in rows) / len(rows) if rows else 0
         print(f"\n{sym}:")
         for r in rows[-a.bars:]:

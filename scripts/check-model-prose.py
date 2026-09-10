@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Validate the Sonnet 'đánh giá cục bộ' files against the scanner facts (numbers-from-code guard).
-Usage: check-model-prose.py <style> [--strict]
+Usage: check-model-prose.py <style> [--facts PATH]   (PATH = the snapshot facts.json printed by local-eval-brief.py)
 Checks per symbol: file exists; head with 'dữ liệu tới HH:MM UTC' equal to the facts' last candle; a verdict in the
 allowed set; at least one <span class="cite">; SETUP TIỀM NĂNG only if facts has a complete setup; every number
 with >= 3 significant digits in the prose must appear among the facts' numbers (compared as digit strings).
@@ -9,7 +9,9 @@ import json, os, re, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 style = sys.argv[1]
 VERDICTS = ("SETUP TIỀM NĂNG", "THEO DÕI LONG", "THEO DÕI SHORT", "CHỜ")
-facts = json.load(open(f"{ROOT}/data/live/prelim/{style}.facts.json", encoding="utf-8"))
+facts_path = sys.argv[sys.argv.index("--facts") + 1] if "--facts" in sys.argv else f"{ROOT}/data/live/prelim/{style}.facts.json"
+facts = json.load(open(facts_path, encoding="utf-8"))
+print("facts:", facts_path, "| window_last", facts.get("window_last"))
 
 
 def digits(x):
