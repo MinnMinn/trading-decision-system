@@ -3,6 +3,8 @@ description: Full institutional trading analysis pipeline (Data Validation throu
 argument-hint: <INSTRUMENT> [MODE=NORMAL|ENHANCED|STRICT] [mock]
 ---
 
+**Model gate (SYSTEM-DESIGN.md §14).** This command reasons. If you are running as Haiku, do not execute any step below in this session: dispatch one `general-purpose` subagent with `model: sonnet` to run this command's full procedure with the same `$ARGUMENTS`, then relay its output verbatim. Haiku displays; it never analyzes, scores or judges.
+
 Run the full 12-step Decision Pipeline (master system prompt §12) for the instrument given in `$ARGUMENTS`. This command IS the DecisionAgent orchestration layer referenced in `docs/architecture/SYSTEM-DESIGN.md` §5/§6 — you (the main session) perform the synthesis steps directly; you dispatch structure-agent, flow-agent, liquidity-agent, and risk-agent for their respective read-only analysis passes.
 
 **Refuse immediately, before any analysis, if:** the instrument isn't in {BTCUSDT, ETHUSDT, SOLUSDT, XAUUSD, XAGUSD, USOIL, UKOIL}, or is any Forex pair — cite the hard rule and stop.
@@ -21,11 +23,12 @@ Run the full 12-step Decision Pipeline (master system prompt §12) for the instr
 
 4. **HTF Context + Setup Detection.** Read Daily/4H data yourself (via structure-agent's forthcoming read, or a quick own pass) to classify Market Regime (TRENDING/RANGING/TRANSITIONAL/UNCLEAR) and name the candidate Setup Type (Spring, Upthrust, Trend Continuation, etc. — master spec §14). If Regime is UNCLEAR and the setup depends on ranging behavior, flag this now.
 
-5. **Dispatch the three read-only agents** (single message, parallel Agent tool calls where the harness supports it):
-   - **structure-agent**: instrument, timeframes, exchange market-data path(s) (real or mock), the candidate setup location.
-   - **flow-agent**: instrument, the specific anchor candle/bar structure-agent identifies, CoinGlass footprint data path.
-   - **liquidity-agent**: instrument, CoinGlass heatmap data paths (or `UNAVAILABLE` note for XAU/XAG/Oil).
-   Wait for all three returns before scoring.
+5. **Dispatch the read-only agents** (single message, parallel Agent tool calls where the harness supports it).
+   **First read `docs/architecture/automation-config.json` if it exists** (`schema_version 2`; missing file = unconfigured = dispatch everything, exactly as before this switch existed). It gates *which* agents are dispatched:
+   - **structure-agent** — always dispatched (Wyckoff + ICT): instrument, timeframes, exchange market-data path(s) (real or mock), the candidate setup location.
+   - **flow-agent** (Footprint) — **do NOT dispatch** when the instrument is a CFD (XAUUSD/XAGUSD/USOIL/UKOIL — `markets.cfd` has no `footprint` key at all, there is no CoinGlass source for commodities, `SYSTEM-DESIGN.md` §12 item 3), or when `markets.crypto.dimensions.footprint` is `false`. Otherwise: instrument, the specific anchor candle/bar structure-agent identifies, CoinGlass footprint data path.
+   - **liquidity-agent** (Heatmap) — **do NOT dispatch** when the instrument is a CFD (same reason), or when `markets.crypto.dimensions.heatmap` is `false`. Otherwise: instrument, CoinGlass heatmap data paths.
+   Wait for all dispatched returns before scoring. **State in your output which agents were skipped and why** (name the flag or the structural limit), and remind the reader that a skipped dimension lowers `engaged_count`, which can fall below the locked mode's minimum (NORMAL ≥2, ENHANCED/STRICT ≥3, §6.1/§6.2) and force NO TRADE on count alone — a configuration outcome, not a market read.
 
 6. **Independent-Confluence Check.** For each of the 4 dimensions, determine `eligible` (data AVAILABLE, not MOCK/STALE/UNAVAILABLE, and actually analyzed) and `engaged_count`. Compare against the locked mode's minimum (NORMAL≥2, ENHANCED≥3, STRICT≥3-explicitly-selected). If unmet: **verdict is NO TRADE**, skip to step 9.
 

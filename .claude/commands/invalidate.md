@@ -3,4 +3,6 @@ description: Explicit check of price/thesis/data invalidation on one open trade,
 argument-hint: <trade id>
 ---
 
+**Model gate (SYSTEM-DESIGN.md §14).** This command reasons. If you are running as Haiku, do not execute it in this session: dispatch one `general-purpose` subagent with `model: sonnet` to run this command with the same `$ARGUMENTS` and relay its output verbatim.
+
 Lighter-weight sibling of `/exit`: read `trades/<id>.md`, re-check only the three invalidation types (price, thesis, data — master spec §21) and report INVALIDATED / NOT INVALIDATED for each with the specific evidence, without producing management recommendations (breakeven/partial/full-exit logic). Use `/exit` instead when you also want a management recommendation, not just the invalidation status. Useful as the lightweight check to run periodically (e.g. via the `loop` skill on a user-chosen interval) since there's no live position-monitoring hook in this system (`SYSTEM-DESIGN.md` §10).

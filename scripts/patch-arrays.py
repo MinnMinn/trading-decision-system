@@ -2,7 +2,8 @@
 """Deterministic data patch for the chart artifacts (numbers from code, not from an agent's ad-hoc script).
 
 Usage: patch-arrays.py <artifact.html> <style> [--snapshot-dir DIR]
-  style: scalping (1m×180, BTC/ETH/SOL) | daytrade (15m×288) | swing (1D×120) | gold (15m×200, XAUUSD) | gold-swing (1D×120)
+  style: scalping (1m×180, BTC/ETH/SOL) | daytrade (15m×288) | 1h (1H×240) | 4h (4H×180) | swing (1D×120)
+         | gold (15m×200, XAUUSD) | gold-1h (1H×240) | gold-4h (4H×180) | gold-swing (1D×120)
 
 Patches ONLY: the candle arrays (`const BTC = [...]` etc.), the first `ranges` entry's low/high of each drawChart call,
 the highest-index flag (the "hiện tại" marker) to the last bar, and the `.symbol-stats` numbers. Everything else is
@@ -15,10 +16,16 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STYLES = {
     "scalping":   {"tf": "1m",  "n": 180, "label": "%H:%M",       "symbols": [("BTCUSDT", "BTC"), ("ETHUSDT", "ETH"), ("SOLUSDT", "SOL")]},
     "daytrade":   {"tf": "15m", "n": 288, "label": "%m-%d %H:%M", "symbols": [("BTCUSDT", "BTC"), ("ETHUSDT", "ETH"), ("SOLUSDT", "SOL")]},
+    "1h":         {"tf": "1H",  "n": 240, "label": "%m-%d %H:%M", "symbols": [("BTCUSDT", "BTC"), ("ETHUSDT", "ETH"), ("SOLUSDT", "SOL")]},
+    "4h":         {"tf": "4H",  "n": 180, "label": "%m-%d %H:%M", "symbols": [("BTCUSDT", "BTC"), ("ETHUSDT", "ETH"), ("SOLUSDT", "SOL")]},
     "swing":      {"tf": "1D",  "n": 120, "label": "%m-%d",       "symbols": [("BTCUSDT", "BTC"), ("ETHUSDT", "ETH"), ("SOLUSDT", "SOL")]},
     "gold":       {"tf": "15m", "n": 200, "label": "%m-%d %H:%M", "symbols": [("XAUUSD", "XAU")]},
+    "gold-1h":    {"tf": "1H",  "n": 240, "label": "%m-%d %H:%M", "symbols": [("XAUUSD", "XAU")]},
+    "gold-4h":    {"tf": "4H",  "n": 180, "label": "%m-%d %H:%M", "symbols": [("XAUUSD", "XAU")]},
     "gold-swing": {"tf": "1D",  "n": 120, "label": "%m-%d",       "symbols": [("XAUUSD", "XAU")]},
 }
+# n for the 1h/4h styles (240 / 180) are PROJECT PARAMETERS -- no source prescribes them; they match
+# scripts/local-eval-brief.py's TF map so a page and its brief cover the same window.
 MT5 = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
 
 

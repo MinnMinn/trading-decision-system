@@ -21,7 +21,8 @@ Usage: ict-scan.py --tf 1m --n 180 --style scalping [--symbols BTCUSDT,ETHUSDT,S
 Prints JSON {symbol: {...}} to stdout; writes Vietnamese HTML snippets to data/live/prelim/<style>.<SYM>.html;
 exit code 0 = no NEW events since the state file, 3 = new events (caller may trigger a local/full read + alert).
 Sources cited in the snippets: docs/TTrades PDFs (3. Liquidity, 8. Discount__Premium, 11. MSS_vs_Liquidity_Grab,
-12. Fair_Value_Gaps, 18. Market_Structure_Shift, IRL-ERL), WMT/knowledge/08 (Effort-vs-Result, Spring, SOS/SOW);
+12. Fair_Value_Gaps, 18. Market_Structure_Shift, IRL-ERL), WA/knowledge/07 (Phase A-E, Spring/Shakeout, SOS/LPS, SOT),
+                WMT/knowledge/08 (Effort-vs-Result, Spring loai 1/2/3);
 thresholds (0.08% equal-level tolerance, 3-bar pivot, 1.5x volume) are this system's own parameters, and say so.
 """
 import argparse, json, os, sys, datetime
@@ -35,9 +36,11 @@ CITE = {
     "fvg": "docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24",
     "mss": "docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2",
     "erl": "docs/TTrades PDFs/IRL-ERL.pdf tr.1–8 · knowledge/05 §2.13",
-    "evr": "WMT p019–022, p149–154 · knowledge/08 §2.3, §4.1",
-    "spring": "WMT p036–049 · knowledge/08 §2.6",
-    "sos": "knowledge/08 §6",
+    "evr": "WA p33–39 · knowledge/07 §2.2 · WMT p019–022, p149–154 · knowledge/08 §2.3, §4.1",
+    "spring": "WA p80 · knowledge/07 §2.7.3 (sự kiện) · WMT p036–049 · knowledge/08 §2.6 (loại 1/2/3)",
+    "sos": "WA p84–86 · knowledge/07 §2.7 (SOS/LPS/BU) · knowledge/08 §6",
+    "phase": "WA p71–123 · knowledge/07 §2.7–2.8 (Phase A–E) · đối nhãn: knowledge/07 §2.11",
+    "sot": "WA p277–292 · knowledge/07 §4.6",
     "sys": "[tính toán của hệ thống — không phải trích dẫn tài liệu]",
 }
 

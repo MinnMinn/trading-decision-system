@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Stage-2 DEMO pilot -- Binance TESTNET only, mechanical rules, hard caps.
-  --market spot    (default) SPOT TESTNET, LONG only, OCO exits            (scripts/binance-testnet-order.sh)
-  --market futures USDT-M FUTURES TESTNET, LONG and SHORT, ISOLATED, leverage LEVERAGE (<=3),
-                   STOP_MARKET + TAKE_PROFIT_MARKET closePosition exits     (scripts/binance-futures-testnet-order.sh)
+"""Rules-only pilot -- mechanical rules, hard caps. Trades the ACTIVE environment:
+  docs/architecture/automation-config.json -> execution.environment ("demo" = Binance TESTNET, fake funds;
+  "real" = Binance MAINNET, real money), credentials from config/env.<environment> via scripts/trading_env.py.
+  --market spot    (default) SPOT, LONG only, OCO exits                    (scripts/binance-testnet-order.sh, env-driven)
+  --market futures USDT-M FUTURES, LONG and SHORT, ISOLATED, leverage LEVERAGE (<=3),
+                   STOP_MARKET + TAKE_PROFIT_MARKET closePosition exits     (scripts/binance-futures-testnet-order.sh, env-driven)
 State/log/kill-switch live in data/live/pilot (spot) or data/live/pilot-futures (futures). SHORT rules mirror the
 LONG rules: premium instead of discount, BSL/ERL-high sweep, bearish MSS, bearish FVG, stop above the swept high.
 
@@ -19,6 +21,11 @@ Risk: RISK_PCT of USDT equity per trade (halved after 2 consecutive losses), not
 NOTIONAL_CAP_PCT of equity, stop below the swept low, TP = window EQ if >= MIN_RR R else 2R, exits via OCO,
 time-stop after TIME_STOP_BARS. Halt for the UTC day after 3 consecutive losses or daily loss <= -2% equity.
 Kill switch: create data/live/pilot/STOP. `--flatten` closes everything. `--report` prints P&L.
+Permission gate: docs/architecture/automation-config.json (the /automation command) can forbid a tick --
+master switch off, layers.pilot off, markets.crypto off -- and an INCOMPLETE environment file (placeholder keys)
+refuses a tick too (correctness, exit 2). The gate can only stop this tick, never start anything, and
+`--report`/`--flatten` stay available so a disabled pilot can still be inspected/closed. Tradable symbols come
+from markets.crypto.instruments. Risk per trade = PILOT_RISK_PCT from the env file, clamped to <= 1% (hard rule).
 """
 import argparse, json, os, subprocess, sys, datetime, re
 
@@ -45,16 +52,83 @@ SIDES = ["LONG"] if MARKET == "spot" else ["LONG", "SHORT"]
 
 SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
 TF, N = "15m", 288
-RISK_PCT = 0.005            # 0.5% of USDT equity per trade (design ceiling 1%)
+
+# ---- environment (demo testnet | real mainnet) -- scripts/trading_env.py; secrets never printed ----
+_tspec = importlib.util.spec_from_file_location("trading_env", os.path.join(ROOT, "scripts", "trading_env.py"))
+trading_env = importlib.util.module_from_spec(_tspec); _tspec.loader.exec_module(trading_env)
+ENV_NAME = trading_env.active_env_name()
+_ENV_KEYS = ("BINANCE_SPOT_API_KEY", "BINANCE_SPOT_SECRET_KEY") if MARKET == "spot" \
+    else ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY")
+try:
+    _env = trading_env.load_env(resolve_secrets=False)      # limits + URLs only; the connectors resolve the secrets
+    ENV_ERROR = None
+except trading_env.EnvIncomplete as e:
+    _env, ENV_ERROR = {}, str(e)
+def _envf(key, default, lo=None, hi=None):
+    try:
+        v = float(_env.get(key, default))
+    except (TypeError, ValueError):
+        v = float(default)
+    if lo is not None: v = max(lo, v)
+    if hi is not None: v = min(hi, v)
+    return v
+MARKET_LABEL = f"{MARKET}_{'mainnet' if ENV_NAME == 'real' else 'testnet'}"   # trade-file.schema.json `market` enum
+RISK_PCT = _envf("PILOT_RISK_PCT", 0.005, 0.0, 0.01)      # of USDT equity per trade; HARD CEILING 1% (max 1% rule)
 NOTIONAL_CAP_PCT = 0.25     # never more than 25% of equity in one position
-MAX_OPEN = 2
-MAX_TRADES_PER_DAY = 3
+MAX_OPEN = int(_envf("PILOT_MAX_OPEN", 2, 1, 4))
+MAX_TRADES_PER_DAY = int(_envf("PILOT_MAX_TRADES_PER_DAY", 3, 1, 6))
 SWEEP_LOOKBACK, MSS_LOOKBACK = 8, 3
 VOL_MULT = 1.5
 MIN_RR = 1.5
 TIME_STOP_BARS = 24
 DAILY_LOSS_HALT = -0.02
 STOP_BUFFER_PCT = 0.0015
+
+
+AUTOMATION_CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
+
+
+def _automation():
+    """docs/architecture/automation-config.json -- written only by scripts/automation.py (the /automation command).
+    A missing file means UNCONFIGURED (no policy): the pilot behaves exactly as it did before the switch existed.
+    A present file is authoritative."""
+    if not os.path.exists(AUTOMATION_CONFIG):
+        return None
+    try:
+        return json.load(open(AUTOMATION_CONFIG, encoding="utf-8"))
+    except Exception:
+        return {"_unreadable": True}
+
+
+def automation_gate():
+    """Reason to refuse this tick, or None. Never grants anything -- it can only stop the pilot."""
+    c = _automation()
+    if c is None:
+        return None
+    if c.get("_unreadable"):
+        return "automation config unreadable -- refusing to tick"
+    if not c.get("enabled", True):
+        return "automation master switch is OFF (scripts/automation.py off)"
+    if not c.get("layers", {}).get("pilot", True):
+        return "pilot layer disabled (scripts/automation.py layer pilot off)"
+    # v2 (schema_version 2): the pilot trades crypto only, so markets.crypto is its market gate.
+    if not c.get("markets", {}).get("crypto", {}).get("enabled", True):
+        return "markets.crypto disabled (scripts/automation.py market crypto off) -- the pilot trades crypto only"
+    if ENV_ERROR:
+        return f"environment '{ENV_NAME}' unusable -- {ENV_ERROR}"
+    ok, missing, note = trading_env.completeness(ENV_NAME, _ENV_KEYS)
+    if not ok:
+        return f"environment '{ENV_NAME}' incomplete -- fill {', '.join(missing)} in config/env.{ENV_NAME} (refusing to tick)"
+    return None
+
+
+def enabled_symbols():
+    """v2: markets.crypto.instruments. Unconfigured/unreadable = no policy = the built-in list."""
+    c = _automation()
+    if not c or c.get("_unreadable"):
+        return SYMBOLS
+    allow = set(c.get("markets", {}).get("crypto", {}).get("instruments", SYMBOLS))
+    return [s for s in SYMBOLS if s in allow]
 
 
 def now():
@@ -209,7 +283,7 @@ def place_long(sym, d, equity, risk_mult, live):
     pos = {"qty": sell_qty, "entry": avg_px, "entry_order": buy.get("orderId"), "stop": float(stop_r), "tp": float(tp_r),
            "oco_list": oco.get("orderListId"), "tp_order": ids.get("LIMIT_MAKER"), "stop_order": ids.get("STOP_LOSS_LIMIT"),
            "opened_at": now().strftime("%Y-%m-%dT%H:%M:%SZ"), "bars": 0, "risk_usd": plan["risk_usd"]}
-    log("entry", symbol=sym, **pos)
+    log("entry", symbol=sym, market=MARKET_LABEL, env=ENV_NAME, **pos)
     return pos
 
 
@@ -242,7 +316,7 @@ def place_futures(sym, d, equity, risk_mult, live):
     pos = {"side": d["side"], "qty": f"{filled:.8f}".rstrip("0").rstrip("."), "entry": avg_px, "entry_order": o.get("orderId"),
            "stop": float(stop_r), "tp": float(tp_r), "stop_order": sl.get("orderId"), "tp_order": tp.get("orderId"), "leverage": LEVERAGE,
            "opened_at": now().strftime("%Y-%m-%dT%H:%M:%SZ"), "bars": 0, "risk_usd": plan["risk_usd"]}
-    log("entry", symbol=sym, market="futures_testnet", **pos)
+    log("entry", symbol=sym, market=MARKET_LABEL, env=ENV_NAME, **pos)
     return pos
 
 
@@ -308,7 +382,7 @@ def report(s):
     closed = s["closed"]
     wins = [c for c in closed if c["pnl"] > 0]; losses = [c for c in closed if c["pnl"] <= 0]
     realised = round(sum(c["pnl"] for c in closed), 2)
-    lines = [f"PILOT REPORT [{MARKET}] {now().strftime('%Y-%m-%d %H:%M UTC')} (started {s['started']})",
+    lines = [f"PILOT REPORT [{MARKET_LABEL} / env {ENV_NAME}] {now().strftime('%Y-%m-%d %H:%M UTC')} (started {s['started']})",
              f"USDT equity: start {s['equity_start']:.2f} -> now {eq_now:.2f} (free; open positions hold base assets)",
              f"Closed trades: {len(closed)} | wins {len(wins)} | losses {len(losses)} | realised P&L {realised:+.2f} USDT"
              + (f" | avg R {sum(c['r'] for c in closed if c['r'] is not None)/max(1,len([c for c in closed if c['r'] is not None])):+.2f}" if closed else "")]
@@ -348,6 +422,11 @@ def main():
     live = a.live and not a.dry_run
     if os.path.exists(STOP):
         log("halt", why="STOP file present"); return
+    gate = automation_gate()
+    if gate:
+        log("halt", why=gate); return
+    if live and ENV_NAME == "real":
+        log("env", note="REAL MAINNET tick -- real money", market=MARKET_LABEL, risk_pct=RISK_PCT)
     today = now().strftime("%Y-%m-%d")
     if s["day"] != today:
         s["day"] = today; s["trades_today"] = {}; s["daily_pnl"] = 0.0
@@ -366,8 +445,8 @@ def main():
     if halted and s["halted_day"] != today:
         s["halted_day"] = today; log("halt", why=f"consec_losses={s['consec_losses']} daily_pnl={s['daily_pnl']:.2f}")
     blackout = event_blackout()
-    # 2. look for entries
-    for sym in SYMBOLS:
+    # 2. look for entries (instrument allowlist honoured: scripts/automation.py instrument <SYM> on|off)
+    for sym in enabled_symbols():
       sh(FETCH, sym, TF, str(N))
       for side in SIDES:
         d = evaluate(sym, side)

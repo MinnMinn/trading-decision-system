@@ -3,50 +3,161 @@
   "title": "ConfluenceScore",
   "description": "DecisionAgent's scoring output. See SYSTEM-DESIGN.md section 6. This is a decision-quality measure, not a win-probability estimate. Scoring is normalized against the ENGAGED-dimension maximum (engaged_count x 25), not a flat /100 total -- capping every dimension at a flat 25/100 made STRICT mode's 85 threshold mathematically unreachable with only 3 dimensions engaged (3x25=75 max); see SYSTEM-DESIGN.md section 6.2 for the corrected formula.",
   "type": "object",
-  "required": ["methodology_mode", "mode_locked_at", "dimensions", "engaged_count", "contradictions", "raw_pct", "penalty_total", "final_score", "dimension_count_met", "threshold_met", "verdict"],
+  "required": [
+    "methodology_mode",
+    "mode_locked_at",
+    "dimensions",
+    "engaged_count",
+    "contradictions",
+    "raw_pct",
+    "penalty_total",
+    "final_score",
+    "dimension_count_met",
+    "threshold_met",
+    "verdict"
+  ],
   "properties": {
-    "methodology_mode": { "type": "string", "enum": ["NORMAL", "ENHANCED", "STRICT"] },
-    "mode_locked_at": { "type": "string", "format": "date-time", "description": "Mode-lock rule: recorded before any dimension is analyzed and immutable for this run -- never downgraded after the fact to force a pass." },
-    "engaged_count": { "type": "integer", "minimum": 0, "maximum": 4, "description": "number of dimensions with eligible=true; denominator for raw_pct is engaged_count x 25" },
+    "methodology_mode": {
+      "type": "string",
+      "enum": [
+        "NORMAL",
+        "ENHANCED",
+        "STRICT"
+      ]
+    },
+    "mode_locked_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Mode-lock rule: recorded before any dimension is analyzed and immutable for this run -- never downgraded after the fact to force a pass."
+    },
+    "engaged_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4,
+      "description": "number of dimensions with eligible=true; denominator for raw_pct is engaged_count x 25"
+    },
     "dimensions": {
       "type": "object",
       "properties": {
-        "wyckoff":   { "$ref": "#/definitions/dimensionScore" },
-        "ict":       { "$ref": "#/definitions/dimensionScore" },
-        "footprint": { "$ref": "#/definitions/dimensionScore" },
-        "heatmap":   { "$ref": "#/definitions/dimensionScore" }
+        "wyckoff": {
+          "$ref": "#/definitions/dimensionScore",
+          "description": "Wyckoff dimension. OWNS Volume Profile (VAH/VAL/LVN/VPOC) per user decision 2026-09-10 (knowledge/10 section 7 decision 1, option B), matching where knowledge/08 section 5 Step 4 places it in the author's own method. The VAL/VAH-into-LVN abandon rule is a thesis invalidation, not a score input."
+        },
+        "ict": {
+          "$ref": "#/definitions/dimensionScore"
+        },
+        "footprint": {
+          "$ref": "#/definitions/dimensionScore"
+        },
+        "heatmap": {
+          "$ref": "#/definitions/dimensionScore"
+        }
       },
-      "required": ["wyckoff", "ict", "footprint", "heatmap"]
+      "required": [
+        "wyckoff",
+        "ict",
+        "footprint",
+        "heatmap"
+      ],
+      "description": "Per-dimension scores. Wyckoff and ICT are NOT independent by default: knowledge/04-06 contain no volume, so the two dimensions largely read the same price geometry (knowledge/09, knowledge/10 section 4.1). Before both score one location or one structural break, StructureAgent must print both derived prices and state whether they differ by more than analysis-params.json project_defined.same_level_tolerance_atr."
     },
     "contradictions": {
       "type": "array",
       "description": "Anti-cherry-picking rule: this array must include contradictions found in EVERY dimension whose data source is AVAILABLE, not only the engaged/counted dimensions -- an available-but-unused dimension's contradictions still apply their full penalty.",
       "items": {
         "type": "object",
-        "required": ["description", "penalty"],
+        "required": [
+          "description",
+          "penalty"
+        ],
         "properties": {
-          "description": { "type": "string" },
-          "penalty": { "type": "number", "description": "negative number, e.g. -15" },
-          "category": { "type": "string", "enum": ["opposing_htf_structure", "opposing_liquidity_cluster", "event_risk_window", "other"] }
+          "description": {
+            "type": "string"
+          },
+          "penalty": {
+            "type": "number",
+            "description": "negative number, e.g. -15"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "opposing_htf_structure",
+              "opposing_liquidity_cluster",
+              "event_risk_window",
+              "shakeout_vs_displacement",
+              "wyckoff_ict_same_level",
+              "other"
+            ],
+            "description": "shakeout_vs_displacement = the unresolved Wyckoff-vs-ICT case at knowledge/10 section 4.5. wyckoff_ict_same_level = the two dimensions were reading one phenomenon at one price (knowledge/10 section 4.3); raise it rather than scoring both."
+          }
         }
       }
     },
-    "raw_pct": { "type": "number", "minimum": 0, "maximum": 100, "description": "(sum of points across engaged dimensions / (engaged_count x 25)) x 100; 0 if engaged_count is 0" },
-    "penalty_total": { "type": "number", "maximum": 0, "description": "percentage points, e.g. -15, subtracted from raw_pct -- not raw points" },
-    "final_score": { "type": "number", "minimum": 0, "maximum": 100, "description": "max(0, raw_pct + penalty_total)" },
-    "dimension_count_met": { "type": "boolean", "description": "true only if engaged_count meets the active mode's minimum -- evaluated independently of final_score" },
-    "threshold_met": { "type": "boolean", "description": "final_score >= mode threshold (70/80/85)" },
-    "unresolved_high_impact_contradictions": { "type": "integer", "minimum": 0, "description": "count of HIGH-impact contradictions still unresolved after Contradiction Analysis; STRICT mode additionally requires this to be 0 (SYSTEM-DESIGN.md section 6.1)" },
-    "verdict": { "type": "string", "enum": ["TRADE", "WAIT", "NO_TRADE"], "description": "TRADE requires threshold_met AND dimension_count_met AND no blocking event-risk-window contradiction; in STRICT mode also unresolved_high_impact_contradictions == 0" }
+    "raw_pct": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "(sum of points across engaged dimensions / (engaged_count x 25)) x 100; 0 if engaged_count is 0"
+    },
+    "penalty_total": {
+      "type": "number",
+      "maximum": 0,
+      "description": "percentage points, e.g. -15, subtracted from raw_pct -- not raw points"
+    },
+    "final_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "max(0, raw_pct + penalty_total)"
+    },
+    "dimension_count_met": {
+      "type": "boolean",
+      "description": "true only if engaged_count meets the active mode's minimum -- evaluated independently of final_score"
+    },
+    "threshold_met": {
+      "type": "boolean",
+      "description": "final_score >= mode threshold (70/80/85)"
+    },
+    "unresolved_high_impact_contradictions": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "count of HIGH-impact contradictions still unresolved after Contradiction Analysis; STRICT mode additionally requires this to be 0 (SYSTEM-DESIGN.md section 6.1)"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "TRADE",
+        "WAIT",
+        "NO_TRADE"
+      ],
+      "description": "TRADE requires threshold_met AND dimension_count_met AND no blocking event-risk-window contradiction; in STRICT mode also unresolved_high_impact_contradictions == 0"
+    }
   },
   "definitions": {
     "dimensionScore": {
       "type": "object",
-      "required": ["eligible", "points", "evidence"],
+      "required": [
+        "eligible",
+        "points",
+        "evidence"
+      ],
       "properties": {
-        "eligible": { "type": "boolean", "description": "false if data source for this dimension is MOCK/UNAVAILABLE/STALE, or the dimension wasn't used" },
-        "points": { "type": "number", "minimum": 0, "maximum": 25 },
-        "evidence": { "type": "array", "items": { "type": "string" }, "description": "citations, e.g. knowledge/08-wyckoff-and-modern-tools.md#spring-type-2" }
+        "eligible": {
+          "type": "boolean",
+          "description": "false if data source for this dimension is MOCK/UNAVAILABLE/STALE, or the dimension wasn't used"
+        },
+        "points": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 25
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "citations, e.g. knowledge/08-wyckoff-and-modern-tools.md#spring-type-2"
+        }
       }
     }
   }

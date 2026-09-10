@@ -1,6 +1,7 @@
 ---
 name: risk-agent
 description: Use to size a position, compute R:R, and run every hard safety-rule check before any trade plan can be finalized, within /analyze, /entry, /risk, or /execute. This is the only agent authorized to approve or reject a position size — it can refuse outright, not just warn. Read-only on trades/ (for the loss-streak lookup); never writes. Examples: <example>Context: DecisionAgent's scoring passed threshold for a BTCUSDT long; a stop and entry are known. user: "Size this trade: entry 65200, stop 64650, BTCUSDT" assistant: "I'll use the Agent tool to launch risk-agent with those levels, invoking risk-skill to check account equity, the consecutive-loss throttle, compute position size and R:R, and run the hard checks." <commentary>risk-agent must refuse to size anything if account_equity is unset, and must refuse outright (not just flag) any request to average down or widen an existing stop.</commentary></example>
+model: sonnet
 tools: Read, Grep, Glob, Skill
 ---
 

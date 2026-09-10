@@ -3,6 +3,8 @@ description: Invalidation and position-management check on an OPEN trade already
 argument-hint: <trade id, e.g. 2026-09-09-BTCUSDT-01>
 ---
 
+**Model gate (SYSTEM-DESIGN.md §14).** This command reasons. If you are running as Haiku, do not execute it in this session: dispatch one `general-purpose` subagent with `model: sonnet` to run this command with the same `$ARGUMENTS` and relay its output verbatim.
+
 Read `trades/<id>.md` for the trade id in `$ARGUMENTS` (fail clearly if it doesn't exist or isn't `status: OPEN`). Re-run Data Validation for that instrument. Check, in order, per master spec §21:
 1. **Price invalidation** — has price reached the recorded stop-loss?
 2. **Thesis invalidation** — does current structure/order-flow/liquidity contradict the original thesis even though price hasn't hit the stop yet? (Dispatch structure-agent/flow-agent again if this needs a fresh read.)

@@ -61,7 +61,11 @@ Checked: timestamps are UTC (`_server_utc_offset_sec: 10800`, i.e. server UTC+3 
 the wall clock, the daily candle opens at 21:00Z = broker midnight), all six fields present, `_volume_caveat`
 present (tick volume, not traded volume — Effort-vs-Result reads on gold use it as a proxy only).
 The deterministic scanner reads the bridge directly (`scripts/ict-scan.py` `load()` routes XAUUSD/XAGUSD/USOIL/UKOIL
-to `data/live/mt5-bridge/`); the launchd loop scans style `gold` (15m×200) at :01/:16/:31/:46 and `gold-swing`
-(1D×120) every 4 h, emitting events to `data/live/events.jsonl` like the crypto styles. No gold chart artifact exists
-yet; `scripts/local-eval-brief.py gold` already produces the Sonnet brief. Raise `InpBarsToExport` to ≥300 in the EA
+to `data/live/mt5-bridge/`); the launchd loop scans style `gold` (15m×200) at :01/:16/:31/:46, `gold-1h`
+(1H×240) at :02 every hour, `gold-4h` (4H×180) at :03 every 4 h and `gold-swing` (1D×120) at :02 every 4 h, emitting
+events to `data/live/events.jsonl` like the crypto styles. Which of the four actually run is gated per timeframe by
+`/automation` (`markets.cfd.timeframes`), and the symbols come from `markets.cfd.instruments` — a symbol with no
+bridge file on disk is skipped rather than aborting the style. There is no CFD 1m style: the EA does not export 1m
+(SYSTEM-DESIGN.md §12 item 6). No gold chart artifact exists yet; `scripts/local-eval-brief.py gold` (and `gold-1h` /
+`gold-4h` / `gold-swing`) already produces the Sonnet brief. Raise `InpBarsToExport` to ≥300 in the EA
 inputs if a 288-bar 15m window is wanted.

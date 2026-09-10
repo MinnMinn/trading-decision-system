@@ -18,6 +18,12 @@ docs/Wyckoff Advance/
 # meaningful to version. Smoke-test marker files also live under data/live/.
 data/live/
 
+# Trading environment files hold account credentials (or Keychain references).
+# Only the template config/env.example is committed. Keep the real files chmod 600.
+config/env.demo
+config/env.real
+config/env.*.local
+
 # Secrets -- CoinGlass API key, Binance Testnet key/secret, etc. go in one of
 # these once provided; never commit them, even to a private repo.
 .env

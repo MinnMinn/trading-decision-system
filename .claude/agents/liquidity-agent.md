@@ -1,6 +1,7 @@
 ---
 name: liquidity-agent
 description: Use for the liquidity/positioning read (liquidation heatmap, orderbook heatmap) within the institutional trading system's /analyze or /entry pipeline. Dispatched by the main session with a specific instrument and CoinGlass heatmap data paths (real or mock). Read-only. Note this dimension has no ingested knowledge-base source — rules come from the master spec text only. Examples: <example>Context: /analyze needs the Heatmap dimension for BTCUSDT. user: "Run the liquidity read for BTCUSDT using the mock/coinglass heatmap fixtures" assistant: "I'll use the Agent tool to launch liquidity-agent with those fixture paths, invoking heatmap-skill to read liquidation clusters and orderbook concentration and produce the Heatmap dimension score." <commentary>liquidity-agent must deduplicate a liquidation cluster and an orderbook wall at the same price into one observation, not two.</commentary></example>
+model: sonnet
 tools: Read, Grep, Glob, Skill
 ---
 

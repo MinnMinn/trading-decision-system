@@ -8,6 +8,30 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "$ROOT"
 LOG="data/live/scan-loop.log"; EVENTS="data/live/events.jsonl"; LOCK="data/live/.scan-loop.lock.d"
 mkdir -p data/live
+# Automation switch: docs/architecture/automation-config.json, written only by scripts/automation.py (/automation).
+# No file = unconfigured = run as before. Master off or layers.scanner off = this pass does nothing.
+# v2 (schema_version 2) is per-market: scripts/automation.py owns the (market, timeframe) -> style mapping and the
+# per-market instrument lists, so this gate asks that module rather than re-deriving the vocabulary here.
+eval "$(python3 - <<'GATE'
+import importlib.util, os
+try:
+    s = importlib.util.spec_from_file_location("automation", "scripts/automation.py")
+    m = importlib.util.module_from_spec(s); s.loader.exec_module(m)
+    cfg, exists, _ = m.load()
+    on = (not exists) or (cfg.get("enabled", True) and cfg.get("layers", {}).get("scanner", True))
+    print("AUTO_SCANNER=%d" % (1 if on else 0))
+    print("AUTO_STYLES='%s'" % ",".join(m.enabled_styles(cfg)))
+    print("AUTO_CRYPTO='%s'" % ",".join(m.enabled_instruments(cfg, "crypto")))
+    print("AUTO_CFD='%s'" % ",".join(m.enabled_instruments(cfg, "cfd")))
+except Exception:
+    pass          # unreadable module/config = UNCONFIGURED = run exactly as before the switch existed
+GATE
+)"
+AUTO_SCANNER="${AUTO_SCANNER:-1}"
+AUTO_STYLES="${AUTO_STYLES:-scalping,daytrade,1h,4h,swing,gold,gold-1h,gold-4h,gold-swing}"
+AUTO_CRYPTO="${AUTO_CRYPTO:-BTCUSDT,ETHUSDT,SOLUSDT}"; AUTO_CFD="${AUTO_CFD:-XAUUSD}"
+AUTO_INSTRUMENTS="${AUTO_CRYPTO}${AUTO_CFD:+,$AUTO_CFD}"
+[ "$AUTO_SCANNER" = "1" ] || { echo "$(date -u +%FT%TZ) scanner disabled by /automation" >>"$LOG"; exit 0; }
 # mkdir-based lock (macOS has no flock); a lock older than 5 min is considered stale
 if ! mkdir "$LOCK" 2>/dev/null; then
   if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +5 2>/dev/null)" ]; then rmdir "$LOCK" 2>/dev/null; mkdir "$LOCK" 2>/dev/null || exit 0; else exit 0; fi
@@ -15,13 +39,25 @@ fi
 trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 now() { date -u +%FT%TZ; }
 run_style() { # tf n style recent [symbols]   (symbols from the MT5 bridge are not fetched here: the EA writes them)
-  local tf=$1 n=$2 style=$3 recent=$4 syms=${5:-BTCUSDT,ETHUSDT,SOLUSDT} s out rc
-  if [ "$syms" = "BTCUSDT,ETHUSDT,SOLUSDT" ]; then
-    for s in BTCUSDT ETHUSDT SOLUSDT; do
+  local tf=$1 n=$2 style=$3 recent=$4 syms=${5:-$AUTO_CRYPTO} s out rc keep=""
+  case ",$AUTO_STYLES," in *",$style,"*) ;; *) echo "$(now) $style disabled by /automation" >>"$LOG"; return 0 ;; esac
+  for s in ${syms//,/ }; do case ",$AUTO_INSTRUMENTS," in *",$s,"*) keep="${keep:+$keep,}$s" ;; esac; done
+  [ -n "$keep" ] || { echo "$(now) $style skipped: no enabled instrument (/automation instrument)" >>"$LOG"; return 0; }
+  syms="$keep"
+  if [ "${syms#*XAU}" = "$syms" ] && [ "${syms#*XAG}" = "$syms" ] && [ "${syms#*OIL}" = "$syms" ]; then
+    for s in ${syms//,/ }; do
       bash scripts/fetch-binance-klines.sh "$s" "$tf" "$n" >/dev/null 2>>"$LOG" || echo "$(now) fetch FAIL $s $tf" >>"$LOG"
     done
   else
-    for s in ${syms//,/ }; do [ -s "data/live/mt5-bridge/ohlcv.$s.$tf.json" ] || { echo "$(now) $style skipped: no bridge file for $s $tf" >>"$LOG"; return 0; }; done
+    # The MT5 EA is per-chart: a CFD symbol only has data once a chart running ExportOHLCV is open for it
+    # (SYSTEM-DESIGN.md §12 item 6). Drop the symbols with no export rather than abandoning the whole style.
+    keep=""
+    for s in ${syms//,/ }; do
+      if [ -s "data/live/mt5-bridge/ohlcv.$s.$tf.json" ]; then keep="${keep:+$keep,}$s"
+      else echo "$(now) $style: no bridge file for $s $tf -- symbol skipped" >>"$LOG"; fi
+    done
+    [ -n "$keep" ] || { echo "$(now) $style skipped: no MT5 export on disk for any enabled instrument" >>"$LOG"; return 0; }
+    syms="$keep"
   fi
   out="$(python3 scripts/ict-scan.py --tf "$tf" --n "$n" --style "$style" --recent "$recent" --symbols "$syms" 2>>"$LOG")"; rc=$?
   if [ "$rc" -eq 3 ]; then
@@ -38,8 +74,12 @@ with open("data/live/events.jsonl", "a") as f:
 FORCE="${1:-}"                       # scan-loop.sh all  -> run every style now (manual / first run)
 M=$(date -u +%M); H=$(date -u +%H)
 run_style 1m 180 scalping 4
-case "$M" in 01|16|31|46) run_style 15m 288 daytrade 2; run_style 15m 200 gold 2 XAUUSD ;; esac
-if [ "$M" = "02" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 1D 120 swing 1; run_style 1D 120 gold-swing 1 XAUUSD; fi
-if [ "$FORCE" = "all" ]; then run_style 15m 288 daytrade 2; run_style 1D 120 swing 1; run_style 15m 200 gold 2 XAUUSD; run_style 1D 120 gold-swing 1 XAUUSD; fi
+case "$M" in 01|16|31|46) run_style 15m 288 daytrade 2; run_style 15m 200 gold 2 "$AUTO_CFD" ;; esac
+# 1h styles: minute :02 of every hour. 4h styles: minute :03 of every 4th hour (:03 not :02 so the hourly pass
+# and the 4-hourly pass never contend for the same minute's lock). Swing keeps its original :02 / H%4 slot.
+if [ "$M" = "02" ]; then run_style 1H 240 1h 2; run_style 1H 240 gold-1h 2 "$AUTO_CFD"; fi
+if [ "$M" = "02" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 1D 120 swing 1; run_style 1D 120 gold-swing 1 "$AUTO_CFD"; fi
+if [ "$M" = "03" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 4H 180 4h 2; run_style 4H 180 gold-4h 2 "$AUTO_CFD"; fi
+if [ "$FORCE" = "all" ]; then run_style 15m 288 daytrade 2; run_style 1H 240 1h 2; run_style 4H 180 4h 2; run_style 1D 120 swing 1; run_style 15m 200 gold 2 "$AUTO_CFD"; run_style 1H 240 gold-1h 2 "$AUTO_CFD"; run_style 4H 180 gold-4h 2 "$AUTO_CFD"; run_style 1D 120 gold-swing 1 "$AUTO_CFD"; fi
 # keep the log bounded
 if [ "$(wc -l < "$LOG")" -gt 5000 ]; then tail -n 2000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"; fi

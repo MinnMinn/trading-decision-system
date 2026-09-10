@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# Stage 1 order-submission connector -- Binance SPOT TESTNET only.
-# Design: docs/architecture/SYSTEM-DESIGN.md section 9 (Stage 1: one-tap human-approved execution).
-# Credentials: macOS Keychain via scripts/get-secret.sh -- never passed as CLI args (not even to
-# openssl/curl: argv is visible to every process via `ps`), never printed.
+# Binance SPOT order-submission connector. (File name kept for compatibility -- it is NOT testnet-only any more.)
+# Design: docs/architecture/SYSTEM-DESIGN.md section 9 (Stage 1 /execute) and section 9.x (pilot).
+#
+# ENVIRONMENT: endpoint and credentials come from scripts/trading-env.sh, i.e. from config/env.<environment>
+# where <environment> = docs/architecture/automation-config.json -> execution.environment ("demo" | "real").
+#   demo -> https://testnet.binance.vision (fake funds)      real -> https://api.binance.com (REAL MONEY)
+# Secrets are resolved from macOS Keychain (keychain:... references) or read from the env file; they are never
+# passed as CLI args (argv is visible to every process via `ps`) and never printed. An incomplete environment
+# (placeholder keys) makes this script exit 2 before any request is signed.
 #
 # HARD SCOPE LIMITS (do not silently exceed these):
-#   - Binance SPOT TESTNET only. Not mainnet. Not futures. No SHORT positions (spot has no margin here).
-#   - Every call here is a REAL testnet order (fake funds, real order-matching engine) -- not a simulation.
-#   - This script does not decide whether to trade. It only executes what it's told, after the calling
-#     command (/execute) has already gotten explicit human confirmation. Never call this unattended.
+#   - SPOT only. No SHORT positions (spot has no margin here). Symbols are validated by the caller's allowlist.
+#   - Every call here is a REAL order on whichever environment is active -- never a simulation.
+#   - This script does not decide whether to trade. It only executes what it's told by /execute (after a human
+#     confirmation) or by scripts/demo-pilot.py (rules-only pilot permitted by /automation).
 #
 # Usage:
 #   binance-testnet-order.sh account
@@ -29,10 +34,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BASE_URL="https://testnet.binance.vision"
-
-API_KEY="$("$SCRIPT_DIR/get-secret.sh" trading-system-binance-testnet-api-key)"
-SECRET_KEY="$("$SCRIPT_DIR/get-secret.sh" trading-system-binance-testnet-secret-key)"
+# shellcheck source=trading-env.sh
+source "$SCRIPT_DIR/trading-env.sh" || exit 2
+trading_env_require BINANCE_SPOT_API_KEY BINANCE_SPOT_SECRET_KEY || exit 2
+BASE_URL="$BINANCE_SPOT_BASE_URL"
+API_KEY="$BINANCE_SPOT_API_KEY"
+SECRET_KEY="$BINANCE_SPOT_SECRET_KEY"
 
 _sign() {
   # $1 = query string (without signature). Prints the hex HMAC-SHA256 signature.

@@ -1,9 +1,11 @@
 ---
-description: Separately-permissioned execution step. Stage 1 (Binance SPOT TESTNET only) -- prepares the exact order and submits it only after one explicit human confirmation. Never mainnet, never unattended.
+description: Separately-permissioned manual execution step. Prepares the exact SPOT order on the ACTIVE environment (demo testnet or real mainnet per docs/architecture/automation-config.json -> execution.environment) and submits it only after one explicit human confirmation. Never unattended.
 argument-hint: <trade id, must already exist from /analyze or /entry with a TRADE verdict>
 ---
 
-**Scope, stated plainly:** this command can now place real orders — but **only** on **Binance SPOT TESTNET** (fake funds), **only LONG/BUY setups** (spot has no shorting here), and **only after one explicit human confirmation per trade**. It never touches mainnet, never places an order without that confirmation, and never runs from an unattended/scheduled context — a cloud routine or cron job may prepare and flag a candidate, but the actual submission step always happens in an interactive turn with the human present. This is Stage 1 per `docs/architecture/SYSTEM-DESIGN.md` §9 — not Stage 2. If asked to skip the confirmation step "just this once," refuse and say why.
+**Model gate (SYSTEM-DESIGN.md §14).** This command re-runs risk checks and prepares a real order; it reasons. If you are running as Haiku, stop and tell the user to switch with `/model sonnet` (or higher) before continuing — do not dispatch a subagent here, because the one explicit human confirmation must happen in the same interactive turn as the model that prepared the order.
+
+**Scope, stated plainly:** this command places a real SPOT order on the **active environment** — `demo` (Binance TESTNET, fake funds) or `real` (Binance MAINNET, real money), as set in `docs/architecture/automation-config.json` → `execution.environment` and `config/env.<environment>` (`/automation env` shows which). **Only LONG/BUY setups** (spot has no shorting here), and **only after one explicit human confirmation per trade**. It never places an order without that confirmation and never runs from an unattended/scheduled context — a cloud routine or cron job may prepare and flag a candidate, but the actual submission step always happens in an interactive turn with the human present (the unattended path is the pilot via `/automation`, not this command). **Say which environment the order goes to, in the confirmation prompt, every time**, and when it is `real` write "REAL MONEY" in plain words. If asked to skip the confirmation step "just this once," refuse and say why.
 
 ## Procedure
 

@@ -12,7 +12,7 @@ This document is the single source of truth for how the system's Skills, Agents,
 - Capital preservation > decision quality > consistency > expectancy > continuous improvement, in that order, always.
 - Confluence Score (0–100) is a **decision-quality** measure, not a win-probability estimate, until statistically calibrated.
 - Missing data is never confirmation. A methodology requirement that cannot be evidenced is a failed requirement, not a neutral one.
-- Analysis and execution are separately permissioned. `/execute` is the only command that can even attempt to move toward a live action. **Stage 1 (built, `scripts/binance-testnet-order.sh`, verified end-to-end against real Binance SPOT TESTNET order matching):** it can place real testnet orders, but only after one explicit human confirmation per trade, only on BTCUSDT/ETHUSDT/SOLUSDT LONG setups, and never from an unattended/scheduled context (§9).
+- Analysis and execution are separately permissioned. Two execution paths exist: `/execute` (manual, one explicit human confirmation per trade, SPOT LONG only, BTCUSDT/ETHUSDT/SOLUSDT) and the rules-only pilot started by `/automation` (unattended, §9.x). Both trade the **active environment** — `demo` (Binance TESTNET) or `real` (Binance MAINNET, real money) — selected by `docs/architecture/automation-config.json` → `execution.environment` and the credentials in `config/env.<environment>` (user decision 2026-09-10: the environment is the human's switch; nothing in the code refuses mainnet on policy grounds any more). An environment file with placeholder secrets refuses to execute (correctness, exit 2).
 - No Forex, ever. No instrument outside {BTC, ETH, SOL, XAUUSD, XAGUSD, USOIL/UKOIL} without explicit user approval.
 
 ## 2. Data flow (maps onto the master spec's 12-step pipeline)
@@ -55,7 +55,7 @@ Every box above is implemented by a named Skill/Agent/Command in §§4–9. Noth
 Full contract: `docs/architecture/data-sources.md`. Summary:
 
 - **Crypto market data — LIVE.** `scripts/fetch-binance-klines.sh` pulls real Binance public REST data (no API key needed), verified against BTCUSDT/ETHUSDT/SOLUSDT. Written to `data/live/market-data/`.
-- **Commodities market data — bridge built, untested against a real terminal.** An MT5 file-bridge (`integrations/mt5/ExportOHLCV.mq5` writing to `data/live/mt5-bridge/`) replaces the earlier "third-party provider TBD" plan — see `docs/architecture/mt5-bridge.md`. Caps XAUUSD/XAGUSD/USOIL/UKOIL analysis at 2 of 4 dimensions (Wyckoff + ICT only — Footprint/Heatmap need CoinGlass, which doesn't cover commodities), so NORMAL mode is the ceiling for these instruments until an order-flow source for MT5 markets exists. TradingView MCP was considered and dropped: TradingView has no official public data API, and the community MCP servers for it rely on browser automation or unofficial scraping. See `docs/architecture/data-sources.md` for the full rationale.
+- **Commodities market data — bridge built, untested against a real terminal.** An MT5 file-bridge (`integrations/mt5/ExportOHLCV.mq5` writing to `data/live/mt5-bridge/`) replaces the earlier "third-party provider TBD" plan — see `docs/architecture/mt5-bridge.md`. Caps XAUUSD/XAGUSD/USOIL/UKOIL analysis at 2 of 4 dimensions (Wyckoff + ICT only — Footprint/Heatmap need CoinGlass, which doesn't cover commodities), so NORMAL mode is the ceiling for these instruments until an order-flow source for MT5 markets exists. The bridge feeds four scanner styles — `gold` (15m×200), `gold-1h` (1H×240), `gold-4h` (4H×180), `gold-swing` (1D×120) — and no 1m style, because the EA exports 1D/4H/1H/15m only for one charted symbol at a time (§12 item 6). TradingView MCP was considered and dropped: TradingView has no official public data API, and the community MCP servers for it rely on browser automation or unofficial scraping. See `docs/architecture/data-sources.md` for the full rationale.
 - **CoinGlass** — footprint history, liquidation heatmap, orderbook heatmap, delta/CVD, open interest, funding. No API key configured yet — still MOCK.
 - `mock/market-data/` and `mock/coinglass/` remain available for deliberate rehearsal runs even after real connectors exist — same field shape, so Skills never change regardless of which mode is active.
 - **Every** Data Validation Status report (§4.1 in WyckoffSkill/FootprintSkill/HeatmapSkill, and the shared status block emitted by every command) MUST show a 4th state, **MOCK**, distinct from AVAILABLE/UNAVAILABLE/STALE, whenever fixture data is in use — this is a hard rule, not a style choice, so a mock-mode run can never be mistaken for a live-confirmed one. See `docs/architecture/data-sources.md` §"Mock-mode integrity rule".
@@ -64,9 +64,9 @@ Full contract: `docs/architecture/data-sources.md`. Summary:
 
 | Skill | Owns | Reads |
 |---|---|---|
-| **WyckoffSkill** | Phase ID, Spring/Upthrust typing, Trading-Range/fractality reads, Effort-vs-Result, SOT | `knowledge/08-wyckoff-and-modern-tools.md`, `knowledge/01-03` (Footprint course's Wyckoff content) |
-| **ICTSkill** | Market structure (MSS/BOS/CHOCH/CISD), OB/FVG/Breaker/Mitigation, liquidity (IRL/ERL), OTE, premium/discount, killzones, SMT, PO3/AMD, TTrades models | `knowledge/04-06` |
-| **FootprintSkill** | Order-flow read: POC, R/H/R/L, Imbalance/Stacked Imbalance, Absorption/Exhaustion/Development, Delta/Cumulative-Delta divergence, Tape Reading (Bar-by-Bar/Analog/Swing-by-Swing) | `knowledge/01-03`, `knowledge/08` §3 |
+| **WyckoffSkill** | Phase A–E event walk, the đối nhãn mislabelling tests, CO plan, Spring/Upthrust typing in two separate fields, Trading-Range/fractality reads, Effort-vs-Result, tape reading (spread×volume), SOT, structural absorption, Urgent Demand, **and Volume Profile (VAH/VAL/LVN/VPOC) including its abandon-rule veto** | **`knowledge/07-wyckoff-advance.md` (primary)**, `knowledge/10-integrated-method.md` §2 (procedure), `knowledge/08` §2.6–2.7 (Spring/Upthrust types), `knowledge/01-03` (second author's Wyckoff content) |
+| **ICTSkill** | Market structure (MSS/CISD — **not** BOS/CHOCH, which are unsourced), OB/FVG/Breaker/Mitigation, liquidity (IRL/ERL), OTE, premium/discount, session timing per `session-model.md`, SMT, PO3/AMD, TTrades models. **Does not own Volume Profile** — it consumes WyckoffSkill's verdict | `knowledge/04-06`, `knowledge/09-wyckoff-ict-mapping.md` (de-duplication), `knowledge/10` §4 |
+| **FootprintSkill** | Order-flow read: POC, R/H/R/L, Imbalance/Stacked Imbalance, Absorption/Exhaustion/Development, Delta/Cumulative-Delta divergence, Tape Reading with Delta | `knowledge/08` §3–§5 (primary), `knowledge/01-03`, `knowledge/10` §3 (event→signature bridge) |
 | **HeatmapSkill** | Liquidation clusters, orderbook liquidity, liquidity sweeps/targets — **no dedicated source doc exists**; this skill's rules come from the master spec only (flagged gap, see `docs/architecture/data-sources.md`) | CoinGlass (real/mock) |
 | **RiskSkill** | Position sizing, R:R calc, max-risk enforcement, consecutive-loss throttle | `docs/architecture/schemas/risk-calculation.schema.json` |
 | **JournalSkill** | Writes/updates the per-trade record; generates Edge Log and Mistake-DB rollup views | `trades/*.md`, `docs/architecture/schemas/trade-file.schema.json` |
@@ -94,6 +94,8 @@ Each of Wyckoff/ICT/Footprint/Heatmap can contribute **at most once** to the "ho
 1. Its required input data is `AVAILABLE` (not `MOCK`, not `STALE`, not `UNAVAILABLE`) for a **live** trade decision — `/analyze` in mock mode may still run for rehearsal/testing, but its own output must say "SIMULATED — not eligible to satisfy a live methodology-mode requirement," and
 2. It produced a concrete, cited observation (not "no contradiction found").
 
+**Wyckoff/ICT independence is not automatic (added 2026-09-10).** `knowledge/04`–`06` contain **no volume of any kind**, so volume is the only genuinely orthogonal axis between the Wyckoff and ICT dimensions — everything else the two traditions appear to confirm in each other is price geometry read twice (`knowledge/09-wyckoff-ict-mapping.md` §3, `knowledge/10-integrated-method.md` §4.1). Before both dimensions score the same location or the same structural break, StructureAgent MUST print the Wyckoff event-derived price and the ICT swing-derived price and state whether they differ. If they are the same level, the phenomenon scores in **one** dimension only, per the assignment rules in `knowledge/10` §4.3 (Wyckoff owns the excursion and its volume typing; ICT owns the structural break and the location sub-levels). On tick-volume feeds (the MT5 bridge — XAUUSD/XAGUSD/USOIL/UKOIL) the two dimensions are close to non-independent and Wyckoff credit must be reduced rather than both scored at face value.
+
 Methodology Mode minimums (unchanged from the master spec): NORMAL ≥2, ENHANCED ≥3, STRICT ≥3 explicitly-selected + zero unresolved high-impact contradictions. If the count is unmet, DecisionAgent must return **NO TRADE**, full stop — it may not add a methodology just to reach the count (hard rule).
 
 ### 6.2 Confluence Score — rubric
@@ -106,10 +108,12 @@ Methodology Mode minimums (unchanged from the master spec): NORMAL ≥2, ENHANCE
 4. `final_score = max(0, raw_pct + penalty_total)`, where `penalty_total` is the (negative) sum of contradiction penalties in percentage points — e.g. `raw_pct = 82`, one high-impact contradiction `penalty_total = −20` → `final_score = 62`. (Sign convention matches `schemas/confluence-score.schema.json`: `penalty_total ≤ 0`.) Compare against the flat mode threshold (70/80/85) — this comparison is now meaningful at any engaged-dimension count.
 
 Per-dimension partial credit (illustrative point allocation inside each dimension's 25; a Skill's own procedure is the authority on what evidence maps to which bucket):
-- **Wyckoff (25):** phase clarity (0–8), Spring/Upthrust type & quality (0–10), Effort-vs-Result / SOT alignment (0–7).
-- **ICT (25):** HTF bias alignment (0–8), structure/location quality — OB/FVG/liquidity/OTE (0–10), timing — killzone/PO3/AMD alignment (0–7).
+- **Wyckoff (25):** phase clarity **after the đối nhãn mislabelling tests** (`knowledge/07` §2.11) (0–8), event identification and typing quality in both vocabularies (0–10), Effort-vs-Result / tape-reading / SOT evidence (0–7). The volume component is **reduced on tick-volume feeds** (MT5 bridge) — see the independence rule below.
+- **ICT (25):** HTF structural falsification check (0–8), structure/location quality — OB/FVG/liquidity/OTE (0–10), timing per `docs/architecture/session-model.md` weight classes (0–7). Score **after** applying the Wyckoff/ICT de-duplication rules (`knowledge/10` §4.3).
 - **Footprint (25):** absorption/exhaustion/development read (0–10), Delta/Cumulative-Delta divergence strength (0–8), Tape-Reading case alignment (0–7).
 - **Heatmap (25):** liquidity-sweep/target alignment (0–10), liquidation-cluster interaction (0–8), orderbook positioning (0–7).
+
+**Numeric thresholds live in `docs/architecture/analysis-params.json`**, split into a `sourced` block (page-cited values from the books) and a `project_defined` block (values no source gives — low/high volume, narrow/wide spread, commitment bars, the same-level tolerance for the de-duplication check, the tick-volume credit multiplier). Outputs must label `project_defined` values as project parameters. They are the tuning surface for `/improve`.
 
 **Score threshold AND dimension-count minimum are both required, independently** — `dimension_count_met` (engaged_count ≥ mode minimum) is a separate boolean gate from `threshold_met` (final_score ≥ mode threshold). `verdict = TRADE` requires **both** true, plus no blocking event-risk contradiction. This still closes the original loophole (one dimension alone can't "buy" a pass, since a lone engaged dimension can never meet a ≥2 count minimum) without breaking STRICT mode's math.
 
@@ -119,6 +123,7 @@ Per-dimension partial credit (illustrative point allocation inside each dimensio
 
 ### 6.3 Regime and Event-Risk gates (run before scoring, not after)
 - Market Regime = TRENDING / RANGING / TRANSITIONAL / UNCLEAR, per StructureAgent's read. If UNCLEAR and the candidate setup is regime-dependent (e.g. a range-Spring thesis inside what might actually be a strong trend), DecisionAgent must reduce the Wyckoff/ICT dimension credit or return NO TRADE — never silently assume RANGING.
+- Volume-Profile abandon rule = FIRED / NOT FIRED, per WyckoffSkill (`knowledge/08` §5 Step 4, WMT p243–p249). If price crossed cleanly through VAH/VAL into the LVN **without a reversal reaction**, the Spring/Upthrust thesis is dead: return NO TRADE. This is a veto evaluated before scoring, not a point deduction — it is the strongest thesis-invalidation statement in either source tradition, and Volume Profile belongs to the Wyckoff dimension by user decision 2026-09-10.
 - Event Risk = HIGH / MODERATE / LOW, checked against **`docs/architecture/event-calendar.md`** — a small, human-maintained list of upcoming high-impact events (CPI, FOMC, NFP, Fed speeches, EIA/OPEC, major scheduled crypto events) with dates and blackout windows. This file has no automatic feed in v1; the user (or LearningSkill, via `/improve`, never silently) updates it. If the file is stale (no entry covering the current date) or absent, Event Risk must be reported `UNKNOWN`, not `LOW` — an unmaintained calendar is a data-quality gap, not a clean bill of health. HIGH inside the pre-event window forces the −20 penalty above regardless of everything else, and should usually still resolve to NO TRADE / WAIT even at a high raw score, per the master spec's explicit "never treat technically perfect pre-event structure as automatically safe."
 
 ## 7. RiskAgent / RiskSkill — position sizing and hard limits
@@ -151,7 +156,7 @@ review fields listed above plus `market`, `source`, `timeframe`, `leverage`, `pl
 `slippage_bps`, `hold_minutes`, `exit_type`, `thesis`, `plan_vs_actual`, `exchange_refs`; `confluence_score` may be
 null for rules-only pilot trades.
 
-## 9. Commands (11)
+## 9. Commands (12)
 
 | Command | Pipeline steps it runs | Can it move toward execution? |
 |---|---|---|
@@ -165,6 +170,7 @@ null for rules-only pilot trades.
 | `/status` | Data Validation snapshot + open-position summary + rollup views | No |
 | `/review` | Post-Trade Review (§26) on a closed trade | No |
 | `/improve` | LearningAgent's Observe→Propose loop (§29–31), always outputs KEEP/TEST/ADOPT/REJECT, never silently changes rules | No |
+| `/automation` | Configuration, plus the one process action below. Turns the three real background layers on/off (layer 1 scanner `scripts/scan-loop.sh`, layer 2 local read `scripts/local-eval-brief.py`, Stage-2 testnet pilot `scripts/demo-pilot.py`) and scopes them **per market** (`crypto` / `cfd`) by Confluence dimension (§6.2), timeframe and instrument. `(market, timeframe)` resolves to the chart-style vocabulary: crypto 1m/15m/1h/4h/1D → `scalping` / `daytrade` / `1h` / `4h` / `swing`; cfd 15m/1h/4h/1D → `gold` / `gold-1h` / `gold-4h` / `gold-swing` (no cfd 1m — §12 item 6; no cfd footprint/heatmap keys at all — §12 item 3). Writes `docs/architecture/automation-config.json` (`schema_version: 2`, schema `schemas/automation-config.schema.json`) through its single writer `scripts/automation.py` (§13 rule 3), with a who/when/what audit trail including refusals. `status` is the default and is safe to run at any time; `demo` is a one-command preset. | **It writes flags, and it may start/stop the TESTNET pilot when the human asks in-session.** `/automation demo` and `/automation pilot start` are that ask (§9.x); Claude never *schedules* the pilot and never loads the launchd plist. `pilot start` refuses (exit 2) on master-off, `layers.pilot` off, `markets.crypto` off, `execution.account != demo_testnet`, a present `STOP` file, or any pilot loop already running — including an unrecorded one the user started by hand. `off` / `pilot stop` drop the `data/live/pilot*/STOP` kill switches and never remove them again. `execution.account` is **hand-edited by the user**; `automation.py` only reads it, and `real` is refused with the explanation that only the pilot is account-gated at all — the scanner and local read place no orders in any account. Mainnet execution stays prohibited (§1, §12 item 4). Forex and any off-allowlist instrument are refused outright (§1). |
 | `/execute` | Separately-permissioned; see below | **Stage 1 — built and verified.** (a) requires one explicit human confirmation per trade, distinct from a prior `/analyze` TRADE verdict, (b) re-runs RiskAgent's hard checks one last time, (c) on confirmation, submits a real market-buy + OCO exit bracket to **Binance SPOT TESTNET** via `scripts/binance-testnet-order.sh` (fake funds; verified against real order matching, not a simulation). Scope limits: testnet only, LONG-only (no spot shorting), BTCUSDT/ETHUSDT/SOLUSDT only, never runs unattended — a scheduled/cloud context may flag a candidate but the human-confirmation step always happens interactively. Mainnet, MT5 execution, or removing the per-trade confirmation (Stage 2) are all separate, larger decisions requiring their own explicit authorization and, for mainnet, Security review. |
 
 ## 10. Hooks — honest mapping to what Claude Code actually supports
@@ -185,8 +191,9 @@ LearningAgent may propose changes to scoring weights, thresholds, or methodology
 1. **No Heatmap source document** exists in `docs/` — HeatmapSkill's rules come only from the master prompt text, not from an ingested reference. If the user adds a Heatmap/liquidity book or course to `docs/`, ingest it before trusting HeatmapSkill's outputs at STRICT mode.
 2. **CoinGlass is still MOCK** — no API key configured yet. Crypto market data itself is now LIVE (Binance connector, verified). The MT5 commodities bridge is **live and verified for XAUUSD** (2026-09-10; UTC timestamps, tick-volume caveat) — see `docs/architecture/mt5-bridge.md`; XAGUSD/USOIL/UKOIL need the EA attached to one chart each. No `/analyze` output using MOCK/untested sources can be treated as a live, tradeable signal; every such output must say so plainly.
 3. **XAUUSD/XAGUSD/USOIL/UKOIL are structurally capped at NORMAL mode** even once the MT5 bridge is live and CoinGlass is connected — Footprint and Heatmap dimensions have no data source for commodities (CoinGlass is crypto-derivatives-only), so only Wyckoff + ICT (2 of 4 dimensions) can ever be engaged for these instruments in the current design. This is a structural limit, not a temporary gap — closing it would require finding or building a genuine order-flow/liquidity source for MT5 markets.
-4. **Execution is live on Binance TESTNET only** — SPOT (`scripts/binance-testnet-order.sh`, LONG-only) and USDT-M FUTURES (`scripts/binance-futures-testnet-order.sh`, long/short, ISOLATED, leverage ≤ 3), credentials in macOS Keychain via `scripts/get-secret.sh <name> [account]` — mainnet and MT5 execution remain unbuilt by design; wiring either is separate, larger scope requiring explicit authorization and, for mainnet specifically, Security review first (real credential/secret-handling + real financial trust boundary, not a demo).
+4. **Execution environments (user decision 2026-09-10).** The two Binance connectors — SPOT (`scripts/binance-testnet-order.sh`, LONG-only; file name kept for compatibility) and USDT-M FUTURES (`scripts/binance-futures-testnet-order.sh`, long/short, ISOLATED, leverage ≤ 3) — are **environment-driven**: endpoint and credentials come from `config/env.<environment>` through `scripts/trading-env.sh` / `scripts/trading_env.py`, where `<environment>` is `execution.environment` in `automation-config.json` (`demo` = testnet.binance.vision / testnet.binancefuture.com, fake funds; `real` = api.binance.com / fapi.binance.com, **real money**). `config/env.demo` points at the Keychain entries already in use; `config/env.real` ships with `__FILL_ME__` placeholders and every execution path refuses (exit 2) until they are replaced. Both files are gitignored; only `config/env.example` is committed. **MT5 execution remains unbuilt** — the env files carry MT5 account fields for a future connector, but today the MT5 side is data-only (item 6). Verification status: the environment refactor was written without being able to run it in the authoring session (the auto-mode classifier blocked Bash); `scripts/verify-automation-v3.sh` is the acceptance test to run before the first real tick.
 5. **Account equity is user-supplied, not fetched** — RiskSkill has no live balance source in v1.
+6. **CFD coverage is XAUUSD-only and 15m-and-slower** (noted 2026-09-10 for later improvement, not resolved). `integrations/mt5/ExportOHLCV.mq5` is a **per-chart** EA (`g_symbol = _Symbol`) and exports **1D/4H/1H/15m only**. Two consequences, both structural until someone opens more charts or changes the EA: (a) XAGUSD/USOIL/UKOIL have **no data at all** until a chart running the EA is open for each one — today only XAUUSD is exported (`data/live/mt5-bridge/`), which is why the scanner's `gold*` styles pass the enabled CFD instrument list explicitly and skip a symbol with no bridge file; (b) there is **no CFD scalping**: no 1m export means no 1m style, consistent with `analysis-params.json` `timing.min_timeframe_minutes = 15`. Combined with item 3 (Footprint/Heatmap have no CFD source), this is why the v2 automation schema gives `markets.cfd` **no `1m` timeframe key and no `footprint`/`heatmap` dimension keys** (`additionalProperties: false`): the impossible states are absent from the shape rather than being flags that can be set and then silently ignored. Closing (a) is operational (attach the EA to one chart per symbol, raise `InpBarsToExport` to ≥300 for a 288-bar 15m window); closing (b) would require a genuinely different export path.
 
 ### 9.x Stage-2 demo pilot (2026-09-09, user-authorised, 24 h, SPOT TESTNET)
 
@@ -198,12 +205,28 @@ losses or −2% day. `scripts/pilot-loop.sh` runs it every 15 min; `data/live/pi
 (or `PILOT_MARKET=futures scripts/pilot-loop.sh`) runs the same rules LONG and SHORT on Binance **USDT-M FUTURES TESTNET**
 through `scripts/binance-futures-testnet-order.sh` — ISOLATED margin, leverage 3 (connector refuses more), MARKET entry,
 STOP_MARKET + TAKE_PROFIT_MARKET `closePosition` exits on MARK_PRICE, state in `data/live/pilot-futures/`. SHORT mirrors
-LONG: premium, BSL/ERL-high sweep, bearish MSS, bearish FVG, stop above the swept high. Keys live in Keychain account
-`binance-futures-testnet` (see the connector header); the assistant never sees them. Claude Code's auto-mode classifier
-refuses to *schedule* unattended order placement (correctly), so the loop is run by the user in a separate
-terminal (or installed by the user as `integrations/launchd/com.tyme.trading.pilot.plist`; the assistant never loads
-it); Claude only schedules read-only reports. The host must not sleep during the window (`caffeinate -di`): on
-2026-09-10 a sleeping Mac froze the loop for 6 h. This pilot does not change the Stage-1 rule for mainnet.
+LONG: premium, BSL/ERL-high sweep, bearish MSS, bearish FVG, stop above the swept high. Credentials come from the
+active environment file (item 4 of §12; Keychain references by default); the assistant never sees them.
+
+**Lifecycle (user decision 2026-09-10 — `/automation on|off` must behave like power on / power off):** `/automation on`
+(or `demo` / `real`, which also set `execution.environment`) installs and bootstraps launchd agents — `com.tyme.trading.scanner`
+and one `com.tyme.trading.pilot[.futures]` per market in `PILOT_MARKETS` of the env file (KeepAlive, `PILOT_END=never`) — starts a
+`caffeinate -dims` keep-awake, removes stale `STOP` files (on = re-arm), and reports whether the MT5 bridge is fresh (open
+MetaTrader 5 first; CFD styles simply skip until it is). While the agents stay installed they also come back at login after a
+reboot. `/automation off` writes the `STOP` files, boots the agents out **and deletes their plists** from `~/Library/LaunchAgents`,
+and kills the keep-awake, so the machine is in the same state as after a shutdown. Every tick of the loop re-reads
+`automation-config.json`, so flags flipped while it runs take effect within 15 min without a restart. `pilot start` refuses a
+duplicate (a loop already running, including one started by hand, detected with `pgrep`) and an incomplete environment file.
+The host must not sleep during the window: on 2026-09-10 a sleeping Mac froze the loop for 6 h, which is why `on` starts
+`caffeinate`. `/execute` (manual, one confirmation) and this pilot (unattended) are the two execution paths; both trade the
+active environment.
+
+**What `on` does NOT cover by itself: the Claude-side chart layers.** The Sonnet local reads (layer 2), the daily full
+analyses (layer 3) and the scalping publish tick are session crons (`CronCreate`, in-memory, 7-day expiry). Their
+prompts are versioned in `integrations/crons/*.md`; `/automation on|demo|real` re-creates them in the current session
+through `scripts/cron-templates.py` and `/automation off` deletes them (`.claude/commands/automation.md` steps 7–8).
+They stop when the Claude session closes; the launchd scanner and the pilot do not. Moving these layers to launchd
+(`claude -p` headless) is an open item, not done.
 
 ## 13. Three-layer market read and the "numbers from code" rule (2026-09-10)
 
@@ -226,3 +249,28 @@ agent working on the charts:
    short setup that price had already invalidated by the time it was published.
 5. **Background means outside the Claude session.** Scanner (`integrations/launchd/com.tyme.trading.scanner.plist`)
    and pilot loop survive session restarts; Claude does judgement and publishing only.
+
+## 14. Model policy (user decision 2026-09-10)
+
+**Haiku displays; it never reasons.** Every step that analyses, scores, judges or maps an analysis into structured
+fields runs on Sonnet or higher. Haiku is permitted for exactly one thing: relaying `scripts/automation.py` output
+under `/automation`. This is enforced in files, not by convention:
+
+1. **Agents pin their model.** Every analysis agent in `.claude/agents/` (`structure-agent`, `flow-agent`,
+   `liquidity-agent`, `risk-agent`, `learning-agent`) carries `model: sonnet` in its frontmatter, so a dispatch from a
+   Haiku session still runs on Sonnet. A new agent that reasons must pin a model; inheriting the session model is a bug.
+2. **Reasoning commands carry a model gate.** `/analyze`, `/bias`, `/entry`, `/exit`, `/invalidate`, `/review`,
+   `/improve`, `/risk`, `/journal` and `/status` open with the same instruction: if the session model is Haiku, do not
+   run the procedure in-session; dispatch one `general-purpose` subagent with `model: sonnet` to run the command with
+   the same arguments and relay its output verbatim. `/execute` instead stops and asks the user to switch with
+   `/model`, because the one explicit human confirmation must occur in the same interactive turn as the model that
+   prepared the order.
+3. **`/automation` is display-only.** Haiku may run it. On a `!` warning or `REFUSED` it relays verbatim and suggests
+   `/model sonnet`; it does not interpret.
+4. **Background layers.** The scanner and the pilot are Python with no model. The local read (layer 2) and the full
+   analysis (layer 3) are Sonnet agents (`data-sources.md`, three-layer table). Publish ticks may be Haiku because
+   they copy, patch and publish; they do not judge (§13 rule 1 is what makes that safe).
+
+Rationale: on 2026-09-09/10 a Haiku bounded refresh produced a wrong verdict for 9 h by comparing price to the
+wrong reference (§13 rule 1). The cost saved by Haiku on the few display-only commands is small; the cost of a
+misread in an analysis step is a trade.

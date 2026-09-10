@@ -12,14 +12,18 @@ Storage design: `docs/architecture/SYSTEM-DESIGN.md` §8. Format: `trades/README
 ### Writing a new trade (at plan time, from `/analyze` or `/journal`)
 1. Allocate an id: `<YYYY-MM-DD>-<INSTRUMENT>-<seq>` (seq increments per instrument per day).
 2. Write `trades/<id>.md` with YAML frontmatter matching the schema exactly — every required field present, `status: PLANNED` (or `OPEN` if entry already filled), `rehearsal_mode: true` if any data source feeding this decision was `MOCK`.
-3. Body = the full Decision Output (master spec §23) verbatim, not summarized.
-4. Regenerate `trades/index.jsonl` (step below).
+3. Record the structural read in its two dedicated objects (added 2026-09-10):
+   - `wyckoff_event` — `phase`, `structure`, `event_class`, `volume_type`, `doi_nhan_tested`, `naming_conflict`. **`event_class` and `volume_type` stay separate fields**; do not merge them into `setup_type` prose. `doi_nhan_tested: false` means the phase call was a hypothesis, and the record must say so.
+   - `contradictions` — every contradiction StructureAgent raised, with its category. The `shakeout_vs_displacement` and `wyckoff_ict_same_level` categories exist so `/improve` can count recurrences; leave `outcome_side` null at plan time.
+4. Body = the full Decision Output (master spec §23) verbatim, not summarized.
+5. Regenerate `trades/index.jsonl` (step below).
 
 ### Updating on close (from `/review`)
 1. Read the existing trade file, don't create a new one.
 2. Fill `date_closed`, `status: CLOSED`, `result`, `r_multiple`, `mfe`, `mae`, `exit_reason`, `root_cause`, `is_mistake` (true if `root_cause` is anything other than `n/a_win_as_planned` AND the trade was a loss or a mismanaged win), `lessons`.
-3. Append the Post-Trade Review section to the body per `trades/README.md`'s template.
-4. Regenerate `trades/index.jsonl`.
+3. **Fill `outcome_side` on every logged contradiction** — `wyckoff_was_right`, `ict_was_right`, `neither`, or `unknown`. This is the field that eventually settles the unresolved Shakeout-versus-displacement case (`knowledge/10-integrated-method.md` §7 decision 3); leaving it null keeps that question open indefinitely.
+4. Append the Post-Trade Review section to the body per `trades/README.md`'s template.
+5. Regenerate `trades/index.jsonl`.
 
 ### Tooling
 Use `python3 scripts/journal.py` for every mechanical step below (`sync-pilot`, `review`, `index`, `views`, `stats`,

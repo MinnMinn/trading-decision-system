@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Stage-2 DEMO connector -- Binance USDT-M FUTURES TESTNET only (https://testnet.binancefuture.com).
-# Design: docs/architecture/SYSTEM-DESIGN.md §9.x (Stage-2 demo pilot) and §12 item 4.
-# Credentials: macOS Keychain via scripts/get-secret.sh, account "binance-futures-testnet":
-#   security add-generic-password -a binance-futures-testnet -s trading-system-binance-futures-testnet-api-key    -w '<KEY>'
-#   security add-generic-password -a binance-futures-testnet -s trading-system-binance-futures-testnet-secret-key -w '<SECRET>'
-# (keys come from https://testnet.binancefuture.com -> API Key; never paste them into chat). Never in argv, never printed.
+# Binance USDT-M FUTURES connector. (File name kept for compatibility -- it is NOT testnet-only any more.)
+# Design: docs/architecture/SYSTEM-DESIGN.md §9.x (pilot) and §12 item 4.
+#
+# ENVIRONMENT: endpoint and credentials come from scripts/trading-env.sh, i.e. from config/env.<environment>
+# where <environment> = docs/architecture/automation-config.json -> execution.environment ("demo" | "real").
+#   demo -> https://testnet.binancefuture.com (fake funds)   real -> https://fapi.binance.com (REAL MONEY)
+# Secrets are resolved from macOS Keychain (keychain:... references in the env file) or read from the env file;
+# never in argv, never printed. An incomplete environment (placeholder keys) exits 2 before any request is signed.
 #
 # HARD SCOPE LIMITS (enforced below, do not silently exceed):
-#   - FUTURES TESTNET only (fake funds, real matching engine). Never fapi.binance.com.
 #   - Symbols: BTCUSDT / ETHUSDT / SOLUSDT only. ISOLATED margin. Leverage <= MAX_LEVERAGE.
 #   - Every order here is a REAL testnet order. This script does not decide to trade; the caller
 #     (demo-pilot.py --market futures, or /execute after a human confirmation) does.
@@ -27,8 +28,9 @@
 # On any Binance rejection the error JSON is printed to stderr and the script exits nonzero.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BASE_URL="https://testnet.binancefuture.com"
-KEYCHAIN_ACCOUNT="binance-futures-testnet"
+# shellcheck source=trading-env.sh
+source "$SCRIPT_DIR/trading-env.sh" || exit 2
+BASE_URL="$BINANCE_FUTURES_BASE_URL"
 MAX_LEVERAGE=3
 ALLOWED_SYMBOLS="BTCUSDT ETHUSDT SOLUSDT"
 
@@ -38,8 +40,9 @@ _check_symbol() {
 API_KEY=""; SECRET_KEY=""
 _need_keys() {
   [ -n "$API_KEY" ] && return 0
-  API_KEY="$("$SCRIPT_DIR/get-secret.sh" trading-system-binance-futures-testnet-api-key "$KEYCHAIN_ACCOUNT" 2>/dev/null)" || { echo "No futures-testnet API key in Keychain (account $KEYCHAIN_ACCOUNT). See header of this script." >&2; exit 3; }
-  SECRET_KEY="$("$SCRIPT_DIR/get-secret.sh" trading-system-binance-futures-testnet-secret-key "$KEYCHAIN_ACCOUNT" 2>/dev/null)" || { echo "No futures-testnet secret key in Keychain." >&2; exit 3; }
+  trading_env_require BINANCE_FUTURES_API_KEY BINANCE_FUTURES_SECRET_KEY || exit 2
+  API_KEY="$BINANCE_FUTURES_API_KEY"
+  SECRET_KEY="$BINANCE_FUTURES_SECRET_KEY"
 }
 _sign() {
   BINANCE_SECRET="$SECRET_KEY" python3 -c '
@@ -92,8 +95,9 @@ case "$cmd" in
   check)
     _public_get "${BASE_URL}/fapi/v1/ping" >/dev/null && echo "ping: ok ($BASE_URL)"
     _public_get "${BASE_URL}/fapi/v1/time" | python3 -c 'import json,sys,time; t=json.load(sys.stdin)["serverTime"]; print("server time:", t, "| skew ms:", int(time.time()*1000)-t)'
-    for n in trading-system-binance-futures-testnet-api-key trading-system-binance-futures-testnet-secret-key; do
-      if security find-generic-password -a "$KEYCHAIN_ACCOUNT" -s "$n" >/dev/null 2>&1; then echo "keychain $n: present"; else echo "keychain $n: ABSENT"; fi
+    echo "environment: ${TRADING_ENV_ACTIVE} (config/env.${TRADING_ENV_ACTIVE})"
+    for n in BINANCE_FUTURES_API_KEY BINANCE_FUTURES_SECRET_KEY; do   # presence only -- values are never printed
+      v="${!n:-}"; if [ -n "$v" ] && [ "$v" != "__FILL_ME__" ]; then echo "$n: present"; else echo "$n: ABSENT (empty, placeholder, or an unresolvable keychain: reference)"; fi
     done ;;
   exchange-info) _check_symbol "${2:?}"; _public_get "${BASE_URL}/fapi/v1/exchangeInfo" | python3 -c '
 import json,sys; d=json.load(sys.stdin); print(json.dumps([s for s in d["symbols"] if s["symbol"]==sys.argv[1]][0], indent=1))' "$2" ;;

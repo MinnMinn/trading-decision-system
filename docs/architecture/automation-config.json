@@ -1,0 +1,547 @@
+{
+  "schema_version": 3,
+  "_comment": "Written by scripts/automation.py (/automation). execution.environment may ALSO be edited by hand to switch between config/env.demo and config/env.real; `/automation demo|real` writes it too. The schema at docs/architecture/schemas/automation-config.schema.json is the contract.",
+  "enabled": true,
+  "execution": {
+    "environment": "demo",
+    "_note": "demo = Binance TESTNET via config/env.demo; real = Binance MAINNET (real money) via config/env.real. Switch by hand here or with `/automation demo|real`. The connectors and the pilot read this on every call; an environment file with placeholder secrets refuses to execute."
+  },
+  "markets": {
+    "crypto": {
+      "enabled": true,
+      "instruments": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "dimensions": {
+        "wyckoff": true,
+        "ict": true,
+        "footprint": true,
+        "heatmap": true
+      },
+      "timeframes": {
+        "1m": true,
+        "15m": true,
+        "1h": true,
+        "4h": true,
+        "1D": false
+      }
+    },
+    "cfd": {
+      "enabled": true,
+      "instruments": [
+        "XAUUSD"
+      ],
+      "dimensions": {
+        "wyckoff": true,
+        "ict": true
+      },
+      "timeframes": {
+        "15m": true,
+        "1h": true,
+        "4h": true,
+        "1D": false
+      }
+    }
+  },
+  "layers": {
+    "scanner": true,
+    "local_read": true,
+    "pilot": true
+  },
+  "services": {
+    "scanner_agent": false,
+    "pilot_agents": [
+      "com.tyme.trading.pilot"
+    ],
+    "keepawake_pid": 21691
+  },
+  "pilot_process": {
+    "pid": 0,
+    "market": "spot",
+    "started_at": "2026-09-10T16:08:52Z",
+    "started_by": "claude:session_01KPk8z4famux11BiotDFhVm",
+    "log": "data/live/pilot/loop.log",
+    "launchd_label": "com.tyme.trading.pilot"
+  },
+  "last_updated": "2026-09-10T16:33:47Z",
+  "history": [
+    {
+      "ts": "2026-09-10T10:06:03Z",
+      "actor": "claude:session_01BZVv2Yf9dpKmq7FabcJbL2",
+      "action": "on",
+      "detail": "initial /automation config; defaults mirror the state observed 2026-09-10 (launchd com.tyme.trading.scanner loaded, pilot loop human-run)",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T10:10:25Z",
+      "actor": "claude:session_01BZVv2Yf9dpKmq7FabcJbL2",
+      "action": "verify",
+      "detail": "safety checks re-run and passed: mainnet refused (exit 2), Forex refused (exit 2), allowlist instruments accepted (exit 0), usage errors now exit 1 so a typo is distinguishable from a refusal. Test-run history entries cleared; no STOP file was left behind.",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T10:10:39Z",
+      "actor": "tungnguyen",
+      "action": "layer local_read=off",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T10:10:39Z",
+      "actor": "tungnguyen",
+      "action": "layer local_read=on",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T10:10:55Z",
+      "actor": "tungnguyen",
+      "action": "layer scanner=off",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T10:10:55Z",
+      "actor": "tungnguyen",
+      "action": "layer scanner=on",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:02:37Z",
+      "actor": "tungnguyen",
+      "action": "migrate schema_version 1 -> 2",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:03:04Z",
+      "actor": "test",
+      "action": "real",
+      "detail": "criterion 4",
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:03:04Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:03:04Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:03:04Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:03:04Z",
+      "actor": "tungnguyen",
+      "action": "timeframe 1m=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:03:04Z",
+      "actor": "tungnguyen",
+      "action": "timeframe 1m=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:03:04Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:03:04Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:03:12Z",
+      "actor": "claude:session_01BZVv2Yf9dpKmq7FabcJbL2",
+      "action": "demo (preset)",
+      "detail": "v2 exit criterion 5",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:03:12Z",
+      "actor": "claude:session_01BZVv2Yf9dpKmq7FabcJbL2",
+      "action": "demo -> pilot start",
+      "detail": "v2 exit criterion 5",
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:03:41Z",
+      "actor": "claude:test",
+      "action": "pilot start --market futures",
+      "detail": "dry-run spawn path",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:03:52Z",
+      "actor": "tungnguyen",
+      "action": "pilot start --market futures",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:03:52Z",
+      "actor": "tungnguyen",
+      "action": "pilot start --market futures",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:03:52Z",
+      "actor": "claude:test",
+      "action": "pilot stop",
+      "detail": "dry-run stop path",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:03:52Z",
+      "actor": "claude:test",
+      "action": "off",
+      "detail": "dry-run off path",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:04:41Z",
+      "actor": "claude:test",
+      "action": "on",
+      "detail": "restore master after dry-run off test",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:04:41Z",
+      "actor": "claude:test",
+      "action": "market cfd=off",
+      "detail": "gate check 6a",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:04:41Z",
+      "actor": "claude:test",
+      "action": "market cfd=on",
+      "detail": "gate check 6a restore",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:04:41Z",
+      "actor": "claude:test",
+      "action": "timeframe 1h=off --market crypto",
+      "detail": "gate check 6b",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:04:41Z",
+      "actor": "claude:test",
+      "action": "timeframe 1h=on --market crypto",
+      "detail": "gate check 6b restore",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:05:08Z",
+      "actor": "claude:session_01BZVv2Yf9dpKmq7FabcJbL2",
+      "action": "demo (preset)",
+      "detail": "restore demo-preset state after v2 verification",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:05:09Z",
+      "actor": "claude:session_01BZVv2Yf9dpKmq7FabcJbL2",
+      "action": "demo -> pilot start",
+      "detail": "restore demo-preset state after v2 verification",
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:05:00Z",
+      "actor": "claude:session_01BZVv2Yf9dpKmq7FabcJbL2",
+      "action": "clear pilot_process (dry-run test artefact)",
+      "detail": "AUTOMATION_PILOT_DRYRUN placeholder pid 70368 was killed and data/live/pilot-futures/loop.log removed; no STOP file was ever written",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:08:04Z",
+      "actor": "claude:test",
+      "action": "pilot adopt pid=64646 market=spot",
+      "detail": "verify adopt path",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:08:04Z",
+      "actor": "tungnguyen",
+      "action": "pilot start --market spot",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:08:04Z",
+      "actor": "tungnguyen",
+      "action": "pilot start --market spot",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:08:00Z",
+      "actor": "claude:session_01BZVv2Yf9dpKmq7FabcJbL2",
+      "action": "clear pilot_process (adopt verified, then reset)",
+      "detail": "`pilot adopt` was verified against the human's running loop pid 64646 and then reset to null as the task required. Run `python3 scripts/automation.py pilot adopt` to record it for real.",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:09:17Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:09:17Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:09:17Z",
+      "actor": "tungnguyen",
+      "action": "timeframe 1m=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:09:18Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:09:18Z",
+      "actor": "tungnguyen",
+      "action": "instrument XAUUSD=on (market cfd)",
+      "detail": null,
+      "result": "no-op"
+    },
+    {
+      "ts": "2026-09-10T14:09:47Z",
+      "actor": "claude:session_01BZVv2Yf9dpKmq7FabcJbL2",
+      "action": "timeframe 1m=on --market crypto",
+      "detail": "khoi phuc scalping: preset demo (chay thu) da tat 1m, pipeline scalping live bi dung; nguoi dung chua yeu cau tat",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:09:47Z",
+      "actor": "claude:session_01BZVv2Yf9dpKmq7FabcJbL2",
+      "action": "pilot adopt",
+      "detail": "pilot spot testnet do nguoi dung khoi dong 2026-09-09T15:35Z, chua co trong config",
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:10:10Z",
+      "actor": "tungnguyen",
+      "action": "pilot adopt pid=64646 market=spot",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:10:10Z",
+      "actor": "tungnguyen",
+      "action": "pilot adopt pid=64646 market=spot",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:10:10Z",
+      "actor": "tungnguyen",
+      "action": "pilot adopt pid=64646 market=spot",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T14:11:28Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:11:28Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:11:28Z",
+      "actor": "tungnguyen",
+      "action": "timeframe 1m=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:11:28Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:11:29Z",
+      "actor": "tungnguyen",
+      "action": "instrument XAUUSD=on (market cfd)",
+      "detail": null,
+      "result": "no-op"
+    },
+    {
+      "ts": "2026-09-10T14:54:06Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:57:07Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:57:08Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:57:08Z",
+      "actor": "tungnguyen",
+      "action": "timeframe 1m=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T14:57:08Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-10T15:12:39Z",
+      "actor": "claude:session_01JbCkwTCxB4sGUXwWf4UyLt",
+      "action": "off",
+      "detail": "stop",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T15:13:45Z",
+      "actor": "claude:session_01JbCkwTCxB4sGUXwWf4UyLt",
+      "action": "off",
+      "detail": "user ran /automation off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T15:14:50Z",
+      "actor": "claude:session_01JbCkwTCxB4sGUXwWf4UyLt",
+      "action": "demo (preset)",
+      "detail": "user ran /automation demo",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T15:14:50Z",
+      "actor": "claude:session_01JbCkwTCxB4sGUXwWf4UyLt",
+      "action": "demo -> on",
+      "detail": "user ran /automation demo",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T15:29:24Z",
+      "actor": "claude:session",
+      "action": "on",
+      "detail": "user invoked /automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T15:36:21Z",
+      "actor": "claude:session_01RgLCMVydA8QPaZT9d6vdA4",
+      "action": "on",
+      "detail": "user invoked /automation on after reboot",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T16:01:11Z",
+      "actor": "claude:session_01RgLCMVydA8QPaZT9d6vdA4",
+      "action": "off",
+      "detail": "user invoked /automation off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T16:02:32Z",
+      "actor": "claude:01HP7dn1ix8sBNucMAzRRPCj",
+      "action": "on",
+      "detail": "User requested automation startup",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T16:04:52Z",
+      "actor": "claude:01HP7dn1ix8sBNucMAzRRPCj",
+      "action": "off",
+      "detail": "User requested automation shutdown",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T16:05:08Z",
+      "actor": "claude:01HP7dn1ix8sBNucMAzRRPCj",
+      "action": "on",
+      "detail": "User requested automation startup",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T16:07:54Z",
+      "actor": "claude:01HP7dn1ix8sBNucMAzRRPCj",
+      "action": "off",
+      "detail": "User requested automation shutdown",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T16:07:57Z",
+      "actor": "claude:trading-73",
+      "action": "off",
+      "detail": "nguoi dung yeu cau dung toan bo de test lai tu dau voi session moi",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T16:08:52Z",
+      "actor": "claude:session_01KPk8z4famux11BiotDFhVm",
+      "action": "on",
+      "detail": "user ran /automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T16:33:47Z",
+      "actor": "test",
+      "action": "on",
+      "detail": "test verbose cleanup",
+      "result": "applied"
+    }
+  ]
+}

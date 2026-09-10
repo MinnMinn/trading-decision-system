@@ -322,6 +322,141 @@
           ]
         }
       }
+    },
+    "wyckoff_event": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Structured Wyckoff event record (user decision 2026-09-10, knowledge/10 section 7 decisions 5 and 6). The two classifications are kept in SEPARATE fields on purpose: knowledge/08 section 8 states its type-1/2/3 taxonomy is author-specific and is NOT the classic event vocabulary. Do not collapse them.",
+      "properties": {
+        "phase": {
+          "type": "string",
+          "enum": [
+            "A",
+            "B",
+            "C",
+            "D",
+            "E"
+          ],
+          "description": "Wyckoff phase the event sits in (knowledge/07 sections 2.7-2.10)"
+        },
+        "structure": {
+          "type": "string",
+          "enum": [
+            "tich_luy",
+            "phan_phoi",
+            "tai_tich_luy",
+            "tai_phan_phoi"
+          ],
+          "description": "accumulation / distribution / re-accumulation / re-distribution"
+        },
+        "event_class": {
+          "type": "string",
+          "enum": [
+            "PS",
+            "SC",
+            "AR",
+            "ST",
+            "ST_B",
+            "UA",
+            "Spring",
+            "Shakeout",
+            "Test",
+            "SOS",
+            "MSOS",
+            "LPS",
+            "BU",
+            "BUEC",
+            "JAC",
+            "PSY",
+            "BCLX",
+            "UT",
+            "UTAD",
+            "SOW",
+            "MSOW",
+            "LPSY"
+          ],
+          "description": "classic event label from knowledge/07 sections 2.7-2.8. UT vs UA follows the book's phase-conditional naming rule (WA p8, knowledge/07 section 1.3): UT only in phan_phoi/tai_phan_phoi, UA only in tich_luy/tai_tich_luy."
+        },
+        "volume_type": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "enum": [
+            1,
+            2,
+            3,
+            null
+          ],
+          "description": "Spring/Upthrust type 1/2/3 by volume, knowledge/08 sections 2.6-2.7. null when the event is not a Spring or Upthrust, or when the type could not be determined."
+        },
+        "doi_nhan_tested": {
+          "type": "boolean",
+          "description": "true only if the phase call survived the mislabelling tests at knowledge/07 section 2.11. false means the phase call is a hypothesis."
+        },
+        "naming_conflict": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "set when the knowledge/07 event class and the knowledge/08 volume type disagree; records both readings verbatim rather than resolving them."
+        }
+      },
+      "required": [
+        "event_class",
+        "doi_nhan_tested"
+      ]
+    },
+    "contradictions": {
+      "type": "array",
+      "description": "Contradictions raised during the analysis, persisted so LearningSkill/improve can count recurrences across trades (user decision 2026-09-10, knowledge/10 section 7 decision 3). Mirrors the contradictions array in confluence-score.schema.json.",
+      "items": {
+        "type": "object",
+        "required": [
+          "category",
+          "description"
+        ],
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "opposing_htf_structure",
+              "opposing_liquidity_cluster",
+              "event_risk_window",
+              "shakeout_vs_displacement",
+              "wyckoff_ict_same_level",
+              "other"
+            ],
+            "description": "shakeout_vs_displacement is the unresolved case at knowledge/10 section 4.5: a Shakeout with body closes beyond the boundary is bullish Wyckoff and bearish ICT displacement on the same candles. No source resolves it; the standing rule is to raise a Contradiction and log it here so the decision can later be made from outcomes rather than argument."
+          },
+          "description": {
+            "type": "string"
+          },
+          "penalty": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "percentage points applied, negative; null if raised without a scoring penalty"
+          },
+          "outcome_side": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "wyckoff_was_right",
+              "ict_was_right",
+              "neither",
+              "unknown",
+              null
+            ],
+            "description": "filled in at review time (/review), not at entry. This is the field that eventually resolves knowledge/10 section 7 decision 3."
+          }
+        }
+      }
     }
   }
 }

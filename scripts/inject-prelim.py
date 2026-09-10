@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """Insert/refresh the automatic read blocks in an artifact HTML file.
-Usage: inject-prelim.py <artifact.html> <style>   (style = scalping | daytrade | swing)
+Usage: inject-prelim.py <artifact.html> <style>   (style = scalping | daytrade | 1h | 4h | swing | gold* )
 
 Composes, per symbol, <div class="prelim" id="prelim-<sym>"> from three code-owned pieces:
   1. data/live/prelim/<style>.<SYM>.html        scanner snippet: head + FACTS table (+ scanner prose, see below)
   2. data/live/prelim/<style>.<SYM>.model.html  optional 'đánh giá cục bộ' prose written by the Sonnet local read;
                                                 spliced at the <!--MODEL--> placeholder, shown with its own timestamp
   3. data/live/prelim/<style>.meta.json         meta-strip window / current state (verdict if anchors exist, else stance)
-Display policy (decided 2026-09-10): scalping shows the scanner prose ('nhận định sơ bộ'); daytrade and swing show
-only the facts table + model prose (scanner prose stripped) because at 15m/1D the Sonnet local read replaces it.
+Display policy (decided 2026-09-10): scalping shows the scanner prose ('nhận định sơ bộ'); every other style shows
+only the facts table + model prose (scanner prose stripped) because at 15m and slower the Sonnet local read replaces it.
 Idempotent: re-running only refreshes the blocks and the meta-strip."""
 import re, sys, os, json
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 path, style = sys.argv[1], sys.argv[2]
-SHOW_SCANNER_PROSE = {"scalping": True, "daytrade": False, "swing": False, "gold": False, "gold-swing": False}.get(style, True)
+SHOW_SCANNER_PROSE = {"scalping": True, "daytrade": False, "1h": False, "4h": False, "swing": False,
+                      "gold": False, "gold-1h": False, "gold-4h": False, "gold-swing": False}.get(style, True)
 h = open(path, encoding="utf-8").read()
 CSS = """
   .prelim{ border-left:3px solid var(--accent); background:var(--surface-2); border-radius:6px; padding:10px 14px; font-size:13.5px; color:var(--ink); }

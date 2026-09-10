@@ -10,13 +10,23 @@ Usage: local-eval-brief.py <style> [--bars 40] [--symbols BTCUSDT,ETHUSDT,SOLUSD
 """
 import argparse, json, os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TF = {"scalping": ("1m", 180), "daytrade": ("15m", 288), "swing": ("1D", 120),
-      "gold": ("15m", 200), "gold-swing": ("1D", 120)}      # gold = XAUUSD via the MT5 bridge (200 bars exported)
+# style -> (timeframe code as scripts/fetch-binance-klines.sh spells it, bars in the window).
+# gold* = XAUUSD via the MT5 bridge (the EA exports 200 bars per timeframe, InpBarsToExport).
+# The 1h/4h window sizes (240 / 180) are PROJECT PARAMETERS -- no source prescribes them; they are ~10 days of
+# hourly and ~30 days of 4-hourly bars, chosen to match the swing window's horizon. On the MT5 bridge a 240-bar
+# 1H request simply yields the 200 bars the EA exports until InpBarsToExport is raised.
+TF = {"scalping": ("1m", 180), "daytrade": ("15m", 288), "1h": ("1H", 240), "4h": ("4H", 180),
+      "swing": ("1D", 120),
+      "gold": ("15m", 200), "gold-1h": ("1H", 240), "gold-4h": ("4H", 180), "gold-swing": ("1D", 120)}
 MT5_SYMBOLS = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
-CITES = """- Trading Range: WMT p023–026 · knowledge/08 §2.4 · Pha (phases): WMT p025–032 · knowledge/08 §2.5
-- Spring: WMT p036–049 · knowledge/08 §2.6 · Upthrust: WMT p050–064 · knowledge/08 §2.7
-- Effort-vs-Result: WMT p019–022, p149–154 · knowledge/08 §2.3, §4.1 · SOS/SOW: knowledge/08 §6
-- SC/AR/ST/LPS: [thuật ngữ Wyckoff cổ điển — KHÔNG có trong docs/; knowledge/08 §2.5]
+CITES = """- Trading Range: WA p71–72 · knowledge/07 §2.7 · WMT p023–026 · knowledge/08 §2.4 · Pha A–E (phases): knowledge/07 §2.7–2.10
+- Spring/Shakeout (sự kiện): WA p80 · knowledge/07 §2.7.3 · Spring loại 1/2/3 (theo khối lượng): WMT p036–049 · knowledge/08 §2.6
+- UT/UTAD: WA p8, knowledge/07 §2.8 · Upthrust loại 1/2/3: WMT p050–064 · knowledge/08 §2.7
+- Nỗ lực–Kết quả (hài hoà/phân kỳ): WA p33–39 · knowledge/07 §2.2 · WMT p019–022, p149–154 · knowledge/08 §2.3, §4.1
+- PS/SC/AR/ST/UA/SOS/LPS/BU: knowledge/07 §2.7 (tích lũy) · PSY/BCLX/UT/UTAD/SOW/LPSY: knowledge/07 §2.8 (phân phối)
+- CHoBEV/CHoCH (cổng bắt buộc trước khi gán nhãn pha): WA p67–71 · knowledge/07 §2.6
+- Đối nhãn (kiểm tra gán nhãn sai): WA p150–184 · knowledge/07 §2.11 · Kế hoạch CO theo pha: knowledge/07 §3.4
+- Tape Reading chỉ cần biên độ + khối lượng (không cần Delta): WA p221–243 · knowledge/07 §4.1 · SOT: WA p277–292 · knowledge/07 §4.6
 - Killzones: docs/TTrades PDFs/1. Killzones.pdf tr.1–2 · knowledge/04 §2.1 (London 06–09Z, NY AM 11–14Z; vô nghĩa trên 1m — nói rõ)
 - Liquidity: docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7
 - Grab vs MSS: docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17
@@ -43,6 +53,19 @@ def main():
     ap.add_argument("--symbols", default=None); ap.add_argument("--events", default="")
     ap.add_argument("--snapshot-dir", default=os.environ.get("TMPDIR", "/tmp"), help="where to freeze facts + candles for this read")
     a = ap.parse_args()
+    # Automation switch (docs/architecture/automation-config.json, written only by scripts/automation.py).
+    # Missing file = unconfigured = behave as before; present file is authoritative and can only stop this read.
+    # The (market, timeframe) -> style mapping lives in scripts/automation.py so the vocabulary cannot drift;
+    # if that module is unavailable we fail OPEN, exactly as a missing config file does.
+    try:
+        import importlib.util
+        _s = importlib.util.spec_from_file_location("automation", f"{ROOT}/scripts/automation.py")
+        _auto = importlib.util.module_from_spec(_s); _s.loader.exec_module(_auto)
+        _ok, _why = _auto.allows("local_read", a.style)
+    except Exception:
+        _ok, _why = True, None
+    if not _ok:
+        print(f"# đánh giá cục bộ '{a.style}' tắt: /automation — {_why}"); return
     tf, n = TF[a.style]
     if a.symbols is None:
         a.symbols = "XAUUSD" if a.style.startswith("gold") else "BTCUSDT,ETHUSDT,SOLUSDT"

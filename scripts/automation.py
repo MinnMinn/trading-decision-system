@@ -1,0 +1,1179 @@
+#!/usr/bin/env python3
+"""Automation switch v3 -- the single writer of docs/architecture/automation-config.json
+(schema: docs/architecture/schemas/automation-config.schema.json; layers: docs/architecture/data-sources.md
+"Chart refresh: three-layer read" and SYSTEM-DESIGN.md §9.x).
+
+WHAT `on` / `off` MEAN (user decision 2026-09-10):
+  on   -> everything comes back, exactly like after a reboot + `/automation on`: master switch on, the scanner
+          launchd agent installed + bootstrapped, one pilot launchd agent per market in PILOT_MARKETS installed +
+          bootstrapped (KeepAlive, PILOT_END=never), a `caffeinate` keep-awake started, MT5 bridge freshness checked
+          (CFD data needs MT5 open first -- warned, not blocked).
+  off  -> everything stops, like the state right after a shutdown: master switch off, kill switches written,
+          pilot + scanner launchd agents booted out AND their plists removed from ~/Library/LaunchAgents (so a
+          reboot does NOT resurrect them), keep-awake killed.
+  demo / real -> set execution.environment to that name, apply the preset (both markets, every instrument that has
+          data on disk, all dimensions each market has, timeframes 15m/1h/4h ON -- other timeframes left as they
+          are), then `on`. `real` refuses (exit 2) only while config/env.real still has placeholder secrets.
+
+ENVIRONMENT: execution.environment ("demo" | "real") selects config/env.<name> (template config/env.example),
+loaded by scripts/trading-env.sh (bash) / scripts/trading_env.py (python). It is set by `demo` / `real` or by
+hand in the config file; the order connectors and the pilot read it on every call. Nothing here refuses an
+environment on policy grounds. Hard rules that stay in every environment: no Forex, instrument allowlist,
+PILOT_RISK_PCT <= 1% (clamped by the loaders).
+
+v3 shape (schema_version 3): per-MARKET config (crypto | cfd) with instruments, Confluence dimensions (§6.2) and
+timeframes; (market, timeframe) maps to the chart-style vocabulary (STYLE below). `services` records what `on`
+installed so `off` can remove exactly that.
+
+Subcommands
+  status [--json]                     full effective configuration + warnings (safe any time, works with no file)
+  env                                 active environment name + whether its file is complete (never prints a secret)
+  demo | real                         set environment + preset + bring everything up
+  on  [--who W] [--reason R]          bring everything up in the CURRENT environment
+  off [--who W] [--reason R]          stop everything (persists across reboot)
+  market <crypto|cfd> <on|off>
+  timeframe <1m|15m|1h|4h|1D> <on|off> [--market crypto|cfd]
+  dimension <wyckoff|ict|footprint|heatmap> <on|off> [--market crypto|cfd]
+  instrument <SYMBOL> <on|off>        allowlist only; Forex refused; market inferred from the symbol
+  layer <scanner|local_read|pilot> <on|off>
+  pilot <start|stop|status|adopt> [--market spot|futures] [--no-launchd]
+  allows <scanner|local_read|pilot> [style]     exit 0 if permitted, 2 if not (for shell gates)
+  history [-n N]
+
+Exit codes: 0 applied/no-op, 1 usage error, 2 REFUSED (Forex, off-allowlist symbol, impossible market/timeframe/
+dimension pair, incomplete environment file, or a pilot start blocked by a running duplicate / STOP file).
+
+Test-only environment overrides (never set these in normal use):
+  AUTOMATION_PILOT_DRYRUN=1            `pilot start` spawns `sleep 30` instead of scripts/pilot-loop.sh and marks
+                                       pilot_process.dry_run; `pilot stop` / `off` PRINT the STOP path they would
+                                       write and do NOT create it (a real STOP file kills a human's running loop).
+  AUTOMATION_PILOT_PGREP_PATTERN=...   pattern used to detect already-running pilot loops.
+"""
+import argparse, datetime, json, os, shutil, subprocess, sys
+import importlib.util
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
+SCHEMA_VERSION = 3
+ENV_NAMES = ["demo", "real"]
+LAUNCH_AGENTS = os.path.expanduser("~/Library/LaunchAgents")
+SCANNER_LABEL = "com.tyme.trading.scanner"
+PILOT_LABEL = {"spot": "com.tyme.trading.pilot", "futures": "com.tyme.trading.pilot.futures"}
+PLIST_SRC = {"scanner": os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.scanner.plist"),
+             "pilot": os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.pilot.plist")}
+
+_tspec = importlib.util.spec_from_file_location("trading_env", os.path.join(ROOT, "scripts", "trading_env.py"))
+trading_env = importlib.util.module_from_spec(_tspec); _tspec.loader.exec_module(trading_env)
+
+MARKETS = ["crypto", "cfd"]
+MARKET_INSTRUMENTS = {"crypto": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+                      "cfd":    ["XAUUSD", "XAGUSD", "USOIL", "UKOIL"]}
+# Footprint/Heatmap have NO commodities source (CoinGlass is crypto-derivatives only) -- SYSTEM-DESIGN.md §12 item 3.
+MARKET_DIMENSIONS = {"crypto": ["wyckoff", "ict", "footprint", "heatmap"], "cfd": ["wyckoff", "ict"]}
+# No 1m for cfd: integrations/mt5/ExportOHLCV.mq5 exports 1D/4H/1H/15m only (SYSTEM-DESIGN.md §12 item 6).
+MARKET_TIMEFRAMES = {"crypto": ["1m", "15m", "1h", "4h", "1D"], "cfd": ["15m", "1h", "4h", "1D"]}
+DIMENSIONS = ["wyckoff", "ict", "footprint", "heatmap"]                       # SYSTEM-DESIGN.md §6.2
+TIMEFRAMES = ["1m", "15m", "1h", "4h", "1D"]
+LAYERS = ["scanner", "local_read", "pilot"]
+ALLOWED_INSTRUMENTS = MARKET_INSTRUMENTS["crypto"] + MARKET_INSTRUMENTS["cfd"]
+COMMODITIES = set(MARKET_INSTRUMENTS["cfd"])
+FX_CODES = {"USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "SEK", "NOK",
+            "SGD", "HKD", "MXN", "ZAR", "TRY", "CNH", "PLN", "DKK"}
+HISTORY_MAX = 200
+
+# (market, timeframe) -> chart style. THE canonical mapping: scan-loop.sh and local-eval-brief.py both read it
+# from here so the vocabulary cannot drift. Never rename an existing style -- artifacts and data/live paths use them.
+STYLE = {("crypto", "1m"): "scalping", ("crypto", "15m"): "daytrade", ("crypto", "1h"): "1h",
+         ("crypto", "4h"): "4h", ("crypto", "1D"): "swing",
+         ("cfd", "15m"): "gold", ("cfd", "1h"): "gold-1h", ("cfd", "4h"): "gold-4h",
+         ("cfd", "1D"): "gold-swing"}
+STYLE_MARKET_TF = {v: k for k, v in STYLE.items()}
+# Where each market's OHLCV lands; the 15m file is the "is this instrument actually wired up?" probe.
+DATA_DIR = {"crypto": "market-data", "cfd": "mt5-bridge"}
+
+PILOT_MARKETS = ["spot", "futures"]
+# Anchored: match the bash process that IS the loop ("bash scripts/pilot-loop.sh" from a terminal, or
+# "/bin/bash /abs/path/scripts/pilot-loop.sh" from launchd) -- not any shell whose command text merely
+# mentions the file (a verification one-liner containing this string once produced a phantom PID).
+PGREP_PATTERN = os.environ.get("AUTOMATION_PILOT_PGREP_PATTERN", r"^(/bin/)?bash (/[^ ]*/)?scripts/pilot-loop\.sh( |$)")
+
+
+def dryrun():
+    return os.environ.get("AUTOMATION_PILOT_DRYRUN") == "1"
+
+
+def pilot_dir(market):
+    return os.path.join(ROOT, "data", "live", "pilot" if market == "spot" else "pilot-futures")
+
+
+def stop_path(market):
+    return os.path.join(pilot_dir(market), "STOP")
+
+
+def log_path(market):
+    return os.path.join(pilot_dir(market), "loop.log")
+
+
+PILOT_STOP = [stop_path(m) for m in PILOT_MARKETS]
+
+
+def rel(p):
+    return os.path.relpath(p, ROOT)
+
+
+def now():
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def actor(a):
+    return getattr(a, "who", None) or os.environ.get("AUTOMATION_ACTOR") or os.environ.get("USER") or "unknown"
+
+
+def market_of(sym):
+    for m in MARKETS:
+        if sym in MARKET_INSTRUMENTS[m]:
+            return m
+    return None
+
+
+def _market_default(m):
+    return {"enabled": True, "instruments": list(MARKET_INSTRUMENTS[m]),
+            "dimensions": {d: True for d in MARKET_DIMENSIONS[m]},
+            "timeframes": {t: True for t in MARKET_TIMEFRAMES[m]}}
+
+
+DEFAULTS = {
+    "schema_version": SCHEMA_VERSION,
+    "_comment": "Written by scripts/automation.py (/automation). execution.environment may ALSO be edited by hand "
+                "to switch between config/env.demo and config/env.real; `/automation demo|real` writes it too. "
+                "The schema at docs/architecture/schemas/automation-config.schema.json is the contract.",
+    "enabled": True,
+    "execution": {
+        "environment": "demo",
+        "_note": "demo = Binance TESTNET via config/env.demo; real = Binance MAINNET (real money) via "
+                 "config/env.real. Switch by hand here or with `/automation demo|real`. The connectors and the "
+                 "pilot read this on every call; an environment file with placeholder secrets refuses to execute.",
+    },
+    "markets": {m: _market_default(m) for m in MARKETS},
+    "layers": {l: True for l in LAYERS},
+    "services": {"scanner_agent": False, "pilot_agents": [], "keepawake_pid": None},
+    "pilot_process": None,
+    "last_updated": None,
+    "history": [],
+}
+
+
+def _deep_merge(base, over):
+    for k, v in over.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
+    return base
+
+
+def migrate_v1(old):
+    """v1 (flat dimensions/timeframes-as-styles/instruments) -> v2 (per-market). Nothing is silently turned ON:
+    every v1 flag lands on its v2 counterpart, and the two styles v1 never had (1h, 4h) inherit the fail-open
+    default the rest of the system already assumes for an unknown key."""
+    cfg = json.loads(json.dumps(DEFAULTS))
+    cfg["enabled"] = bool(old.get("enabled", True))
+    cfg["execution"]["environment"] = _env_from_legacy(old.get("execution") or {})
+    old_dims = old.get("dimensions") or {}
+    old_styles = old.get("timeframes") or {}
+    old_inst = set(old.get("instruments") or ALLOWED_INSTRUMENTS)
+    for m in MARKETS:
+        mk = cfg["markets"][m]
+        mk["instruments"] = [s for s in MARKET_INSTRUMENTS[m] if s in old_inst]
+        mk["enabled"] = bool(mk["instruments"])
+        mk["dimensions"] = {d: bool(old_dims.get(d, True)) for d in MARKET_DIMENSIONS[m]}
+        mk["timeframes"] = {t: bool(old_styles.get(STYLE[(m, t)], True)) for t in MARKET_TIMEFRAMES[m]}
+    cfg["layers"] = {l: bool((old.get("layers") or {}).get(l, True)) for l in LAYERS}
+    cfg["last_updated"] = old.get("last_updated")
+    cfg["history"] = list(old.get("history") or [])[-HISTORY_MAX:]
+    return cfg
+
+
+def _env_from_legacy(execution):
+    """v1/v2 execution.account -> v3 execution.environment."""
+    if execution.get("environment") in ENV_NAMES:
+        return execution["environment"]
+    acct = execution.get("account", "demo_testnet")
+    return "real" if acct == "real_mainnet" else "demo"
+
+
+def migrate_v2(old):
+    """v2 (per-market, execution.account) -> v3 (execution.environment, services). Everything else is kept."""
+    cfg = _deep_merge(json.loads(json.dumps(DEFAULTS)), {k: v for k, v in old.items() if k != "execution"})
+    cfg["schema_version"] = SCHEMA_VERSION
+    cfg["execution"] = json.loads(json.dumps(DEFAULTS["execution"]))
+    cfg["execution"]["environment"] = _env_from_legacy(old.get("execution") or {})
+    return cfg
+
+
+def load():
+    """(config, exists, migrated). A missing file means UNCONFIGURED: the defaults are what every reader assumes,
+    so a clean checkout behaves exactly as it did before this switch existed. A v1/v2 file is migrated IN MEMORY
+    here; main() persists the migration once, with a `migrate` history row."""
+    if not os.path.exists(CONFIG):
+        return json.loads(json.dumps(DEFAULTS)), False, False
+    try:
+        raw = json.load(open(CONFIG, encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"! {CONFIG} is unreadable ({e}); showing built-in defaults, refusing to overwrite blindly.",
+              file=sys.stderr)
+        return json.loads(json.dumps(DEFAULTS)), False, False
+    ver = int(raw.get("schema_version", 1))
+    if ver <= 1:
+        return migrate_v1(raw), True, True
+    if ver == 2:
+        return migrate_v2(raw), True, True
+    return _deep_merge(json.loads(json.dumps(DEFAULTS)), raw), True, False
+
+
+def record(cfg, a, action, result):
+    cfg["history"].append({"ts": now(), "actor": actor(a), "action": action,
+                           "detail": getattr(a, "reason", None), "result": result})
+    cfg["history"] = cfg["history"][-HISTORY_MAX:]
+
+
+def save(cfg):
+    cfg["last_updated"] = now()
+    with open(CONFIG, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
+# ---------- readers used by scan-loop.sh / local-eval-brief.py ----------
+def enabled_styles(cfg=None):
+    """The chart styles the scanner and the local read are permitted to run, in STYLE order."""
+    if cfg is None:
+        cfg, _, _ = load()
+    out = []
+    for (m, tf), style in STYLE.items():
+        mk = cfg.get("markets", {}).get(m, {})
+        if mk.get("enabled", True) and mk.get("timeframes", {}).get(tf, True):
+            out.append(style)
+    return [s for s in STYLE.values() if s in out]
+
+
+def enabled_instruments(cfg=None, market=None):
+    if cfg is None:
+        cfg, _, _ = load()
+    out = []
+    for m in ([market] if market else MARKETS):
+        mk = cfg.get("markets", {}).get(m, {})
+        if mk.get("enabled", True):
+            out += [s for s in MARKET_INSTRUMENTS[m] if s in mk.get("instruments", MARKET_INSTRUMENTS[m])]
+    return out
+
+
+def allows(layer, style=None):
+    """(ok, reason). True if `layer` may act and, when given, `style`'s (market, timeframe) is on.
+    Unconfigured => allowed (no policy, no behaviour change). This can only ever STOP something."""
+    cfg, exists, _ = load()
+    if not exists:
+        return True, None
+    if not cfg.get("enabled", True):
+        return False, "automation master switch is OFF (scripts/automation.py off)"
+    if not cfg.get("layers", {}).get(layer, True):
+        return False, f"layers.{layer} is off (scripts/automation.py layer {layer} off)"
+    if style is not None:
+        mtf = STYLE_MARKET_TF.get(style)
+        if mtf is None:
+            return True, None                      # unknown style: not this switch's business
+        m, tf = mtf
+        mk = cfg.get("markets", {}).get(m, {})
+        if not mk.get("enabled", True):
+            return False, f"market '{m}' is off (scripts/automation.py market {m} off)"
+        if not mk.get("timeframes", {}).get(tf, True):
+            return False, f"timeframe {tf} is off for market '{m}' " \
+                          f"(scripts/automation.py timeframe {tf} off --market {m})"
+    return True, None
+
+
+# ---------- pilot process ----------
+def alive(pid):
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def _market_from_env(pid):
+    try:
+        out = subprocess.run(["ps", "eww", str(pid)], capture_output=True, text=True, timeout=10).stdout
+    except Exception:
+        return None
+    if "PILOT_MARKET=futures" in out:
+        return "futures"
+    if "PILOT_MARKET=spot" in out:
+        return "spot"
+    return None
+
+
+def _market_from_logs():
+    """Fallback when the process env carries no PILOT_MARKET: whichever loop.log was written most recently."""
+    best, best_mt = None, -1.0
+    for m in PILOT_MARKETS:
+        p = log_path(m)
+        if os.path.exists(p) and os.path.getmtime(p) > best_mt:
+            best, best_mt = m, os.path.getmtime(p)
+    return best or "spot"
+
+
+def running_pilots():
+    """[(pid, market)] for every live scripts/pilot-loop.sh, whether or not this config knows about it.
+    A pilot the human started in their own terminal is invisible to pilot_process -- it must still block a
+    second start, otherwise /automation would silently duplicate a live TESTNET loop."""
+    try:
+        out = subprocess.run(["pgrep", "-f", PGREP_PATTERN], capture_output=True, text=True, timeout=10).stdout
+        own = {os.getpid(), os.getppid()}  # never count this process or the shell that launched it
+    except Exception:
+        return []
+    pids = [int(x) for x in out.split() if x.strip().isdigit() and int(x) not in own]
+    return [(p, _market_from_env(p) or _market_from_logs()) for p in pids]
+
+
+def write_stop(reason_prefix="  "):
+    """Write both kill switches -- or, under AUTOMATION_PILOT_DRYRUN, only say what would be written.
+    A STOP file that exists for even one tick kills a human's running loop, so the dry run must not create it."""
+    written = []
+    for p in PILOT_STOP:
+        if dryrun():
+            print(f"{reason_prefix}DRY RUN: would write kill switch {rel(p)} (NOT created)")
+            continue
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        open(p, "a").close()
+        written.append(p)
+        print(f"{reason_prefix}kill switch written: {rel(p)}")
+    return written
+
+
+# ---------- status ----------
+def warnings(cfg, exists):
+    w = []
+    if not exists:
+        w.append(f"No config file yet ({rel(CONFIG)}). These are the built-in defaults; every gate treats "
+                 f"'unconfigured' as 'no policy' and behaves as before. Any mutating subcommand creates it.")
+    envname = cfg["execution"].get("environment", "demo")
+    ok, missing, note = trading_env.completeness(envname)
+    if envname == "real":
+        w.append("environment = REAL (Binance MAINNET, real money) via config/env.real -- "
+                 + ("secrets present." if ok else f"INCOMPLETE ({note}); every execution path refuses until filled."))
+    elif not ok:
+        w.append(f"environment = demo but config/env.demo is incomplete ({note}).")
+    svc = cfg.get("services") or {}
+    if cfg["enabled"] and not svc.get("scanner_agent"):
+        w.append("automation is ON but the scanner launchd agent is not recorded as installed -- run `/automation on`.")
+    for m in MARKETS:
+        mk = cfg["markets"][m]
+        if not mk["enabled"]:
+            continue
+        live = [d for d in MARKET_DIMENSIONS[m] if mk["dimensions"].get(d, True)]
+        if len(live) < 2:
+            w.append(f"{m}: only {len(live)} dimension(s) enabled -- below the NORMAL minimum of 2 "
+                     f"(SYSTEM-DESIGN.md §6.2), so no live TRADE verdict can pass for {m} instruments.")
+        if m == "crypto" and (mk["dimensions"].get("footprint") or mk["dimensions"].get("heatmap")):
+            w.append("Footprint/Heatmap depend on CoinGlass -- check coinglass_* source state via /status; a MOCK "
+                     "source can rehearse but can never satisfy the Independent-Confluence Check (data-sources.md).")
+        if m == "cfd" and mk["instruments"]:
+            w.append("CFD instruments are structurally capped at NORMAL mode (Wyckoff + ICT only; §12 item 3) and "
+                     "have no 1m data -- the MT5 EA exports 1D/4H/1H/15m for one charted symbol at a time "
+                     "(§12 item 6).")
+            missing = [s for s in mk["instruments"] if not os.path.exists(
+                os.path.join(ROOT, "data", "live", DATA_DIR["cfd"], f"ohlcv.{s}.15m.json"))]
+            if missing:
+                w.append("CFD instrument(s) enabled with no MT5 export on disk: " + ", ".join(missing) +
+                         " -- attach integrations/mt5/ExportOHLCV.mq5 to a chart for each, or turn them off.")
+    if cfg["layers"]["pilot"] and cfg["enabled"] and not (cfg.get("services") or {}).get("pilot_agents"):
+        w.append("Pilot layer is PERMITTED but no pilot launchd agent is installed -- `/automation on` installs "
+                 "one per market in PILOT_MARKETS (config/env.<environment>).")
+    pp = cfg.get("pilot_process")
+    if pp and pp.get("pid") and alive(pp["pid"]) and not pp.get("stopped_at"):
+        w.append(f"Pilot loop RUNNING: pid {pp['pid']} ({pp.get('market')}) since {pp.get('started_at')} -- "
+                 f"kill switch {rel(stop_path(pp.get('market', 'spot')))}.")
+    managed = bool(pp and pp.get("launchd_label") and _agent_loaded(pp["launchd_label"]))
+    unrecorded = [(p, m) for p, m in running_pilots()
+                  if not (pp and pp.get("pid") == p) and not (managed and m == pp.get("market"))]
+    if unrecorded:
+        w.append("Pilot loop(s) running but NOT recorded in this file: " +
+                 ", ".join(f"pid {p} ({m})" for p, m in unrecorded) +
+                 " -- `pilot adopt` records one into pilot_process. Do not start a second loop.")
+    present = [rel(p) for p in PILOT_STOP if os.path.exists(p)]
+    if present:
+        w.append("Kill switch present: " + ", ".join(present) + " (pilot loop exits on the next tick).")
+    return w
+
+
+def show(cfg, exists, as_json=False, brief=False):
+    if as_json:
+        print(json.dumps(cfg, indent=2, ensure_ascii=False))
+        return
+    onoff = lambda b: "ON " if b else "off"
+    envname = cfg["execution"].get("environment", "demo")
+    print(f"AUTOMATION: {'ON' if cfg['enabled'] else 'OFF'}   "
+          f"environment: {envname.upper()} ({'TESTNET' if envname == 'demo' else 'REAL MONEY'})")
+    if brief:
+        svc = cfg.get("services") or {}
+        print(f"  scanner: {'installed' if svc.get('scanner_agent') else 'not installed'}; "
+              f"pilot: {', '.join(svc.get('pilot_agents') or []) or 'none'}; "
+              f"keep-awake: {'yes' if svc.get('keepawake_pid') else 'no'}")
+        for w in warnings(cfg, exists):
+            print("  ! " + w)
+        return
+    # Full details (for /status)
+    print(f"  file:        {rel(CONFIG)}{'' if exists else '  [not created yet -- defaults]'}")
+    print(f"  updated:     {cfg['last_updated'] or '(never)'}")
+    print("  layers:      " + "  ".join(f"{onoff(cfg['layers'][l])} {l}" for l in LAYERS))
+    svc = cfg.get("services") or {}
+    print(f"  services:    scanner agent {'installed' if svc.get('scanner_agent') else 'not installed'}; "
+          f"pilot agents {', '.join(svc.get('pilot_agents') or []) or 'none'}; "
+          f"keep-awake pid {svc.get('keepawake_pid') or 'none'}")
+    for m in MARKETS:
+        mk = cfg["markets"][m]
+        styles = [STYLE[(m, tf)] for tf in MARKET_TIMEFRAMES[m] if mk["timeframes"].get(tf, True)] \
+            if mk["enabled"] else []
+        print(f"  {m:<7}      [{'ON ' if mk['enabled'] else 'off'}]  instruments: "
+              + (", ".join(mk["instruments"]) or "(none)"))
+        print("               dimensions: " + "  ".join(f"{onoff(mk['dimensions'].get(d, True))} {d}"
+                                                        for d in MARKET_DIMENSIONS[m]))
+        print("               timeframes: " + "  ".join(f"{onoff(mk['timeframes'].get(t, True))} {t}"
+                                                        for t in MARKET_TIMEFRAMES[m]))
+        print("               styles on:  " + (", ".join(styles) or "(none)"))
+    pp = cfg.get("pilot_process")
+    if pp:
+        state = "stopped_at " + pp["stopped_at"] if pp.get("stopped_at") else \
+                ("alive" if alive(pp.get("pid")) else "not running")
+        print(f"  pilot proc:  pid {pp.get('pid')} {pp.get('market')} {state}"
+              f"{'  [DRY RUN placeholder]' if pp.get('dry_run') else ''}  started {pp.get('started_at')} "
+              f"by {pp.get('started_by')}")
+    else:
+        print("  pilot proc:  none recorded")
+    for h in cfg["history"][-3:]:
+        print(f"  last change: {h['ts']} {h['actor']} {h['action']} -> {h['result']}"
+              + (f" ({h['detail']})" if h.get("detail") else ""))
+    for w in warnings(cfg, exists):
+        print("  ! " + w)
+
+
+# ---------- launchd services (what `on` installs and `off` removes) ----------
+def _uid():
+    return os.getuid()
+
+
+def _launchctl(*args, check=False):
+    try:
+        r = subprocess.run(["launchctl", *args], capture_output=True, text=True, timeout=30)
+    except Exception as e:
+        return 1, str(e)
+    return r.returncode, (r.stdout + r.stderr).strip()
+
+
+def _agent_loaded(label):
+    rc, out = _launchctl("print", f"gui/{_uid()}/{label}")
+    return rc == 0
+
+
+def _install_agent(label, src, env_overrides=None):
+    """Copy the plist into ~/Library/LaunchAgents (rewriting Label / EnvironmentVariables as needed) and bootstrap it.
+    Returns (ok, note)."""
+    os.makedirs(LAUNCH_AGENTS, exist_ok=True)
+    dst = os.path.join(LAUNCH_AGENTS, f"{label}.plist")
+    txt = open(src, encoding="utf-8").read()
+    base_label = os.path.basename(src)[:-len(".plist")]
+    txt = txt.replace(f"<string>{base_label}</string>", f"<string>{label}</string>", 1)
+    for k, v in (env_overrides or {}).items():
+        marker = f"<key>{k}</key><string>"
+        if marker in txt:
+            head, _, tail = txt.partition(marker)
+            _, _, rest = tail.partition("</string>")
+            txt = head + marker + v + "</string>" + rest
+        else:
+            txt = txt.replace("<key>PATH</key>", f"<key>{k}</key><string>{v}</string>\n    <key>PATH</key>", 1)
+    if env_overrides and "PILOT_MARKET" in env_overrides and env_overrides["PILOT_MARKET"] == "futures":
+        txt = txt.replace("data/live/pilot/launchd", "data/live/pilot-futures/launchd")
+    if dryrun():
+        return True, f"DRY RUN: would install {dst} and bootstrap gui/{_uid()}/{label}"
+    with open(dst, "w", encoding="utf-8") as f:
+        f.write(txt)
+    if _agent_loaded(label):
+        _launchctl("bootout", f"gui/{_uid()}/{label}")
+    rc, out = _launchctl("bootstrap", f"gui/{_uid()}", dst)
+    if rc != 0:
+        rc2, out2 = _launchctl("load", "-w", dst)          # older launchctl fallback
+        if rc2 != 0:
+            return False, f"launchctl bootstrap failed for {label}: {out or out2}"
+    return True, f"installed + bootstrapped {label} ({rel(dst) if dst.startswith(ROOT) else dst})"
+
+
+def _remove_agent(label):
+    dst = os.path.join(LAUNCH_AGENTS, f"{label}.plist")
+    if dryrun():
+        return f"DRY RUN: would bootout gui/{_uid()}/{label} and remove {dst}"
+    if _agent_loaded(label):
+        _launchctl("bootout", f"gui/{_uid()}/{label}")
+    if os.path.exists(dst):
+        os.remove(dst)
+    return f"booted out + removed {label}"
+
+
+def _start_keepawake(cfg):
+    pid = (cfg.get("services") or {}).get("keepawake_pid")
+    if pid and alive(pid):
+        return f"keep-awake already running (pid {pid})"
+    if dryrun():
+        return "DRY RUN: would start `caffeinate -dims`"
+    try:
+        p = subprocess.Popen(["caffeinate", "-dims"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+        cfg.setdefault("services", {})["keepawake_pid"] = p.pid
+        return f"keep-awake started (caffeinate -dims, pid {p.pid}) -- the pilot loop needs the host awake (§9.x)"
+    except Exception as e:
+        return f"keep-awake NOT started ({e}); run `caffeinate -dims` yourself if the Mac may sleep"
+
+
+def _stop_keepawake(cfg):
+    pid = (cfg.get("services") or {}).get("keepawake_pid")
+    if pid and alive(pid) and not dryrun():
+        try:
+            os.kill(int(pid), 15)
+        except OSError:
+            pass
+    cfg.setdefault("services", {})["keepawake_pid"] = None
+    return f"keep-awake stopped (pid {pid})" if pid else "no keep-awake to stop"
+
+
+def mt5_freshness(cfg):
+    """(fresh, note) for the CFD bridge. Not a gate: the user opens MT5 first; we only say what we see."""
+    mk = cfg["markets"]["cfd"]
+    if not mk["enabled"] or not mk["instruments"]:
+        return True, "cfd market off or no instruments -- MT5 not needed"
+    try:
+        env = trading_env.load_env(resolve_secrets=False)
+        max_age = float(env.get("MT5_BRIDGE_MAX_AGE_MIN", 30))
+        bdir = os.path.join(ROOT, env.get("MT5_BRIDGE_DIR", "data/live/mt5-bridge"))
+    except Exception:
+        max_age, bdir = 30.0, os.path.join(ROOT, "data", "live", "mt5-bridge")
+    stale = []
+    for sym in mk["instruments"]:
+        p = os.path.join(bdir, f"ohlcv.{sym}.15m.json")
+        if not os.path.exists(p):
+            stale.append(f"{sym}: no bridge file")
+            continue
+        age = (datetime.datetime.now().timestamp() - os.path.getmtime(p)) / 60
+        if age > max_age:
+            stale.append(f"{sym}: last export {age:.0f} min ago (> {max_age:.0f})")
+    if stale:
+        return False, ("MT5 bridge NOT fresh -- open MetaTrader 5 with integrations/mt5/ExportOHLCV.mq5 attached, "
+                       "then the CFD styles resume by themselves: " + "; ".join(stale))
+    return True, "MT5 bridge fresh for " + ", ".join(mk["instruments"])
+
+
+def bring_up(cfg, a):
+    """`on`: install/refresh the scanner agent, the pilot agents for PILOT_MARKETS, keep-awake; report MT5."""
+    notes = []
+    cfg["enabled"] = True
+    cfg.setdefault("services", {"scanner_agent": False, "pilot_agents": [], "keepawake_pid": None})
+    envname = cfg["execution"].get("environment", "demo")
+    try:
+        env = trading_env.load_env(resolve_secrets=False)
+    except trading_env.EnvIncomplete as e:
+        env = {}
+        notes.append(f"! environment '{envname}' problem: {e}")
+    if cfg["layers"]["scanner"]:
+        ok, note = _install_agent(SCANNER_LABEL, PLIST_SRC["scanner"])
+        cfg["services"]["scanner_agent"] = bool(ok) and not dryrun()
+        notes.append(("+ " if ok else "! ") + note)
+    else:
+        notes.append("- scanner layer is off; scanner agent not installed")
+    fresh, mnote = mt5_freshness(cfg)
+    notes.append(("+ " if fresh else "! ") + mnote)
+    if cfg["layers"]["pilot"] and cfg["markets"]["crypto"]["enabled"]:
+        wanted = [m.strip() for m in (env.get("PILOT_MARKETS", "spot")).split(",") if m.strip() in PILOT_MARKETS]
+        # A loop started outside launchd (a terminal, nohup) trades the same account. Never install a managed
+        # loop next to it: that would double-trade. The user stops it first (touch its STOP file) or adopts it.
+        unmanaged = [(p, m) for p, m in running_pilots()
+                     if not any(_agent_loaded(PILOT_LABEL[x]) for x in PILOT_MARKETS)]
+        for m in wanted:
+            if _agent_loaded(PILOT_LABEL[m]):
+                notes.append(f"+ pilot [{m}] agent already installed and loaded ({PILOT_LABEL[m]}) -- left as is")
+                if PILOT_LABEL[m] not in cfg["services"]["pilot_agents"]:
+                    cfg["services"]["pilot_agents"].append(PILOT_LABEL[m])
+                continue
+            if unmanaged:
+                notes.append(f"! pilot [{m}] NOT installed: a pilot loop is already running outside launchd ("
+                             + ", ".join(f"pid {p} ({mm})" for p, mm in unmanaged)
+                             + "). Stop it first (touch data/live/pilot*/STOP, wait one tick) or `pilot adopt` it, "
+                               "then run `/automation on` again -- installing a second loop would double-trade.")
+                continue
+            keys = ("BINANCE_SPOT_API_KEY", "BINANCE_SPOT_SECRET_KEY") if m == "spot" \
+                else ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY")
+            ok, missing, cnote = trading_env.completeness(envname, keys)
+            if not ok:
+                notes.append(f"! pilot [{m}] NOT started: environment '{envname}' incomplete ({cnote})")
+                continue
+            sp = stop_path(m)
+            if os.path.exists(sp) and not dryrun():
+                os.remove(sp)
+                notes.append(f"+ removed kill switch {rel(sp)} (on = re-arm)")
+            ok, note = _install_agent(PILOT_LABEL[m], PLIST_SRC["pilot"], {"PILOT_MARKET": m, "PILOT_END": "never"})
+            notes.append(("+ " if ok else "! ") + f"pilot [{m}] {note}")
+            if ok and not dryrun() and PILOT_LABEL[m] not in cfg["services"]["pilot_agents"]:
+                cfg["services"]["pilot_agents"].append(PILOT_LABEL[m])
+            cfg["pilot_process"] = {"pid": 0, "market": m, "started_at": now(), "started_by": actor(a),
+                                    "log": rel(log_path(m)), "launchd_label": PILOT_LABEL[m]}
+    else:
+        notes.append("- pilot layer off or crypto market off; no pilot agent installed")
+    notes.append("+ " + _start_keepawake(cfg))
+    return notes
+
+
+def tear_down(cfg, a):
+    """`off`: kill switches, boot out + remove every agent we installed (and the scanner), stop keep-awake."""
+    notes = []
+    cfg["enabled"] = False
+    svc = cfg.setdefault("services", {"scanner_agent": False, "pilot_agents": [], "keepawake_pid": None})
+    write_stop()
+    seen = set()
+    for label in list(svc.get("pilot_agents") or []) + list(PILOT_LABEL.values()):
+        if label in seen:
+            continue
+        seen.add(label)
+        if label in (svc.get("pilot_agents") or []) or _agent_loaded(label):
+            notes.append("+ " + _remove_agent(label))
+    svc["pilot_agents"] = []
+    notes.append("+ " + _remove_agent(SCANNER_LABEL))
+    svc["scanner_agent"] = False
+    notes.append("+ " + _stop_keepawake(cfg))
+    pp = cfg.get("pilot_process")
+    if pp and not pp.get("stopped_at"):
+        pp["stopped_at"] = now()
+    others = running_pilots()
+    if others:
+        notes.append("! pilot loop(s) still running outside launchd (they exit on their next tick because the "
+                     "STOP files are written): " + ", ".join(f"pid {p} ({m})" for p, m in others))
+    return notes
+
+
+# ---------- session crons (the Claude-side chart layers) ----------
+def _cron_templates_module():
+    spec = importlib.util.spec_from_file_location("cron_templates", os.path.join(ROOT, "scripts", "cron-templates.py"))
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    return mod
+
+
+def session_cron_block(on):
+    """Print exactly what to CronCreate. No instructional prose."""
+    if not on:
+        print("SESSION CRONS: automation is OFF. Delete all [trading-cron:* jobs if any exist.")
+        return
+    try:
+        ct = _cron_templates_module()
+    except Exception as e:
+        print(f"ERROR: could not load cron-templates.py ({e})")
+        return
+    scratch = os.environ.get("AUTOMATION_SCRATCHPAD") or os.path.join(os.environ.get("TMPDIR", "/tmp"), "trading-crons-scratch")
+    outdir = os.path.join(scratch, "crons")
+    os.makedirs(outdir, exist_ok=True)
+    cfg = ct.config()
+    print("SESSION CRONS: CronCreate each line below:")
+    n = 0
+    for meta, body in ct.templates():
+        ok, why = ct.enabled(meta, cfg)
+        if not ok:
+            continue
+        prompt = ct.render(meta, body, scratch)
+        p = os.path.join(outdir, f"{meta['name']}.prompt.txt")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(prompt)
+        n += 1
+        print(f"  CronCreate({meta.get('cron')!r}, prompt_file={p}, model={meta.get('model')})")
+    print(f"Then CronList to confirm {n} jobs. They expire after 7 days.")
+
+# ---------- mutating subcommands ----------
+def cmd_master(a):
+    cfg, exists, _ = load()
+    want = a.cmd == "on"
+    notes = bring_up(cfg, a) if want else tear_down(cfg, a)
+    record(cfg, a, a.cmd, "applied")
+    save(cfg)
+    print(f"AUTOMATION {'ON' if want else 'OFF'} -- environment {cfg['execution'].get('environment', 'demo').upper()}")
+    for n in notes:
+        print("  " + n)
+    session_cron_block(want)
+    if want:
+        print("\nWHAT HAPPENS NOW: launchd runs scanner, pilot, keep-awake in background. Session crons run while this session is open (7-day max).")
+        print("  Watch: tail -f data/live/pilot/loop.log    (entry/exit verdicts)")
+        print("         tail -f data/live/scan-loop.log     (scanner ticks)")
+    show(cfg, True, brief=True)
+    return 0
+
+
+def cmd_env(a):
+    cfg, exists, _ = load()
+    envname = cfg["execution"].get("environment", "demo")
+    ok, missing, note = trading_env.completeness(envname)
+    print(f"environment: {envname}  file: config/env.{envname}  spot secrets: {note}")
+    okf, missf, notef = trading_env.completeness(envname, ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY"))
+    print(f"  futures secrets: {notef}")
+    print("  switch: `/automation demo|real`, or edit execution.environment in " + rel(CONFIG))
+    return 0
+
+
+def apply_preset(cfg, a, envname):
+    """Shared by `demo` and `real`: environment + both markets + data-backed instruments + 15m/1h/4h ON."""
+    enabled_msgs, skipped_msgs = [], []
+    cfg["execution"]["environment"] = envname
+    cfg["enabled"] = True
+    for l in LAYERS:
+        cfg["layers"][l] = True
+    enabled_msgs.append(f"environment {envname.upper()}; master switch ON; layers scanner + local_read + pilot ON")
+    for m in MARKETS:
+        mk = cfg["markets"][m]
+        mk["enabled"] = True
+        keep = []
+        for sym in MARKET_INSTRUMENTS[m]:
+            probe = os.path.join(ROOT, "data", "live", DATA_DIR[m], f"ohlcv.{sym}.15m.json")
+            if os.path.exists(probe):
+                keep.append(sym)
+            else:
+                skipped_msgs.append(f"{sym} skipped: no {'MT5 export' if m == 'cfd' else 'Binance data'} on disk "
+                                    f"({rel(probe)})")
+        mk["instruments"] = keep
+        mk["dimensions"] = {d: True for d in MARKET_DIMENSIONS[m]}
+        for t in ("15m", "1h", "4h"):
+            if t in MARKET_TIMEFRAMES[m]:
+                mk["timeframes"][t] = True
+        on_tfs = [t for t in MARKET_TIMEFRAMES[m] if mk["timeframes"].get(t, True)]
+        enabled_msgs.append(f"{m}: instruments {', '.join(keep) or '(none)'}; dimensions "
+                            f"{', '.join(MARKET_DIMENSIONS[m])}; timeframes ON {', '.join(on_tfs)} "
+                            f"-> styles {', '.join(STYLE[(m, t)] for t in on_tfs)}")
+        if not keep:
+            skipped_msgs.append(f"{m}: no instrument has data on disk, so every {m} style will no-op")
+    skipped_msgs.append("cfd dimensions footprint/heatmap do not exist -- no CoinGlass source for commodities "
+                        "(SYSTEM-DESIGN.md §12 item 3)")
+    skipped_msgs.append("cfd timeframe 1m does not exist -- the MT5 EA exports 1D/4H/1H/15m only (§12 item 6)")
+    return enabled_msgs, skipped_msgs
+
+
+def cmd_preset(a):
+    envname = a.cmd
+    cfg, exists, _ = load()
+    if envname == "real":
+        ok, missing, note = trading_env.completeness("real")
+        if not ok:
+            record(cfg, a, "real", "refused")
+            save(cfg)
+            print(f"REFUSED: config/env.real is incomplete ({note}). Fill in the real account's keys "
+                  f"(see the header of that file), then run `/automation real` again. Nothing was changed.",
+                  file=sys.stderr)
+            show(cfg, exists)
+            return 2
+    enabled_msgs, skipped_msgs = apply_preset(cfg, a, envname)
+    record(cfg, a, f"{envname} (preset)", "applied")
+    save(cfg)
+    print(f"{envname.upper()} PRESET APPLIED")
+    for s in enabled_msgs:
+        print("  + " + s)
+    for s in skipped_msgs:
+        print("  - " + s)
+    notes = bring_up(cfg, a)
+    record(cfg, a, f"{envname} -> on", "applied")
+    save(cfg)
+    for n in notes:
+        print("  " + n)
+    session_cron_block(True)
+    show(cfg, True)
+    return 0
+
+
+def cmd_market(a):
+    cfg, _, _ = load()
+    want = a.value == "on"
+    mk = cfg["markets"][a.name]
+    result = "no-op" if mk["enabled"] == want else "applied"
+    mk["enabled"] = want
+    record(cfg, a, f"market {a.name}={a.value}", result)
+    save(cfg)
+    show(cfg, True)
+    return 0
+
+
+def cmd_timeframe(a):
+    cfg, _, _ = load()
+    targets = [a.market] if a.market else [m for m in MARKETS if a.name in MARKET_TIMEFRAMES[m]]
+    bad = [m for m in targets if a.name not in MARKET_TIMEFRAMES[m]]
+    if bad:
+        record(cfg, a, f"timeframe {a.name}={a.value} --market {','.join(bad)}", "refused")
+        save(cfg)
+        print(f"REFUSED: timeframe {a.name} does not exist for market '{bad[0]}'. "
+              f"integrations/mt5/ExportOHLCV.mq5 exports 1D/4H/1H/15m only -- there is no 1m CFD data to scan, so "
+              f"no CFD scalping style exists (SYSTEM-DESIGN.md §12 item 6). "
+              f"{bad[0]} timeframes: {', '.join(MARKET_TIMEFRAMES[bad[0]])}.", file=sys.stderr)
+        show(cfg, True)
+        return 2
+    want = a.value == "on"
+    changed = False
+    for m in targets:
+        if cfg["markets"][m]["timeframes"].get(a.name) != want:
+            changed = True
+        cfg["markets"][m]["timeframes"][a.name] = want
+    record(cfg, a, f"timeframe {a.name}={a.value} --market {','.join(targets)}",
+           "applied" if changed else "no-op")
+    save(cfg)
+    print("  styles affected: " + ", ".join(STYLE[(m, a.name)] for m in targets))
+    show(cfg, True)
+    return 0
+
+
+def cmd_dimension(a):
+    cfg, _, _ = load()
+    targets = [a.market] if a.market else [m for m in MARKETS if a.name in MARKET_DIMENSIONS[m]]
+    bad = [m for m in targets if a.name not in MARKET_DIMENSIONS[m]]
+    if bad:
+        record(cfg, a, f"dimension {a.name}={a.value} --market {','.join(bad)}", "refused")
+        save(cfg)
+        print(f"REFUSED: dimension '{a.name}' does not exist for market '{bad[0]}'. Footprint and Heatmap have no "
+              f"CFD data source at all -- CoinGlass is crypto-derivatives only, so XAUUSD/XAGUSD/USOIL/UKOIL are "
+              f"structurally capped at Wyckoff + ICT, i.e. NORMAL mode (SYSTEM-DESIGN.md §12 item 3). This is a "
+              f"structural limit, not a flag: the schema has no such key to set.", file=sys.stderr)
+        show(cfg, True)
+        return 2
+    want = a.value == "on"
+    changed = False
+    for m in targets:
+        if cfg["markets"][m]["dimensions"].get(a.name) != want:
+            changed = True
+        cfg["markets"][m]["dimensions"][a.name] = want
+    record(cfg, a, f"dimension {a.name}={a.value} --market {','.join(targets)}",
+           "applied" if changed else "no-op")
+    save(cfg)
+    show(cfg, True)
+    return 0
+
+
+def cmd_layer(a):
+    cfg, _, _ = load()
+    want = a.value == "on"
+    result = "no-op" if cfg["layers"][a.name] == want else "applied"
+    cfg["layers"][a.name] = want
+    record(cfg, a, f"layer {a.name}={a.value}", result)
+    save(cfg)
+    if a.name == "pilot" and want:
+        print("  NOTE: `layer pilot on` records PERMISSION only. Nothing is started. "
+              "`pilot start` is what starts it, and only when you ask.")
+    show(cfg, True)
+    return 0
+
+
+def cmd_instrument(a):
+    sym = a.symbol.upper()
+    cfg, _, _ = load()
+    if sym[:3] in FX_CODES and sym[3:6] in FX_CODES:
+        record(cfg, a, f"instrument {sym}={a.value}", "refused")
+        save(cfg)
+        print(f"REFUSED: {sym} is a Forex pair. Forex is prohibited outright by this system's hard rules "
+              f"(SYSTEM-DESIGN.md §1) -- not a preference, not overridable here.", file=sys.stderr)
+        show(cfg, True)
+        return 2
+    m = market_of(sym)
+    if m is None:
+        record(cfg, a, f"instrument {sym}={a.value}", "refused")
+        save(cfg)
+        print(f"REFUSED: {sym} is not on the instrument allowlist "
+              f"({', '.join(ALLOWED_INSTRUMENTS)}) -- SYSTEM-DESIGN.md §1.", file=sys.stderr)
+        show(cfg, True)
+        return 2
+    cur = set(cfg["markets"][m]["instruments"])
+    want = a.value == "on"
+    result = "no-op" if (sym in cur) == want else "applied"
+    cur = (cur | {sym}) if want else (cur - {sym})
+    cfg["markets"][m]["instruments"] = [s for s in MARKET_INSTRUMENTS[m] if s in cur]
+    record(cfg, a, f"instrument {sym}={a.value} (market {m})", result)
+    save(cfg)
+    if want and not os.path.exists(os.path.join(ROOT, "data", "live", DATA_DIR[m], f"ohlcv.{sym}.15m.json")):
+        print(f"  NOTE: no data on disk for {sym} yet "
+              f"(data/live/{DATA_DIR[m]}/ohlcv.{sym}.15m.json). The flag is set; the source is not wired.")
+    show(cfg, True)
+    return 0
+
+
+def cmd_allows(a):
+    ok, reason = allows(a.layer, getattr(a, "style", None))
+    if not ok:
+        print(reason)
+    return 0 if ok else 2
+
+
+# ---------- pilot ----------
+def _refuse(cfg, a, action, msg):
+    record(cfg, a, action, "refused")
+    save(cfg)
+    print("REFUSED: " + msg, file=sys.stderr)
+    show(cfg, True)
+    return 2
+
+
+def pilot_start(a, cfg=None, embedded=False):
+    """Start scripts/pilot-loop.sh detached. Returns (rc, note). Every refusal is a hard stop -- this function
+    never 'fixes' a blocker for you (it will not remove a STOP file, will not enable a layer)."""
+    own = cfg is None
+    if own:
+        cfg, _, _ = load()
+    market = getattr(a, "market", None) or "spot"
+    action = f"pilot start --market {market}"
+    if not cfg["enabled"]:
+        return 2, "master switch is OFF -- run `/automation demo` (or `on`) first. Nothing was started."
+    if not cfg["layers"]["pilot"]:
+        return 2, "layers.pilot is off -- `/automation layer pilot on` first. Nothing was started."
+    if not cfg["markets"]["crypto"]["enabled"]:
+        return 2, ("markets.crypto is off and the pilot only trades BTCUSDT/ETHUSDT/SOLUSDT -- "
+                   "`/automation market crypto on` first. Nothing was started.")
+    envname = cfg["execution"].get("environment", "demo")
+    keys = ("BINANCE_SPOT_API_KEY", "BINANCE_SPOT_SECRET_KEY") if market == "spot" \
+        else ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY")
+    ok, missing, cnote = trading_env.completeness(envname, keys)
+    if not ok:
+        return 2, (f"environment '{envname}' is incomplete ({cnote}). Fill config/env.{envname} first. "
+                   f"Nothing was started.")
+    sp = stop_path(market)
+    if os.path.exists(sp):
+        return 2, (f"kill switch present: {rel(sp)}. The loop would exit on its first tick. Removing it is YOUR "
+                   f"action, never mine:\n    rm {rel(sp)}\n  Nothing was started.")
+    pp = cfg.get("pilot_process")
+    if pp and pp.get("pid") and alive(pp["pid"]) and not pp.get("stopped_at"):
+        return 2, (f"a pilot loop is already recorded and alive: pid {pp['pid']} ({pp.get('market')}), started "
+                   f"{pp.get('started_at')}. Nothing was started.")
+    others = [(p, m) for p, m in running_pilots() if not (pp and pp.get("pid") == p)]
+    if others:
+        lst = ", ".join(f"pid {p} ({m})" for p, m in others)
+        return 2, (f"a pilot loop is ALREADY RUNNING but is not recorded in this config: {lst}. It was started "
+                   f"outside /automation (a human terminal, most likely). Starting a second loop would double-trade "
+                   f"the same TESTNET account. Adopt it instead:\n"
+                   f"    python3 scripts/automation.py pilot adopt --market {others[0][1]}\n"
+                   f"  Nothing was started.")
+    d = pilot_dir(market)
+    os.makedirs(d, exist_ok=True)
+    lp = log_path(market)
+    use_launchd = not getattr(a, "no_launchd", False) and not dryrun() and shutil.which("launchctl")
+    if use_launchd:
+        ok, note = _install_agent(PILOT_LABEL[market], PLIST_SRC["pilot"], {"PILOT_MARKET": market, "PILOT_END": "never"})
+        if not ok:
+            return 2, note + " Nothing was started."
+        cfg.setdefault("services", {"scanner_agent": False, "pilot_agents": [], "keepawake_pid": None})
+        if PILOT_LABEL[market] not in cfg["services"]["pilot_agents"]:
+            cfg["services"]["pilot_agents"].append(PILOT_LABEL[market])
+        cfg["pilot_process"] = {"pid": 0, "market": market, "started_at": now(), "started_by": actor(a),
+                                "log": rel(lp), "launchd_label": PILOT_LABEL[market]}
+        record(cfg, a, action, "applied")
+        if own:
+            save(cfg)
+        return 0, (f"pilot [{market}] {note}; environment {envname.upper()}; log {rel(lp)}\n"
+                   f"  kill switch: {rel(sp)} (or `/automation pilot stop`). launchd KeepAlive restarts the loop "
+                   f"after a crash and at login while the agent stays installed; `/automation off` removes it.")
+    env = dict(os.environ, PILOT_MARKET=market, PILOT_END="never")
+    cmd = ["sleep", "30"] if dryrun() else ["bash", os.path.join(ROOT, "scripts", "pilot-loop.sh")]
+    with open(lp, "a") as lf:
+        lf.write(f"--- {'DRY RUN placeholder' if dryrun() else 'pilot loop'} started by "
+                 f"scripts/automation.py at {now()} ---\n")
+        lf.flush()
+        proc = subprocess.Popen(cmd, cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
+                                stdout=lf, stderr=subprocess.STDOUT, start_new_session=True)
+    cfg["pilot_process"] = {"pid": proc.pid, "market": market, "started_at": now(),
+                            "started_by": actor(a), "log": rel(lp)}
+    if dryrun():
+        cfg["pilot_process"]["dry_run"] = True
+    record(cfg, a, action, "applied")
+    if own:
+        save(cfg)
+    note = (f"pilot {'DRY RUN placeholder' if dryrun() else 'loop'} started detached (no launchd): pid {proc.pid} "
+            f"({market}), environment {envname.upper()}, log {rel(lp)}\n  kill switch: {rel(sp)} "
+            f"(create it to stop the loop on its next tick, or run `/automation pilot stop`)")
+    return 0, note
+
+
+def cmd_pilot(a):
+    cfg, exists, _ = load()
+    market = a.market or (cfg.get("pilot_process") or {}).get("market") or "spot"
+
+    if a.action == "start":
+        rc, note = pilot_start(a, cfg)
+        if rc != 0:
+            return _refuse(cfg, a, f"pilot start --market {a.market or 'spot'}", note)
+        save(cfg)
+        print("  " + note.replace("\n", "\n  "))
+        show(cfg, True)
+        return 0
+
+    if a.action == "stop":
+        svc = cfg.setdefault("services", {"scanner_agent": False, "pilot_agents": [], "keepawake_pid": None})
+        for label in list(svc.get("pilot_agents") or []):
+            print("  " + _remove_agent(label))
+        svc["pilot_agents"] = []
+        write_stop()
+        pp = cfg.get("pilot_process")
+        if pp and not pp.get("stopped_at"):
+            pp["stopped_at"] = now()          # kept, not deleted: pilot_process is the audit trail
+        record(cfg, a, "pilot stop", "applied")
+        save(cfg)
+        if dryrun():
+            print("  DRY RUN: no kill switch was created and no agent removed.")
+        else:
+            print("  Any loop still running outside launchd exits on its next tick (<= 15 min). "
+                  "`/automation on` or `pilot start` re-arms (they remove the STOP files).")
+        show(cfg, True)
+        return 0
+
+    if a.action == "adopt":
+        found = running_pilots()
+        if not found:
+            return _refuse(cfg, a, "pilot adopt", "no scripts/pilot-loop.sh process is running -- nothing to adopt.")
+        if a.market:
+            found = [(p, m) for p, m in found if m == a.market] or found[:1]
+        if len(found) > 1:
+            return _refuse(cfg, a, "pilot adopt",
+                           "more than one pilot loop is running (" +
+                           ", ".join(f"pid {p} ({m})" for p, m in found) +
+                           ") -- name one with --market spot|futures.")
+        pid, mkt = found[0]
+        cfg["pilot_process"] = {"pid": pid, "market": a.market or mkt, "started_at": now(),
+                                "started_by": "human (adopted)", "log": rel(log_path(a.market or mkt))}
+        record(cfg, a, f"pilot adopt pid={pid} market={a.market or mkt}", "applied")
+        save(cfg)
+        print(f"  adopted the already-running loop: pid {pid} ({a.market or mkt}). started_at is the ADOPTION "
+              f"time, not the real start time -- the loop was started outside /automation.")
+        show(cfg, True)
+        return 0
+
+    # status
+    pp = cfg.get("pilot_process")
+    print(f"PILOT [{market}]")
+    if pp:
+        print(f"  recorded:    pid {pp.get('pid')} ({pp.get('market')}) started {pp.get('started_at')} by "
+              f"{pp.get('started_by')}{'  [DRY RUN placeholder]' if pp.get('dry_run') else ''}")
+        print(f"  pid alive:   {'YES' if alive(pp.get('pid')) else 'no'}"
+              + (f"   stopped_at {pp['stopped_at']}" if pp.get("stopped_at") else ""))
+    else:
+        print("  recorded:    none")
+    found = running_pilots()
+    print("  processes:   " + (", ".join(f"pid {p} ({m})" +
+                                         ("" if pp and pp.get("pid") == p else " [NOT recorded -- `pilot adopt`]")
+                                         for p, m in found) or "no scripts/pilot-loop.sh running"))
+    for m in PILOT_MARKETS:
+        sp = stop_path(m)
+        print(f"  STOP [{m}]:  {'PRESENT ' + rel(sp) + ' -- loop exits next tick' if os.path.exists(sp) else 'absent'}")
+    lp = log_path(market)
+    if os.path.exists(lp):
+        try:
+            lines = [l.rstrip() for l in open(lp, encoding="utf-8", errors="replace").read().splitlines() if l.strip()]
+            print(f"  last log:    {lines[-1] if lines else '(empty)'}   [{rel(lp)}]")
+        except OSError as e:
+            print(f"  last log:    unreadable ({e})")
+    else:
+        print(f"  last log:    no {rel(lp)} yet")
+    return 0
+
+
+# ---------- presets ----------
+# `demo` and `real` share cmd_preset() above: environment + preset + bring_up().
+def cmd_demo(a):
+    return cmd_preset(a)
+    show(cfg, True)
+    return 0
+
+
+def cmd_history(a):
+    cfg, exists, _ = load()
+    if not cfg["history"]:
+        print("(no history yet)" if exists else "(no config file yet -- nothing has been changed)")
+        return 0
+    for h in cfg["history"][-a.n:]:
+        print(f"{h['ts']}  {h['actor']:<16} {h['action']:<40} {h['result']}"
+              + (f"  ({h['detail']})" if h.get("detail") else ""))
+    return 0
+
+
+def main():
+    class _P(argparse.ArgumentParser):
+        """Usage errors must exit 1, not argparse's default 2 -- 2 is reserved here for REFUSED
+        (mainnet / Forex / impossible market pair / blocked pilot start), and a caller has to be able to tell a
+        typo from a safety refusal."""
+        def error(self, message):
+            self.print_usage(sys.stderr)
+            sys.stderr.write(f"{self.prog}: error: {message}\n")
+            raise SystemExit(1)
+
+    ap = _P(description="Automation switch v3. on/off = bring everything up / stop everything; demo|real = environment + preset + on.")
+    sub = ap.add_subparsers(dest="cmd", parser_class=_P)
+
+    def audited(p):
+        p.add_argument("--who", default=None, help="who is making this change (audit trail)")
+        p.add_argument("--reason", default=None, help="why (audit trail)")
+        return p
+
+    st = sub.add_parser("status"); st.add_argument("--json", action="store_true")
+    sub.add_parser("env")
+    al = sub.add_parser("allows"); al.add_argument("layer", choices=LAYERS); al.add_argument("style", nargs="?", default=None)
+    audited(sub.add_parser("demo")); audited(sub.add_parser("real"))
+    audited(sub.add_parser("on")); audited(sub.add_parser("off"))
+    p = audited(sub.add_parser("market"))
+    p.add_argument("name", choices=MARKETS); p.add_argument("value", choices=["on", "off"])
+    p = audited(sub.add_parser("timeframe"))
+    p.add_argument("name", choices=TIMEFRAMES); p.add_argument("value", choices=["on", "off"])
+    p.add_argument("--market", choices=MARKETS, default=None)
+    p = audited(sub.add_parser("dimension"))
+    p.add_argument("name", choices=DIMENSIONS); p.add_argument("value", choices=["on", "off"])
+    p.add_argument("--market", choices=MARKETS, default=None)
+    p = audited(sub.add_parser("instrument")); p.add_argument("symbol"); p.add_argument("value", choices=["on", "off"])
+    p = audited(sub.add_parser("layer"))
+    p.add_argument("name", choices=LAYERS); p.add_argument("value", choices=["on", "off"])
+    p = audited(sub.add_parser("pilot"))
+    p.add_argument("action", choices=["start", "stop", "status", "adopt"])
+    p.add_argument("--market", choices=PILOT_MARKETS, default=None)
+    p.add_argument("--no-launchd", action="store_true", help="start detached from this shell instead of as a launchd agent")
+    h = sub.add_parser("history"); h.add_argument("-n", type=int, default=20)
+
+    a = ap.parse_args()
+    if a.cmd is None:
+        a.cmd = "status"; a.json = False       # no args = status, per .claude/commands/automation.md
+
+    # v1/v2 -> v3 migration, once, in place, with an audit row. Done here (not in load()) so that a reader such as
+    # scan-loop.sh never writes this file as a side effect of gating a pass.
+    cfg, exists, migrated = load()
+    if migrated and exists and a.cmd not in ("allows",):
+        record(cfg, a, f"migrate schema_version -> {SCHEMA_VERSION}", "applied")
+        save(cfg)
+        print(f"# migrated {rel(CONFIG)} to schema_version {SCHEMA_VERSION} "
+              f"(execution.account -> execution.environment, services added); recorded in history[].")
+
+    if a.cmd == "status":
+        cfg, exists, _ = load(); show(cfg, exists, a.json); return 0
+    if a.cmd == "env":
+        return cmd_env(a)
+    if a.cmd == "allows":
+        return cmd_allows(a)
+    if a.cmd in ("on", "off"):
+        return cmd_master(a)
+    if a.cmd in ("demo", "real"):
+        return cmd_preset(a)
+    if a.cmd == "market":
+        return cmd_market(a)
+    if a.cmd == "timeframe":
+        return cmd_timeframe(a)
+    if a.cmd == "dimension":
+        return cmd_dimension(a)
+    if a.cmd == "layer":
+        return cmd_layer(a)
+    if a.cmd == "instrument":
+        return cmd_instrument(a)
+    if a.cmd == "pilot":
+        return cmd_pilot(a)
+    if a.cmd == "history":
+        return cmd_history(a)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

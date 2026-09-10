@@ -3,6 +3,8 @@ description: Post-trade review on a closed trade — dispatches learning-agent, 
 argument-hint: <trade id> <result: WIN|LOSS|BREAKEVEN> <exit price> [root_cause] [notes]
 ---
 
+**Model gate (SYSTEM-DESIGN.md §14).** This command reasons (close-out fields such as `is_mistake`, `root_cause` and the contradictions' `outcome_side` are judgments). If you are running as Haiku, do not execute it in this session: dispatch one `general-purpose` subagent with `model: sonnet` to run this command with the same `$ARGUMENTS` and relay its output verbatim.
+
 1. Read `trades/<id>.md` (must exist; must be `status: OPEN` or `PLANNED`, moving to `CLOSED`).
 2. Dispatch **learning-agent** for the single-trade Post-Trade Review (`.claude/skills/learning-skill/SKILL.md`'s `/review` procedure): Original Thesis vs. Outcome, Execution fidelity, root-cause category from the fixed list, MFE/MAE if known.
 3. Invoke **journal-skill** to write the close-out fields (`date_closed`, `status: CLOSED`, `result`, `r_multiple`, `mfe`, `mae`, `exit_reason`, `root_cause`, `is_mistake`, `lessons`) into the trade file and append the Post-Trade Review section to its body, then regenerate `trades/index.jsonl` and both rollup views.

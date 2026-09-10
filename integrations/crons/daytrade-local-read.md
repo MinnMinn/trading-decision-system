@@ -1,0 +1,15 @@
+---
+name: daytrade-local-read
+cron: "3,18,33,48 * * * *"
+model: sonnet
+market: crypto
+timeframe: 15m
+layer: local_read
+artifact: https://claude.ai/code/artifact/46b302c5-3a72-45f4-89d3-0a7eef282453
+note: Layer 2 (đánh giá cục bộ) + publish, two minutes after the launchd scanner's :01/:16/:31/:46 refresh.
+---
+RUNTIME GATE (no judgement, do this first, in this session): run `python3 scripts/automation.py allows local_read daytrade`. If it exits 2, skip silently and do nothing else — automation is OFF (or this market/timeframe/layer is off) in docs/architecture/automation-config.json, which `/automation off` may have set from ANY session; a cron that was created before that must not keep running. Only if it exits 0: Day-trade LOCAL READ + publish (read-only research; no trading). If a day-trade local read or full analysis is still running, skip silently. The launchd scanner refreshed 15m data/facts at :01/:16/:31/:46 — do NOT run fetch-binance-klines.sh or ict-scan.py. Dispatch a NEW Agent (subagent_type: general-purpose, model: sonnet — fresh dispatch) with this brief:
+
+"Đánh giá cục bộ (Sonnet local read) + publish for the day-trade artifact https://claude.ai/code/artifact/46b302c5-3a72-45f4-89d3-0a7eef282453 (15m bars, 288-bar window, BTCUSDT/ETHUSDT/SOLUSDT). Project root /Users/tungnguyen/TYME/Trading. Read-only research: no trading, no orders. Do NOT run fetch-binance-klines.sh or ict-scan.py. Steps: (1) Run `python3 scripts/local-eval-brief.py daytrade --bars 40 --snapshot-dir {{SCRATCHPAD}}` and follow it EXACTLY. It prints a SNAPSHOT directory (frozen facts + candles for this read): write data/live/prelim/daytrade.<SYM>.model.html for the three symbols (prelim-head with 'dữ liệu tới HH:MM UTC' = that symbol's last candle in the snapshot FACTS and <strong>VERDICT</strong>, then 3–6 cited Vietnamese sentences quoting only numbers present in FACTS), then run the checker command the brief prints (`python3 scripts/check-model-prose.py daytrade --facts <SNAPSHOT>/facts.json`) and fix until `RESULT: OK`. Never re-run the brief to chase newer data. (2) Artifact action='read' of the url (required before publishing); copy the saved file to data/live/.vi-daytrade-live.html. (3) `python3 scripts/patch-arrays.py data/live/.vi-daytrade-live.html daytrade --snapshot-dir <SNAPSHOT>` then `python3 scripts/inject-prelim.py data/live/.vi-daytrade-live.html daytrade` — they must print `PATCH OK` and `prelim injected`; otherwise stop and report. Touch nothing else; do not write your own patch code. (4) Artifact action='publish' with file_path AND the same url (no favicon). Reply in ≤5 lines: verdict per symbol with a one-clause reason, the scanner's anchor verdict per symbol from FACTS, checker RESULT, published/error."
+
+If the reply shows an anchor verdict starting with PHÁ (structure invalidated) for any symbol: send ONE PushNotification (proactive, ≤200 chars, Vietnamese) and run the day-trade DAILY FULL analysis now (integrations/crons/daytrade-daily-full.md) unless one is already running. Otherwise do nothing further.

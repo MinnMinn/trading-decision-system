@@ -1,0 +1,93 @@
+{
+  "_comment": "Numeric parameters for WyckoffSkill and the timing bucket of ICTSkill. Created 2026-09-10 by user decision (knowledge/10-integrated-method.md section 7, decisions 2 and 4). READ THIS FIRST: the 'sourced' block holds numbers the books actually print, with the page citation. The 'project_defined' block holds numbers NO source gives -- knowledge/10 section 7 item 7 records that every Wyckoff source treats 'large volume', 'narrow spread' and 'low-volume Spring' as relative visual judgments. Project-defined numbers must be reported as project parameters, never cited as rules from the book, and are the tuning surface for /improve.",
+
+  "sourced": {
+    "_comment": "Every value here has a printed page citation. Do not change these without re-reading the cited page.",
+    "st_above_half_tr": {
+      "value": 0.5,
+      "meaning": "ST[A] above 50% of the TR (AR-SC) reads as supply thinned; below 50% reads as supply still abundant",
+      "cite": "WA p75, p88 -- knowledge/07 section 5.2 rule WA2-07"
+    },
+    "st_within_third_of_tr": {
+      "value": 0.3333,
+      "meaning": "the ST-within-one-third-of-the-TR test used in the doi nhan (mislabelling) checks",
+      "cite": "WA p150, p166 -- knowledge/07 section 2.11"
+    },
+    "sot_min_pushes": {
+      "value": 3,
+      "meaning": "minimum pushes before SOT is a valid read",
+      "cite": "WA p280, p284, p292 -- knowledge/07 section 5.4 rule WA4-52"
+    },
+    "sot_useful_max_pushes": {
+      "value": 4,
+      "meaning": "3 to 4 pushes is the useful window; MORE than 4 means the trend is too strong to oppose",
+      "cite": "WA p280, p284, p292 -- knowledge/07 section 5.4 rule WA4-52"
+    },
+    "imbalance_ratio_gold_oil_cfd": {
+      "value": [3.0, 4.0],
+      "meaning": "Footprint imbalance ratio range for gold and oil CFDs (XAUUSD, XAGUSD, USOIL, UKOIL)",
+      "cite": "WMT p107-p109 -- knowledge/08 section 3.2"
+    },
+    "imbalance_ratio_stocks": {
+      "value": 3.0,
+      "meaning": "Footprint imbalance ratio for high-liquidity equities; crypto must be adjusted per token liquidity, no fixed value is given",
+      "cite": "WMT p107-p109 -- knowledge/08 section 3.2"
+    },
+    "value_area_pct": {
+      "value": 0.682,
+      "meaning": "default Value Area share of traded volume used for VAH/VAL",
+      "cite": "WMT p069-p079 -- knowledge/08 section 3.1"
+    },
+    "market_profile_80_rule": {
+      "value": 0.8,
+      "meaning": "if an attempted breakout of the Value Area fails, price has ~80% chance of reaching the other end of the VA; used for first target",
+      "cite": "WMT p273 -- knowledge/08 section 5 Step 6"
+    }
+  },
+
+  "project_defined": {
+    "_comment": "NO source gives these. They exist so the deterministic scanner and the model agree on what 'low volume' means. Every output that uses one MUST label it a project parameter. Tune via /improve, never silently.",
+    "lookback_bars": 20,
+    "volume": {
+      "low_max_ratio": 0.7,
+      "high_min_ratio": 1.5,
+      "spike_min_ratio": 2.5,
+      "_basis": "ratio to the mean volume of the previous lookback_bars completed bars"
+    },
+    "spread": {
+      "narrow_max_ratio": 0.7,
+      "wide_min_ratio": 1.5,
+      "_basis": "bar range (high-low) as a ratio to the mean bar range of the previous lookback_bars completed bars"
+    },
+    "spring_low_volume_max_ratio": {
+      "value": 0.7,
+      "_basis": "a 'low-volume Spring' (WA p80 calls it a good moment to open a partial position) is read as volume at or below this ratio. The book states the concept, not the number."
+    },
+    "commitment_bars": {
+      "value": 2,
+      "_basis": "'a period of commitment beyond the TR boundary' (SOS/SOW) is read as at least this many CONSECUTIVE COMPLETED closes beyond the level. The books require time but never quantify it."
+    },
+    "same_level_tolerance_atr": {
+      "value": 0.25,
+      "_basis": "the Wyckoff TR boundary and the ICT liquidity level count as THE SAME LEVEL when they are within this multiple of the 20-bar ATR. Drives the mandatory de-duplication check in knowledge/10 section 4.3 and SYSTEM-DESIGN section 6.1."
+    },
+    "tick_volume_credit_multiplier": {
+      "value": 0.5,
+      "_basis": "multiplier applied to the Wyckoff effort/volume sub-score when the feed is mt5_bridge_live, where 'volume' is tick count and not traded size (docs/architecture/mt5-bridge.md)."
+    }
+  },
+
+  "timing": {
+    "_comment": "Session/killzone scoring caps. The session windows themselves are defined in docs/architecture/session-model.md. These caps are project-defined: knowledge/04 section 6 records that the ICT sources give no killzone rule for crypto or commodity CFDs at all.",
+    "timing_bucket_max": 7,
+    "weight_by_class": {
+      "full": 7,
+      "reduced": 3,
+      "none": 0
+    },
+    "min_timeframe_minutes": {
+      "value": 15,
+      "_basis": "killzone credit is not awarded below this timeframe. A 1m chart inside a 3h window carries no timing information; the repo's local-read brief already says killzones are meaningless on 1m."
+    }
+  }
+}
