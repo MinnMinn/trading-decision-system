@@ -21,6 +21,10 @@ Storage design: `docs/architecture/SYSTEM-DESIGN.md` §8. Format: `trades/README
 3. Append the Post-Trade Review section to the body per `trades/README.md`'s template.
 4. Regenerate `trades/index.jsonl`.
 
+### Tooling
+Use `python3 scripts/journal.py` for every mechanical step below (`sync-pilot`, `review`, `index`, `views`, `stats`,
+`render`); do not re-implement them by hand. Demo-pilot trades are ingested with `sync-pilot`, never typed in.
+
 ### Regenerating `trades/index.jsonl`
 Scan every `trades/*.md` file, extract its frontmatter, write one JSON line per file. This file is fully derived — never hand-edit it, never partially update it; always rebuild from scratch so it can't drift from the source `.md` files.
 

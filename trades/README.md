@@ -22,3 +22,11 @@ Body structure (after the frontmatter):
 `docs/edge-log/EDGE-LOG.md` and `docs/mistakes/MISTAKE-DB.md` are formatted views generated from `trades/index.jsonl` — same rule, edit the source trade file, not the generated view.
 
 Rehearsal-mode trades (`rehearsal_mode: true`, produced while any data source was `MOCK`) are excluded from the consecutive-loss throttle and from Edge Log win-rate rollups, but still appear in the raw index for testing/reference.
+
+## Tooling (2026-09-10)
+
+`scripts/journal.py` is the one tool over this store — see `docs/architecture/SYSTEM-DESIGN.md` §8.1. Demo-pilot
+trades enter via `journal.py sync-pilot` (source `pilot_spot` / `pilot_futures`, market `spot_testnet` /
+`futures_testnet`); human/Claude review fields are set with `journal.py review <id> --set root_cause=... is_mistake=true
+lessons="..." what_to_change="..."`. `journal.py all` refreshes everything (sync, index, views, review page). Fields
+computed by code (R, P&L, hold time, session) must not be hand-edited; edit the review fields only.

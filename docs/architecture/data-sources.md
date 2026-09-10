@@ -58,6 +58,12 @@ Current entries (account `binance-testnet` in Keychain):
 
 When the CoinGlass key arrives, store it the same way (e.g. service name `trading-system-coinglass-api-key`) and add a fetcher script following `scripts/binance-testnet-order.sh`'s pattern (`get-secret.sh` inside the script, never a CLI argument, never printed to stdout/logs).
 
+- **Futures testnet (2026-09-10):** Keychain account `binance-futures-testnet`, services
+  `trading-system-binance-futures-testnet-api-key` / `trading-system-binance-futures-testnet-secret-key`; keys are
+  created at https://testnet.binancefuture.com and added with `security add-generic-password -a binance-futures-testnet -s <service> -w '<value>'`
+  by the user, never pasted into chat. `scripts/get-secret.sh <service> binance-futures-testnet` reads them;
+  `scripts/binance-futures-testnet-order.sh check` reports presence without printing values.
+
 ## No dedicated Heatmap/Liquidity knowledge-base source
 
 Unlike Wyckoff/ICT/Footprint, there is no ingested book/course covering Heatmap/Liquidity theory in `docs/`. `HeatmapSkill`'s rules are sourced only from the master system prompt's own text (§2.4, §8). If the user adds a dedicated source later, ingest it the same way the Wyckoff book was ingested before trusting HeatmapSkill at STRICT mode.

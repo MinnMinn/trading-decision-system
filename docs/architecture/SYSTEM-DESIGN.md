@@ -138,6 +138,19 @@ No database exists in v1. One Markdown file per trade under `trades/<YYYY-MM-DD>
 
 **Rollup mechanism (made concrete after review — "queryable" was hand-wavy in the first draft):** JournalSkill regenerates **`trades/index.jsonl`** on every `/journal` or `/status` call — one JSON line per trade file, containing exactly its YAML frontmatter, rebuilt by scanning `trades/*.md` fresh each time (never hand-edited, always derived). `docs/edge-log/EDGE-LOG.md` and `docs/mistakes/MISTAKE-DB.md` are then simple filtered/formatted views over `trades/index.jsonl` (e.g. Edge Log = every closed, non-rehearsal trade sorted by date; Mistake DB = every trade with `is_mistake: true`, grouped by `root_cause`) — cheap to regenerate, never a second hand-maintained copy of the data. This is a deliberate simplification from the master spec's three-named-artifact language — same information, one source of truth, per this project's own single-source-of-truth rule. `trades/README.md` documents the format.
 
+### 8.1 Journal tooling (2026-09-10)
+
+`scripts/journal.py` operates the store: `sync-pilot` ingests demo-pilot entry/exit records into `trades/*.md`
+(idempotent on the exchange entry order id; computed fields — R, P&L, hold time, exit type, session — filled by code),
+`review <id> --set k=v` records the human/Claude review fields (root_cause, is_mistake, lessons, review_notes,
+what_to_change, followed_plan, confidence, emotional_state, tags, screenshots), `index`/`views` regenerate
+`trades/index.jsonl`, `docs/edge-log/EDGE-LOG.md` and `docs/mistakes/MISTAKE-DB.md`, `stats` computes win rate,
+average/expectancy R, profit factor, max drawdown in R, losing streaks and breakdowns by setup/instrument/session/market,
+and `render` writes the Vietnamese review page published as the "Nhật ký giao dịch" artifact. The schema gained the
+review fields listed above plus `market`, `source`, `timeframe`, `leverage`, `planned_rr`, `pnl_usd`, `fees_usd`,
+`slippage_bps`, `hold_minutes`, `exit_type`, `thesis`, `plan_vs_actual`, `exchange_refs`; `confluence_score` may be
+null for rules-only pilot trades.
+
 ## 9. Commands (11)
 
 | Command | Pipeline steps it runs | Can it move toward execution? |
@@ -172,7 +185,7 @@ LearningAgent may propose changes to scoring weights, thresholds, or methodology
 1. **No Heatmap source document** exists in `docs/` — HeatmapSkill's rules come only from the master prompt text, not from an ingested reference. If the user adds a Heatmap/liquidity book or course to `docs/`, ingest it before trusting HeatmapSkill's outputs at STRICT mode.
 2. **CoinGlass is still MOCK** — no API key configured yet. Crypto market data itself is now LIVE (Binance connector, verified). The MT5 commodities bridge is built but **untested against a real terminal** — see `docs/architecture/mt5-bridge.md` for what to check when you try it. No `/analyze` output using MOCK/untested sources can be treated as a live, tradeable signal; every such output must say so plainly.
 3. **XAUUSD/XAGUSD/USOIL/UKOIL are structurally capped at NORMAL mode** even once the MT5 bridge is live and CoinGlass is connected — Footprint and Heatmap dimensions have no data source for commodities (CoinGlass is crypto-derivatives-only), so only Wyckoff + ICT (2 of 4 dimensions) can ever be engaged for these instruments in the current design. This is a structural limit, not a temporary gap — closing it would require finding or building a genuine order-flow/liquidity source for MT5 markets.
-4. **Stage 1 execution is live on Binance SPOT TESTNET only** (`scripts/binance-testnet-order.sh`, credentials in macOS Keychain via `scripts/get-secret.sh`) — mainnet and MT5 execution remain unbuilt by design; wiring either is separate, larger scope requiring explicit authorization and, for mainnet specifically, Security review first (real credential/secret-handling + real financial trust boundary, not a demo).
+4. **Execution is live on Binance TESTNET only** — SPOT (`scripts/binance-testnet-order.sh`, LONG-only) and USDT-M FUTURES (`scripts/binance-futures-testnet-order.sh`, long/short, ISOLATED, leverage ≤ 3), credentials in macOS Keychain via `scripts/get-secret.sh <name> [account]` — mainnet and MT5 execution remain unbuilt by design; wiring either is separate, larger scope requiring explicit authorization and, for mainnet specifically, Security review first (real credential/secret-handling + real financial trust boundary, not a demo).
 5. **Account equity is user-supplied, not fetched** — RiskSkill has no live balance source in v1.
 
 ### 9.x Stage-2 demo pilot (2026-09-09, user-authorised, 24 h, SPOT TESTNET)
@@ -181,7 +194,12 @@ LearningAgent may propose changes to scoring weights, thresholds, or methodology
 entry = discount + SSL/ERL-low sweep + bullish MSS + bullish FVG + Effort-vs-Result volume check; 0.5% risk,
 25% notional cap, max 2 open / 3 per symbol per day, OCO exits, 6 h time-stop, halt after 3 consecutive
 losses or −2% day. `scripts/pilot-loop.sh` runs it every 15 min; `data/live/pilot/STOP` is the kill switch;
-`--report` prints realised/unrealised P&L from exchange order status. Claude Code's auto-mode classifier
+`--report` prints realised/unrealised P&L from exchange order status. **Futures mode (2026-09-10):** `--market futures`
+(or `PILOT_MARKET=futures scripts/pilot-loop.sh`) runs the same rules LONG and SHORT on Binance **USDT-M FUTURES TESTNET**
+through `scripts/binance-futures-testnet-order.sh` — ISOLATED margin, leverage 3 (connector refuses more), MARKET entry,
+STOP_MARKET + TAKE_PROFIT_MARKET `closePosition` exits on MARK_PRICE, state in `data/live/pilot-futures/`. SHORT mirrors
+LONG: premium, BSL/ERL-high sweep, bearish MSS, bearish FVG, stop above the swept high. Keys live in Keychain account
+`binance-futures-testnet` (see the connector header); the assistant never sees them. Claude Code's auto-mode classifier
 refuses to *schedule* unattended order placement (correctly), so the loop is run by the user in a separate
 terminal (or installed by the user as `integrations/launchd/com.tyme.trading.pilot.plist`; the assistant never loads
 it); Claude only schedules read-only reports. The host must not sleep during the window (`caffeinate -di`): on
