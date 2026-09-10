@@ -11,6 +11,7 @@
 docs/Footprint/
 docs/TTrades PDFs/
 docs/Wyckoff and Modern Tools/
+docs/Wyckoff Advance/
 .cache/
 
 # Ephemeral fetched market data -- regenerated on demand by scripts/, not
