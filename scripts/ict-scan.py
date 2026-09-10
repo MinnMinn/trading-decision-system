@@ -41,11 +41,17 @@ CITE = {
     "sys": "[tính toán của hệ thống — không phải trích dẫn tài liệu]",
 }
 
-SHORT = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "SOLUSDT": "SOL"}
+SHORT = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "SOLUSDT": "SOL", "XAUUSD": "XAU", "XAGUSD": "XAG", "USOIL": "OIL", "UKOIL": "BRENT"}
+
+
+MT5_SYMBOLS = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
 
 
 def load(sym, tf):
-    with open(f"{ROOT}/data/live/market-data/ohlcv.{sym}.{tf}.json") as f:
+    """Crypto from the Binance connector (data/live/market-data); commodities from the MT5 file bridge
+    (data/live/mt5-bridge, written by integrations/mt5/ExportOHLCV.mq5). Same candle shape either way."""
+    base = "mt5-bridge" if sym in MT5_SYMBOLS else "market-data"
+    with open(f"{ROOT}/data/live/{base}/ohlcv.{sym}.{tf}.json") as f:
         return json.load(f)["candles"]
 
 
@@ -218,6 +224,10 @@ def setup_candidate(a, c, lookback):
 
 def fmt(sym, v):
     return f"{v:,.0f}" if sym.startswith("BTC") else f"{v:,.2f}"
+
+
+def sessions_note(sym):
+    return " (killzone London/NY có ý nghĩa với vàng; phiên Á thường mỏng)" if sym in MT5_SYMBOLS else ""
 
 
 def facts_table(sym, a, an, su):

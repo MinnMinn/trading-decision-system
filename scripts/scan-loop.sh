@@ -14,12 +14,16 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 now() { date -u +%FT%TZ; }
-run_style() { # tf n style recent
-  local tf=$1 n=$2 style=$3 recent=$4 s out rc
-  for s in BTCUSDT ETHUSDT SOLUSDT; do
-    bash scripts/fetch-binance-klines.sh "$s" "$tf" "$n" >/dev/null 2>>"$LOG" || echo "$(now) fetch FAIL $s $tf" >>"$LOG"
-  done
-  out="$(python3 scripts/ict-scan.py --tf "$tf" --n "$n" --style "$style" --recent "$recent" 2>>"$LOG")"; rc=$?
+run_style() { # tf n style recent [symbols]   (symbols from the MT5 bridge are not fetched here: the EA writes them)
+  local tf=$1 n=$2 style=$3 recent=$4 syms=${5:-BTCUSDT,ETHUSDT,SOLUSDT} s out rc
+  if [ "$syms" = "BTCUSDT,ETHUSDT,SOLUSDT" ]; then
+    for s in BTCUSDT ETHUSDT SOLUSDT; do
+      bash scripts/fetch-binance-klines.sh "$s" "$tf" "$n" >/dev/null 2>>"$LOG" || echo "$(now) fetch FAIL $s $tf" >>"$LOG"
+    done
+  else
+    for s in ${syms//,/ }; do [ -s "data/live/mt5-bridge/ohlcv.$s.$tf.json" ] || { echo "$(now) $style skipped: no bridge file for $s $tf" >>"$LOG"; return 0; }; done
+  fi
+  out="$(python3 scripts/ict-scan.py --tf "$tf" --n "$n" --style "$style" --recent "$recent" --symbols "$syms" 2>>"$LOG")"; rc=$?
   if [ "$rc" -eq 3 ]; then
     printf '%s' "$out" | STYLE="$style" python3 -c '
 import json, os, sys
@@ -34,8 +38,8 @@ with open("data/live/events.jsonl", "a") as f:
 FORCE="${1:-}"                       # scan-loop.sh all  -> run every style now (manual / first run)
 M=$(date -u +%M); H=$(date -u +%H)
 run_style 1m 180 scalping 4
-case "$M" in 01|16|31|46) run_style 15m 288 daytrade 2 ;; esac
-if [ "$M" = "02" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 1D 120 swing 1; fi
-if [ "$FORCE" = "all" ]; then run_style 15m 288 daytrade 2; run_style 1D 120 swing 1; fi
+case "$M" in 01|16|31|46) run_style 15m 288 daytrade 2; run_style 15m 200 gold 2 XAUUSD ;; esac
+if [ "$M" = "02" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 1D 120 swing 1; run_style 1D 120 gold-swing 1 XAUUSD; fi
+if [ "$FORCE" = "all" ]; then run_style 15m 288 daytrade 2; run_style 1D 120 swing 1; run_style 15m 200 gold 2 XAUUSD; run_style 1D 120 gold-swing 1 XAUUSD; fi
 # keep the log bounded
 if [ "$(wc -l < "$LOG")" -gt 5000 ]; then tail -n 2000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"; fi

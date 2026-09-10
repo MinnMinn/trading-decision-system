@@ -50,3 +50,18 @@ Most CFD/commodity brokers report `real_volume = 0` to MT5 — there is no conso
 ## Execution (a separate, later question)
 
 This bridge is **read-only** — it exports market data, it does not place orders. Semi-automated execution via MT5 (e.g. an EA that reads a ticket file this system writes and places the order) is a materially bigger step: it would give this system's output a path to real money movement, which is exactly the kind of trust-boundary change `docs/architecture/SYSTEM-DESIGN.md` §9 and this project's own routing rules require a Security review for before building. Don't wire that up without raising it explicitly first.
+
+
+## Verified on a real terminal (2026-09-10 03:52Z)
+
+`ExportOHLCV` v1.01 attached to XAUUSD H1 in MetaTrader 5 (macOS build, prefix
+`~/Library/Application Support/net.metaquotes.wine.metatrader5`). `scripts/mt5-bridge-check.sh XAUUSD` → AVAILABLE
+for 1D/4H/1H/15m, files refreshed every 60 s (`last_updated`), 200 candles each (EA input `InpBarsToExport`).
+Checked: timestamps are UTC (`_server_utc_offset_sec: 10800`, i.e. server UTC+3 — the 15m candle open times match
+the wall clock, the daily candle opens at 21:00Z = broker midnight), all six fields present, `_volume_caveat`
+present (tick volume, not traded volume — Effort-vs-Result reads on gold use it as a proxy only).
+The deterministic scanner reads the bridge directly (`scripts/ict-scan.py` `load()` routes XAUUSD/XAGUSD/USOIL/UKOIL
+to `data/live/mt5-bridge/`); the launchd loop scans style `gold` (15m×200) at :01/:16/:31/:46 and `gold-swing`
+(1D×120) every 4 h, emitting events to `data/live/events.jsonl` like the crypto styles. No gold chart artifact exists
+yet; `scripts/local-eval-brief.py gold` already produces the Sonnet brief. Raise `InpBarsToExport` to ≥300 in the EA
+inputs if a 288-bar 15m window is wanted.

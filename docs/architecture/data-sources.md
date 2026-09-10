@@ -28,7 +28,7 @@ Used for: price/candles, market structure, timeframes, technical context. **Real
 
 Mock fixtures remain at `mock/market-data/ohlcv.<SYMBOL>.<TIMEFRAME>.json` for rehearsal/testing when you deliberately want to exercise the pipeline without hitting the network.
 
-## Commodities market-data contract (XAUUSD/XAGUSD/USOIL/UKOIL) — MT5 file bridge
+## Commodities market-data contract (XAUUSD/XAGUSD/USOIL/UKOIL) — MT5 file bridge (LIVE for XAUUSD since 2026-09-10, see mt5-bridge.md)
 
 **Decision made:** rather than a third-party commodities API, this pulls data directly from your own MT5 terminal via a file bridge (an MQL5 Expert Advisor writes JSON files this system reads) — full design, install steps, and hard caveats in **`docs/architecture/mt5-bridge.md`**. Script: `integrations/mt5/ExportOHLCV.mq5` (written, not yet tested against a real terminal). Read path: `data/live/mt5-bridge/ohlcv.<SYMBOL>.<TIMEFRAME>.json`. Same field shape as the crypto contract above, plus a `_volume_caveat` field since MT5's volume for CFDs is tick-count, not real traded size.
 
@@ -80,7 +80,7 @@ produced wrong numbers on 2026-09-09/10: **numbers come from code, words come fr
 
 | Layer | Owner | Cadence | Output |
 |---|---|---|---|
-| 1. Đánh giá sơ bộ (scanner) | `scripts/ict-scan.py`, run by the launchd agent `com.tyme.trading.scanner` via `scripts/scan-loop.sh` | scalping every 60 s; day-trade at :01/:16/:31/:46; swing at 00:02/04:02/…/20:02 UTC | `data/live/prelim/<style>.<SYM>.html` (head + **facts table**), `<style>.facts.json`, `<style>.meta.json`, `data/live/scan-state.<style>.json`; NEW sweep / ERL touch / MSS appended to `data/live/events.jsonl` |
+| 1. Đánh giá sơ bộ (scanner) | `scripts/ict-scan.py`, run by the launchd agent `com.tyme.trading.scanner` via `scripts/scan-loop.sh` | scalping every 60 s; day-trade and `gold` (XAUUSD 15m×200 from the MT5 bridge) at :01/:16/:31/:46; swing and `gold-swing` at 00:02/04:02/…/20:02 UTC | `data/live/prelim/<style>.<SYM>.html` (head + **facts table**), `<style>.facts.json`, `<style>.meta.json`, `data/live/scan-state.<style>.json`; NEW sweep / ERL touch / MSS appended to `data/live/events.jsonl` |
 | 2. Đánh giá cục bộ (Sonnet local read) | Sonnet agent fed by `scripts/local-eval-brief.py <style>`; validated by `scripts/check-model-prose.py <style>` | scalping: on each new event, debounced to ≥5 min apart; day-trade: every 15 min; swing: every 4 h | `data/live/prelim/<style>.<SYM>.model.html` — 3–6 cited sentences of judgement (grab-and-reverse vs continuation, displacement/FVG validity, premium/discount, Effort-vs-Result, invalidation) quoting only numbers present in facts.json |
 | 3. Đánh giá toàn diện (full analysis) | Sonnet agent, rewrites the narrative/evidence tables of the artifact | once per day per chart after the UTC daily close (07:30 / 07:40 / 07:50 Asia/Saigon) and on a structure invalidation (scanner verdict `PHÁ DƯỚI` / `PHÁ TRÊN` / `PHÁ CẤU TRÚC`) | scalping: `data/live/narrative/scalping.full.html` (never publishes — see single-publisher rule); day-trade/swing: publishes directly; **must also rewrite `data/live/anchors.<style>.json`** with the new named levels |
 

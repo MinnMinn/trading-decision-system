@@ -10,7 +10,9 @@ Usage: local-eval-brief.py <style> [--bars 40] [--symbols BTCUSDT,ETHUSDT,SOLUSD
 """
 import argparse, json, os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TF = {"scalping": ("1m", 180), "daytrade": ("15m", 288), "swing": ("1D", 120)}
+TF = {"scalping": ("1m", 180), "daytrade": ("15m", 288), "swing": ("1D", 120),
+      "gold": ("15m", 200), "gold-swing": ("1D", 120)}      # gold = XAUUSD via the MT5 bridge (200 bars exported)
+MT5_SYMBOLS = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
 CITES = """- Trading Range: WMT p023–026 · knowledge/07 §2.4 · Pha (phases): WMT p025–032 · knowledge/07 §2.5
 - Spring: WMT p036–049 · knowledge/07 §2.6 · Upthrust: WMT p050–064 · knowledge/07 §2.7
 - Effort-vs-Result: WMT p019–022, p149–154 · knowledge/07 §2.3, §4.1 · SOS/SOW: knowledge/07 §6
@@ -30,13 +32,20 @@ def fmt(sym, v):
     return f"{v:,.0f}" if sym.startswith("BTC") else f"{v:,.2f}"
 
 
+def data_path(sym, tf):
+    base = "mt5-bridge" if sym in MT5_SYMBOLS else "market-data"
+    return f"{ROOT}/data/live/{base}/ohlcv.{sym}.{tf}.json"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("style", choices=TF.keys()); ap.add_argument("--bars", type=int, default=40)
-    ap.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT"); ap.add_argument("--events", default="")
+    ap.add_argument("--symbols", default=None); ap.add_argument("--events", default="")
     ap.add_argument("--snapshot-dir", default=os.environ.get("TMPDIR", "/tmp"), help="where to freeze facts + candles for this read")
     a = ap.parse_args()
     tf, n = TF[a.style]
+    if a.symbols is None:
+        a.symbols = "XAUUSD" if a.style.startswith("gold") else "BTCUSDT,ETHUSDT,SOLUSDT"
     # Freeze the scanner outputs for THIS read: the background scanner rewrites facts.json every minute (scalping),
     # so the model must be judged against the snapshot it was given, not against whatever is newest at check time.
     import shutil, time
@@ -46,7 +55,7 @@ def main():
     shutil.copy(f"{ROOT}/data/live/prelim/{a.style}.facts.json", facts_path)
     syms = a.symbols.split(",")
     for sym in syms:
-        shutil.copy(f"{ROOT}/data/live/market-data/ohlcv.{sym}.{tf}.json", os.path.join(snap_dir, f"ohlcv.{sym}.{tf}.json"))
+        shutil.copy(data_path(sym, tf), os.path.join(snap_dir, f"ohlcv.{sym}.{tf}.json"))
     facts = json.load(open(facts_path, encoding="utf-8"))
     print(f"# Đánh giá cục bộ · {a.style} · {tf}×{n} · dữ liệu tới {facts['window_last']} · scanner chạy {facts['scanned_at']}")
     print(f"SNAPSHOT: {snap_dir}  (facts + candles đã đóng băng cho lần đọc này; scanner nền vẫn cập nhật file gốc)")
