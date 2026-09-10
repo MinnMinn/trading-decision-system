@@ -24,9 +24,14 @@ def collect(o, acc):
         for v in o: collect(v, acc)
     elif isinstance(o, (int, float)) and not isinstance(o, bool):
         acc.add(digits(o)); acc.add(digits(round(o, 2))); acc.add(digits(round(o, 1))); acc.add(digits(round(o)))
+        acc.add(re.sub(r"[^0-9]", "", f"{o:.2f}")); acc.add(re.sub(r"[^0-9]", "", f"{o:.1f}"))   # fixed-decimal forms (0.70)
         acc.add(digits(round(o * 100, 1))); acc.add(digits(round(o * 100)))  # pct as %
+        acc.add(re.sub(r"[^0-9]", "", f"{o*100:.1f}")); acc.add(re.sub(r"[^0-9]", "", f"{o*100:.0f}"))
     elif isinstance(o, str) and re.match(r"\d{4}-\d\d-\d\dT", o):
         acc.add(o[11:16].replace(":", "")); acc.add(o[5:16].replace("-", "").replace("T", "").replace(":", ""))
+    elif isinstance(o, str):
+        for t in re.findall(r"\d[\d.,]*\d|\d", o):      # numbers inside labels/free text of the facts (e.g. 'SC gốc 101,72')
+            acc.add(re.sub(r"[^0-9]", "", t))
 
 
 status, unknown_total = 0, 0
