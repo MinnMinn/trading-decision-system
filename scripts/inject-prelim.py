@@ -13,7 +13,7 @@ Idempotent: re-running only refreshes the blocks and the meta-strip."""
 import re, sys, os, json
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 path, style = sys.argv[1], sys.argv[2]
-SHOW_SCANNER_PROSE = {"scalping": True, "daytrade": False, "swing": False}.get(style, True)
+SHOW_SCANNER_PROSE = {"scalping": True, "daytrade": False, "swing": False, "gold": False, "gold-swing": False}.get(style, True)
 h = open(path, encoding="utf-8").read()
 CSS = """
   .prelim{ border-left:3px solid var(--accent); background:var(--surface-2); border-radius:6px; padding:10px 14px; font-size:13.5px; color:var(--ink); }
@@ -30,7 +30,8 @@ if ".prelim{" not in h:
     h = h.replace("</style>", CSS + "</style>", 1)
 elif "table.facts" not in h:
     h = h.replace("</style>", CSS + "</style>", 1)
-for sym, key in (("BTCUSDT", "btc"), ("ETHUSDT", "eth"), ("SOLUSDT", "sol")):
+SYMBOL_KEYS = ((("XAUUSD", "xau"),) if style.startswith("gold") else (("BTCUSDT", "btc"), ("ETHUSDT", "eth"), ("SOLUSDT", "sol")))
+for sym, key in SYMBOL_KEYS:
     snippet_path = f"{ROOT}/data/live/prelim/{style}.{sym}.html"
     if not os.path.exists(snippet_path):
         continue
@@ -59,7 +60,7 @@ if os.path.exists(meta_path):
     else:
         f_, l_ = m["window_first"], m["window_last"]
         win = f"{hhmm(f_)} – {hhmm(l_)} UTC, {dmy(l_)}" if f_[:10] == l_[:10] else f"{dmy(f_)} {hhmm(f_)} – {dmy(l_)} {hhmm(l_)} UTC"
-    short = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "SOLUSDT": "SOL"}
+    short = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "SOLUSDT": "SOL", "XAUUSD": "XAU"}
     def state_of(v):
         vd = v.get("verdict_short") or v.get("verdict")
         return (vd.split(" — ")[0] if vd else v["stance"]) + (f" ({v['setup']})" if v.get("setup") else "")
@@ -73,4 +74,4 @@ if os.path.exists(meta_path):
     h = re.sub(r'(<div class="meta-label">)Sự kiện chính(</div>)', r'\1Sự kiện chính (theo phân tích đầy đủ gần nhất)\2', h, count=1)
     print("meta-strip refreshed:", win, "|", stances)
 open(path, "w", encoding="utf-8").write(h)
-print("prelim injected:", sum(1 for k in ("btc","eth","sol") if f'id="prelim-{k}"' in h), "of 3")
+print("prelim injected:", sum(1 for _, k in SYMBOL_KEYS if f'id="prelim-{k}"' in h), "of", len(SYMBOL_KEYS))
