@@ -64,9 +64,9 @@ Full contract: `docs/architecture/data-sources.md`. Summary:
 
 | Skill | Owns | Reads |
 |---|---|---|
-| **WyckoffSkill** | Phase ID, Spring/Upthrust typing, Trading-Range/fractality reads, Effort-vs-Result, SOT | `knowledge/07-wyckoff-and-modern-tools.md`, `knowledge/01-03` (Footprint course's Wyckoff content) |
+| **WyckoffSkill** | Phase ID, Spring/Upthrust typing, Trading-Range/fractality reads, Effort-vs-Result, SOT | `knowledge/08-wyckoff-and-modern-tools.md`, `knowledge/01-03` (Footprint course's Wyckoff content) |
 | **ICTSkill** | Market structure (MSS/BOS/CHOCH/CISD), OB/FVG/Breaker/Mitigation, liquidity (IRL/ERL), OTE, premium/discount, killzones, SMT, PO3/AMD, TTrades models | `knowledge/04-06` |
-| **FootprintSkill** | Order-flow read: POC, R/H/R/L, Imbalance/Stacked Imbalance, Absorption/Exhaustion/Development, Delta/Cumulative-Delta divergence, Tape Reading (Bar-by-Bar/Analog/Swing-by-Swing) | `knowledge/01-03`, `knowledge/07` §3 |
+| **FootprintSkill** | Order-flow read: POC, R/H/R/L, Imbalance/Stacked Imbalance, Absorption/Exhaustion/Development, Delta/Cumulative-Delta divergence, Tape Reading (Bar-by-Bar/Analog/Swing-by-Swing) | `knowledge/01-03`, `knowledge/08` §3 |
 | **HeatmapSkill** | Liquidation clusters, orderbook liquidity, liquidity sweeps/targets — **no dedicated source doc exists**; this skill's rules come from the master spec only (flagged gap, see `docs/architecture/data-sources.md`) | CoinGlass (real/mock) |
 | **RiskSkill** | Position sizing, R:R calc, max-risk enforcement, consecutive-loss throttle | `docs/architecture/schemas/risk-calculation.schema.json` |
 | **JournalSkill** | Writes/updates the per-trade record; generates Edge Log and Mistake-DB rollup views | `trades/*.md`, `docs/architecture/schemas/trade-file.schema.json` |

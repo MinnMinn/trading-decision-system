@@ -46,7 +46,7 @@
       "properties": {
         "eligible": { "type": "boolean", "description": "false if data source for this dimension is MOCK/UNAVAILABLE/STALE, or the dimension wasn't used" },
         "points": { "type": "number", "minimum": 0, "maximum": 25 },
-        "evidence": { "type": "array", "items": { "type": "string" }, "description": "citations, e.g. knowledge/07-wyckoff-and-modern-tools.md#spring-type-2" }
+        "evidence": { "type": "array", "items": { "type": "string" }, "description": "citations, e.g. knowledge/08-wyckoff-and-modern-tools.md#spring-type-2" }
       }
     }
   }

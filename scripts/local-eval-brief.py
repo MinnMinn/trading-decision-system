@@ -13,10 +13,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TF = {"scalping": ("1m", 180), "daytrade": ("15m", 288), "swing": ("1D", 120),
       "gold": ("15m", 200), "gold-swing": ("1D", 120)}      # gold = XAUUSD via the MT5 bridge (200 bars exported)
 MT5_SYMBOLS = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
-CITES = """- Trading Range: WMT p023–026 · knowledge/07 §2.4 · Pha (phases): WMT p025–032 · knowledge/07 §2.5
-- Spring: WMT p036–049 · knowledge/07 §2.6 · Upthrust: WMT p050–064 · knowledge/07 §2.7
-- Effort-vs-Result: WMT p019–022, p149–154 · knowledge/07 §2.3, §4.1 · SOS/SOW: knowledge/07 §6
-- SC/AR/ST/LPS: [thuật ngữ Wyckoff cổ điển — KHÔNG có trong docs/; knowledge/07 §2.5]
+CITES = """- Trading Range: WMT p023–026 · knowledge/08 §2.4 · Pha (phases): WMT p025–032 · knowledge/08 §2.5
+- Spring: WMT p036–049 · knowledge/08 §2.6 · Upthrust: WMT p050–064 · knowledge/08 §2.7
+- Effort-vs-Result: WMT p019–022, p149–154 · knowledge/08 §2.3, §4.1 · SOS/SOW: knowledge/08 §6
+- SC/AR/ST/LPS: [thuật ngữ Wyckoff cổ điển — KHÔNG có trong docs/; knowledge/08 §2.5]
 - Killzones: docs/TTrades PDFs/1. Killzones.pdf tr.1–2 · knowledge/04 §2.1 (London 06–09Z, NY AM 11–14Z; vô nghĩa trên 1m — nói rõ)
 - Liquidity: docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7
 - Grab vs MSS: docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17

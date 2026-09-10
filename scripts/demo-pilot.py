@@ -12,7 +12,7 @@ deterministic: no LLM decides an order. Rules (all must hold for an entry, evalu
   2. ICT: a sweep of SSL / ERL-low within the last SWEEP_LOOKBACK bars, then a bullish MSS within the last
      MSS_LOOKBACK bars, and a bullish FVG formed since the sweep (docs/TTrades PDFs/11, 12, 18).
   3. Wyckoff Effort-vs-Result: the sweep bar or the MSS bar carries >= VOL_MULT x average volume and the
-     MSS bar closes in its upper half (knowledge/07 §2.3, §4.1).
+     MSS bar closes in its upper half (knowledge/08 §2.3, §4.1).
   4. Not inside an event blackout (docs/architecture/event-calendar.md, +/- 30 min), no open position in the
      symbol, < MAX_TRADES_PER_DAY for the symbol, < MAX_OPEN positions overall, pilot not halted.
 Risk: RISK_PCT of USDT equity per trade (halved after 2 consecutive losses), notional capped at
