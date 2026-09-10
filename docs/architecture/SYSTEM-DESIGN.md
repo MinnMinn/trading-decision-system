@@ -183,4 +183,28 @@ entry = discount + SSL/ERL-low sweep + bullish MSS + bullish FVG + Effort-vs-Res
 losses or −2% day. `scripts/pilot-loop.sh` runs it every 15 min; `data/live/pilot/STOP` is the kill switch;
 `--report` prints realised/unrealised P&L from exchange order status. Claude Code's auto-mode classifier
 refuses to *schedule* unattended order placement (correctly), so the loop is run by the user in a separate
-terminal; Claude only schedules read-only reports. This pilot does not change the Stage-1 rule for mainnet.
+terminal (or installed by the user as `integrations/launchd/com.tyme.trading.pilot.plist`; the assistant never loads
+it); Claude only schedules read-only reports. The host must not sleep during the window (`caffeinate -di`): on
+2026-09-10 a sleeping Mac froze the loop for 6 h. This pilot does not change the Stage-1 rule for mainnet.
+
+## 13. Three-layer market read and the "numbers from code" rule (2026-09-10)
+
+The published chart artifacts are fed by three layers — deterministic scanner (đánh giá sơ bộ), Sonnet local read
+(đánh giá cục bộ), and daily full analysis (đánh giá toàn diện). Cadences, files and the anchor/setup contract are
+specified in `docs/architecture/data-sources.md` → "Chart refresh: three-layer read". Design rules that bind every
+agent working on the charts:
+
+1. **Numbers from code, words from the model.** Anchor comparisons, invalidation candles, premium/discount, EQ,
+   entry/stop/target/R are computed by `scripts/ict-scan.py` into `data/live/prelim/<style>.facts.json`. Models quote
+   those numbers; `scripts/check-model-prose.py` rejects prose whose numbers are not in the facts. Rationale: on
+   2026-09-09/10 a Haiku bounded refresh compared price to the window range instead of the LPS anchor (wrong verdict
+   for 9 h) and a Sonnet patch dated the invalidation before the anchor existed.
+2. **The full analysis owns the anchors.** Whenever it changes the structure it must rewrite
+   `data/live/anchors.<style>.json`; the scanner only compares.
+3. **One writer per file.** The launchd scanner writes market data, prelim and scan state; publish ticks snapshot and
+   read; the full analysis writes only its hand-off file (scalping) or the artifact (day-trade/swing).
+4. **Full analysis is the daily picture, not the alert path.** Event-driven judgement is the Sonnet local read
+   (1–2 min); the full analysis runs daily and on invalidation. On 2026-09-10 a 20-minute full analysis concluded a
+   short setup that price had already invalidated by the time it was published.
+5. **Background means outside the Claude session.** Scanner (`integrations/launchd/com.tyme.trading.scanner.plist`)
+   and pilot loop survive session restarts; Claude does judgement and publishing only.

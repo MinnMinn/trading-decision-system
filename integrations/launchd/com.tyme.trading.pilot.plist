@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <!-- Demo pilot (Binance SPOT TESTNET, LONG-only). NOT loaded by the assistant: placing orders unattended is the
+       human's decision. Install: cp to ~/Library/LaunchAgents/ && launchctl bootstrap gui/502 ~/Library/LaunchAgents/com.tyme.trading.pilot.plist
+       Stop: touch data/live/pilot/STOP (loop exits) or launchctl bootout gui/502/com.tyme.trading.pilot -->
+  <key>Label</key><string>com.tyme.trading.pilot</string>
+  <key>ProgramArguments</key><array><string>/bin/bash</string><string>/Users/tungnguyen/TYME/Trading/scripts/pilot-loop.sh</string></array>
+  <key>WorkingDirectory</key><string>/Users/tungnguyen/TYME/Trading</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><false/>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string></dict>
+  <key>StandardOutPath</key><string>/Users/tungnguyen/TYME/Trading/data/live/pilot/launchd.out</string>
+  <key>StandardErrorPath</key><string>/Users/tungnguyen/TYME/Trading/data/live/pilot/launchd.err</string>
+</dict></plist>
