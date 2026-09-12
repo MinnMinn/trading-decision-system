@@ -36,13 +36,28 @@ Subcommands
   market <crypto|cfd> <on|off>
   timeframe <1m|5m|15m|1h|4h|1D> <on|off> [--market crypto|cfd]   (5m = cfd scalping only)
   dimension <wyckoff|ict|footprint|heatmap> <on|off> [--market crypto|cfd]
+  method <preset> [--market crypto|cfd]   apply a named preset from docs/architecture/methods.json as a set of the
+                                      dimension flags; the preset is only a NAME for that set, nothing extra is
+                                      stored. Presets: wyckoff | ict | wyckoff+ict | wyckoff+footprint |
+                                      wyckoff+ict+footprint | full. Refuses (2) a preset whose dimensions the
+                                      target market has no source for; with no --market it applies only to the
+                                      markets that can hold it and prints which it skipped.
   instrument <SYMBOL> <on|off>        allowlist only; Forex refused; market inferred from the symbol
+  instrument set <SYM,SYM,...> --market <crypto|cfd>   declarative batch: REPLACE that market's whole list in ONE
+                                      write and ONE history row. All-or-nothing -- any Forex pair, any off-allowlist
+                                      symbol or any duplicate refuses (2) and leaves the config untouched. An empty
+                                      list is legal and means "no NEW entries in this market"; open positions and
+                                      resting orders are still managed.
   layer <scanner|local_read|pilot> <on|off>
   pilot <start|stop|status|adopt> [--market spot|futures] [--no-launchd]
   pilot profile <legacy|top5>         which rule set the pilot loop runs (top5 = strategy-runner.py: selected setups, both venues)
   on|demo [setup top <N> | setup horizons]   default (no spec) = `setup horizons`: one setup per horizon (scalping/day/swing) per market,
                                       ranked on the last 12 months; `setup top N` = N crypto + N CFD; both set the profile to top5
   allows <scanner|local_read|pilot> [style]     exit 0 if permitted, 2 if not (for shell gates)
+  allows master                       exit 0 only if the config exists AND `enabled` is true. Fails CLOSED on a
+                                      missing or corrupt file, unlike the three layer forms above, which treat
+                                      "unconfigured" as permitted -- this is the one gate an unattended cron
+                                      trusts to permit a write, so "no policy" must not read as "allowed".
   history [-n N]
 
 Exit codes: 0 applied/no-op, 1 usage error, 2 REFUSED (Forex, off-allowlist symbol, impossible market/timeframe/
