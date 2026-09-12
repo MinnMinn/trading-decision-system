@@ -185,8 +185,9 @@ def main():
             status = max(status, 3); print(f"{sym}: PURITY\n{mp.report(res)}")
         # numbers
         allowed_sym = set(allowed) | ng.candle_numbers(candles(sym, S["tf"], S["n"]))
-        if S["ctx"]:
-            try: allowed_sym |= ng.candle_numbers(candles(sym, S["ctx"][0], S["ctx"][1]))
+        for _t in (S["tiers"] or {}).values():
+            if not _t: continue
+            try: allowed_sym |= ng.candle_numbers(candles(sym, _t["tf"], _t["n"]))
             except FileNotFoundError: pass
         texts = [(f"{m}.text_html", (d.get(m) or {}).get("text_html", "")) for m in ("wyckoff", "ict", "footprint", "heatmap")]
         texts += [("synthesis_html", d.get("synthesis_html", "")), ("lookback_html", d.get("lookback_html", ""))]

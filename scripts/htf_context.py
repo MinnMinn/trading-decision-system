@@ -9,11 +9,18 @@ tục tích lũy khi giá tiệm cận vùng hỗ trợ", WA p201, and the m5 "L
 mid-range Phase B is "nguồn cung/cầu đang khá cân bằng … chưa cho thấy sự xuất hiện của CO" — no trade (WA p95).
 knowledge/10 §4.2 places regime / Trading Range / phase on the higher timeframe as step 1 of the reading order.
 
+Three tiers per style (docs/architecture/timeframe-mapping.md; scripts/automation.py TIERS is the one table):
+  Vào lệnh (E) = the style's own window · Cấu trúc (S) = next rung >= 4x · Bias (B) = next rung >= 4x above S.
+  The read that GATES the working-window verdict is the bias tier when a scanned style exists for it, else the
+  structure tier (automation.gate_style). Pages show all three tiers; the checkers and the pilot use the gate tier.
+
 What this module gives every consumer (scanner facts, local-read brief, checkers, pilot, page builder):
-  context_style(style)         -> the style whose working window is this style's context window (scripts/automation.py CONTEXT_STYLE)
-  load_context(style, sym)     -> dict or None: code facts of the context style (prelim/<ctx>.facts.json) + the latest Wyckoff
+  tiers(style)                 -> {"structure": tier|None, "bias": tier|None}, tier = {"tf", "style"} (style None = chart only)
+  context_style(style)         -> the gate tier's style (scripts/automation.py gate_style)
+  load_tier(style, name, sym)  -> dict or None: code facts of that tier's style (prelim/<ctx>.facts.json) + the latest Wyckoff
                                   structure/phase read of that window (narrative/<ctx>.json if that style has a page, else this
-                                  style's own narrative `context.wyckoff`) + `bias` and `basis`
+                                  style's own narrative `context.wyckoff`) + `bias` and `basis`; carries `tier` = name
+  load_context(style, sym)     -> load_tier for the gate tier (what the verdict checks and the pilot filter use)
   bias_of(wyckoff, facts)      -> "long" | "short" | "neutral" | "unknown"  (see table in the function)
   check_verdict(verdict, side, ctx, text) -> list of problems (empty = consistent with the book's top-down rule)
 Numbers here are copied from code-written files; the phase/structure words come from the last full analysis and carry
@@ -24,7 +31,9 @@ import importlib.util, json, os, re
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _spec = importlib.util.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py"))
 _auto = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_auto)
-CONTEXT_STYLE = _auto.CONTEXT_STYLE
+CONTEXT_STYLE = _auto.CONTEXT_STYLE            # style -> gate style (alias kept for older readers)
+TIERS = _auto.TIERS
+TIER_NAME = {"bias": "Bias", "structure": "Cấu trúc", "entry": "Vào lệnh"}
 STYLE_TF = {v: k[1] for k, v in _auto.STYLE.items()}   # style -> timeframe label as /automation spells it
 
 LONG_STRUCT = ("tích lũy", "tích luỹ", "tái tích lũy", "tái tích luỹ")
@@ -33,7 +42,11 @@ DIRECTION = {"THEO DÕI LONG": "long", "THEO DÕI SHORT": "short"}
 
 
 def context_style(style):
-    return CONTEXT_STYLE.get(style)
+    return _auto.gate_style(style)[0]
+
+
+def tiers(style):
+    return TIERS.get(style) or {"structure": None, "bias": None}
 
 
 def _read(path):
@@ -89,18 +102,20 @@ def bias_of(wyckoff, facts):
     return "unknown", "chưa có đọc Wyckoff khung lớn và scanner khung lớn chưa có mốc neo bị phá"
 
 
-def load_context(style, sym):
-    ctx = context_style(style)
+def load_tier(style, name, sym):
+    """Facts + Wyckoff read + bias of one tier ("bias" | "structure") of `style`; None when that tier has no scanned style."""
+    t = tiers(style).get(name)
+    ctx = t["style"] if t else None
     if not ctx:
         return None
     facts_all = _read(f"{ROOT}/data/live/prelim/{ctx}.facts.json") or {}
     f = (facts_all.get("symbols") or {}).get(sym) or {}
-    # HTF Wyckoff read: the context style's own narrative when it has a page, else this style's narrative.context
+    # HTF Wyckoff read: the tier style's own narrative when it has a page, else this style's narrative.context (gate tier only)
     wy, src = None, None
     n_ctx = _read(f"{ROOT}/data/live/narrative/{ctx}.json")
     if n_ctx and (n_ctx.get("symbols") or {}).get(sym, {}).get("wyckoff"):
         w = n_ctx["symbols"][sym]["wyckoff"]; wy = {"structure": w.get("structure"), "phase": w.get("phase"), "trading_range": w.get("trading_range"), "updated": n_ctx.get("updated")}; src = f"data/live/narrative/{ctx}.json"
-    else:
+    elif ctx == context_style(style):
         n_own = _read(f"{ROOT}/data/live/narrative/{style}.json")
         cw = (((n_own or {}).get("symbols") or {}).get(sym) or {}).get("context", {}).get("wyckoff") if n_own else None
         if cw and (cw.get("structure") or cw.get("phase")):
@@ -108,13 +123,19 @@ def load_context(style, sym):
     bias, basis = bias_of(wy, f)
     an = f.get("anchors") or {}
     return {
-        "style": ctx, "tf": STYLE_TF.get(ctx, "?"), "scanned_at": facts_all.get("scanned_at"), "window_last": facts_all.get("window_last"),
+        "tier": name, "style": ctx, "tf": STYLE_TF.get(ctx, "?"), "scanned_at": facts_all.get("scanned_at"), "window_last": facts_all.get("window_last"),
         "last": f.get("last"), "last_time": f.get("last_time"), "lo": f.get("lo"), "hi": f.get("hi"), "eq": f.get("eq"), "pct": f.get("pct"),
         "stance": f.get("stance"), "verdict": an.get("verdict"), "verdict_short": an.get("verdict_short"),
         "last_mss": f.get("last_mss"), "nearest_fvg": f.get("nearest_fvg"),
         "anchors": [{"label": L.get("label"), "short": L.get("short"), "method": L.get("method"), "price": L.get("price"), "ref_vs": L.get("ref_vs"), "dist_pct": L.get("dist_pct")} for L in an.get("levels", [])],
         "wyckoff": wy, "wyckoff_source": src, "bias": bias, "basis": basis,
     }
+
+
+def load_context(style, sym):
+    """The gate tier's read (bias tier if it has a scanned style, else structure) — what verdict checks and the pilot use."""
+    _, name = _auto.gate_style(style)
+    return load_tier(style, name, sym) if name else None
 
 
 def check_verdict(verdict, side, ctx, text):
@@ -124,8 +145,9 @@ def check_verdict(verdict, side, ctx, text):
         return []
     out = []
     plain = re.sub(r"<[^>]+>", " ", text or "").lower()
-    if "bối cảnh" not in plain:
-        out.append(f"khối tổng hợp phải mở đầu bằng câu 'Bối cảnh {ctx['tf']}: …' (luật giảm khung, knowledge/07 §2.7, WA p93–96)")
+    tier = TIER_NAME.get(ctx.get("tier") or "bias", "Bias")
+    if "bối cảnh" not in plain and "bias" not in plain and "cấu trúc" not in plain:
+        out.append(f"khối tổng hợp phải mở đầu bằng câu '{tier} {ctx['tf']}: …' nêu cấu trúc/pha của tầng đó và bias (luật giảm khung, knowledge/07 §2.7, WA p93–96)")
     direction = DIRECTION.get(verdict) or (side if verdict == "SETUP TIỀM NĂNG" else None)
     bias = ctx.get("bias")
     if direction and bias in ("long", "short") and direction != bias:
@@ -141,16 +163,32 @@ def check_verdict(verdict, side, ctx, text):
 def brief_lines(ctx, fmt):
     """Vietnamese lines for local-eval-brief.py (numbers only from ctx facts)."""
     if not ctx:
-        return ["- Không có khung bối cảnh cho style này (khung tuần chưa được quét)."]
+        return ["- (không có tầng này cho style — khung chưa được quét)"]
     L = [f"- Khung {ctx['tf']} (style {ctx['style']}, scanner chạy {ctx.get('scanned_at')}, nến cuối {ctx.get('last_time')}): giá {fmt(ctx.get('last'))} · {('%.0f' % (ctx['pct'] * 100)) if ctx.get('pct') is not None else '—'}% biên độ ({fmt(ctx.get('lo'))}–{fmt(ctx.get('hi'))}) · EQ {fmt(ctx.get('eq'))} · stance {ctx.get('stance')}"]
     if ctx.get("verdict"):
-        L.append(f"- Verdict theo luật khung lớn: {ctx['verdict']}")
+        L.append(f"- Verdict theo luật khung {ctx['tf']}: {ctx['verdict']}")
     for a in ctx.get("anchors") or []:
         L.append(f"- Mốc {a.get('short') or a.get('label')} {fmt(a.get('price'))}: nến đóng {'trên' if a.get('ref_vs') == 'above' else 'dưới'} ({a.get('dist_pct'):+.2f}%)" if a.get("dist_pct") is not None else f"- Mốc {a.get('short') or a.get('label')} {fmt(a.get('price'))}")
     m = ctx.get("last_mss")
     if m:
-        L.append(f"- MSS gần nhất khung lớn: {'tăng' if m.get('type') == 'bull' else 'giảm'} tại {fmt(m.get('level'))}")
+        L.append(f"- MSS gần nhất khung {ctx['tf']}: {'tăng' if m.get('type') == 'bull' else 'giảm'} tại {fmt(m.get('level'))}")
     w = ctx.get("wyckoff")
-    L.append(f"- Đọc Wyckoff khung lớn (phân tích đầy đủ {w.get('updated')}, {ctx.get('wyckoff_source')}): cấu trúc {w.get('structure')}, pha {w.get('phase')}" + (f", TR {fmt((w.get('trading_range') or {}).get('low'))}–{fmt((w.get('trading_range') or {}).get('high'))}" if w.get('trading_range') else ", TR chưa nêu") if w else "- Chưa có đọc Wyckoff khung lớn (chưa có phân tích đầy đủ)")
-    L.append(f"- BIAS khung lớn (code): {ctx['bias'].upper()} — {ctx['basis']}")
+    L.append(f"- Đọc Wyckoff khung {ctx['tf']} (phân tích đầy đủ {w.get('updated')}, {ctx.get('wyckoff_source')}): cấu trúc {w.get('structure')}, pha {w.get('phase')}" + (f", TR {fmt((w.get('trading_range') or {}).get('low'))}–{fmt((w.get('trading_range') or {}).get('high'))}" if w.get('trading_range') else ", TR chưa nêu") if w else f"- Chưa có đọc Wyckoff khung {ctx['tf']} (chưa có phân tích đầy đủ)")
+    L.append(f"- BIAS khung {ctx['tf']} (code): {ctx['bias'].upper()} — {ctx['basis']}")
     return L
+
+
+def ladder_lines(style, sym, fmt):
+    """The whole ladder for the brief: Bias, then Cấu trúc, each with brief_lines; marks which tier gates the verdict."""
+    _, gate = _auto.gate_style(style)
+    out = []
+    for name in ("bias", "structure"):
+        t = tiers(style).get(name)
+        head = f"### {TIER_NAME[name]}" + (f" — khung {t['tf']}" if t else " — không có (khung chậm hơn không được lấy)")
+        if t and not t["style"]:
+            head += " (chỉ có chart, chưa quét — không có số liệu)"
+        if name == gate:
+            head += " · TẦNG QUYẾT ĐỊNH BIAS cho verdict"
+        out.append(head)
+        out += brief_lines(load_tier(style, name, sym), fmt) if (t and t["style"]) else []
+    return out

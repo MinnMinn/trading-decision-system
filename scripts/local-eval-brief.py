@@ -104,20 +104,19 @@ def main():
    - m-ict: chỉ kiến thức và thuật ngữ ICT (dealing range, EQ, premium/discount, BSL/SSL, sweep vs MSS, displacement, FVG, OB, killzone…). CẤM mọi từ Wyckoff VÀ CẤM nhắc khối lượng/volume/KL (ICT không có khái niệm khối lượng — knowledge/10 §4.1). Mốc neo có tên Wyckoff (SC, AR…) chỉ được gọi bằng giá.
    - m-synth: tổng hợp — nơi DUY NHẤT được đặt hai phương pháp cạnh nhau: luật khử trùng lặp (knowledge/10 §4.3: mốc Wyckoff trùng mốc ICT = một quan sát), kết luận, entry/stop/target/R (nếu có), điều kiện vô hiệu và chủ sở hữu vô hiệu (Wyckoff hay ICT, knowledge/10 §4.4).
    Máy kiểm tra (scripts/method_purity.py) chặn xuất bản nếu một khối dùng sai từ vựng.
-8. GIẢM KHUNG (bắt buộc, knowledge/07 §2.7 "Giảm khung của tích lũy", WA p93–96; knowledge/10 §4.2): đọc khung lớn trước, vào lệnh ở khung nhỏ THEO HƯỚNG cấu trúc khung lớn. Mục "BỐI CẢNH" bên dưới in số liệu và bias khung lớn do code tính. Khối m-synth PHẢI mở đầu bằng câu "Bối cảnh <khung lớn>: …" nêu cấu trúc/pha khung lớn và bias. Verdict THEO DÕI đi ngược bias phải ghi rõ "ngược bối cảnh". KHÔNG được kết luận SETUP TIỀM NĂNG ngược bias. Khung lớn pha B chỉ cho bias khi giá đang ở biên TR khung lớn theo hướng cấu trúc (tích lũy: 1/3 dưới, nơi CO gom hàng và khung nhỏ in Spring[C]/LPS[C] cục bộ — WA p93, p201; phân phối: 1/3 trên); giữa vùng hoặc biên đối diện thì bias trung lập ("nguồn cung/cầu đang khá cân bằng … chưa cho thấy sự xuất hiện của CO", WA p95) và tối đa là THEO DÕI. Pha A / chưa xác lập: trung lập. scripts/check-model-prose.py kiểm tra cả ba điều này.
+8. THANG KHUNG — GIẢM KHUNG (bắt buộc, knowledge/07 §2.7 "Giảm khung của tích lũy", WA p93–96; knowledge/10 §4.2; docs/architecture/timeframe-mapping.md): mỗi style có ba tầng, đọc từ trên xuống — Bias (khung chậm nhất) → Cấu trúc (khung giữa, ≥ ×4 khung vào lệnh) → Vào lệnh (khung của style này). Mục "THANG KHUNG" bên dưới in số liệu do code tính cho tầng Bias và tầng Cấu trúc, và ghi tầng nào QUYẾT ĐỊNH bias cho verdict. Khối m-synth PHẢI mở đầu bằng câu "<Tên tầng> <khung>: …" (ví dụ "Bias 4h: …") nêu cấu trúc/pha của tầng quyết định và bias; câu thứ hai nói tầng Cấu trúc có cùng hướng hay không. Verdict THEO DÕI đi ngược bias phải ghi rõ "ngược bối cảnh". KHÔNG được kết luận SETUP TIỀM NĂNG ngược bias. Không bao giờ tạo bias từ khung vào lệnh. Khung lớn pha B chỉ cho bias khi giá đang ở biên TR khung lớn theo hướng cấu trúc (tích lũy: 1/3 dưới, nơi CO gom hàng và khung nhỏ in Spring[C]/LPS[C] cục bộ — WA p93, p201; phân phối: 1/3 trên); giữa vùng hoặc biên đối diện thì bias trung lập ("nguồn cung/cầu đang khá cân bằng … chưa cho thấy sự xuất hiện của CO", WA p95) và tối đa là THEO DÕI. Pha A / chưa xác lập: trung lập. scripts/check-model-prose.py kiểm tra cả ba điều này.
 7. Sau khi ghi, chạy ĐÚNG lệnh này (so với snapshot của lần đọc này, không so với facts mới hơn):
    python3 scripts/check-model-prose.py <style> --facts <SNAPSHOT>/facts.json
    và sửa cho tới khi nó in `RESULT: OK`. Không chạy lại brief để "đuổi" dữ liệu mới hơn.
 
 ## Bản đồ trích dẫn
 """ + CITES)
-    print("\n## BỐI CẢNH khung lớn (code tính; luật giảm khung — knowledge/07 §2.7, WA p93–96)")
+    print("\n## THANG KHUNG (code tính; luật giảm khung — knowledge/07 §2.7, WA p93–96; docs/architecture/timeframe-mapping.md)")
     import importlib.util as _iu
     _hs = _iu.spec_from_file_location("htf_context", f"{ROOT}/scripts/htf_context.py"); _htf = _iu.module_from_spec(_hs); _hs.loader.exec_module(_htf)
     for sym in syms:
-        d = facts["symbols"][sym]; f = lambda v: fmt(sym, v)
-        ctx = d.get("context") if "context" in d else _htf.load_context(a.style, sym)
-        print(f"\n### {sym}"); print("\n".join(_htf.brief_lines(ctx, f)))
+        f = lambda v: fmt(sym, v)
+        print(f"\n## {sym}"); print("\n".join(_htf.ladder_lines(a.style, sym, f)))
     print("\n## FACTS (scanner, không được thay đổi)")
     for sym in syms:
         d = facts["symbols"][sym]; f = lambda v: fmt(sym, v)

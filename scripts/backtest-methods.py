@@ -223,7 +223,11 @@ def range_established(H, L, a, b, support, resistance, touches, tol=0.15):
     return len(lo_t) >= touches and len(hi_t) >= touches
 
 
-HTF_OF = {"5m": "30m", "15m": "1H", "30m": "2H", "1H": "4H", "2H": "1D", "4H": "1D"}
+# Structure tier per timeframe: the next rung >= 4x (scripts/automation.py next_rung, docs/architecture/timeframe-mapping.md).
+_RUNGS = ["5m", "15m", "30m", "1H", "2H", "4H", "1D"]
+import importlib.util as _iu
+_as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py")); _auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
+HTF_OF = {tf: _auto.next_rung(tf, _RUNGS) for tf in _RUNGS if _auto.next_rung(tf, _RUNGS)}
 
 
 def htf_position(sym, tf):

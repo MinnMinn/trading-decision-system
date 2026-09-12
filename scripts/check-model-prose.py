@@ -69,7 +69,7 @@ for sym, d in facts["symbols"].items():
     ctx = d.get("context") if "context" in d else htf.load_context(style, sym)
     side = ((d.get("setup") or {}).get("side") or "").lower() or None
     for p_ in htf.check_verdict(verdict, side, ctx, blocks.get("synth", "")):
-        print(f"{sym}: BỐI CẢNH — {p_}"); status = max(status, 1)
+        print(f"{sym}: THANG KHUNG — {p_}"); status = max(status, 1)
     res = mp.check_blocks({m: v for m, v in blocks.items() if m != "synth"})
     if res:
         print(f"{sym}: PURITY\n{mp.report(res)}"); status = max(status, 3)
