@@ -537,6 +537,11 @@ def show(cfg, exists, as_json=False, brief=False):
                                                         for d in MARKET_DIMENSIONS[m]))
         print("               timeframes: " + "  ".join(f"{onoff(mk['timeframes'].get(t, True))} {t}"
                                                         for t in MARKET_TIMEFRAMES[m]))
+        prof = methods.profile_of(mk["dimensions"])
+        live = [d for d in MARKET_DIMENSIONS[m] if mk["dimensions"].get(d, True)]
+        print(f"               method:     {prof}"
+              + ("" if prof != "custom" else f"  (set from the terminal: {', '.join(live) or 'none'})")
+              + ("" if len(live) >= 2 else "   [below the NORMAL minimum of 2 -- no live TRADE verdict can pass]"))
         print("               styles on:  " + (", ".join(styles) or "(none)"))
     pp = cfg.get("pilot_process")
     if pp:
@@ -992,6 +997,45 @@ def cmd_timeframe(a):
     return 0
 
 
+def cmd_method(a):
+    """Apply a named preset = a set of the four dimension flags. The preset is only a NAME for that set
+    (spec §3); nothing new is stored, and scripts/methods.py derives the label back from the flags."""
+    cfg, _, _ = load(require_readable=True)
+    p = methods.preset(a.preset)
+    if p is None:                                   # argparse choices should have caught this; belt and braces
+        record(cfg, a, f"method {a.preset}", "refused"); save(cfg)
+        print(f"REFUSED: unknown preset '{a.preset}'. Known: "
+              f"{', '.join(x['id'] for x in methods.PRESETS)}", file=sys.stderr)
+        return 2
+    targets = [a.market] if a.market else [m for m in MARKETS if p in methods.presets_for(m)]
+    bad = [m for m in ([a.market] if a.market else []) if p not in methods.presets_for(m)]
+    if bad:
+        missing = sorted(set(p["dimensions"]) - set(methods.dimensions(bad[0])))
+        record(cfg, a, f"method {a.preset} --market {','.join(bad)}", "refused")
+        save(cfg)
+        print(f"REFUSED: preset '{a.preset}' needs {', '.join(missing)}, which market '{bad[0]}' has no source "
+              f"for (CoinGlass is crypto-derivatives only, SYSTEM-DESIGN.md §12 item 3).", file=sys.stderr)
+        show(cfg, True)
+        return 2
+    skipped = [] if a.market else [m for m in MARKETS if m not in targets]
+    if skipped:
+        print(f"NOTE: preset '{a.preset}' was not applied to {', '.join(skipped)} (no CoinGlass source there); "
+              f"applied only to {', '.join(targets)}. Pass --market to target one market explicitly.",
+              file=sys.stderr)
+    want = methods.flags_for(a.preset)
+    changed = []
+    for m in targets:
+        flags = {d: want[d] for d in MARKET_DIMENSIONS[m]}
+        if cfg["markets"][m]["dimensions"] != flags:
+            changed.append(m)
+        cfg["markets"][m]["dimensions"] = flags          # CFG-10: this block and nothing else
+    record(cfg, a, f"method {a.preset} --market {','.join(targets)}",
+           "applied" if changed else "no-op")
+    save(cfg)
+    show(cfg, True)
+    return 0
+
+
 def cmd_dimension(a):
     cfg, _, _ = load(require_readable=True)
     targets = [a.market] if a.market else [m for m in MARKETS if a.name in MARKET_DIMENSIONS[m]]
@@ -1065,6 +1109,13 @@ def cmd_instrument(a):
 
 
 def cmd_allows(a):
+    if a.layer == "master":
+        # CFG-03: this form must fail closed. `allows()` treats "config does not exist" as unconfigured =>
+        # allowed, which is right for scanner/local_read/pilot (pure read paths, no behaviour change on a
+        # clean checkout) but wrong for the one gate an unattended cron trusts to permit a write: a missing
+        # or corrupt config must read as "not permitted", not as "no policy".
+        cfg, exists, _ = load(require_readable=False)
+        return 0 if (exists and cfg.get("enabled", True)) else 2
     ok, reason = allows(a.layer, getattr(a, "style", None))
     if not ok:
         print(reason)
@@ -1312,7 +1363,8 @@ def main():
 
     st = sub.add_parser("status"); st.add_argument("--json", action="store_true")
     sub.add_parser("env")
-    al = sub.add_parser("allows"); al.add_argument("layer", choices=LAYERS); al.add_argument("style", nargs="?", default=None)
+    al = sub.add_parser("allows"); al.add_argument("layer", choices=LAYERS + ["master"])
+    al.add_argument("style", nargs="?", default=None)
     p = audited(sub.add_parser("demo")); p.add_argument("setup", nargs="*", default=[]); p = audited(sub.add_parser("real")); p.add_argument("setup", nargs="*", default=[])
     p = audited(sub.add_parser("on")); p.add_argument("setup", nargs="*", default=[], help="optional: `setup top N` = rank the last 12 months, select N crypto + N CFD setups, switch the pilot profile to top5, then bring everything up")
     audited(sub.add_parser("off"))
@@ -1323,6 +1375,9 @@ def main():
     p.add_argument("--market", choices=MARKETS, default=None)
     p = audited(sub.add_parser("dimension"))
     p.add_argument("name", choices=DIMENSIONS); p.add_argument("value", choices=["on", "off"])
+    p.add_argument("--market", choices=MARKETS, default=None)
+    p = audited(sub.add_parser("method"))
+    p.add_argument("preset", choices=[x["id"] for x in methods.PRESETS])
     p.add_argument("--market", choices=MARKETS, default=None)
     p = audited(sub.add_parser("instrument")); p.add_argument("symbol"); p.add_argument("value", choices=["on", "off"])
     p = audited(sub.add_parser("layer"))
@@ -1367,6 +1422,8 @@ def main():
         return cmd_timeframe(a)
     if a.cmd == "dimension":
         return cmd_dimension(a)
+    if a.cmd == "method":
+        return cmd_method(a)
     if a.cmd == "layer":
         return cmd_layer(a)
     if a.cmd == "instrument":
