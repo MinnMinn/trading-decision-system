@@ -117,11 +117,12 @@ class AutomationUsesRegistry(unittest.TestCase):
         """The whole point of the registry: automation.py must not carry a second copy."""
         src = open(os.path.join(ROOT, "scripts", "automation.py"), encoding="utf-8").read()
         self.assertNotIn('"wyckoff", "ict", "footprint", "heatmap"', src)
-        self.assertIn("import methods", src)
 
     def test_market_dimensions_comes_from_the_registry(self):
         import importlib.util
         spec = importlib.util.spec_from_file_location("auto", os.path.join(ROOT, "scripts", "automation.py"))
         auto = importlib.util.module_from_spec(spec); spec.loader.exec_module(auto)
+        self.assertEqual(auto.methods.PATH, M.PATH,
+                         "automation.py must read THE registry file, not a look-alike")
         for m in M.markets():
             self.assertEqual(auto.MARKET_DIMENSIONS[m], M.dimensions(m))
