@@ -4,97 +4,184 @@
   "description": "The on/off state of this project's background automation, v2 (schema_version 2). Organised by MARKET (crypto | cfd) rather than by a flat style list: each market carries its own instruments, Confluence dimensions and timeframes, and the (market, timeframe) pair maps to the chart-style vocabulary the scanner and the local read already speak (scripts/automation.py STYLE). Single writer: scripts/automation.py (SYSTEM-DESIGN.md section 13 rule 3) -- with ONE exception, execution.account, which the human sets by hand and automation.py only reads. Everything else READS this file: scripts/scan-loop.sh (layer 1 scanner), scripts/local-eval-brief.py (layer 2 local read), scripts/demo-pilot.py (Stage-2 testnet pilot). Lives in docs/architecture/ (tracked in git, next to risk-config.json and analysis-params.json) rather than data/live/, which is gitignored and owned by the launchd scanner. A MISSING file means UNCONFIGURED, not off: every gate treats it as 'no policy' and behaves exactly as it did before this switch existed.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "enabled", "execution", "markets", "layers", "pilot_process", "last_updated", "history"],
+  "required": [
+    "schema_version",
+    "enabled",
+    "execution",
+    "markets",
+    "layers",
+    "pilot_process",
+    "last_updated",
+    "history"
+  ],
   "properties": {
-    "_comment": { "type": "string" },
-
+    "_comment": {
+      "type": "string"
+    },
     "schema_version": {
       "const": 3,
       "description": "3 = per-market shape + execution.environment + services. v1 (flat) and v2 (execution.account) files are migrated in place by scripts/automation.py on first run, with a 'migrate' row appended to history[]."
     },
-
     "services": {
       "type": "object",
       "additionalProperties": false,
       "description": "What `/automation on` installed, so `/automation off` removes exactly that. launchd agents are copied into ~/Library/LaunchAgents and bootstrapped by scripts/automation.py; `off` boots them out and deletes the plists so a reboot does not resurrect them.",
       "properties": {
-        "scanner_agent": { "type": "boolean", "description": "com.tyme.trading.scanner installed + bootstrapped" },
-        "pilot_agents":  { "type": "array", "items": { "type": "string" }, "description": "launchd labels of the pilot loops installed (com.tyme.trading.pilot for spot, com.tyme.trading.pilot.futures for futures), one per market in PILOT_MARKETS of the active environment file" },
-        "keepawake_pid": { "type": ["integer", "null"], "description": "pid of the `caffeinate -dims` keep-awake `on` started; the pilot loop needs the host awake (SYSTEM-DESIGN.md section 9.x)" }
+        "scanner_agent": {
+          "type": "boolean",
+          "description": "com.tyme.trading.scanner installed + bootstrapped"
+        },
+        "pilot_agents": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "launchd labels of the pilot loops installed (com.tyme.trading.pilot for spot, com.tyme.trading.pilot.futures for futures), one per market in PILOT_MARKETS of the active environment file"
+        },
+        "keepawake_pid": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "pid of the `caffeinate -dims` keep-awake `on` started; the pilot loop needs the host awake (SYSTEM-DESIGN.md section 9.x)"
+        }
       }
     },
-
     "enabled": {
       "type": "boolean",
       "description": "Master switch. false = every gated layer below refuses to act, regardless of its own flag. Turning this false is always permitted; it is the safe direction."
     },
-
     "execution": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["environment"],
+      "required": [
+        "environment"
+      ],
       "description": "The ACTIVE trading environment. Editable by hand (the human's switch) and written by `/automation demo|real`.",
       "properties": {
         "environment": {
           "type": "string",
-          "enum": ["demo", "real"],
+          "enum": [
+            "demo",
+            "real"
+          ],
           "description": "demo = Binance TESTNET (fake funds) via config/env.demo. real = Binance MAINNET (REAL MONEY) via config/env.real. The value selects which env file scripts/trading-env.sh / scripts/trading_env.py load: endpoints (testnet.binance.vision + testnet.binancefuture.com vs api.binance.com + fapi.binance.com) and credentials (Keychain references or literals). Every order connector and the pilot read it on every call, so switching takes effect on the next tick. An environment whose required secrets are empty or __FILL_ME__ makes every execution path exit 2 ('environment incomplete') -- a correctness check, not a policy block. The scanner and the local read never place orders and ignore this value. Hard rules that survive in both environments: no Forex, the instrument allowlist in docs/architecture/instruments.json, PILOT_RISK_PCT clamped to <= 1% per trade."
         },
         "pilot_profile": {
           "type": "string",
-          "enum": ["legacy", "top5"],
+          "enum": [
+            "legacy",
+            "top5"
+          ],
           "description": "Which rule set scripts/pilot-loop.sh runs (user decision 2026-09-11). legacy = scripts/demo-pilot.py (15m SSL/BSL sweep -> MSS -> FVG, market entries). top5 = scripts/strategy-runner.py: the three most stable backtested rules (ICT 30m, COMBINED 30m, ICT 1H; docs/backtests/2026-09-11-stability-by-timeframe.md) with post-only LIMIT entries at the FVG edge, STOP_MARKET + TAKE_PROFIT_MARKET exits, breakeven at +1R, time stop; FUTURES loop only, the spot loop always runs legacy. Set with `/automation pilot profile <name>`; read by the loop on every tick. Missing = legacy."
         },
         "setup_spec": {
           "type": "string",
           "description": "Set by `/automation on|demo setup top N` (2026-09-11): the spec that produced docs/architecture/pilot-top5.json, e.g. 'top 3 (1y)'. Informational; the runner reads the selection file, not this."
         },
-        "_note": { "type": "string" }
+        "_note": {
+          "type": "string"
+        }
       }
     },
-
     "markets": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["crypto", "cfd"],
+      "required": [
+        "crypto",
+        "cfd"
+      ],
       "description": "The two market families this system trades. Their capability sets are NOT symmetric, and the asymmetry is structural, not a preference -- see each market's own description.",
       "properties": {
         "crypto": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["enabled", "instruments", "dimensions", "timeframes"],
+          "required": [
+            "enabled",
+            "instruments",
+            "dimensions",
+            "timeframes"
+          ],
           "description": "Binance crypto. Live market data (scripts/fetch-binance-klines.sh) and the only market with an order-flow/liquidity source (CoinGlass), so all four Confluence dimensions are possible here. This is the ANALYSIS allowlist (scanner, /analyze, /bias, /entry); the Stage-2 pilot and the order connectors carry their own, narrower symbol list and trade only the intersection (its `execution` list).",
           "properties": {
-            "enabled": { "type": "boolean" },
+            "enabled": {
+              "type": "boolean"
+            },
             "instruments": {
               "type": "array",
               "uniqueItems": true,
-              "items": { "type": "string", "enum": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ASTERUSDT", "VIRTUALUSDT", "SUIUSDT", "TAOUSDT", "RENDERUSDT", "ONDOUSDT"] },
+              "items": {
+                "type": "string",
+                "enum": [
+                  "BTCUSDT",
+                  "ETHUSDT",
+                  "SOLUSDT",
+                  "ASTERUSDT",
+                  "VIRTUALUSDT",
+                  "SUIUSDT",
+                  "TAOUSDT",
+                  "RENDERUSDT",
+                  "ONDOUSDT"
+                ]
+              },
               "description": "Subset of the crypto `analysis` list in docs/architecture/instruments.json -- THE single source; this enum is GENERATED by scripts/sync-instruments.py, do not hand-edit it. Forex is prohibited outright and can never appear anywhere in this file."
             },
             "dimensions": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["wyckoff", "ict", "footprint", "heatmap"],
-              "description": "The four Confluence Score dimensions (SYSTEM-DESIGN.md section 6.2). Disabling one removes it from engaged_count -- it can only LOWER the number of dimensions available to a verdict, never raise a score. Below the mode minimum (NORMAL 2, ENHANCED 3, STRICT 3) no live TRADE verdict can pass at all.",
+              "required": [
+                "wyckoff",
+                "ict",
+                "footprint",
+                "heatmap"
+              ],
+              "description": "The 4 Confluence Score dimensions (SYSTEM-DESIGN.md section 6.2). GENERATED by scripts/sync-methods.py from docs/architecture/methods.json; do not hand-edit. Disabling one removes it from engaged_count -- it can only LOWER the number of dimensions available to a verdict, never raise a score. Below the mode minimum (NORMAL 2, ENHANCED 3, STRICT 3) no live TRADE verdict can pass at all.",
               "properties": {
-                "wyckoff":   { "type": "boolean" },
-                "ict":       { "type": "boolean" },
-                "footprint": { "type": "boolean" },
-                "heatmap":   { "type": "boolean" }
+                "wyckoff": {
+                  "type": "boolean",
+                  "description": "Wyckoff"
+                },
+                "ict": {
+                  "type": "boolean",
+                  "description": "ICT"
+                },
+                "footprint": {
+                  "type": "boolean",
+                  "description": "Footprint"
+                },
+                "heatmap": {
+                  "type": "boolean",
+                  "description": "Heatmap"
+                }
               }
             },
             "timeframes": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["1m", "15m", "1h", "4h", "1D"],
+              "required": [
+                "1m",
+                "15m",
+                "1h",
+                "4h",
+                "1D"
+              ],
               "description": "Which timeframes the scanner and the local read may run for crypto. Each maps to one chart style: 1m -> scalping (1m/180), 15m -> daytrade (15m/288), 1h -> 1h (1H/240), 4h -> 4h (4H/180), 1D -> swing (1D/120). The style names are the vocabulary of scripts/local-eval-brief.py's TF map, scripts/scan-loop.sh and scripts/patch-arrays.py's STYLES -- never rename one.",
               "properties": {
-                "1m":  { "type": "boolean" },
-                "15m": { "type": "boolean" },
-                "1h":  { "type": "boolean" },
-                "4h":  { "type": "boolean" },
-                "1D":  { "type": "boolean" }
+                "1m": {
+                  "type": "boolean"
+                },
+                "15m": {
+                  "type": "boolean"
+                },
+                "1h": {
+                  "type": "boolean"
+                },
+                "4h": {
+                  "type": "boolean"
+                },
+                "1D": {
+                  "type": "boolean"
+                }
               }
             }
           }
@@ -102,88 +189,203 @@
         "cfd": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["enabled", "instruments", "dimensions", "timeframes"],
+          "required": [
+            "enabled",
+            "instruments",
+            "dimensions",
+            "timeframes"
+          ],
           "description": "Commodity CFDs via the MT5 file bridge (docs/architecture/mt5-bridge.md). Two structural limits are encoded in the shape of this object rather than left to a flag: there are no footprint/heatmap keys (CoinGlass is crypto-derivatives only, SYSTEM-DESIGN.md section 12 item 3, so NORMAL mode is the permanent ceiling here) and there is no 1m key (integrations/mt5/ExportOHLCV.mq5 exports 1D/4H/1H/15m only, section 12 item 6, so no CFD scalping style exists). additionalProperties:false makes both refusals a validation error, not a runtime surprise.",
           "properties": {
-            "enabled": { "type": "boolean" },
+            "enabled": {
+              "type": "boolean"
+            },
             "instruments": {
               "type": "array",
               "uniqueItems": true,
-              "items": { "type": "string", "enum": ["XAUUSD", "XAGUSD", "USOIL", "UKOIL"] },
+              "items": {
+                "type": "string",
+                "enum": [
+                  "XAUUSD",
+                  "XAGUSD",
+                  "USOIL",
+                  "UKOIL"
+                ]
+              },
               "description": "Subset of the commodities allowlist. The EA is per-chart (g_symbol = _Symbol), so a symbol only has data once a chart running ExportOHLCV is open for it -- today that is XAUUSD alone (section 12 item 6). Enabling a symbol with no export on disk sets a flag, not a source; /automation says so."
             },
             "dimensions": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["wyckoff", "ict"],
-              "description": "Wyckoff + ICT only -- the 2-of-4 structural cap. Note that even these two are close to non-independent on the bridge's TICK volume (SYSTEM-DESIGN.md section 6.1): Wyckoff credit is reduced there, it is not scored at face value.",
+              "required": [
+                "wyckoff",
+                "ict"
+              ],
+              "description": "Wyckoff + ICT only -- the 2-of-4 structural cap. GENERATED by scripts/sync-methods.py from docs/architecture/methods.json; do not hand-edit. Note that even these two are close to non-independent on the bridge's TICK volume (SYSTEM-DESIGN.md section 6.1): Wyckoff credit is reduced there, it is not scored at face value.",
               "properties": {
-                "wyckoff": { "type": "boolean" },
-                "ict":     { "type": "boolean" }
+                "wyckoff": {
+                  "type": "boolean",
+                  "description": "Wyckoff"
+                },
+                "ict": {
+                  "type": "boolean",
+                  "description": "ICT"
+                }
               }
             },
             "timeframes": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["15m", "1h", "4h", "1D"],
+              "required": [
+                "15m",
+                "1h",
+                "4h",
+                "1D"
+              ],
               "description": "5m -> gold-scalp (5m/288, CFD scalping; M1 rejected 2026-09-11 because the gold spread makes it noise), 15m -> gold (15m/288), 1h -> gold-1h (1H/240), 4h -> gold-4h (4H/180), 1D -> gold-swing (1D/120, 1W context). The EA's InpBarsToExport is 300; a longer window simply yields fewer bars until it is raised.",
               "properties": {
-                "5m":  { "type": "boolean" },
-                "15m": { "type": "boolean" },
-                "1h":  { "type": "boolean" },
-                "4h":  { "type": "boolean" },
-                "1D":  { "type": "boolean" }
+                "5m": {
+                  "type": "boolean"
+                },
+                "15m": {
+                  "type": "boolean"
+                },
+                "1h": {
+                  "type": "boolean"
+                },
+                "4h": {
+                  "type": "boolean"
+                },
+                "1D": {
+                  "type": "boolean"
+                }
               }
             }
           }
         }
       }
     },
-
     "layers": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["scanner", "local_read", "pilot"],
+      "required": [
+        "scanner",
+        "local_read",
+        "pilot"
+      ],
       "description": "The three real pieces of background automation this repo has (data-sources.md 'Chart refresh: three-layer read', SYSTEM-DESIGN.md section 9.x). No other automation exists; do not add a flag here without a reader for it.",
       "properties": {
-        "scanner":    { "type": "boolean", "description": "Layer 1, deterministic scanner: launchd com.tyme.trading.scanner -> scripts/scan-loop.sh -> scripts/ict-scan.py. Read-only research, never places orders, runs regardless of execution.account." },
-        "local_read": { "type": "boolean", "description": "Layer 2, Sonnet local read fed by scripts/local-eval-brief.py and validated by scripts/check-model-prose.py. Judgement only, never places orders, runs regardless of execution.account." },
-        "pilot":      { "type": "boolean", "description": "Rules-only pilot, scripts/demo-pilot.py + scripts/pilot-loop.sh, trading the ACTIVE environment (demo testnet or real mainnet). true means PERMITTED; `/automation on|demo|real` installs a launchd agent per market in PILOT_MARKETS (KeepAlive, PILOT_END=never) so it runs unattended and survives login; `/automation off` removes it. false makes demo-pilot.py refuse to tick. The kill switch remains data/live/pilot*/STOP." }
+        "scanner": {
+          "type": "boolean",
+          "description": "Layer 1, deterministic scanner: launchd com.tyme.trading.scanner -> scripts/scan-loop.sh -> scripts/ict-scan.py. Read-only research, never places orders, runs regardless of execution.account."
+        },
+        "local_read": {
+          "type": "boolean",
+          "description": "Layer 2, Sonnet local read fed by scripts/local-eval-brief.py and validated by scripts/check-model-prose.py. Judgement only, never places orders, runs regardless of execution.account."
+        },
+        "pilot": {
+          "type": "boolean",
+          "description": "Rules-only pilot, scripts/demo-pilot.py + scripts/pilot-loop.sh, trading the ACTIVE environment (demo testnet or real mainnet). true means PERMITTED; `/automation on|demo|real` installs a launchd agent per market in PILOT_MARKETS (KeepAlive, PILOT_END=never) so it runs unattended and survives login; `/automation off` removes it. false makes demo-pilot.py refuse to tick. The kill switch remains data/live/pilot*/STOP."
+        }
       }
     },
-
     "pilot_process": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": false,
-      "required": ["pid", "market", "started_at", "started_by", "log"],
+      "required": [
+        "pid",
+        "market",
+        "started_at",
+        "started_by",
+        "log"
+      ],
       "description": "The pilot loop scripts/automation.py most recently started or adopted. null = none recorded. This is an AUDIT RECORD, not a lock: a human can start scripts/pilot-loop.sh in their own terminal without it appearing here, which is why `pilot start` also checks pgrep for an unrecorded loop before spawning, and why `pilot adopt` exists. Kept (with stopped_at set) after a stop rather than deleted.",
       "properties": {
-        "pid":        { "type": "integer", "description": "0 when the loop is managed by launchd (see launchd_label); the live pid is then discovered by pgrep in `pilot status`." },
-        "launchd_label": { "type": "string", "description": "set when the loop runs as a launchd agent installed by `/automation on` / `pilot start`" },
-        "market":     { "type": "string", "enum": ["spot", "futures"] },
-        "started_at": { "type": "string", "format": "date-time", "description": "For an adopted loop this is the ADOPTION time -- the real start time is not knowable from here." },
-        "started_by": { "type": "string", "description": "--who value, else $AUTOMATION_ACTOR, else $USER; 'human (adopted)' for a loop adopted by `pilot adopt`." },
-        "log":        { "type": "string", "description": "Repo-relative path of the loop log, e.g. data/live/pilot/loop.log" },
-        "dry_run":    { "type": "boolean", "description": "true = this pid is the AUTOMATION_PILOT_DRYRUN placeholder (`sleep 30`), not a real pilot loop. Test artefact only." },
-        "stopped_at": { "type": "string", "format": "date-time" }
+        "pid": {
+          "type": "integer",
+          "description": "0 when the loop is managed by launchd (see launchd_label); the live pid is then discovered by pgrep in `pilot status`."
+        },
+        "launchd_label": {
+          "type": "string",
+          "description": "set when the loop runs as a launchd agent installed by `/automation on` / `pilot start`"
+        },
+        "market": {
+          "type": "string",
+          "enum": [
+            "spot",
+            "futures"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "For an adopted loop this is the ADOPTION time -- the real start time is not knowable from here."
+        },
+        "started_by": {
+          "type": "string",
+          "description": "--who value, else $AUTOMATION_ACTOR, else $USER; 'human (adopted)' for a loop adopted by `pilot adopt`."
+        },
+        "log": {
+          "type": "string",
+          "description": "Repo-relative path of the loop log, e.g. data/live/pilot/loop.log"
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "true = this pid is the AUTOMATION_PILOT_DRYRUN placeholder (`sleep 30`), not a real pilot loop. Test artefact only."
+        },
+        "stopped_at": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
-
-    "last_updated": { "type": "string", "format": "date-time" },
-
+    "last_updated": {
+      "type": "string",
+      "format": "date-time"
+    },
     "history": {
       "type": "array",
       "description": "Append-only audit trail: who changed what, when, and whether it was applied or refused. Refused attempts (mainnet, Forex, impossible market/timeframe/dimension pairs, blocked pilot starts) are recorded too -- a refusal is evidence, not a non-event.",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["ts", "actor", "action", "result"],
+        "required": [
+          "ts",
+          "actor",
+          "action",
+          "result"
+        ],
         "properties": {
-          "ts":     { "type": "string", "format": "date-time" },
-          "actor":  { "type": "string", "description": "--who value, else $AUTOMATION_ACTOR, else $USER" },
-          "action": { "type": "string", "description": "e.g. 'demo (preset)', 'market cfd=off', 'timeframe 1h=on --market crypto', 'pilot start --market spot', 'migrate schema_version 1 -> 2'" },
-          "detail": { "type": ["string", "null"], "description": "--reason text" },
-          "result": { "type": "string", "enum": ["applied", "refused", "no-op"] }
+          "ts": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "type": "string",
+            "description": "--who value, else $AUTOMATION_ACTOR, else $USER"
+          },
+          "action": {
+            "type": "string",
+            "description": "e.g. 'demo (preset)', 'market cfd=off', 'timeframe 1h=on --market crypto', 'pilot start --market spot', 'migrate schema_version 1 -> 2'"
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "--reason text"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "refused",
+              "no-op"
+            ]
+          }
         }
       }
     }
