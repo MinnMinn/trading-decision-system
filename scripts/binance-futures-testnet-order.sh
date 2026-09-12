@@ -25,6 +25,9 @@
 #   order-by-client-id <SYM> <CLIENT_ID>                        # resolve a timed-out POST without re-sending it
 #   stop-market <SYM> <SIDE> <STOP_PRICE>                       # closePosition=true, workingType=MARK_PRICE
 #   take-profit-market <SYM> <SIDE> <PRICE>                     # closePosition=true, workingType=MARK_PRICE
+#     ^ both go to the Algo Order API (POST /fapi/v1/algoOrder, algoType=CONDITIONAL) -- see the block at the
+#       subcommand. Their ids are algoIds; order-status/cancel-order/cancel-all/open-orders are algo-aware and
+#       alias algoId->orderId and algoStatus->status so callers keep seeing the classic order shape.
 #   close-position <SYM>                                        # MARKET reduceOnly for the whole positionAmt
 #   order-status <SYM> <ORDER_ID> | cancel-order <SYM> <ORDER_ID> | cancel-all <SYM>
 # SIDE for the protective orders: SELL protects a LONG, BUY protects a SHORT.
@@ -77,6 +80,32 @@ _signed() {  # method path query
   sig="$(_sign "$full")"
   _http "$method" "${BASE_URL}${path}?${full}&signature=${sig}"
 }
+_algo_normalize() {  # stdin: /fapi/v1/algoOrder JSON (object or array) -> same JSON plus classic /fapi/v1/order aliases.
+  # Conditional orders live in a SEPARATE namespace (algoId/algoStatus/triggerPrice/actualQty), so callers that
+  # speak the classic shape (strategy-runner.py) would not understand them. We alias rather than replace.
+  python3 -c '
+import json, sys
+_MAP = {"NEW": "NEW", "WORKING": "NEW", "FINISHED": "FILLED",
+        "CANCELED": "CANCELED", "CANCELLED": "CANCELED", "EXPIRED": "EXPIRED", "REJECTED": "REJECTED"}
+def norm(o):
+    if not isinstance(o, dict) or "algoId" not in o:
+        return o
+    st = _MAP.get(str(o.get("algoStatus") or "").upper(), str(o.get("algoStatus") or ""))
+    if st == "FILLED" and float(o.get("actualQty") or 0) <= 0:
+        st = "EXPIRED"   # triggered but filled nothing (position was already gone) -- not a close
+    o.setdefault("orderId", o["algoId"])
+    o["status"]      = st
+    o["type"]        = o.get("orderType") or o.get("type")
+    o["origType"]    = o["type"]
+    o["stopPrice"]   = o.get("triggerPrice") or "0"
+    o["avgPrice"]    = o.get("actualPrice") or "0"
+    o["executedQty"] = o.get("actualQty") or "0"
+    o["origQty"]     = o.get("quantity") or "0"
+    return o
+d = json.load(sys.stdin)
+json.dump([norm(x) for x in d] if isinstance(d, list) else norm(d), sys.stdout, indent=4)
+print()'
+}
 _filter_value() {  # symbol filterType field
   _public_get "${BASE_URL}/fapi/v1/exchangeInfo" | python3 -c '
 import json, sys
@@ -120,7 +149,14 @@ for s in d["symbols"]:
   account) _signed GET /fapi/v2/account "" | _pretty ;;
   balance) _signed GET /fapi/v2/balance "" | _pretty ;;
   position-risk) if [ -n "${2:-}" ]; then _check_symbol "$2"; _signed GET /fapi/v2/positionRisk "symbol=$2" | _pretty; else _signed GET /fapi/v2/positionRisk "" | _pretty; fi ;;
-  open-orders) if [ -n "${2:-}" ]; then _check_symbol "$2"; _signed GET /fapi/v1/openOrders "symbol=$2" | _pretty; else _signed GET /fapi/v1/openOrders "" | _pretty; fi ;;
+  # Conditional orders do NOT appear in /fapi/v1/openOrders -- they are only in /fapi/v1/openAlgoOrders
+  # (verified 2026-09-13). Merge both so reconciliation sees a resting protective stop instead of concluding
+  # the position is unprotected (or that the stop is a foreign order).
+  open-orders) if [ -n "${2:-}" ]; then _check_symbol "$2"; q="symbol=$2"; else q=""; fi
+    reg="$(_signed GET /fapi/v1/openOrders "$q")"; algo="$(_signed GET /fapi/v1/openAlgoOrders "$q" | _algo_normalize)"
+    python3 -c '
+import json,sys
+print(json.dumps(json.loads(sys.argv[1]) + json.loads(sys.argv[2]), indent=4))' "$reg" "$algo" ;;
   user-trades) _check_symbol "${2:?}"; _signed GET /fapi/v1/userTrades "symbol=$2&limit=${3:-50}" | _pretty ;;
   income) _check_symbol "${2:?}"; _signed GET /fapi/v1/income "symbol=$2&limit=${3:-50}" | _pretty ;;
   set-margin-type) _check_symbol "${2:?}"; [ "${3:?}" = "ISOLATED" ] || { echo "Refused: only ISOLATED margin is allowed in the demo" >&2; exit 2; }
@@ -132,16 +168,37 @@ for s in d["symbols"]:
   open-long-limit) _check_symbol "${2:?}"; _signed POST /fapi/v1/order "symbol=$2&side=BUY&type=LIMIT&timeInForce=GTX&quantity=${3:?}&price=${4:?}&newOrderRespType=RESULT${5:+&newClientOrderId=$5}" | _pretty ;;
   open-short-limit) _check_symbol "${2:?}"; _signed POST /fapi/v1/order "symbol=$2&side=SELL&type=LIMIT&timeInForce=GTX&quantity=${3:?}&price=${4:?}&newOrderRespType=RESULT${5:+&newClientOrderId=$5}" | _pretty ;;
   order-by-client-id) _check_symbol "${2:?}"; _signed GET /fapi/v1/order "symbol=$2&origClientOrderId=${3:?}" | _pretty ;;
-  stop-market) _check_symbol "${2:?}"; side="${3:?SELL|BUY}"; _signed POST /fapi/v1/order "symbol=$2&side=$side&type=STOP_MARKET&stopPrice=${4:?}&closePosition=true&workingType=MARK_PRICE&priceProtect=TRUE" | _pretty ;;
-  take-profit-market) _check_symbol "${2:?}"; side="${3:?SELL|BUY}"; _signed POST /fapi/v1/order "symbol=$2&side=$side&type=TAKE_PROFIT_MARKET&stopPrice=${4:?}&closePosition=true&workingType=MARK_PRICE&priceProtect=TRUE" | _pretty ;;
+  # ALGO ORDER API. API change: announced 2025-11-06, effective 2025-12-09 -- USDS-M futures migrated
+  # conditional orders (STOP_MARKET / TAKE_PROFIT_MARKET / STOP / TAKE_PROFIT / TRAILING_STOP_MARKET) to the
+  # Algo Service. POST /fapi/v1/order and POST /fapi/v1/batchOrders now reject those types with
+  # -4120 STOP_ORDER_SWITCH_ALGO, "Order type not supported for this endpoint. Please use the Algo Order API
+  # endpoints instead." They go to POST /fapi/v1/algoOrder with algoType=CONDITIONAL, and the trigger level is
+  # named triggerPrice, NOT stopPrice. Everything else (side, closePosition, workingType, priceProtect, and
+  # -2021 "would immediately trigger") behaves as before. There is no batch equivalent -- one call per order.
+  # Docs: https://developers.binance.com/docs/derivatives/change-log
+  #       https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/New-Algo-Order
+  # Verified live on testnet 2026-09-13 (long and short, SL and TP, place/query/cancel/trigger).
+  # Subcommand names and argument order are unchanged, so strategy-runner.py needs no change.
+  stop-market) _check_symbol "${2:?}"; side="${3:?SELL|BUY}"; _signed POST /fapi/v1/algoOrder "symbol=$2&side=$side&algoType=CONDITIONAL&type=STOP_MARKET&triggerPrice=${4:?}&closePosition=true&workingType=MARK_PRICE&priceProtect=TRUE" | _algo_normalize ;;
+  take-profit-market) _check_symbol "${2:?}"; side="${3:?SELL|BUY}"; _signed POST /fapi/v1/algoOrder "symbol=$2&side=$side&algoType=CONDITIONAL&type=TAKE_PROFIT_MARKET&triggerPrice=${4:?}&closePosition=true&workingType=MARK_PRICE&priceProtect=TRUE" | _algo_normalize ;;
   close-position) _check_symbol "${2:?}"
     amt="$(_signed GET /fapi/v2/positionRisk "symbol=$2" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(sum(float(p["positionAmt"]) for p in d))')"
     if python3 -c "import sys; sys.exit(0 if abs(float('$amt'))>0 else 1)"; then
       if python3 -c "import sys; sys.exit(0 if float('$amt')>0 else 1)"; then side=SELL; qty="$amt"; else side=BUY; qty="${amt#-}"; fi
       _signed POST /fapi/v1/order "symbol=$2&side=$side&type=MARKET&quantity=$qty&reduceOnly=true&newOrderRespType=RESULT" | _pretty
     else echo '{"note":"no open position"}'; fi ;;
-  order-status) _check_symbol "${2:?}"; _signed GET /fapi/v1/order "symbol=$2&orderId=${3:?}" | _pretty ;;
-  cancel-order) _check_symbol "${2:?}"; _signed DELETE /fapi/v1/order "symbol=$2&orderId=${3:?}" | _pretty ;;
-  cancel-all) _check_symbol "${2:?}"; _signed DELETE /fapi/v1/allOpenOrders "symbol=$2" | _pretty ;;
+  # An id may be a classic orderId or an algoId (conditional order) -- try the classic endpoint first and fall
+  # back to the algo namespace on -2013 "Order does not exist" (verified 2026-09-13).
+  order-status) _check_symbol "${2:?}"; id="${3:?}"
+    if out="$(_signed GET /fapi/v1/order "symbol=$2&orderId=$id" 2>/dev/null)"; then printf '%s' "$out" | _pretty
+    else _signed GET /fapi/v1/algoOrder "symbol=$2&algoId=$id" | _algo_normalize; fi ;;
+  cancel-order) _check_symbol "${2:?}"; id="${3:?}"
+    if out="$(_signed DELETE /fapi/v1/order "symbol=$2&orderId=$id" 2>/dev/null)"; then printf '%s' "$out" | _pretty
+    else _signed DELETE /fapi/v1/algoOrder "symbol=$2&algoId=$id" | _pretty; fi ;;
+  # DELETE /fapi/v1/allOpenOrders does NOT touch conditional/algo orders (verified 2026-09-13: it returned
+  # success while both protective orders stayed NEW in openAlgoOrders). Cancel those explicitly, or cancel-all
+  # would silently leave a live stop resting after the position it protected is gone.
+  cancel-all) _check_symbol "${2:?}"; _signed DELETE /fapi/v1/allOpenOrders "symbol=$2" | _pretty
+    _signed DELETE /fapi/v1/algoOpenOrders "symbol=$2" | _pretty ;;
   *) echo "Usage: $0 {check|exchange-info|filters|price|mark-price|round-qty|round-price|account|balance|position-risk|open-orders|user-trades|income|set-margin-type|set-leverage|open-long|open-short|open-long-limit|open-short-limit|order-by-client-id|stop-market|take-profit-market|close-position|order-status|cancel-order|cancel-all} ..." >&2; exit 1 ;;
 esac

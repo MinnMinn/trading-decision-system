@@ -705,33 +705,67 @@ class ProtectiveOrderFailure(unittest.TestCase):
 
 
 class ConnectorRequestShape(unittest.TestCase):
-    """Connector-level test with no network call: pins the exact query parameters
-    scripts/binance-futures-testnet-order.sh sends for the protective-order subcommands. 2026-09-13 finding
-    (see task report): 12 real-testnet parameter/order-type combinations for STOP_MARKET / STOP /
-    TAKE_PROFIT_MARKET / TRAILING_STOP_MARKET were all rejected identically with -4120 ("Order type not
-    supported for this endpoint. Please use the Algo Order API endpoints instead."), including every
-    combination of closePosition / reduceOnly+quantity / workingType / priceProtect / positionSide /
-    newOrderRespType, and both query-string and form-body placement. Only LIMIT/MARKET succeeded. This is a
-    Binance USDT-M futures TESTNET-side restriction on conditional order types at /fapi/v1/order (exchangeInfo
-    still lists STOP_MARKET as valid for the symbol; account canTrade=true; no hedge mode; no multi-assets
-    margin) -- not a parameter bug in this connector. No verified working replacement request exists (Binance's
-    documented Algo Order endpoints are VWAP/TWAP execution algos, not stop-losses), so the request shape below
-    is intentionally UNCHANGED and pinned as a regression guard / running record of what was verified, per the
-    task's explicit instruction not to ship an unverified order-placement change."""
+    """Connector-level tests with no network call: pins the exact request scripts/binance-futures-testnet-order.sh
+    sends for the protective-order subcommands, and the response aliasing that keeps strategy-runner.py's
+    classic-order vocabulary working.
+
+    HISTORY. On 2026-09-13 every conditional order type (STOP_MARKET / STOP / TAKE_PROFIT_MARKET /
+    TRAILING_STOP_MARKET) began failing at POST /fapi/v1/order with -4120 "Order type not supported for this
+    endpoint. Please use the Algo Order API endpoints instead.", across all 12 parameter combinations tried
+    (closePosition vs reduceOnly+quantity, workingType, priceProtect, positionSide, newOrderRespType, query vs
+    form body). MARKET/LIMIT were unaffected.
+
+    RESOLUTION (verified live against testnet 2026-09-13). Conditional orders moved to the futures Algo Order
+    API: POST /fapi/v1/algoOrder with algoType=CONDITIONAL and the order type in `type`. The trigger level is
+    named triggerPrice, NOT stopPrice -- that rename is the single parameter change; side, closePosition,
+    workingType and priceProtect are unchanged, as is -2021 "Order would immediately trigger".
+
+    Two consequences this class also guards, because they are silent-failure shaped:
+      * conditional orders are NOT returned by /fapi/v1/openOrders (only /fapi/v1/openAlgoOrders), and
+      * DELETE /fapi/v1/allOpenOrders does NOT cancel them.
+    Left unhandled, the first makes reconciliation believe a protected position is unprotected, and the second
+    leaves a live stop resting after its position is gone."""
 
     ORDER_SH = os.path.join(ROOT, "scripts", "binance-futures-testnet-order.sh")
 
-    def _fake_curl_env(self, tmp):
+    ALGO_NEW = ('{"algoId":1000000203021052,"clientAlgoId":"abc","algoType":"CONDITIONAL",'
+                '"orderType":"STOP_MARKET","symbol":"BTCUSDT","side":"SELL","algoStatus":"NEW",'
+                '"quantity":"0.0000","triggerPrice":"74000.00","closePosition":true,"priceProtect":true,'
+                '"workingType":"MARK_PRICE","actualOrderId":"","triggerTime":0}')
+
+    def _fake_curl_env(self, tmp, bodies=None):
         """A fake `curl` on PATH ahead of the real one: records its argv (the connector's exact request) to
-        curl.log and returns a canned success body, so the connector script runs unmodified with no network
-        access. Also fakes the -K/stdin-config path the connector uses to pass the API key header."""
+        curl.log and returns a canned body chosen by the request URL, so the connector script runs unmodified
+        with no network access. Also fakes the -K/stdin-config path the connector uses to pass the API key."""
+        bodies = dict(bodies or {})
+        # exit code for the classic (non-algo) branch; 1 reproduces curl --fail-with-body on the real API's
+        # 400 -2013 "Order does not exist.", which is what makes the connector fall back to the algo namespace.
+        default_code = bodies.pop("default_code", 0)
+        bodies.setdefault("default", '{"orderId": 1, "status": "NEW"}')
+        bodies.setdefault("algo", self.ALGO_NEW)
+        bodies.setdefault("algo_open", "[]")
+        bodies.setdefault("reg_open", "[]")
+        bodies.setdefault("all_open", '{"code":200,"msg":"ok"}')
+        paths = {}
+        for k, v in bodies.items():
+            fp = os.path.join(tmp, "body_%s.json" % k)
+            with open(fp, "w") as f:
+                f.write(v)
+            paths[k] = fp
         curl_log = os.path.join(tmp, "curl.log")
         fake_curl = os.path.join(tmp, "curl")
         script = (
             "#!/usr/bin/env bash\n"
-            "cat >/dev/null\n"                       # drain the -K - header config from stdin
+            "cat >/dev/null\n"                      # drain the -K - header config from stdin
             f'printf %s\\\\n "$*" >> "{curl_log}"\n'
-            "printf '%s' '{\"orderId\": 1, \"status\": \"NEW\"}'\n"
+            'url="${!#}"\n'
+            "case \"$url\" in\n"
+            f'  *openAlgoOrders*) cat "{paths["algo_open"]}" ;;\n'
+            f'  *allOpenOrders*)  cat "{paths["all_open"]}" ;;\n'
+            f'  *openOrders*)     cat "{paths["reg_open"]}" ;;\n'
+            f'  *algoOrder*)      cat "{paths["algo"]}" ;;\n'
+            f'  *)                cat "{paths["default"]}"; exit {default_code} ;;\n'
+            "esac\n"
         )
         with open(fake_curl, "w") as f:
             f.write(script)
@@ -739,38 +773,122 @@ class ConnectorRequestShape(unittest.TestCase):
         env = dict(os.environ, PATH=tmp + os.pathsep + os.environ.get("PATH", ""))
         return env, curl_log
 
-    def _last_url(self, curl_log):
+    def _urls(self, curl_log):
         lines = [l for l in open(curl_log).read().splitlines() if l.strip()]
         self.assertTrue(lines, "curl was never invoked")
-        return lines[-1].split(" ")[-1]  # `curl ... -K - -X POST <url>` -- url is the last argv token
+        return [l.split(" ")[-1] for l in lines]   # `curl ... -K - -X POST <url>` -- url is the last token
 
-    def test_stop_market_request_shape(self):
-        tmp = tempfile.mkdtemp(); env, curl_log = self._fake_curl_env(tmp)
-        r = subprocess.run(["bash", self.ORDER_SH, "stop-market", "BTCUSDT", "SELL", "75000.0"],
-                            capture_output=True, text=True, env=env)
+    def _run(self, args, bodies=None):
+        tmp = tempfile.mkdtemp()
+        env, curl_log = self._fake_curl_env(tmp, bodies)
+        r = subprocess.run(["bash", self.ORDER_SH] + args, capture_output=True, text=True, env=env)
         self.assertEqual(r.returncode, 0, r.stderr)
-        url = self._last_url(curl_log)
-        self.assertIn("/fapi/v1/order?", url)
+        return r, self._urls(curl_log)
+
+    def test_stop_market_uses_algo_order_endpoint(self):
+        """The -4120 fix: POST /fapi/v1/algoOrder, algoType=CONDITIONAL, trigger level as triggerPrice."""
+        _, urls = self._run(["stop-market", "BTCUSDT", "SELL", "75000.0"])
+        url = urls[-1]
+        self.assertIn("/fapi/v1/algoOrder?", url)
+        self.assertIn("algoType=CONDITIONAL", url)
         self.assertIn("symbol=BTCUSDT", url)
         self.assertIn("side=SELL", url)
         self.assertIn("type=STOP_MARKET", url)
-        self.assertIn("stopPrice=75000.0", url)
+        self.assertIn("triggerPrice=75000.0", url)
         self.assertIn("closePosition=true", url)
         self.assertIn("workingType=MARK_PRICE", url)
         self.assertIn("priceProtect=TRUE", url)
+        # the two things that produced -4120 / -1102 must not come back
+        self.assertNotIn("/fapi/v1/order?", url)
+        self.assertNotIn("stopPrice=", url)
 
-    def test_take_profit_market_request_shape(self):
-        tmp = tempfile.mkdtemp(); env, curl_log = self._fake_curl_env(tmp)
-        r = subprocess.run(["bash", self.ORDER_SH, "take-profit-market", "BTCUSDT", "SELL", "90000.0"],
-                            capture_output=True, text=True, env=env)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        url = self._last_url(curl_log)
-        self.assertIn("/fapi/v1/order?", url)
+    def test_take_profit_market_uses_algo_order_endpoint(self):
+        _, urls = self._run(["take-profit-market", "BTCUSDT", "SELL", "90000.0"])
+        url = urls[-1]
+        self.assertIn("/fapi/v1/algoOrder?", url)
+        self.assertIn("algoType=CONDITIONAL", url)
         self.assertIn("type=TAKE_PROFIT_MARKET", url)
-        self.assertIn("stopPrice=90000.0", url)
+        self.assertIn("triggerPrice=90000.0", url)
         self.assertIn("closePosition=true", url)
         self.assertIn("workingType=MARK_PRICE", url)
         self.assertIn("priceProtect=TRUE", url)
+        self.assertNotIn("/fapi/v1/order?", url)
+        self.assertNotIn("stopPrice=", url)
+
+    def test_algo_response_is_aliased_to_classic_order_shape(self):
+        """strategy-runner.py reads .orderId/.status/.stopPrice off the placement response; the Algo API
+        returns algoId/algoStatus/triggerPrice instead, so the connector must alias them."""
+        r, _ = self._run(["stop-market", "BTCUSDT", "SELL", "74000.0"])
+        d = json.loads(r.stdout)
+        self.assertEqual(d["orderId"], 1000000203021052)      # <- algoId
+        self.assertEqual(d["algoId"], 1000000203021052)       # original field preserved
+        self.assertEqual(d["status"], "NEW")                  # <- algoStatus
+        self.assertEqual(d["type"], "STOP_MARKET")            # <- orderType
+        self.assertEqual(d["stopPrice"], "74000.00")          # <- triggerPrice
+
+    def test_triggered_algo_order_reports_filled(self):
+        """A conditional order that fired reads algoStatus=FINISHED with actualQty/actualPrice. The runner
+        only closes a position when it sees status==FILLED, so FINISHED must map to FILLED."""
+        body = ('{"algoId":42,"orderType":"STOP_MARKET","symbol":"BTCUSDT","side":"SELL",'
+                '"algoStatus":"FINISHED","actualOrderId":"28582102498","actualQty":"0.0007",'
+                '"actualPrice":"77110.200000","triggerPrice":"77125.00","quantity":"0.0007"}')
+        r, _ = self._run(["order-status", "BTCUSDT", "42"],
+                         bodies={"algo": body, "default": '{"code":-2013,"msg":"Order does not exist."}',
+                                 "default_code": 1})
+        d = json.loads(r.stdout)
+        self.assertEqual(d["status"], "FILLED")
+        self.assertEqual(d["executedQty"], "0.0007")
+        self.assertEqual(d["avgPrice"], "77110.200000")
+
+    def test_finished_with_no_fill_is_not_reported_as_filled(self):
+        """FINISHED but nothing executed (the position was already gone) is not a close -- reporting FILLED
+        would book a phantom exit at price 0."""
+        body = ('{"algoId":43,"orderType":"STOP_MARKET","symbol":"BTCUSDT","algoStatus":"FINISHED",'
+                '"actualQty":"0","actualPrice":"0","triggerPrice":"77125.00"}')
+        r, _ = self._run(["order-status", "BTCUSDT", "43"],
+                         bodies={"algo": body, "default": '{"code":-2013,"msg":"Order does not exist."}',
+                                 "default_code": 1})
+        self.assertEqual(json.loads(r.stdout)["status"], "EXPIRED")
+
+    def test_open_orders_merges_conditional_orders(self):
+        """Conditional orders are absent from /fapi/v1/openOrders. If the connector did not merge
+        /fapi/v1/openAlgoOrders, reconciliation would see a protected position as unprotected."""
+        r, urls = self._run(["open-orders"], bodies={"reg_open": "[]", "algo_open": "[%s]" % self.ALGO_NEW})
+        self.assertTrue(any("openAlgoOrders" in u for u in urls), "openAlgoOrders was never queried")
+        rows = json.loads(r.stdout)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["orderId"], 1000000203021052)
+        self.assertEqual(rows[0]["status"], "NEW")
+        self.assertEqual(rows[0]["symbol"], "BTCUSDT")
+
+    def test_cancel_all_also_cancels_conditional_orders(self):
+        """DELETE /fapi/v1/allOpenOrders leaves conditional orders resting, so cancel-all must delete each
+        algoId explicitly -- otherwise a stop outlives the position it was protecting."""
+        _, urls = self._run(["cancel-all", "BTCUSDT"], bodies={"algo_open": "[%s]" % self.ALGO_NEW})
+        self.assertTrue(any("/fapi/v1/allOpenOrders?" in u for u in urls), urls)
+        self.assertTrue(any("/fapi/v1/algoOpenOrders?" in u and "symbol=BTCUSDT" in u for u in urls),
+                        "cancel-all did not cancel the resting conditional orders: %s" % urls)
+
+    def test_cancel_order_tries_classic_endpoint_before_algo(self):
+        """A conditional order that has already TRIGGERED leaves the algo namespace and becomes an ordinary
+        order -- cancelling it via the algo path returns -2011 Unknown order. So the classic endpoint must be
+        tried FIRST and the algo path used only as the fallback. Getting this backwards is what produced the
+        widely-reported orphaned-stop bug (freqtrade #12681). Here the classic call succeeds, so the algo
+        endpoint must never be reached."""
+        _, urls = self._run(["cancel-order", "BTCUSDT", "28582102498"])
+        self.assertIn("/fapi/v1/order?", urls[-1])
+        self.assertIn("orderId=28582102498", urls[-1])
+        self.assertFalse(any("algoOrder" in u for u in urls),
+                         "algo cancel path was used for an order the classic endpoint accepted: %s" % urls)
+
+    def test_cancel_order_falls_back_to_algo_when_classic_rejects(self):
+        """A still-resting conditional order is unknown to the classic endpoint (-2013), so cancel-order must
+        fall back to DELETE /fapi/v1/algoOrder with the id as algoId."""
+        _, urls = self._run(["cancel-order", "BTCUSDT", "1000000203021052"],
+                            bodies={"default": '{"code":-2013,"msg":"Order does not exist."}',
+                                    "default_code": 1, "algo": '{"algoId":1000000203021052,"code":"200"}'})
+        self.assertIn("/fapi/v1/algoOrder?", urls[-1])
+        self.assertIn("algoId=1000000203021052", urls[-1])
 
 
 class EquityStartMigration(unittest.TestCase):
