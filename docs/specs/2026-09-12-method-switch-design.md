@@ -33,6 +33,8 @@ hiển thị và cho chạm chọn; một cron Claude đọc lựa chọn đó v
 7. Đổi sang preset hẹp hơn: **giữ nguyên tất cả lệnh in-flight** (grandfather). Vị thế và lệnh limit đang chờ chạy
    tiếp tới khi đóng tự nhiên theo luật của chính nó; preset chỉ lọc tín hiệu **mới**.
 8. Phạm vi market: **crypto và cfd, hết**. Họ thị trường thứ ba nằm ngoài lần này (§9).
+9. Trang có thêm **menu chọn nhiều cặp** cho từng market (yêu cầu 2026-09-12): hôm nay chạy XAUUSD, hôm sau
+   XAUUSD + XAGUSD. Đây không phải cờ trang trí — `markets.<m>.instruments` thật sự gate pilot (§4.6).
 
 ---
 
@@ -162,6 +164,8 @@ và đưa vào phạm vi `test_instruments_sync.py`. Sau đó thêm token thật
 - Subcommand mới `method <preset> [--market crypto|cfd]`: đặt bốn cờ theo preset, ghi `history`. Từ chối (exit 2)
   preset không hợp lệ cho market đó, kèm lý do như `cmd_dimension` đang làm (`:957-981`).
 - `status` in nhãn preset suy ra được, hoặc `custom` kèm bốn boolean thật.
+- Subcommand mới `instrument set <SYM,SYM,...> --market <m>`: đặt cả danh sách trong một lần ghi, một dòng history,
+  toàn bộ hoặc không (§4.6, CFG-11/12/13/15).
 - Subcommand mới `allows master`: chỉ kiểm `cfg["enabled"]`. Hôm nay `allows` chỉ nhận `scanner|local_read|pilot`
   (`:1272`), nên cron applier không có cách nào gate mà không chết theo một layer.
 - `apply_preset` (`:867`) **thôi ghi đè** `dimensions`. Hôm nay `demo`/`real` làm `mk["dimensions"] = {d: True ...}`,
@@ -234,8 +238,9 @@ Mỗi thẻ preset in:
   footprint/heatmap" mà im về hai cái kia sẽ hàm ý sai rằng hai cái kia được pilot kiểm chứng.
 
 Tương tác và trạng thái:
-- Chạm → `db.doc("control/request.<market>").set({preset, requested_at})`. Doc có hình dạng đóng: chỉ hai trường đó,
-  trường lạ bị bỏ qua khi đọc (PANEL-04).
+- Chạm → `db.doc("control/request.<market>").set({preset, instruments, requested_at})`. Doc có hình dạng **đóng, đúng
+  ba khoá**; trường lạ bị bỏ qua khi đọc, khoá thiếu là lỗi chứ không phải giá trị mặc định (PANEL-04/10).
+  `instruments` là **tập mong muốn đầy đủ**, không phải delta.
 - **Không chuỗi nào từ `db` được chèn vào trang dưới dạng markup** (PANEL-03): mọi giá trị đọc về đặt qua
   `textContent`, không `innerHTML`. Preset đọc về được ánh xạ sang nhãn của registry rồi mới hiển thị; giá trị không
   khớp id nào thì hiện "không hợp lệ", không hiện nguyên văn.
@@ -262,11 +267,17 @@ Các bước trong prompt:
    một subcommand chưa tồn tại sẽ lọt qua cổng viết kiểu đó (CRON-01).
 2. `Artifact action='read_db'`, đọc **đúng hai đường dẫn có tên** `control/request.crypto` và `control/request.cfd`;
    không quét cả collection. Doc vắng mặt = không làm gì, không phải lỗi.
-3. **Edge-trigger theo bất đẳng thức, không theo thứ tự thời gian.** Áp dụng khi `(preset, requested_at)` của request
-   **khác** `(preset, requested_at)` đã lưu trong `control/applied.<market>`. Không so `>`: một điện thoại lệch giờ
-   ghi ra mốc tương lai sẽ khoá cứng watermark vĩnh viễn. Không so với trạng thái config: đó là level-trigger, sẽ
-   hoàn tác mọi thay đổi gõ tay ở terminal sau mỗi 5 phút — ngược ý §13 rule 3. Bất đẳng thức cho đúng ba tính chất
-   cần: mỗi lần request đổi thì áp dụng đúng một lần, terminal luôn thắng, bỏ lỡ tick vô hại.
+3. **Edge-trigger theo bất đẳng thức, không theo thứ tự thời gian.** Áp dụng khi `(preset, instruments, requested_at)`
+   của request **khác** bộ ba đã lưu trong `control/applied.<market>`, trong đó `instruments` so sánh **như một tập
+   đã chuẩn hoá thứ tự**. Không so `>`: một điện thoại lệch giờ ghi ra mốc tương lai sẽ khoá cứng watermark vĩnh
+   viễn. Không so với trạng thái config: đó là level-trigger, sẽ hoàn tác mọi thay đổi gõ tay ở terminal sau mỗi 5
+   phút — ngược ý §13 rule 3. Bất đẳng thức cho đúng ba tính chất cần: mỗi lần request đổi thì áp dụng đúng một lần,
+   terminal luôn thắng, bỏ lỡ tick vô hại.
+
+   **Watermark chỉ tiến khi MỌI nửa đã xong** — áp dụng thành công, hoặc bị từ chối dứt khoát (CRON-13). Một request
+   mang cả preset lẫn instruments mà chỉ nửa này chạy được thì không được ghi `applied` như thể cả hai đã xong: nửa
+   kia sẽ mất im lặng và vĩnh viễn, vì lần sau so sánh thấy "không khác" nên không thử lại. Đây là lỗi sắc nhất mà
+   mô hình đe doạ tìm ra khi thêm menu cặp. `applied` ghi kết quả từng nửa riêng.
 4. Kiểm trước khi hành động: `preset` phải khớp **đúng một id literal** của registry và `market` đúng một trong
    `crypto|cfd`; không khớp → không chạy lệnh nào. `--who` cố định `"artifact-panel"`; **không** đẩy chuỗi nào từ
    `db` vào tham số. Không có trường "người yêu cầu": schema `history` là `additionalProperties: false` nên không có
@@ -279,24 +290,68 @@ Các bước trong prompt:
 7. Trả lời một dòng mỗi market, theo khuôn `publish-tick.md` / `journal-publish.md`, **không in lại** nội dung thô
    từ `db` (CRON-07).
 
-**Vòng audit không được biến thành kênh xả.** `history` là vòng 200 dòng (`automation.py:91`, cắt ở `record():293`)
-và refusal cũng ghi. Một tick ghi một dòng cho mỗi market sẽ xoá sạch dấu vết audit trong chưa tới 9 giờ. Nên: cron
-chỉ ghi history khi **thật sự áp dụng** (no-op không ghi), và dòng bị đẩy ra khỏi vòng được lưu sang file archive
-thay vì mất hẳn (CFG-07).
+**Vòng audit không được biến thành kênh xả — đây là điều kiện tiên quyết, không phải việc làm sau.** `history` là
+vòng 200 dòng (`automation.py:91`, cắt ở `record():293`) và refusal cũng ghi. Với hai nửa điều khiển × hai market,
+một tick có thể ghi tới 4 dòng, xoá sạch dấu vết audit trong khoảng 4 giờ. Nên CFG-07 + CFG-13 phải xong **trước**
+khi chạy không người trông: cron chỉ ghi history khi **thật sự áp dụng** (no-op thật không ghi gì), và dòng bị đẩy
+ra khỏi vòng được lưu sang file archive thay vì mất hẳn.
 
 ---
+
+### 4.6 Menu chọn nhiều cặp
+
+**Cái này là thật, khác hai cờ `wyckoff`/`ict`.** `scripts/strategy-runner.py:175-182` — `enabled_symbols(market)` trả
+về `instruments.execution(market)` **giao với** `markets.<m>.instruments`, và nó gate cả chỗ nạp nến (`:762`) lẫn bước
+3 sinh tín hiệu (`:837`). Bỏ tick một cặp là pilot thôi mở lệnh mới trên cặp đó.
+
+**Grandfather đã đúng sẵn, không được phá.** `:766-767` thêm mọi symbol có vị thế hoặc lệnh chờ vào tập nạp nến
+**không qua** `enabled_symbols`, nên bỏ tick một cặp đang có lệnh mở thì `manage_position` vẫn có nến để chạy.
+
+**Vũ trụ chọn** = `instruments.analysis(market)`. Trang sinh danh sách từ đó, không bao giờ tự viết ra symbol
+(PANEL-09). Mỗi chip mang nhãn trạng thái, lấy từ hàm dò sẵn có chứ không từ danh sách chép tay:
+
+- *chưa có dữ liệu* — không có file `ohlcv.<SYM>.15m.json` trong `data/live/<DATA_DIR[m]>/`; dùng đúng phép dò của
+  `automation.py:606-629` (`mt5_freshness`) và của `cmd_instrument:1022-1025`. Hôm nay USOIL/UKOIL rơi vào đây;
+  XAUUSD và XAGUSD đều đã có export tươi.
+- *không đặt lệnh được* — có trong `analysis` nhưng ngoài `execution`, nên tick chỉ mở rộng phạm vi phân tích chứ
+  không cho pilot đặt lệnh (CFG-15). Hôm nay `analysis == execution` ở cả hai market nên chưa cặp nào rơi vào đây.
+- *chưa kiểm định bằng backtest* — `instruments.json:52` ghi rõ bộ luật pilot-top5 chỉ backtest trên
+  BTCUSDT/ETHUSDT/SOLUSDT, sáu symbol thêm sau là *"an experiment, not a measured edge"*. Menu này đưa chúng vào
+  cách dòng lệnh thật đúng một cú chạm, nên cảnh báo đó phải hiện trên màn hình.
+- *đang có lệnh mở* — đọc từ state của runner, để bỏ tick không bị hiểu nhầm là đã dừng cái đang chạy.
+
+**Tập rỗng được phép** nhưng phải là lựa chọn tường minh, không bao giờ suy diễn (CFG-14, PANEL-11): không cặp nào
+= không mở lệnh mới ở market đó, là hướng an toàn. Trang vẽ nó như một trạng thái đã chọn kèm dòng giải thích, không
+để trông giống applier hỏng. **Thiếu hẳn khoá `instruments` trong doc là một lỗi bị từ chối, không phải tập rỗng.**
+
+**Lệnh gộp mới** `instrument set <SYM,SYM,...> --market <m>`: một lần ghi, một dòng history, **toàn bộ hoặc không**
+(CFG-11). Hôm nay `cmd_instrument` (`:997-1028`) làm một symbol mỗi lần với load/save/`show()` riêng — đổi 9 cặp
+thành 9 lần ghi và 9 dòng history, đúng vào vòng audit 200 dòng. Lệnh gộp **tự kiểm chứng độc lập với cron**
+(CFG-12): Forex bị từ chối (`:1000-1006`), ngoài allowlist bị từ chối (`:1007-1014`), sai market, sai hoa thường,
+trùng lặp — tất cả kiểm lại trong script, vì người gọi tương lai có thể không phải cron. Không bao giờ thêm được
+symbol ngoài `instruments.json` (CFG-15). Thứ tự ghi ra là thứ tự chuẩn của allowlist; no-op thật thì không ghi
+history (CFG-13).
+
+Lưu ý về trần: câu "menu chỉ thu hẹp được" là **rỗng nghĩa** — `analysis == execution` ở cả hai market hôm nay, nên
+trong trần `instruments.json` một cú tick lại chạm tới mọi symbol đặt lệnh được. Trần thật sự là phép giao ở
+`strategy-runner.py:181`, và nó đứng vững.
+
+**Cron không tự tính diff** (CRON-12): nó chỉ quyết định *có hành động hay không* rồi truyền nguyên tập mong muốn;
+`automation.py` tính phần thay đổi. Không để số học tập hợp cho mô hình làm.
 
 ## 5. Vòng đời một lần đổi preset
 
 ```
-chạm trên trang  →  db: control/request.crypto = {preset, requested_at}
+chạm trên trang  →  db: control/request.<market> = {preset, instruments, requested_at}
                         ↓  (≤ 5 phút)
-cron method-switch  →  allows master  →  read_db  →  edge-trigger?  →  automation.py method
-                        ↓                                                     ↓
-                   write_db applied + heartbeat                automation-config.json: 4 cờ + history
-                        ↓                                                     ↓
-              trang hiện "đã áp dụng"              /analyze (dispatch_plan) · scanner · local read · build-artifact
-                                                   strategy-runner tick bước 3 (tín hiệu MỚI; lệnh cũ giữ nguyên)
+cron method-switch  →  allows master (exit 0)  →  read_db  →  khác bộ ba?  →  automation.py method
+                        ↓                                                  →  automation.py instrument set
+                   write_db applied (kết quả TỪNG nửa) + heartbeat                    ↓
+                        ↓                                          automation-config.json: 4 cờ + danh sách cặp
+              trang hiện "đã áp dụng"                                                 ↓
+                                        /analyze (dispatch_plan) · scanner · local read · build-artifact
+                                        strategy-runner: enabled_symbols() × runner_methods() ở bước 3
+                                        (chỉ tín hiệu MỚI; vị thế và lệnh chờ cũ giữ nguyên)
 ```
 
 ---
@@ -351,6 +406,14 @@ thành nội bộ tổ chức, nghĩa là mọi thành viên đã đăng nhập 
 - config hỏng → `method` thoát báo lỗi, **không** ghi đè bằng `DEFAULTS`, `history` còn nguyên (CFG-02)
 - `record()` làm sạch chuỗi chứa `\n` và ANSI; `show()` in ra không dựng được dòng history giả (CFG-05/06)
 - ghi đồng thời hai tiến trình không làm hỏng file (nguyên tử + flock)
+- `instrument set`: đặt đúng danh sách trong một lần ghi và một dòng history; một symbol Forex hoặc ngoài allowlist
+  ở bất kỳ vị trí nào làm **cả lô** bị từ chối exit 2, config không đổi; sai market, sai hoa thường, trùng lặp đều
+  bị từ chối; thứ tự ghi ra là thứ tự chuẩn của allowlist; đặt lại đúng danh sách đang có = no-op, **không** ghi
+  history (CFG-11/12/13/15)
+- `instrument set` với danh sách rỗng: được phép, ghi history, và `enabled_symbols()` của market đó trả về rỗng (CFG-14)
+
+`scripts/tests/test_strategy_runner_preset.py` bổ sung:
+- bỏ tick một cặp đang có vị thế mở → tick vẫn nạp nến cho nó và vẫn gọi `manage_position` (hồi quy cho `:766-767`)
 
 Cron kiểm bằng tay khi chạy thật, đối chiếu §5 của mô hình đe doạ: request có `preset` không hợp lệ → không chạy
 lệnh nào; request trùng `(preset, requested_at)` với `applied` → no-op, không ghi history; request mang mốc thời
@@ -360,14 +423,19 @@ gian tương lai → vẫn áp dụng được lần sau (không khoá cứng wa
 
 | Thêm gì | Phải làm |
 |---|---|
-| 1 token crypto | sửa `instruments.json`, chạy `sync-instruments.py --write`. Hết. |
+| 1 token crypto | sửa `instruments.json`, chạy `sync-instruments.py --write`. Hết. Nó tự xuất hiện trong menu chọn cặp. |
 | 1 CFD | như trên, cộng mở một chart MT5 chạy EA cho symbol đó (thao tác vận hành, §12 item 6). Không sửa code. |
+| đổi cặp chạy hôm nay | tick trên trang, không sửa gì cả. |
 | 1 preset | một entry trong `methods.json`. Trang, cron, `/automation method` tự có. Ràng buộc: tập dimension phải khác mọi preset khác. |
 | 1 runner method | một entry `methods.json` + hàm scan trong `backtest-methods.py` + bản mirror causal trong `strategy-runner.py`. Không còn `if method in ("ICT","COMBINED")` — dispatch theo trường `scan`. |
 | 1 dimension mới | một entry `methods.json` + `sync-methods.py --write` + viết skill (và agent nếu cần) + thêm term list vào `method_purity.py`. **Không đụng** `analyze.md`, `build-artifact.py`, `automation.py`, schema. |
 
 Rubric §6.2 tự tổng quát theo số dimension: công thức hiện chia cho `engaged_count × 25`, đổi thành
 `sum / tổng max_points của các dimension engaged` lấy từ registry.
+
+**Việc dọn kèm theo.** `SYSTEM-DESIGN.md:203` (§12 item 6) viết *"today only XAUUSD is exported"* — câu này **đã cũ**:
+`data/live/mt5-bridge/` hiện có export tươi cho cả XAUUSD lẫn XAGUSD (file 15m ghi 2026-09-12 17:05–17:06). USOIL và
+UKOIL vẫn chưa có. Sửa dòng đó khi triển khai; trang không dựa vào nó mà dò trực tiếp trên đĩa (§4.6, PANEL-09).
 
 **Ngoài phạm vi.** Họ thị trường thứ ba (chỉ số, hoặc venue mới ngoài Binance futures / MT5). Nó đụng
 `instruments.py MARKETS`, `automation.py` (`MARKETS`, `STYLE`, `MARKET_TIMEFRAMES`, `DATA_DIR`),

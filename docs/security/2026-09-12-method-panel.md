@@ -458,3 +458,226 @@ and a verification step; rules already covered by the prior threat model are cit
 implementation code written; no secrets, credentials or PII in this document.
 
 Last updated: 2026-09-12.
+
+---
+
+# Addendum 2026-09-12 — second control on the same panel: instrument multi-select
+
+Appended, not merged: everything above stands unchanged. Same prefixes, numbering continues (PANEL-09.., CRON-11..,
+CFG-11..). Scope of this addendum: `control/request.<market>` becomes `{preset, instruments: [...], requested_at}` — a
+**declarative full desired set**, not deltas — and a new batch subcommand
+`python3 scripts/automation.py instrument set <SYM,SYM,...> --market <crypto|cfd>` rewrites
+`markets.<m>.instruments` in one write.
+
+## A1. Why this half is more dangerous than the preset half
+
+Verified this session, not assumed:
+
+- `markets.<m>.instruments` is **not** a display flag. `enabled_symbols(market)`
+  (`scripts/strategy-runner.py:175-183`) intersects the configured list with `CRYPTO`/`CFD`, which are
+  `instruments.execution(market)` (`:59-60`). It gates candle fetching (`:762`) and step-3 signal generation
+  (`:837`). An untrusted db array therefore selects **which instruments an unattended pilot may open orders on**.
+- The allowlist is a hard safety rule with exactly one source, `docs/architecture/instruments.json`
+  (`scripts/instruments.py:1-15`), and Forex is prohibited outright (`instruments.json:_policy`, SYSTEM-DESIGN §1).
+
+**The mitigating fact, assessed rather than assumed — it holds, but it is narrower than it looks.**
+`cmd_instrument` refuses Forex (`automation.py:1000-1006`) and off-allowlist symbols (`:1007-1014`) with exit 2,
+independently of its caller, and writes the list filtered through `MARKET_INSTRUMENTS[m]`
+(`:1019`, = `instruments.analysis(m)`, `:78`). So **`automation.py` is the enforcement point, not the cron prompt** —
+correct, and the batch form must inherit every one of those checks (CFG-12). Two limits on how much comfort to take:
+
+1. The FX test is a prefix heuristic (`sym[:3] in FX_CODES and sym[3:6] in FX_CODES`, `:1000` with `:89-90`). The
+   load-bearing check is allowlist membership (`market_of()`, `:185-189`, → refuse at `:1007-1014`). Both belong in
+   the batch; the FX one exists to give the *right message*, the allowlist one to give the *right answer*.
+2. The "it can only narrow" reassurance is **currently vacuous**: `execution` equals `analysis` for both markets today
+   — 9 crypto, 4 cfd (`instruments.json:23-40`). The intersection at `strategy-runner.py:181` means a db array can
+   never make a symbol orderable that `instruments.json` does not already make orderable, which is the ceiling that
+   matters; but within that ceiling, "re-tick everything" currently reaches every orderable symbol in the system.
+3. `instruments.json:52` records on the file itself that six of the nine crypto execution symbols are **UNVALIDATED**
+   by backtest — "the rule set is UNVALIDATED on the six added symbols, so their results are an experiment, not a
+   measured edge", approved while the environment was demo. A checkbox on a phone must not silently move an
+   unbacktested symbol into live order flow without the user seeing that sentence. → PANEL-09.
+
+**Grandfathering is intact and must stay so.** `tick()` adds every symbol with an open position or pending order to
+the candle `need` set unconditionally (`strategy-runner.py:766-767`), bypassing `enabled_symbols`, so un-ticking an
+instrument that holds a live position still feeds `manage_position` (`:775-784`) and `manage_pending` (`:786-796`).
+No rule below may move the instrument filter earlier than step 3 — the identical argument as design §2.2 and CFG-01.
+
+**Failure mode of ticking an unwired symbol, stated accurately:** `fetch_candles` raises, the exception is logged
+without incrementing the error counter (`strategy-runner.py:770-773` — unlike `:779-780`, `:790-791`), and step 3 then
+skips the symbol for want of candles (`:839-840`). So it degrades **safely** — no orders, no halt — but invisibly, in
+log noise. It is a comprehension problem, not an escalation, and the fix is disclosure (PANEL-09), not a gate.
+
+*Factual note for the implementer, not a rule:* `SYSTEM-DESIGN.md:203` (§12 item 6) still states "today only XAUUSD is
+exported (`data/live/mt5-bridge/`)". The coordinator reports fresh XAUUSD **and** XAGUSD 15m exports on disk, with
+USOIL/UKOIL still absent. **I could not verify this** — `data/live/` is gitignored (`.gitignore:19`) and my file-listing
+returned nothing for that directory, which is consistent with the filter rather than with absence. I have therefore
+written PANEL-09 so it does not depend on *which* symbols are exported: the page computes availability from what is
+actually on disk at build time. `automation.py:606-629 mt5_freshness()` already does exactly this probe
+(`ohlcv.<sym>.15m.json`, default 30-minute staleness, and explicitly "Not a gate") — reuse it, do not invent a second
+freshness notion. The stale SYSTEM-DESIGN line should be corrected by whoever implements this.
+
+## A2. STRIDE deltas (only what the second control changes)
+
+| | Threat | Finding |
+|---|---|---|
+| **T** | **Partial application across two independent halves** | The doc now carries two controls that can change independently. If the preset half applies and the instrument half refuses, the resulting configuration is a state the user never expressed — and under a single `requested_at` watermark the applier marks the request handled, so **the failed half is never retried and never surfaces**. Sharpest new finding. → CRON-13 |
+| **T** | Transiently-broader interim state | Nine symbols applied one-at-a-time (today's `cmd_instrument` does load→save→show per symbol, `:999,:1021,:1025`) passes through the **union** of old and new when additions land before removals — broader than either endpoint, in the wrong direction for capital preservation. → CFG-11 |
+| **T** | Ordering churn | A reordered array with identical membership is a "change" to a naive comparison, so the applier would rewrite the config and burn an audit row every tick, forever. Canonical order already exists at `automation.py:1019`. → CFG-13, CRON-12 |
+| **R** | **Ring drain doubles** | Two controls × two markets = up to 4 history rows per tick instead of 2. The 200-row ring (`automation.py:91,293`) now empties in roughly **four hours** instead of nine. CFG-07 moves from "should" to "before this ships". → CFG-13, CRON-09 (existing) |
+| **I** | More attacker-controlled text in the session | The array is a place to put many strings that the model will read. Type/length caps become context-safety controls, not just input validation. → CRON-11 |
+| **E** | Model does set arithmetic | "The cron diffs the request against applied" puts set subtraction in a model's hands to decide what reaches argv. The whole error class is removable: send the full desired set and let `automation.py` compute the change. → CRON-12 |
+| **S/D** | unchanged | Same actors, same store, same gate as §3. PANEL-01 remains the only thing deciding who may write. |
+
+## A3. New rules
+
+### PANEL *(page)*
+
+**PANEL-09 (HIGH, A01/A09) — the checkbox list is generated, and every symbol carries its real status.**
+The list is rendered from `instruments.analysis(market)` via the registry — never a hand-kept copy (the drift trap
+design §3.4 already documents for `build-artifact.py:35-45`). Each symbol MUST display: **orderable vs watch-only**
+(membership in `instruments.execution(market)`, `instruments.json:23-40`); **data source wired or not** (crypto:
+Binance; cfd: the `mt5_freshness` probe, `automation.py:606-629` — a symbol with no bridge file is shown as such, not
+as a normal choice); and **backtest status**, specifically the caveat recorded at `instruments.json:52` for the six
+crypto symbols the pilot rules were never validated on. Ticking a box is a capital decision; the page must not make it
+look like a display toggle.
+*Closes:* A1 items 2-3, A2 unwired-symbol invisibility. *Verify:* render the page and compare the rendered list against `python3 -c "import sys;sys.path.insert(0,'scripts');import instruments as I;print(I.analysis('crypto'),I.execution('crypto'))"`; `grep -n "CRYPTO_META\|hardcode" scripts/method-panel.py` → no parallel symbol list; a symbol with no bridge file renders with its warning.
+
+**PANEL-10 (HIGH, A08) — request doc v2 is a closed three-key shape carrying a full desired set.**
+`control/request.<market>` is exactly `{preset, instruments, requested_at}` — no more, no fewer. `instruments` is a
+JSON array of strings representing the **complete desired set**, never a delta, never null, written in
+`instruments.json` order. **A missing `instruments` key MUST NOT be read as "empty set"** — it is a malformed document
+and the whole request is rejected (CRON-11). This supersedes PANEL-04's two-key shape for the request document;
+PANEL-04's other clauses (no free text, no requester identity, `applied.*` carries no account state) stand unchanged.
+*Closes:* A2 T (ordering churn), the wipe-by-omission hazard. *Verify:* `test_request_doc_shape_v2` asserts the exact key set the page writes and that the array is ordered canonically.
+
+**PANEL-11 (MEDIUM, A09) — an empty selection is explicit and unmistakable.**
+When zero instruments are selected the page MUST render a positive statement — "market paused: 0 instruments, no new
+entries" — visually distinct from a loading state, an error state, and a blank list. It MUST also point at the coarser,
+clearer control that already exists for this intent (`automation.py:918-927`, `market <m> off`). Rationale: an empty
+set is a legitimate narrowing, but on screen it is otherwise indistinguishable from a broken applier — which is exactly
+the ambiguity PANEL-07 exists to remove for the heartbeat.
+*Closes:* the question in A4 item 2. *Verify:* load the page with `instruments: []` applied and with the db unreachable; the two states read differently.
+
+### CRON *(applier prompt)*
+
+**CRON-11 (CRITICAL, A03/A08) — validate the array before anything reaches argv.**
+Before building any command the session MUST reject the whole request — no command run, enumerated error code to
+`applied.<market>.error`, per CRON-04 — if `instruments` is: absent, null, not a JSON array, not all strings, longer
+than the market's analysis list (9 crypto / 4 cfd today, `instruments.json:4-22`), containing duplicates, containing
+any value not **exactly** (case-sensitively) in the literal per-market list written in the prompt, or containing a
+symbol belonging to the other market. No normalization: do not upcase, trim, de-duplicate, reorder-to-fix or
+"interpret" — a value that is not already exactly right is a rejection, because normalizing untrusted input makes the
+audit trail record something the requester never sent. The empty array is the one permitted special case (CFG-14).
+*Closes:* A2 I, A1 enforcement chain. *Verify:* manual db matrix — `"BTCUSDT"` (bare string), `["btcusdt"]`, `["BTCUSDT","BTCUSDT"]`, `["XAUUSD"]` on crypto, `["EURUSD"]`, `[1,2]`, a 500-element array; each produces no command run and no new history row (`python3 scripts/automation.py history -n 3`).
+
+**CRON-12 (HIGH, A04) — the session never computes the symbol diff.**
+The session decides only **whether** to act (the edge trigger, CRON-05/CRON-13). When it acts it passes the **full
+validated desired set** to `instrument set`; `automation.py` computes what changed, decides no-op, and writes the one
+history row (CFG-11/CFG-13). The prompt MUST NOT instruct the model to subtract sets, compute additions and removals,
+or issue per-symbol commands. Set arithmetic done by a model to decide what reaches argv is an avoidable error class,
+and the deterministic layer has to do it anyway.
+*Closes:* A2 E. **Design change — §A5 item 2.** *Verify:* read the prompt: one command, one full list; `grep -in "diff\|delta\|remove\|add " integrations/crons/method-switch.md` shows no set-arithmetic instruction for the instrument half.
+
+**CRON-13 (CRITICAL, A08/A09) — per-half outcomes, and the watermark advances only on full success.**
+The two halves are applied and reported **independently**: `applied.<market>` MUST carry a separate outcome for the
+preset half and the instrument half (applied | no-op | refused + enumerated code). The request watermark (CRON-05) MUST
+NOT advance while any half is in a retryable refused state — otherwise a half-failure becomes permanent and silent, and
+the page shows a request that was "handled" while the configuration is a mix the user never asked for. A refusal that
+can never succeed (invalid preset id, off-allowlist symbol) is terminal: record it, advance, and surface it; a refusal
+that may succeed later (cool-down, gate closed, lock contention) is retryable and must not advance the watermark.
+The reply line MUST name both halves.
+*Closes:* A2 T (partial application). **Design change — §A5 item 1.** *Verify:* manual — request a valid preset plus `["EURUSD"]`; the preset applies, the instrument half reports a terminal refusal, the page shows both, and the next tick does not loop on it. Then request a valid preset while inside the CRON-09 cool-down: the watermark does not advance and the next eligible tick applies it.
+
+### CFG *(`automation.py`)*
+
+**CFG-11 (CRITICAL, A04/A08) — `instrument set` is atomic and all-or-nothing.**
+One `load()` → validate every element → modify → `save()`, inside the single CFG-01 lock, producing **one** file write
+and **one** history row. It MUST NOT be implemented as a loop over the existing single-symbol path
+(`automation.py:997-1028`, which loads, saves and prints per invocation). **Any** element failing validation refuses
+the **entire** batch (exit 2) and writes nothing.
+*Is a partial apply worse than a refusal? Yes, and this is the reasoning:* a refusal leaves the last state the user
+actually approved, which is by definition an approved state. A partial apply leaves a state nobody chose — and when a
+staged application adds before it removes, the interim is the **union** of old and new, i.e. broader than either
+endpoint, which is the wrong direction under capital-preservation-first. Refusal is strictly safer. If staging ever
+becomes unavoidable, removals MUST be applied before additions so no interim state is a superset.
+*Closes:* A2 T. *Verify:* `test_batch_is_one_write_one_row` (count history rows after a 9-symbol change → 1); `test_batch_with_one_invalid_symbol_changes_nothing` (file byte-identical, exit 2).
+
+**CFG-12 (CRITICAL, A01/A03) — the batch re-validates everything, independently of its caller.**
+`instrument set` MUST itself enforce, per element: the Forex refusal (`:1000-1006`), allowlist membership for **this**
+market (`market_of()` `:185-189` → `:1007-1014`), exact case (no `.upper()` normalization — unlike the human-facing
+single-symbol path at `:998`), no duplicates, and the length cap. These checks MUST NOT be delegated to the cron
+prompt. Rationale, the CFG-04 argument extended: the cron is a model and can be wrong; a future caller may not be the
+cron at all; and this is the only layer that is deterministic and unit-testable. Refusals exit 2 with the same shape of
+explanation `cmd_instrument` already gives, and are recorded (`_refuse:1037-1042`).
+*Closes:* A1 enforcement point. *Verify:* call the batch directly, bypassing the cron: `python3 scripts/automation.py instrument set BTCUSDT,EURUSD --market crypto; echo $?` → 2, file unchanged; same for `btcusdt`, for `XAUUSD` on crypto, for `BTCUSDT,BTCUSDT`. `test_batch_refuses_forex_offlist_wrongmarket_case_dupes`.
+
+**CFG-13 (HIGH, A09) — canonical order, and a true no-op records nothing.**
+The stored list is always written in `instruments.json` order, exactly as `:1019` already does — the request's ordering
+is never preserved. If the canonical resulting set equals the current set, exit 0, **write nothing and record nothing**
+(no `save()`, no history row). This deliberately diverges from the single-symbol path, which records a `no-op` row
+(`:1017,:1020`): a human typing one command benefits from that evidence, whereas a declarative full set re-sent by an
+automated caller would drain the 200-row ring (`:91,:293`) with rows that carry no information. Combined with CRON-09,
+this is what keeps the audit trail from being the panel's first casualty.
+*Closes:* A2 T/R. *Verify:* apply a set, then apply the same set reordered → `python3 scripts/automation.py history -n 2` unchanged, file mtime unchanged. `test_reordered_set_is_noop`.
+
+**CFG-14 (HIGH, A04) — the empty set is allowed, but only when it is explicit.**
+`instrument set` accepts an empty selection: it is a narrowing (no new entries in that market — `enabled_symbols`
+returns `[]` at `strategy-runner.py:181`, so step 3 generates nothing, while grandfathering at `:766-767` still manages
+open positions) and narrowing is the safe direction. It MUST be expressible **only** as an explicit empty argument —
+never inferred from a missing key, a null, an empty string, a non-array, or any validation failure, all of which refuse
+(CRON-11). The history row must say in words that the market was emptied, and `applied.<market>` must mark it
+explicitly so PANEL-11 can render it as a chosen state rather than a blank.
+*Closes:* the A4 item 2 question. *Verify:* `python3 scripts/automation.py instrument set "" --market cfd` (or the documented explicit form) → exit 0, `markets.cfd.instruments == []`, one history row naming it; a request doc with `instruments` absent → exit 2 / no command, per CRON-11.
+
+**CFG-15 (HIGH, A01) — the batch may never widen beyond `instruments.json`, and may include analysis-only symbols.**
+It MUST refuse (exit 2) any symbol absent from `instruments.analysis(market)` — the allowlist has exactly one source
+and no caller may extend it. It MAY include a symbol present in `analysis` but absent from `execution`: that only
+widens **analysis** scope, because the pilot intersects with `instruments.execution(market)`
+(`strategy-runner.py:59-60,181`) and `instruments.py:22-27` raises at import if `execution` ever escapes `analysis`.
+The page MUST disclose that distinction per symbol (PANEL-09) so a watch-only tick is not mistaken for enabling
+trading. Today the distinction is empty — `execution == analysis` for both markets (`instruments.json:23-40`) — which
+is precisely why the rule must be written now rather than when the split reappears.
+*Closes:* A1 item 2, A4 item 3. *Verify:* `python3 scripts/automation.py instrument set BTCUSDT,DOGEUSDT --market crypto; echo $?` → 2. With a temporary registry where `execution.crypto` is a strict subset, the batch accepts an analysis-only symbol and `enabled_symbols` still excludes it: `test_analysis_only_symbol_never_orderable`.
+
+## A4. Answers to the five questions, in one place
+
+1. **Validation placement.** *Page:* affordance only — it renders valid choices and nothing it does is a security
+   control, because the db is writable without the page at all (PANEL-01 is what bounds that). *Cron prompt:*
+   shape/type/length/membership before anything reaches argv or grows the context (CRON-11). *`automation.py`:* the
+   load-bearing layer — Forex, allowlist, market match, case, duplicates, length, empty-set policy and canonical
+   ordering MUST all exist there **even if the cron is perfect** (CFG-12), because a future caller may not be the cron
+   and because it is the only deterministic, testable layer.
+2. **Empty set:** allowed, explicit-only, never inferred, and rendered as a chosen state (CFG-14 + PANEL-11).
+3. **Batch subcommand:** atomic single write, one history row, all-or-nothing (CFG-11); exit 2 = REFUSED, 1 = usage,
+   0 = applied or no-op, consistent with `automation.py:1254-1256` and CRON-01; true no-ops record nothing (CFG-13);
+   never adds outside `instruments.json` analysis, may include analysis-only symbols with page disclosure (CFG-15).
+4. **Two independent controls:** per-half outcomes with a watermark that advances only on full success (CRON-13) —
+   the sharpest new finding; doubled ring drain (CFG-13 + existing CRON-09/CFG-07); and the removal of model-side set
+   arithmetic (CRON-12).
+5. **§7 re-check:** see §A5.
+
+## A5. Changes to the §7 "required design changes" list
+
+1. **§7 item 3 (edge trigger) is amended and now stricter.** The comparison must cover `instruments` as a **canonical
+   set**, not just `(preset, requested_at)` — otherwise an instrument-only change with an unchanged preset never
+   triggers, and a reordered array triggers forever. And per CRON-13 the watermark advances only when **every** half
+   is applied or terminally rejected. Restated: the edge is "the request document, compared field-by-field over
+   `{preset, canonical(instruments), requested_at}`, differs from the last successfully applied one".
+2. **New item — the cron must not compute the diff.** The design gives the applier the job of diffing request against
+   applied. Change it: the cron decides only *whether* to act; `automation.py` computes the change from the full
+   desired set (CRON-12). Removes an error class from the model.
+3. **New item — empty set semantics must be written into the design**, including that a missing `instruments` key is a
+   rejection and never an empty set (CFG-14, PANEL-10).
+4. **§7 item 7 (ring drain) worsens materially.** Two controls × two markets is up to 4 rows/tick; the 200-row trail
+   now empties in roughly four hours. CFG-07 (archive) plus CFG-13 (no-op suppression) are preconditions for using the
+   panel unattended, not follow-ups.
+5. **§7 item 1 (db write rules) is unchanged in substance but higher in stake** — the write now selects which
+   instruments can receive orders, not only which analysis dimensions run.
+6. **§7 items 2, 4, 5, 6, 8 are unaffected.**
+7. **Documentation fix for the implementer (not a security rule):** `SYSTEM-DESIGN.md:203` (§12 item 6) asserts "today
+   only XAUUSD is exported"; the coordinator reports XAUUSD and XAGUSD both exporting, USOIL/UKOIL still absent. I
+   could not verify on-disk state this session (see A1). Correct the line from the on-disk reality when implementing,
+   and note that `automation.py:606-629` computes this at runtime, so no rule depends on the doc being right.
+
+Addendum last updated: 2026-09-12.
