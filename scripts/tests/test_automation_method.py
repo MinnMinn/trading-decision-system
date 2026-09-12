@@ -1,6 +1,6 @@
 """`automation.py method` -- the named preset as a set of the four dimension flags.
 Rules CFG-03, CFG-04, CFG-10 in docs/security/2026-09-12-method-panel.md."""
-import json, os, shutil, subprocess, sys, tempfile, unittest
+import importlib.util, json, os, shutil, subprocess, sys, tempfile, unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -97,3 +97,39 @@ class AllowsMaster(unittest.TestCase):
     def test_unknown_allows_target_is_a_usage_error_not_a_refusal(self):
         r = self.run_auto("allows", "masterr")
         self.assertEqual(r.returncode, 1, "usage errors must stay exit 1 so a gate can tell them apart")
+
+
+class EnvironmentPresetDoesNotStompMethod(unittest.TestCase):
+    """`demo`/`real` share cmd_preset() -> apply_preset() -> bring_up(). bring_up() installs real launchd
+    agents and starts a real `caffeinate` keep-awake (scripts/automation.py bring_up(), cmd_preset()) --
+    none of that is safe to trigger from a test, and the documented AUTOMATION_PILOT_DRYRUN=1 override does
+    NOT gate the scanner-agent install or the keep-awake start (only `pilot start`/`pilot stop`/`off`), so a
+    subprocess `automation.py demo` would still install a real agent and spawn a real `caffeinate` on the
+    developer's machine even with every documented override set. Instead we load automation.py as a module
+    and call apply_preset() directly -- the exact function this bug is in -- without going through
+    cmd_preset()/bring_up()."""
+
+    def setUp(self):
+        self.backup = tempfile.NamedTemporaryFile(delete=False).name
+        shutil.copy(CONFIG, self.backup)
+
+    def tearDown(self):
+        shutil.copy(self.backup, CONFIG); os.unlink(self.backup)
+
+    def run_auto(self, *args):
+        return subprocess.run([sys.executable, AUTO, *args], capture_output=True, text=True)
+
+    def test_demo_preset_preserves_the_chosen_method(self):
+        """apply_preset used to do mk["dimensions"] = {d: True ...}, silently erasing the user's preset."""
+        r = self.run_auto("method", "wyckoff+ict", "--market", "crypto")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        before = json.load(open(CONFIG, encoding="utf-8"))["markets"]["crypto"]["dimensions"]
+
+        spec = importlib.util.spec_from_file_location("automation_under_test", AUTO)
+        auto = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(auto)
+        cfg = json.load(open(CONFIG, encoding="utf-8"))
+        auto.apply_preset(cfg, None, "demo")  # the buggy call path, minus bring_up() -- no launchd, no caffeinate
+
+        after = cfg["markets"]["crypto"]["dimensions"]
+        self.assertEqual(before, after, "demo's apply_preset reset the dimensions and wiped the preset")

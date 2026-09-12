@@ -12,7 +12,10 @@ WHAT `on` / `off` MEAN (user decision 2026-09-10):
           pilot + scanner launchd agents booted out AND their plists removed from ~/Library/LaunchAgents (so a
           reboot does NOT resurrect them), keep-awake killed.
   demo / real -> set execution.environment to that name, apply the preset (both markets, every instrument that has
-          data on disk, all dimensions each market has, EVERY timeframe ON: scalping 1m/5m, day 15m, 1h/4h, swing 1D), then `on`. `real` refuses (exit 2) only while config/env.real still has placeholder secrets.
+          data on disk, EVERY timeframe ON: scalping 1m/5m, day 15m, 1h/4h, swing 1D); dimensions and the chosen
+          method preset are left exactly as they are (spec docs/specs/2026-09-12-method-switch-design.md §4.1 --
+          before this, demo/real turned every dimension back on and silently erased the user's preset), then `on`.
+          `real` refuses (exit 2) only while config/env.real still has placeholder secrets.
 
 ENVIRONMENT: execution.environment ("demo" | "real") selects config/env.<name> (template config/env.example),
 loaded by scripts/trading-env.sh (bash) / scripts/trading_env.py (python). It is set by `demo` / `real` or by
@@ -907,12 +910,14 @@ def apply_preset(cfg, a, envname):
                 skipped_msgs.append(f"{sym} skipped: no {'MT5 export' if m == 'cfd' else 'Binance data'} on disk "
                                     f"({rel(probe)})")
         mk["instruments"] = keep
-        mk["dimensions"] = {d: True for d in MARKET_DIMENSIONS[m]}
+        # The method preset is the user's choice and survives an environment switch (spec §4.1). Before this,
+        # demo/real turned every dimension back on and silently erased it.
+        prof = methods.profile_of(mk["dimensions"])
+        enabled_msgs.append(f"{m}: method preset kept as {prof}")
         for t in MARKET_TIMEFRAMES[m]:          # every timeframe of the market: scalping (1m/5m), day (15m), 1h/4h, swing (1D) -- user decision 2026-09-11
             mk["timeframes"][t] = True
         on_tfs = [t for t in MARKET_TIMEFRAMES[m] if mk["timeframes"].get(t, True)]
-        enabled_msgs.append(f"{m}: instruments {', '.join(keep) or '(none)'}; dimensions "
-                            f"{', '.join(MARKET_DIMENSIONS[m])}; timeframes ON {', '.join(on_tfs)} "
+        enabled_msgs.append(f"{m}: instruments {', '.join(keep) or '(none)'}; timeframes ON {', '.join(on_tfs)} "
                             f"-> styles {', '.join(STYLE[(m, t)] for t in on_tfs)}")
         if not keep:
             skipped_msgs.append(f"{m}: no instrument has data on disk, so every {m} style will no-op")
