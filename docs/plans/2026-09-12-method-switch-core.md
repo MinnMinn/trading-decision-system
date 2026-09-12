@@ -1833,3 +1833,26 @@ git commit -m "docs: registry pointer, generalised the §6.2 rubric, refreshed t
 Plan B (`docs/plans/2026-09-12-method-panel.md`, viết sau khi plan này xong) phủ §4.4 và §4.5 của spec: `scripts/method-panel.py` dựng trang Artifact có `db` với `rules: [{path: "", read: "owner", write: "owner"}]`, và `integrations/crons/method-switch.md`. Nó tiêu thụ đúng cái CLI mà plan này vừa tạo (`method`, `instrument set`, `allows master`) và các rule PANEL-*/CRON-* trong mô hình đe doạ.
 
 **Điều kiện tiên quyết trước khi chạy trang không người trông:** CFG-07 (lưu trữ dòng history bị đẩy ra) và CFG-13 (no-op không ghi) đã nằm trong Task 4 và Task 7 của plan này, đúng như mô hình đe doạ yêu cầu.
+
+---
+
+### Task 10b: Đóng các chỗ còn giả định "luôn có bốn lane" (phát sinh từ Task 10)
+
+Task 10 làm hai cờ `wyckoff`/`ict` có thật, và lộ ra bốn chỗ vẫn giả định bốn lane luôn hiện. Ba trong số đó
+làm hỏng đúng nhóm preset "chỉ nghiên cứu" mà người dùng chọn giữ.
+
+**Files:** `scripts/build-artifact.py`, `scripts/chart.js`, `scripts/tests/test_build_artifact.py`
+
+- [ ] **CSS `cols-1` không tồn tại — lưới vỡ.** `scripts/build-artifact.py` chỉ định nghĩa
+  `.matrix.cols-2/3/4{--n:N}`. Preset `wyckoff` và preset `ict` đều sinh `class="matrix cols-1"`, `--n` không
+  được đặt. Thêm `.matrix.cols-1{--n:1}` và kiểm cả nhánh `cols-0` mà Task 10 vừa thêm. Test: dựng matrix cho
+  từng preset trong `methods.json` và khẳng định mỗi `cols-N` sinh ra đều có luật CSS tương ứng trong trang.
+- [ ] **Chú thích lý do chỉ có cho footprint/heatmap** (`build-artifact.py:344`). Một lane wyckoff/ict bị tắt
+  biến mất khỏi trang mà không nói vì sao. Mở rộng cho cả bốn, dùng `dims[m]["reason"]` đã có.
+- [ ] **`lane_btns` (`:794`) cứng hoá bật cho wyckoff/ict**, tắt cho phần còn lại — không phản ánh engagement thật.
+- [ ] **`scripts/chart.js:212` là bản sao thứ ba của danh sách lane**, và `:372` cứng hoá
+  `drawn = lane==='wyckoff'||lane==='ict'`. JS không import được registry Python, nên builder phải **tiêm** danh
+  sách lane đang engaged vào trang (nó đã tiêm `__DATA__`/`__PARAMS__`), và `chart.js` đọc từ đó thay vì tự giữ hằng số.
+
+**Tiêu chí:** với cả bốn dimension bật, trang dựng ra phải **byte-identical** với trước khi sửa (trừ dấu thời gian).
+Với preset `wyckoff`, trang phải dựng được, có luật CSS cho `cols-1`, và nêu lý do ba lane kia vắng mặt.
