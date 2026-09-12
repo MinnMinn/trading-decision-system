@@ -254,6 +254,7 @@ body { background: var(--bg); color: var(--text); margin: 0; font-family: var(--
 .heartbeat-banner { font-size: .78rem; padding: .5rem .7rem; border-radius: 8px; border: 1px solid var(--danger);
   background: var(--danger-soft); color: var(--danger); }
 .request-status { font-size: .72rem; color: var(--text-dim); }
+.request-status[data-status="refused"] { color: var(--nodata); font-weight: 600; }
 .preset-card.is-desired { outline: 2px dashed var(--accent); outline-offset: 2px; }
 .chip.is-desired { outline: 2px dashed var(--accent); outline-offset: 1px; }
 </style>"""
@@ -363,7 +364,7 @@ def _market_column(market, config, data_present, backtested, open_positions, env
         f'<div class="group-label">Cặp theo dõi</div>'
         f'{empty_note}'
         f'<ul class="chip-grid">{chips}</ul>'
-        f'<div class="request-status" data-market="{market}" aria-live="polite">chưa gửi</div>'
+        f'<div class="request-status" data-market="{market}" data-status="unsent" aria-live="polite">chưa gửi</div>'
         f'</section>'
     )
 
@@ -424,9 +425,11 @@ _SCRIPT = """<script>
   function dbBanner() { return q(".db-banner"); }
   function heartbeatBanner() { return q(".heartbeat-banner"); }
 
-  function setStatusText(market, text) {
+  function setRequestStatus(market, status, text) {
     var el = statusEl(market);
-    if (el) { el.textContent = text; }
+    if (!el) return;
+    el.setAttribute("data-status", status);
+    el.textContent = text;
   }
 
   function setDbBanner(kind, text) {
@@ -457,7 +460,14 @@ _SCRIPT = """<script>
         ? data.instruments.filter(function (s) { return typeof s === "string"; })
         : [],
       requested_at: typeof data.requested_at === "string" ? data.requested_at : null,
-      applied_at: typeof data.applied_at === "string" ? data.applied_at : null
+      applied_at: typeof data.applied_at === "string" ? data.applied_at : null,
+      // integrations/crons/method-switch.md step 8: written on every resolved tick (applied, no-op, or
+      // terminally refused) so the page can tell a refusal from a still-pending request. PANEL-03 still
+      // applies in full to these three -- see the REQUEST_OUTCOME_GUARD block below, which never puts
+      // any of them on the page except through the fixed Vietnamese copy table.
+      preset_result: typeof data.preset_result === "string" ? data.preset_result : null,
+      instruments_result: typeof data.instruments_result === "string" ? data.instruments_result : null,
+      error: typeof data.error === "string" ? data.error : null
     };
   }
 
@@ -522,16 +532,84 @@ _SCRIPT = """<script>
       && doc.requested_at === req.requested_at;
   }
 
+  // REQUEST_OUTCOME_GUARD_START -- kept between these markers so scripts/tests/test_method_panel.py can
+  // extract and execute this pure function under Node, without a browser -- same technique as the
+  // PANEL-05 guard below.
+  //
+  // integrations/crons/method-switch.md steps 4 and 8: the applier advances applied.<market>.requested_at
+  // to the request's value on EVERY tick it resolves -- applied, no-op, OR terminally refused (a malformed
+  // request, an unknown/wrong-market preset, an off-allowlist instrument, or a stale/skewed requested_at)
+  // -- and only leaves it behind while a half is still transient ("error: retry"). A refusal leaves
+  // preset/instruments at whatever is ACTUALLY in force (unchanged), so a resolved requested_at with a
+  // preset/instruments mismatch is not still pending -- it is a request the applier finished and declined.
+  // requestMatchesApplied() above stays the single boolean gate for "đã áp dụng" and is never touched by
+  // this block; this is strictly an additional classification on top of it, still using only db-provided
+  // strings, never the device clock.
+  var REFUSAL_REASON_BY_CODE = {
+    "refused: unknown_or_wrong_market_preset":
+      "preset không hợp lệ cho thị trường này — chạm một preset khác trong danh sách",
+    "refused: invalid_instrument":
+      "có cặp không nằm trong danh sách cho phép — bỏ chọn cặp đó rồi thử lại",
+    "malformed_request":
+      "yêu cầu sai định dạng — chạm lại một preset và cặp theo dõi để gửi yêu cầu mới",
+    "stale_or_skewed_requested_at":
+      "yêu cầu đã quá cũ hoặc đồng hồ thiết bị lệch — chạm lại để gửi yêu cầu mới"
+  };
+  // PANEL-03: a code this table does not recognise renders as this fixed placeholder, never as itself.
+  var GENERIC_REFUSAL_REASON = "bị từ chối — chọn một preset hợp lệ hoặc sửa lại cặp theo dõi rồi thử lại";
+  var MAX_RESULT_CODE_LEN = 200;
+
+  function mapOrGeneric(code) {
+    if (typeof code !== "string" || !code) return GENERIC_REFUSAL_REASON;
+    // Capped before lookup so an unbounded string is never held or compared at full length, even
+    // internally -- no legitimate code from the registry above is anywhere near this long.
+    var capped = code.length > MAX_RESULT_CODE_LEN ? code.slice(0, MAX_RESULT_CODE_LEN) : code;
+    return REFUSAL_REASON_BY_CODE[capped] || GENERIC_REFUSAL_REASON;
+  }
+
+  function sameSet(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    var sa = a.slice().sort(), sb = b.slice().sort();
+    for (var i = 0; i < sa.length; i++) { if (sa[i] !== sb[i]) return false; }
+    return true;
+  }
+
+  function refusalReasonText(req, doc) {
+    if (typeof doc.error === "string" && doc.error) return mapOrGeneric(doc.error);
+    var reasons = [];
+    if (doc.preset !== req.preset) reasons.push(mapOrGeneric(doc.preset_result));
+    if (!sameSet(doc.instruments, req.instruments)) reasons.push(mapOrGeneric(doc.instruments_result));
+    return reasons.length ? reasons.join(" · ") : GENERIC_REFUSAL_REASON;
+  }
+
+  function resolveRequestOutcome(req, doc) {
+    if (!req || !doc || doc.requested_at !== req.requested_at) return { status: "pending", reason: null };
+    if (typeof doc.error === "string" && doc.error) {
+      return { status: "refused", reason: refusalReasonText(req, doc) };
+    }
+    var presetOk = doc.preset === req.preset;
+    var instrumentsOk = sameSet(doc.instruments, req.instruments);
+    if (presetOk && instrumentsOk) return { status: "applied", reason: null };
+    return { status: "refused", reason: refusalReasonText(req, doc) };
+  }
+  // REQUEST_OUTCOME_GUARD_END
+
   function updateStatusLine(market) {
-    if (pendingDesired[market]) { setStatusText(market, "chưa gửi"); return; }
+    if (pendingDesired[market]) { setRequestStatus(market, "unsent", "chưa gửi"); return; }
     var req = request[market], doc = applied[market];
     if (!req) {
-      setStatusText(market, doc ? "đã áp dụng lúc " + formatTs(doc.applied_at) : "chưa gửi");
+      setRequestStatus(market, doc ? "applied" : "unsent",
+        doc ? "đã áp dụng lúc " + formatTs(doc.applied_at) : "chưa gửi");
       return;
     }
-    setStatusText(market, requestMatchesApplied(market)
-      ? "đã áp dụng lúc " + formatTs(doc.applied_at)
-      : "đang chờ áp dụng (≤ 5 phút)");
+    var outcome = resolveRequestOutcome(req, doc);
+    if (outcome.status === "applied") {
+      setRequestStatus(market, "applied", "đã áp dụng lúc " + formatTs(doc.applied_at));
+    } else if (outcome.status === "refused") {
+      setRequestStatus(market, "refused", "đã từ chối — " + outcome.reason);
+    } else {
+      setRequestStatus(market, "waiting", "đang chờ áp dụng (≤ 5 phút)");
+    }
   }
 
   // PANEL-05_GUARD_START -- kept between these markers so scripts/tests/test_method_panel.py can
@@ -567,7 +645,10 @@ _SCRIPT = """<script>
   function pendingStatusAcrossMarkets() {
     var anyPending = false, anyImplausible = false, maxMinutes = null;
     MARKETS.forEach(function (market) {
-      if (!request[market] || requestMatchesApplied(market)) return;
+      // A refused request is resolved too -- resolveRequestOutcome() covers both "applied" and
+      // "refused" as settled, not just requestMatchesApplied()'s single "applied" boolean, so a
+      // refusal is never miscounted as a request the applier is still stuck on.
+      if (!request[market] || resolveRequestOutcome(request[market], applied[market]).status !== "pending") return;
       anyPending = true;
       var reqAt = Date.parse(request[market].requested_at);
       var classified = isNaN(reqAt) ? "implausible" : classifyElapsedMs(Date.now() - reqAt);
@@ -624,7 +705,7 @@ _SCRIPT = """<script>
       setControlsEnabled(false);
       setDbBanner("readonly", "Chỉ xem — quyền ghi đã bị thu hồi.");
     } else {
-      setStatusText(market, "gửi thất bại — thử lại");
+      setRequestStatus(market, "send-failed", "gửi thất bại — thử lại");
     }
     // A failed write must never leave the card looking selected: drop the pending desired state and
     // repaint from the last known applied snapshot.

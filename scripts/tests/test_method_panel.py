@@ -237,6 +237,131 @@ class PendingDurationGuard(unittest.TestCase):
         self.assertEqual(self._classify(just_over), "implausible")
 
 
+def _request_outcome_guard_source():
+    """The self-contained request-outcome guard (REFUSAL_REASON_BY_CODE/mapOrGeneric/sameSet/
+    refusalReasonText/resolveRequestOutcome), extracted by its comment markers in scripts/method-panel.py
+    so it can be executed for real under Node -- same technique as _guard_block_source() above. It is the
+    fourth status the applier's write shape (integrations/crons/method-switch.md steps 4 and 8) forces the
+    page to model: a request the applier RESOLVED (requested_at advanced) but did not adopt (preset/
+    instruments left unchanged) is a refusal, not a still-pending request."""
+    src = mp._SCRIPT
+    start = src.index("// REQUEST_OUTCOME_GUARD_START")
+    end = src.index("// REQUEST_OUTCOME_GUARD_END") + len("// REQUEST_OUTCOME_GUARD_END")
+    return src[start:end]
+
+
+@unittest.skipUnless(NODE, "node not installed -- the request-outcome guard is executed for real, not just grepped")
+class RequestOutcomeGuard(unittest.TestCase):
+    """resolveRequestOutcome(req, doc) is the pure decision that replaces requestMatchesApplied()'s
+    boolean with the three real outcomes: pending (unresolved), applied (resolved, adopted), refused
+    (resolved, not adopted -- the fourth state the cron's write shape produces and the old code missed)."""
+
+    def _resolve(self, req, doc):
+        snippet = (_request_outcome_guard_source() + "\nconsole.log(JSON.stringify(resolveRequestOutcome("
+                   + json.dumps(req) + ", " + json.dumps(doc) + ")));")
+        return json.loads(_run_node(snippet))
+
+    def _req(self, preset="wyckoff", instruments=None, requested_at="2026-09-12T10:05:00Z"):
+        return {"preset": preset, "instruments": instruments if instruments is not None else ["BTCUSDT"],
+                "requested_at": requested_at}
+
+    def test_request_not_yet_resolved_is_pending(self):
+        req = self._req(requested_at="2026-09-12T10:05:00Z")
+        doc = {"preset": "wyckoff", "instruments": ["BTCUSDT"], "requested_at": "2026-09-12T10:00:00Z",
+               "preset_result": "applied", "instruments_result": "no-op", "error": None}
+        result = self._resolve(req, doc)
+        self.assertEqual(result["status"], "pending")
+        self.assertIsNone(result["reason"])
+
+    def test_resolved_with_preset_and_instruments_equal_is_applied(self):
+        req = self._req()
+        doc = {"preset": "wyckoff", "instruments": ["BTCUSDT"], "requested_at": req["requested_at"],
+               "preset_result": "applied", "instruments_result": "no-op", "error": None}
+        result = self._resolve(req, doc)
+        self.assertEqual(result["status"], "applied")
+        self.assertIsNone(result["reason"])
+
+    def test_resolved_with_a_different_preset_is_refused(self):
+        """The applier left preset unchanged (still the configuration actually in force) while
+        advancing requested_at -- PANEL rule for this page: never show 'đang chờ áp dụng' forever."""
+        req = self._req(preset="ict")
+        doc = {"preset": "wyckoff", "instruments": ["BTCUSDT"], "requested_at": req["requested_at"],
+               "preset_result": "refused: unknown_or_wrong_market_preset", "instruments_result": "no-op",
+               "error": None}
+        result = self._resolve(req, doc)
+        self.assertEqual(result["status"], "refused")
+        self.assertIsInstance(result["reason"], str)
+        self.assertGreater(len(result["reason"]), 0)
+
+    def test_resolved_with_different_instruments_is_refused(self):
+        req = self._req(instruments=["BTCUSDT", "ETHUSDT"])
+        doc = {"preset": "wyckoff", "instruments": ["BTCUSDT"], "requested_at": req["requested_at"],
+               "preset_result": "applied", "instruments_result": "refused: invalid_instrument", "error": None}
+        result = self._resolve(req, doc)
+        self.assertEqual(result["status"], "refused")
+        self.assertIsInstance(result["reason"], str)
+        self.assertGreater(len(result["reason"]), 0)
+
+    def test_unknown_result_code_gets_generic_copy_the_raw_code_is_not_echoed(self):
+        req = self._req(preset="ict")
+        doc = {"preset": "wyckoff", "instruments": ["BTCUSDT"], "requested_at": req["requested_at"],
+               "preset_result": "refused: some_new_reason_the_page_has_never_seen", "instruments_result": "no-op",
+               "error": None}
+        result = self._resolve(req, doc)
+        self.assertEqual(result["status"], "refused")
+        self.assertNotIn("some_new_reason_the_page_has_never_seen", result["reason"])
+
+    def test_a_very_long_result_string_is_truncated_never_echoed(self):
+        req = self._req(preset="ict")
+        long_code = "x" * 5000
+        doc = {"preset": "wyckoff", "instruments": ["BTCUSDT"], "requested_at": req["requested_at"],
+               "preset_result": long_code, "instruments_result": "no-op", "error": None}
+        result = self._resolve(req, doc)
+        self.assertEqual(result["status"], "refused")
+        self.assertLess(len(result["reason"]), 300)
+        self.assertNotIn(long_code, result["reason"])
+
+    def test_a_step4_error_field_is_refused_even_if_fields_happen_to_match(self):
+        """A malformed/stale-or-skewed rejection (step 4) records only `error`, never per-half results,
+        and leaves preset/instruments at whatever was already in force -- which could coincidentally
+        equal the rejected request. `error` must still win: this was declined, not adopted."""
+        req = self._req()
+        doc = {"preset": "wyckoff", "instruments": ["BTCUSDT"], "requested_at": req["requested_at"],
+               "preset_result": None, "instruments_result": None, "error": "stale_or_skewed_requested_at"}
+        result = self._resolve(req, doc)
+        self.assertEqual(result["status"], "refused")
+        self.assertNotIn("stale_or_skewed_requested_at", result["reason"])
+
+
+class HeartbeatInteraction(unittest.TestCase):
+    def test_pending_across_markets_excludes_resolved_refused_requests(self):
+        """A refused request is resolved (requested_at advanced by the applier) and must not be
+        counted as 'pending for N minutes' in the stale-heartbeat banner -- only requestMatchesApplied()
+        was checked before, which is false for both pending AND refused."""
+        fn = _js_function_source(mp._SCRIPT, "pendingStatusAcrossMarkets")
+        self.assertIn("resolveRequestOutcome", fn)
+        self.assertNotIn("requestMatchesApplied(market)", fn)
+
+
+class AppliedDocShape(unittest.TestCase):
+    def test_valid_doc_extracts_the_applier_result_fields(self):
+        """Without these, resolveRequestOutcome() has no reason to work with -- the applied snapshot
+        must carry preset_result/instruments_result/error through from db, not just preset/instruments."""
+        fn = _js_function_source(mp._SCRIPT, "validDoc")
+        for key in ("preset_result", "instruments_result", "error"):
+            self.assertIn(key, fn)
+
+
+class RefusalDisplay(unittest.TestCase):
+    def test_generic_refusal_copy_is_present(self):
+        html = mp.render(cfg())
+        self.assertIn("bị từ chối", html)
+
+    def test_refused_status_has_its_own_visual_treatment_distinct_from_pending_and_applied(self):
+        html = mp.render(cfg())
+        self.assertRegex(html, r'\.request-status\[data-status="refused"\]')
+
+
 class HeartbeatBannerInvariants(unittest.TestCase):
     """The two properties the coordinator required for the PANEL-05 close, checked structurally:
     both involve live db snapshots and DOM state that need a real browser to execute end-to-end."""
