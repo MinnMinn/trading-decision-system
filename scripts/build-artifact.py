@@ -56,6 +56,7 @@ TIER_NAME = {"bias": "Bias", "structure": "Cấu trúc", "entry": "Vào lệnh"}
 TIER_ORDER = ("bias", "structure", "entry")
 import importlib.util as _iu
 _as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py")); _auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
+_ms = _iu.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py")); _methods = _iu.module_from_spec(_ms); _ms.loader.exec_module(_methods)
 
 
 def _style(tf, syms, name, kz):
@@ -87,7 +88,7 @@ for _st, _S in STYLES.items():
             _S["tiers"][_name] = None
 VERDICT_CLASS = [("SETUP", "setup"), ("THEO DÕI LONG", "long"), ("THEO DÕI SHORT", "short"), ("PHÁ", "warn"), ("CHỜ", "wait")]
 import htf_context as htf  # noqa: E402
-LANES = [("wyckoff", "Wyckoff"), ("ict", "ICT"), ("footprint", "Footprint"), ("heatmap", "Heatmap")]
+LANES = [(d, v["label"]) for d, v in _methods.DIMENSIONS.items()]   # source: docs/architecture/methods.json
 
 
 # ----------------------------------------------------------------------------------------------- helpers
@@ -278,7 +279,11 @@ def lane_status(engaged, reason):
 
 def matrix(sym_key, kind, l1, l2, l3, dims):
     """The read matrix: rows = layers, columns = methods engaged + synthesis."""
-    cols = ["wyckoff", "ict"] + [m for m in ("footprint", "heatmap") if dims[m]["engaged"]]
+    cols = [c for c, _ in LANES if dims.get(c, {}).get("engaged")]
+    if not cols:
+        # No lane engaged for this market/config: an empty-columns matrix is a worse signal than none at all
+        # (silently implies "nothing to see" rather than "nothing is turned on") -- say so explicitly instead.
+        return '<div class="matrix cols-0"><p class="muted">Không có lớp đọc nào đang bật cho mã này — kiểm tra dimension trong /automation.</p></div>'
     head = '<div class="mx-head mx-corner">Lớp đọc</div>' + "".join(f'<div class="mx-head lane-{c}"><span class="lane-dot"></span>{dict(LANES)[c]}</div>' for c in cols) + '<div class="mx-head mx-synth">Tổng hợp</div>'
 
     def row(title, sub, cells, synth, cls=""):
@@ -675,19 +680,26 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
         if n3:
             n3["_updated"] = when((narrative or {}).get("updated")); n3["_updated_iso"] = (narrative or {}).get("updated")
         dims = {}
-        for m in ("footprint", "heatmap"):
+        for m, _label in LANES:
             flag = dim_flags.get(m)
+            coinglass = "coinglass_footprint" in _methods.DIMENSIONS[m]["data_sources"] \
+                or "coinglass_heatmap" in _methods.DIMENSIONS[m]["data_sources"]
             has = bool((n3 or {}).get(m, {}).get("text_html")) or bool((l2 or {}).get(m))
-            avail = ((n3 or {}).get(m) or {}).get("status") == "available"
-            if market == "cfd":
+            # wyckoff/ict read the candle file the page is already drawing, so "available" is not a CoinGlass
+            # question for them -- it's simply "do we have candles for this timeframe" (footprint/heatmap keep
+            # the exact status check they always had).
+            avail = (((n3 or {}).get(m) or {}).get("status") == "available") if coinglass else bool(rows)
+            if market not in _methods.DIMENSIONS[m]["markets"]:
                 reason = "không có nguồn CoinGlass cho hàng hoá (SYSTEM-DESIGN §12)"
             elif flag is False:
                 reason = "tắt trong /automation"
             elif not avail:
-                reason = f"không có nguồn CoinGlass live — không vẽ, không chấm điểm (chế độ {mode}: Wyckoff + ICT)"
+                reason = (f"không có nguồn CoinGlass live — không vẽ, không chấm điểm (chế độ {mode}: Wyckoff + ICT)" if coinglass
+                          else "không có nến cho khung này")
             else:
                 reason = ""
-            dims[m] = {"engaged": bool(avail and has and flag is not False), "reason": reason or "đang dùng"}
+            engaged = bool(avail and has and flag is not False) if coinglass else bool(avail and flag is not False)
+            dims[m] = {"engaged": engaged, "reason": reason or "đang dùng"}
         # purity: layer 2 blocks, layer 3 texts, chart labels, timeline cells
         blocks = mp.narrative_blocks(n3)
         if l2 and not l2["legacy"]:
@@ -721,7 +733,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                 tiers_js.append(dict(key=tname, tf=t["tf"], kz=(t["tf"] in ("15m", "1H")), tfMin=TF_MIN.get(t["tf"], 0), wy=tier_wy[tname], levels=[], compact=True, rows="__ROWS__" + key + tname))
         tiers_js.append(dict(key="entry", tf=S["tf"], kz=S["kz"], tfMin=TF_MIN.get(S["tf"], 0), wy=wy_js, levels=levels, compact=False, rows="__ROWS__" + key + "entry"))
         data_js[key] = dict(fmt=kind, tick=(sym in MT5), market=("metals" if sym in ("XAUUSD", "XAGUSD") else "oil" if sym in MT5 else "crypto"),
-                            dims={m: dims[m]["reason"] for m in dims}, tiers=tiers_js, plans=trade_plans(sym), invalidation=(n3 or {}).get("invalidation"))
+                            dims={m: dims[m]["reason"] for m in ("footprint", "heatmap")}, tiers=tiers_js, plans=trade_plans(sym), invalidation=(n3 or {}).get("invalidation"))
         rows_store[key] = {**{tn: rows_js(tier_rows[tn], S["tiers"][tn]["lbl"]) for tn in tier_rows}, "entry": rows_js(rows, S["lbl"])}
         # section html: header (one price, one verdict), the ladder (three tiers, both methods), three charts top-down
         lo, hi = min(r["low"] for r in rows), max(r["high"] for r in rows); last = rows[-1]["close"]

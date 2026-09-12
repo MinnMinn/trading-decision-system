@@ -117,5 +117,21 @@ class Engine(unittest.TestCase):
         self.assertGreaterEqual(out["wyN"], 4)  # TR high + TR low + phase band + event mark
 
 
+class DimensionFlagsAreReal(unittest.TestCase):
+    def test_lanes_come_from_the_registry(self):
+        src = open(os.path.join(ROOT, "scripts", "build-artifact.py"), encoding="utf-8").read()
+        self.assertNotIn('[("wyckoff", "Wyckoff"), ("ict", "ICT")', src)
+
+    def test_matrix_columns_drop_a_disengaged_wyckoff_or_ict(self):
+        """Before this, cols hardcoded ["wyckoff","ict"], so turning the flags off changed nothing."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("ba", os.path.join(ROOT, "scripts", "build-artifact.py"))
+        ba = importlib.util.module_from_spec(spec); spec.loader.exec_module(ba)
+        dims = {d: {"engaged": d == "wyckoff", "reason": ""} for d in ("wyckoff", "ict", "footprint", "heatmap")}
+        html = ba.matrix("btc", "int", None, None, None, dims)
+        self.assertIn("lane-wyckoff", html)
+        self.assertNotIn("lane-ict", html)
+
+
 if __name__ == "__main__":
     unittest.main()
