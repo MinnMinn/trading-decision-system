@@ -238,7 +238,7 @@ class PendingDurationGuard(unittest.TestCase):
 
 
 def _request_outcome_guard_source():
-    """The self-contained request-outcome guard (REFUSAL_REASON_BY_CODE/mapOrGeneric/sameSet/
+    """The self-contained request-outcome guard (REFUSAL_REASON_BY_CODE/mapOrGeneric/sameInstrumentSet/
     refusalReasonText/resolveRequestOutcome), extracted by its comment markers in scripts/method-panel.py
     so it can be executed for real under Node -- same technique as _guard_block_source() above. It is the
     fourth status the applier's write shape (integrations/crons/method-switch.md steps 4 and 8) forces the
@@ -381,13 +381,22 @@ class HeartbeatBannerInvariants(unittest.TestCase):
         self.assertIn("đồng hồ thiết bị lệch", html)
 
     def test_applied_status_is_never_a_function_of_the_device_clock(self):
-        """Property 2: a skewed clock must not make the page look healthy. requestMatchesApplied()
-        -- the sole gate for showing "đã áp dụng" -- compares two db-provided strings only; it must
-        never read Date.now() or call the clock guard, so a bad clock can never manufacture a false
-        applied state."""
-        fn = _js_function_source(mp._SCRIPT, "requestMatchesApplied")
-        self.assertNotIn("Date.now", fn)
-        self.assertNotIn("classifyElapsedMs", fn)
+        """Property 2: a skewed clock must not make the page look healthy. resolveRequestOutcome()
+        -- the sole decision for "applied" vs "refused" vs "pending", and the only thing that gates
+        "đã áp dụng" now -- must never read Date.now() or call the clock guard, so a bad clock can
+        never manufacture a false applied (or refused) state. Checked against the WHOLE
+        REQUEST_OUTCOME_GUARD block, i.e. resolveRequestOutcome's own transitive closure
+        (refusalReasonText, mapOrGeneric, sameInstrumentSet), not just its own top-level body -- a
+        clock read added inside a helper it calls would still be caught here.
+
+        Pinned to resolveRequestOutcome(), not to requestMatchesApplied() (deleted: nothing called
+        it once this function took over the live decision -- confirmed by
+        `grep -n requestMatchesApplied scripts/method-panel.py` before removal). A test asserting
+        this property against dead code would stay green forever even if the live path grew a
+        clock dependency tomorrow."""
+        guard_src = _request_outcome_guard_source()
+        self.assertNotIn("Date.now", guard_src)
+        self.assertNotIn("classifyElapsedMs", guard_src)
 
 
 class NoInjection(unittest.TestCase):

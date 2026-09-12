@@ -471,13 +471,6 @@ _SCRIPT = """<script>
     };
   }
 
-  function sameInstrumentSet(a, b) {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
-    var sa = a.slice().sort(), sb = b.slice().sort();
-    for (var i = 0; i < sa.length; i++) { if (sa[i] !== sb[i]) return false; }
-    return true;
-  }
-
   function formatTs(raw) {
     if (typeof raw !== "string") return "(không rõ)";
     var d = new Date(raw);
@@ -525,16 +518,12 @@ _SCRIPT = """<script>
     updateStatusLine(market);
   }
 
-  function requestMatchesApplied(market) {
-    var req = request[market], doc = applied[market];
-    if (!req || !doc) return false;
-    return doc.preset === req.preset && sameInstrumentSet(doc.instruments, req.instruments)
-      && doc.requested_at === req.requested_at;
-  }
-
   // REQUEST_OUTCOME_GUARD_START -- kept between these markers so scripts/tests/test_method_panel.py can
   // extract and execute this pure function under Node, without a browser -- same technique as the
-  // PANEL-05 guard below.
+  // PANEL-05 guard below. This is now the SOLE decision for "applied" vs "refused" vs "pending" -- there
+  // is no second boolean-only gate anywhere else in this script, so there is exactly one place that can
+  // ever answer "is this in force" and exactly one place a future change to add a clock read would show
+  // up (see the invariant test pinned to this function, not to a name).
   //
   // integrations/crons/method-switch.md steps 4 and 8: the applier advances applied.<market>.requested_at
   // to the request's value on EVERY tick it resolves -- applied, no-op, OR terminally refused (a malformed
@@ -542,9 +531,14 @@ _SCRIPT = """<script>
   // -- and only leaves it behind while a half is still transient ("error: retry"). A refusal leaves
   // preset/instruments at whatever is ACTUALLY in force (unchanged), so a resolved requested_at with a
   // preset/instruments mismatch is not still pending -- it is a request the applier finished and declined.
-  // requestMatchesApplied() above stays the single boolean gate for "đã áp dụng" and is never touched by
-  // this block; this is strictly an additional classification on top of it, still using only db-provided
-  // strings, never the device clock.
+  // Every comparison below is between two db-provided strings/arrays -- never the device clock.
+  function sameInstrumentSet(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    var sa = a.slice().sort(), sb = b.slice().sort();
+    for (var i = 0; i < sa.length; i++) { if (sa[i] !== sb[i]) return false; }
+    return true;
+  }
+
   var REFUSAL_REASON_BY_CODE = {
     "refused: unknown_or_wrong_market_preset":
       "preset không hợp lệ cho thị trường này — chạm một preset khác trong danh sách",
@@ -567,18 +561,11 @@ _SCRIPT = """<script>
     return REFUSAL_REASON_BY_CODE[capped] || GENERIC_REFUSAL_REASON;
   }
 
-  function sameSet(a, b) {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
-    var sa = a.slice().sort(), sb = b.slice().sort();
-    for (var i = 0; i < sa.length; i++) { if (sa[i] !== sb[i]) return false; }
-    return true;
-  }
-
   function refusalReasonText(req, doc) {
     if (typeof doc.error === "string" && doc.error) return mapOrGeneric(doc.error);
     var reasons = [];
     if (doc.preset !== req.preset) reasons.push(mapOrGeneric(doc.preset_result));
-    if (!sameSet(doc.instruments, req.instruments)) reasons.push(mapOrGeneric(doc.instruments_result));
+    if (!sameInstrumentSet(doc.instruments, req.instruments)) reasons.push(mapOrGeneric(doc.instruments_result));
     return reasons.length ? reasons.join(" · ") : GENERIC_REFUSAL_REASON;
   }
 
@@ -588,7 +575,7 @@ _SCRIPT = """<script>
       return { status: "refused", reason: refusalReasonText(req, doc) };
     }
     var presetOk = doc.preset === req.preset;
-    var instrumentsOk = sameSet(doc.instruments, req.instruments);
+    var instrumentsOk = sameInstrumentSet(doc.instruments, req.instruments);
     if (presetOk && instrumentsOk) return { status: "applied", reason: null };
     return { status: "refused", reason: refusalReasonText(req, doc) };
   }
@@ -645,9 +632,9 @@ _SCRIPT = """<script>
   function pendingStatusAcrossMarkets() {
     var anyPending = false, anyImplausible = false, maxMinutes = null;
     MARKETS.forEach(function (market) {
-      // A refused request is resolved too -- resolveRequestOutcome() covers both "applied" and
-      // "refused" as settled, not just requestMatchesApplied()'s single "applied" boolean, so a
-      // refusal is never miscounted as a request the applier is still stuck on.
+      // A refused request is resolved too: resolveRequestOutcome() returns "applied" or "refused"
+      // for anything the applier has settled, so a refusal is never miscounted as a request the
+      // applier is still stuck on -- only its "pending" outcome keeps this market in the sum below.
       if (!request[market] || resolveRequestOutcome(request[market], applied[market]).status !== "pending") return;
       anyPending = true;
       var reqAt = Date.parse(request[market].requested_at);
