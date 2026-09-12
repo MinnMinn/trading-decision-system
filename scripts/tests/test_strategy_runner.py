@@ -549,6 +549,230 @@ class SizingUsesFreeMarginNotEquity(unittest.TestCase):
         self.assertAlmostEqual(bal["equity"], 4999.00)
 
 
+class ProtectiveOrderFailure(unittest.TestCase):
+    """2026-09-13 incident: a filled BTCUSDT limit's stop-market placement raised (Binance testnet -4120), and
+    open_position() propagated the exception AFTER the entry had already filled on the exchange -- leaving a
+    naked leveraged position while state still showed it under `pending` (positions: {}). Fix: placing the
+    protective stop is part of opening a position, not a step after it (task spec, Change 2). On a stop-market
+    failure, open_position() now emergency-closes the just-filled entry (MARKET reduceOnly) before any failure
+    can surface; only if that emergency close ALSO fails does the runner halt hard with a STOP file naming the
+    symbol and quantity -- the one case where a naked position may exist. These tests hit tick(live=True) with
+    order_json/automation_gate/fetch_candles/manage_pending mocked, matching the EquityHalt suite's pattern --
+    no network call is made and the --live CLI path is never invoked."""
+
+    def _state_with_pending(self):
+        return {"started": "2026-01-01T00:00:00Z", "positions": {}, "day": None, "trades_today": {}, "errors": 0,
+                "halted": None, "last_tick": None, "seen": [], "equity_basis": "equity",
+                "pending": {"BTCUSDT": dict(symbol="BTCUSDT", side="LONG", strategy="x", tf="30m", method="ICT",
+                                             execution="futures", mgmt="be", leverage=sr.LEVERAGE, qty="1", price="100",
+                                             stop="99", tp="103", order_id="1", client_id="c1", placed_at="2026-01-01T00:00:00Z",
+                                             bars_waited=0, expires_bar_left=5, htf_pass=True,
+                                             sweep_time=None, mss_time=None)},
+                "venues": {v: {"equity_start": 10000.0, "closed": [], "consec_losses": 0} for v in sr.VENUES}}
+
+    _BALANCE_ROW = {"asset": "USDT", "balance": "10000.00", "crossUnPnl": "0.00", "availableBalance": "10000.00"}
+
+    def _run_live_tick(self, state, order_json_fn):
+        cfg = {"enabled": True, "layers": {"pilot": True},
+               "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"]}, "cfd": {"enabled": True, "instruments": []}},
+               "execution": {"environment": "demo", "pilot_profile": "top5"}}
+        cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, cfg_tmp); cfg_tmp.close()
+        sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump({"setups": []}, sel_tmp); sel_tmp.close()
+        state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(state, state_tmp); state_tmp.close()
+        stop_path = state_tmp.name + ".STOP"
+
+        old = dict(cfg=sr.AUTOMATION_CONFIG, sel=sr.SELECTION, state=sr.STATE, stop=sr.STOP, gate=sr.automation_gate,
+                   order_json=sr.order_json, mt5_json=sr.mt5_json, fetch_candles=sr.fetch_candles, log=sr.log,
+                   manage_position=sr.manage_position, manage_pending=sr.manage_pending)
+        sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE, sr.STOP = cfg_tmp.name, sel_tmp.name, state_tmp.name, stop_path
+        sr.automation_gate = lambda: None
+        logs = []
+        sr.order_json = order_json_fn
+        sr.mt5_json = lambda *a, **k: {}
+        sr.fetch_candles = lambda *a, **k: []
+        sr.log = lambda kind, **kw: logs.append((kind, kw))
+        sr.manage_position = lambda *a, **k: None
+        sr.manage_pending = lambda sym, pend, live, bars_elapsed: ("filled", 1.0, 100.0, None)
+        try:
+            sr.tick(live=True, tick_time=sr.now(), ignore_gate=False)
+            out = json.load(open(state_tmp.name)); stop_written = os.path.exists(stop_path)
+            stop_content = open(stop_path).read() if stop_written else ""
+            return out, stop_written, stop_content, logs
+        finally:
+            sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE, sr.STOP = old["cfg"], old["sel"], old["state"], old["stop"]
+            sr.automation_gate, sr.order_json, sr.mt5_json = old["gate"], old["order_json"], old["mt5_json"]
+            sr.fetch_candles, sr.log = old["fetch_candles"], old["log"]
+            sr.manage_position, sr.manage_pending = old["manage_position"], old["manage_pending"]
+            os.unlink(cfg_tmp.name); os.unlink(sel_tmp.name); os.unlink(state_tmp.name)
+            if os.path.exists(stop_path):
+                os.unlink(stop_path)
+
+    def test_stop_placement_fails_but_emergency_close_succeeds(self):
+        """entry fills, stop placement raises -> position is closed, state has no positions and no pending
+        entry for BTCUSDT, and the failure is logged."""
+        def order_json_fn(*a, **k):
+            cmd = a[0] if a else None
+            if cmd == "balance":
+                return [self._BALANCE_ROW]
+            if cmd == "stop-market":
+                raise RuntimeError("binance-futures-testnet-order.sh stop-market BTCUSDT failed: "
+                                   '{"code":-4120,"msg":"Order type not supported for this endpoint. '
+                                   'Please use the Algo Order API endpoints instead."}')
+            if cmd == "close-position":
+                return {"orderId": 999, "status": "FILLED", "executedQty": "1", "avgPrice": "100.0"}
+            if cmd in ("position-risk", "open-orders"):
+                return []
+            return {}
+        out, stop_written, _stop_content, logs = self._run_live_tick(self._state_with_pending(), order_json_fn)
+        self.assertNotIn("BTCUSDT", out["positions"], "no phantom positions entry after a safely-unwound failure")
+        self.assertNotIn("BTCUSDT", out["pending"], "no stale pending entry -- the exact 2026-09-13 bug")
+        self.assertIsNone(out["halted"])
+        self.assertFalse(stop_written, "emergency close succeeded -- no hard halt needed")
+        kinds = [kind for kind, kw in logs]
+        self.assertIn("protection_failed_closed", kinds, "the failure and the closing action must both be logged")
+        failure_log = next(kw for kind, kw in logs if kind == "protection_failed_closed")
+        self.assertEqual(failure_log.get("symbol"), "BTCUSDT")
+
+    def test_take_profit_failure_alone_does_not_unwind_the_position(self):
+        """entry fills, stop succeeds, take-profit raises -> the stop already bounds the loss; a missing
+        take-profit only forgoes an exit target, so the position is NOT closed. Asserted per this task's
+        take-profit decision (see open_position() docstring/comment)."""
+        def order_json_fn(*a, **k):
+            cmd = a[0] if a else None
+            if cmd == "balance":
+                return [self._BALANCE_ROW]
+            if cmd == "stop-market":
+                return {"orderId": 555, "status": "NEW"}
+            if cmd == "take-profit-market":
+                raise RuntimeError("binance-futures-testnet-order.sh take-profit-market BTCUSDT failed: timeout")
+            if cmd in ("position-risk", "open-orders"):
+                return []
+            return {}
+        out, stop_written, _stop_content, logs = self._run_live_tick(self._state_with_pending(), order_json_fn)
+        self.assertIn("BTCUSDT", out["positions"], "stop succeeded -- the position must remain open")
+        self.assertNotIn("BTCUSDT", out["pending"])
+        self.assertEqual(out["positions"]["BTCUSDT"]["stop_order"], 555)
+        self.assertFalse(out["positions"]["BTCUSDT"].get("tp_order"))
+        self.assertIsNone(out["halted"])
+        self.assertFalse(stop_written)
+        kinds = [kind for kind, kw in logs]
+        self.assertIn("tp_placement_failed", kinds)
+
+    def test_stop_placement_fails_and_emergency_close_also_fails_halts_hard(self):
+        """entry fills, stop raises, emergency close also raises -> halts, STOP file written, reason names
+        the symbol and quantity. The one case where a naked position may exist; must never be silent."""
+        def order_json_fn(*a, **k):
+            cmd = a[0] if a else None
+            if cmd == "balance":
+                return [self._BALANCE_ROW]
+            if cmd == "stop-market":
+                raise RuntimeError("stop-market BTCUSDT failed: -4120 Order type not supported")
+            if cmd == "close-position":
+                raise RuntimeError("close-position BTCUSDT failed: curl: (28) Connection timed out")
+            if cmd in ("position-risk", "open-orders"):
+                return []
+            return {}
+        out, stop_written, stop_content, logs = self._run_live_tick(self._state_with_pending(), order_json_fn)
+        self.assertIsNotNone(out["halted"])
+        self.assertIn("BTCUSDT", out["halted"]["why"])
+        self.assertIn("1.0", out["halted"]["why"], "the halt reason must name the quantity")
+        self.assertTrue(stop_written)
+        self.assertIn("BTCUSDT", stop_content)
+
+    def test_happy_path_unaffected(self):
+        """entry fills, stop and take-profit both succeed -> unchanged behaviour."""
+        def order_json_fn(*a, **k):
+            cmd = a[0] if a else None
+            if cmd == "balance":
+                return [self._BALANCE_ROW]
+            if cmd == "stop-market":
+                return {"orderId": 555, "status": "NEW"}
+            if cmd == "take-profit-market":
+                return {"orderId": 556, "status": "NEW"}
+            if cmd in ("position-risk", "open-orders"):
+                return []
+            return {}
+        out, stop_written, _stop_content, logs = self._run_live_tick(self._state_with_pending(), order_json_fn)
+        self.assertIn("BTCUSDT", out["positions"])
+        self.assertNotIn("BTCUSDT", out["pending"])
+        self.assertEqual(out["positions"]["BTCUSDT"]["stop_order"], 555)
+        self.assertEqual(out["positions"]["BTCUSDT"]["tp_order"], 556)
+        self.assertIsNone(out["halted"])
+        self.assertFalse(stop_written)
+        kinds = [kind for kind, kw in logs]
+        self.assertNotIn("protection_failed_closed", kinds)
+        self.assertNotIn("tp_placement_failed", kinds)
+
+
+class ConnectorRequestShape(unittest.TestCase):
+    """Connector-level test with no network call: pins the exact query parameters
+    scripts/binance-futures-testnet-order.sh sends for the protective-order subcommands. 2026-09-13 finding
+    (see task report): 12 real-testnet parameter/order-type combinations for STOP_MARKET / STOP /
+    TAKE_PROFIT_MARKET / TRAILING_STOP_MARKET were all rejected identically with -4120 ("Order type not
+    supported for this endpoint. Please use the Algo Order API endpoints instead."), including every
+    combination of closePosition / reduceOnly+quantity / workingType / priceProtect / positionSide /
+    newOrderRespType, and both query-string and form-body placement. Only LIMIT/MARKET succeeded. This is a
+    Binance USDT-M futures TESTNET-side restriction on conditional order types at /fapi/v1/order (exchangeInfo
+    still lists STOP_MARKET as valid for the symbol; account canTrade=true; no hedge mode; no multi-assets
+    margin) -- not a parameter bug in this connector. No verified working replacement request exists (Binance's
+    documented Algo Order endpoints are VWAP/TWAP execution algos, not stop-losses), so the request shape below
+    is intentionally UNCHANGED and pinned as a regression guard / running record of what was verified, per the
+    task's explicit instruction not to ship an unverified order-placement change."""
+
+    ORDER_SH = os.path.join(ROOT, "scripts", "binance-futures-testnet-order.sh")
+
+    def _fake_curl_env(self, tmp):
+        """A fake `curl` on PATH ahead of the real one: records its argv (the connector's exact request) to
+        curl.log and returns a canned success body, so the connector script runs unmodified with no network
+        access. Also fakes the -K/stdin-config path the connector uses to pass the API key header."""
+        curl_log = os.path.join(tmp, "curl.log")
+        fake_curl = os.path.join(tmp, "curl")
+        script = (
+            "#!/usr/bin/env bash\n"
+            "cat >/dev/null\n"                       # drain the -K - header config from stdin
+            f'printf %s\\\\n "$*" >> "{curl_log}"\n'
+            "printf '%s' '{\"orderId\": 1, \"status\": \"NEW\"}'\n"
+        )
+        with open(fake_curl, "w") as f:
+            f.write(script)
+        os.chmod(fake_curl, 0o755)
+        env = dict(os.environ, PATH=tmp + os.pathsep + os.environ.get("PATH", ""))
+        return env, curl_log
+
+    def _last_url(self, curl_log):
+        lines = [l for l in open(curl_log).read().splitlines() if l.strip()]
+        self.assertTrue(lines, "curl was never invoked")
+        return lines[-1].split(" ")[-1]  # `curl ... -K - -X POST <url>` -- url is the last argv token
+
+    def test_stop_market_request_shape(self):
+        tmp = tempfile.mkdtemp(); env, curl_log = self._fake_curl_env(tmp)
+        r = subprocess.run(["bash", self.ORDER_SH, "stop-market", "BTCUSDT", "SELL", "75000.0"],
+                            capture_output=True, text=True, env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        url = self._last_url(curl_log)
+        self.assertIn("/fapi/v1/order?", url)
+        self.assertIn("symbol=BTCUSDT", url)
+        self.assertIn("side=SELL", url)
+        self.assertIn("type=STOP_MARKET", url)
+        self.assertIn("stopPrice=75000.0", url)
+        self.assertIn("closePosition=true", url)
+        self.assertIn("workingType=MARK_PRICE", url)
+        self.assertIn("priceProtect=TRUE", url)
+
+    def test_take_profit_market_request_shape(self):
+        tmp = tempfile.mkdtemp(); env, curl_log = self._fake_curl_env(tmp)
+        r = subprocess.run(["bash", self.ORDER_SH, "take-profit-market", "BTCUSDT", "SELL", "90000.0"],
+                            capture_output=True, text=True, env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        url = self._last_url(curl_log)
+        self.assertIn("/fapi/v1/order?", url)
+        self.assertIn("type=TAKE_PROFIT_MARKET", url)
+        self.assertIn("stopPrice=90000.0", url)
+        self.assertIn("closePosition=true", url)
+        self.assertIn("workingType=MARK_PRICE", url)
+        self.assertIn("priceProtect=TRUE", url)
+
+
 class EquityStartMigration(unittest.TestCase):
     """Point 3 of the fix: equity_start persisted before this fix was captured under the OLD (free-margin)
     reading and is not comparable to the NEW (equity) reading. load_state() must detect a state file with no

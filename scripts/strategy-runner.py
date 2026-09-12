@@ -655,12 +655,57 @@ def place_market(sym, st, sig, equity, risk_mult, live):
     return open_position(sym, pend, filled, avg_px, live)
 
 
+class UnprotectedPositionError(RuntimeError):
+    """The one case a naked leveraged position may exist: a filled entry's protective stop could not be placed
+    AND the emergency close (MARKET reduceOnly) also failed. Callers MUST halt hard on this (write the STOP
+    kill switch) rather than let it surface as an ordinary connector error -- PILOT-13, 2026-09-13 incident."""
+    def __init__(self, symbol, qty, reason):
+        self.symbol = symbol; self.qty = qty
+        super().__init__(f"UNPROTECTED POSITION {symbol} qty={qty}: {reason}")
+
+
+def _emergency_close(sym):
+    """Best-effort MARKET reduceOnly flatten of `sym` right after a protective-order failure. Re-derives qty
+    from the exchange's own position-risk (via close-position) rather than trusting our fill record, since the
+    exchange is the source of truth for what is actually open. Returns (True, detail) on success, else
+    (False, error)."""
+    try:
+        return True, order_json("close-position", sym)
+    except Exception as e:
+        return False, str(e)[:300]
+
+
 def open_position(sym, pend, filled_qty, avg_px, live, position_ticket=None):
+    """PILOT-13 (2026-09-13): placing the protective stop is part of opening a position, not a step after it.
+    A stop-market failure here used to raise straight out of this function AFTER the entry had already filled
+    on the exchange -- leaving a naked position while callers' state bookkeeping (pending/positions) never ran.
+    Now: a stop-market failure triggers an immediate emergency close (MARKET reduceOnly) before anything can
+    surface; only if THAT also fails do we raise UnprotectedPositionError, which callers must turn into a hard
+    halt (see tick()). A take-profit failure is handled differently on purpose (see below): it does NOT unwind
+    the position, because the stop -- already placed at this point -- is what bounds the loss; a missing
+    take-profit only forgoes an automatic exit at the target, not protection against further loss."""
     venue = pend["execution"]; long = pend["side"] == "LONG"
     sl = tp = {}
     if venue == "futures" and live:
         prot = "SELL" if long else "BUY"
-        sl = order_json("stop-market", sym, prot, pend["stop"]); tp = order_json("take-profit-market", sym, prot, pend["tp"])
+        try:
+            sl = order_json("stop-market", sym, prot, pend["stop"])
+        except Exception as e:
+            stop_err = str(e)[:200]
+            closed, detail = _emergency_close(sym)
+            if not closed:
+                raise UnprotectedPositionError(sym, filled_qty, f"stop-market failed ({stop_err}) AND emergency close also failed ({detail})")
+            log("protection_failed_closed", venue=venue, symbol=sym, qty=filled_qty, entry=avg_px, stage="stop",
+                reason=stop_err, close=detail,
+                note="protective stop could not be placed -- the just-filled entry was closed immediately (market, reduceOnly), no naked position left open")
+            return None
+        try:
+            tp = order_json("take-profit-market", sym, prot, pend["tp"])
+        except Exception as e:
+            tp = {}
+            log("tp_placement_failed", venue=venue, symbol=sym, qty=filled_qty, reason=str(e)[:200],
+                note="stop is already in place and bounds the loss -- a missing take-profit only forgoes an "
+                     "automatic exit at the target, so the position is left open, not unwound")
     r = abs(avg_px - float(pend["stop"]))
     pos = dict(side=pend["side"], strategy=pend["strategy"], tf=pend["tf"], method=pend["method"], execution=venue, mgmt=pend["mgmt"],
                qty=f"{filled_qty:.8f}".rstrip("0").rstrip("."), entry=avg_px, entry_order=pend["order_id"], client_id=pend.get("client_id"),
@@ -872,8 +917,15 @@ def tick(live, tick_time=None, ignore_gate=False):
         except Exception as e:
             s["errors"] += 1; log("error", venue=pend["execution"], where=f"pending {sym}", msg=str(e)[:200]); continue
         if state == "filled":
-            s["positions"][sym] = open_position(sym, pend, qty, px, live, pt); del s["pending"][sym]
+            try:
+                pos = open_position(sym, pend, qty, px, live, pt)
+            except UnprotectedPositionError as e:
+                del s["pending"][sym]  # PILOT-13: never leave a stale pending entry once the exchange fill is known
+                halt(s, str(e)); save_state(s); return
+            del s["pending"][sym]
             s["trades_today"][sym] = s["trades_today"].get(sym, 0) + 1
+            if pos:
+                s["positions"][sym] = pos
         elif state == "gone":
             del s["pending"][sym]
     for v in VENUES:
@@ -972,6 +1024,8 @@ def tick(live, tick_time=None, ignore_gate=False):
                             pend = None
                         else:
                             pend = place_limit(sym, st, sig, sizing_equity.get(venue, 10000.0), risk_mult, live)
+                    except UnprotectedPositionError as e:
+                        halt(s, str(e)); save_state(s); return
                     except Exception as e:
                         s["errors"] += 1; log("error", venue=venue, where=f"place {sym}", msg=str(e)[:200]); pend = None
                     if pend:
