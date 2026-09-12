@@ -47,6 +47,8 @@ config/secrets*.local.*
 !docs/audits/**
 !docs/plans/
 !docs/plans/**
+!docs/specs/
+!docs/specs/**
 !docs/prompts/
 !docs/prompts/**
 !docs/security/
