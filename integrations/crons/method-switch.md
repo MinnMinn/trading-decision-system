@@ -3,7 +3,7 @@ name: method-switch
 cron: "3-58/5 * * * *"
 model: sonnet
 layer: none
-artifact: PENDING_CREATE_ON_FIRST_RUN
+artifact: https://claude.ai/code/artifact/819225e6-f2cc-4299-a4af-c606efd3044d
 note: Applies the method preset and instrument selection a human tapped on the control panel. Mechanical only -- no market reasoning, no subagent. Gated on the master switch alone (layer: none), because turning the scanner or the local read off is not a reason to stop honouring the human's configuration choice.
 ---
 BEFORE ANYTHING ELSE: if the `artifact:` line in this template's own front matter still reads the literal
