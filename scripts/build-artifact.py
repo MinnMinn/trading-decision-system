@@ -33,25 +33,46 @@ CRYPTO = [("BTCUSDT", "btc", "BTC/USDT", "int"), ("ETHUSDT", "eth", "ETH/USDT", 
 GOLD = [("XAUUSD", "xau", "XAU/USD", "2")]
 MT5 = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
 TF_MIN = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30, "1H": 60, "2H": 120, "4H": 240, "1D": 1440, "1W": 10080}
-# working window = the style's own (tf, n, label); ctx = the higher-timeframe overview drawn above it.
-# The 1h/4h sizes are project parameters (scripts/local-eval-brief.py TF map) -- kept identical here.
-STYLES = {
-    "scalping":   dict(tf="1m",  n=180, lbl="%H:%M",       ctx=("15m", 288, "%m-%d %H:%M"), syms=CRYPTO, name="Crypto Scalping",       horizon="1m × 180 (3 giờ)", ctx_h="15m × 288 (3 ngày)", kz=False),
-    "daytrade":   dict(tf="15m", n=288, lbl="%m-%d %H:%M", ctx=("4H", 180, "%m-%d %H:%M"),  syms=CRYPTO, name="Crypto Day",    horizon="15m × 288 (3 ngày)", ctx_h="4H × 180 (30 ngày)", kz=True),
-    "1h":         dict(tf="1H",  n=240, lbl="%m-%d %H:%M", ctx=("1D", 120, "%m-%d"),        syms=CRYPTO, name="Crypto 1H",             horizon="1H × 240 (10 ngày)", ctx_h="1D × 120 (4 tháng)", kz=True),
-    "4h":         dict(tf="4H",  n=180, lbl="%m-%d %H:%M", ctx=("1D", 120, "%m-%d"),        syms=CRYPTO, name="Crypto 4H",             horizon="4H × 180 (30 ngày)", ctx_h="1D × 120 (4 tháng)", kz=False),
-    "swing":      dict(tf="1D",  n=120, lbl="%m-%d",       ctx=("1W", 104, "%y-%m-%d"),     syms=CRYPTO, name="Crypto Swing",  horizon="1D × 120 (4 tháng)", ctx_h="1W × 104 (2 năm)", kz=False),
-    "gold-scalp": dict(tf="5m",  n=288, lbl="%m-%d %H:%M", ctx=("15m", 288, "%m-%d %H:%M"), syms=GOLD,   name="CFD Scalping",          horizon="5m × 288 (24 giờ)", ctx_h="15m × 288 (3 ngày)", kz=True),
-    "gold":       dict(tf="15m", n=288, lbl="%m-%d %H:%M", ctx=("4H", 180, "%m-%d %H:%M"),  syms=GOLD,   name="CFD Day",              horizon="15m × 288 (3 ngày)", ctx_h="4H × 180 (30 ngày)", kz=True),
-    "gold-1h":    dict(tf="1H",  n=240, lbl="%m-%d %H:%M", ctx=("1D", 120, "%m-%d"),        syms=GOLD,   name="CFD 1H",                   horizon="1H × 240 (10 ngày)", ctx_h="1D × 120 (4 tháng)", kz=True),
-    "gold-4h":    dict(tf="4H",  n=180, lbl="%m-%d %H:%M", ctx=("1D", 120, "%m-%d"),        syms=GOLD,   name="CFD 4H",                   horizon="4H × 180 (30 ngày)", ctx_h="1D × 120 (4 tháng)", kz=False),
-    "gold-swing": dict(tf="1D",  n=120, lbl="%m-%d",       ctx=("1W", 104, "%y-%m-%d"),     syms=GOLD,   name="CFD Swing",                horizon="1D × 120 (4 tháng)", ctx_h="1W × 104 (2 năm)", kz=False),
-}
-VERDICT_CLASS = [("SETUP", "setup"), ("THEO DÕI LONG", "long"), ("THEO DÕI SHORT", "short"), ("PHÁ", "warn"), ("CHỜ", "wait")]
-# a style whose working window is another style's context window: the context chart reuses that narrative (one read per candle series)
+# Per-timeframe window spec (bars, axis label, human horizon). Bar counts are project parameters (no source gives them;
+# they only need to hold the previous day/week/month for the PDH/PWH/PMH reads, knowledge/04 §2.8).
+TF_SPEC = {"1m": (180, "%H:%M", "3 giờ"), "5m": (288, "%m-%d %H:%M", "24 giờ"), "15m": (288, "%m-%d %H:%M", "3 ngày"),
+           "1H": (240, "%m-%d %H:%M", "10 ngày"), "4H": (180, "%m-%d %H:%M", "30 ngày"), "1D": (120, "%m-%d", "4 tháng"), "1W": (104, "%y-%m-%d", "2 năm")}
+TF_LABEL = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "1H", "4h": "4H", "1D": "1D", "1W": "1W"}   # automation spelling -> file spelling
+TIER_NAME = {"bias": "Bias", "structure": "Cấu trúc", "entry": "Vào lệnh"}
+TIER_ORDER = ("bias", "structure", "entry")
 import importlib.util as _iu
 _as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py")); _auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
-CTX_REUSE = {k: v for k, v in _auto.CONTEXT_STYLE.items() if v}
+
+
+def _style(tf, syms, name, kz):
+    n, lbl, hz = TF_SPEC[tf]
+    return dict(tf=tf, n=n, lbl=lbl, syms=syms, name=name, horizon=f"{tf} × {n} ({hz})", kz=kz)
+
+
+# The three tiers of every style come from ONE table: scripts/automation.py TIERS (docs/architecture/timeframe-mapping.md).
+STYLES = {
+    "scalping":   _style("1m",  CRYPTO, "Crypto Scalping", False),
+    "daytrade":   _style("15m", CRYPTO, "Crypto Day", True),
+    "1h":         _style("1H",  CRYPTO, "Crypto 1H", True),
+    "4h":         _style("4H",  CRYPTO, "Crypto 4H", False),
+    "swing":      _style("1D",  CRYPTO, "Crypto Swing", False),
+    "gold-scalp": _style("5m",  GOLD,   "CFD Scalping", True),
+    "gold":       _style("15m", GOLD,   "CFD Day", True),
+    "gold-1h":    _style("1H",  GOLD,   "CFD 1H", True),
+    "gold-4h":    _style("4H",  GOLD,   "CFD 4H", False),
+    "gold-swing": _style("1D",  GOLD,   "CFD Swing", False),
+}
+for _st, _S in STYLES.items():
+    _S["tiers"] = {}
+    for _name in ("bias", "structure"):
+        _t = _auto.TIERS[_st].get(_name)
+        if _t:
+            _tf = TF_LABEL[_t["tf"]]; _n, _lbl, _hz = TF_SPEC[_tf]
+            _S["tiers"][_name] = dict(tf=_tf, n=_n, lbl=_lbl, style=_t["style"], horizon=f"{_tf} × {_n} ({_hz})")
+        else:
+            _S["tiers"][_name] = None
+VERDICT_CLASS = [("SETUP", "setup"), ("THEO DÕI LONG", "long"), ("THEO DÕI SHORT", "short"), ("PHÁ", "warn"), ("CHỜ", "wait")]
+import htf_context as htf  # noqa: E402
 LANES = [("wyckoff", "Wyckoff"), ("ict", "ICT"), ("footprint", "Footprint"), ("heatmap", "Heatmap")]
 
 
@@ -108,6 +129,27 @@ def candles(sym, tf, n, snap=None):
     return d["candles"][-n:], d.get("last_updated"), d.get("_source")
 
 
+PLAN_FIELDS = ("id", "direction", "entry", "stop_loss", "targets", "planned_rr", "status", "rehearsal_mode", "date_opened", "setup_type")
+
+
+def trade_plans(sym):
+    """PLANNED / OPEN trade records for this instrument from trades/index.jsonl (the derived rollup, never hand-edited —
+    SYSTEM-DESIGN §5). Read-only: the chart draws entry/stop/targets, it never writes a trade."""
+    out = []
+    try:
+        with open(f"{ROOT}/trades/index.jsonl", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                r = json.loads(line)
+                if r.get("instrument") == sym and r.get("status") in ("PLANNED", "OPEN"):
+                    out.append({k: r.get(k) for k in PLAN_FIELDS})
+    except FileNotFoundError:
+        pass
+    return out
+
+
 def rows_js(rows, fmt):
     return "[" + ",".join(f'["{label(r["time"], fmt)}",{r["open"]},{r["high"]},{r["low"]},{r["close"]},{r.get("volume", 0)},"{r["time"]}"]' for r in rows) + "]"
 
@@ -146,7 +188,6 @@ def layer1(sym, d, kind, tf):
             + " — kiểm tra Nỗ lực–Kết quả trước khi tin vào hướng (bội số theo trung bình cửa sổ, tham số dự án).</li>")
     else:
         w.append("<li>Không có nến khối lượng bất thường trong các nến gần đây (ngưỡng: tham số dự án).</li>")
-    w.append(f"<li>Biểu đồ khối lượng và đường trung bình 20 nến nằm dưới chart Wyckoff; nến ≥ ngưỡng cao được tô đậm.</li>")
     wyckoff = "<ul>" + "".join(w) + "</ul>"
     # ICT: range / EQ / MSS / FVG / pools / sweeps / setup
     zone = "discount" if d["pct"] < 0.5 else "premium"
@@ -180,13 +221,6 @@ def layer1(sym, d, kind, tf):
     ict = "<ul>" + "".join(i) + "</ul>"
     # synthesis: rule verdict vs anchors + stance + mixed/neutral levels
     s = []
-    cx = d.get("context")
-    if cx:
-        w = cx.get("wyckoff") or {}
-        s.append(f"<li><b>Bối cảnh {esc(cx.get('tf'))}</b> (scanner {esc(hhmm(cx.get('scanned_at')) if cx.get('scanned_at') else '—')}Z): "
-                 + (f"cấu trúc {esc(w.get('structure'))}, pha {esc(w.get('phase') or '—')} (đọc {esc(str(w.get('updated'))[:16])}Z) · " if w else "chưa có đọc Wyckoff khung lớn · ")
-                 + f"giá {fmtn(cx.get('last'), kind)} = {cx['pct'] * 100:.0f}% biên độ khung lớn · " if cx.get('pct') is not None else "")
-        s[-1] += f"<b>bias {esc(cx.get('bias', '?').upper())}</b> — {esc(cx.get('basis', ''))}. <span class=\"cite\">[giảm khung: knowledge/07 §2.7, WA p93–96]</span></li>"
     if an.get("verdict"):
         rc = an.get("ref_close") or {}
         s.append(f"<li>Verdict theo luật so với mốc neo của phân tích đầy đủ gần nhất: <b>{esc(an['verdict'])}</b> (nến đóng {when(rc.get('time'))} = {fmtn(rc.get('close'), kind)}).</li>")
@@ -194,9 +228,9 @@ def layer1(sym, d, kind, tf):
         s.append("<li>Chưa có mốc neo từ phân tích đầy đủ — scanner chỉ có stance theo luật cố định.</li>")
     for L in by["mixed"] + by["neutral"]:
         s.append(f"<li>Mốc neo (tổng hợp): {level_line(L, kind)}</li>")
-    s.append(f"<li>Stance scanner: <b>{esc(d['stance'])}</b> — quét theo luật cố định (pivot 3 nến, dung sai đỉnh/đáy bằng nhau 0,08%, FVG ≥ 0,6× biên độ trung vị; tham số dự án), không phải nhận định của mô hình.</li>")
+    s.append(f"<li>Stance scanner: <b>{esc(d['stance'])}</b> (luật cố định, tham số dự án — không phải nhận định của mô hình).</li>")
     synth = "<ul>" + "".join(s) + "</ul>"
-    return dict(ts=d.get("last_time"), stance=d["stance"], verdict=(an.get("verdict_short") or an.get("verdict")), wyckoff=wyckoff, ict=ict, synth=synth)
+    return dict(ts=d.get("last_time"), stance=d["stance"], verdict=(an.get("verdict_short") or an.get("verdict")), wyckoff=wyckoff, ict=ict, synth=synth, facts=d)
 
 
 # ----------------------------------------------------------------------------------------------- layer 2 (Sonnet local read, per-method blocks)
@@ -330,7 +364,69 @@ def glossary():
     for key, name in LANES:
         items = "".join(f"<dt>{esc(t)}</dt><dd>{esc(d)}</dd>" for t, d in GLOSSARY[key])
         out += f'<div class="gl lane-{key}"><div class="gl-head"><span class="lane-dot"></span>{name}</div><dl>{items}</dl></div>'
-    return f'<section class="glossary" id="sec-glossary"><h2>Thuật ngữ theo phương pháp</h2><div class="gl-grid">{out}</div></section>'
+    return f'<section class="glossary" id="sec-glossary"><details><summary>Thuật ngữ theo phương pháp <span class="muted">(mở khi cần)</span></summary><div class="gl-grid">{out}</div></details></section>'
+
+
+def wy_json(wy):
+    """Narrative wyckoff -> the chart overlay (TR, events, phases), addressed by candle time."""
+    tr = (wy or {}).get("trading_range") or None
+    return dict(tr=(dict(high=tr.get("high"), low=tr.get("low"), high_label=tr.get("high_label", "AR"), low_label=tr.get("low_label", "SC")) | {"from": tr.get("from")} if tr else None),
+                events=[dict(time=e.get("time"), label=e.get("label", ""), up=bool(e.get("up"))) for e in (wy or {}).get("events", [])],
+                phases=[{"from": p.get("from"), "to": p.get("to"), "label": p.get("label", "")} for p in (wy or {}).get("phases", [])])
+
+
+BIAS_CLS = {"long": "long", "short": "short", "neutral": "wait", "unknown": "wait"}
+BIAS_VI = {"long": "LONG", "short": "SHORT", "neutral": "TRUNG LẬP", "unknown": "CHƯA RÕ"}
+
+
+def ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name):
+    """Three rows, top-down: Bias -> Cấu trúc -> Vào lệnh. Each row answers ONE question per method (Wyckoff: structure +
+    phase + TR; ICT: dealing-range position + last MSS) and ends in one conclusion chip. Wording for a missing rung is
+    printed, never skipped (docs/architecture/timeframe-mapping.md)."""
+    tfmin = lambda tf: TF_MIN.get(tf, 0)
+    ratio = lambda hi, lo: (f"×{tfmin(hi) / tfmin(lo):g}" if tfmin(hi) and tfmin(lo) else "")
+
+    def wy_cell(w):
+        if not w or not (w.get("structure") or w.get("phase")):
+            return '<span class="muted">chưa có đọc Wyckoff cho khung này</span>'
+        tr = w.get("trading_range") or {}
+        out = f'<b>{esc(w.get("structure") or "chưa xác lập")}</b>' + (f' · pha <b>{esc(w["phase"])}</b>' if w.get("phase") else "")
+        if tr.get("high") is not None and tr.get("low") is not None:
+            out += f'<div class="ld-kv">{esc(tr.get("low_label", "SC"))} {fmtn(tr["low"], kind)} – {esc(tr.get("high_label", "AR"))} {fmtn(tr["high"], kind)}</div>'
+        if w.get("updated"):
+            out += f'<div class="ld-kv muted">đọc {esc(str(w["updated"])[:16])}Z</div>'
+        return out
+
+    def ict_cell(f):
+        if not f or f.get("pct") is None:
+            return '<span class="muted">chưa quét</span>'
+        zone = "discount" if f["pct"] < 0.5 else "premium"
+        out = f'<b>{f["pct"] * 100:.0f}%</b> dealing range ({fmtn(f.get("lo"), kind)}–{fmtn(f.get("hi"), kind)}) · <b>{zone}</b>'
+        m = f.get("last_mss")
+        out += f'<div class="ld-kv">MSS gần nhất: {"tăng" if m.get("type") == "bull" else "giảm"} qua {fmtn(m.get("level"), kind)}</div>' if m else '<div class="ld-kv muted">chưa có MSS trong cửa sổ</div>'
+        return out
+
+    rows = []
+    for name in ("bias", "structure"):
+        t = S["tiers"].get(name); c = tier_ctx.get(name)
+        below = S["tiers"]["structure"]["tf"] if (name == "bias" and S["tiers"].get("structure")) else S["tf"]
+        if not t:
+            rows.append((name, "—", "", '<span class="muted">không lấy khung chậm hơn (khung tháng)</span>', '<span class="muted">—</span>', '<span class="chip chip-wait">—</span>', False))
+            continue
+        head = f'{t["tf"]} <span class="ld-ratio">{ratio(t["tf"], below)}</span>'
+        if not t["style"]:
+            rows.append((name, head, "chỉ chart, chưa quét", '<span class="muted">không có đọc — chỉ có chart</span>', '<span class="muted">không có số liệu</span>', '<span class="chip chip-wait">—</span>', False))
+            continue
+        chipv = f'<span class="chip chip-{BIAS_CLS.get(c["bias"], "wait")} chip-lg" title="{esc(c.get("basis", ""))}">{BIAS_VI.get(c["bias"], "?")}</span>' if c else '<span class="chip chip-wait">chưa quét</span>'
+        rows.append((name, head, f'cập nhật {hhmm(c.get("last_time")) if c else "—"}Z', wy_cell(c and c.get("wyckoff")), ict_cell(c), chipv, name == gate_name))
+    wy = (n3 or {}).get("wyckoff") or {}
+    rows.append(("entry", S["tf"], f'cập nhật {hhmm(l1["ts"]) if l1 else "—"}Z', wy_cell({**wy, "updated": (n3 or {}).get("_updated_iso")} if wy else None), ict_cell(l1 and l1.get("facts")), chip(cur_verdict, "chip-lg"), False))
+    body = '<div class="ld-head ld-corner">Tầng</div><div class="ld-head lane-wyckoff"><span class="lane-dot"></span>Wyckoff</div><div class="ld-head lane-ict"><span class="lane-dot"></span>ICT</div><div class="ld-head">Kết luận</div>'
+    for name, head, sub, wc, ic, ch, is_gate in rows:
+        g = " gate" if is_gate else ""
+        body += (f'<div class="ld-tier{g}"><div class="ld-name">{TIER_NAME[name]}</div><div class="ld-tf">{head}</div><div class="ld-sub">{esc(sub)}</div></div>'
+                 f'<div class="ld-cell lane-wyckoff{g}">{wc}</div><div class="ld-cell lane-ict{g}">{ic}</div><div class="ld-cell ld-verdict{g}">{ch}' + ('<div class="ld-sub">tầng quyết định verdict</div>' if is_gate else '') + '</div>')
+    return f'<div class="ladder">{body}</div>'
 
 
 # ----------------------------------------------------------------------------------------------- CSS / JS
@@ -392,6 +488,23 @@ section.symbol{background:var(--surface);border:1px solid var(--line);border-rad
 .sym-verdict{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .sym-verdict .lbl{font-family:var(--mono);font-size:11px;color:var(--faint)}
 
+/* timeframe ladder: three tiers, top-down, one question per method per tier */
+.ladder{display:grid;grid-template-columns:150px minmax(0,1fr) minmax(0,1fr) 150px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.ld-head{padding:8px 14px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:var(--surface-3);border-bottom:1px solid var(--line);border-left:1px solid var(--line)}
+.ld-head.lane-wyckoff,.ld-head.lane-ict{box-shadow:inset 0 -2px 0 var(--lane)} .ld-corner{border-left:0;color:var(--faint)}
+.ld-tier{padding:10px 14px;border-top:1px solid var(--line);background:var(--surface-2)}
+.ld-name{font-weight:800;font-size:13px} .ld-tf{font-family:var(--mono);font-size:12.5px;color:var(--ink-2);margin-top:1px} .ld-sub{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:2px}
+.ld-ratio{font-family:var(--mono);font-size:10.5px;color:var(--faint);font-weight:400}
+.ld-cell{padding:10px 14px;border-top:1px solid var(--line);border-left:1px solid var(--line);font-size:12.5px;line-height:1.45}
+.ld-cell.lane-wyckoff,.ld-cell.lane-ict{box-shadow:inset 3px 0 0 var(--lane-soft)}
+.ld-kv{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);margin-top:3px}
+.ld-verdict{display:flex;flex-direction:column;gap:4px;align-items:flex-start;justify-content:center}
+.ld-tier.gate,.ld-cell.gate{background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
+.ld-tier.gate{box-shadow:inset 3px 0 0 var(--accent)}
+.meta-ladder{grid-column:span 2} .ld-step b{font-family:var(--mono)} .ld-arrow{color:var(--faint);margin:0 2px}
+.chart-missing .lane-status{padding:14px 16px}
+.glossary summary{cursor:pointer;font-weight:800;font-size:15px;margin-bottom:10px}
+
 .chip{display:inline-flex;align-items:center;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
 .chip-wait{background:var(--surface-3);color:var(--ink-2);border-color:var(--line-strong)}
 .chip-long{background:var(--up-soft);color:var(--up);border-color:var(--up)}
@@ -407,9 +520,12 @@ section.symbol{background:var(--surface);border:1px solid var(--line);border-rad
 .zoom{display:inline-flex;align-items:center;gap:4px} .zoom .muted{margin-right:6px}
 .zoom button{font-family:var(--mono);font-size:12px;font-weight:700;width:24px;height:22px;border-radius:5px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);cursor:pointer;line-height:1}
 .zoom button:hover{background:var(--surface-3)} .zoom button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-svg.chart{cursor:crosshair} svg.chart:active{cursor:grabbing}
-.chart-wrap{padding:4px 6px 4px;overflow-x:auto;position:relative}
-svg.chart{display:block;width:100%;height:auto;min-width:720px}
+.chart-wrap{padding:4px 6px 4px;position:relative}
+.chart{display:block;width:100%;height:440px;cursor:crosshair}
+.mode-status{padding:4px 12px 8px;font-family:var(--mono);font-size:11px;color:var(--accent)}
+.mode-ruler .chart,.mode-replay .chart{outline:1px dashed var(--accent);outline-offset:-1px}
+.zoom button.wide{width:auto;padding:0 6px}
+.sw.plan{background:linear-gradient(90deg,var(--down-soft),var(--up-soft));border:1px solid var(--line-strong)}
 .axis-label{font-family:var(--mono);font-size:9.5px;fill:var(--faint)}
 .flag-label{font-family:var(--mono);font-size:10px;font-weight:700;fill:var(--ink)}
 .flag-w{fill:var(--w)} .flag-i{fill:var(--i)}
@@ -477,6 +593,7 @@ footer b{color:var(--muted);font-weight:600}
 
 @media (max-width:900px){
   .matrix{grid-template-columns:1fr}
+  .ladder{grid-template-columns:1fr} .ld-head{display:none} .ld-cell{border-left:0} .meta-ladder{grid-column:span 1}
   .mx-head{display:none}
   .mx-label{border-top:2px solid var(--line-strong)}
   .mx-cell{border-left:0}
@@ -487,245 +604,20 @@ footer b{color:var(--muted);font-weight:600}
 </style>
 """
 
-JS = r"""
-<script>
-(function(){
-  const DATA = __DATA__;
-  const P = __PARAMS__;
-  const LANES = ['wyckoff','ict','footprint','heatmap'];
-  let lane = 'wyckoff';
-  const fmtOf = k => k==='int' ? (v=>Math.round(v).toLocaleString('en-US')) : (v=>v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
+VENDOR_JS = os.path.join(ROOT, "scripts", "vendor", "lightweight-charts.standalone.production.js")
+CHART_JS = os.path.join(ROOT, "scripts", "chart.js")
 
-  // ---------- ICT engine: price-only, computed from OHLC at render time. No volume input (the ICT corpus has none).
-  // Rules per knowledge/04-ttrades-core-A.md, 05-ttrades-core-B.md, 06-ttrades-models.md, page-checked against the PDFs on
-  // 2026-09-12 (docs/audits/2026-09-12-ict-pdf-recheck.md). Numeric thresholds are PROJECT PARAMETERS from
-  // analysis-params.json project_defined.ict (the decks define concepts, not numbers). Candle times are UTC ISO strings;
-  // sessions convert to the exchange-local zone per date (docs/architecture/session-model.md §1) so they follow DST.
-  const ICT = P.ict || {};
-  const PIV = (ICT.pivot_bars||{}).value ?? 3, EQTOL = ((ICT.equal_level_tolerance_pct||{}).value ?? 0.08)/100, FVGMIN = (ICT.fvg_min_size_median_ratio||{}).value ?? 0.6;
-  const DISP = ICT.displacement || {body_min_ratio:0.6, range_min_median_ratio:1.2};
-  const SESSIONS = [{key:'asia',name:'ASIA',tz:'America/New_York',a:20,b:24},{key:'london',name:'LDN',tz:'Europe/London',a:8,b:11},{key:'ny_am',name:'NY AM',tz:'America/New_York',a:8.5,b:11},{key:'ny_pm',name:'NY PM',tz:'America/New_York',a:13.5,b:16}];
-  const KZ_WEIGHT = {crypto:{london:'reduced',ny_am:'reduced',ny_pm:'none'}, metals:{london:'full',ny_am:'full',ny_pm:'full'}, oil:{london:'reduced',ny_am:'full',ny_pm:'full'}};
-  const utcDate = iso => new Date(/Z$/.test(iso)?iso:iso+'Z');
-  const localHour = (iso,tz) => { const parts=new Intl.DateTimeFormat('en-GB',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(utcDate(iso)); let h=0,m=0; parts.forEach(q=>{ if(q.type==='hour')h=(+q.value)%24; if(q.type==='minute')m=+q.value; }); return h+m/60; };
-  const weekKey = iso => { const d=utcDate(iso); const dow=(d.getUTCDay()+6)%7; return new Date(d.getTime()-dow*86400000).toISOString().slice(0,10); };
-  function ictAnalyze(rows, cfg){
-    const n=rows.length, O=i=>rows[i][1], H=i=>rows[i][2], L=i=>rows[i][3], C=i=>rows[i][4], T=i=>rows[i][6];
-    const tfMin=cfg.tfMin||0, mkt=cfg.market||'crypto';
-    const wlo=Math.min(...rows.map(r=>r[3])), whi=Math.max(...rows.map(r=>r[2]));
-    const sizes=rows.map(r=>r[2]-r[3]).sort((a,b)=>a-b), medRange=sizes[Math.floor(n/2)]||0;
-    const firstAfter=(start,pred)=>{ for(let q=start;q<n;q++) if(pred(q)) return q; return -1; };
-    const sh=[], sl=[];
-    for(let i=PIV;i<n-PIV;i++){ let isH=true,isL=true; for(let j=i-PIV;j<=i+PIV;j++){ if(j===i)continue; if(H(j)>H(i))isH=false; if(L(j)<L(i))isL=false; } if(isH)sh.push(i); if(isL)sl.push(i); }
-    // FVG: wick-based three-candle gap (k04 §2.21); CE = 0.5 of the gap, entry price and hold/fail line (k04 §2.23, §2.26); drawn until first mitigation
-    let fvgs=[];
-    for(let i=1;i<n-1;i++){ let f=null; if(H(i-1)<L(i+1)) f={type:'bull',i,lo:H(i-1),hi:L(i+1)}; else if(L(i-1)>H(i+1)) f={type:'bear',i,lo:H(i+1),hi:L(i-1)}; if(!f)continue;
-      f.size=f.hi-f.lo; f.ce=(f.hi+f.lo)/2; f.end=n-1; f.mitigated=false; for(let j=i+2;j<n;j++){ if((f.type==='bull'&&L(j)<=f.hi)||(f.type==='bear'&&H(j)>=f.lo)){f.end=j;f.mitigated=true;break;} } fvgs.push(f); }
-    fvgs=fvgs.filter(f=>f.size>=FVGMIN*medRange).sort((a,b)=>b.size-a.size).slice(0,10).sort((a,b)=>a.i-b.i);
-    // liquidity pools (k04 §2.6-2.7): relatively-equal swing pairs, the nearest single old high / old low, window extremes as ERL
-    const tol=((wlo+whi)/2)*EQTOL, liq=[];
-    const sweptAt=(kind,level,last)=>firstAfter(last+1, j=>kind==='H'?(H(j)>level&&C(j)<level):(L(j)<level&&C(j)>level));
-    const addPool=(kind,idxs,level)=>{ const first=Math.min(...idxs), last=Math.max(...idxs); const swept=sweptAt(kind==='BSL'||kind==='OLD-H'?'H':'L',level,last); liq.push({kind,level,from:first,to:swept>=0?swept:n-1,swept}); };
-    for(let a=0;a<sh.length;a++){ for(let b=a+1;b<sh.length;b++){ if(Math.abs(H(sh[a])-H(sh[b]))<=tol&&sh[b]-sh[a]>=4){ addPool('BSL',[sh[a],sh[b]],Math.max(H(sh[a]),H(sh[b]))); break; } } }
-    for(let a=0;a<sl.length;a++){ for(let b=a+1;b<sl.length;b++){ if(Math.abs(L(sl[a])-L(sl[b]))<=tol&&sl[b]-sl[a]>=4){ addPool('SSL',[sl[a],sl[b]],Math.min(L(sl[a]),L(sl[b]))); break; } } }
-    const seen=[], pools=[]; for(const p of liq.sort((a,b)=>a.from-b.from)){ if(!seen.some(q=>Math.abs(q.level-p.level)<=tol)){seen.push(p);pools.push(p);} }
-    const lastC=C(n-1);
-    const oldH=[...sh].reverse().find(i=>H(i)>lastC&&!pools.some(p=>Math.abs(p.level-H(i))<=tol)), oldL=[...sl].reverse().find(i=>L(i)<lastC&&!pools.some(p=>Math.abs(p.level-L(i))<=tol));
-    if(oldH!==undefined){ addPool('OLD-H',[oldH],H(oldH)); pools.push(liq[liq.length-1]); } if(oldL!==undefined){ addPool('OLD-L',[oldL],L(oldL)); pools.push(liq[liq.length-1]); }
-    const hiIdx=rows.findIndex(r=>r[2]===whi), loIdx=rows.findIndex(r=>r[3]===wlo);
-    pools.push({kind:'ERL-high',level:whi,from:hiIdx,to:n-1,swept:-1}); pools.push({kind:'ERL-low',level:wlo,from:loIdx,to:n-1,swept:-1});
-    // dealing range = nearest unswept BSL above / SSL below the last close (k04 §2.18 "where buyside and sellside liquidity is resting"); fallback = window extremes, reported as such
-    const above=pools.filter(p=>p.swept<0&&(p.kind==='BSL'||p.kind==='OLD-H')&&p.level>lastC).map(p=>p.level), below=pools.filter(p=>p.swept<0&&(p.kind==='SSL'||p.kind==='OLD-L')&&p.level<lastC).map(p=>p.level);
-    const hi=above.length?Math.min(...above):whi, lo=below.length?Math.max(...below):wlo, eq=(lo+hi)/2, drSource=(above.length&&below.length)?'pools':(above.length||below.length)?'mixed':'window';
-    // MSS = body close beyond the swing preceding the raid (k04 §2.17, k05 §2.2) + displacement test (k04 §2.16; thresholds are project parameters);
-    // OB = last opposing-close candle before the leg: OPEN line + 0.5 mean threshold, mitigated when price trades back to the open (k05 §2.5);
-    // CISD = open of the first candle of the final opposing-colour run into the extreme, confirmed by a close through it (k05 §2.3, k06 §2.3)
-    const isDisp=j=>{ const rg=H(j)-L(j); return rg>0 && Math.abs(C(j)-O(j))>=DISP.body_min_ratio*rg && rg>=DISP.range_min_median_ratio*medRange; };
-    const runStart=(e,down)=>{ let k=e; if(down?C(k)>=O(k):C(k)<=O(k)) k--; let r=k; while(r>=0&&(down?C(r)<O(r):C(r)>O(r))) r--; return r+1<=k?r+1:null; };
-    const mss=[], obs=[], cisd=[]; const piv=[...sh.map(i=>({i,t:'H'})),...sl.map(i=>({i,t:'L'}))].sort((a,b)=>a.i-b.i);
-    let lastH=null,lastL=null,bias=0;
-    for(let k=0;k<piv.length;k++){ const p=piv[k];
-      if(p.t==='H'){ if(lastH!==null&&H(p.i)>H(lastH))bias=+1; lastH=p.i; } else { if(lastL!==null&&L(p.i)<L(lastL))bias=-1; lastL=p.i; }
-      const next=k+1<piv.length?piv[k+1].i:n;
-      for(let j=p.i+1;j<next;j++){
-        if(bias===-1&&lastH!==null&&C(j)>H(lastH)){ const from=lastL??0; let e=from; for(let q=from;q<j;q++) if(L(q)<L(e))e=q; const s0=lastH<=e?lastH:from; let oI=s0; for(let q=s0;q<=e;q++) if(H(q)>H(oI))oI=q;
-          mss.push({type:'bull',i:j,level:H(lastH),disp:isDisp(j),ext:L(e),extI:e,origin:H(oI),originI:oI});
-          for(let q=j-1;q>=Math.max(0,from);q--){ if(C(q)<O(q)){obs.push({type:'bull',i:q,open:O(q),close:C(q),mt:(O(q)+C(q))/2,until:j});break;} }
-          const r=runStart(e,true); if(r!==null) cisd.push({type:'bull',i:r,level:O(r),confirmed:firstAfter(r+1,q=>C(q)>O(r))});
-          bias=0; break; }
-        if(bias===+1&&lastL!==null&&C(j)<L(lastL)){ const from=lastH??0; let e=from; for(let q=from;q<j;q++) if(H(q)>H(e))e=q; const s0=lastL<=e?lastL:from; let oI=s0; for(let q=s0;q<=e;q++) if(L(q)<L(oI))oI=q;
-          mss.push({type:'bear',i:j,level:L(lastL),disp:isDisp(j),ext:H(e),extI:e,origin:L(oI),originI:oI});
-          for(let q=j-1;q>=Math.max(0,from);q--){ if(C(q)>O(q)){obs.push({type:'bear',i:q,open:O(q),close:C(q),mt:(O(q)+C(q))/2,until:j});break;} }
-          const r=runStart(e,false); if(r!==null) cisd.push({type:'bear',i:r,level:O(r),confirmed:firstAfter(r+1,q=>C(q)<O(r))});
-          bias=0; break; }
-      } }
-    obs.forEach(o=>{ o.end=n-1; o.mitigated=false; for(let j=o.until+1;j<n;j++){ if((o.type==='bull'&&L(j)<=o.open)||(o.type==='bear'&&H(j)>=o.open)){o.end=j;o.mitigated=true;break;} } });
-    // OTE on the impulse after the latest MSS (k04 §2.20: 1 at the origin, 0 at the terminus, band 0.62-0.79) and std-dev projections of the
-    // manipulation leg (k05 §2.12; k06 §2.1.5: 1 at the sweep extreme, 0 at the high/low that made the highest high / lowest low before it),
-    // only while the thesis is alive: no later close back beyond the swept extreme (k04 §3.6 R25)
-    let ote=null, std=null; const m=mss[mss.length-1];
-    if(m){ const dead=firstAfter(m.i+1, q=>m.type==='bull'?C(q)<m.ext:C(q)>m.ext)>=0;
-      if(!dead){ let tI=m.i; for(let q=m.i;q<n;q++){ if(m.type==='bull'?H(q)>H(tI):L(q)<L(tI))tI=q; }
-        const term=m.type==='bull'?H(tI):L(tI), leg=Math.abs(term-m.ext);
-        if(tI>m.i&&leg>0) ote={from:tI,type:m.type,levels:[0.62,0.705,0.79].map(r=>({r,price:m.type==='bull'?term-r*leg:term+r*leg}))};
-        const mleg=Math.abs(m.origin-m.ext); if(mleg>0) std={from:m.i,type:m.type,levels:[2,2.5,4].map(k=>({k,price:m.type==='bull'?m.origin+k*mleg:m.origin-k*mleg}))}; } }
-    // sessions (PROJECT-DEFINED, session-model.md §2-4): killzone shading only for windows with a non-zero weight for this market, weekdays only;
-    // Asia / London session highs & lows as liquidity levels (k04 §2.9; boundaries are the project's, the decks give none — k04 §6 item 9)
-    const kz=[], sess=[]; const spans={};
-    if(tfMin>0&&tfMin<=240){ SESSIONS.forEach(z=>{ let start=-1; const out=[]; for(let i=0;i<=n;i++){ let inZ=false; if(i<n){ const d=utcDate(T(i)).getUTCDay(), h=localHour(T(i),z.tz); inZ=d!==0&&d!==6&&h>=z.a&&h<z.b; } if(inZ&&start<0)start=i; if((!inZ||i===n)&&start>=0){out.push({from:start,to:i-1});start=-1;} } spans[z.key]=out; });
-      if(cfg.kz){ ['london','ny_am','ny_pm'].forEach(k=>{ const w=(KZ_WEIGHT[mkt]||KZ_WEIGHT.crypto)[k]; if(w==='none')return; const z=SESSIONS.find(q=>q.key===k); (spans[k]||[]).forEach(sp=>kz.push({name:z.name,weight:w,from:sp.from,to:sp.to})); }); }
-      if(tfMin<=60){ ['asia','london'].forEach(k=>{ const z=SESSIONS.find(q=>q.key===k); (spans[k]||[]).slice(-3).forEach(sp=>{ let h=-Infinity,l=Infinity; for(let i=sp.from;i<=sp.to;i++){ h=Math.max(h,H(i)); l=Math.min(l,L(i)); }
-          const swH=sweptAt('H',h,sp.to), thH=firstAfter(sp.to+1,q=>C(q)>h), swL=sweptAt('L',l,sp.to), thL=firstAfter(sp.to+1,q=>C(q)<l);
-          sess.push({name:z.name+' H',level:h,from:sp.from,to:swH>=0?swH:(thH>=0?thH:n-1),swept:swH,through:thH}); sess.push({name:z.name+' L',level:l,from:sp.from,to:swL>=0?swL:(thL>=0?thL:n-1),swept:swL,through:thL}); }); }); } }
-    // previous-period levels (k04 §2.8, §2.12): PDH/PDL (day = UTC calendar day — project assumption, the decks use the platform's daily bar),
-    // PWH/PWL (week from Monday 00Z), PMH/PML. Wick through + close back = failure to displace (×); body close through = the level was the draw (✓)
-    const levels=[]; const periods=[]; if(tfMin>0&&tfMin<=240) periods.push(['PD',iso=>iso.slice(0,10),3]); if(tfMin>=60&&tfMin<=1440) periods.push(['PW',weekKey,2]); if(tfMin>=240) periods.push(['PM',iso=>iso.slice(0,7),2]);
-    periods.forEach(([tag,keyOf,keep])=>{ const keys=[], idx={}; for(let i=0;i<n;i++){ const k=keyOf(T(i)); if(!(k in idx)){idx[k]={from:i,to:i,h:H(i),l:L(i)};keys.push(k);} else { const o=idx[k]; o.to=i; o.h=Math.max(o.h,H(i)); o.l=Math.min(o.l,L(i)); } }
-      keys.slice(1).slice(-keep).forEach(k=>{ const prev=idx[keys[keys.indexOf(k)-1]], cur=idx[k];
-        [['H',prev.h],['L',prev.l]].forEach(([kind,lv])=>{ let swept=-1,through=-1; for(let q=cur.from;q<=cur.to;q++){ if(kind==='H'){ if(C(q)>lv){through=q;break;} if(H(q)>lv){swept=q;break;} } else { if(C(q)<lv){through=q;break;} if(L(q)<lv){swept=q;break;} } }
-          levels.push({name:tag+kind,level:lv,from:cur.from,to:cur.to,swept,through}); }); }); });
-    const swept=pools.filter(p=>p.swept>=0).sort((a,b)=>b.swept-a.swept).slice(0,4);
-    const keptPools=pools.filter(p=>p.swept<0).concat(swept).sort((a,b)=>a.from-b.from);
-    const keptMss=mss.slice(-4), keptObs=obs.filter(o=>keptMss.some(q=>q.i===o.until)), keptCisd=cisd.slice(-4);
-    return {lo,hi,eq,pct:(lastC-lo)/((hi-lo)||1),drSource,wlo,whi,fvgs:fvgs.slice(-8),pools:keptPools,mss:keptMss,obs:keptObs,cisd:keptCisd,kz,sess,levels,ote,std};
-  }
 
-  // ---------- Wyckoff volume read: rolling mean of the previous P.lookback completed bars (project parameter).
-  function volStats(rows){
-    const n=rows.length, avg=new Array(n).fill(null), ratio=new Array(n).fill(null);
-    for(let i=0;i<n;i++){ const a=Math.max(0,i-P.lookback), k=i-a; if(k<3)continue; let s=0; for(let j=a;j<i;j++)s+=rows[j][5]; avg[i]=s/k; ratio[i]=avg[i]?rows[i][5]/avg[i]:null; }
-    return {avg,ratio};
-  }
-  const idxOf=(rows,iso)=>{ if(!iso)return -1; let best=-1; for(let i=0;i<rows.length;i++){ if(rows[i][6]<=iso)best=i; else break; } return best>=0&&rows[best][6]===iso?best:(best>=0&&rows[best][6].slice(0,13)===iso.slice(0,13)?best:-1); };
-  const spanOf=(rows,iso)=>{ if(!iso)return -1; for(let i=0;i<rows.length;i++){ if(rows[i][6]>=iso)return i; } return rows.length; };
+def js_block(data_json, params_json):
+    """The page's script: the vendored TradingView Lightweight Charts (pinned, inlined — no CDN), then scripts/chart.js,
+    then the data call. See docs/specs/2026-09-12-chart-lightweight-charts-design.md §1."""
+    with open(VENDOR_JS, encoding="utf-8") as f:
+        vendor = f.read()
+    with open(CHART_JS, encoding="utf-8") as f:
+        chart = f.read()
+    return ("<script>\n" + vendor + "\n</script>\n<script>\n" + chart + "\n</script>\n"
+            "<script>TChart.init(" + data_json + ", " + params_json + ");</script>\n")
 
-  const VIEW={};   // per-chart visible slice [a,b) — zoom/pan state survives lane switches
-  function drawChart(svg, full, cfg){
-    const st = VIEW[svg.id] || (VIEW[svg.id]={a:0,b:full.length});
-    const rows = full.slice(st.a, st.b);
-    // fixed geometry in every lane and for both charts: the volume pane is always reserved so the page does not jump
-    const W=1200, padL=70, padR=128, padT=30, padB=22, volH=76, gap=10, priceH=290, H=padT+priceH+gap+volH+padB;
-    svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
-    const plotW=W-padL-padR, n=rows.length;
-    const lo=Math.min(...rows.map(c=>c[3])), hi=Math.max(...rows.map(c=>c[2])), pad=(hi-lo)*0.07;
-    const yMin=lo-pad, yMax=hi+pad;
-    const x=i=>padL+(i+0.5)*(plotW/n), y=v=>padT+priceH*(1-(v-yMin)/(yMax-yMin));
-    const step=plotW/n, bw=Math.max(1.4,Math.min(7,step*0.62));
-    const fmt=cfg.fmt;
-    const ict = lane==='ict' ? ictAnalyze(rows, {kz:cfg.kz, tfMin:cfg.tfMin, market:cfg.market}) : null;
-    let s='';
-    // context window shading (the working window inside the overview)
-    if(cfg.window){ const a=spanOf(rows,cfg.window.from); if(a<n){ s+=`<rect x="${x(a)-step/2}" y="${padT}" width="${(n-a)*step}" height="${priceH}" fill="var(--accent)" opacity="0.10"/>`; s+=`<text class="axis-label" x="${x(a)-step/2+4}" y="${padT+11}" fill="var(--accent)">cửa sổ chính →</text>`; } }
-    if(ict){ ict.kz.forEach(z=>{ s+=`<rect x="${x(z.from)-step/2}" y="${padT}" width="${(z.to-z.from+1)*step}" height="${priceH}" fill="var(--i)" opacity="${z.weight==='full'?0.10:0.06}"/>`; if(!cfg.compact) s+=`<text class="axis-label" x="${x(z.from)-step/2+3}" y="${padT+10}">${z.name}${z.weight==='reduced'?' ½':''}</text>`; });
-      s+=`<rect x="${padL}" y="${y(ict.hi)}" width="${plotW}" height="${Math.max(0,y(ict.eq)-y(ict.hi))}" fill="var(--down)" opacity="0.04"/>`;
-      s+=`<rect x="${padL}" y="${y(ict.eq)}" width="${plotW}" height="${Math.max(0,y(ict.lo)-y(ict.eq))}" fill="var(--up)" opacity="0.04"/>`; }
-    // Wyckoff phase bands (from the full analysis; addressed by time)
-    if(lane==='wyckoff' && cfg.wy && cfg.wy.phases){ let lastLx=-1e9, row=0; cfg.wy.phases.forEach(ph=>{ const a=spanOf(rows,ph.from), b=ph.to?spanOf(rows,ph.to):n; if(a>=n||b<=0)return; const x1=x(Math.max(0,a))-step/2, x2=x(Math.min(n,b)-1)+step/2;
-      s+=`<rect x="${x1}" y="${padT}" width="${Math.max(2,x2-x1)}" height="${priceH}" fill="var(--w)" opacity="0.07"/>`; s+=`<line x1="${x1}" y1="${padT}" x2="${x1}" y2="${padT+priceH}" stroke="var(--w)" stroke-width="1" stroke-dasharray="2,4" opacity=".6"/>`;
-      const lbl=String(ph.label||'').replace(/^(pha|phase)\s*/i,'').slice(0,2); if(!lbl) return; row = (x1-lastLx<18) ? row+1 : 0; lastLx=x1;
-      s+=`<text class="phase-label" x="${x1+4}" y="${padT+12+row*12}">${lbl}</text>`; }); }
-    for(let t=0;t<=4;t++){ const v=yMin+(yMax-yMin)*(t/4), yy=y(v); s+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="var(--line)" stroke-width="1"/>`; s+=`<text class="axis-label" x="${padL-8}" y="${yy+3}" text-anchor="end">${fmt(v)}</text>`; }
-    if(ict){ ict.fvgs.forEach(f=>{ const col=f.type==='bull'?'var(--up)':'var(--down)', x1=x(f.i)-step/2, x2=x(f.end)+step/2; s+=`<rect x="${x1}" y="${y(f.hi)}" width="${Math.max(2,x2-x1)}" height="${Math.max(1,y(f.lo)-y(f.hi))}" fill="${col}" opacity="${f.mitigated?0.14:0.28}" stroke="${col}" stroke-width="0.6"/>`; if(!f.mitigated) s+=`<line x1="${x1}" y1="${y(f.ce)}" x2="${x2}" y2="${y(f.ce)}" stroke="${col}" stroke-width="0.8" stroke-dasharray="2,2" opacity=".8"/>`; });
-      ict.obs.forEach(o=>{ const x1=x(o.i)-step/2, x2=x(o.end)+step/2, op=o.mitigated?0.35:1, top=y(Math.max(o.open,o.close)), bot=y(Math.min(o.open,o.close));
-        s+=`<rect x="${x1}" y="${top}" width="${Math.max(2,x2-x1)}" height="${Math.max(1,bot-top)}" fill="var(--i)" opacity="${0.12*op}"/>`;
-        s+=`<line x1="${x1}" y1="${y(o.open)}" x2="${x2}" y2="${y(o.open)}" stroke="var(--i)" stroke-width="1.4" opacity="${op}"/>`; s+=`<line x1="${x1}" y1="${y(o.mt)}" x2="${x2}" y2="${y(o.mt)}" stroke="var(--i)" stroke-width="0.8" stroke-dasharray="3,3" opacity="${op}"/>`;
-        if(!cfg.compact) s+=`<text class="flag-label flag-i" x="${x1+3}" y="${y(o.open)+(o.type==='bull'?-3:10)}" opacity="${op}">${o.type==='bull'?'+OB':'-OB'} open · 0.5 MT</text>`; });
-      ict.cisd.forEach(c=>{ const col=c.type==='bull'?'var(--up)':'var(--down)', x1=x(c.i)-step/2, x2=c.confirmed>=0?x(c.confirmed):W-padR; s+=`<line x1="${x1}" y1="${y(c.level)}" x2="${x2}" y2="${y(c.level)}" stroke="${col}" stroke-width="1.3" stroke-dasharray="5,2"/>`; if(c.confirmed>=0) s+=`<circle cx="${x(c.confirmed)}" cy="${y(c.level)}" r="2.6" fill="${col}"/>`; if(!cfg.compact) s+=`<text class="flag-label" x="${x1+2}" y="${y(c.level)+(c.type==='bull'?11:-4)}" fill="${col}">CISD${c.confirmed>=0?'':' (chưa đóng qua)'}</text>`; }); }
-    rows.forEach((c,i)=>{ const [t,o,h,l,cl]=c, up=cl>=o, cx=x(i), col=up?'var(--up)':'var(--down)';
-      s+=`<line x1="${cx}" y1="${y(h)}" x2="${cx}" y2="${y(l)}" stroke="${col}" stroke-width="1"/>`;
-      const top=y(Math.max(o,cl)), bot=y(Math.min(o,cl)), bh=Math.max(1,bot-top);
-      s+= up ? `<rect x="${cx-bw/2}" y="${top}" width="${bw}" height="${bh}" fill="var(--surface-2)" stroke="${col}" stroke-width="1.1"/>` : `<rect x="${cx-bw/2}" y="${top}" width="${bw}" height="${bh}" fill="${col}"/>`; });
-    const every=Math.max(1,Math.ceil(n/(cfg.compact?7:9)));
-    rows.forEach((c,i)=>{ if(i%every===0) s+=`<text class="axis-label" x="${x(i)}" y="${H-7}" text-anchor="middle">${c[0]}</text>`; });
-    // named levels (anchors) for this lane
-    (cfg.levels||[]).filter(L=>L.method===lane||L.method==='neutral').forEach(L=>{ if(L.price<yMin||L.price>yMax)return; const a=Math.max(0,spanOf(rows,L.time)); const col=L.method==='neutral'?'var(--muted)':'var(--lane)';
-      s+=`<line x1="${x(a)-step/2}" y1="${y(L.price)}" x2="${W-padR}" y2="${y(L.price)}" stroke="${col}" stroke-width="1.2" stroke-dasharray="6,4"/>`; s+=`<text class="range-label" x="${W-padR+4}" y="${y(L.price)+3}" fill="${col}">${L.short} ${fmt(L.price)}</text>`; });
-    if(lane==='wyckoff'){
-      const wy=cfg.wy||{};
-      if(wy.tr){ const a=Math.max(0,spanOf(rows,wy.tr.from)); const x1=x(a)-step*0.4, x2=W-padR;
-        [[wy.tr.high,wy.tr.high_label||'AR'],[wy.tr.low,wy.tr.low_label||'SC']].forEach(([v,lb])=>{ if(v==null||v<yMin||v>yMax)return; s+=`<line x1="${x1}" y1="${y(v)}" x2="${x2}" y2="${y(v)}" stroke="var(--w)" stroke-width="1.6" stroke-dasharray="5,3"/>`; s+=`<text class="range-label" x="${x2+4}" y="${y(v)+3}" fill="var(--w)">${lb} ${fmt(v)}</text>`; }); }
-      // event flags: stagger labels that would collide (same side, overlapping x extents) by pushing them outward
-      const placed=[]; const evs=(wy.events||[]).map(f=>({f,i:idxOf(rows,f.time)})).filter(o=>o.i>=0).sort((a,b)=>a.i-b.i);
-      evs.forEach(({f,i})=>{ const c=rows[i], cx=x(i), ay=f.up?y(c[2]):y(c[3]); const lbl=cfg.compact?f.label.split(' · ')[0]:f.label; const w=lbl.length*5.8;
-        let lvl=0; for(;;){ const fy=ay+(f.up?-10-lvl*12:15+lvl*12); const clash=placed.some(p=>p.up===!!f.up && Math.abs(p.y-fy)<11 && (cx-w/2)<p.x2 && (cx+w/2)>p.x1); if(!clash||lvl>=4){ placed.push({up:!!f.up,y:fy,x1:cx-w/2,x2:cx+w/2});
-          s+=`<circle cx="${cx}" cy="${ay}" r="3" fill="var(--w)" stroke="var(--surface-2)" stroke-width="1.5"/>`; if(lvl>0) s+=`<line x1="${cx}" y1="${ay}" x2="${cx}" y2="${fy+(f.up?3:-9)}" stroke="var(--w)" stroke-width="0.8" opacity=".7"/>`;
-          const ax = cx+w/2>W-padR ? W-padR-2 : (cx-w/2<padL ? padL+2 : cx); const anchor = ax!==cx ? (ax>cx?'end':'start') : 'middle';
-          s+=`<text class="flag-label" x="${ax}" y="${fy}" text-anchor="${anchor}">${lbl}</text>`; break; } lvl++; } });
-      // now marker
-      const li=n-1; s+=`<circle cx="${x(li)}" cy="${y(rows[li][4])}" r="3" fill="var(--ink)" stroke="var(--surface-2)" stroke-width="1.5"/>`;
-      // volume pane
-      const vsFull=volStats(full), vs={avg:vsFull.avg.slice(st.a,st.b), ratio:vsFull.ratio.slice(st.a,st.b)}, vTop=padT+priceH+gap, vMax=Math.max(...rows.map(r=>r[5]))||1, vy=v=>vTop+volH*(1-v/vMax);
-      s+=`<line x1="${padL}" y1="${vTop+volH}" x2="${W-padR}" y2="${vTop+volH}" stroke="var(--line)"/>`;
-      rows.forEach((c,i)=>{ const r=vs.ratio[i], up=c[4]>=c[1]; const col = r!=null&&r>=P.high ? 'var(--w)' : (up?'var(--up)':'var(--down)'); const op = r!=null&&r>=P.high ? (r>=P.spike?1:0.85) : 0.42;
-        s+=`<rect x="${x(i)-bw/2}" y="${vy(c[5])}" width="${bw}" height="${Math.max(0.5,vTop+volH-vy(c[5]))}" fill="${col}" opacity="${op}"/>`; });
-      if(!cfg.compact){ const spikes=rows.map((c,i)=>({i,r:vs.ratio[i]})).filter(o=>o.r!=null&&o.r>=P.spike).sort((a,b)=>b.r-a.r), gapN=Math.ceil(n/40), labeled=[];
-        spikes.forEach(o=>{ if(labeled.some(j=>Math.abs(j-o.i)<gapN))return; labeled.push(o.i); s+=`<text class="axis-label" x="${x(o.i)}" y="${vy(rows[o.i][5])-3}" text-anchor="middle" fill="var(--w)">${o.r.toFixed(1)}×</text>`; }); }
-      let path='', started=false; rows.forEach((c,i)=>{ if(vs.avg[i]==null)return; path+=(started?'L':'M')+x(i).toFixed(1)+','+vy(vs.avg[i]).toFixed(1); started=true; });
-      if(path) s+=`<path d="${path}" fill="none" stroke="var(--ink-2)" stroke-width="1.2" opacity=".8"/>`;
-      s+=`<text class="axis-label" x="${padL-8}" y="${vTop+9}" text-anchor="end">KL</text>`; s+=`<text class="axis-label" x="${padL-8}" y="${vTop+volH}" text-anchor="end">0</text>`;
-      if(!cfg.compact) s+=`<text class="axis-label" x="${W-padR+4}" y="${vTop+10}">TB ${P.lookback} nến</text>`;
-    } else if(ict){
-      const vTop=padT+priceH+gap; s+=`<line x1="${padL}" y1="${vTop+volH}" x2="${W-padR}" y2="${vTop+volH}" stroke="var(--line)"/>`; s+=`<text class="axis-label" x="${padL}" y="${vTop+volH/2+3}">khối lượng không thuộc ICT — pane để trống để chart giữ nguyên kích thước khi đổi phương pháp</text>`;
-      const xr=W-padR; s+=`<line x1="${padL}" y1="${y(ict.eq)}" x2="${xr}" y2="${y(ict.eq)}" stroke="var(--i)" stroke-width="1.4" stroke-dasharray="6,4"/>`;
-      s+=`<text class="range-label" x="${xr+4}" y="${y(ict.eq)+3}" fill="var(--i)">EQ ${fmt(ict.eq)}</text>`; s+=`<text class="axis-label" x="${xr+4}" y="${y(ict.hi)+10}">premium${ict.drSource==='window'?' (biên cửa sổ)':ict.drSource==='mixed'?' (1 biên = cửa sổ)':' (BSL↔SSL)'}</text>`; s+=`<text class="axis-label" x="${xr+4}" y="${y(ict.lo)-4}">discount</text>`;
-      ict.pools.forEach(p=>{ const isHigh=p.kind==='BSL'||p.kind==='ERL-high'||p.kind==='OLD-H', col=isHigh?'var(--down)':'var(--up)', x1=x(p.from), x2=x(p.to), old=p.kind.startsWith('OLD');
-        s+=`<line x1="${x1}" y1="${y(p.level)}" x2="${x2}" y2="${y(p.level)}" stroke="${col}" stroke-width="${old?0.9:1.2}" stroke-dasharray="2,3"/>`; if(!cfg.compact) s+=`<text class="axis-label" x="${x1}" y="${y(p.level)+(isHigh?-4:10)}" fill="${col}">${p.kind==='ERL-high'?'ERL (BSL)':p.kind==='ERL-low'?'ERL (SSL)':p.kind==='OLD-H'?'old high (BSL)':p.kind==='OLD-L'?'old low (SSL)':p.kind}</text>`;
-        if(p.swept>=0){ s+=`<path d="M${x(p.swept)-4},${y(p.level)-4} l8,8 M${x(p.swept)+4},${y(p.level)-4} l-8,8" stroke="${col}" stroke-width="1.8"/>`; } });
-      // previous-period and session levels (PDH/PDL/PWH/PWL/PMH/PML; ASIA/LDN H/L): × = wick through + close back (failure to displace), ✓ = body close through
-      const lvlLine=(v,name,from,to,swept,through,col)=>{ if(v<yMin||v>yMax)return; const x1=x(from)-step/2, x2=x(Math.min(n-1,to))+step/2; s+=`<line x1="${x1}" y1="${y(v)}" x2="${x2}" y2="${y(v)}" stroke="${col}" stroke-width="1" stroke-dasharray="7,3" opacity=".85"/>`; if(!cfg.compact) s+=`<text class="axis-label" x="${x1+2}" y="${y(v)-3}" fill="${col}">${name}</text>`;
-        if(swept>=0) s+=`<path d="M${x(swept)-3.5},${y(v)-3.5} l7,7 M${x(swept)+3.5},${y(v)-3.5} l-7,7" stroke="${col}" stroke-width="1.6"/>`; else if(through>=0) s+=`<path d="M${x(through)-4},${y(v)} l3,3 l5,-6" fill="none" stroke="${col}" stroke-width="1.6"/>`; };
-      ict.levels.forEach(l=>lvlLine(l.level,l.name,l.from,l.to,l.swept,l.through,'var(--ink-2)'));
-      ict.sess.forEach(l=>lvlLine(l.level,l.name,l.from,l.to,l.swept,l.through,'var(--muted)'));
-      ict.mss.forEach(m=>{ const cx=x(m.i), col=m.type==='bull'?'var(--up)':'var(--down)'; s+=`<line x1="${cx}" y1="${y(m.level)}" x2="${cx}" y2="${y(rows[m.i][4])}" stroke="${col}" stroke-width="${m.disp?2:1}" ${m.disp?'':'stroke-dasharray="3,2"'}/>`; if(!cfg.compact) s+=`<text class="flag-label" x="${cx}" y="${m.type==='bull'?y(rows[m.i][4])-6:y(rows[m.i][4])+14}" text-anchor="middle" fill="${col}">${m.disp?'MSS':'đóng qua swing, thiếu displacement'}${m.type==='bull'?'↑':'↓'}</text>`; });
-      // OTE band on the impulse after the latest live MSS; std-dev projections of its manipulation leg
-      if(ict.ote){ const col=ict.ote.type==='bull'?'var(--up)':'var(--down)', x1=x(ict.ote.from); ict.ote.levels.forEach(l=>{ if(l.price<yMin||l.price>yMax)return; s+=`<line x1="${x1}" y1="${y(l.price)}" x2="${xr}" y2="${y(l.price)}" stroke="${col}" stroke-width="${l.r===0.705?1.4:0.8}" stroke-dasharray="1,3"/>`; if(!cfg.compact) s+=`<text class="axis-label" x="${x1+3}" y="${y(l.price)-2}" fill="${col}">OTE ${l.r}</text>`; }); }
-      if(ict.std){ const col='var(--i)', x1=x(ict.std.from); ict.std.levels.forEach(l=>{ if(l.price<yMin||l.price>yMax)return; s+=`<line x1="${x1}" y1="${y(l.price)}" x2="${xr}" y2="${y(l.price)}" stroke="${col}" stroke-width="0.9" stroke-dasharray="8,3,2,3"/>`; s+=`<text class="range-label" x="${xr+4}" y="${y(l.price)+3}" fill="${col}">−${l.k}σ ${fmt(l.price)}</text>`; }); }
-      if(!cfg.compact) ict.fvgs.filter(f=>!f.mitigated).sort((a,b)=>b.size-a.size).slice(0,2).forEach(f=>{ s+=`<text class="axis-label" x="${x(f.i)+step}" y="${(y(f.hi)+y(f.lo))/2+3}" fill="${f.type==='bull'?'var(--up)':'var(--down)'}">FVG</text>`; });
-      const li=n-1; s+=`<circle cx="${x(li)}" cy="${y(rows[li][4])}" r="3" fill="var(--ink)" stroke="var(--surface-2)" stroke-width="1.5"/>`; s+=`<text class="flag-label" x="${x(li)-6}" y="${y(rows[li][4])-10}" text-anchor="end">now ${(ict.pct*100).toFixed(0)}%</text>`;
-    }
-    s+=`<line id="${svg.id}-xh" x1="0" y1="${padT}" x2="0" y2="${padT+priceH+gap+volH}" stroke="var(--ink)" stroke-width="1" opacity="0" stroke-dasharray="3,3"/>`;
-    svg.innerHTML=s;
-    // hover: crosshair + tooltip (index from pointer x in viewBox units)
-    const wrap=svg.parentElement, tip=wrap.querySelector('.tip'), xh=svg.querySelector('#'+svg.id+'-xh'), vsF=volStats(full), vs={ratio:vsF.ratio.slice(st.a,st.b)};
-    svg.onmousemove=e=>{ const r=svg.getBoundingClientRect(), vx=(e.clientX-r.left)/r.width*W; let i=Math.floor((vx-padL)/step); if(i<0||i>=n){tip.style.display='none';xh.setAttribute('opacity','0');return;}
-      const c=rows[i], up=c[4]>=c[1], ratio=vs.ratio[i]; xh.setAttribute('x1',x(i)); xh.setAttribute('x2',x(i)); xh.setAttribute('opacity','0.5');
-      let t=`<div class="t">${c[6].slice(5,16).replace('T',' ')}Z</div><div>O ${fmt(c[1])} · H ${fmt(c[2])} · L ${fmt(c[3])}</div><div class="${up?'u':'d'}">C ${fmt(c[4])} (${((c[4]-c[1])/c[1]*100).toFixed(2)}%)</div>`;
-      if(lane==='wyckoff') t+=`<div>KL ${c[5].toLocaleString('en-US',{maximumFractionDigits:2})}${ratio!=null?` · ${ratio.toFixed(2)}× TB`:''}</div>`;
-      if(ict) t+=`<div class="t">${((c[4]-ict.lo)/(ict.hi-ict.lo)*100).toFixed(0)}% dealing range</div>`;
-      tip.innerHTML=t; tip.style.display='block'; const px=e.clientX-r.left; tip.style.left=(px>r.width*0.65?px-tip.offsetWidth-14:px+14)+'px'; tip.style.top=(e.clientY-r.top+12)+'px'; };
-    svg.onmouseleave=()=>{ tip.style.display='none'; xh.setAttribute('opacity','0'); if(drag){drag=null;} };
-    // zoom (wheel, buttons) and pan (drag) on the visible slice; min 30 bars
-    const N=full.length, setView=(a,b)=>{ a=Math.max(0,Math.round(a)); b=Math.min(N,Math.round(b)); if(b-a<30){ const c=(a+b)/2; a=Math.max(0,Math.round(c-15)); b=Math.min(N,a+30); a=b-30; } st.a=a; st.b=b; drawChart(svg, full, cfg); };
-    svg.onwheel=e=>{ e.preventDefault(); const r=svg.getBoundingClientRect(), vx=(e.clientX-r.left)/r.width*W, i=st.a+Math.max(0,Math.min(n-1,Math.floor((vx-padL)/step))); const f=e.deltaY<0?1/1.25:1.25; setView(i-(i-st.a)*f, i+(st.b-i)*f); };
-    let drag=null; svg.onmousedown=e=>{ drag={x:e.clientX,a:st.a,b:st.b}; e.preventDefault(); };
-    svg.onmouseup=()=>{ drag=null; };
-    const prevMove=svg.onmousemove; svg.onmousemove=e=>{ if(drag){ const r=svg.getBoundingClientRect(), dx=(e.clientX-drag.x)/r.width*W, di=Math.round(-dx/step); let a=drag.a+di, b=drag.b+di; if(a<0){b-=a;a=0;} if(b>N){a-=b-N;b=N;} if(a!==st.a){ st.a=a; st.b=b; drawChart(svg, full, cfg); } return; } prevMove(e); };
-    const ctl=wrap.parentElement.querySelector('.zoom'); if(ctl && !ctl.dataset.wired){ ctl.dataset.wired='1';
-      ctl.querySelector('[data-z="in"]').onclick=()=>{ const c=(st.a+st.b)/2, h=(st.b-st.a)/2/1.25; setView(c-h,c+h); };
-      ctl.querySelector('[data-z="out"]').onclick=()=>{ const c=(st.a+st.b)/2, h=(st.b-st.a)/2*1.25; setView(c-h,c+h); };
-      ctl.querySelector('[data-z="reset"]').onclick=()=>setView(0,N); }
-  }
-
-  function render(){
-    document.body.dataset.lane=lane;
-    document.querySelectorAll('.lane-btn').forEach(b=>b.classList.toggle('active',b.dataset.lane===lane));
-    for(const key in DATA){ const d=DATA[key];
-      const drawn = lane==='wyckoff'||lane==='ict';
-      ['ctx','main'].forEach(which=>{ const rows=which==='ctx'?d.ctx:d.rows; if(!rows)return; const block=document.getElementById(`${which}-${key}`); const wrap=block.querySelector('.chart-wrap'), st=block.querySelector('.lane-status'), svg=block.querySelector('svg');
-        wrap.hidden=!drawn; st.hidden=drawn; if(!drawn){ st.innerHTML=`<span class="lane-dot"></span><span><b>${lane==='footprint'?'Footprint':'Heatmap'}</b> — ${d.dims[lane]}</span>`; return; }
-        const wy = which==='ctx' ? (d.ctxWy||{}) : (d.wy||{});
-        drawChart(svg, rows, {fmt:fmtOf(d.fmt), compact:which==='ctx', kz:which==='ctx'?d.ctxKz:d.kz, tfMin:which==='ctx'?d.ctxTfMin:d.tfMin, market:d.market, wy, levels:which==='ctx'?[]:d.levels, window:which==='ctx'?{from:d.rows[0][6]}:null}); });
-      const leg=document.getElementById(`legend-${key}`); leg.hidden=!drawn; if(drawn){ leg.innerHTML = lane==='wyckoff'
-        ? `<span><i class="sw up"></i>nến đóng tăng</span><span><i class="sw down"></i>nến đóng giảm</span><span><i class="sw vol"></i>khối lượng${d.tick?' (tick, MT5)':''}</span><span><i class="sw volhi"></i>KL ≥ ${P.high}× TB ${P.lookback} nến (≥ ${P.spike}× ghi số)</span><span><i class="sw tr"></i>biên vùng giao dịch (AR / SC)</span><span><i class="sw ph"></i>pha A–E</span><span>● sự kiện Wyckoff do phân tích đầy đủ đặt</span>`
-        : `<span><i class="sw fvgb"></i>FVG tăng</span><span><i class="sw fvgs"></i>FVG giảm (nét chấm = CE 0.5)</span><span><i class="sw ob"></i>OB: đường open + 0.5 mean threshold (mờ = đã chạm open)</span><span><i class="sw liq"></i>BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)</span><span><i class="sw lvl"></i>PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)</span><span><i class="sw eq"></i>EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới</span><span><i class="sw cisd"></i>CISD (● = nến đóng qua)</span>${d.kz?'<span><i class="sw kz"></i>killzone LDN / NY AM / NY PM theo session-model (½ = trọng số giảm)</span>':'<span>killzone: không vẽ ở khung này</span>'}<span>MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement</span><span>OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực</span><span class="muted">ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)</span>`; }
-    }
-  }
-  window.setLane=l=>{ lane=l; render(); };
-  document.addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT')return; const k={'1':'wyckoff','2':'ict','3':'footprint','4':'heatmap'}[e.key]; if(k) setLane(k); });
-  render();
-})();
-</script>
-"""
 
 
 # ----------------------------------------------------------------------------------------------- assembly
@@ -748,19 +640,26 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
     src_notes = []
     for sym, key, disp, kind in S["syms"]:
         rows, upd, src = candles(sym, S["tf"], S["n"], snap)
-        ctx = None
-        if S["ctx"]:
+        note = f"{sym} {S['tf']}: {src or '?'} · cập nhật {upd or '?'}"
+        # tiers above the working window (docs/architecture/timeframe-mapping.md; automation.TIERS is the table)
+        tier_rows = {}
+        for tname in ("bias", "structure"):
+            t = S["tiers"].get(tname)
+            if not t:
+                continue
             try:
-                ctx, cupd, csrc = candles(sym, S["ctx"][0], S["ctx"][1], snap)
+                trows, tupd, _ = candles(sym, t["tf"], t["n"], snap)
             except FileNotFoundError:
-                ctx = None
-        src_notes.append(f"{sym} {S['tf']}: {src or '?'} · cập nhật {upd or '?'}" + (f" · bối cảnh {S['ctx'][0]} cập nhật {cupd or '?'}" if ctx else ""))
+                continue
+            tier_rows[tname] = trows
+            note += f" · {TIER_NAME[tname].lower()} {t['tf']} cập nhật {tupd or '?'}"
+        src_notes.append(note)
         fsym = (facts.get("symbols") or {}).get(sym)
         l1 = layer1(sym, fsym, kind, S["tf"]) if fsym else None
         l2 = layer2(style, sym)
         n3 = ((narrative or {}).get("symbols") or {}).get(sym)
         if n3:
-            n3["_updated"] = when((narrative or {}).get("updated"))
+            n3["_updated"] = when((narrative or {}).get("updated")); n3["_updated_iso"] = (narrative or {}).get("updated")
         dims = {}
         for m in ("footprint", "heatmap"):
             flag = dim_flags.get(m)
@@ -788,51 +687,52 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
         for L in ((anchors.get("symbols") or {}).get(sym) or {}).get("levels", []):
             m = anchor_method(L)
             levels.append(dict(price=L["price"], time=L.get("time"), method=("neutral" if m in ("mixed", "neutral") else m), short=esc((L.get("short") or L.get("name", "")).replace("_", " ")[:14])))
-        wy = (n3 or {}).get("wyckoff") or {}
-        tr = wy.get("trading_range") or None
-        wy_js = dict(tr=(dict(high=tr.get("high"), low=tr.get("low"), high_label=tr.get("high_label", "AR"), low_label=tr.get("low_label", "SC"), from_=tr.get("from")) if tr else None),
-                     events=[dict(time=e.get("time"), label=e.get("label", ""), up=bool(e.get("up"))) for e in wy.get("events", [])],
-                     phases=[dict(**{"from": p.get("from"), "to": p.get("to")}, label=p.get("label", "")) for p in wy.get("phases", [])])
-        if wy_js["tr"]:
-            wy_js["tr"]["from"] = wy_js["tr"].pop("from_")
-        cwy = ((n3 or {}).get("context") or {}).get("wyckoff") or {}
-        reuse = CTX_REUSE.get(style)
-        if reuse and not cwy.get("events"):
-            rn = ((read_json(f"{ROOT}/data/live/narrative/{reuse}.json") or {}).get("symbols") or {}).get(sym) or {}
-            if rn.get("wyckoff"):
-                cwy = {**rn["wyckoff"], "text_html": cwy.get("text_html") or f'<p class="muted">Cấu trúc bối cảnh lấy từ phân tích đầy đủ của trang {reuse} (cùng cửa sổ nến) — hai trang không bao giờ đọc khác nhau trên cùng một chuỗi nến.</p>'}
-        ctr = cwy.get("trading_range") or None
-        ctx_wy = dict(tr=(dict(high=ctr.get("high"), low=ctr.get("low"), high_label=ctr.get("high_label", "AR"), low_label=ctr.get("low_label", "SC")) | {"from": ctr.get("from")} if ctr else None),
-                      events=[dict(time=e.get("time"), label=e.get("label", ""), up=bool(e.get("up"))) for e in cwy.get("events", [])],
-                      phases=[{"from": p.get("from"), "to": p.get("to"), "label": p.get("label", "")} for p in cwy.get("phases", [])])
-        ctx_tf = S["ctx"][0] if S["ctx"] else None
-        data_js[key] = dict(fmt=kind, kz=S["kz"], ctxKz=(ctx_tf in ("15m", "1H")), tfMin=TF_MIN.get(S["tf"], 0), ctxTfMin=TF_MIN.get(ctx_tf, 0), tick=(sym in MT5),
-                            market=("metals" if sym in ("XAUUSD", "XAGUSD") else "oil" if sym in MT5 else "crypto"), wy=wy_js, ctxWy=ctx_wy, levels=levels,
-                            dims={m: dims[m]["reason"] for m in dims}, rows="__ROWS__" + key, ctx=("__CTX__" + key) if ctx else None)
-        rows_store[key] = (rows_js(rows, S["lbl"]), rows_js(ctx, S["ctx"][2]) if ctx else "null")
-        # section html
+        wy_js = wy_json((n3 or {}).get("wyckoff"))
+        # Wyckoff overlay per tier: the tier style's own full analysis (one read per candle series, two pages never disagree);
+        # the gate tier falls back to this style's narrative.context when that style has no page yet
+        gate_style, gate_name = _auto.gate_style(style)
+        tier_ctx = {tn: htf.load_tier(style, tn, sym) for tn in ("bias", "structure")}
+        tier_wy = {}
+        for tname in tier_rows:
+            t = S["tiers"][tname]; twy = {}
+            if t["style"]:
+                twy = (((read_json(f"{ROOT}/data/live/narrative/{t['style']}.json") or {}).get("symbols") or {}).get(sym) or {}).get("wyckoff") or {}
+            if not twy.get("events") and tname == gate_name:
+                twy = ((n3 or {}).get("context") or {}).get("wyckoff") or {}
+            tier_wy[tname] = wy_json(twy)
+        tiers_js = []
+        for tname in ("bias", "structure"):
+            if tname in tier_rows:
+                t = S["tiers"][tname]
+                tiers_js.append(dict(key=tname, tf=t["tf"], kz=(t["tf"] in ("15m", "1H")), tfMin=TF_MIN.get(t["tf"], 0), wy=tier_wy[tname], levels=[], compact=True, rows="__ROWS__" + key + tname))
+        tiers_js.append(dict(key="entry", tf=S["tf"], kz=S["kz"], tfMin=TF_MIN.get(S["tf"], 0), wy=wy_js, levels=levels, compact=False, rows="__ROWS__" + key + "entry"))
+        data_js[key] = dict(fmt=kind, tick=(sym in MT5), market=("metals" if sym in ("XAUUSD", "XAGUSD") else "oil" if sym in MT5 else "crypto"),
+                            dims={m: dims[m]["reason"] for m in dims}, tiers=tiers_js, plans=trade_plans(sym), invalidation=(n3 or {}).get("invalidation"))
+        rows_store[key] = {**{tn: rows_js(tier_rows[tn], S["tiers"][tn]["lbl"]) for tn in tier_rows}, "entry": rows_js(rows, S["lbl"])}
+        # section html: header (one price, one verdict), the ladder (three tiers, both methods), three charts top-down
         lo, hi = min(r["low"] for r in rows), max(r["high"] for r in rows); last = rows[-1]["close"]
         pct = (last - lo) / (hi - lo) if hi > lo else 0
         cur_verdict = (l2 or {}).get("verdict") or (l1 or {}).get("verdict") or "—"
-        cx = (fsym or {}).get("context") or {}
-        bias_chip = ""
-        if cx:
-            bcls = {"long": "long", "short": "short", "neutral": "wait", "unknown": "wait"}.get(cx.get("bias"), "wait")
-            bias_chip = f'<span class="lbl">bối cảnh {esc(cx.get("tf"))}</span><span class="chip chip-{bcls}" title="{esc(cx.get("basis", ""))}">{esc(cx.get("bias", "?").upper())}</span>'
-        rule_verdict = (l1 or {}).get("verdict")
         status_chips.append(f'<span class="st"><span class="mono">{disp.split("/")[0]}</span>{chip(cur_verdict)}</span>')
         head = (f'<div class="sym-head"><div class="sym-name">{disp}</div><div class="sym-last">{fmtn(last, kind)}</div>'
-                f'<div class="sym-kv"><span>biên độ cửa sổ <b>{fmtn(lo, kind)}–{fmtn(hi, kind)}</b></span><span>vị trí <b>{pct * 100:.0f}%</b></span><span>nến cuối <b>{when(rows[-1]["time"])}</b></span></div>'
-                f'<div class="sym-verdict">{bias_chip}<span class="lbl">cục bộ</span>{chip(cur_verdict, "chip-lg")}' + (f'<span class="lbl">luật</span>{chip(rule_verdict)}' if rule_verdict else "") + '</div></div>')
-        ctx_html = ""
-        if ctx:
-            ctx_note = (cwy.get("text_html") or "")
-            ctx_html = (f'<div class="chart-block" id="ctx-{key}"><div class="chart-title"><span><b>Bối cảnh</b> · {S["ctx_h"]} · {label(ctx[0]["time"], S["ctx"][2])} → {label(ctx[-1]["time"], S["ctx"][2])}</span><span class="zoom"><span class="muted">vùng tô = cửa sổ chính</span><button data-z="out" title="thu nhỏ">−</button><button data-z="in" title="phóng to">+</button><button data-z="reset" title="toàn bộ cửa sổ">⟲</button></span></div>'
-                        f'<div class="chart-wrap"><svg class="chart" id="chart-ctx-{key}"></svg><div class="tip"></div></div><div class="lane-status" hidden></div></div>')
-        main_html = (f'<div class="chart-block" id="main-{key}"><div class="chart-title"><span><b>Cửa sổ chính</b> · {S["horizon"]} · {label(rows[0]["time"], S["lbl"])} → {label(rows[-1]["time"], S["lbl"])}</span><span class="zoom"><span class="muted">lăn chuột = zoom · kéo = dịch · phím 1–4 đổi phương pháp</span><button data-z="out" title="thu nhỏ">−</button><button data-z="in" title="phóng to">+</button><button data-z="reset" title="toàn bộ cửa sổ">⟲</button></span></div>'
-                     f'<div class="chart-wrap"><svg class="chart" id="chart-main-{key}"></svg><div class="tip"></div></div><div class="lane-status" hidden></div></div>')
+                f'<div class="sym-kv"><span>vị trí trong cửa sổ {S["tf"]} <b>{pct * 100:.0f}%</b></span><span>nến cuối <b>{when(rows[-1]["time"])}</b></span></div>'
+                f'<div class="sym-verdict"><span class="lbl">vào lệnh {S["tf"]}</span>{chip(cur_verdict, "chip-lg")}</div></div>')
+        ladder_html = ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name)
+        charts_html = ""
+        for tname in ("bias", "structure"):
+            t = S["tiers"].get(tname)
+            if not t:
+                continue
+            if tname not in tier_rows:
+                charts_html += f'<div class="chart-block chart-missing"><div class="chart-title"><span><b>{TIER_NAME[tname]}</b> · {t["horizon"]}</span></div><div class="lane-status">chưa có nến {t["tf"]} cho {disp} — khung này chưa được lấy</div></div>'
+                continue
+            trows = tier_rows[tname]
+            charts_html += (f'<div class="chart-block" id="{tname}-{key}"><div class="chart-title"><span><b>{TIER_NAME[tname]}</b> · {t["horizon"]} · {label(trows[0]["time"], t["lbl"])} → {label(trows[-1]["time"], t["lbl"])}</span><span class="zoom"><span class="muted">vùng tô = cửa sổ vào lệnh</span><button data-z="out" title="thu nhỏ">−</button><button data-z="in" title="phóng to">+</button><button data-z="reset" title="toàn bộ cửa sổ">⟲</button></span></div>'
+                            f'<div class="chart-wrap"><div class="chart" id="chart-{tname}-{key}"></div><div class="tip"></div></div><div class="mode-status" hidden></div><div class="lane-status" hidden></div></div>')
+        charts_html += (f'<div class="chart-block" id="entry-{key}"><div class="chart-title"><span><b>Vào lệnh</b> · {S["horizon"]} · {label(rows[0]["time"], S["lbl"])} → {label(rows[-1]["time"], S["lbl"])}</span><span class="zoom"><span class="muted">lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–4 đổi phương pháp</span><button data-z="out" title="thu nhỏ">−</button><button data-z="in" title="phóng to">+</button><button data-z="reset" title="toàn bộ cửa sổ">⟲</button><button data-z="ruler" class="wide" title="thước R:R (phím R)">R:R</button><button data-z="replay" class="wide" title="bar replay (phím P)">▶</button></span></div>'
+                        f'<div class="chart-wrap"><div class="chart" id="chart-entry-{key}"></div><div class="tip"></div></div><div class="mode-status" hidden></div><div class="lane-status" hidden></div></div>')
         legend = f'<div class="legend" id="legend-{key}"></div>'
-        sections.append(f'<section class="symbol" id="sec-{key}">{head}<div class="charts">{ctx_html}{main_html}{legend}</div>{matrix(key, kind, l1, l2, n3, dims)}{timeline((n3 or {}).get("timeline"))}</section>')
+        sections.append(f'<section class="symbol" id="sec-{key}">{head}{ladder_html}<div class="charts">{charts_html}{legend}</div>{matrix(key, kind, l1, l2, n3, dims)}{timeline((n3 or {}).get("timeline"))}</section>')
 
     if purity:
         print("PURITY VIOLATIONS (one method, one vocabulary):", file=sys.stderr)
@@ -846,12 +746,22 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
 
     # meta strip
     wf, wl = meta.get("window_first"), meta.get("window_last")
-    engaged = ["Wyckoff", "ICT"] + [dict(LANES)[m] for m in ("footprint", "heatmap") if any(True for _ in [0]) and dim_flags.get(m) and False]
     headline = (narrative or {}).get("headline") or {}
+    tfmin = lambda tf: TF_MIN.get(tf, 0)
+    steps = []
+    for tname in ("bias", "structure"):
+        t = S["tiers"].get(tname)
+        below = (S["tiers"]["structure"]["tf"] if (tname == "bias" and S["tiers"].get("structure")) else S["tf"])
+        if t:
+            r = f' <span class="ld-ratio">×{tfmin(t["tf"]) / tfmin(below):g}</span>' if tfmin(t["tf"]) and tfmin(below) else ""
+            steps.append(f'<span class="ld-step">{TIER_NAME[tname]} <b>{t["tf"]}</b>{r}{"" if t["style"] else " <span class=\"muted\">(chỉ chart)</span>"}</span>')
+        else:
+            steps.append(f'<span class="ld-step muted">{TIER_NAME[tname]} —</span>')
+    steps.append(f'<span class="ld-step">Vào lệnh <b>{S["tf"]}</b></span>')
+    _, gate_name = _auto.gate_style(style)
+    gate_note = f'tầng quyết định verdict: {TIER_NAME[gate_name]}' if gate_name else 'không có tầng quyết định verdict (chưa quét khung chậm hơn)'
     meta_html = ('<div class="meta">'
-                 f'<div><div class="meta-l">Cửa sổ chính</div><div class="meta-v">{S["horizon"]}</div><div class="meta-d">{when(wf)} – {when(wl)}</div></div>'
-                 + (f'<div><div class="meta-l">Bối cảnh</div><div class="meta-v">{S["ctx_h"]}</div><div class="meta-d">chart trên, vùng tô = cửa sổ chính</div></div>' if S["ctx"] else "")
-                 + f'<div><div class="meta-l">Chế độ</div><div class="meta-v">{esc(mode)}</div><div class="meta-d">{" + ".join(engaged)} · Footprint/Heatmap: không có nguồn live</div></div>'
+                 f'<div class="meta-ladder"><div class="meta-l">Thang khung · đọc từ trên xuống</div><div class="meta-v">{" <span class=\"ld-arrow\">→</span> ".join(steps)}</div><div class="meta-d">{gate_note} · bias không tạo ở khung vào lệnh · liền kề ≥ ×4 (timeframe-mapping.md)</div></div>'
                  + f'<div><div class="meta-l">Sự kiện chính (phân tích đầy đủ gần nhất)</div><div class="meta-v">{headline.get("text", "—")}</div><div class="meta-d">{headline.get("detail", "")}</div></div>'
                  + f'<div><div class="meta-l">Trạng thái (cục bộ)</div><div class="meta-v">{" ".join(status_chips)}</div><div class="meta-d">dữ liệu tới {hhmm(wl)} UTC</div></div>'
                  '</div>')
@@ -860,20 +770,24 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
     top = (f'<div class="topbar"><div class="topbar-in"><div class="brand"><div class="brand-title">{esc(S["name"])}</div><div class="brand-sub">{S["horizon"]} · dữ liệu tới {hhmm(wl)} UTC</div></div>'
            f'<nav class="symnav">{symnav}</nav><div class="lanes" role="group" aria-label="Phương pháp">{lane_btns}</div></div></div>')
     lede = (f'<div class="lede"><div><p class="eyebrow">{"MT5 bridge (tick volume)" if market == "cfd" else "Binance public REST"} · {S["horizon"]} · phân tích, không phải tín hiệu</p><h1>{esc(S["name"])}</h1>'
-            '<p>Mỗi phương pháp đọc bằng đúng ngôn ngữ của nó — Wyckoff (giá + khối lượng), ICT (cấu trúc giá), Footprint và Heatmap khi có dữ liệu — rồi mới tổng hợp. Ba lớp đọc: sơ bộ (máy quét), cục bộ (Sonnet, theo sự kiện), toàn diện (hàng ngày).</p></div>'
+            '<p>Ba tầng khung cho mỗi mã — Bias → Cấu trúc → Vào lệnh — đọc bằng Wyckoff (giá + khối lượng) và ICT (cấu trúc giá) riêng rẽ, rồi tổng hợp.</p></div>'
             '<div class="disclaimer">KHÔNG PHẢI TÍN HIỆU GIAO DỊCH · chỉ nghiên cứu</div></div>')
     built = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     footer = (f'<footer><b>Nguồn dữ liệu</b>: {" · ".join(esc(x) for x in src_notes)}<br>'
               f'<b>Lớp 1</b> scanner {esc(facts.get("scanned_at", "—"))} · <b>Lớp 3</b> {esc((narrative or {}).get("updated", "chưa có"))} · <b>trang dựng</b> {built} bởi scripts/build-artifact.py ({style})<br>'
-              '<b>Luật</b>: số liệu từ code (SYSTEM-DESIGN §13); mỗi khối phương pháp qua scripts/method_purity.py; Footprint lấy Wyckoff làm nền. Tham số khối lượng: docs/architecture/analysis-params.json (tham số dự án, không phải trích dẫn sách).</footer>')
+              f'<b>Chế độ</b> {esc(mode)}: Wyckoff + ICT · Footprint/Heatmap: không có nguồn live · <b>Lớp đọc</b>: sơ bộ (máy quét), cục bộ (Sonnet, theo sự kiện), toàn diện (hàng ngày)<br>'
+              '<b>Luật</b>: số liệu từ code (SYSTEM-DESIGN §13); mỗi khối phương pháp qua scripts/method_purity.py; Footprint lấy Wyckoff làm nền. Scanner: pivot 3 nến, dung sai đỉnh/đáy bằng nhau 0,08%, FVG ≥ 0,6× biên độ trung vị; ngưỡng khối lượng: docs/architecture/analysis-params.json (tham số dự án, không phải trích dẫn sách).<br>'
+              'Chart: TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. · <a href="https://www.tradingview.com/" rel="noopener">tradingview.com</a> · Apache-2.0 (scripts/vendor/NOTICE-lightweight-charts.txt)'
+              '</footer>')
 
     data_json = json.dumps(data_js, ensure_ascii=False)
     for _, key, _, _ in S["syms"]:
-        data_json = data_json.replace(f'"__ROWS__{key}"', rows_store[key][0]).replace(f'"__CTX__{key}"', rows_store[key][1])
+        for tn, js in rows_store[key].items():
+            data_json = data_json.replace(f'"__ROWS__{key}{tn}"', js)
     page = ('<title>' + esc(S["name"]) + '</title>\n'
             + theme.FONTS + '\n'
             + CSS.replace('__TOKENS__', theme.TOKENS) + top + '<div class="page">' + lede + meta_html + "".join(sections) + glossary() + footer + '</div>\n'
-            + JS.replace("__DATA__", data_json).replace("__PARAMS__", json.dumps(P)))
+            + js_block(data_json, json.dumps(P)))
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         f.write(page)

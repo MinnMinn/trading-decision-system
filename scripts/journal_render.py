@@ -72,31 +72,57 @@ def pilot_activity(now):
 
 
 def r_curve(closed):
-    """Cumulative-R SVG (one series → no legend; endpoint emphasised) or an empty state."""
+    """Cumulative-R chart (TradingView Lightweight Charts, same vendored build as the chart pages): an area series by close
+    time, one marker per trade, crosshair tooltip with id / setup / R. Empty state when nothing is closed."""
     rs = [r for r in closed if isinstance(r.get("r_multiple"), (int, float))]
     if not rs:
         return '<div class="empty">Chưa có lệnh đóng (không tính diễn tập) — đường R tích lũy sẽ xuất hiện sau lệnh đóng đầu tiên.</div>'
-    rs = sorted(rs, key=lambda r: r.get("date_closed") or "")
-    cum, pts = 0.0, [0.0]
-    for r in rs:
-        cum += r["r_multiple"]; pts.append(cum)
-    W, H, padL, padR, padT, padB = 900, 180, 44, 16, 14, 24
-    lo, hi = min(0.0, min(pts)), max(0.0, max(pts))
-    span = (hi - lo) or 1.0
-    x = lambda i: padL + i * (W - padL - padR) / max(1, len(pts) - 1)
-    y = lambda v: padT + (H - padT - padB) * (1 - (v - lo) / span)
-    path = " ".join(f"{'M' if i == 0 else 'L'}{x(i):.1f},{y(v):.1f}" for i, v in enumerate(pts))
-    area = path + f" L{x(len(pts) - 1):.1f},{y(0):.1f} L{x(0):.1f},{y(0):.1f} Z"
-    s = f'<svg class="rcurve" viewBox="0 0 {W} {H}" role="img" aria-label="R tích lũy theo lệnh">'
-    for t in range(3):
-        v = lo + span * t / 2
-        s += f'<line x1="{padL}" y1="{y(v):.1f}" x2="{W - padR}" y2="{y(v):.1f}" stroke="var(--line)"/><text class="axis-label" x="{padL - 6}" y="{y(v) + 3:.1f}" text-anchor="end">{v:+.1f}R</text>'
-    s += f'<line x1="{padL}" y1="{y(0):.1f}" x2="{W - padR}" y2="{y(0):.1f}" stroke="var(--line-strong)"/>'
-    s += f'<path d="{area}" fill="var(--accent)" opacity=".12"/><path d="{path}" fill="none" stroke="var(--accent)" stroke-width="2"/>'
-    s += f'<circle cx="{x(len(pts) - 1):.1f}" cy="{y(pts[-1]):.1f}" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>'
-    s += f'<text class="axis-label" x="{x(len(pts) - 1) - 6:.1f}" y="{y(pts[-1]) - 8:.1f}" text-anchor="end" fill="var(--ink)">{pts[-1]:+.2f}R</text>'
-    s += f'<text class="axis-label" x="{padL}" y="{H - 6}">lệnh 1</text><text class="axis-label" x="{W - padR}" y="{H - 6}" text-anchor="end">lệnh {len(rs)}</text></svg>'
-    return s
+    rs = sorted(rs, key=lambda r: r.get("date_closed") or r.get("date_opened") or "")
+    cum, pts, last_t = 0.0, [], 0
+    for k, r in enumerate(rs):
+        cum += r["r_multiple"]
+        t = _unix(r.get("date_closed") or r.get("date_opened")) or (last_t + 1)
+        if t <= last_t:                      # the library needs strictly increasing times; same-second closes get +1s
+            t = last_t + 1
+        last_t = t
+        pts.append(dict(time=t, value=round(cum, 4), r=r["r_multiple"], id=r.get("id"), setup=r.get("setup_type"), n=k + 1))
+    data = json.dumps(pts, ensure_ascii=False)
+    return (f'<div class="rcurve-wrap"><div class="rcurve" id="rcurve"></div><div class="tip" id="rcurve-tip"></div></div>'
+            f'<script>JournalChart.rcurve(document.getElementById("rcurve"), document.getElementById("rcurve-tip"), {data});</script>')
+
+
+def _unix(iso):
+    if not iso:
+        return None
+    try:
+        return int(datetime.datetime.fromisoformat(str(iso).replace("Z", "+00:00")).timestamp())
+    except ValueError:
+        return None
+
+
+VENDOR_JS = os.path.join(ROOT, "scripts", "vendor", "lightweight-charts.standalone.production.js")
+JOURNAL_JS = r"""
+window.JournalChart = { rcurve(el, tip, pts){
+  const cs=getComputedStyle(document.documentElement), v=k=>cs.getPropertyValue(k).trim(), mono=v('--mono')||'monospace';
+  const C={accent:v('--accent'),line:v('--line'),lineStrong:v('--line-strong'),faint:v('--faint'),ink:v('--ink'),ink2:v('--ink-2'),surface:v('--surface'),up:v('--up'),down:v('--down')};
+  const L=window.LightweightCharts, chart=L.createChart(el,{autoSize:true,layout:{background:{type:'solid',color:C.surface},textColor:C.faint,fontFamily:mono,fontSize:10,attributionLogo:false},
+    grid:{vertLines:{color:C.line},horzLines:{color:C.line}},rightPriceScale:{borderColor:C.lineStrong,scaleMargins:{top:0.15,bottom:0.1}},timeScale:{borderColor:C.lineStrong,timeVisible:true,secondsVisible:false,rightOffset:2},
+    crosshair:{mode:L.CrosshairMode.Normal},localization:{locale:'en-US',priceFormatter:x=>(x>=0?'+':'')+x.toFixed(2)+'R',timeFormatter:t=>new Date(t*1000).toISOString().slice(0,16).replace('T',' ')+'Z'},handleScale:{axisPressedMouseMove:true,mouseWheel:true,pinch:true},kineticScroll:{mouse:true,touch:true}});
+  const s=chart.addSeries(L.AreaSeries,{lineColor:C.accent,lineWidth:2,topColor:C.accent+'33',bottomColor:C.accent+'05',priceLineVisible:false,lastValueVisible:true,crosshairMarkerRadius:4});
+  s.setData(pts.map(p=>({time:p.time,value:p.value}))); s.createPriceLine({price:0,color:C.lineStrong,lineWidth:1,lineStyle:L.LineStyle.Solid,axisLabelVisible:false});
+  L.createSeriesMarkers(s, pts.map(p=>({time:p.time,position:p.r>=0?'aboveBar':'belowBar',shape:'circle',color:p.r>=0?C.up:C.down,size:0.8})));
+  chart.timeScale().fitContent();
+  chart.subscribeCrosshairMove(q=>{ if(!q.point||!q.time){ tip.style.display='none'; return; } const p=pts.find(x=>x.time===q.time); if(!p){ tip.style.display='none'; return; }
+    tip.innerHTML=`<div class="t">lệnh ${p.n} · ${new Date(p.time*1000).toISOString().slice(0,16).replace('T',' ')}Z</div><div><b>${p.id||''}</b></div><div>${p.setup||''}</div><div class="${p.r>=0?'u':'d'}">${p.r>=0?'+':''}${p.r.toFixed(2)}R · tích lũy ${p.value>=0?'+':''}${p.value.toFixed(2)}R</div>`;
+    tip.style.display='block'; const r=el.getBoundingClientRect(), x=q.point.x; tip.style.left=(el.offsetLeft+(x>r.width*0.65?x-tip.offsetWidth-14:x+14))+'px'; tip.style.top=(el.offsetTop+q.point.y+12)+'px'; });
+  el.addEventListener('mouseleave',()=>{ tip.style.display='none'; });
+}};
+"""
+
+
+def vendor_script():
+    with open(VENDOR_JS, encoding="utf-8") as fh:
+        return "<script>\n" + fh.read() + "\n</script>\n<script>" + JOURNAL_JS + "</script>"
 
 
 def chip(v, cls=None):
@@ -147,7 +173,9 @@ section{scroll-margin-top:64px}
 .tile{padding:12px 16px;border-right:1px solid var(--line)} .tile:last-child{border-right:0}
 .tile .l{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:4px} .tile .v{font-family:var(--mono);font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2} .tile .s{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
-svg.rcurve{display:block;width:100%;height:auto} .axis-label{font-family:var(--mono);font-size:10px;fill:var(--faint)}
+.rcurve-wrap{position:relative} .rcurve{display:block;width:100%;height:240px}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;padding:6px 9px;font-family:var(--mono);font-size:11px;color:var(--ink);box-shadow:var(--shadow);display:none;z-index:5;white-space:nowrap;line-height:1.5}
+.tip .t{color:var(--muted)} .tip .u{color:var(--up)} .tip .d{color:var(--down)}
 .empty{color:var(--muted);font-size:13px;padding:18px 0}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
 .card h3{margin:0 0 6px;font-size:13px;font-weight:800}
@@ -228,13 +256,14 @@ def render(rows, st, out, closed_real):
 <div class="lede"><p class="eyebrow">nhật ký · số liệu do code tính · review do người hoặc Claude điền</p><h1>Nhật ký giao dịch</h1><p>Pilot chỉ vào lệnh khi luật cố định đủ điều kiện; nhật ký chỉ có bản ghi mới khi pilot vào lệnh hoặc khi <code>/journal</code> ghi một kế hoạch sau <code>/analyze</code>. Phần đầu trang cho biết pilot có đang chạy không và vì sao chưa có lệnh.</p></div>
 <section id="pilot"><h2>Pilot có đang hoạt động không? <small>data/live/pilot*/log.jsonl (legacy) · top5-log.jsonl / top5-mt5-log.jsonl (profile top5) · docs/architecture/automation-config.json</small></h2><div class="pilot">{''.join(pcards)}</div></section>
 <section id="stats"><h2>Bảng cân đối <small>không tính lệnh diễn tập</small></h2><div class="tiles">{tiles_html}</div></section>
-<section><h2>Đường R tích lũy <small>theo thứ tự đóng lệnh</small></h2><div class="card">{r_curve(closed_real)}</div></section>
+{vendor_script() if any(isinstance(r.get("r_multiple"), (int, float)) for r in closed_real) else ''}
+<section><h2>Đường R tích lũy <small>theo thời điểm đóng lệnh · lăn chuột = zoom · kéo = dịch</small></h2><div class="card">{r_curve(closed_real)}</div></section>
 {('<section><h2>Phân rã</h2><div class="grid">' + breakdown + '</div></section>') if breakdown else ''}
 <section id="ledger"><h2>Sổ lệnh <small>{len(rows)} bản ghi</small></h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Thị trường</th><th>Mã</th><th>Chiều</th><th>Setup</th><th>Phiên</th><th class="num">Entry</th><th class="num">Stop</th><th class="num">Targets</th><th class="num">R kế hoạch</th><th>Trạng thái</th><th>Thoát</th><th>Kết quả</th><th class="num">R</th><th class="num">P&amp;L USDT</th><th class="num">Giữ (phút)</th></tr></thead><tbody>{trs or '<tr><td colspan="16" class="muted">Chưa có lệnh nào.</td></tr>'}</tbody></table></div></section>
 <section id="reviews"><h2>Review từng lệnh</h2>
 <div class="note">Sau mỗi lệnh, trả lời năm câu: luận điểm còn đúng không · kế hoạch so với thực tế · có phá luật nào không (followed_plan) · nguyên nhân gốc (root_cause) · một thay đổi cụ thể cho lần sau (what_to_change). Sai lầm lặp lại được gom trong <code>docs/mistakes/MISTAKE-DB.md</code>; cập nhật bằng <code>scripts/journal.py review &lt;id&gt; --set key=value</code>.</div>
 <div style="margin-top:12px">{''.join(details) or '<p class="muted">Chưa có lệnh nào.</p>'}</div></section>
-<footer><b>Nguồn</b>: trades/index.jsonl (dẫn xuất từ trades/*.md) · log pilot · automation-config.json · <b>sinh</b> {gen} bởi scripts/journal.py render · đồng bộ tự động sau mỗi tick pilot (scripts/pilot-loop.sh) và bởi /journal, /status, /review.</footer>
+<footer><b>Nguồn</b>: trades/index.jsonl (dẫn xuất từ trades/*.md) · log pilot · automation-config.json · <b>sinh</b> {gen} bởi scripts/journal.py render · đồng bộ tự động sau mỗi tick pilot (scripts/pilot-loop.sh) và bởi /journal, /status, /review.<br>Chart: TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. · <a href="https://www.tradingview.com/" rel="noopener">tradingview.com</a> · Apache-2.0 (scripts/vendor/NOTICE-lightweight-charts.txt)</footer>
 </div>
 """
     with open(out, "w", encoding="utf-8") as fh:

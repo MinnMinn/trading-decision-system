@@ -17,7 +17,10 @@ mình; CoinGecko không có OHLC intraday (`docs/architecture/data-sources.md` d
     (Apache-2.0) và ghi chú nguồn/phiên bản trong `scripts/vendor/README.md`. Inline vào HTML để trang không phụ thuộc CDN.
   - `scripts/chart.js` — toàn bộ JS chart (engine ICT, thống kê KL, overlay, tương tác, replay, thước) tách khỏi
     chuỗi Python để đọc và test được. Builder thay `__DATA__` / `__PARAMS__` như hiện nay.
-- Logo ghi công TradingView (`layout.attributionLogo`) giữ mặc định bật — điều kiện license.
+- Ghi công theo license (quyết định 2026-09-12, sau khi §1–5 chạy): logo trên canvas TẮT (`layout.attributionLogo:false`);
+  thay vào đó dòng NOTICE của thư viện (tên, bản quyền TradingView, Inc., link tradingview.com, Apache-2.0) in ở footer
+  mọi trang nhúng thư viện. Apache-2.0 §4(d) yêu cầu kèm NOTICE khi phân phối; tài liệu thư viện yêu cầu ghi công + link
+  trên một trang công khai của ứng dụng — footer đáp ứng cả hai. Bản NOTICE gốc: `scripts/vendor/NOTICE-lightweight-charts.txt`.
 - Kích thước: thư viện ~198 KB; trang vẫn xa giới hạn 16 MB của Artifact.
 
 ## 2. Luồng dữ liệu
@@ -40,8 +43,10 @@ Một pane primitive `Annotations` mỗi chart nhận danh sách hình trong to�
 | `label` {t,price, text, anchor} | nhãn cạnh hình, `now xx%` |
 | `mark` {t,price, glyph ×/✓/●} | quét, đóng qua, sự kiện Wyckoff |
 
-- Mức ngang toàn chart (anchors, `invalidation.level`) dùng `createPriceLine` của thư viện. Sự kiện Wyckoff dùng
-  `createSeriesMarkers`.
+- Mức ngang có nhãn (TR AR/SC, EQ, σ, anchors, kế hoạch lệnh, `invalidation.level`) gắn nhãn lên trục giá qua
+  `priceAxisViews` của primitive (kiểu tag giá TradingView); các nhãn trùng giá được gộp thành một tag. Sự kiện Wyckoff
+  là hình `flag` của primitive với thuật toán tránh chồng nhãn (giữ nguyên từ bản SVG) — không dùng `createSeriesMarkers`
+  vì marker của thư viện không tránh chồng chữ.
 - Màu đọc từ CSS variables (`scripts/artifact_theme.py`) bằng `getComputedStyle` lúc tạo chart; đổi theme qua
   `MutationObserver` trên `data-theme` và `matchMedia('(prefers-color-scheme: dark)')` → `applyOptions` + vẽ lại.
 - Quy tắc method purity không đổi: lane Wyckoff = nến + KL + TR/pha/sự kiện; lane ICT = engine chỉ giá.
@@ -64,8 +69,8 @@ Một pane primitive `Annotations` mỗi chart nhận danh sách hình trong to�
 3. **Bar replay.** Phím `P` hoặc nút bật replay: click chọn nến bắt đầu; `←`/`→` lùi/tiến một nến, `Space` chạy tự
    động, `Esc` thoát. Trong replay engine ICT chạy trên tiền tố `rows[0..cursor]` (không rò dữ liệu tương lai);
    overlay Wyckoff từ narrative có `time > cursor` bị ẩn; tooltip và số `now xx%` theo cursor. Thoát replay = về §2.
-4. **Trang nhật ký.** `journal_render.py` `r_curve` chuyển sang line series của thư viện với marker mỗi lệnh và tooltip
-   (id, R, setup_type); dùng cùng file vendor. Không thêm chart nến vào nhật ký (không có nến lưu theo lệnh).
+4. **Trang nhật ký.** `journal_render.py` `r_curve` chuyển sang area series của thư viện theo thời điểm đóng lệnh, marker
+   mỗi lệnh (xanh/đỏ theo R) và tooltip (id, setup, R, R tích lũy); dùng cùng file vendor. Không thêm chart nến vào nhật ký (không có nến lưu theo lệnh).
 
 ## 6. Kiểm chứng
 
@@ -78,6 +83,10 @@ Một pane primitive `Annotations` mỗi chart nhận danh sách hình trong to�
   `R`/`P` bật đúng chế độ.
 - `check-model-prose.py`, `check-narrative.py`, `test_method_purity.py` chạy như cũ.
 - Publish một style lên Artifact để người dùng kéo thử thật.
+
+## Trạng thái
+Triển khai 2026-09-12 cùng phiên: §1–§5 xong; kiểm chứng §6 bằng unittest (10 test) và Playwright headless
+(scratchpad `smoke.py`: 0 lỗi console, 9 chart × 11 canvas, zoom/pan/lane-switch/thước/replay/theme đều đạt).
 
 ## Ngoài phạm vi
 Chart nến trong nhật ký; crosshair đồng bộ giữa ba chart; lưu thước/kế hoạch do người dùng vẽ; mọi thay đổi engine ICT

@@ -312,14 +312,30 @@ own knowledge and terms (Footprint may build on Wyckoff), (5) a trader-grade UI 
    volume (WA p83–84 defines SOS by widening spread *and* rising volume; a weak break above AR is UA). The book's
    vocabulary is the validator, not the model's memory.
 
+7. **The chart layer is TradingView's open-source Lightweight Charts, vendored (user decision 2026-09-12;
+   `docs/specs/2026-09-12-chart-lightweight-charts-design.md`).** `scripts/vendor/lightweight-charts.standalone.production.js`
+   (5.2.1, Apache-2.0, pinned, inlined at build — no CDN) draws candles, volume, axes, crosshair and owns every
+   interaction (kinetic drag, wheel/pinch zoom, axis drag). `scripts/chart.js` holds everything the project adds as a
+   list of shapes in (bar index, price) space rendered by one series primitive: the price-only ICT engine, Wyckoff
+   TR/phases/events, anchors, the trade plans from `trades/index.jsonl` (PLANNED/OPEN, read-only) and the narrative's
+   invalidation level, plus two per-chart modes that persist nothing — the R:R ruler (`R`) and bar replay (`P`, engine on
+   the prefix up to the cursor, no future leak). Engines run once per tier window, never per zoom, so overlays match the
+   scanner facts. Data sources are unchanged (Binance / MT5 bridge); the library never fetches. The journal's R curve
+   uses the same build. Attribution (Apache-2.0 §4(d) + the library's NOTICE): the on-canvas logo is off and every page's
+   footer prints the NOTICE line with the TradingView link — a test pins both halves. Tests: `scripts/tests/test_build_artifact.py`,
+   `test_journal_render.py`.
+
 Retired: `patch-arrays.py`, `inject-prelim.py`, `select-base.py`, the hand-off file `narrative/<style>.full.html`.
 
 ### 15.1 CFD timeframe set (user decision 2026-09-11)
 
-MT5 offers M1…W1; the CFD pages use **M5 (scalping, `gold-scalp`, 5m×288 = 24 h, context 15m×288) · M15 (day,
-`gold`, 15m×288 = 3 days, context 4H×180) · D1 (swing, `gold-swing`, 1D×120, context 1W×104)**. M1 is rejected for
-gold: the spread swallows a 1-minute bar and the pivot/killzone reads that both methods depend on are noise there;
-M30 adds nothing between M15 and H1; H1/H4 stay as scanner-only context. Crypto swing gains the same 1W context.
+MT5 offers M1…W1; the CFD pages use **M5 (scalping, `gold-scalp`, 5m×288 = 24 h) · M15 (day, `gold`, 15m×288 = 3 days) ·
+D1 (swing, `gold-swing`, 1D×120)**; the tiers above each window come from the ladder in `timeframe-mapping.md` (2026-09-12:
+gold-scalp 5m → cấu trúc 1H → bias 4H, replacing the unsourced 15m context). M1 is rejected for
+gold: the spread swallows a 1-minute bar and the pivot/killzone reads that both methods depend on are noise there
+(**unverified** — the repo holds no 1m XAUUSD data to measure it; `timeframe-mapping.md` row E). The 2026-09-11 claim
+"M30 adds nothing between M15 and H1" is **withdrawn 2026-09-12**: TTrades pairs M30→M3, WA's drop-down examples are
+M30-based, and the repo's own backtest ranks ICT 30m first (`timeframe-mapping.md` row D). H1/H4 stay as scanner-only context. Crypto swing gains the same 1W context.
 Requires the EA to export 5m and 1W (`integrations/mt5/ExportOHLCV.mq5`, 300 bars) — a recompile in MetaEditor.
 This supersedes the "no CFD scalping" note in §12 item 6; `markets.cfd.timeframes.5m` is the switch.
 
@@ -329,8 +345,14 @@ The book reads the higher timeframe first and enters on the lower timeframe in t
 structure (`knowledge/07` §2.7 "Giảm khung của tích lũy", WA p93–96: M30 Shakeout[C] → m5 Spring[C]/LPS[C]; in Phase B
 "nguồn cung/cầu đang khá cân bằng … chưa cho thấy sự xuất hiện của CO" — no trade; `knowledge/10` §4.2 step 1). Implemented as:
 
-1. **One mapping** `CONTEXT_STYLE` in `scripts/automation.py` (working window → context window: scalping→daytrade,
-   daytrade→4h, gold-scalp→gold, gold→gold-4h, 1h/4h→swing, gold-1h/4h→gold-swing; swing styles → 1W, unscanned).
+1. **One rule, one table** — `scripts/automation.py` `next_rung` / `TIERS` (2026-09-12, replacing the hand-written `CONTEXT_STYLE`):
+   each style has three tiers, Vào lệnh (its own window) → Cấu trúc → Bias, adjacent tiers being the next available rung
+   ≥ ×4 (`docs/architecture/timeframe-mapping.md` §3; the rule reproduces the pilot's `HTF_OF` exactly, pinned by
+   `scripts/tests/test_timeframe_ladder.py`). The **gate** tier (`gate_style`) — bias when it has a scanned style, else
+   structure — is what `CONTEXT_STYLE` now aliases; the checkers and the pilot filter read it. Pages draw all three tiers
+   for both Wyckoff and ICT (ladder block + three charts, top-down).
+   `scripts/strategy-runner.py` / `scripts/backtest-methods.py` derive `HTF_OF` (the structure tier over the runner's rungs)
+   from the same function, so no second table exists.
 2. **Scanner facts carry the context** (`facts.json` → `symbols.<SYM>.context`, written by `scripts/htf_context.py`
    from the context style's own facts plus the latest Wyckoff structure/phase of that window) and a **bias**:
    accumulation/re-accumulation in Phase C/D/E → long; distribution/re-distribution in C/D/E → short; **Phase B →
