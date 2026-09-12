@@ -852,18 +852,24 @@ def tick(live, tick_time=None, ignore_gate=False):
             log("reconcile", note="symbols with venue state this runner does not own -- no new entries there", symbols=sorted(foreign))
     # 3. signals -- the preset filters NEW entries only (spec §4.3); steps 1 and 2 above are never filtered.
     # Read AUTOMATION_CONFIG once for the whole tick and reuse per-market dims, rather than re-opening/re-parsing
-    # the file inside allowed_methods() on every setup below.
+    # the file inside allowed_methods() on every setup below. On a read failure use None (not {}) per market so
+    # allowed_methods() re-tries and falls through to its OWN except-Exception fallback (set(METHODS), fail-OPEN
+    # -- "unconfigured = behave exactly as before this switch existed"). Passing {} here would fail CLOSED
+    # instead: runner_methods({}) is the empty set because every runner method requires >=1 dimension, so every
+    # method would look preset-blocked -- the opposite of allowed_methods()'s own documented fallback. Not
+    # reachable on the live path (automation_gate() already refuses a tick on a missing/unreadable config), but
+    # the two fallbacks must still agree.
     try:
         _cfg = json.load(open(AUTOMATION_CONFIG, encoding="utf-8"))
+        _dims_by_market = {m: _cfg.get("markets", {}).get(m, {}).get("dimensions", {}) for m in ("crypto", "cfd")}
     except Exception:
-        _cfg = {}
-    _dims_by_market = {m: _cfg.get("markets", {}).get(m, {}).get("dimensions", {}) for m in ("crypto", "cfd")}
+        _dims_by_market = {"crypto": None, "cfd": None}
     for st in setups_cfg:
+        if not due(st["tf"], t, st["market"]):
+            continue
         if st["method"] not in allowed_methods(st["market"], _dims_by_market.get(st["market"])):
             log("preset_filtered", setup=st["id"], market=st["market"], method=st["method"],
                 why="method not permitted by the current method preset")
-            continue
-        if not due(st["tf"], t, st["market"]):
             continue
         venue = st["execution"]
         for sym in enabled_symbols(st["market"]):

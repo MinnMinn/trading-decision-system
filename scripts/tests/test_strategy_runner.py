@@ -271,23 +271,86 @@ class ScanDispatchFromRegistry(unittest.TestCase):
 
 
 class GrandfatherBehavioral(unittest.TestCase):
-    """Requirement 3 of the task 8 prompt: a real behavioural test, not only source-text assertions. Drives
-    tick() end-to-end in dry-run mode with a preset that blocks every method and confirms manage_position is
-    still reached for an open position taken under a previous preset -- the regression this task exists to
-    prevent (spec §2.2/§4.3)."""
+    """Requirement 3 of the task 8 prompt: real behavioural tests, not only source-text assertions. Two
+    DISTINCT regressions, covered separately so neither can hide behind the other:
 
-    def test_tick_reaches_manage_position_when_every_method_is_preset_blocked(self):
+    - §2.2 (the empty-selection early return): `test_tick_manages_open_state_with_an_empty_selection` uses
+      setups_cfg == [] -- the ONLY condition the old `if not setups_cfg: ... return` ever fired on -- with both
+      an open position and a resting pending order in state, and asserts manage_position AND manage_pending are
+      both still reached. This is the discriminating test: restoring the old early return must fail it.
+    - §4.3 (the preset filter grandfathers correctly): `test_tick_still_manages_an_open_position_when_the_preset_
+      blocks_the_only_setup` uses a NON-empty setups_cfg that allowed_methods() blocks, and asserts
+      manage_position is still reached. This does NOT exercise the old early return (setups_cfg is truthy, so
+      `if not setups_cfg` never fires here) -- it exercises the NEW step-3 filter added by this task instead.
+    """
+
+    def _run_dry_tick(self, cfg, selection, state):
+        cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, cfg_tmp); cfg_tmp.close()
+        sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(selection, sel_tmp); sel_tmp.close()
+        state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(state, state_tmp); state_tmp.close()
+
+        old_cfg, old_sel, old_state = sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE
+        old_fetch, old_log, old_manage_pos, old_manage_pend = sr.fetch_candles, sr.log, sr.manage_position, sr.manage_pending
+        calls = {"position": [], "pending": []}
+        sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = cfg_tmp.name, sel_tmp.name, state_tmp.name
+        sr.fetch_candles = lambda *a, **k: []
+        sr.log = lambda *a, **k: None
+
+        def recording_manage_position(sym, pos, candles, live, bars_elapsed):
+            calls["position"].append(sym); return None
+        def recording_manage_pending(sym, pend, live, bars_elapsed):
+            calls["pending"].append(sym); return "waiting", None, None, None
+        sr.manage_position = recording_manage_position
+        sr.manage_pending = recording_manage_pending
+        try:
+            sr.tick(live=False, tick_time=sr.now(), ignore_gate=True)
+        finally:
+            sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = old_cfg, old_sel, old_state
+            sr.fetch_candles, sr.log, sr.manage_position, sr.manage_pending = old_fetch, old_log, old_manage_pos, old_manage_pend
+            os.unlink(cfg_tmp.name); os.unlink(sel_tmp.name); os.unlink(state_tmp.name)
+        return calls
+
+    def test_tick_manages_open_state_with_an_empty_selection(self):
+        """The regression this task exists to prevent (spec §2.2). setups_cfg is [] -- the exact condition the
+        removed `if not setups_cfg: ... return` fired on. An open position AND a resting pending limit must
+        both still be managed. Verified to fail against the old early-return code (see task report)."""
+        cfg = {"enabled": True, "layers": {"pilot": True},
+               "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT", "ETHUSDT"],
+                                       "dimensions": {"wyckoff": True, "ict": True, "footprint": False, "heatmap": False}},
+                           "cfd": {"enabled": False, "instruments": [], "dimensions": {"wyckoff": True, "ict": True}}},
+               "execution": {"environment": "demo", "pilot_profile": "top5"}}
+        selection = {"setups": []}
+        state = {"started": "2026-01-01T00:00:00Z", "day": None, "trades_today": {}, "errors": 0,
+                 "halted": None, "last_tick": None, "seen": [],
+                 "positions": {"BTCUSDT": dict(side="LONG", strategy="empty-sel-test", tf="30m", method="ICT",
+                                                execution="futures", mgmt="be", qty="1", entry=100.0, stop=99.0,
+                                                tp=103.0, stop_order=None, tp_order=None, opened_at="2026-01-01T00:00:00Z",
+                                                bars=0, risk_usd=1.0, be=False, be_level=101.0, htf_pass=True,
+                                                sweep_time=None, mss_time=None)},
+                 "pending": {"ETHUSDT": dict(symbol="ETHUSDT", side="LONG", strategy="empty-sel-test", tf="30m",
+                                              method="ICT", execution="futures", qty="1", price="100", stop="99",
+                                              tp="103", order_id="1", client_id="c1", placed_at="2026-01-01T00:00:00Z",
+                                              bars_waited=0, expires_bar_left=5, htf_pass=True)},
+                 "venues": {v: {"equity_start": 10000.0, "closed": [], "consec_losses": 0} for v in sr.VENUES}}
+        calls = self._run_dry_tick(cfg, selection, state)
+        self.assertEqual(calls["position"], ["BTCUSDT"],
+                         "manage_position must be reached with an empty setups_cfg -- a naked resting limit or "
+                         "an unmanaged open position is exactly the failure mode this task must not reintroduce")
+        self.assertEqual(calls["pending"], ["ETHUSDT"],
+                         "manage_pending must be reached with an empty setups_cfg -- a resting futures limit "
+                         "carries no stop until open_position() sees it fill")
+
+    def test_tick_still_manages_an_open_position_when_the_preset_blocks_the_only_setup(self):
+        """§4.3 only: the NEW step-3 preset filter must not touch steps 1/2. setups_cfg is non-empty here (one
+        ICT setup) so the OLD `if not setups_cfg` early return is never reached by this scenario -- it is NOT a
+        test of §2.2's early return (see class docstring); it is a test of the filter added at step 3."""
         cfg = {"enabled": True, "layers": {"pilot": True},
                "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"],
                                        "dimensions": {"wyckoff": False, "ict": False, "footprint": False, "heatmap": False}},
                            "cfd": {"enabled": False, "instruments": [], "dimensions": {"wyckoff": True, "ict": True}}},
                "execution": {"environment": "demo", "pilot_profile": "top5"}}
-        cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, cfg_tmp); cfg_tmp.close()
-
         selection = {"setups": [dict(id="grandfather-test", market="crypto", symbols=["BTCUSDT"], tf="30m",
                                       method="ICT", ict_target="range", htf=False, mgmt="be", execution="futures")]}
-        sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(selection, sel_tmp); sel_tmp.close()
-
         state = {"started": "2026-01-01T00:00:00Z", "pending": {}, "day": None, "trades_today": {}, "errors": 0,
                  "halted": None, "last_tick": None, "seen": [],
                  "positions": {"BTCUSDT": dict(side="LONG", strategy="grandfather-test", tf="30m", method="ICT",
@@ -296,28 +359,47 @@ class GrandfatherBehavioral(unittest.TestCase):
                                                 bars=0, risk_usd=1.0, be=False, be_level=101.0, htf_pass=True,
                                                 sweep_time=None, mss_time=None)},
                  "venues": {v: {"equity_start": 10000.0, "closed": [], "consec_losses": 0} for v in sr.VENUES}}
+        self.assertEqual(sr.allowed_methods("crypto", {"wyckoff": False, "ict": False, "footprint": False, "heatmap": False}),
+                         set(), "preset must block every method for this to be a real test of the step-3 filter")
+        calls = self._run_dry_tick(cfg, selection, state)
+        self.assertEqual(calls["position"], ["BTCUSDT"],
+                         "manage_position must still be reached for the open position even though the preset "
+                         "blocks the setup's only method -- the step-3 filter must never affect steps 1/2")
+
+
+class ConfigReadFailureFallback(unittest.TestCase):
+    """tick()'s per-tick dims cache must share allowed_methods()'s own fail-OPEN fallback (documented there as
+    "unconfigured = behave exactly as before this switch existed"). A prior version of the fix set the per-tick
+    cache to {} on a read failure, which is NOT equivalent to "no config": runner_methods({}) is the EMPTY set
+    because every runner method requires at least one dimension, so a corrupt/unreadable config silently
+    blocked every method (fail CLOSED) instead of falling back to "no preset switch" (fail OPEN). Not reachable
+    on the live path -- automation_gate() already refuses a tick on a missing/unreadable config -- but the two
+    fallbacks must still agree."""
+
+    def test_corrupt_automation_config_does_not_block_every_method_in_tick(self):
+        bad_cfg = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); bad_cfg.write("{not valid json"); bad_cfg.close()
+        selection = {"setups": [dict(id="corrupt-cfg-test", market="crypto", symbols=["BTCUSDT"], tf="30m",
+                                      method="ICT", ict_target="range", htf=False, mgmt="be", execution="futures")]}
+        sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(selection, sel_tmp); sel_tmp.close()
+        state = {"started": "2026-01-01T00:00:00Z", "pending": {}, "positions": {}, "day": None, "trades_today": {},
+                 "errors": 0, "halted": None, "last_tick": None, "seen": [],
+                 "venues": {v: {"equity_start": 10000.0, "closed": [], "consec_losses": 0} for v in sr.VENUES}}
         state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(state, state_tmp); state_tmp.close()
 
         old_cfg, old_sel, old_state = sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE
-        old_fetch, old_log, old_manage = sr.fetch_candles, sr.log, sr.manage_position
-        calls = []
-        sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = cfg_tmp.name, sel_tmp.name, state_tmp.name
+        old_fetch, old_log = sr.fetch_candles, sr.log
+        logs = []
+        sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = bad_cfg.name, sel_tmp.name, state_tmp.name
         sr.fetch_candles = lambda *a, **k: []
-        sr.log = lambda *a, **k: None
-
-        def recording_manage_position(sym, pos, candles, live, bars_elapsed):
-            calls.append(sym); return None
-        sr.manage_position = recording_manage_position
+        sr.log = lambda kind, **kw: logs.append((kind, kw))
         try:
-            self.assertEqual(sr.allowed_methods("crypto"), set(),
-                             "preset must block every method for this to be a real test of the regression")
             sr.tick(live=False, tick_time=sr.now(), ignore_gate=True)
         finally:
             sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = old_cfg, old_sel, old_state
-            sr.fetch_candles, sr.log, sr.manage_position = old_fetch, old_log, old_manage
-            os.unlink(cfg_tmp.name); os.unlink(sel_tmp.name); os.unlink(state_tmp.name)
+            sr.fetch_candles, sr.log = old_fetch, old_log
+            os.unlink(bad_cfg.name); os.unlink(sel_tmp.name); os.unlink(state_tmp.name)
 
-        self.assertEqual(calls, ["BTCUSDT"],
-                         "manage_position must still be reached for the open position even though the preset "
-                         "blocks the setup's only method -- the early return this task removes would have "
-                         "skipped this entirely and left the position (and any resting limit) unmanaged")
+        filtered = [kw for kind, kw in logs if kind == "preset_filtered"]
+        self.assertEqual(filtered, [], "a corrupt/unreadable AUTOMATION_CONFIG must fail OPEN inside tick() too "
+                         "(no preset filtering applied), matching allowed_methods()'s own documented fallback "
+                         "-- not fail CLOSED (every method blocked)")
