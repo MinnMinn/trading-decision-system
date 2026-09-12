@@ -198,3 +198,126 @@ class SetupSpec(unittest.TestCase):
         with mock.patch.object(au.subprocess, "run", fake_run):
             rc, lines = au.apply_setup_spec(cfg, type("A", (), {"setup": [], "cmd": "on", "who": None, "reason": None})())
         self.assertEqual(calls, []); self.assertEqual(rc, 0)
+
+
+class PresetFilter(unittest.TestCase):
+    """The preset filters NEW signals only. An open position taken under a previous preset must still be
+    managed -- spec §2.2, the sharpest bug the design review caught."""
+
+    def cfg_with(self, dims, instruments=("BTCUSDT",)):
+        return {"enabled": True, "layers": {"pilot": True},
+                "markets": {"crypto": {"enabled": True, "instruments": list(instruments), "dimensions": dims},
+                            "cfd": {"enabled": False, "instruments": [], "dimensions": {"wyckoff": True, "ict": True}}},
+                "execution": {"environment": "demo", "pilot_profile": "top5"}}
+
+    def _with_config(self, cfg, fn):
+        tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, tmp); tmp.close()
+        old = sr.AUTOMATION_CONFIG; sr.AUTOMATION_CONFIG = tmp.name
+        try:
+            return fn()
+        finally:
+            sr.AUTOMATION_CONFIG = old; os.unlink(tmp.name)
+
+    def test_load_setups_is_never_preset_filtered(self):
+        """Filtering there would narrow replay parity, --list and the loop period. Spec §4.3."""
+        cfg = self.cfg_with({"wyckoff": False, "ict": False, "footprint": False, "heatmap": False})
+        n = self._with_config(cfg, lambda: len(sr.load_setups()))
+        self.assertGreater(n, 0, "load_setups() must return the selection regardless of preset")
+
+    def test_allowed_methods_reflects_the_preset(self):
+        wy = self.cfg_with({"wyckoff": True, "ict": False, "footprint": False, "heatmap": False})
+        got = self._with_config(wy, lambda: sr.allowed_methods("crypto"))
+        self.assertEqual(got, {"WYCKOFF", "WYCKOFF-BOOK"})
+        none = self.cfg_with({"wyckoff": False, "ict": False, "footprint": False, "heatmap": False})
+        self.assertEqual(self._with_config(none, lambda: sr.allowed_methods("crypto")), set())
+
+    def test_tick_still_manages_an_open_position_when_the_preset_blocks_every_method(self):
+        """The regression that matters: no early return before step 1/2."""
+        src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        head = src[src.index("def tick("):src.index("    # 1. positions")]
+        self.assertNotIn("no runnable setup", head,
+                         "the empty-setups early return still precedes position management")
+
+    def test_step_three_filters_by_allowed_methods(self):
+        src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        body = src[src.index("    # 3. signals"):]
+        self.assertIn("allowed_methods", body.split("def ")[0])
+
+    def test_unticked_instrument_with_an_open_position_still_gets_candles(self):
+        """Instrument narrowing grandfathers too: the need set adds every symbol holding a position or a
+        pending order WITHOUT consulting enabled_symbols. Lock that in."""
+        src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        head = src[src.index("    need = set()"):src.index("    # 1. positions")]
+        self.assertIn('s["positions"].items()', head)
+        self.assertIn('s["pending"].items()', head)
+
+    def test_enabled_symbols_narrows_but_never_widens(self):
+        cfg = self.cfg_with({"wyckoff": True, "ict": True, "footprint": False, "heatmap": False},
+                            instruments=("BTCUSDT",))
+        got = self._with_config(cfg, lambda: sr.enabled_symbols("crypto"))
+        self.assertEqual(got, ["BTCUSDT"])
+        empty = self.cfg_with({"wyckoff": True, "ict": True, "footprint": False, "heatmap": False},
+                              instruments=())
+        self.assertEqual(self._with_config(empty, lambda: sr.enabled_symbols("crypto")), [])
+
+
+class ScanDispatchFromRegistry(unittest.TestCase):
+    def test_no_hard_coded_method_tuple_picks_the_scanner(self):
+        """Adding a runner method must be a registry entry plus a scan function, not another if/elif arm."""
+        src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        self.assertNotIn('st["method"] in ("ICT", "COMBINED")', src)
+        self.assertNotIn('in ("WYCKOFF", "WYCKOFF-BOOK")', src)
+        self.assertIn("scan_of", src)
+
+
+class GrandfatherBehavioral(unittest.TestCase):
+    """Requirement 3 of the task 8 prompt: a real behavioural test, not only source-text assertions. Drives
+    tick() end-to-end in dry-run mode with a preset that blocks every method and confirms manage_position is
+    still reached for an open position taken under a previous preset -- the regression this task exists to
+    prevent (spec §2.2/§4.3)."""
+
+    def test_tick_reaches_manage_position_when_every_method_is_preset_blocked(self):
+        cfg = {"enabled": True, "layers": {"pilot": True},
+               "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"],
+                                       "dimensions": {"wyckoff": False, "ict": False, "footprint": False, "heatmap": False}},
+                           "cfd": {"enabled": False, "instruments": [], "dimensions": {"wyckoff": True, "ict": True}}},
+               "execution": {"environment": "demo", "pilot_profile": "top5"}}
+        cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, cfg_tmp); cfg_tmp.close()
+
+        selection = {"setups": [dict(id="grandfather-test", market="crypto", symbols=["BTCUSDT"], tf="30m",
+                                      method="ICT", ict_target="range", htf=False, mgmt="be", execution="futures")]}
+        sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(selection, sel_tmp); sel_tmp.close()
+
+        state = {"started": "2026-01-01T00:00:00Z", "pending": {}, "day": None, "trades_today": {}, "errors": 0,
+                 "halted": None, "last_tick": None, "seen": [],
+                 "positions": {"BTCUSDT": dict(side="LONG", strategy="grandfather-test", tf="30m", method="ICT",
+                                                execution="futures", mgmt="be", qty="1", entry=100.0, stop=99.0,
+                                                tp=103.0, stop_order=None, tp_order=None, opened_at="2026-01-01T00:00:00Z",
+                                                bars=0, risk_usd=1.0, be=False, be_level=101.0, htf_pass=True,
+                                                sweep_time=None, mss_time=None)},
+                 "venues": {v: {"equity_start": 10000.0, "closed": [], "consec_losses": 0} for v in sr.VENUES}}
+        state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(state, state_tmp); state_tmp.close()
+
+        old_cfg, old_sel, old_state = sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE
+        old_fetch, old_log, old_manage = sr.fetch_candles, sr.log, sr.manage_position
+        calls = []
+        sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = cfg_tmp.name, sel_tmp.name, state_tmp.name
+        sr.fetch_candles = lambda *a, **k: []
+        sr.log = lambda *a, **k: None
+
+        def recording_manage_position(sym, pos, candles, live, bars_elapsed):
+            calls.append(sym); return None
+        sr.manage_position = recording_manage_position
+        try:
+            self.assertEqual(sr.allowed_methods("crypto"), set(),
+                             "preset must block every method for this to be a real test of the regression")
+            sr.tick(live=False, tick_time=sr.now(), ignore_gate=True)
+        finally:
+            sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = old_cfg, old_sel, old_state
+            sr.fetch_candles, sr.log, sr.manage_position = old_fetch, old_log, old_manage
+            os.unlink(cfg_tmp.name); os.unlink(sel_tmp.name); os.unlink(state_tmp.name)
+
+        self.assertEqual(calls, ["BTCUSDT"],
+                         "manage_position must still be reached for the open position even though the preset "
+                         "blocks the setup's only method -- the early return this task removes would have "
+                         "skipped this entirely and left the position (and any resting limit) unmanaged")

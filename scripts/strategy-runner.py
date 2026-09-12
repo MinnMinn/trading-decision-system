@@ -58,6 +58,8 @@ _ispec = importlib.util.spec_from_file_location("instruments", os.path.join(ROOT
 instruments = importlib.util.module_from_spec(_ispec); _ispec.loader.exec_module(instruments)
 # EXECUTION list (docs/architecture/instruments.json) -- the orderable subset, never the analysis allowlist.
 CRYPTO = instruments.execution("crypto"); CFD = instruments.execution("cfd")
+_mspec = importlib.util.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py"))
+mreg = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(mreg)
 DEFAULT_SETUPS = [dict(id="crypto-ict-30m-std25-c", market="crypto", symbols=CRYPTO, tf="30m", method="ICT", ict_target="std25", htf=True, mgmt="be", execution="futures")]
 # STRUCTURE tier = the next runner timeframe >= 4x (scripts/automation.py next_rung -- the one ladder rule, docs/architecture/
 # timeframe-mapping.md). Over the runner's rungs this yields 5m->30m, 15m->1H, 30m->2H, 1H->4H, 2H->1D, 4H->1D, 1D->None,
@@ -83,7 +85,7 @@ ERROR_HALT = 3
 STOP_BUFFER_PCT = bt.STOP_BUFFER_PCT
 TF_SEC = {"5m": 300, "15m": 900, "30m": 1800, "1H": 3600, "2H": 7200, "4H": 14400, "1D": 86400}
 VENUES = ("futures", "mt5")
-METHODS = ("ICT", "COMBINED", "WYCKOFF", "WYCKOFF-BOOK")   # ICT/COMBINED = limit at the FVG edge; WYCKOFF* = market at the entry bar close
+METHODS = tuple(sorted(mreg.runnable()))   # ICT/COMBINED = limit at the FVG edge; WYCKOFF* = market at the bar close
 
 ENV_NAME = trading_env.active_env_name()
 try:
@@ -181,6 +183,24 @@ def enabled_symbols(market):
         return [s for s in (CRYPTO if market == "crypto" else CFD) if s in set(mk.get("instruments", []))]
     except Exception:
         return []
+
+
+def allowed_methods(market, dims=None):
+    """Runner methods the current method preset permits for this market. Empty set = no NEW entries; open
+    positions and pending orders are still managed (spec §4.3, grandfather). Pass `dims` (an already-parsed
+    market "dimensions" dict) to avoid re-reading/re-parsing AUTOMATION_CONFIG once per setup inside a tick;
+    omit it for a one-off caller (e.g. --list) that reads fresh.
+    automation_gate() already refuses a tick when AUTOMATION_CONFIG is missing or unreadable (PILOT-03), so in
+    the live tick path the except-Exception fallback below is unreachable; it is reachable for a caller that
+    invokes allowed_methods() directly without going through tick() (e.g. --list run against a moved/corrupt
+    config), where it deliberately behaves as if no method preset switch existed."""
+    if dims is None:
+        try:
+            c = json.load(open(AUTOMATION_CONFIG, encoding="utf-8"))
+            dims = c.get("markets", {}).get(market, {}).get("dimensions", {})
+        except Exception:
+            return set(METHODS)                    # unconfigured = behave exactly as before this switch existed
+    return mreg.runner_methods(dims) & set(METHODS)
 
 
 def event_blackout(t=None):
@@ -716,8 +736,9 @@ def venue_of(sym):
 
 def tick(live, tick_time=None, ignore_gate=False):
     s = load_state(); setups_cfg = load_setups()
-    if not setups_cfg:
-        log("halt", why=f"no runnable setup in {os.path.relpath(SELECTION, ROOT)}"); return
+    # NO early return on an empty selection: steps 1 and 2 below manage positions and pending orders that were
+    # opened under a previous configuration, and a resting futures limit carries no stop until open_position()
+    # sees it fill. Returning here would leave it naked. Spec §2.2.
     dry_override = (not live) and ignore_gate
     if os.path.exists(STOP) and not dry_override:
         for sym, pend in list(s["pending"].items()):
@@ -829,8 +850,19 @@ def tick(live, tick_time=None, ignore_gate=False):
                 s["errors"] += 1; log("error", venue="mt5", where="reconcile", msg=str(e)[:200]); foreign |= set(CFD)
         if foreign:
             log("reconcile", note="symbols with venue state this runner does not own -- no new entries there", symbols=sorted(foreign))
-    # 3. signals
+    # 3. signals -- the preset filters NEW entries only (spec §4.3); steps 1 and 2 above are never filtered.
+    # Read AUTOMATION_CONFIG once for the whole tick and reuse per-market dims, rather than re-opening/re-parsing
+    # the file inside allowed_methods() on every setup below.
+    try:
+        _cfg = json.load(open(AUTOMATION_CONFIG, encoding="utf-8"))
+    except Exception:
+        _cfg = {}
+    _dims_by_market = {m: _cfg.get("markets", {}).get(m, {}).get("dimensions", {}) for m in ("crypto", "cfd")}
     for st in setups_cfg:
+        if st["method"] not in allowed_methods(st["market"], _dims_by_market.get(st["market"])):
+            log("preset_filtered", setup=st["id"], market=st["market"], method=st["method"],
+                why="method not permitted by the current method preset")
+            continue
         if not due(st["tf"], t, st["market"]):
             continue
         venue = st["execution"]
@@ -839,7 +871,7 @@ def tick(live, tick_time=None, ignore_gate=False):
             if not c or len(c) < bt.P[st["tf"]]["R"] + 10:
                 continue
             for side in ("long", "short"):
-                sigs = setups(st["method"], side, c, st["tf"], st.get("ict_target") or "range", st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot") if st["method"] in ("ICT", "COMBINED") else setups_wyckoff(st["method"], side, c, st["tf"])
+                sigs = setups(st["method"], side, c, st["tf"], st.get("ict_target") or "range", st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot") if mreg.scan_of(st["method"]) == "ict" else setups_wyckoff(st["method"], side, c, st["tf"])
                 for sig in sigs:
                     key = f"{st['id']}-{sym}-{side}-{sig['time']}"
                     if key in s["seen"]:
@@ -898,7 +930,7 @@ def replay(setup_ids, bars=600):
             if not os.path.exists(p):
                 continue
             span = json.load(open(p))["candles"][-bars:]
-            placements = {}; wy = st["method"] in ("WYCKOFF", "WYCKOFF-BOOK")
+            placements = {}; wy = mreg.scan_of(st["method"]) == "wyckoff"
             for k in range(WINDOW, len(span) + 1):
                 window = span[k - WINDOW:k]
                 for side in ("long", "short"):
@@ -950,8 +982,9 @@ def main():
         print(min(TF_SEC[tf] for tf in tfs)); return
     if a.list:
         for st in load_setups():
-            flags = f" disp={st.get('ict_disp', False)} pd={st.get('ict_pd', False)} std_origin={st.get('std_origin', 'pivot')}" if st["method"] in ("ICT", "COMBINED") else ""
-            print(f"{st.get('rank', '-')}. {st['id']}: {st['market']} {st['tf']} {st['method']} target={st.get('ict_target')}{flags} htf={st.get('htf')} mgmt={st.get('mgmt')} exec={st['execution']} symbols={','.join(st['symbols'])}")
+            flags = f" disp={st.get('ict_disp', False)} pd={st.get('ict_pd', False)} std_origin={st.get('std_origin', 'pivot')}" if mreg.scan_of(st["method"]) == "ict" else ""
+            blocked = "" if st["method"] in allowed_methods(st["market"]) else "  [preset: blocked]"
+            print(f"{st.get('rank', '-')}. {st['id']}: {st['market']} {st['tf']} {st['method']} target={st.get('ict_target')}{flags} htf={st.get('htf')} mgmt={st.get('mgmt')} exec={st['execution']} symbols={','.join(st['symbols'])}{blocked}")
         return
     if a.replay:
         print(json.dumps(replay(a.replay, a.bars), indent=1)); return
