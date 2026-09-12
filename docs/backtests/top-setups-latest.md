@@ -1,4 +1,4 @@
-# Setup theo khung — scalping / day / swing — mỗi thị trường — xếp trên 12 tháng gần nhất — 2026-09-11
+# Setup theo khung — scalping / day / swing — mỗi thị trường — xếp trên 12 tháng gần nhất — 2026-09-12
 
 _`scripts/rank-setups.py --horizons`. Quyết định người dùng 2026-09-11: mỗi thị trường chạy đủ 3 khung, kể cả khi lợi thế backtest yếu hoặc âm. Trong mỗi khung, luật tốt nhất theo cùng tiêu chí (không cháy → quý dương → năm dương → quý tệ nhất). Dòng âm được in nghiêng; scalping 5m/15m bị phí và trượt giá ăn nhiều nhất._
 

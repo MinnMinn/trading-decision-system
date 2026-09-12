@@ -1,5 +1,5 @@
 {
- "generated": "2026-09-11",
+ "generated": "2026-09-12",
  "mode": "horizons-1y",
  "note": "Written by scripts/rank-setups.py --horizons. One setup per horizon per market (user decision 2026-09-11). Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.",
  "setups": [
@@ -11,7 +11,13 @@
    "symbols": [
     "BTCUSDT",
     "ETHUSDT",
-    "SOLUSDT"
+    "SOLUSDT",
+    "ASTERUSDT",
+    "VIRTUALUSDT",
+    "SUIUSDT",
+    "TAOUSDT",
+    "RENDERUSDT",
+    "ONDOUSDT"
    ],
    "tf": "5m",
    "method": "WYCKOFF-BOOK",
@@ -42,7 +48,13 @@
    "symbols": [
     "BTCUSDT",
     "ETHUSDT",
-    "SOLUSDT"
+    "SOLUSDT",
+    "ASTERUSDT",
+    "VIRTUALUSDT",
+    "SUIUSDT",
+    "TAOUSDT",
+    "RENDERUSDT",
+    "ONDOUSDT"
    ],
    "tf": "30m",
    "method": "ICT",
@@ -77,7 +89,13 @@
    "symbols": [
     "BTCUSDT",
     "ETHUSDT",
-    "SOLUSDT"
+    "SOLUSDT",
+    "ASTERUSDT",
+    "VIRTUALUSDT",
+    "SUIUSDT",
+    "TAOUSDT",
+    "RENDERUSDT",
+    "ONDOUSDT"
    ],
    "tf": "4H",
    "method": "WYCKOFF",
