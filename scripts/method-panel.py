@@ -170,6 +170,7 @@ _STYLE = """<title>Công tắc phương pháp</title>
   --unvalidated: #6d4aa8; --unvalidated-soft: #ece4f7;
   --open: #1c6dd0; --open-soft: #dce9fb;
   --danger: #b3261e; --danger-soft: #f8dcda;
+  --pending: #0f7b8a; --pending-soft: #d7eef1; --pending-ink: #04262b;
   --focus: #1c6dd0;
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
@@ -185,6 +186,7 @@ _STYLE = """<title>Công tắc phương pháp</title>
     --unvalidated: #b79bef; --unvalidated-soft: #2c2440;
     --open: #6fa8ec; --open-soft: #172a42;
     --danger: #ef6b62; --danger-soft: #3a1613;
+    --pending: #57c2d1; --pending-soft: #123239; --pending-ink: #dff6f9;
     --focus: #6fa8ec;
   }
 }
@@ -198,6 +200,7 @@ _STYLE = """<title>Công tắc phương pháp</title>
   --unvalidated: #b79bef; --unvalidated-soft: #2c2440;
   --open: #6fa8ec; --open-soft: #172a42;
   --danger: #ef6b62; --danger-soft: #3a1613;
+  --pending: #57c2d1; --pending-soft: #123239; --pending-ink: #dff6f9;
   --focus: #6fa8ec;
 }
 * { box-sizing: border-box; }
@@ -262,8 +265,12 @@ body { background: var(--bg); color: var(--text); margin: 0; font-family: var(--
   background: var(--danger-soft); color: var(--danger); }
 .request-status { font-size: .72rem; color: var(--text-dim); }
 .request-status[data-status="refused"] { color: var(--nodata); font-weight: 600; }
-.preset-card.is-desired { outline: 2px dashed var(--accent); outline-offset: 2px; }
-.chip.is-desired { outline: 2px dashed var(--accent); outline-offset: 1px; }
+.preset-card.is-desired { outline: 2px dashed var(--pending); outline-offset: 2px;
+  border-color: var(--pending); background: var(--pending-soft); }
+.preset-pending-note { font-size: .68rem; font-weight: 600; color: var(--pending); }
+.chip.is-desired { outline: 2px dashed var(--pending); outline-offset: 1px;
+  border-color: var(--pending); background: var(--pending-soft); color: var(--pending-ink); }
+.chip-pending-note { font-size: .62rem; font-weight: 600; }
 </style>"""
 
 _TIER_LABEL = {"trade": "Đủ điều kiện vào lệnh", "research": "Chỉ nghiên cứu"}
@@ -309,6 +316,9 @@ def _preset_card(market, preset, selected_id, environment):
                  f'<span class="preset-label">{esc(preset["label"])}</span>'
                  f'<span class="tier-badge" data-tier="{tier}">{"Trade" if tier == "trade" else "Research"}</span>'
                  '</div>')
+    # Filled in by JS only, from the fixed Vietnamese constant in _SCRIPT -- never from db content.
+    # Empty/hidden until a pending local edit targets this card; see renderMarket()/PENDING_NOTE_TEXT.
+    parts.append('<div class="preset-pending-note" hidden></div>')
     parts.append(f'<div class="preset-dims">{esc(dims_label)}</div>')
     if locked:
         parts.append(f'<div class="preset-note locked">{esc(_COINGLASS_NOTE)}</div>')
@@ -351,7 +361,10 @@ def _symbol_chip(market, fact):
     pressed = "true" if fact["selected"] else "false"
     return (f'<li class="chip-item" {" ".join(li_attrs)}>'
             f'<button type="button" class="chip" data-symbol="{esc(sym)}" aria-pressed="{pressed}">'
-            f'<span class="chip-label">{esc(label)}</span>{"".join(badges)}</button></li>')
+            f'<span class="chip-label">{esc(label)}</span>'
+            # Filled in by JS only, from the fixed Vietnamese constant in _SCRIPT -- never from db content.
+            '<span class="chip-pending-note" hidden></span>'
+            f'{"".join(badges)}</button></li>')
 
 
 def _market_column(market, config, data_present, backtested, open_positions, environment):
@@ -443,7 +456,14 @@ _SCRIPT = """<script>
   var dbReady = false;
   var applied = {};          // market -> {preset, instruments, applied_at, requested_at} | null
   var request = {};          // market -> {preset, instruments, requested_at} | null
-  var pendingDesired = {};   // market -> {preset, instruments} | null -- unsent/in-flight local edits
+  // market -> {preset, instruments} | null -- a desired state the user tapped that is NOT YET APPLIED
+  // (not merely "not yet written"). Cleared only when the applied snapshot confirms it, the tied
+  // request resolves as a refusal, or the user taps something else (overwritten) -- see
+  // PENDING_RECONCILE_GUARD below. A successful write ack alone must never clear this: the tap must
+  // keep looking like something is in flight until the applier actually catches up or declines it.
+  var pendingDesired = {};
+  // Fixed Vietnamese copy for the in-card pending note (PENDING_RECONCILE follow-up) -- never db content.
+  var PENDING_NOTE_TEXT = "đang chờ áp dụng";
   var writeTimer = {};
   var heartbeatAt = null;    // Date | null
 
@@ -523,14 +543,50 @@ _SCRIPT = """<script>
     return { preset: preset, instruments: instruments };
   }
 
+  // Captured ONCE, synchronously, right here at script-load time -- before boot()/any subscription can
+  // ever call renderMarket() and repaint the chips from a live (possibly null) applied snapshot. This is
+  // the ONLY correct read of "the build-time config the page was rendered with" (Defect 2): calling
+  // bakedState() later, from inside desiredBase(), would instead read whatever renderMarket() last
+  // painted -- and an applied doc reported as exists:false paints every chip aria-pressed="false", which
+  // silently turns a preset tap into an instruments:[] write even though nine symbols were baked in.
+  var INITIAL_BAKED = {};
+  MARKETS.forEach(function (market) { INITIAL_BAKED[market] = bakedState(market); });
+
   function desiredBase(market) {
     if (pendingDesired[market]) return pendingDesired[market];
     if (applied[market]) return { preset: applied[market].preset, instruments: applied[market].instruments.slice() };
     if (request[market]) return { preset: request[market].preset, instruments: request[market].instruments.slice() };
-    return bakedState(market);
+    var baked = INITIAL_BAKED[market];
+    return { preset: baked.preset, instruments: baked.instruments.slice() };
+  }
+
+  // PENDING_RECONCILE_GUARD_START -- kept between these markers, same technique as the other guards in
+  // this file, so scripts/tests/test_method_panel.py can extract and execute this pure function under
+  // Node (concatenated with REQUEST_OUTCOME_GUARD, which it calls). Defect 1: a pending local edit is
+  // "desired but not yet applied", not "not yet written" -- it must survive a successful write ack and
+  // clear only once the applied snapshot confirms the exact preset/instruments the user asked for, or the
+  // tied request resolves as a refusal. A pending edit whose paired request has not itself resolved yet
+  // (still "pending" per resolveRequestOutcome) must keep showing as outstanding.
+  function pendingStillOutstanding(pending, doc, req) {
+    if (!pending) return false;
+    if (doc && doc.preset === pending.preset && sameInstrumentSet(doc.instruments, pending.instruments)) {
+      return false;
+    }
+    if (req && req.preset === pending.preset && sameInstrumentSet(req.instruments, pending.instruments)) {
+      if (resolveRequestOutcome(req, doc).status === "refused") return false;
+    }
+    return true;
+  }
+  // PENDING_RECONCILE_GUARD_END
+
+  function reconcilePending(market) {
+    if (!pendingStillOutstanding(pendingDesired[market], applied[market], request[market])) {
+      pendingDesired[market] = null;
+    }
   }
 
   function renderMarket(market) {
+    reconcilePending(market);
     var doc = applied[market];
     var pending = pendingDesired[market];
     marketPresetCards(market).forEach(function (card) {
@@ -538,13 +594,19 @@ _SCRIPT = """<script>
       if (card.getAttribute("aria-disabled") !== "true") {
         card.setAttribute("aria-pressed", (doc && doc.preset === pid) ? "true" : "false");
       }
-      card.classList.toggle("is-desired", !!pending && pending.preset === pid);
+      var isPendingHere = !!pending && pending.preset === pid;
+      card.classList.toggle("is-desired", isPendingHere);
+      var note = card.querySelector(".preset-pending-note");
+      if (note) { note.hidden = !isPendingHere; note.textContent = isPendingHere ? PENDING_NOTE_TEXT : ""; }
     });
     var appliedSymbols = doc ? doc.instruments : [];
     marketChips(market).forEach(function (chip) {
       var sym = chip.getAttribute("data-symbol");
       chip.setAttribute("aria-pressed", appliedSymbols.indexOf(sym) !== -1 ? "true" : "false");
-      chip.classList.toggle("is-desired", !!pending && pending.instruments.indexOf(sym) !== -1);
+      var isPendingHere = !!pending && pending.instruments.indexOf(sym) !== -1;
+      chip.classList.toggle("is-desired", isPendingHere);
+      var note = chip.querySelector(".chip-pending-note");
+      if (note) { note.hidden = !isPendingHere; note.textContent = isPendingHere ? PENDING_NOTE_TEXT : ""; }
     });
     updateStatusLine(market);
   }
@@ -613,8 +675,17 @@ _SCRIPT = """<script>
   // REQUEST_OUTCOME_GUARD_END
 
   function updateStatusLine(market) {
-    if (pendingDesired[market]) { setRequestStatus(market, "unsent", "chưa gửi"); return; }
     var req = request[market], doc = applied[market];
+    var pending = pendingDesired[market];
+    if (pending) {
+      // Distinguish "tapped, debounce/write still in flight" from "written, waiting on the applier" --
+      // both look "pending" on the card (is-desired), but the status line still tells the user whether
+      // the request has actually left the device yet.
+      var written = req && req.preset === pending.preset && sameInstrumentSet(req.instruments, pending.instruments);
+      setRequestStatus(market, written ? "waiting" : "unsent",
+        written ? "đang chờ áp dụng (≤ 5 phút)" : "chưa gửi");
+      return;
+    }
     if (!req) {
       setRequestStatus(market, doc ? "applied" : "unsent",
         doc ? "đã áp dụng lúc " + formatTs(doc.applied_at) : "chưa gửi");
@@ -705,7 +776,10 @@ _SCRIPT = """<script>
     var doc = { preset: desired.preset, instruments: desired.instruments.slice(),
                 requested_at: new Date().toISOString() };
     db.doc(REQUEST_DOC_PATH[market]).set(doc).then(function () {
-      if (pendingDesired[market] === desired) pendingDesired[market] = null;
+      // Defect 1: a successful write is only an ack that the request left the device -- it is not the
+      // applier's answer. The pending indicator (pendingDesired) must survive this and keep showing
+      // "waiting", not "unsent"/nothing; see reconcilePending()/pendingStillOutstanding(), which alone
+      // decide when a pending edit clears (applied match, or resolved refusal).
       request[market] = doc;
       renderMarket(market);
     }).catch(function (err) { handleWriteError(market, err, attempt, desired); });
@@ -772,9 +846,9 @@ _SCRIPT = """<script>
 
     db.doc(REQUEST_DOC_PATH[market]).onSnapshot(function (snap) {
       request[market] = snap.exists ? validDoc(snap.data()) : null;
-      updateStatusLine(market);
+      renderMarket(market);
       renderHeartbeatBanner();
-    }, function () { request[market] = null; });
+    }, function () { request[market] = null; renderMarket(market); });
   }
 
   function subscribeHeartbeat() {

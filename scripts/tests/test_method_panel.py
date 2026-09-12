@@ -7,6 +7,12 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import methods as M
 import instruments as I
 
+try:
+    from playwright.sync_api import sync_playwright
+    _PLAYWRIGHT_AVAILABLE = True
+except Exception:
+    _PLAYWRIGHT_AVAILABLE = False
+
 
 def load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -386,6 +392,214 @@ class RequestOutcomeGuard(unittest.TestCase):
         result = self._resolve(req, doc)
         self.assertEqual(result["status"], "refused")
         self.assertNotIn("stale_or_skewed_requested_at", result["reason"])
+
+
+def _pending_reconcile_guard_source():
+    """pendingStillOutstanding (PENDING_RECONCILE_GUARD) calls sameInstrumentSet/resolveRequestOutcome,
+    which live in REQUEST_OUTCOME_GUARD -- concatenated so the pure function runs standalone under Node,
+    same technique as the other guard extractions in this file."""
+    src = mp._SCRIPT
+    start = src.index("// PENDING_RECONCILE_GUARD_START")
+    end = src.index("// PENDING_RECONCILE_GUARD_END") + len("// PENDING_RECONCILE_GUARD_END")
+    return _request_outcome_guard_source() + "\n" + src[start:end]
+
+
+@unittest.skipUnless(NODE, "node not installed -- pendingStillOutstanding is executed for real, not just grepped")
+class PendingSurvivesWriteSuccess(unittest.TestCase):
+    """Defect 1 (reported: a tap that looks like nothing happened): pendingDesired must mean 'desired but
+    not yet applied', not 'not yet written'. A write ack landing in request[market] must not, by itself,
+    clear the pending indicator -- only the applied snapshot confirming the exact match, or the tied
+    request resolving as a refusal, may. pendingStillOutstanding() is the pure decision renderMarket()
+    calls on every repaint; these test it directly under Node, the same technique already used for
+    resolveRequestOutcome() and classifyElapsedMs()."""
+
+    def _outstanding(self, pending, doc, req):
+        snippet = (_pending_reconcile_guard_source() + "\nconsole.log(JSON.stringify(pendingStillOutstanding("
+                   + json.dumps(pending) + ", " + json.dumps(doc) + ", " + json.dumps(req) + ")));")
+        return json.loads(_run_node(snippet))
+
+    def test_pending_survives_once_written_but_the_applier_has_not_caught_up(self):
+        pending = {"preset": "wyckoff+ict", "instruments": ["BTCUSDT"]}
+        req = {"preset": "wyckoff+ict", "instruments": ["BTCUSDT"], "requested_at": "2026-09-12T10:00:00Z"}
+        self.assertTrue(self._outstanding(pending, None, req),
+                         "a successful write (request doc now matches) must not by itself end the pending state")
+
+    def test_pending_clears_once_the_applied_snapshot_confirms_the_match(self):
+        pending = {"preset": "wyckoff+ict", "instruments": ["BTCUSDT"]}
+        req = {"preset": "wyckoff+ict", "instruments": ["BTCUSDT"], "requested_at": "2026-09-12T10:00:00Z"}
+        doc = {"preset": "wyckoff+ict", "instruments": ["BTCUSDT"], "requested_at": "2026-09-12T10:00:00Z",
+               "applied_at": "2026-09-12T10:01:00Z", "preset_result": "applied", "instruments_result": "no-op",
+               "error": None}
+        self.assertFalse(self._outstanding(pending, doc, req))
+
+    def test_pending_clears_on_a_resolved_refusal(self):
+        pending = {"preset": "ict", "instruments": ["BTCUSDT"]}
+        req = {"preset": "ict", "instruments": ["BTCUSDT"], "requested_at": "2026-09-12T10:00:00Z"}
+        doc = {"preset": "wyckoff", "instruments": ["BTCUSDT"], "requested_at": "2026-09-12T10:00:00Z",
+               "preset_result": "refused: unknown_or_wrong_market_preset", "instruments_result": "no-op",
+               "error": None}
+        self.assertFalse(self._outstanding(pending, doc, req))
+
+    def test_pending_survives_while_the_tied_request_has_not_itself_resolved(self):
+        """The applied doc still reflects an OLDER request (its requested_at differs from the pending
+        edit's own request) -- the applier has not gotten to this one yet, so it must keep showing pending."""
+        pending = {"preset": "wyckoff+ict", "instruments": ["BTCUSDT"]}
+        req = {"preset": "wyckoff+ict", "instruments": ["BTCUSDT"], "requested_at": "2026-09-12T10:05:00Z"}
+        doc = {"preset": "wyckoff", "instruments": ["BTCUSDT"], "requested_at": "2026-09-12T10:00:00Z",
+               "preset_result": "applied", "instruments_result": "no-op", "error": None}
+        self.assertTrue(self._outstanding(pending, doc, req))
+
+    def test_no_pending_edit_is_never_outstanding(self):
+        self.assertFalse(self._outstanding(None, None, None))
+
+
+class FlushWriteDoesNotClearPendingOnSuccess(unittest.TestCase):
+    """Structural regression pin for Defect 1's root cause: the fix is worthless if a future edit
+    reintroduces `pendingDesired[market] = null` inside flushWrite's success handler."""
+
+    def test_the_success_handler_never_nulls_pending_desired(self):
+        fn = _js_function_source(mp._SCRIPT, "flushWrite")
+        then_start = fn.index(".then(function ()")
+        catch_start = fn.index(".catch(function (err)")
+        then_body = fn[then_start:catch_start]
+        self.assertNotIn("pendingDesired[market] = null", then_body,
+                          "a successful write must not clear the pending indicator -- only "
+                          "reconcilePending()/pendingStillOutstanding() may")
+        self.assertIn("request[market] = doc", then_body)
+
+
+class DesiredBaseUsesInitialBakedSnapshot(unittest.TestCase):
+    """Defect 2's root cause (reported): bakedState() re-reads the DOM at call time, and a null applied
+    snapshot has already repainted every chip aria-pressed=false by the time desiredBase() falls through
+    to it. The fix captures the true baked selection once, before boot()/any subscription can mutate the
+    DOM, and desiredBase() must fall back to that frozen snapshot instead of a live re-read."""
+
+    def test_desired_base_does_not_call_baked_state_live(self):
+        fn = _js_function_source(mp._SCRIPT, "desiredBase")
+        self.assertNotIn("bakedState(market)", fn)
+        self.assertIn("INITIAL_BAKED", fn)
+
+    def test_initial_baked_is_captured_before_boot_runs(self):
+        src = mp._SCRIPT
+        baked_idx = src.index("var INITIAL_BAKED = {};")
+        boot_call_idx = src.rindex("boot();")
+        self.assertLess(baked_idx, boot_call_idx,
+                         "the baked snapshot must be captured before boot()/any db subscription can "
+                         "repaint the DOM from a live (possibly null) applied snapshot")
+
+
+def _wrap_with_db_stub(panel_html, seed_docs):
+    """Wraps rendered panel HTML with a stub window.claude whose db.doc().onSnapshot() fires once,
+    synchronously, with the seeded doc (or exists:false if unseeded) -- and whose .set() records every
+    write instead of performing one. Mirrors exactly what the bug report's own reproduction harness did."""
+    stub = ("<script>\n"
+            "window.__seedDocs = " + json.dumps(seed_docs) + ";\n"
+            "window.__writes = [];\n"
+            "window.claude = {\n"
+            "  use: function () {\n"
+            "    return Promise.resolve({\n"
+            "      doc: function (path) {\n"
+            "        return {\n"
+            "          set: function (data) {\n"
+            "            window.__writes.push({path: path, data: JSON.parse(JSON.stringify(data))});\n"
+            "            return Promise.resolve();\n"
+            "          },\n"
+            "          onSnapshot: function (onNext) {\n"
+            "            var seed = window.__seedDocs[path];\n"
+            "            if (seed && seed.exists) {\n"
+            "              onNext({exists: true, data: function () { return seed.data; }});\n"
+            "            } else {\n"
+            "              onNext({exists: false, data: function () { return {}; }});\n"
+            "            }\n"
+            "            return function () {};\n"
+            "          }\n"
+            "        };\n"
+            "      }\n"
+            "    });\n"
+            "  }\n"
+            "};\n"
+            "</script>")
+    return "<!doctype html><html><head><meta charset='utf-8'></head><body>" + stub + "\n" + panel_html + "\n</body></html>"
+
+
+@unittest.skipUnless(_PLAYWRIGHT_AVAILABLE, "playwright not installed -- browser reproduction skipped")
+class BrowserOverTimeBehaviour(unittest.TestCase):
+    """Reproduces, in a real browser, the exact two defects reported against the published panel: a tap
+    that ends up looking like nothing happened once the write succeeds (Defect 1), and a missing applied
+    snapshot silently turning a preset tap into an instruments:[] write even though the page was baked
+    with real symbols selected (Defect 2). Attribute/structure assertions never caught either -- both only
+    show up over time, in a browser, which is what this class drives."""
+
+    @classmethod
+    def setUpClass(cls):
+        if not _PLAYWRIGHT_AVAILABLE:
+            return
+        cls._pw = sync_playwright().start()
+        cls._browser = cls._pw.chromium.launch()
+
+    @classmethod
+    def tearDownClass(cls):
+        if not _PLAYWRIGHT_AVAILABLE:
+            return
+        cls._browser.close()
+        cls._pw.stop()
+
+    def _open(self, config, applied_seed):
+        html = mp.render(config)
+        seed = {}
+        if applied_seed is not None:
+            seed["control/applied.crypto"] = {"exists": True, "data": applied_seed}
+        page_html = _wrap_with_db_stub(html, seed)
+        path = tempfile.mktemp(suffix=".html")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(page_html)
+        self.addCleanup(lambda: os.path.exists(path) and os.remove(path))
+        page = self._browser.new_page()
+        self.addCleanup(page.close)
+        page.goto("file://" + path)
+        page.wait_for_timeout(150)
+        return page
+
+    def test_pending_card_state_survives_a_successful_write_before_the_applier_catches_up(self):
+        """Defect 1: previously, flushWrite's success handler nulled pendingDesired, so the card lost its
+        'is-desired' class the moment the write landed -- 400ms after the tap, well before the applier
+        (which runs on its own ~5-minute cron) could ever confirm anything."""
+        nine = I.analysis("crypto")
+        page = self._open(cfg(crypto_syms=nine), applied_seed={
+            "preset": "wyckoff", "instruments": nine,
+            "applied_at": "2026-09-12T09:00:00Z", "requested_at": "2026-09-12T08:59:00Z"})
+        card_sel = '.preset-card[data-market="crypto"][data-preset="wyckoff+ict"]'
+        page.click(card_sel)
+        page.wait_for_timeout(600)  # past the 400ms debounce -- the write has landed
+        classes = page.eval_on_selector(card_sel, "el => el.className")
+        self.assertIn("is-desired", classes,
+                       "the card must still show its own pending state once the write succeeds -- "
+                       "it must not revert to looking untouched")
+        status = page.eval_on_selector('.request-status[data-market="crypto"]', "el => el.textContent")
+        self.assertIn("đang chờ áp dụng", status)
+
+    def test_preset_tap_with_no_applied_doc_does_not_empty_the_instruments(self):
+        """Defect 2: with the applied doc reported exists:false (its snapshot fires once, synchronously,
+        like the real db contract), a preset tap must not send instruments:[] even though the page was
+        baked with real symbols selected and the null snapshot has already repainted every chip
+        aria-pressed=false."""
+        nine = I.analysis("crypto")
+        page = self._open(cfg(crypto_syms=nine), applied_seed=None)
+        selected_before = page.eval_on_selector_all(
+            '.chip-item[data-market="crypto"] .chip[aria-pressed="true"]', "els => els.length")
+        self.assertEqual(selected_before, 0,
+                          "sanity check: the null applied snapshot repaints chips unselected, matching "
+                          "the reported production behaviour")
+        card_sel = '.preset-card[data-market="crypto"][data-preset="wyckoff+ict"]'
+        page.click(card_sel)
+        page.wait_for_timeout(600)
+        writes = page.evaluate("window.__writes")
+        self.assertEqual(len(writes), 1)
+        self.assertNotEqual(writes[0]["data"]["instruments"], [],
+                             "a preset tap must never write an empty instruments list by ignorance -- "
+                             "an empty list must only ever be sent because the user explicitly "
+                             "unticked everything")
+        self.assertEqual(sorted(writes[0]["data"]["instruments"]), sorted(nine))
 
 
 class HeartbeatInteraction(unittest.TestCase):
