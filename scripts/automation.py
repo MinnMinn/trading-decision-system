@@ -51,7 +51,7 @@ Test-only environment overrides (never set these in normal use):
                                        write and do NOT create it (a real STOP file kills a human's running loop).
   AUTOMATION_PILOT_PGREP_PATTERN=...   pattern used to detect already-running pilot loops.
 """
-import argparse, datetime, json, os, shutil, subprocess, sys
+import argparse, datetime, fcntl, json, os, re, shutil, subprocess, sys
 import importlib.util
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -93,6 +93,8 @@ COMMODITIES = set(MARKET_INSTRUMENTS["cfd"])
 FX_CODES = {"USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "SEK", "NOK",
             "SGD", "HKD", "MXN", "ZAR", "TRY", "CNH", "PLN", "DKK"}
 HISTORY_MAX = 200
+HISTORY_ARCHIVE = os.path.join(ROOT, "data", "live", "history-archive.automation.jsonl")
+_CTRL = re.compile(r"[\x00-\x1f\x7f]")
 
 # (market, timeframe) -> chart style. THE canonical mapping: scan-loop.sh and local-eval-brief.py both read it
 # from here so the vocabulary cannot drift. Never rename an existing style -- artifacts and data/live paths use them.
@@ -271,17 +273,30 @@ def migrate_v2(old):
     return cfg
 
 
-def load():
-    """(config, exists, migrated). A missing file means UNCONFIGURED: the defaults are what every reader assumes,
-    so a clean checkout behaves exactly as it did before this switch existed. A v1/v2 file is migrated IN MEMORY
-    here; main() persists the migration once, with a `migrate` history row."""
+def clean(s, limit=300):
+    """Audit strings may now carry values influenced from outside (the panel applier). Strip control
+    characters and ANSI so a history row can never forge a second row or steer a terminal, and cap the
+    length so one row cannot crowd the ring. CFG-05."""
+    if s is None:
+        return None
+    return _CTRL.sub(" ", str(s)).strip()[:limit]
+
+
+def load(require_readable=True):
+    """(config, exists, migrated). A MISSING file means UNCONFIGURED: the defaults are what every reader
+    assumes, so a clean checkout behaves exactly as it did before this switch existed. An UNREADABLE file is
+    different -- it is a corrupt state, and replacing it with permissive defaults would silently turn every
+    dimension and every layer back on. CFG-02: callers that intend to write pass require_readable=True (the
+    default) and we exit 2 rather than return defaults."""
     if not os.path.exists(CONFIG):
         return json.loads(json.dumps(DEFAULTS)), False, False
     try:
         raw = json.load(open(CONFIG, encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as e:
-        print(f"! {CONFIG} is unreadable ({e}); showing built-in defaults, refusing to overwrite blindly.",
+        print(f"REFUSED: {CONFIG} is unreadable ({e}); refusing to overwrite it. Fix or delete the file.",
               file=sys.stderr)
+        if require_readable:
+            raise SystemExit(2)
         return json.loads(json.dumps(DEFAULTS)), False, False
     ver = int(raw.get("schema_version", 1))
     if ver <= 1:
@@ -292,23 +307,42 @@ def load():
 
 
 def record(cfg, a, action, result):
-    cfg["history"].append({"ts": now(), "actor": actor(a), "action": action,
-                           "detail": getattr(a, "reason", None), "result": result})
-    cfg["history"] = cfg["history"][-HISTORY_MAX:]
+    cfg["history"].append({"ts": now(), "actor": clean(actor(a), 80), "action": clean(action),
+                           "detail": clean(getattr(a, "reason", None)), "result": result})
+    if len(cfg["history"]) > HISTORY_MAX:
+        evicted, cfg["history"] = cfg["history"][:-HISTORY_MAX], cfg["history"][-HISTORY_MAX:]
+        os.makedirs(os.path.dirname(HISTORY_ARCHIVE), exist_ok=True)
+        with open(HISTORY_ARCHIVE, "a", encoding="utf-8") as f:      # CFG-07: the ring is not a shredder
+            for row in evicted:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def save(cfg):
+    """CFG-01: atomic and locked. Two writers exist now (a terminal and the applier cron); a truncate-in-place
+    write loses one update outright and a crash mid-write leaves a file strategy-runner.py's automation_gate()
+    reads as 'unreadable' -- i.e. a pilot outage."""
     cfg["last_updated"] = now()
-    with open(CONFIG, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2, ensure_ascii=False)
-        f.write("\n")
+    os.makedirs(os.path.dirname(CONFIG), exist_ok=True)
+    lock = CONFIG + ".lock"
+    with open(lock, "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            tmp = CONFIG + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, CONFIG)
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
 
 
 # ---------- readers used by scan-loop.sh / local-eval-brief.py ----------
 def enabled_styles(cfg=None):
     """The chart styles the scanner and the local read are permitted to run, in STYLE order."""
     if cfg is None:
-        cfg, _, _ = load()
+        cfg, _, _ = load(require_readable=False)
     out = []
     for (m, tf), style in STYLE.items():
         mk = cfg.get("markets", {}).get(m, {})
@@ -319,7 +353,7 @@ def enabled_styles(cfg=None):
 
 def enabled_instruments(cfg=None, market=None):
     if cfg is None:
-        cfg, _, _ = load()
+        cfg, _, _ = load(require_readable=False)
     out = []
     for m in ([market] if market else MARKETS):
         mk = cfg.get("markets", {}).get(m, {})
@@ -331,7 +365,7 @@ def enabled_instruments(cfg=None, market=None):
 def allows(layer, style=None):
     """(ok, reason). True if `layer` may act and, when given, `style`'s (market, timeframe) is on.
     Unconfigured => allowed (no policy, no behaviour change). This can only ever STOP something."""
-    cfg, exists, _ = load()
+    cfg, exists, _ = load(require_readable=False)
     if not exists:
         return True, None
     if not cfg.get("enabled", True):
@@ -514,8 +548,8 @@ def show(cfg, exists, as_json=False, brief=False):
     else:
         print("  pilot proc:  none recorded")
     for h in cfg["history"][-3:]:
-        print(f"  last change: {h['ts']} {h['actor']} {h['action']} -> {h['result']}"
-              + (f" ({h['detail']})" if h.get("detail") else ""))
+        print(f"  last change: {clean(h.get('ts'))} {clean(h.get('actor'))} {clean(h.get('action'))} -> "
+              f"{clean(h.get('result'))}" + (f" ({clean(h.get('detail'))})" if h.get("detail") else ""))
     for w in warnings(cfg, exists):
         print("  ! " + w)
 
@@ -814,7 +848,7 @@ def apply_setup_spec(cfg, a):
 
 
 def cmd_master(a):
-    cfg, exists, _ = load()
+    cfg, exists, _ = load(require_readable=True)
     want = a.cmd == "on"
     if want:
         rc, lines = apply_setup_spec(cfg, a)
@@ -838,7 +872,7 @@ def cmd_master(a):
 
 
 def cmd_env(a):
-    cfg, exists, _ = load()
+    cfg, exists, _ = load(require_readable=False)
     envname = cfg["execution"].get("environment", "demo")
     ok, missing, note = trading_env.completeness(envname)
     print(f"environment: {envname}  file: config/env.{envname}  spot secrets: {note}")
@@ -885,7 +919,7 @@ def apply_preset(cfg, a, envname):
 
 def cmd_preset(a):
     envname = a.cmd
-    cfg, exists, _ = load()
+    cfg, exists, _ = load(require_readable=True)
     if envname == "real":
         ok, missing, note = trading_env.completeness("real")
         if not ok:
@@ -920,7 +954,7 @@ def cmd_preset(a):
 
 
 def cmd_market(a):
-    cfg, _, _ = load()
+    cfg, _, _ = load(require_readable=True)
     want = a.value == "on"
     mk = cfg["markets"][a.name]
     result = "no-op" if mk["enabled"] == want else "applied"
@@ -932,7 +966,7 @@ def cmd_market(a):
 
 
 def cmd_timeframe(a):
-    cfg, _, _ = load()
+    cfg, _, _ = load(require_readable=True)
     targets = [a.market] if a.market else [m for m in MARKETS if a.name in MARKET_TIMEFRAMES[m]]
     bad = [m for m in targets if a.name not in MARKET_TIMEFRAMES[m]]
     if bad:
@@ -959,7 +993,7 @@ def cmd_timeframe(a):
 
 
 def cmd_dimension(a):
-    cfg, _, _ = load()
+    cfg, _, _ = load(require_readable=True)
     targets = [a.market] if a.market else [m for m in MARKETS if a.name in MARKET_DIMENSIONS[m]]
     bad = [m for m in targets if a.name not in MARKET_DIMENSIONS[m]]
     if bad:
@@ -985,7 +1019,7 @@ def cmd_dimension(a):
 
 
 def cmd_layer(a):
-    cfg, _, _ = load()
+    cfg, _, _ = load(require_readable=True)
     want = a.value == "on"
     result = "no-op" if cfg["layers"][a.name] == want else "applied"
     cfg["layers"][a.name] = want
@@ -1000,7 +1034,7 @@ def cmd_layer(a):
 
 def cmd_instrument(a):
     sym = a.symbol.upper()
-    cfg, _, _ = load()
+    cfg, _, _ = load(require_readable=True)
     if sym[:3] in FX_CODES and sym[3:6] in FX_CODES:
         record(cfg, a, f"instrument {sym}={a.value}", "refused")
         save(cfg)
@@ -1051,7 +1085,7 @@ def pilot_start(a, cfg=None, embedded=False):
     never 'fixes' a blocker for you (it will not remove a STOP file, will not enable a layer)."""
     own = cfg is None
     if own:
-        cfg, _, _ = load()
+        cfg, _, _ = load(require_readable=True)
     market = getattr(a, "market", None) or "spot"
     action = f"pilot start --market {market}"
     if not cfg["enabled"]:
@@ -1126,7 +1160,12 @@ def pilot_start(a, cfg=None, embedded=False):
 
 
 def cmd_pilot(a):
-    cfg, exists, _ = load()
+    # Mixed read/write: action in {profile, start, stop, adopt} mutates and calls save(); action == "status"
+    # (the fallthrough) only reads. Classified as a write path (require_readable=True) because a single load()
+    # serves the whole dispatch -- relaxing it here would let a corrupt config's DEFAULTS silently reach the
+    # mutating branches (CFG-02). Cost: `pilot status` on a corrupt config now also exits 2 instead of showing
+    # defaults; acceptable because `status`/`env`/`allows`/`history` remain the documented always-safe readers.
+    cfg, exists, _ = load(require_readable=True)
     market = a.market or (cfg.get("pilot_process") or {}).get("market") or "spot"
 
     if a.action == "profile":
@@ -1243,13 +1282,13 @@ def cmd_demo(a):
 
 
 def cmd_history(a):
-    cfg, exists, _ = load()
+    cfg, exists, _ = load(require_readable=False)
     if not cfg["history"]:
         print("(no history yet)" if exists else "(no config file yet -- nothing has been changed)")
         return 0
     for h in cfg["history"][-a.n:]:
-        print(f"{h['ts']}  {h['actor']:<16} {h['action']:<40} {h['result']}"
-              + (f"  ({h['detail']})" if h.get("detail") else ""))
+        print(f"{clean(h.get('ts'))}  {clean(h.get('actor')) or '':<16} {clean(h.get('action')) or '':<40} "
+              f"{clean(h.get('result'))}" + (f"  ({clean(h.get('detail'))})" if h.get("detail") else ""))
     return 0
 
 
@@ -1300,8 +1339,12 @@ def main():
         a.cmd = "status"; a.json = False       # no args = status, per .claude/commands/automation.md
 
     # v1/v2 -> v3 migration, once, in place, with an audit row. Done here (not in load()) so that a reader such as
-    # scan-loop.sh never writes this file as a side effect of gating a pass.
-    cfg, exists, migrated = load()
+    # scan-loop.sh never writes this file as a side effect of gating a pass. require_readable=False: this is a
+    # pre-dispatch probe shared by every subcommand including read-only ones (status/env/allows/history), so it
+    # must never exit 2 on a corrupt file -- migrated can only be True for a file that parsed (v1/v2), so this
+    # relaxation never weakens CFG-02 for the actual migration write below. Write subcommands re-load with their
+    # own require_readable=True call and refuse independently.
+    cfg, exists, migrated = load(require_readable=False)
     if migrated and exists and a.cmd not in ("allows",):
         record(cfg, a, f"migrate schema_version -> {SCHEMA_VERSION}", "applied")
         save(cfg)
@@ -1309,7 +1352,7 @@ def main():
               f"(execution.account -> execution.environment, services added); recorded in history[].")
 
     if a.cmd == "status":
-        cfg, exists, _ = load(); show(cfg, exists, a.json); return 0
+        cfg, exists, _ = load(require_readable=False); show(cfg, exists, a.json); return 0
     if a.cmd == "env":
         return cmd_env(a)
     if a.cmd == "allows":

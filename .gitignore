@@ -53,5 +53,11 @@ config/secrets*.local.*
 !docs/prompts/**
 !docs/security/
 !docs/security/**
+
+# scripts/automation.py's atomic locked write (CFG-01, docs/security/2026-09-12-method-panel.md) -- the lock
+# file and the tmp file it os.replace()s into place are runtime artifacts, never the config itself.
+docs/architecture/automation-config.json.lock
+docs/architecture/automation-config.json.tmp
+
 __pycache__/
 data/history/
