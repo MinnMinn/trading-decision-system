@@ -138,3 +138,38 @@ class AutomationUsesRegistry(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("rank_setups", os.path.join(ROOT, "scripts", "rank-setups.py"))
         rank_setups = importlib.util.module_from_spec(spec); spec.loader.exec_module(rank_setups)
         self.assertEqual(rank_setups.RUNNABLE, M.runnable())
+
+
+class DispatchPlan(unittest.TestCase):
+    def plan(self, instrument, cfg):
+        import json, tempfile
+        tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, tmp); tmp.close()
+        try:
+            return M.dispatch_plan(instrument, config_path=tmp.name)
+        finally:
+            os.unlink(tmp.name)
+
+    def base(self, crypto_dims):
+        return {"markets": {"crypto": {"enabled": True, "dimensions": crypto_dims},
+                            "cfd": {"enabled": True, "dimensions": {"wyckoff": True, "ict": True}}}}
+
+    def test_cfd_never_dispatches_coinglass_agents(self):
+        p = self.plan("XAUUSD", self.base({"wyckoff": True, "ict": True, "footprint": True, "heatmap": True}))
+        self.assertNotIn("flow-agent", p["dispatch"])
+        self.assertNotIn("liquidity-agent", p["dispatch"])
+        self.assertTrue(any("CoinGlass" in r for r in p["skipped"].values()))
+
+    def test_a_disabled_dimension_is_skipped_with_a_reason(self):
+        p = self.plan("BTCUSDT", self.base({"wyckoff": True, "ict": False, "footprint": True, "heatmap": False}))
+        self.assertIn("ict", p["skipped"])
+        self.assertIn("heatmap", p["skipped"])
+        self.assertIn("flow-agent", p["dispatch"])
+
+    def test_structure_agent_is_dropped_when_both_its_dimensions_are_off(self):
+        p = self.plan("BTCUSDT", self.base({"wyckoff": False, "ict": False, "footprint": True, "heatmap": True}))
+        self.assertNotIn("structure-agent", p["dispatch"])
+
+    def test_plan_reports_the_engaged_count_and_the_normal_minimum(self):
+        p = self.plan("BTCUSDT", self.base({"wyckoff": True, "ict": False, "footprint": False, "heatmap": False}))
+        self.assertEqual(p["engaged_count"], 1)
+        self.assertFalse(p["meets_normal_minimum"])

@@ -24,11 +24,15 @@ Run the full 12-step Decision Pipeline (master system prompt §12) for the instr
 4. **HTF Context + Setup Detection.** Read Daily/4H data yourself (via structure-agent's forthcoming read, or a quick own pass) to classify Market Regime (TRENDING/RANGING/TRANSITIONAL/UNCLEAR) and name the candidate Setup Type (Spring, Upthrust, Trend Continuation, etc. — master spec §14). If Regime is UNCLEAR and the setup depends on ranging behavior, flag this now.
 
 5. **Dispatch the read-only agents** (single message, parallel Agent tool calls where the harness supports it).
-   **First read `docs/architecture/automation-config.json` if it exists** (`schema_version 2`; missing file = unconfigured = dispatch everything, exactly as before this switch existed). It gates *which* agents are dispatched:
-   - **structure-agent** — always dispatched (Wyckoff + ICT): instrument, timeframes, exchange market-data path(s) (real or mock), the candidate setup location.
-   - **flow-agent** (Footprint) — **do NOT dispatch** when the instrument is a CFD (XAUUSD/XAGUSD/USOIL/UKOIL — `markets.cfd` has no `footprint` key at all, there is no CoinGlass source for commodities, `SYSTEM-DESIGN.md` §12 item 3), or when `markets.crypto.dimensions.footprint` is `false`. Otherwise: instrument, the specific anchor candle/bar structure-agent identifies, CoinGlass footprint data path.
-   - **liquidity-agent** (Heatmap) — **do NOT dispatch** when the instrument is a CFD (same reason), or when `markets.crypto.dimensions.heatmap` is `false`. Otherwise: instrument, CoinGlass heatmap data paths.
-   Wait for all dispatched returns before scoring. **State in your output which agents were skipped and why** (name the flag or the structural limit), and remind the reader that a skipped dimension lowers `engaged_count`, which can fall below the locked mode's minimum (NORMAL ≥2, ENHANCED/STRICT ≥3, §6.1/§6.2) and force NO TRADE on count alone — a configuration outcome, not a market read.
+   **First run `python3 scripts/methods.py --dispatch-plan <INSTRUMENT>`.** It prints the method preset in force,
+   a `DISPATCH:` line naming exactly which agents to dispatch, one `SKIP <dimension>:` line per skipped dimension
+   with the reason, and the engaged count against the NORMAL minimum. Dispatch exactly what `DISPATCH:` names and
+   nothing else; pass each agent the instrument, the timeframes, the data-source paths, and (for flow-agent) the
+   anchor candle structure-agent identified. **Reproduce every `SKIP` line verbatim in your output**, and remind
+   the reader that a skipped dimension lowers `engaged_count`, which can fall below the locked mode's minimum
+   (NORMAL ≥2, ENHANCED/STRICT ≥3, §6.1/§6.2) and force NO TRADE on count alone — a configuration outcome, not a
+   market read. Do not maintain a list of agents in this file; the registry
+   (`docs/architecture/methods.json`) is the source, so adding a dimension needs no edit here.
 
 6. **Independent-Confluence Check.** For each of the 4 dimensions, determine `eligible` (data AVAILABLE, not MOCK/STALE/UNAVAILABLE, and actually analyzed) and `engaged_count`. Compare against the locked mode's minimum (NORMAL≥2, ENHANCED≥3, STRICT≥3-explicitly-selected). If unmet: **verdict is NO TRADE**, skip to step 9.
 

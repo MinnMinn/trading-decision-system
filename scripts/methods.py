@@ -11,10 +11,16 @@ Import this; never hard-code a dimension, method or preset list anywhere else.
 Loading enforces the invariant that keeps profile_of a function: no two presets may name the same set of
 dimensions. A violation raises at import time rather than silently making one preset unreachable.
 """
-import json, os
+import json, os, sys
 
-PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                    "docs", "architecture", "methods.json")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Module-scope, once -- not inside dispatch_plan(). instruments.py does not import methods (checked to rule out
+# a cycle before adding this), and every other sibling-script importer in this repo (build-artifact.py,
+# sync-methods.py, sync-instruments.py) does the same insert-once-at-module-scope dance for the same reason.
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import instruments as I
+
+PATH = os.path.join(ROOT, "docs", "architecture", "methods.json")
 
 
 def _validate(d):
@@ -112,3 +118,92 @@ def runnable():
 
 def scan_of(name):
     return RUNNER_METHODS[name]["scan"]
+
+
+CONFIG_PATH = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
+NORMAL_MINIMUM = 2          # SYSTEM-DESIGN.md §6.1
+
+
+def dispatch_plan(instrument, config_path=None):
+    """Which read-only agents /analyze must dispatch for this instrument, and why each skipped one is skipped.
+    The gating logic lives here so .claude/commands/analyze.md does not have to be edited when a dimension is
+    added (spec §4.2).
+
+    Config states, distinguished so a corrupt file cannot masquerade as a real preset:
+      - MISSING file -> unconfigured, exactly as before the switch existed: dispatch everything this market
+        can have. Silent -- this is the expected state for anyone who has never opened /automation.
+      - CORRUPT file (exists but does not parse, or is not the expected shape) -> also falls back to
+        dispatch-everything (this is a read-only advisory step, not a write path -- CFG-02's refuse-on-corrupt
+        rule is about automation.py's mutating subcommands, where a silent fallback would entrench a bad write;
+        here the worst case is over-dispatching a few extra read-only agents, not an unsafe trade). But it is
+        NOT silent: `config_corrupt` carries the reason, `preset` is reported as "UNREADABLE" rather than a
+        computed name (a made-up preset name here would be exactly the "claims a preset that is not real"
+        problem this function exists to avoid), and the CLI prints the reason prominently.
+    """
+    market = I.market_of(instrument)
+    if market is None:
+        raise ValueError(f"{instrument} is not on the allowlist (docs/architecture/instruments.json)")
+    have = set(dimensions(market))
+    path = config_path or CONFIG_PATH
+    config_missing = False
+    config_corrupt = None
+    flags = {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        flags = (cfg.get("markets", {}).get(market, {}) or {}).get("dimensions", {}) or {}
+        if not isinstance(flags, dict):
+            raise ValueError(f"markets.{market}.dimensions is not an object")
+    except FileNotFoundError:
+        config_missing = True
+    except (OSError, ValueError) as exc:
+        config_corrupt = f"{path} is unreadable/corrupt ({exc}) -- falling back to dispatch-everything for " \
+                          f"this read-only step; the config itself is untouched (CFG-02 governs writes, not this)."
+
+    if config_missing or config_corrupt:
+        flags = {d: True for d in have}
+
+    dispatch, skipped, engaged = [], {}, []
+    # Preset NAME uses only this market's structurally possible dimensions (defaulting the rest to off) --
+    # otherwise an unrelated market's missing keys (e.g. cfd has no footprint/heatmap keys at all) would read
+    # as "on" and misname the preset (e.g. XAUUSD would wrongly show "full" instead of "wyckoff+ict").
+    preset_flags = {d: (flags.get(d, True) if d in have else False) for d in ALL_DIMENSIONS}
+    preset_name = "UNREADABLE" if config_corrupt else profile_of(preset_flags)
+
+    for d in ALL_DIMENSIONS:
+        agent = DIMENSIONS[d]["agent"]
+        if market not in DIMENSIONS[d]["markets"]:
+            skipped[d] = (f"{market} has no source for {d} -- CoinGlass is crypto-derivatives only "
+                          f"(SYSTEM-DESIGN.md §12 item 3)")
+        elif not flags.get(d, True):
+            skipped[d] = f"dimensions.{d} is off in /automation (method preset {preset_name})"
+        else:
+            engaged.append(d)
+            if agent not in dispatch:
+                dispatch.append(agent)
+
+    return {"instrument": instrument, "market": market, "dispatch": dispatch, "skipped": skipped,
+            "engaged": engaged, "engaged_count": len(engaged),
+            "meets_normal_minimum": len(engaged) >= NORMAL_MINIMUM,
+            "preset": preset_name, "config_missing": config_missing, "config_corrupt": config_corrupt}
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="Method registry reader.")
+    ap.add_argument("--dispatch-plan", metavar="INSTRUMENT")
+    args = ap.parse_args()
+    if args.dispatch_plan:
+        try:
+            p = dispatch_plan(args.dispatch_plan)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            sys.exit(2)
+        if p["config_corrupt"]:
+            print(f"** CONFIG UNREADABLE: {p['config_corrupt']}", file=sys.stderr)
+        print(f"instrument: {p['instrument']} ({p['market']})   method preset: {p['preset']}")
+        print(f"DISPATCH:   {', '.join(p['dispatch']) or '(none)'}")
+        for d, why in p["skipped"].items():
+            print(f"SKIP {d}: {why}")
+        print(f"engaged_count = {p['engaged_count']}; NORMAL minimum {NORMAL_MINIMUM} "
+              f"{'met' if p['meets_normal_minimum'] else 'NOT met -- verdict is NO TRADE on count alone'}")
