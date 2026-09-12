@@ -89,6 +89,11 @@ for _st, _S in STYLES.items():
 VERDICT_CLASS = [("SETUP", "setup"), ("THEO DÕI LONG", "long"), ("THEO DÕI SHORT", "short"), ("PHÁ", "warn"), ("CHỜ", "wait")]
 import htf_context as htf  # noqa: E402
 LANES = [(d, v["label"]) for d, v in _methods.DIMENSIONS.items()]   # source: docs/architecture/methods.json
+# Chart-rendering facts scripts/chart.js needs but methods.json does not own (which lanes have a drawing
+# engine at all, which lane's chart shows the volume pane). Kept here, injected into __PARAMS__, so chart.js
+# has exactly one place to read them instead of hand-keeping its own copy (Task 10b item 4).
+OVERLAY_LANES = tuple(d for d, _ in LANES if d in ("wyckoff", "ict"))   # only these have shape-drawing engines
+VOLUME_LANES = tuple(d for d, _ in LANES if d == "wyckoff")             # the ICT corpus carries no volume
 
 
 # ----------------------------------------------------------------------------------------------- helpers
@@ -341,7 +346,7 @@ def matrix(sym_key, kind, l1, l2, l3, dims):
         body += row("Toàn diện", f"phân tích đầy đủ · {l3.get('_updated', '—')}", cells, synth)
     else:
         body += row("Toàn diện", "phân tích đầy đủ", {}, '<p class="muted">Chưa có phân tích đầy đủ theo định dạng mới (data/live/narrative/&lt;style&gt;.json).</p>')
-    notes = [f'<b>{dict(LANES)[m]}</b>: {esc(dims[m]["reason"])}' for m in ("footprint", "heatmap") if not dims[m]["engaged"]]
+    notes = [f'<b>{dict(LANES)[m]}</b>: {esc(dims[m]["reason"])}' for m, _ in LANES if not dims[m]["engaged"]]
     foot = f'<div class="mx-foot">{" · ".join(notes)}</div>' if notes else ""
     return f'<div class="matrix cols-{len(cols)}">{body}</div>{foot}'
 
@@ -376,6 +381,15 @@ GLOSSARY = {
     "heatmap": [("Cụm thanh lý", "Vùng giá tập trung lệnh thanh lý — mục tiêu hoặc điểm quét (master spec)."),
                 ("Tường orderbook", "Thanh khoản nằm chờ tập trung; trùng cụm thanh lý thì tính là một quan sát.")],
 }
+
+
+def lane_buttons(engaged):
+    """Topbar lane toggle buttons. `engaged` is {lane: bool} -- the real dims state (Task 10b item 3; before
+    this every lane except wyckoff/ict was hardcoded 'off' regardless of whether it was actually on)."""
+    return "".join(
+        f'<button class="lane-btn lane-{k}{"" if engaged.get(k) else " off"}" data-lane="{k}" '
+        f'onclick="setLane(\'{k}\')" title="phím {i + 1}"><span class="lane-dot"></span>{n}</button>'
+        for i, (k, n) in enumerate(LANES))
 
 
 def glossary():
@@ -566,7 +580,7 @@ section.symbol{background:var(--surface);border:1px solid var(--line);border-rad
 
 /* read matrix */
 .matrix{display:grid;grid-template-columns:128px repeat(var(--n),minmax(0,1fr)) minmax(0,1.15fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
-.matrix.cols-2{--n:2} .matrix.cols-3{--n:3} .matrix.cols-4{--n:4}
+.matrix.cols-1{--n:1} .matrix.cols-2{--n:2} .matrix.cols-3{--n:3} .matrix.cols-4{--n:4}
 .mx-head{padding:9px 14px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:var(--surface-3);border-bottom:1px solid var(--line);border-left:1px solid var(--line)}
 .mx-head.lane-wyckoff,.mx-head.lane-ict,.mx-head.lane-footprint,.mx-head.lane-heatmap{box-shadow:inset 0 -2px 0 var(--lane)}
 .mx-corner{border-left:0;color:var(--faint)}
@@ -649,6 +663,9 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
     params = (read_json(f"{ROOT}/docs/architecture/analysis-params.json", {}) or {}).get("project_defined", {})
     vol_p = params.get("volume", {})
     P = dict(lookback=params.get("lookback_bars", 20), high=vol_p.get("high_min_ratio", 1.5), spike=vol_p.get("spike_min_ratio", 2.5))
+    # lane facts chart.js reads instead of hand-keeping its own copy (Task 10b item 4)
+    P.update(laneOrder=[m for m, _ in LANES], laneLabels=dict(LANES),
+             overlayLanes=list(OVERLAY_LANES), volumeLanes=list(VOLUME_LANES))
     cfg = read_json(f"{ROOT}/docs/architecture/automation-config.json", {}) or {}
     market = "cfd" if style.startswith("gold") else "crypto"
     dim_flags = ((cfg.get("markets") or {}).get(market) or {}).get("dimensions") or {}
@@ -657,6 +674,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
     purity = {}
     data_js, sections, status_chips, rows_store = {}, [], [], {}
     src_notes = []
+    lane_engaged = {m: False for m, _ in LANES}   # page-wide topbar state: on if engaged for ANY symbol on this page
     for sym, key, disp, kind in S["syms"]:
         rows, upd, src = candles(sym, S["tf"], S["n"], snap)
         note = f"{sym} {S['tf']}: {src or '?'} · cập nhật {upd or '?'}"
@@ -700,6 +718,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                 reason = ""
             engaged = bool(avail and has and flag is not False) if coinglass else bool(avail and flag is not False)
             dims[m] = {"engaged": engaged, "reason": reason or "đang dùng"}
+            lane_engaged[m] = lane_engaged[m] or engaged
         # purity: layer 2 blocks, layer 3 texts, chart labels, timeline cells
         blocks = mp.narrative_blocks(n3)
         if l2 and not l2["legacy"]:
@@ -733,7 +752,8 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                 tiers_js.append(dict(key=tname, tf=t["tf"], kz=(t["tf"] in ("15m", "1H")), tfMin=TF_MIN.get(t["tf"], 0), wy=tier_wy[tname], levels=[], compact=True, rows="__ROWS__" + key + tname))
         tiers_js.append(dict(key="entry", tf=S["tf"], kz=S["kz"], tfMin=TF_MIN.get(S["tf"], 0), wy=wy_js, levels=levels, compact=False, rows="__ROWS__" + key + "entry"))
         data_js[key] = dict(fmt=kind, tick=(sym in MT5), market=("metals" if sym in ("XAUUSD", "XAGUSD") else "oil" if sym in MT5 else "crypto"),
-                            dims={m: dims[m]["reason"] for m in ("footprint", "heatmap")}, tiers=tiers_js, plans=trade_plans(sym), invalidation=(n3 or {}).get("invalidation"))
+                            dims={m: dims[m]["reason"] for m, _ in LANES}, engaged=[m for m, _ in LANES if dims[m]["engaged"]],
+                            tiers=tiers_js, plans=trade_plans(sym), invalidation=(n3 or {}).get("invalidation"))
         rows_store[key] = {**{tn: rows_js(tier_rows[tn], S["tiers"][tn]["lbl"]) for tn in tier_rows}, "entry": rows_js(rows, S["lbl"])}
         # section html: header (one price, one verdict), the ladder (three tiers, both methods), three charts top-down
         lo, hi = min(r["low"] for r in rows), max(r["high"] for r in rows); last = rows[-1]["close"]
@@ -791,7 +811,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                  + f'<div><div class="meta-l">Sự kiện chính (phân tích đầy đủ gần nhất)</div><div class="meta-v">{headline.get("text", "—")}</div><div class="meta-d">{headline.get("detail", "")}</div></div>'
                  + f'<div><div class="meta-l">Trạng thái (cục bộ)</div><div class="meta-v">{" ".join(status_chips)}</div><div class="meta-d">dữ liệu tới {hhmm(wl)} UTC</div></div>'
                  '</div>')
-    lane_btns = "".join(f'<button class="lane-btn lane-{k}{"" if k in ("wyckoff", "ict") else " off"}" data-lane="{k}" onclick="setLane(\'{k}\')" title="phím {i + 1}"><span class="lane-dot"></span>{n}</button>' for i, (k, n) in enumerate(LANES))
+    lane_btns = lane_buttons(lane_engaged)
     symnav = "".join(f'<a href="#sec-{key}">{disp.split("/")[0]}</a>' for _, key, disp, _ in S["syms"]) + '<a href="#sec-glossary">Thuật ngữ</a>'
     top = (f'<div class="topbar"><div class="topbar-in"><div class="brand"><div class="brand-title">{esc(S["name"])}</div><div class="brand-sub">{S["horizon"]} · dữ liệu tới {hhmm(wl)} UTC</div></div>'
            f'<nav class="symnav">{symnav}</nav><div class="lanes" role="group" aria-label="Phương pháp">{lane_btns}</div></div></div>')

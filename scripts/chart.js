@@ -209,7 +209,6 @@ if(!root || typeof document==='undefined') return api;   // node: pure API only
 
 // =============================================================================================== browser: rendering
 const LWC = root.LightweightCharts;
-const LANES = ['wyckoff','ict','footprint','heatmap'];
 const fmtOf = k => k==='int' ? (v=>Math.round(v).toLocaleString('en-US')) : (v=>v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
 const TOKENS = {up:'--up',down:'--down',ink:'--ink',ink2:'--ink-2',muted:'--muted',faint:'--faint',line:'--line',lineStrong:'--line-strong',surface:'--surface',surface2:'--surface-2',surface3:'--surface-3',accent:'--accent',w:'--w',i:'--i',warn:'--warn',upSoft:'--up-soft',downSoft:'--down-soft'};
 function colors(){ const cs=getComputedStyle(document.documentElement), C={}; for(const k in TOKENS) C[k]=cs.getPropertyValue(TOKENS[k]).trim()||'#888'; C.mono=cs.getPropertyValue('--mono').trim()||'monospace'; return C; }
@@ -339,7 +338,7 @@ function applyLane(h, lane, P){
   if(h.ruler&&h.ruler.entry!=null&&h.ruler.stop!=null) S=S.concat(rulerShapes(h.ruler.entry,h.ruler.stop,h.ruler.i1,h.ruler.i2,fmt));
   else if(h.ruler&&h.ruler.entry!=null) S=S.concat([{kind:'hseg',i1:h.ruler.i1-0.5,i2:h.ruler.i1+0.5,price:h.ruler.entry,stroke:'ink',sw:1.5,label:'vào '+fmt(h.ruler.entry),labelAt:'axis'}]);
   h.ann.set(S);
-  const showVol=lane==='wyckoff'; h.vol.applyOptions({visible:showVol}); h.avg.applyOptions({visible:showVol});
+  const showVol=P.volumeLanes.includes(lane); h.vol.applyOptions({visible:showVol}); h.avg.applyOptions({visible:showVol});
   if(showVol){ const vs=h.view.vs, P_=P||{}, n=rowsV.length;
     h.vol.setData(rowsV.map((c,i)=>{ const r=vs.ratio[i], up=c[4]>=c[1]; const hi=r!=null&&r>=P_.high; return {time:unix(c[6]), value:c[5], color:withAlpha(hi?C.w:(up?C.up:C.down), hi?(r>=P_.spike?1:0.85):0.42)}; }));
     h.avg.setData(rowsV.map((c,i)=>vs.avg[i]==null?{time:unix(c[6])}:{time:unix(c[6]),value:vs.avg[i]}));
@@ -369,19 +368,24 @@ function init(DATA, P){
     d.tiers.forEach(t=>{ const block=document.getElementById(`${t.key}-${key}`); if(!block||!block.querySelector('.chart'))return; if(t.compact&&entry) t.window={from:entry.rows[0][6]};
       const h=makeChart(block,d,t,P,C); h.key=key; charts.push(h); block.addEventListener('pointerenter',()=>{ focus=h; }); }); }
   function render(){ document.body.dataset.lane=lane; document.querySelectorAll('.lane-btn').forEach(b=>b.classList.toggle('active',b.dataset.lane===lane));
-    const drawn=lane==='wyckoff'||lane==='ict';
-    for(const key in DATA){ const d=DATA[key];
+    // "drawn" = this lane has a chart overlay engine (P.overlayLanes, a chart.js-owned rendering fact) AND is
+    // actually engaged for this symbol (d.engaged, from the builder's per-market/per-symbol dims -- Task 10b
+    // item 4). Both facts are injected so this is never a hand-kept lane list here.
+    const overlayLanes=P.overlayLanes, laneLabels=P.laneLabels||{};
+    const drawnFor={}; for(const key in DATA) drawnFor[key]=overlayLanes.includes(lane)&&((DATA[key].engaged||[]).includes(lane));
+    for(const key in DATA){ const d=DATA[key], drawn=drawnFor[key];
       d.tiers.forEach(t=>{ const block=document.getElementById(`${t.key}-${key}`); if(!block)return; const wrap=block.querySelector('.chart-wrap'), st=block.querySelector('.lane-status'); if(!wrap)return;
-        wrap.hidden=!drawn; st.hidden=drawn; if(!drawn){ st.innerHTML=`<span class="lane-dot"></span><span><b>${lane==='footprint'?'Footprint':'Heatmap'}</b> — ${d.dims[lane]}</span>`; } });
+        wrap.hidden=!drawn; st.hidden=drawn; if(!drawn){ st.innerHTML=`<span class="lane-dot"></span><span><b>${laneLabels[lane]||lane}</b> — ${(d.dims||{})[lane]||''}</span>`; } });
       const leg=document.getElementById(`legend-${key}`); if(leg){ leg.hidden=!drawn; if(drawn){ leg.innerHTML = lane==='wyckoff'
         ? `<span><i class="sw up"></i>nến đóng tăng</span><span><i class="sw down"></i>nến đóng giảm</span><span><i class="sw vol"></i>khối lượng${d.tick?' (tick, MT5)':''}</span><span><i class="sw volhi"></i>KL ≥ ${P.high}× TB ${P.lookback} nến (≥ ${P.spike}× ghi số)</span><span><i class="sw tr"></i>biên vùng giao dịch (AR / SC)</span><span><i class="sw ph"></i>pha A–E</span><span>● sự kiện Wyckoff do phân tích đầy đủ đặt</span>${d.plans&&d.plans.length?'<span><i class="sw plan"></i>kế hoạch lệnh từ trades/ (hộp đỏ = rủi ro, xanh = lời)</span>':''}`
         : `<span><i class="sw fvgb"></i>FVG tăng</span><span><i class="sw fvgs"></i>FVG giảm (nét chấm = CE 0.5)</span><span><i class="sw ob"></i>OB: đường open + 0.5 mean threshold (mờ = đã chạm open)</span><span><i class="sw liq"></i>BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)</span><span><i class="sw lvl"></i>PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)</span><span><i class="sw eq"></i>EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới</span><span><i class="sw cisd"></i>CISD (● = nến đóng qua)</span>${d.kz?'<span><i class="sw kz"></i>killzone LDN / NY AM / NY PM theo session-model (½ = trọng số giảm)</span>':'<span>killzone: không vẽ ở khung này</span>'}<span>MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement</span><span>OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực</span><span class="muted">ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)</span>`; } } }
-    if(drawn) charts.forEach(h=>applyLane(h,lane,P)); }
+    charts.forEach(h=>{ if(drawnFor[h.key]) applyLane(h,lane,P); }); }
   function retheme(){ C=colors(); charts.forEach(h=>{ h.C=C; h.chart.applyOptions(chartOptions(C,h.fmt)); h.candles.applyOptions({upColor:C.surface2, downColor:C.down, borderUpColor:C.up, borderDownColor:C.down, wickUpColor:C.up, wickDownColor:C.down, priceLineColor:withAlpha(C.ink,0.5)}); h.avg.applyOptions({color:withAlpha(C.ink2,0.8)}); h.ann.setColors(C); h.annVol.setColors(C); h.note.setColors(C); }); render(); }
   new MutationObserver(retheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
   if(root.matchMedia){ const mq=root.matchMedia('(prefers-color-scheme: dark)'); (mq.addEventListener?mq.addEventListener('change',retheme):mq.addListener(retheme)); }
   root.setLane=l=>{ lane=l; render(); };
-  document.addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return; const k={'1':'wyckoff','2':'ict','3':'footprint','4':'heatmap'}[e.key]; if(k){ root.setLane(k); return; }
+  document.addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+    const numIdx='1234'.indexOf(e.key), k=numIdx>=0?P.laneOrder[numIdx]:undefined; if(k){ root.setLane(k); return; }
     const h=focus||charts[charts.length-1]; if(!h)return;
     if(e.key==='End'){ h.chart.timeScale().scrollToRealTime(); e.preventDefault(); }
     else if(e.key==='r'||e.key==='R'){ toggleRuler(h); }

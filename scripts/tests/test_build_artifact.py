@@ -133,5 +133,102 @@ class DimensionFlagsAreReal(unittest.TestCase):
         self.assertNotIn("lane-ict", html)
 
 
+class MatrixColumnCountHasACssRule(unittest.TestCase):
+    """General over every registered preset (docs/architecture/methods.json), not a hardcoded pair: whatever
+    column count a preset's engaged dimensions produce, the page's CSS must define --n for that count, or the
+    grid collapses (Task 10b item 1). A future 5th dimension or new preset re-triggers this automatically."""
+
+    def test_every_preset_dimension_count_has_a_matching_css_rule(self):
+        ba = load("build-artifact.py")
+        methods = load("methods.py")
+        seen_cols = set()
+        for preset in methods.PRESETS:
+            dims = {d: {"engaged": d in preset["dimensions"], "reason": ""} for d in methods.ALL_DIMENSIONS}
+            html = ba.matrix("btc", "int", None, None, None, dims)
+            m = re.search(r'class="matrix (cols-\d+)"', html)
+            self.assertIsNotNone(m, f"preset '{preset['id']}' did not emit a cols-N class")
+            seen_cols.add(m.group(1))
+            self.assertIn(f".matrix.{m.group(1)}{{", ba.CSS,
+                          f"preset '{preset['id']}' emits {m.group(1)} but the CSS has no rule for it")
+        # sanity: the presets in methods.json actually exercise more than one column count (else this test
+        # could pass vacuously without ever touching the cols-1 case)
+        self.assertGreater(len(seen_cols), 1, "presets did not exercise multiple column counts")
+
+
+class MatrixFooterExplainsEveryDisengagedLane(unittest.TestCase):
+    """A wyckoff or ict lane switched off must vanish from the page with a stated reason, same as
+    footprint/heatmap already did (Task 10b item 2)."""
+
+    def test_footer_notes_cover_all_four_lanes_not_just_footprint_and_heatmap(self):
+        ba = load("build-artifact.py")
+        # one lane engaged (footprint) so the matrix renders normally rather than the cols-0 "nothing on" notice
+        dims = {
+            "wyckoff": {"engaged": False, "reason": "tắt trong /automation"},
+            "ict": {"engaged": False, "reason": "tắt trong /automation (khác)"},
+            "footprint": {"engaged": True, "reason": "đang dùng"},
+            "heatmap": {"engaged": False, "reason": "không có nguồn CoinGlass live"},
+        }
+        html = ba.matrix("btc", "int", None, None, None, dims)
+        for label, reason in (("Wyckoff", "tắt trong /automation"), ("ICT", "tắt trong /automation (khác)"),
+                              ("Heatmap", "không có nguồn CoinGlass live")):
+            self.assertIn(label, html, f"{label} missing from footer notes")
+            self.assertIn(reason, html, f"reason for {label} missing from footer notes")
+
+
+class LaneButtonsReflectRealEngagement(unittest.TestCase):
+    """lane_btns must mark a lane 'off' from the same dims state the matrix/chart use -- not a hardcoded
+    wyckoff/ict-are-always-on, everything-else-is-off pair (Task 10b item 3)."""
+
+    def test_lane_button_off_class_is_driven_by_engagement_not_a_hardcoded_pair(self):
+        ba = load("build-artifact.py")
+        # wyckoff off, footprint on: the inverse of the old hardcode (old code always marked wyckoff "on"
+        # and footprint "off" regardless of these flags)
+        engaged = {"wyckoff": False, "ict": True, "footprint": True, "heatmap": False}
+        html = ba.lane_buttons(engaged)
+        self.assertIn('lane-btn lane-wyckoff off', html, "wyckoff should be 'off' when disengaged")
+        self.assertNotIn('lane-btn lane-ict off', html, "ict should not be 'off' when engaged")
+        self.assertIn('lane-btn lane-footprint"', html, "footprint should not be 'off' when engaged")
+        self.assertIn('lane-btn lane-heatmap off', html, "heatmap should be 'off' when disengaged")
+
+
+class ChartJsReadsInjectedLaneFacts(unittest.TestCase):
+    """chart.js must not hand-keep a 4th copy of the lane list, and must not hardcode which lanes draw
+    overlays / show volume -- those come from the builder's injected params (Task 10b item 4)."""
+
+    def test_no_hardcoded_lane_array_in_chart_js(self):
+        src = open(CHART_JS, encoding="utf-8").read()
+        self.assertNotIn("['wyckoff','ict','footprint','heatmap']", src)
+        self.assertNotIn('["wyckoff","ict","footprint","heatmap"]', src)
+
+    def test_drawn_lane_check_is_not_a_hardcoded_wyckoff_ict_pair(self):
+        src = open(CHART_JS, encoding="utf-8").read()
+        self.assertNotIn("lane==='wyckoff'||lane==='ict'", src)
+
+    def test_page_params_carry_lane_order_labels_overlay_and_volume_lanes(self):
+        b = load("build-artifact.py")
+        real_read = b.read_json
+        keep = ("analysis-params.json", "automation-config.json")
+        b.read_json = lambda path, default=None: real_read(path, default) if path.endswith(keep) else default
+        b.candles = lambda sym, tf, n, snap=None: (synth(n, step_min=b.TF_MIN.get(tf, 15)), "2026-09-12T00:00:00Z", "test-fixture")
+        tmp = tempfile.mkdtemp()
+        try:
+            out = os.path.join(tmp, "daytrade.html")
+            b.build("daytrade", out)
+            html = open(out, encoding="utf-8").read()
+            at = html.find("TChart.init(")
+            dec = json.JSONDecoder()
+            data, end = dec.raw_decode(html, at + len("TChart.init("))
+            params, _ = dec.raw_decode(html, html.index("{", end))
+            self.assertEqual(params.get("laneOrder"), ["wyckoff", "ict", "footprint", "heatmap"])
+            self.assertIn("wyckoff", params.get("laneLabels", {}))
+            self.assertEqual(set(params.get("overlayLanes", [])), {"wyckoff", "ict"})
+            self.assertEqual(set(params.get("volumeLanes", [])), {"wyckoff"})
+            sym = next(iter(data.values()))
+            self.assertIn("engaged", sym)
+            self.assertTrue(set(sym["engaged"]) <= {"wyckoff", "ict", "footprint", "heatmap"})
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()
