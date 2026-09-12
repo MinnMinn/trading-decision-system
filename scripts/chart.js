@@ -234,7 +234,9 @@ class Annotations {
   _draw(target, layer){ const chart=this._chart, series=this._series; if(!chart||!series||!this.shapes.length) return;
     target.useMediaCoordinateSpace(({context:ctx, mediaSize})=>{
       const ts=chart.timeScale(), W=mediaSize.width, Hh=mediaSize.height, C=this.C, bs=ts.options().barSpacing;
-      const X=i=>{ if(i==null) return null; const x=ts.logicalToCoordinate(i); return x==null?null:x; };
+      // logicalToCoordinate returns 0 (not null) for a non-integer index; shapes sit on half-bar offsets, so interpolate
+      // between the two integer bars (the index->x map is linear in bar spacing, so this is exact).
+      const X=i=>{ if(i==null) return null; const r=Math.round(i); const x=ts.logicalToCoordinate(r); if(x==null) return null; if(r===i) return x; const x1=ts.logicalToCoordinate(r+1); return x1==null?x:x+(i-r)*(x1-x); };
       const Y=p=>{ if(p==null) return null; const y=series.priceToCoordinate(p); return y==null?null:y; };
       const x1of=s=>s.i1==null?0:X(s.i1), x2of=s=>s.i2==null?W:X(s.i2);
       const font=(b,px)=>`${b?'700 ':''}${px||10}px ${C.mono}`;
@@ -246,7 +248,7 @@ class Annotations {
           const l=Math.min(x1,x2), t=Math.min(y1,y2), w=Math.max(2,Math.abs(x2-x1)), h=Math.max(1,Math.abs(y2-y1));
           if(s.fill){ ctx.globalAlpha=s.alpha==null?1:s.alpha; ctx.fillStyle=C[s.fill]||s.fill; ctx.fillRect(l,t,w,h); }
           if(s.stroke){ ctx.globalAlpha=s.strokeAlpha==null?1:s.strokeAlpha; ctx.strokeStyle=C[s.stroke]||s.stroke; ctx.lineWidth=s.sw||1; ctx.setLineDash(s.dash||[]); if(s.leftOnly){ ctx.beginPath(); ctx.moveTo(l,t); ctx.lineTo(l,t+h); ctx.stroke(); } else ctx.strokeRect(l,t,w,h); ctx.setLineDash([]); }
-          if(s.label&&l>=-1&&l<W){ ctx.globalAlpha=1; ctx.font=font(s.labelBold,s.labelBold?10:9.5); ctx.fillStyle=C[s.labelColor||'faint']; ctx.textAlign='left'; ctx.textBaseline='top'; const lx=Math.max(l,0)+4, ly=s.labelPos==='ml'?t+h/2-5:t+3; let row=0; while(row<3&&placed.some(p=>Math.abs(p.x-lx)<18&&Math.abs(p.y-(ly+row*12))<11)) row++; if(row<3){ placed.push({x:lx,y:ly+row*12}); ctx.fillText(s.label,lx,ly+row*12); } }
+          if(s.label&&l>=-1&&l<W){ ctx.globalAlpha=1; ctx.font=font(s.labelBold,s.labelBold?10:9.5); ctx.fillStyle=C[s.labelColor||'faint']; ctx.textAlign='left'; ctx.textBaseline='top'; let lx=Math.max(l,0)+4; const tw=ctx.measureText(s.label).width; if(lx+tw>W-2) lx=Math.max(0,W-2-tw); const ly=s.labelPos==='ml'?t+h/2-5:t+3; let row=0; while(row<3&&placed.some(p=>Math.abs(p.x-lx)<18&&Math.abs(p.y-(ly+row*12))<11)) row++; if(row<3){ placed.push({x:lx,y:ly+row*12}); ctx.fillText(s.label,lx,ly+row*12); } }
           continue; }
         if(s.kind==='rect') continue;
         ctx.globalAlpha=s.alpha==null?1:s.alpha;
