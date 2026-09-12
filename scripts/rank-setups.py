@@ -163,23 +163,26 @@ def main_window_1y(a, today):
 
 def main_horizons(a, today):
     L = [f"# Setup theo khung — scalping / day / swing — mỗi thị trường — {today}", "",
-         "_`scripts/rank-setups.py --horizons`. Quyết định người dùng 2026-09-11: mỗi thị trường chạy đủ 3 khung, kể cả khi lợi thế backtest yếu hoặc âm. Trong mỗi khung, luật tốt nhất theo cùng tiêu chí (không cháy → quý dương → năm dương → quý tệ nhất). Dòng âm được in nghiêng; scalping 5m/15m bị phí và trượt giá ăn nhiều nhất._", ""]
-    selection = dict(generated=today, mode="horizons", note="Written by scripts/rank-setups.py --horizons. One setup per horizon per market (user decision 2026-09-11). Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.", setups=[])
+         "_`scripts/rank-setups.py --horizons`. Quyết định người dùng 2026-09-11 (mở rộng 2026-09-13): mỗi thị trường chạy đủ 3 khung cho MỖI luật chạy được (RUNNABLE — WYCKOFF, WYCKOFF-BOOK, ICT, COMBINED), kể cả khi lợi thế backtest yếu hoặc âm. Lý do: `strategy-runner.py`'s `allowed_methods()` chỉ cho phép các luật mà method-switch preset đang bật; chọn theo (khung, luật) thay vì chỉ theo khung đảm bảo mọi preset (dù chỉ bật một luật, ví dụ ICT-only) vẫn có đủ 3 khung, thay vì chỉ có khung mà luật đó tình cờ thắng khi so giữa các luật. Trong mỗi (khung, luật), cấu hình/target tốt nhất theo cùng tiêu chí (không cháy → quý dương → năm dương → quý tệ nhất) — dòng âm được in nghiêng; scalping 5m/15m bị phí và trượt giá ăn nhiều nhất. Một khung có thể không đủ lệnh cho MỘT luật cụ thể dù các luật khác ở cùng khung có đủ — dòng đó vẫn được in để việc thiếu setup luôn hiện rõ, không âm thầm giảm số lượng._", ""]
+    selection = dict(generated=today, mode="horizons", note="Written by scripts/rank-setups.py --horizons. One setup per (horizon, method) per market -- every RUNNABLE method gets its own scalping/day/swing setups so any method-switch preset (strategy-runner.py allowed_methods()) still covers all 3 horizons (user decision 2026-09-11, extended 2026-09-13 for the per-method split). Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.", setups=[])
+    methods_order = sorted(RUNNABLE)   # deterministic order; RUNNABLE comes from the registry (scripts/methods.py runnable()), never hardcoded here
     for market, paths, syms in (("crypto", a.crypto, a.crypto_symbols.split(",")), ("cfd", a.cfd, a.cfd_symbols.split(","))):
         rows = load_rows(sorted(paths), market)
         L += [f"## {market.upper()}", "", "| Khung | TF | Luật | Target | Cấu hình | Lệnh | Vốn cuối ($10k) | %/năm | Sụt giảm | Quý dương | Quý tệ nhất | Ổn định | Năm dương (từng năm %) |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
         for hz, tfs in HORIZONS.items():
             mn = HORIZON_MIN_TRADES[hz] if a.window != "1y" else {"scalping": 20, "day": 15, "swing": 6}[hz]
-            ranked = [r for r in rank([r for r in rows if r["tf"] in tfs], mn, a.window if a.window == "1y" else None) if r["method"] in RUNNABLE and (market == "crypto" or r["tf"] in CFD_TFS)]
-            if not ranked:
-                L.append(f"| {hz} | — | — | — | — | — | không đủ dữ liệu / lệnh | | | | | | |"); continue
-            r = ranked[0]; w = r["w1y"] if a.window == "1y" else r; row = fmt(r, a.window if a.window == "1y" else None).replace("| ", "| " + hz + " | ", 1)
-            L.append(row if w["ann"] >= 0 else row.replace(f"| {hz} |", f"| *{hz}* |", 1))
-            cfg = CFG_DESC[r["cfg"]]
-            selection["setups"].append(dict(id=f"{market}-{hz}-{r['method'].lower()}-{r['tf'].lower()}-{r['target']}-{r['cfg'].lower()}", horizon=hz, rank=len(selection["setups"]) + 1, market=market, symbols=syms, tf=r["tf"], method=r["method"],
-                                            ict_target=r["target"] if r["method"] == "ICT" else None, htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
-                                            execution="futures" if market == "crypto" else "mt5", negative_backtest=bool(w["ann"] < 0),
-                                            backtest=dict(window=a.window, n=w["n"], ann_pct=round(w["ann"], 1), max_dd_pct=round(w["dd"], 1), q_pos_pct=round(w["q_pos"]), full_n=r["n"], full_ann_pct=round(r["ann"], 1), years_pos=f"{r['y_pos']}/{r['y_n']}", period=f"{r['first']}→{r['last']}", source=r["file"])))
+            for method in methods_order:
+                candidates = [r for r in rows if r["tf"] in tfs and r["method"] == method and (market == "crypto" or r["tf"] in CFD_TFS)]
+                ranked = rank(candidates, mn, a.window if a.window == "1y" else None)
+                if not ranked:
+                    L.append(f"| {hz} | — | {method} | — | — | — | không đủ dữ liệu / lệnh | | | | | | |"); continue
+                r = ranked[0]; w = r["w1y"] if a.window == "1y" else r; row = fmt(r, a.window if a.window == "1y" else None).replace("| ", "| " + hz + " | ", 1)
+                L.append(row if w["ann"] >= 0 else row.replace(f"| {hz} |", f"| *{hz}* |", 1))
+                cfg = CFG_DESC[r["cfg"]]
+                selection["setups"].append(dict(id=f"{market}-{hz}-{r['method'].lower()}-{r['tf'].lower()}-{r['target']}-{r['cfg'].lower()}", horizon=hz, rank=len(selection["setups"]) + 1, market=market, symbols=syms, tf=r["tf"], method=r["method"],
+                                                ict_target=r["target"] if r["method"] == "ICT" else None, htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
+                                                execution="futures" if market == "crypto" else "mt5", negative_backtest=bool(w["ann"] < 0),
+                                                backtest=dict(window=a.window, n=w["n"], ann_pct=round(w["ann"], 1), max_dd_pct=round(w["dd"], 1), q_pos_pct=round(w["q_pos"]), full_n=r["n"], full_ann_pct=round(r["ann"], 1), years_pos=f"{r['y_pos']}/{r['y_n']}", period=f"{r['first']}→{r['last']}", source=r["file"])))
         L.append("")
     if a.window == "1y":
         L[0] = L[0].replace("— mỗi thị trường —", "— mỗi thị trường — xếp trên 12 tháng gần nhất —"); selection["mode"] = "horizons-1y"
