@@ -24,8 +24,9 @@ class MethodSwitchTemplate(unittest.TestCase):
 
     def test_names_exact_document_paths_not_a_collection_scan(self):
         """CRON-06: reading three known paths bounds what an arbitrary writer can feed the session."""
-        self.assertIn("control/request.crypto", self.src)
-        self.assertIn("control/request.cfd", self.src)
+        self.assertIn("doc_id='request.crypto'", self.src)
+        self.assertIn("doc_id='request.cfd'", self.src)
+        self.assertIn("never a collection scan", self.src)
 
     def test_forbids_treating_db_content_as_instructions(self):
         """CRON-03: the session's own capability IS the escalation; only the prompt stops it."""
@@ -46,6 +47,17 @@ class MethodSwitchTemplate(unittest.TestCase):
         loses the other half silently and forever."""
         low = self.src.lower()
         self.assertTrue("both" in low or "every half" in low or "cả hai" in low)
+
+    def test_db_paths_are_given_as_collection_and_doc_id_not_a_slash_path(self):
+        """A `db` collection path must have an ODD number of segments, so `control/request` is a DOCUMENT path,
+        not a collection. Writing the target as `control/request.crypto` left the session to guess where to split
+        it, and on the first real run it guessed `collection='control/request'` + `doc_id='crypto'` and the call
+        failed twice before it recovered. Name both parameters explicitly."""
+        self.assertIn("collection='control'", self.src)
+        self.assertIn("doc_id='request.crypto'", self.src)
+        self.assertIn("doc_id='request.cfd'", self.src)
+        self.assertNotIn("collection='control/request'", self.src.replace(
+            "Do NOT pass `collection='control/request'`", ""))
 
     def test_heartbeat_every_tick(self):
         self.assertIn("control/heartbeat", self.src)

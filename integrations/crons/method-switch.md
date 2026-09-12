@@ -34,12 +34,15 @@ never taken from a db string:
 
 1. **Gate already checked above.** If you reached this line, the gate exited 0 -- continue.
 
-2. `Artifact action='read_db'`, `db_op='get'`, url = this template's own artifact URL, reading **exactly**
-   `control/request.crypto` then **exactly** `control/request.cfd` by name -- never a collection scan of `control`,
-   never any other path. A missing document means nothing to do for that market, not an error: skip straight to
+2. `Artifact action='read_db'`, `db_op='get'`, url = this template's own artifact URL. The tool takes the
+   collection and the document id as **two separate parameters**, and `db` requires a collection path to have an
+   ODD number of segments -- so the pair is `collection='control'` with `doc_id='request.crypto'`, then
+   `collection='control'` with `doc_id='request.cfd'`. Do NOT pass `collection='control/request'`: that is two
+   segments, which `db` reads as a document path, and the call fails. Read exactly those two documents by name --
+   never a collection scan of `control`, never any other path. A missing document means nothing to do for that market, not an error: skip straight to
    that market's heartbeat/reply handling below with no command run and `applied.<market>` left untouched.
 
-3. For each market whose request document exists, read `control/applied.<market>` (missing = treat every field as
+3. For each market whose request document exists, read `collection='control'`, `doc_id='applied.<market>'` (missing = treat every field as
    unset). **Apply if and only if** the triple `(preset, instruments normalised to the canonical per-market order
    given above, requested_at)` from the request **differs** from the stored triple in `applied.<market>`. Compare
    `instruments` as a set-then-canonical-order, not as the raw array (a reordering with the same membership is not
@@ -99,7 +102,7 @@ never taken from a db string:
    0 -> `instruments_result: "applied"` or `"no-op"`; 2 -> terminal `instruments_result: "refused: <short reason>"`;
    anything else -> transient `instruments_result: "error: retry"`, do not advance the watermark for it.
 
-8. `Artifact action='write_db'`, `db_op='set'`, write `control/applied.<market>` = `{preset, instruments,
+8. `Artifact action='write_db'`, `db_op='set'`, write `collection='control'`, `doc_id='applied.<market>'` = `{preset, instruments,
    requested_at, applied_at, preset_result, instruments_result}`, where `preset`/`instruments` are the market's
    actual current values after this tick (unchanged from the previous `applied.<market>` for any half that did not
    apply) and `applied_at` is this session's current UTC timestamp. **Advance the stored `requested_at` to the
@@ -111,7 +114,7 @@ never taken from a db string:
    rejected outright at step 4 (malformed, stale/skewed) has no half to retry, so its `requested_at` DOES advance
    (there is nothing to lose by moving past it) with the single `error` field set instead of per-half results.
 
-9. `Artifact action='write_db'`, `db_op='set'`, write `control/heartbeat` = `{at: <this session's current UTC
+9. `Artifact action='write_db'`, `db_op='set'`, write `collection='control'`, `doc_id='heartbeat'` = `{at: <this session's current UTC
    timestamp, RFC 3339>, outcome: <"ok"|"no-op"|"gate-closed">}` on **every tick that reaches this point**,
    including a tick where both markets were no-ops. (A gate-closed tick never reaches this point at all -- it
    stopped at the RUNTIME GATE above and wrote nothing, per that section.)
