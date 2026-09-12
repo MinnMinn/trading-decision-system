@@ -681,3 +681,28 @@ is precisely why the rule must be written now rather than when the split reappea
    and note that `automation.py:606-629` computes this at runtime, so no rule depends on the doc being right.
 
 Addendum last updated: 2026-09-12.
+
+---
+
+## Resolution log
+
+**2026-09-12 — CRON-09 (applier cool-down) closed as NOT REQUIRED, superseded by CFG-07.**
+
+CRON-09 asked for at most one applied change per market per 15 minutes, to stop the applier draining the
+200-row `history[]` ring in the config file. The rule was written before CFG-07 (archive evicted rows) was
+implemented. With CFG-07 in place the ring is no longer a shredder: rows pushed out of the window are appended
+to `data/live/history-archive.automation.jsonl`, so the durable audit record survives and only the in-file
+window shrinks.
+
+Verified by hand, 2026-09-12, on this repo: seeded `history[]` to 203 rows, ran one real
+`automation.py dimension heatmap off --market crypto`, and observed `history[]` capped at 200 with **4 evicted
+rows written to the archive** — none lost. `record()` in `scripts/automation.py` is the implementation.
+
+The residual exposure the cool-down would have covered is therefore "the in-config window covers fewer hours
+during a burst", not "audit evidence is destroyed". Against that, a cool-down is an eleventh mechanism inside a
+prompt an LLM must execute correctly every five minutes, and prompt complexity is itself a failure mode in this
+design (see §3.2). Rate is already bounded by the cron period: at most 12 ticks per hour, two markets, two
+halves — 48 rows per hour worst case, all archived.
+
+Decided by the dispatching session and recorded here rather than left open; reopen if the archive file is ever
+removed, gitignored away without a replacement, or if `record()` stops calling it.
