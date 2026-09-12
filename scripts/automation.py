@@ -1113,6 +1113,51 @@ def cmd_instrument(a):
     return 0
 
 
+def cmd_instrument_set(a):
+    """Declarative batch: `instrument set BTCUSDT,ETHUSDT --market crypto` replaces the whole list in ONE
+    write and ONE history row (CFG-11). The single-symbol form stays for terminal use; this one exists
+    because the panel sends a full desired set and nine symbols must not cost nine rows of a 200-row ring.
+
+    Validation is re-done here, independently of whoever called (CFG-12): a future caller may not be the
+    applier cron. Nothing is normalised -- a value either is the canonical allowlist spelling or is refused."""
+    m = a.market
+    raw = [s for s in (a.symbols or "").split(",") if s != ""]
+    universe = MARKET_INSTRUMENTS[m]
+    problems = []
+    for sym in raw:
+        if sym[:3] in FX_CODES and sym[3:6] in FX_CODES:
+            problems.append(f"{sym}: Forex is prohibited outright (SYSTEM-DESIGN.md §1)")
+        elif sym not in universe:
+            problems.append(f"{sym}: not on the {m} allowlist ({', '.join(universe)})")
+    if len(set(raw)) != len(raw):
+        problems.append(f"duplicate symbols in {','.join(raw)}")
+
+    cfg, _, _ = load()
+    if problems:                                        # CFG-11: all-or-nothing, config untouched
+        record(cfg, a, f"instrument set {','.join(raw) or '(none)'} --market {m}", "refused")
+        save(cfg)
+        print("REFUSED: " + "; ".join(problems), file=sys.stderr)
+        show(cfg, True)
+        return 2
+
+    want = [s for s in universe if s in set(raw)]       # CFG-13: canonical order
+    if cfg["markets"][m]["instruments"] == want:
+        print(f"no-op: {m} instruments already {', '.join(want) or '(none)'}")
+        return 0                                        # CFG-13: a true no-op records nothing
+    cfg["markets"][m]["instruments"] = want
+    record(cfg, a, f"instrument set {','.join(want) or '(none)'} --market {m}", "applied")
+    save(cfg)
+    for sym in want:
+        probe = os.path.join(ROOT, "data", "live", DATA_DIR[m], f"ohlcv.{sym}.15m.json")
+        if not os.path.exists(probe):
+            print(f"  NOTE: no data on disk for {sym} yet ({rel(probe)}). The flag is set; the source is not wired.")
+    if not want:
+        print(f"  NOTE: {m} has no instruments selected -- no NEW entries will be opened there. Positions and "
+              f"pending orders already open are still managed (strategy-runner.py:766-767).")
+    show(cfg, True)
+    return 0
+
+
 def cmd_allows(a):
     if a.layer == "master":
         # CFG-03: this form must fail closed. `allows()` treats "config does not exist" as unconfigured =>
@@ -1384,7 +1429,10 @@ def main():
     p = audited(sub.add_parser("method"))
     p.add_argument("preset", choices=[x["id"] for x in methods.PRESETS])
     p.add_argument("--market", choices=MARKETS, default=None)
-    p = audited(sub.add_parser("instrument")); p.add_argument("symbol"); p.add_argument("value", choices=["on", "off"])
+    p = audited(sub.add_parser("instrument"))
+    p.add_argument("symbol", help="a SYMBOL, or the literal word 'set'")
+    p.add_argument("value", help="on|off for a single symbol; the comma-separated list when symbol is 'set'")
+    p.add_argument("--market", choices=MARKETS)
     p = audited(sub.add_parser("layer"))
     p.add_argument("name", choices=LAYERS); p.add_argument("value", choices=["on", "off"])
     p = audited(sub.add_parser("pilot"))
@@ -1432,6 +1480,15 @@ def main():
     if a.cmd == "layer":
         return cmd_layer(a)
     if a.cmd == "instrument":
+        if a.symbol == "set":
+            if not a.market:
+                print("usage: instrument set <SYM,SYM,...> --market <crypto|cfd>", file=sys.stderr)
+                return 1
+            a.symbols = a.value
+            return cmd_instrument_set(a)
+        if a.value not in ("on", "off"):
+            print(f"usage: instrument <SYMBOL> on|off  (got value={a.value!r})", file=sys.stderr)
+            return 1
         return cmd_instrument(a)
     if a.cmd == "pilot":
         return cmd_pilot(a)
