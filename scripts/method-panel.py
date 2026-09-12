@@ -534,16 +534,47 @@ _SCRIPT = """<script>
       : "đang chờ áp dụng (≤ 5 phút)");
   }
 
-  function pendingMinutesAcrossMarkets() {
-    var max = null;
+  // PANEL-05_GUARD_START -- kept between these markers so scripts/tests/test_method_panel.py can
+  // extract and execute this pure function under Node, without a browser, to exercise its two
+  // nonsense-input branches directly (real execution, not a source-text guess).
+  //
+  // There is no trustworthy server time anywhere in the db contract (db.d.ts has no serverTimestamp
+  // helper), and `requested_at` is written by whichever device tapped, then compared here against
+  // THIS viewer's own clock -- a different, independently-untrusted clock. Comparing device clock to
+  // the heartbeat's `at` would conflate "clocks are skewed" with "the cron has not ticked yet" (a
+  // perfectly healthy 4-minute-old heartbeat looks identical to a skewed one), so that comparison is
+  // deliberately NOT made. Instead: the elapsed time a pending request has been waiting can never be
+  // negative and, given the applier's own 60-minute staleness cap and 5-minute cadence
+  // (integrations/crons/method-switch.md steps 4 and the cron front matter), a request that is
+  // genuinely still pending resolves (applied or terminally refused) within roughly an hour when the
+  // two clocks agree. A number that is negative, or on the order of a day or more, is therefore not a
+  // plausible "still pending" duration under ANY matching-clock scenario -- it is evidence that this
+  // viewer's clock (or the requesting device's) cannot be trusted for this arithmetic, not a real
+  // wait time. IMPLAUSIBLE_PENDING_MS is set well above the applier's own ~65-minute worst-case
+  // resolution window (so an applier merely down for a couple of hours -- which the stale-heartbeat
+  // banner already reports on its own -- still shows a real, useful number here) and well below the
+  // "days or weeks" a genuinely broken clock produces.
+  var IMPLAUSIBLE_PENDING_MS = 24 * 60 * 60 * 1000; // one day
+
+  function classifyElapsedMs(elapsedMs) {
+    if (typeof elapsedMs !== "number" || isNaN(elapsedMs)) return "implausible";
+    if (elapsedMs < 0) return "implausible";                       // requested_at is in the future for this viewer
+    if (elapsedMs >= IMPLAUSIBLE_PENDING_MS) return "implausible";  // on the order of a day or more -- see above
+    return Math.round(elapsedMs / 60000);
+  }
+  // PANEL-05_GUARD_END
+
+  function pendingStatusAcrossMarkets() {
+    var anyPending = false, anyImplausible = false, maxMinutes = null;
     MARKETS.forEach(function (market) {
       if (!request[market] || requestMatchesApplied(market)) return;
+      anyPending = true;
       var reqAt = Date.parse(request[market].requested_at);
-      if (isNaN(reqAt)) return;
-      var minutes = Math.max(0, Math.round((Date.now() - reqAt) / 60000));
-      if (max === null || minutes > max) max = minutes;
+      var classified = isNaN(reqAt) ? "implausible" : classifyElapsedMs(Date.now() - reqAt);
+      if (classified === "implausible") { anyImplausible = true; return; }
+      if (maxMinutes === null || classified > maxMinutes) maxMinutes = classified;
     });
-    return max;
+    return { anyPending: anyPending, implausible: anyImplausible, minutes: maxMinutes };
   }
 
   function renderHeartbeatBanner() {
@@ -551,11 +582,16 @@ _SCRIPT = """<script>
     if (!el) return;
     var age = heartbeatAt ? (Date.now() - heartbeatAt.getTime()) : Infinity;
     if (age <= STALE_MS) { el.hidden = true; el.textContent = ""; return; }
+    // Property 1: the staleness warning fires unconditionally once the heartbeat is old/missing --
+    // an unclassifiable pending duration below only ever replaces the *number* in the line, never
+    // this visibility decision.
     el.hidden = false;
-    var mins = pendingMinutesAcrossMarkets();
-    el.textContent = (mins === null)
+    var status = pendingStatusAcrossMarkets();
+    el.textContent = !status.anyPending
       ? "không có tiến trình áp dụng — bộ áp dụng không phản hồi"
-      : "không có tiến trình áp dụng — yêu cầu đang treo " + mins + " phút";
+      : (status.implausible || status.minutes === null)
+        ? "không có tiến trình áp dụng — đồng hồ thiết bị lệch, không tính được thời gian chờ"
+        : "không có tiến trình áp dụng — yêu cầu đang treo " + status.minutes + " phút";
   }
 
   function scheduleWrite(market) {

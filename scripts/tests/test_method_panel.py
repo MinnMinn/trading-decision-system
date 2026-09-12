@@ -1,6 +1,6 @@
 """The method panel page. Rules PANEL-03/04/09/11 in docs/security/2026-09-12-method-panel.md.
 The page is generated from code (SYSTEM-DESIGN.md §15): nothing on it is hand-written per symbol."""
-import importlib.util, json, os, re, sys, tempfile, unittest
+import importlib.util, json, os, re, shutil, subprocess, sys, tempfile, unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -160,6 +160,109 @@ class DbWiring(unittest.TestCase):
         html = mp.render(cfg())
         self.assertIn("control/heartbeat", html)
         self.assertIn("12", html)
+
+
+NODE = shutil.which("node")
+
+
+def _guard_block_source():
+    """The self-contained PANEL-05 guard (IMPLAUSIBLE_PENDING_MS + classifyElapsedMs), extracted by
+    its comment markers in scripts/method-panel.py so it can be executed for real under Node --
+    it is a pure function with no DOM/db dependency, so this is honest execution, not a grep."""
+    src = mp._SCRIPT
+    start = src.index("// PANEL-05_GUARD_START")
+    end = src.index("// PANEL-05_GUARD_END") + len("// PANEL-05_GUARD_END")
+    return src[start:end]
+
+
+def _js_function_source(js, name):
+    """One top-level function's full source, matching braces (robust to nested blocks) -- used for
+    structural assertions on functions that DO touch the DOM/db and so cannot be run under Node."""
+    marker = "function " + name
+    start = js.index(marker)
+    open_brace = js.index("{", start)
+    depth, i = 0, open_brace
+    while True:
+        ch = js[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return js[start:i + 1]
+        i += 1
+
+
+def _run_node(js_snippet):
+    result = subprocess.run(["node", "-e", js_snippet], capture_output=True, text=True, timeout=10)
+    if result.returncode != 0:
+        raise AssertionError("node failed: " + result.stderr)
+    return result.stdout.strip()
+
+
+@unittest.skipUnless(NODE, "node not installed -- the PANEL-05 guard is executed for real, not just grepped")
+class PendingDurationGuard(unittest.TestCase):
+    """PANEL-05 (docs/security/2026-09-12-method-panel.md), closed without detecting clock skew --
+    there is no server time in the db contract, and comparing the device clock to the heartbeat's
+    own timestamp would conflate skew with 'the cron has not ticked yet'. Instead the page flags an
+    IMPLAUSIBLE pending duration: negative (a future requested_at for this viewer) or on the order of
+    a day or more. classifyElapsedMs() is a pure function extracted from the real script and run
+    under Node -- these are browser-JS branches pytest cannot import and execute directly."""
+
+    def _classify(self, elapsed_ms):
+        snippet = _guard_block_source() + f"\nconsole.log(JSON.stringify(classifyElapsedMs({elapsed_ms})));"
+        return json.loads(_run_node(snippet))
+
+    def test_a_future_timestamp_is_flagged_implausible_not_a_negative_number(self):
+        """A device minutes ahead writes a requested_at this viewer sees as being in the future."""
+        self.assertEqual(self._classify(-5 * 60 * 1000), "implausible")
+
+    def test_an_absurdly_old_timestamp_is_flagged_implausible(self):
+        """Days old: either a genuinely stuck request or a clock off by that much -- either way not
+        a number worth displaying as a real wait time."""
+        self.assertEqual(self._classify(3 * 24 * 60 * 60 * 1000), "implausible")
+
+    def test_a_normal_pending_duration_is_not_flagged(self):
+        """Regression guard: the check must not swallow ordinary values -- the applier's own cadence
+        (every 5 minutes, CRON-05/step 4's own 60-minute staleness cap) means a real pending wait
+        under matching clocks is minutes, not hours."""
+        self.assertEqual(self._classify(5 * 60 * 1000), 5)
+
+    def test_threshold_is_on_the_order_of_a_day(self):
+        """Pins the chosen IMPLAUSIBLE_PENDING_MS boundary (24h) so a future change to it is a
+        visible test change, not a silent drift."""
+        just_under = 24 * 60 * 60 * 1000 - 1
+        just_over = 24 * 60 * 60 * 1000
+        self.assertNotEqual(self._classify(just_under), "implausible")
+        self.assertEqual(self._classify(just_over), "implausible")
+
+
+class HeartbeatBannerInvariants(unittest.TestCase):
+    """The two properties the coordinator required for the PANEL-05 close, checked structurally:
+    both involve live db snapshots and DOM state that need a real browser to execute end-to-end."""
+
+    def test_staleness_warning_becomes_visible_before_any_duration_classification(self):
+        """Property 1: a nonsense duration must never suppress the staleness banner -- it may only
+        replace the *number* inside it, never the warning itself."""
+        fn = _js_function_source(mp._SCRIPT, "renderHeartbeatBanner")
+        self.assertRegex(fn, r"el\.hidden\s*=\s*false")
+        hidden_idx = fn.index("el.hidden = false")
+        status_idx = fn.index("pendingStatusAcrossMarkets")
+        self.assertLess(hidden_idx, status_idx,
+                         "the banner must become visible before it looks at the pending duration")
+
+    def test_guard_copy_is_present(self):
+        html = mp.render(cfg())
+        self.assertIn("đồng hồ thiết bị lệch", html)
+
+    def test_applied_status_is_never_a_function_of_the_device_clock(self):
+        """Property 2: a skewed clock must not make the page look healthy. requestMatchesApplied()
+        -- the sole gate for showing "đã áp dụng" -- compares two db-provided strings only; it must
+        never read Date.now() or call the clock guard, so a bad clock can never manufacture a false
+        applied state."""
+        fn = _js_function_source(mp._SCRIPT, "requestMatchesApplied")
+        self.assertNotIn("Date.now", fn)
+        self.assertNotIn("classifyElapsedMs", fn)
 
 
 class NoInjection(unittest.TestCase):
