@@ -126,3 +126,15 @@ class AutomationUsesRegistry(unittest.TestCase):
                          "automation.py must read THE registry file, not a look-alike")
         for m in M.markets():
             self.assertEqual(auto.MARKET_DIMENSIONS[m], M.dimensions(m))
+
+    def test_rank_setups_has_no_second_method_list(self):
+        src = open(os.path.join(ROOT, "scripts", "rank-setups.py"), encoding="utf-8").read()
+        self.assertNotIn('{"ICT", "COMBINED", "WYCKOFF", "WYCKOFF-BOOK"}', src)
+        # Behavioural, not just textual: rank-setups.py's own RUNNABLE must be the live
+        # registry value, not a hand-kept copy. Importing the module at top level has no
+        # side effects (argparse/file I/O all live inside main()/main_window_1y()/
+        # main_horizons(), guarded by `if __name__ == "__main__":`).
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("rank_setups", os.path.join(ROOT, "scripts", "rank-setups.py"))
+        rank_setups = importlib.util.module_from_spec(spec); spec.loader.exec_module(rank_setups)
+        self.assertEqual(rank_setups.RUNNABLE, M.runnable())

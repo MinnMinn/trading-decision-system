@@ -15,7 +15,7 @@ CFD setups get execution "mt5" (demo account through integrations/mt5/OrderBridg
 exports or the runner can aggregate (1H, 2H, 4H, 1D). Every number here is a code proxy over research history — for CFD that is
 Yahoo Finance futures data (scripts/fetch-history-cfd.py), not the CFD quotes the pilot will trade on.
 """
-import argparse, datetime, glob, json, os
+import argparse, datetime, glob, importlib.util, json, os
 FLAG_KEYS = ("ict_disp", "ict_pd", "std_origin", "flags_decided")   # per-setup ICT switches decided by scripts/ict-flags-1y.py; carried over on rewrite
 
 
@@ -32,7 +32,9 @@ def carry_flags(selection, path):
     return selection
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RUNNABLE = {"ICT", "COMBINED", "WYCKOFF", "WYCKOFF-BOOK"}   # all four are executed by scripts/strategy-runner.py (Wyckoff = market entries at the bar close)
+_mspec = importlib.util.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py"))
+mreg = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(mreg)
+RUNNABLE = mreg.runnable()   # executed by scripts/strategy-runner.py; source: docs/architecture/methods.json
 CFD_TFS = {"5m", "15m", "30m", "1H", "2H", "4H", "1D"}
 # user decision 2026-09-11 (evening): one setup per HORIZON per market -- scalping / day / swing -- even where the backtest edge is weak.
 HORIZONS = {"scalping": {"5m", "15m"}, "day": {"30m", "1H", "2H"}, "swing": {"4H", "1D"}}
