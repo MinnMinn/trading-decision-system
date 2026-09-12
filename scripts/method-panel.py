@@ -153,7 +153,13 @@ def esc(s):
     return _html.escape(str(s), quote=True)
 
 
-_STYLE = """<style>
+# The Artifact tool scans only the first 8KB for a <title> and falls back to the filename without one --
+# which would name this page ".method-panel.html" in the browser tab and the gallery. Keep it short and
+# distinctive: it is how the page is picked out of a list of artifacts, not a description of it.
+TITLE = "Công tắc phương pháp"
+
+_STYLE = """<title>Công tắc phương pháp</title>
+<style>
 :root {
   --bg: #eef1f5; --surface: #ffffff; --surface-2: #e3e8ee; --border: #c7d0da;
   --text: #1b2430; --text-dim: #5b6675;

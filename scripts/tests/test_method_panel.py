@@ -399,6 +399,16 @@ class HeartbeatBannerInvariants(unittest.TestCase):
         self.assertNotIn("classifyElapsedMs", guard_src)
 
 
+class PageIdentity(unittest.TestCase):
+    def test_page_carries_a_title_within_the_first_8kb(self):
+        """The Artifact tool scans only the first 8KB for <title> and otherwise names the artifact after the
+        file, i.e. '.method-panel.html'. The title is how this page is found in a gallery."""
+        html = mp.render(cfg())
+        head = html[:8192]
+        self.assertIn("<title>", head)
+        self.assertIn(mp.TITLE, head)
+
+
 class NoInjection(unittest.TestCase):
     def test_no_cdn_and_no_external_fetch(self):
         html = mp.render(cfg())
