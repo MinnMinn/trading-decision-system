@@ -174,6 +174,33 @@ class RangePctSeriesEngine(unittest.TestCase):
         self.assertTrue(out["lastMatchesPct"], "the series' last point must agree with ict.pct (same lo/hi)")
 
 
+@unittest.skipUnless(shutil.which("node"), "node not on PATH")
+class RangePaneAxisLabelIsCompact(unittest.TestCase):
+    """The 2026-09-12 ICT-pane-replacement commit (27568e7) put the pane's full registry label -- 'Vị trí trong
+    dealing range (Premium / Discount)' -- on the price axis via 'EQ '+pane.label. An axis label widens the
+    right-hand gutter of every pane on every chart (labelAt:'axis' reserves space for the longest tag). The price
+    pane's own EQ tag (chart.js ictShapes, 'EQ '+fmt(ict.eq)) is a short value, not a sentence; the range pane's
+    EQ tag must be equally short."""
+
+    def run_js(self, body):
+        p = subprocess.run(["node", "-e", f"const T=require({json.dumps(CHART_JS)}); {body}"], capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return json.loads(p.stdout)
+
+    def test_range_pane_eq_shape_label_is_short_not_the_registry_sentence(self):
+        out = self.run_js("const s=T.rangePctEqShape({label:'Vị trí trong dealing range (Premium / Discount)'});"
+                           "console.log(JSON.stringify({label:s.label, labelAt:s.labelAt, kind:s.kind, price:s.price}))")
+        self.assertEqual(out["kind"], "hseg")
+        self.assertEqual(out["labelAt"], "axis")
+        self.assertEqual(out["price"], 50)
+        self.assertNotIn("dealing range", out["label"], "axis label must not carry the pane's full sentence label")
+        self.assertLessEqual(len(out["label"]), 12, f"axis label {out['label']!r} is not a short value like the price pane's 'EQ <value>'")
+
+    def test_chart_js_does_not_concatenate_pane_label_onto_an_axis_hseg(self):
+        src = open(CHART_JS, encoding="utf-8").read().replace(" ", "")
+        self.assertNotIn("'EQ'+(pane.label||'')", src, "pane.label must not be concatenated into an axis label")
+
+
 class DimensionFlagsAreReal(unittest.TestCase):
     def test_lanes_come_from_the_registry(self):
         src = open(os.path.join(ROOT, "scripts", "build-artifact.py"), encoding="utf-8").read()
@@ -188,6 +215,89 @@ class DimensionFlagsAreReal(unittest.TestCase):
         html = ba.matrix("btc", "int", None, None, None, dims)
         self.assertIn("lane-wyckoff", html)
         self.assertNotIn("lane-ict", html)
+
+
+class HiddenAttributeIsNotDefeatedByDisplayFlex(unittest.TestCase):
+    """chart.js toggles .lane-status and .legend visibility with the `hidden` IDL attribute (chart.js render():
+    `st.hidden=drawn`, `leg.hidden=!drawn`) whenever the active lane is disengaged for a symbol. Both classes also
+    declare `display:flex` in CSS, which -- per CSS cascade rules -- overrides the UA stylesheet's
+    `[hidden]{display:none}` default, so `hidden=true` stops actually hiding the element: a disengaged lane's
+    stale status text (e.g. 'Wyckoff — tắt trong /automation') stays visibly rendered even while a different,
+    engaged lane (e.g. ICT) is selected. Found via the browser check for the SOLO-ICT ladder/timeline fix.
+    A `[hidden]{display:none}` override rule for both classes restores the intended toggle."""
+
+    def test_lane_status_and_legend_have_a_hidden_attribute_override_rule(self):
+        ba = load("build-artifact.py")
+        self.assertIn(".lane-status[hidden]", ba.CSS.replace(" ", ""), "hidden attribute is defeated by .lane-status{display:flex} without this override")
+        self.assertIn(".legend[hidden]", ba.CSS.replace(" ", ""), "hidden attribute is defeated by .legend{display:flex} without this override")
+
+
+def _stub_S(tf="15m"):
+    """Minimal S dict that drives ladder() into its 'no farther tier' fallback rows for bias/structure, so the
+    test only exercises the dims-gating of the entry row's wy_cell()/ict_cell() output."""
+    return {"tf": tf, "tiers": {}}
+
+
+class LadderColumnsDropADisengagedWyckoffOrIct(unittest.TestCase):
+    """Same class of bug Task 10 fixed in matrix(): ladder() (scripts/build-artifact.py:413) took no dimension
+    flags at all and unconditionally rendered wy_cell()/ict_cell(). SOLO ICT mode
+    (markets.crypto.dimensions.wyckoff=false) must drop the Wyckoff column from the tier ladder table too, not
+    just from the read matrix."""
+
+    def test_ladder_columns_drop_a_disengaged_wyckoff_or_ict(self):
+        ba = load("build-artifact.py")
+        dims = {d: {"engaged": d == "wyckoff", "reason": ""} for d in ("wyckoff", "ict", "footprint", "heatmap")}
+        html = ba.ladder(_stub_S(), "BTCUSDT", "int", "—", None, None, {}, None, dims)
+        self.assertIn("lane-wyckoff", html)
+        self.assertNotIn("lane-ict", html)
+
+    def test_ladder_drops_wyckoff_when_ict_is_the_only_engaged_method(self):
+        """The reported defect: SOLO ICT preset, dims.wyckoff.engaged is False, dims.ict.engaged is True."""
+        ba = load("build-artifact.py")
+        dims = {"wyckoff": {"engaged": False, "reason": "tắt trong /automation"}, "ict": {"engaged": True, "reason": "đang dùng"},
+                "footprint": {"engaged": False, "reason": "..."}, "heatmap": {"engaged": False, "reason": "..."}}
+        html = ba.ladder(_stub_S(), "BTCUSDT", "int", "—", None, None, {}, None, dims)
+        self.assertNotIn("lane-wyckoff", html, "Wyckoff column must not render when dims.wyckoff.engaged is False")
+        self.assertNotIn("chưa có đọc Wyckoff cho khung này", html, "Wyckoff cell text must not leak into the ladder when disengaged")
+        self.assertIn("lane-ict", html)
+        self.assertIn("tắt trong /automation", html, "the disengaged reason must be stated, not silently dropped (matrix() convention)")
+
+
+class TimelineColumnsDropADisengagedWyckoffOrIct(unittest.TestCase):
+    """timeline() (scripts/build-artifact.py:352) is the same class of bug: unconditional <th class="lane-wyckoff">
+    / <td class="lane-wyckoff"> regardless of dims. It arrived with the timeframe-ladder work (716b32a) after the
+    Task 10 matrix()-only sweep, so it never got the dims-gating treatment."""
+
+    def test_timeline_drops_the_wyckoff_column_when_disengaged(self):
+        ba = load("build-artifact.py")
+        dims = {"wyckoff": {"engaged": False, "reason": "tắt trong /automation"}, "ict": {"engaged": True, "reason": "đang dùng"}}
+        rows = [{"time": "2026-09-01T00:00:00Z", "event": "MSS", "wyckoff": "LEAK-WYCKOFF-TEXT", "ict": "MSS tăng"}]
+        html = ba.timeline(rows, dims)
+        self.assertNotIn("lane-wyckoff", html)
+        self.assertNotIn("LEAK-WYCKOFF-TEXT", html, "a disengaged method's cell content must not render at all")
+        self.assertIn("lane-ict", html)
+        self.assertIn("MSS tăng", html)
+
+
+class NoDisengagedMethodContentAnywhereInThePage(unittest.TestCase):
+    """General regression, not scoped to one table: with a method disengaged, no per-method render site --
+    matrix(), ladder(), timeline() today -- may show that method's column, cell, or label. General enough to
+    catch a future 4th such table the same way it would have caught ladder() and timeline()."""
+
+    def test_wyckoff_off_ict_on_leaves_no_wyckoff_content_in_any_table(self):
+        ba = load("build-artifact.py")
+        dims = {"wyckoff": {"engaged": False, "reason": "tắt trong /automation"}, "ict": {"engaged": True, "reason": "đang dùng"},
+                "footprint": {"engaged": False, "reason": "không có nguồn CoinGlass live"},
+                "heatmap": {"engaged": False, "reason": "không có nguồn CoinGlass live"}}
+        matrix_html = ba.matrix("btc", "int", None, None, None, dims)
+        ladder_html = ba.ladder(_stub_S(), "BTCUSDT", "int", "—", None, None, {}, None, dims)
+        timeline_html = ba.timeline([{"time": "2026-09-01T00:00:00Z", "event": "x", "wyckoff": "LEAK-WY", "ict": "LEAK-ICT"}], dims)
+        combined = matrix_html + ladder_html + timeline_html
+        self.assertNotIn("lane-wyckoff", combined, "Wyckoff column/cell rendered somewhere despite dims.wyckoff.engaged=False")
+        self.assertNotIn("LEAK-WY", combined, "Wyckoff cell content leaked despite being disengaged")
+        self.assertIn("lane-ict", combined, "ICT column should still render when engaged")
+        self.assertIn("LEAK-ICT", combined)
+        self.assertIn("tắt trong /automation", combined, "the disengaged reason must be stated somewhere, not silently dropped")
 
 
 class MatrixColumnCountHasACssRule(unittest.TestCase):

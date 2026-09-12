@@ -122,6 +122,12 @@ function rangePctSeries(rows, ict){
   const lo=ict.lo, hi=ict.hi, span=(hi-lo)||1;
   return rows.map(r=>({time:unix(r[6]), value:Math.max(0,Math.min(100,(r[4]-lo)/span*100))}));
 }
+// EQ marker for the range_pct pane's own axis: a short value, like the price pane's own EQ tag ('EQ '+fmt(ict.eq)
+// in ictShapes below) -- never the pane registry's full descriptive label (methods.json pane.label, a whole
+// sentence for the legend/pane-note, not the axis). Concatenating that sentence onto an axis label widened every
+// chart's right-hand gutter (regression from the 27568e7 ICT-pane-replacement commit; scripts/tests/
+// test_build_artifact.py RangePaneAxisLabelIsCompact pins this).
+const rangePctEqShape = () => ({kind:'hseg', i1:null, i2:null, price:50, stroke:'faint', sw:1, dash:[4,3], label:'EQ 50%', labelAt:'axis'});
 const idxOf=(rows,iso)=>{ if(!iso)return -1; let best=-1; for(let i=0;i<rows.length;i++){ if(rows[i][6]<=iso)best=i; else break; } return best>=0&&rows[best][6]===iso?best:(best>=0&&rows[best][6].slice(0,13)===iso.slice(0,13)?best:-1); };
 const spanOf=(rows,iso)=>{ if(!iso)return -1; for(let i=0;i<rows.length;i++){ if(rows[i][6]>=iso)return i; } return rows.length; };
 
@@ -214,7 +220,7 @@ const rulerShapes = (entry, stop, i1, i2, fmt) => {
   return S;
 };
 
-const api = {ictAnalyze, volStats, rangePctSeries, idxOf, spanOf, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, rulerShapes, unix};
+const api = {ictAnalyze, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, rulerShapes, unix};
 if(!root || typeof document==='undefined') return api;   // node: pure API only
 
 // =============================================================================================== browser: rendering
@@ -367,7 +373,7 @@ function applyLane(h, lane, P){
     h.annVol.set(L); h.range.setData([]); h.annRange.set([]); h.note.set(''); }
   else if(showRange){ h.vol.setData([]); h.avg.setData([]); h.annVol.set([]);
     h.range.setData(rangePctSeries(rowsV, h.view.ict));
-    h.annRange.set([{kind:'hseg',i1:null,i2:null,price:50,stroke:'faint',sw:1,dash:[4,3],label:'EQ '+(pane.label||''),labelAt:'axis'}]);
+    h.annRange.set([rangePctEqShape()]);
     h.note.set(''); }
   else { h.vol.setData([]); h.avg.setData([]); h.annVol.set([]); h.range.setData([]); h.annRange.set([]);
     h.note.set((pane.label?pane.label+' — ':'')+'chưa có nguồn live, không vẽ (SYSTEM-DESIGN §12)'); }
