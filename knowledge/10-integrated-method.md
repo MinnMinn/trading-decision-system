@@ -152,7 +152,7 @@ The corollary matters for this project's instruments: on a feed where volume is 
 | | Stop / invalidation | Source |
 |---|---|---|
 | Wyckoff | Below the lowest low of the Spring (above the highest high of the Upthrust), plus the VAL/VAH→LVN abandon rule | `k08 §5 Step 4`, `§5 Step 6` |
-| ICT | Nested choices: gap far edge (tight), order-block low (medium), originating swing low (wide), plus the TTrades candle-2 swing point | `k04 §3.6`, `k05 §3.5`, `k06 §2.5.7` |
+| ICT | Nested choices: gap far edge (tight), order-block body low / close (medium; `k05 §2.5` re-verified 2026-09-12), displacement-candle low under a breaker, originating swing low (wide), plus the TTrades candle-2 swing point | `k04 §3.6`, `k05 §3.5`, `k06 §2.5.7` |
 
 ICT's tight and medium stops sit **inside** the swept extreme, i.e. inside the Wyckoff stop. Only the wide option coincides. The same setup can therefore carry stops differing by the entire depth of the sweep, which changes position size by a multiple.
 

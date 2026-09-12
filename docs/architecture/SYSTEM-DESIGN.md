@@ -173,6 +173,12 @@ null for rules-only pilot trades.
 | `/automation` | Configuration, plus the one process action below. Turns the three real background layers on/off (layer 1 scanner `scripts/scan-loop.sh`, layer 2 local read `scripts/local-eval-brief.py`, Stage-2 testnet pilot `scripts/demo-pilot.py`) and scopes them **per market** (`crypto` / `cfd`) by Confluence dimension (§6.2), timeframe and instrument. `(market, timeframe)` resolves to the chart-style vocabulary: crypto 1m/15m/1h/4h/1D → `scalping` / `daytrade` / `1h` / `4h` / `swing`; cfd 15m/1h/4h/1D → `gold` / `gold-1h` / `gold-4h` / `gold-swing` (no cfd 1m — §12 item 6; no cfd footprint/heatmap keys at all — §12 item 3). Writes `docs/architecture/automation-config.json` (`schema_version: 2`, schema `schemas/automation-config.schema.json`) through its single writer `scripts/automation.py` (§13 rule 3), with a who/when/what audit trail including refusals. `status` is the default and is safe to run at any time; `demo` is a one-command preset. | **It writes flags, and it may start/stop the TESTNET pilot when the human asks in-session.** `/automation demo` and `/automation pilot start` are that ask (§9.x); Claude never *schedules* the pilot and never loads the launchd plist. `pilot start` refuses (exit 2) on master-off, `layers.pilot` off, `markets.crypto` off, `execution.account != demo_testnet`, a present `STOP` file, or any pilot loop already running — including an unrecorded one the user started by hand. `off` / `pilot stop` drop the `data/live/pilot*/STOP` kill switches and never remove them again. `execution.account` is **hand-edited by the user**; `automation.py` only reads it, and `real` is refused with the explanation that only the pilot is account-gated at all — the scanner and local read place no orders in any account. Mainnet execution stays prohibited (§1, §12 item 4). Forex and any off-allowlist instrument are refused outright (§1). |
 | `/execute` | Separately-permissioned; see below | **Stage 1 — built and verified.** (a) requires one explicit human confirmation per trade, distinct from a prior `/analyze` TRADE verdict, (b) re-runs RiskAgent's hard checks one last time, (c) on confirmation, submits a real market-buy + OCO exit bracket to **Binance SPOT TESTNET** via `scripts/binance-testnet-order.sh` (fake funds; verified against real order matching, not a simulation). Scope limits: testnet only, LONG-only (no spot shorting), BTCUSDT/ETHUSDT/SOLUSDT only, never runs unattended — a scheduled/cloud context may flag a candidate but the human-confirmation step always happens interactively. Mainnet, MT5 execution, or removing the per-trade confirmation (Stage 2) are all separate, larger decisions requiring their own explicit authorization and, for mainnet, Security review. |
 
+### 9.y Pilot profile `top5` (2026-09-11, user decision; TESTNET only)
+
+`execution.pilot_profile` in `automation-config.json` (`/automation pilot profile legacy|top5`) selects which rule set the **futures** pilot loop runs; the spot loop always runs legacy. `top5` = `scripts/strategy-runner.py` running the setups in `docs/architecture/pilot-top5.json` — written by `scripts/rank-setups.py` from the stability backtests (`docs/backtests/2026-09-11-top-setups.md`): 5 crypto setups on Binance futures TESTNET and 5 CFD setups on the MT5 DEMO account through the file order bridge (`mt5-bridge.md`, `integrations/mt5/OrderBridge.mq5`). Each setup = (market, timeframe, rule family — ICT / COMBINED with a LIMIT at the FVG edge, or WYCKOFF proxy / WYCKOFF-BOOK with a MARKET order at the entry bar's close (Spring reclaim, Test, BU) —, ICT target model, breakeven on/off, HTF filter on/off), applied function-for-function from `scripts/backtest-methods.py` to live candles (Binance private copies; MT5 export files, 2H aggregated from 1H): LIMIT at the FVG edge (post-only GTX on Binance; pending order with SL/TP on MT5), breakeven at +1R on a closed candle, time stop, one position or resting order per symbol, 2 open per venue, 1 % risk clamp, halts per venue on −15 % equity / 5 losses and on 3 connector errors (writes the shared `STOP`). `/automation on|demo` brings everything up exactly as before; only the pilot's rule set changes with the profile. **Default (user decision 2026-09-11, night): a plain `/automation on|demo` selects one setup per horizon (scalping / day / swing) per market on the last 12 months (`rank-setups.py --horizons --window 1y`) and runs them; `pilot_profile` defaults to `top5`, `legacy` is opt-in.** **`/automation on|demo setup top N`:** `automation.py` runs `rank-setups.py --window 1y --n N` — every rule ranked on its last 365 days (not blown up → share of positive quarters in the year → the year's return → worst quarter; one row per timeframe × rule family) — writes the selection, records `execution.setup_spec`, sets the profile to `top5` and brings everything up; the stability files carry both full-history and `w1y` metrics (`stability-report.py`). Earlier selection mode, kept as `rank-setups.py --horizons`: **one setup per horizon per market** — scalping (5m/15m), day (30m/1H/2H), swing (4H/1D) — via `rank-setups.py --horizons`, so crypto and XAUUSD each trade all three horizons; the loop period follows the fastest selected timeframe (`strategy-runner.py --tick-seconds`); setups whose backtest is negative are still included and flagged `negative_backtest: true` in the selection file — the user chose coverage over evidence there and the journal (`strategy` field) is how that choice gets measured. Scalping data: crypto 5m one year, XAUUSD 5m/15m/30m 60 days (the public research source's limit). It refuses to tick when the environment is `real`, when the profile is not `top5`, or when the exchange shows a position/order it does not own (reconcile before new risk). `scripts/demo-pilot.py` refuses futures ticks while the profile is `top5`, so one account never runs two rule sets. Candles are fetched into the runner's private `data/live/pilot-futures/candles/` (`KLINES_OUT_DIR`), keeping §13 rule 3. Journal: `journal.py sync-pilot` ingests `top5-log.jsonl` with `strategy` / `htf_pass`. Threat model and 33 rules: `docs/security/2026-09-11-top5-pilot.md`; parity evidence: `docs/backtests/2026-09-11-runner-parity.md`.
+
+**Status of the edge (read before switching the profile on).** The backtests that motivated this profile contained a look-ahead in the ICT FVG rule (the gap could complete on the candle after the MSS and the limit "filled" at that candle's low). With the causal rule the 4-year edge is small: ICT 30m ≈ +9 %/yr with −31 % drawdown, ICT 1H ≈ +3 %, COMBINED 30m ≈ 0 (`docs/backtests/2026-09-11-stability-by-timeframe.md`). The machinery is built and verified on testnet; whether to run it is a separate decision recorded via `/improve`. **2026-09-12:** the ICT rule gained three deck-faithful switches (`ict_disp`, `ict_pd`, `std_origin` — displacement on the MSS candle, longs-from-discount / shorts-from-premium, STD fib-0 at the highest high before the sweep), all off by default; measured in `docs/backtests/2026-09-12-ict-deck-faithful.md`. The drawing layer and `ict-scan.py` now follow the page-verified geometry in `docs/audits/2026-09-12-ict-pdf-recheck.md` (OB open line + mean threshold, CISD, displacement flag, dealing range from the nearest BSL↔SSL pair, PDH/PDL, session highs/lows, OTE, STD projections). The `asia` session window is now 20:00–00:00 America/New_York (the decks' own Asia killzone), chosen by measurement over five candidate clocks (`scripts/asia-session-eval.py`, `docs/backtests/2026-09-12-asia-session.md`); `journal.py`'s session tag follows `session-model.md` with DST-aware local windows instead of fixed UTC hours.
+
 ## 10. Hooks — honest mapping to what Claude Code actually supports
 
 The master spec's 7 "hooks" are a mix of two different things, and this design keeps them distinct rather than pretending all 7 are literal tool-call hooks:
@@ -252,7 +258,7 @@ agent working on the charts:
 
 ## 14. Model policy (user decision 2026-09-10)
 
-**Haiku displays; it never reasons.** Every step that analyses, scores, judges or maps an analysis into structured
+**2026-09-11 (night) decision: no Haiku anywhere — every cron template and headless run pins Sonnet.** Historical rule kept for context: **Haiku displays; it never reasons.** Every step that analyses, scores, judges or maps an analysis into structured
 fields runs on Sonnet or higher. Haiku is permitted for exactly one thing: relaying `scripts/automation.py` output
 under `/automation`. This is enforced in files, not by convention:
 
@@ -274,3 +280,77 @@ under `/automation`. This is enforced in files, not by convention:
 Rationale: on 2026-09-09/10 a Haiku bounded refresh produced a wrong verdict for 9 h by comparing price to the
 wrong reference (§13 rule 1). The cost saved by Haiku on the few display-only commands is small; the cost of a
 misread in an analysis step is a trade.
+
+## 15. Chart pages rendered from code; one method, one vocabulary (user decisions 2026-09-11)
+
+The user's five requirements on the chart artifacts — (1) an overview window so past setups and their effect on the
+present are visible, (2) volume on the Wyckoff chart and in the Wyckoff read, (3) layers 1/2/3 each split into
+Wyckoff / ICT / Footprint / Heatmap and only then synthesised, (4) every method analysed and drawn with that method's
+own knowledge and terms (Footprint may build on Wyckoff), (5) a trader-grade UI — are implemented as code, not prompts:
+
+1. **`scripts/build-artifact.py <style>` renders every page.** Inputs: the scanner's candles (working + context
+   window, both with volume), `prelim/<style>.facts.json` (layer 1, split per method by code), per-method
+   `model.html` blocks (layer 2), `data/live/narrative/<style>.json` (layer 3, schema
+   `schemas/narrative.schema.json`), `anchors.<style>.json` (levels tagged `method`). Models never touch HTML again.
+2. **Method purity is enforced, not requested.** `scripts/method_purity.py` holds the term lists (project
+   parameters); `check-model-prose.py`, `check-narrative.py` and the builder all refuse a Wyckoff block with ICT
+   vocabulary, an ICT block with Wyckoff vocabulary or any volume word (§4.1 of `knowledge/10`: the ICT corpus has no
+   volume), a Footprint block with ICT vocabulary. The synthesis block is the only place the de-duplication rule
+   (`knowledge/10` §4.3) and the invalidation owner (§4.4) may be stated. Chart lanes follow the same rule: the
+   Wyckoff lane draws price + volume + TR/phases/events, the ICT lane runs the price-only engine.
+3. **Events by time, not index.** Narrative events/phases carry ISO candle times; the builder resolves indices at
+   render time, so a sliding window can drop a label but never move it onto the wrong candle.
+4. **Context reuse.** A style whose working window is another style's context window (scalping ↔ daytrade,
+   daytrade ↔ 4h, …) reuses that narrative for its context chart (`CTX_REUSE`), so two pages never disagree on the
+   same candle series. Context numbers come from that style's own scanner facts (`local-eval-brief.py <ctx-style>`).
+5. **Manual reads while automation is off.** `local-eval-brief.py --manual` bypasses the `/automation` gate for a
+   user-requested one-off read; crons never pass it. The switch itself is never flipped by an analysis.
+
+6. **Wyckoff phase grammar is code (2026-09-11, after ETH was labelled A→C→D).** `check-narrative.py` refuses a
+   narrative whose phases are not contiguous from A in time order, whose event labels are not Wyckoff event names in
+   their own phase, whose Phase C has no test event or Phase D no SOS/LPS, or whose "SOS" sits on below-average
+   volume (WA p83–84 defines SOS by widening spread *and* rising volume; a weak break above AR is UA). The book's
+   vocabulary is the validator, not the model's memory.
+
+Retired: `patch-arrays.py`, `inject-prelim.py`, `select-base.py`, the hand-off file `narrative/<style>.full.html`.
+
+### 15.1 CFD timeframe set (user decision 2026-09-11)
+
+MT5 offers M1…W1; the CFD pages use **M5 (scalping, `gold-scalp`, 5m×288 = 24 h, context 15m×288) · M15 (day,
+`gold`, 15m×288 = 3 days, context 4H×180) · D1 (swing, `gold-swing`, 1D×120, context 1W×104)**. M1 is rejected for
+gold: the spread swallows a 1-minute bar and the pivot/killzone reads that both methods depend on are noise there;
+M30 adds nothing between M15 and H1; H1/H4 stay as scanner-only context. Crypto swing gains the same 1W context.
+Requires the EA to export 5m and 1W (`integrations/mt5/ExportOHLCV.mq5`, 300 bars) — a recompile in MetaEditor.
+This supersedes the "no CFD scalping" note in §12 item 6; `markets.cfd.timeframes.5m` is the switch.
+
+### 15.2 Multi-timeframe: the "giảm khung" rule is code (user decision 2026-09-11)
+
+The book reads the higher timeframe first and enters on the lower timeframe in the direction of the higher-timeframe
+structure (`knowledge/07` §2.7 "Giảm khung của tích lũy", WA p93–96: M30 Shakeout[C] → m5 Spring[C]/LPS[C]; in Phase B
+"nguồn cung/cầu đang khá cân bằng … chưa cho thấy sự xuất hiện của CO" — no trade; `knowledge/10` §4.2 step 1). Implemented as:
+
+1. **One mapping** `CONTEXT_STYLE` in `scripts/automation.py` (working window → context window: scalping→daytrade,
+   daytrade→4h, gold-scalp→gold, gold→gold-4h, 1h/4h→swing, gold-1h/4h→gold-swing; swing styles → 1W, unscanned).
+2. **Scanner facts carry the context** (`facts.json` → `symbols.<SYM>.context`, written by `scripts/htf_context.py`
+   from the context style's own facts plus the latest Wyckoff structure/phase of that window) and a **bias**:
+   accumulation/re-accumulation in Phase C/D/E → long; distribution/re-distribution in C/D/E → short; **Phase B →
+   directional only at the boundary of the higher-timeframe Trading Range in the direction of the structure**
+   (accumulation with price in the lower third of the TR → long — "CO sẽ tiếp tục tích lũy khi giá tiệm cận vùng hỗ
+   trợ", WA p201, and the m5 "Local accumulation as Spring" of WA p93; distribution in the upper third → short;
+   mid-range or the opposite boundary → neutral, WA p95–96); Phase A or "chưa xác lập" → neutral; no read → the
+   context scanner's anchor verdict, else unknown. The "third" is the book's ST-within-⅓-TR yardstick reused as the
+   zone width (project adaptation, `BOUNDARY_FRACTION` in `scripts/htf_context.py`). User question 2026-09-11: a
+   lower-timeframe reversal *at* the higher-timeframe range edge, in the structure's direction, is exactly the book's
+   drop-down trade — it is allowed; a reversal *against* the higher-timeframe trend is "bắt dao rơi / cản tàu" (§2.4)
+   and stays refused until the higher timeframe prints its own CHoCH.
+3. **Layer 2** sees a "BỐI CẢNH" section in its brief; `m-synth` must open with "Bối cảnh <tf>: …"; a verdict
+   against the bias must say "ngược bối cảnh"; SETUP TIỀM NĂNG against the bias or while the context is in Phase
+   A/B is refused (`check-model-prose.py`). **Layer 3**: `context.wyckoff` (structure + phase + cited text) and
+   `context.ict` are mandatory when a context window exists; the same verdict rule applies to `synthesis_html`
+   (`check-narrative.py`).
+4. **Pilot** (`scripts/demo-pilot.py`, `HTF_FILTER = True`): a LONG/SHORT is refused unless the 4H context bias
+   equals the side; neutral/unknown refuses too (WA p95–96). This is a trading-rule change; the user adopted it
+   directly on 2026-09-11 instead of running it through `/improve` TEST first — recorded here so `/improve` can
+   measure it against the eval log (`reasons` now carry "bối cảnh 4h không ủng hộ …").
+
+Pages show the context bias in each symbol header and in the Sơ bộ synthesis cell.

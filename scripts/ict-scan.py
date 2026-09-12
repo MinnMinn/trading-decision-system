@@ -23,7 +23,10 @@ exit code 0 = no NEW events since the state file, 3 = new events (caller may tri
 Sources cited in the snippets: docs/TTrades PDFs (3. Liquidity, 8. Discount__Premium, 11. MSS_vs_Liquidity_Grab,
 12. Fair_Value_Gaps, 18. Market_Structure_Shift, IRL-ERL), WA/knowledge/07 (Phase A-E, Spring/Shakeout, SOS/LPS, SOT),
                 WMT/knowledge/08 (Effort-vs-Result, Spring loai 1/2/3);
-thresholds (0.08% equal-level tolerance, 3-bar pivot, 1.5x volume) are this system's own parameters, and say so.
+thresholds (equal-level tolerance, pivot width, FVG minimum size, displacement body/range ratios, 1.5x volume) are this
+system's own parameters read from docs/architecture/analysis-params.json (project_defined.ict / .volume), and say so.
+Dealing range = nearest unswept BSL above / SSL below the last close (knowledge/04 §2.18), window extremes as fallback.
+MSS carries a displacement flag (knowledge/04 §2.16); a setup candidate requires it. 2026-09-12 (docs/audits/2026-09-12-ict-pdf-recheck.md).
 """
 import argparse, json, os, sys, datetime
 
@@ -50,6 +53,15 @@ SHORT = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "SOLUSDT": "SOL", "XAUUSD": "XAU", 
 MT5_SYMBOLS = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
 
 
+_PD = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"]
+ICT = _PD.get("ict", {})
+PIV = ICT.get("pivot_bars", {}).get("value", 3)
+EQ_TOL = ICT.get("equal_level_tolerance_pct", {}).get("value", 0.08) / 100
+FVG_MIN = ICT.get("fvg_min_size_median_ratio", {}).get("value", 0.6)
+DISP = ICT.get("displacement", {"body_min_ratio": 0.6, "range_min_median_ratio": 1.2})
+MIN_RR = ICT.get("min_rr", {}).get("value", 2.0)
+
+
 def load(sym, tf):
     """Crypto from the Binance connector (data/live/market-data); commodities from the MT5 file bridge
     (data/live/mt5-bridge, written by integrations/mt5/ExportOHLCV.mq5). Same candle shape either way."""
@@ -74,9 +86,9 @@ def analyze(c, recent):
     avgv = sum(V) / n if n else 0
 
     sh, sl = [], []
-    for i in range(3, n - 3):
-        if all(H[j] <= H[i] for j in range(i - 3, i + 4) if j != i): sh.append(i)
-        if all(L[j] >= L[i] for j in range(i - 3, i + 4) if j != i): sl.append(i)
+    for i in range(PIV, n - PIV):
+        if all(H[j] <= H[i] for j in range(i - PIV, i + PIV + 1) if j != i): sh.append(i)
+        if all(L[j] >= L[i] for j in range(i - PIV, i + PIV + 1) if j != i): sl.append(i)
 
     fvgs = []
     for i in range(1, n - 1):
@@ -84,13 +96,13 @@ def analyze(c, recent):
         if H[i - 1] < L[i + 1]: f = {"type": "bull", "i": i, "lo": H[i - 1], "hi": L[i + 1]}
         elif L[i - 1] > H[i + 1]: f = {"type": "bear", "i": i, "lo": H[i + 1], "hi": L[i - 1]}
         if not f: continue
-        f["size"] = f["hi"] - f["lo"]; f["end"] = n - 1; f["mitigated"] = False
+        f["size"] = f["hi"] - f["lo"]; f["ce"] = (f["hi"] + f["lo"]) / 2; f["end"] = n - 1; f["mitigated"] = False
         for j in range(i + 2, n):
             if (f["type"] == "bull" and L[j] <= f["hi"]) or (f["type"] == "bear" and H[j] >= f["lo"]):
                 f["end"] = j; f["mitigated"] = True; break
-        if f["size"] >= 0.6 * med: fvgs.append(f)
+        if f["size"] >= FVG_MIN * med: fvgs.append(f)
 
-    tol = eq * 0.0008
+    tol = eq * EQ_TOL
     pools = []
     def add(kind, idxs, level):
         first, last = min(idxs), max(idxs); swept = -1
@@ -107,6 +119,18 @@ def analyze(c, recent):
             if abs(L[sl[a]] - L[sl[b]]) <= tol and sl[b] - sl[a] >= 4: add("SSL", [sl[a], sl[b]], min(L[sl[a]], L[sl[b]])); break
     hi_i, lo_i = H.index(hi), L.index(lo)
 
+    # MSS = body close beyond the swing preceding the raid (knowledge/04 §2.17, knowledge/05 §2.2). displacement = full-bodied
+    # candle (knowledge/04 §2.16) read with the project ratios in analysis-params.json; ext/origin = the manipulation leg
+    # (knowledge/06 §2.1.5); cisd = open of the first candle of the final opposing-colour run into the extreme (knowledge/05 §2.3)
+    def is_disp(j):
+        rg = H[j] - L[j]
+        return rg > 0 and abs(C[j] - O[j]) >= DISP["body_min_ratio"] * rg and rg >= DISP["range_min_median_ratio"] * med
+    def run_start(e, down):
+        k = e
+        if (C[k] >= O[k]) if down else (C[k] <= O[k]): k -= 1
+        r = k
+        while r >= 0 and ((C[r] < O[r]) if down else (C[r] > O[r])): r -= 1
+        return r + 1 if r + 1 <= k else None
     mss = []
     piv = sorted([(i, "H") for i in sh] + [(i, "L") for i in sl])
     lastH = lastL = None; bias = 0
@@ -120,11 +144,38 @@ def analyze(c, recent):
         nxt = piv[k + 1][0] if k + 1 < len(piv) else n
         for j in range(pi + 1, nxt):
             if bias == -1 and lastH is not None and C[j] > H[lastH]:
-                mss.append({"type": "bull", "i": j, "level": H[lastH], "vol_mult": round(V[j] / avgv, 2) if avgv else None}); bias = 0; break
+                frm = lastL or 0; e = min(range(frm, j), key=lambda q: L[q]); oi = max(range(lastH if lastH <= e else frm, e + 1), key=lambda q: H[q])
+                r = run_start(e, True)
+                cisd = {"level": O[r], "time": T[r], "confirmed": next((T[q] for q in range(r + 1, n) if C[q] > O[r]), None)} if r is not None else None
+                mss.append({"type": "bull", "i": j, "level": H[lastH], "disp": is_disp(j), "ext": L[e], "ext_time": T[e], "origin": H[oi], "cisd": cisd,
+                            "vol_mult": round(V[j] / avgv, 2) if avgv else None}); bias = 0; break
             if bias == 1 and lastL is not None and C[j] < L[lastL]:
-                mss.append({"type": "bear", "i": j, "level": L[lastL], "vol_mult": round(V[j] / avgv, 2) if avgv else None}); bias = 0; break
+                frm = lastH or 0; e = max(range(frm, j), key=lambda q: H[q]); oi = min(range(lastL if lastL <= e else frm, e + 1), key=lambda q: L[q])
+                r = run_start(e, False)
+                cisd = {"level": O[r], "time": T[r], "confirmed": next((T[q] for q in range(r + 1, n) if C[q] < O[r]), None)} if r is not None else None
+                mss.append({"type": "bear", "i": j, "level": L[lastL], "disp": is_disp(j), "ext": H[e], "ext_time": T[e], "origin": L[oi], "cisd": cisd,
+                            "vol_mult": round(V[j] / avgv, 2) if avgv else None}); bias = 0; break
 
-    last = C[-1]; pct = (last - lo) / (hi - lo) if hi > lo else 0.5
+    last = C[-1]
+    # dealing range = nearest unswept BSL above / SSL below the last close (knowledge/04 §2.18); fallback = window extremes, reported as such
+    wlo, whi = lo, hi
+    above = [p["level"] for p in pools if p["swept"] < 0 and p["kind"] == "BSL" and p["level"] > last]
+    below = [p["level"] for p in pools if p["swept"] < 0 and p["kind"] == "SSL" and p["level"] < last]
+    hi = min(above) if above else whi; lo = max(below) if below else wlo; eq = (lo + hi) / 2
+    dr_source = "pools" if (above and below) else ("mixed" if (above or below) else "window")
+    pct = (last - lo) / (hi - lo) if hi > lo else 0.5
+    # previous UTC-day high/low (knowledge/04 §2.12; day boundary 00Z is a project assumption) when the window spans more than one day
+    days = {}
+    for i in range(n):
+        d = T[i][:10]; o = days.setdefault(d, {"h": H[i], "l": L[i], "i": i})
+        o["h"] = max(o["h"], H[i]); o["l"] = min(o["l"], L[i])
+    dkeys = sorted(days)
+    prev_day = None
+    if len(dkeys) >= 2:
+        pd_ = days[dkeys[-2]]; cur = days[dkeys[-1]]["i"]
+        prev_day = {"date": dkeys[-2], "pdh": pd_["h"], "pdl": pd_["l"],
+                    "pdh_state": "closed_through" if any(C[q] > pd_["h"] for q in range(cur, n)) else ("swept" if any(H[q] > pd_["h"] for q in range(cur, n)) else "intact"),
+                    "pdl_state": "closed_through" if any(C[q] < pd_["l"] for q in range(cur, n)) else ("swept" if any(L[q] < pd_["l"] for q in range(cur, n)) else "intact")}
     cut = n - recent
     events = []
     for p in pools:
@@ -144,7 +195,8 @@ def analyze(c, recent):
     nearest_fvg = min(open_fvgs, key=lambda f: min(abs(last - f["lo"]), abs(last - f["hi"])), default=None)
     unswept = [p for p in pools if p["swept"] < 0]
     return {
-        "last": last, "lo": lo, "hi": hi, "eq": eq, "pct": pct, "last_time": T[-1], "avgv": avgv,
+        "last": last, "lo": lo, "hi": hi, "eq": eq, "pct": pct, "dr_source": dr_source, "window_lo": wlo, "window_hi": whi, "prev_day": prev_day,
+        "med_range": med, "last_time": T[-1], "avgv": avgv,
         "pools": pools, "unswept": unswept, "mss": mss[-3:], "fvgs_all": fvgs, "fvgs_open": open_fvgs[-4:], "nearest_fvg": nearest_fvg,
         "events": events, "last_mss": mss[-1] if mss else None,
     }
@@ -202,26 +254,43 @@ def setup_candidate(a, c, lookback):
     if s["kind"] == "SSL" and m["type"] == "bull": side = "long"
     elif s["kind"] == "BSL" and m["type"] == "bear": side = "short"
     else: return None
+    O = [x["open"] for x in c]; Cc = [x["close"] for x in c]
+    pd_ok = (a["pct"] < 0.5) if side == "long" else (a["pct"] > 0.5)   # longs in discount, shorts in premium (knowledge/04 §3.4 R13)
     base = {"side": side, "sweep": {"pool": s["kind"], "level": s["level"], "time": T[s["swept"]]},
-            "mss": {"level": m["level"], "time": T[m["i"]], "vol_mult": m.get("vol_mult")},
-            "in_discount": a["pct"] < 0.5}
+            "mss": {"level": m["level"], "time": T[m["i"]], "vol_mult": m.get("vol_mult"), "displacement": m.get("disp"), "cisd": m.get("cisd")},
+            "in_discount": a["pct"] < 0.5, "pd_ok": pd_ok, "dr_source": a["dr_source"]}
+    if not m.get("disp"):
+        base.update({"complete": False, "missing": "displacement trên nến phá swing (thân nến nhỏ / biên độ nhỏ — chưa phải MSS theo knowledge/04 §2.16)"}); return base
     fv = [f for f in a["fvgs_all"] if f["i"] > s["swept"] and f["type"] == ("bull" if side == "long" else "bear")]
     if not fv:
         base.update({"complete": False, "missing": "FVG cùng chiều sau cú quét"}); return base
     f = fv[-1]
+    # OB = last opposing-close candle before the MSS candle (knowledge/05 §2.5): open line, 0.5 mean threshold, body low/high
+    ob = None
+    for q in range(m["i"] - 1, s["swept"] - 1, -1):
+        if (Cc[q] < O[q]) if side == "long" else (Cc[q] > O[q]):
+            ob = {"open": O[q], "mt": (O[q] + Cc[q]) / 2, "body_low": min(O[q], Cc[q]), "body_high": max(O[q], Cc[q]), "time": T[q]}; break
+    leg = abs(m["origin"] - m["ext"])
     if side == "long":
         entry = f["hi"]; stop = min(L[s["swept"]:m["i"] + 1])
+        entries = {"iofed": f["hi"], "ce": f["ce"], "fill": f["lo"]}
+        stops = {"gap_far_edge": f["lo"], "ob_body_low": ob["body_low"] if ob else None, "sweep_extreme": stop}
+        std = {"-2": m["origin"] + 2 * leg, "-2.5": m["origin"] + 2.5 * leg, "-4": m["origin"] + 4 * leg} if leg > 0 else None
         tg = [p["level"] for p in a["unswept"] if p["kind"] == "BSL" and p["level"] > entry]
-        target, tk = (min(tg), "BSL chưa quét") if tg else (a["hi"], "đỉnh cửa sổ (ERL)")
+        target, tk = (min(tg), "BSL chưa quét") if tg else (a["window_hi"], "đỉnh cửa sổ (ERL)")
         risk, reward = entry - stop, target - entry
     else:
         entry = f["lo"]; stop = max(H[s["swept"]:m["i"] + 1])
+        entries = {"iofed": f["lo"], "ce": f["ce"], "fill": f["hi"]}
+        stops = {"gap_far_edge": f["hi"], "ob_body_high": ob["body_high"] if ob else None, "sweep_extreme": stop}
+        std = {"-2": m["origin"] - 2 * leg, "-2.5": m["origin"] - 2.5 * leg, "-4": m["origin"] - 4 * leg} if leg > 0 else None
         tg = [p["level"] for p in a["unswept"] if p["kind"] == "SSL" and p["level"] < entry]
-        target, tk = (max(tg), "SSL chưa quét") if tg else (a["lo"], "đáy cửa sổ (ERL)")
+        target, tk = (max(tg), "SSL chưa quét") if tg else (a["window_lo"], "đáy cửa sổ (ERL)")
         risk, reward = stop - entry, entry - target
-    base.update({"complete": True, "fvg": {"lo": f["lo"], "hi": f["hi"], "time": T[f["i"]], "mitigated": f["mitigated"]},
-                 "entry": entry, "stop": stop, "target": target, "target_kind": tk,
-                 "R": round(reward / risk, 2) if risk > 0 else None})
+    R = round(reward / risk, 2) if risk > 0 else None
+    base.update({"complete": True, "fvg": {"lo": f["lo"], "hi": f["hi"], "ce": f["ce"], "time": T[f["i"]], "mitigated": f["mitigated"]}, "ob": ob,
+                 "entry": entry, "entry_models": entries, "stop": stop, "stop_owner": "sweep_extreme", "stop_options": stops,
+                 "target": target, "target_kind": tk, "std_targets": std, "R": R, "rr_ok": (R is not None and R >= MIN_RR), "min_rr": MIN_RR})
     return base
 
 
@@ -235,7 +304,11 @@ def sessions_note(sym):
 
 def facts_table(sym, a, an, su):
     f = lambda v: fmt(sym, v)
-    rows = [("Giá / vị trí", f"{f(a['last'])} · {a['pct']*100:.0f}% biên độ ({f(a['lo'])}–{f(a['hi'])}) · EQ {f(a['eq'])}")]
+    src = {"pools": "dealing range = BSL↔SSL chưa quét gần nhất", "mixed": "dealing range: một biên là BSL/SSL, biên kia là biên cửa sổ", "window": "dealing range = biên cửa sổ (không có cặp BSL/SSL chưa quét)"}[a.get("dr_source", "window")]
+    rows = [("Giá / vị trí", f"{f(a['last'])} · {a['pct']*100:.0f}% của {f(a['lo'])}–{f(a['hi'])} · EQ {f(a['eq'])} · {src} · cửa sổ {f(a['window_lo'])}–{f(a['window_hi'])}")]
+    if a.get("prev_day"):
+        p_ = a["prev_day"]; st = {"intact": "chưa chạm", "swept": "râu xuyên, thân đóng lại (failure to displace)", "closed_through": "thân đã đóng qua"}
+        rows.append(("PDH / PDL (ngày UTC trước)", f"PDH {f(p_['pdh'])} ({st[p_['pdh_state']]}) · PDL {f(p_['pdl'])} ({st[p_['pdl_state']]})"))
     if an:
         for L_ in an["levels"]:
             s = f"{L_['label']} {f(L_['price'])}: đóng {L_['ref_close']and ''}{'trên' if L_['ref_vs']=='above' else 'dưới'} ({L_['dist_pct']:+.2f}%)"
@@ -247,8 +320,14 @@ def facts_table(sym, a, an, su):
             rows.append(("Verdict theo luật", f"{an['verdict']} (nến đóng {an['ref_close']['time'][5:16].replace('T',' ')}Z = {f(an['ref_close']['close'])})"))
     if su:
         if su.get("complete"):
-            rows.append(("Setup ứng viên", f"{su['side'].upper()} · quét {su['sweep']['pool']} {f(su['sweep']['level'])} ({su['sweep']['time'][11:16]}Z) → MSS {f(su['mss']['level'])} ({su['mss']['time'][11:16]}Z, vol {su['mss']['vol_mult']}×) → FVG {f(su['fvg']['lo'])}–{f(su['fvg']['hi'])}{' (đã lấp)' if su['fvg']['mitigated'] else ''}"))
-            rows.append(("Entry / Stop / Target / R", f"{f(su['entry'])} / {f(su['stop'])} / {f(su['target'])} ({su['target_kind']}) / R = {su['R']}"))
+            ci = su["mss"].get("cisd"); ci_s = f" · CISD {f(ci['level'])} ({'đã đóng qua' if ci.get('confirmed') else 'chưa đóng qua'})" if ci else ""
+            rows.append(("Setup ứng viên", f"{su['side'].upper()} · quét {su['sweep']['pool']} {f(su['sweep']['level'])} ({su['sweep']['time'][11:16]}Z) → MSS có displacement {f(su['mss']['level'])} ({su['mss']['time'][11:16]}Z, vol {su['mss']['vol_mult']}×){ci_s} → FVG {f(su['fvg']['lo'])}–{f(su['fvg']['hi'])} (CE {f(su['fvg']['ce'])}){' (đã lấp)' if su['fvg']['mitigated'] else ''}{'' if su['pd_ok'] else ' · SAI NỬA RANGE (long phải ở discount, short ở premium)'}"))
+            em = su["entry_models"]; so = su["stop_options"]; ob = su.get("ob")
+            rows.append(("Entry (3 mô hình FVG)", f"IOFED {f(em['iofed'])} · CE {f(em['ce'])} · lấp đầy {f(em['fill'])}" + (f" · OB open {f(ob['open'])} / 0.5 MT {f(ob['mt'])}" if ob else "")))
+            rows.append(("Stop (chủ sở hữu = cực trị cú quét)", " · ".join(f"{k} {f(v)}" for k, v in so.items() if v is not None)))
+            st_ = su.get("std_targets"); st_s = f" · STD −2 {f(st_['-2'])} / −2.5 {f(st_['-2.5'])} / −4 {f(st_['-4'])}" if st_ else ""
+            rr_note = "" if su["rr_ok"] else f" (< {su['min_rr']}R tối thiểu, knowledge/06 §3.1 luật 23)"
+            rows.append(("Entry / Stop / Target / R", f"{f(su['entry'])} / {f(su['stop'])} / {f(su['target'])} ({su['target_kind']}) / R = {su['R']}{rr_note}{st_s}"))
         else:
             rows.append(("Setup ứng viên", f"{su['side'].upper()} chưa hoàn chỉnh: quét {su['sweep']['pool']} {f(su['sweep']['level'])} → MSS {f(su['mss']['level'])}, thiếu {su['missing']}"))
     body = "".join(f"<tr><th>{k}</th><td>{v}</td></tr>" for k, v in rows)
@@ -261,7 +340,8 @@ def prelim_html(sym, a, tf, style, an=None, su=None):
     recent_sweeps = [e for e in a["events"] if e["kind"] == "sweep"]
     recent_mss = [e for e in a["events"] if e["kind"].startswith("mss_")]
     lines = []
-    lines.append(f"Giá {f(a['last'])} = {a['pct']*100:.0f}% biên độ cửa sổ ({f(a['lo'])}–{f(a['hi'])}), {zone}, EQ {f(a['eq'])}. "
+    dr_note = {"pools": "dealing range = cặp BSL↔SSL chưa quét gần nhất", "mixed": "dealing range một biên là BSL/SSL, biên kia là biên cửa sổ", "window": "không có cặp BSL/SSL chưa quét nên dealing range = biên cửa sổ"}[a.get("dr_source", "window")]
+    lines.append(f"Giá {f(a['last'])} = {a['pct']*100:.0f}% của dealing range {f(a['lo'])}–{f(a['hi'])} ({dr_note}), {zone}, EQ {f(a['eq'])}. "
                  f"<span class=\"cite\">{CITE['pd']}</span>")
     if recent_sweeps:
         s = recent_sweeps[-1]; t = s["time"][11:16]
@@ -276,7 +356,8 @@ def prelim_html(sym, a, tf, style, an=None, su=None):
                      f"<span class=\"cite\">{CITE['erl']}</span>")
     if a["last_mss"]:
         m = a["last_mss"]
-        lines.append(f"MSS gần nhất: {'tăng' if m['type']=='bull' else 'giảm'} (đóng cửa vượt swing {f(m['level'])}, vol {m.get('vol_mult')}×). "
+        lines.append(f"{'MSS' if m.get('disp') else 'Nến đóng qua swing nhưng thiếu displacement (chưa phải MSS)'} gần nhất: {'tăng' if m['type']=='bull' else 'giảm'} (đóng cửa vượt swing {f(m['level'])}, vol {m.get('vol_mult')}×"
+                     + (f"; CISD {f(m['cisd']['level'])} {'đã' if m['cisd'].get('confirmed') else 'chưa'} được đóng qua" if m.get('cisd') else "") + "). "
                      f"<span class=\"cite\">{CITE['mss']}</span>")
     if a["nearest_fvg"]:
         g = a["nearest_fvg"]
@@ -303,7 +384,10 @@ def prelim_html(sym, a, tf, style, an=None, su=None):
     if recent_mss and recent_sweeps:
         m = recent_mss[-1]; s = recent_sweeps[-1]
         if (m["kind"] == "mss_bull" and s["pool"] == "SSL") or (m["kind"] == "mss_bear" and s["pool"] == "BSL"):
-            stance = "SETUP TIỀM NĂNG"; why = "quét thanh khoản rồi MSS cùng chiều — mô hình sweep→MSS; cần nhận định cục bộ (Sonnet) và kiểm tra Wyckoff/volume trước khi vào lệnh"
+            if a["last_mss"] and a["last_mss"].get("disp"):
+                stance = "SETUP TIỀM NĂNG"; why = "quét thanh khoản rồi MSS có displacement cùng chiều — mô hình sweep→MSS; cần nhận định cục bộ (Sonnet) và kiểm tra Wyckoff/volume trước khi vào lệnh"
+            else:
+                why = "quét thanh khoản rồi nến đóng qua swing cùng chiều nhưng thiếu displacement (thân/biên độ nhỏ) — chưa đủ là MSS theo knowledge/04 §2.16"
     ts = a["last_time"][11:16]
     html = (f"<div class=\"prelim-head\">Nhận định sơ bộ tự động · {tf} · dữ liệu tới {ts} UTC · "
             f"<strong>{stance}</strong></div>"
@@ -311,13 +395,15 @@ def prelim_html(sym, a, tf, style, an=None, su=None):
             + "<!--MODEL-->"
             + "<div class=\"prelim-scan\">"
             + "".join(f"<p>{l}</p>" for l in lines)
-            + f"<p><em>Vì sao {stance.lower()}:</em> {why}. Đây là quét theo luật cố định (pivot 3 nến, dung sai đỉnh/đáy bằng nhau 0,08%, FVG ≥0,6× biên độ nến trung vị — {CITE['sys']}), "
+            + f"<p><em>Vì sao {stance.lower()}:</em> {why}. Đây là quét theo luật cố định (pivot {PIV} nến, dung sai đỉnh/đáy bằng nhau {EQ_TOL*100:.2f}%, FVG ≥{FVG_MIN}× biên độ nến trung vị, displacement = thân ≥{DISP['body_min_ratio']} biên độ nến và biên độ ≥{DISP['range_min_median_ratio']}× trung vị — {CITE['sys']}), "
               f"không phải nhận định của mô hình; bản đọc đầy đủ ở bảng bên dưới có thể cũ hơn dữ liệu này.</p>"
             + "</div>")
     return html, stance
 
 
 def main():
+    import importlib.util as _iu
+    _hs = _iu.spec_from_file_location("htf_context", f"{ROOT}/scripts/htf_context.py"); htf = _iu.module_from_spec(_hs); _hs.loader.exec_module(htf)
     ap = argparse.ArgumentParser()
     ap.add_argument("--tf", required=True); ap.add_argument("--n", type=int, required=True)
     ap.add_argument("--style", required=True); ap.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT")
@@ -354,7 +440,8 @@ def main():
                        "events_recent": a["events"], "new_events": fresh, "prelim_file": f"data/live/prelim/{args.style}.{sym}.html"}
         facts[sym] = {"last": a["last"], "last_time": a["last_time"], "lo": a["lo"], "hi": a["hi"], "eq": a["eq"], "pct": round(a["pct"], 4),
                       "stance": stance, "anchors": an, "setup": su, "last_mss": a["last_mss"], "nearest_fvg": a["nearest_fvg"],
-                      "unswept_pools": a["unswept"], "events_recent": a["events"]}
+                      "unswept_pools": a["unswept"], "events_recent": a["events"],
+                      "context": htf.load_context(args.style, sym)}   # HTF context: giảm khung (knowledge/07 §2.7, WA p93–96)
     json.dump(state, open(state_path, "w"))
     first_t = load(syms[0], args.tf)[-args.n:][0]["time"]
     meta = {"tf": args.tf, "n": args.n, "window_first": first_t,

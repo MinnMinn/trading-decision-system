@@ -17,7 +17,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 1H request simply yields the 200 bars the EA exports until InpBarsToExport is raised.
 TF = {"scalping": ("1m", 180), "daytrade": ("15m", 288), "1h": ("1H", 240), "4h": ("4H", 180),
       "swing": ("1D", 120),
-      "gold": ("15m", 200), "gold-1h": ("1H", 240), "gold-4h": ("4H", 180), "gold-swing": ("1D", 120)}
+      "gold-scalp": ("5m", 288), "gold": ("15m", 288), "gold-1h": ("1H", 240), "gold-4h": ("4H", 180), "gold-swing": ("1D", 120)}
 MT5_SYMBOLS = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
 CITES = """- Trading Range: WA p71–72 · knowledge/07 §2.7 · WMT p023–026 · knowledge/08 §2.4 · Pha A–E (phases): knowledge/07 §2.7–2.10
 - Spring/Shakeout (sự kiện): WA p80 · knowledge/07 §2.7.3 · Spring loại 1/2/3 (theo khối lượng): WMT p036–049 · knowledge/08 §2.6
@@ -27,7 +27,7 @@ CITES = """- Trading Range: WA p71–72 · knowledge/07 §2.7 · WMT p023–026 
 - CHoBEV/CHoCH (cổng bắt buộc trước khi gán nhãn pha): WA p67–71 · knowledge/07 §2.6
 - Đối nhãn (kiểm tra gán nhãn sai): WA p150–184 · knowledge/07 §2.11 · Kế hoạch CO theo pha: knowledge/07 §3.4
 - Tape Reading chỉ cần biên độ + khối lượng (không cần Delta): WA p221–243 · knowledge/07 §4.1 · SOT: WA p277–292 · knowledge/07 §4.6
-- Killzones: docs/TTrades PDFs/1. Killzones.pdf tr.1–2 · knowledge/04 §2.1 (London 06–09Z, NY AM 11–14Z; vô nghĩa trên 1m — nói rõ)
+- Killzones: docs/TTrades PDFs/1. Killzones.pdf tr.1–2 · knowledge/04 §2.1 — hai bộ giờ EST, không có luật cho crypto/CFD; hệ thống dùng docs/architecture/session-model.md (london 08:00–11:00 Europe/London, ny_am 08:30–11:00 và ny_pm 13:30–16:00 America/New_York, đổi sang UTC theo ngày — tham số dự án, nói rõ); không tính điểm dưới 15m và cuối tuần
 - Liquidity: docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7
 - Grab vs MSS: docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17
 - Premium/Discount: docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19 · OTE: docs/TTrades PDFs/9. OTE.pdf tr.1–7 · knowledge/04 §2.20
@@ -52,6 +52,7 @@ def main():
     ap.add_argument("style", choices=TF.keys()); ap.add_argument("--bars", type=int, default=40)
     ap.add_argument("--symbols", default=None); ap.add_argument("--events", default="")
     ap.add_argument("--snapshot-dir", default=os.environ.get("TMPDIR", "/tmp"), help="where to freeze facts + candles for this read")
+    ap.add_argument("--manual", action="store_true", help="user-requested one-off read: bypass the /automation gate (crons never pass this)")
     a = ap.parse_args()
     # Automation switch (docs/architecture/automation-config.json, written only by scripts/automation.py).
     # Missing file = unconfigured = behave as before; present file is authoritative and can only stop this read.
@@ -64,8 +65,10 @@ def main():
         _ok, _why = _auto.allows("local_read", a.style)
     except Exception:
         _ok, _why = True, None
-    if not _ok:
-        print(f"# đánh giá cục bộ '{a.style}' tắt: /automation — {_why}"); return
+    if not _ok and not a.manual:
+        print(f"# đánh giá cục bộ '{a.style}' tắt: /automation — {_why}  (một lần đọc thủ công theo yêu cầu người dùng: thêm --manual)"); return
+    if not _ok and a.manual:
+        print(f"# /automation đang tắt ({_why}) — đọc THỦ CÔNG theo yêu cầu người dùng; không có tick nền nào chạy.")
     tf, n = TF[a.style]
     if a.symbols is None:
         a.symbols = "XAUUSD" if a.style.startswith("gold") else "BTCUSDT,ETHUSDT,SOLUSDT"
@@ -90,16 +93,31 @@ def main():
 3. Mỗi đoạn kết thúc bằng <span class="cite">…</span> theo bản đồ trích dẫn. Không bịa nguồn.
 4. Kết luận mỗi mã đúng một trong: CHỜ / THEO DÕI LONG / THEO DÕI SHORT / SETUP TIỀM NĂNG. Nếu SETUP TIỀM NĂNG: nêu entry/stop/target/R đúng như facts và điều kiện vô hiệu. Nếu facts không có setup hoàn chỉnh thì không được kết luận SETUP TIỀM NĂNG.
 5. Tiếng Việt chuyên ngành, 3–6 câu mỗi mã, không nhắc lại bảng facts.
-6. Ghi ra đúng 3 file, không publish, không sửa file nào khác:
-   data/live/prelim/<style>.<SYM>.model.html với cấu trúc:
-   <div class="prelim-head">Đánh giá cục bộ (Sonnet) · dữ liệu tới HH:MM UTC · <strong>VERDICT</strong></div><p>…<span class="cite">…</span></p>…
-   (HH:MM = giờ của nến cuối trong FACTS của mã đó; VERDICT = một trong bốn kết luận ở mục 4.)
+6. MỖI PHƯƠNG PHÁP MỘT NGÔN NGỮ (quyết định 2026-09-11). Ghi ra đúng một file mỗi mã, không publish, không sửa file nào khác:
+   data/live/prelim/<style>.<SYM>.model.html với cấu trúc BẮT BUỘC, đúng thứ tự:
+   <div class="prelim-head">Đánh giá cục bộ (Sonnet) · dữ liệu tới HH:MM UTC · <strong>VERDICT</strong></div>
+   <div class="m-wyckoff"><p>…<span class="cite">…</span></p>…</div>
+   <div class="m-ict"><p>…<span class="cite">…</span></p>…</div>
+   <div class="m-synth"><p>…<span class="cite">…</span></p>…</div>
+   (HH:MM = giờ của nến cuối trong FACTS của mã đó; VERDICT = một trong bốn kết luận ở mục 4; m-footprint / m-heatmap chỉ thêm khi CoinGlass AVAILABLE.)
+   - m-wyckoff: chỉ kiến thức và thuật ngữ Wyckoff (giá + khối lượng: SC/AR/ST/Spring/SOS/LPS, pha A–E, Nỗ lực–Kết quả, hấp thụ, CHoCH…). CẤM mọi từ ICT: FVG, MSS, order block, BSL/SSL/ERL, premium/discount, EQ, killzone, displacement, thanh khoản/liquidity/sweep.
+   - m-ict: chỉ kiến thức và thuật ngữ ICT (dealing range, EQ, premium/discount, BSL/SSL, sweep vs MSS, displacement, FVG, OB, killzone…). CẤM mọi từ Wyckoff VÀ CẤM nhắc khối lượng/volume/KL (ICT không có khái niệm khối lượng — knowledge/10 §4.1). Mốc neo có tên Wyckoff (SC, AR…) chỉ được gọi bằng giá.
+   - m-synth: tổng hợp — nơi DUY NHẤT được đặt hai phương pháp cạnh nhau: luật khử trùng lặp (knowledge/10 §4.3: mốc Wyckoff trùng mốc ICT = một quan sát), kết luận, entry/stop/target/R (nếu có), điều kiện vô hiệu và chủ sở hữu vô hiệu (Wyckoff hay ICT, knowledge/10 §4.4).
+   Máy kiểm tra (scripts/method_purity.py) chặn xuất bản nếu một khối dùng sai từ vựng.
+8. GIẢM KHUNG (bắt buộc, knowledge/07 §2.7 "Giảm khung của tích lũy", WA p93–96; knowledge/10 §4.2): đọc khung lớn trước, vào lệnh ở khung nhỏ THEO HƯỚNG cấu trúc khung lớn. Mục "BỐI CẢNH" bên dưới in số liệu và bias khung lớn do code tính. Khối m-synth PHẢI mở đầu bằng câu "Bối cảnh <khung lớn>: …" nêu cấu trúc/pha khung lớn và bias. Verdict THEO DÕI đi ngược bias phải ghi rõ "ngược bối cảnh". KHÔNG được kết luận SETUP TIỀM NĂNG ngược bias. Khung lớn pha B chỉ cho bias khi giá đang ở biên TR khung lớn theo hướng cấu trúc (tích lũy: 1/3 dưới, nơi CO gom hàng và khung nhỏ in Spring[C]/LPS[C] cục bộ — WA p93, p201; phân phối: 1/3 trên); giữa vùng hoặc biên đối diện thì bias trung lập ("nguồn cung/cầu đang khá cân bằng … chưa cho thấy sự xuất hiện của CO", WA p95) và tối đa là THEO DÕI. Pha A / chưa xác lập: trung lập. scripts/check-model-prose.py kiểm tra cả ba điều này.
 7. Sau khi ghi, chạy ĐÚNG lệnh này (so với snapshot của lần đọc này, không so với facts mới hơn):
    python3 scripts/check-model-prose.py <style> --facts <SNAPSHOT>/facts.json
    và sửa cho tới khi nó in `RESULT: OK`. Không chạy lại brief để "đuổi" dữ liệu mới hơn.
 
 ## Bản đồ trích dẫn
 """ + CITES)
+    print("\n## BỐI CẢNH khung lớn (code tính; luật giảm khung — knowledge/07 §2.7, WA p93–96)")
+    import importlib.util as _iu
+    _hs = _iu.spec_from_file_location("htf_context", f"{ROOT}/scripts/htf_context.py"); _htf = _iu.module_from_spec(_hs); _hs.loader.exec_module(_htf)
+    for sym in syms:
+        d = facts["symbols"][sym]; f = lambda v: fmt(sym, v)
+        ctx = d.get("context") if "context" in d else _htf.load_context(a.style, sym)
+        print(f"\n### {sym}"); print("\n".join(_htf.brief_lines(ctx, f)))
     print("\n## FACTS (scanner, không được thay đổi)")
     for sym in syms:
         d = facts["symbols"][sym]; f = lambda v: fmt(sym, v)

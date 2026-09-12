@@ -1,6 +1,5 @@
 {
   "_comment": "Numeric parameters for WyckoffSkill and the timing bucket of ICTSkill. Created 2026-09-10 by user decision (knowledge/10-integrated-method.md section 7, decisions 2 and 4). READ THIS FIRST: the 'sourced' block holds numbers the books actually print, with the page citation. The 'project_defined' block holds numbers NO source gives -- knowledge/10 section 7 item 7 records that every Wyckoff source treats 'large volume', 'narrow spread' and 'low-volume Spring' as relative visual judgments. Project-defined numbers must be reported as project parameters, never cited as rules from the book, and are the tuning surface for /improve.",
-
   "sourced": {
     "_comment": "Every value here has a printed page citation. Do not change these without re-reading the cited page.",
     "st_above_half_tr": {
@@ -24,7 +23,10 @@
       "cite": "WA p280, p284, p292 -- knowledge/07 section 5.4 rule WA4-52"
     },
     "imbalance_ratio_gold_oil_cfd": {
-      "value": [3.0, 4.0],
+      "value": [
+        3.0,
+        4.0
+      ],
       "meaning": "Footprint imbalance ratio range for gold and oil CFDs (XAUUSD, XAGUSD, USOIL, UKOIL)",
       "cite": "WMT p107-p109 -- knowledge/08 section 3.2"
     },
@@ -44,7 +46,6 @@
       "cite": "WMT p273 -- knowledge/08 section 5 Step 6"
     }
   },
-
   "project_defined": {
     "_comment": "NO source gives these. They exist so the deterministic scanner and the model agree on what 'low volume' means. Every output that uses one MUST label it a project parameter. Tune via /improve, never silently.",
     "lookback_bars": 20,
@@ -74,9 +75,40 @@
     "tick_volume_credit_multiplier": {
       "value": 0.5,
       "_basis": "multiplier applied to the Wyckoff effort/volume sub-score when the feed is mt5_bridge_live, where 'volume' is tick count and not traded size (docs/architecture/mt5-bridge.md)."
+    },
+    "ict": {
+      "_comment": "ICT detector parameters. The decks define the concepts, never these numbers (knowledge/04 section 5 and 6: no minimum FVG size, no 'relatively equal' tolerance, no displacement size). Declared here so scanner, drawing layer and backtest agree; every output that uses one labels it a project parameter.",
+      "pivot_bars": {
+        "value": 3,
+        "_basis": "bars each side for a swing high/low. The deck uses ONE bar each side (knowledge/04 section 2.5, 3. Liquidity p3); 3 is this project's noise filter."
+      },
+      "equal_level_tolerance_pct": {
+        "value": 0.08,
+        "_basis": "two swing points count as 'relatively equal' within this percent of the range midpoint (knowledge/04 section 6 item 8: no sourced tolerance)."
+      },
+      "fvg_min_size_median_ratio": {
+        "value": 0.6,
+        "_basis": "FVGs smaller than this multiple of the median bar range are ignored as noise (knowledge/04 section 5: no minimum size in the source)."
+      },
+      "displacement": {
+        "body_min_ratio": 0.6,
+        "range_min_median_ratio": 1.2,
+        "_basis": "'displacement is an aggressive move with full-bodied candles' (knowledge/04 section 2.16). Read as: body >= body_min_ratio of the candle range AND range >= range_min_median_ratio x the median bar range of the window. An MSS whose breaking candle fails this is reported as 'close beyond swing without displacement'."
+      },
+      "dealing_range": {
+        "value": "nearest_pools",
+        "_basis": "knowledge/04 section 2.18: the range is where buyside and sellside liquidity rest. Anchors = the nearest unswept BSL pool above and SSL pool below the last close; fallback = window extremes (the pre-2026-09-12 behaviour), reported as such."
+      },
+      "std_projection_origin": {
+        "value": "highest_pivot_before_sweep",
+        "_basis": "Model11 p20: bullish projection anchors 'low to the previous high which made the highest high'. Origin (fib 0) = the highest pivot high between the last MSS-level swing and the sweep (mirror for shorts); fib 1 = the sweep extreme."
+      },
+      "min_rr": {
+        "value": 2.0,
+        "_basis": "'2R is the minimum requirement before taking profit' (knowledge/06 section 3.1 rule 23, Model11 p92). Sourced number, kept here so every consumer reads one value."
+      }
     }
   },
-
   "timing": {
     "_comment": "Session/killzone scoring caps. The session windows themselves are defined in docs/architecture/session-model.md. These caps are project-defined: knowledge/04 section 6 records that the ICT sources give no killzone rule for crypto or commodity CFDs at all.",
     "timing_bucket_max": 7,

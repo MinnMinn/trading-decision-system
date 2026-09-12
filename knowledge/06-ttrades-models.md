@@ -207,13 +207,13 @@ Total: 165 physical pages, all read (text layer via `pdftotext -layout` plus ful
 - `[text]` "The valid candle 2 closure within the range of candle 1 gives the anticipation for the following hourly candle 3 to be an expansion to the downside." — `Model11 p115`.
 - `[text]` "Moving down to the 5-minute chart from the hourly, identify a change in state of delivery within candle 2 in order to confirm the swing formation. Once identified and confirmed with a close through, anchor the manipulation leg to project targets for the candle 3 expansion and candle 4 continuation lower. Also, annotate equilibrium of the hourly candle 2 wick as the lower half should be respected." — `p115`.
 - `[text]` "Price respects the opposing close candles at the equilibrium of the candle 2 wick. This signature forms a valid candle 2 closure on the 5-minute chart which offers an additional sell entry. Price validates a new upclose candle as it moves lower off the previous candle 2 closure. Both the retest of the upclose candle and the valid candle 3 closure offer an entry to get onside with the move lower." — `p116–p117`.
-- `[text]` "As the hourly candle 3 closed strong to the downside, mark out equilibrium of the candle 3 range as candle 4 should trade lower in respect to the lower half of the range. The hourly range can be refined by identifying opposing candles on the 5-minute within the lower half of the candle 3 range; these act as the point of interest. The opposing close candles within the lower half of the hourly candle 3 range provide framework for the candle 4 continuation lower. Maximum expansion is achieved once the −4 projection is traded into." — `p117–p118`. `[diagram]` p118: the "8:30" label marks the time of the candle-4 expansion.
+- `[text]` "As the hourly candle 3 closed strong to the downside, mark out equilibrium of the candle 3 range as candle 4 should trade lower in respect to the lower half of the range. The hourly range can be refined by identifying opposing candles on the 5-minute within the lower half of the candle 3 range; these act as the point of interest. The opposing close candles within the lower half of the hourly candle 3 range provide framework for the candle 4 continuation lower. Maximum expansion is achieved once the −4 projection is traded into." — `p117–p118`. `[diagram]` p118: an "8:00" time label sits next to the candle-4 consolidation/expansion zone (the earlier "8:30" reading was a misread).
 
 ### 2.8 Timeframe Alignment deck
 - `[diagram]` **Top Down Analysis** (three panels) — `TFA p3 (1)`:
-  - **Bias** (HTF): a green candle, then a black candle whose wick sweeps above the green candle's high and whose body closes lower (a bearish candle-2-closure shape); a third grey (expected) candle drawn lower = anticipated expansion.
-  - **Structure** (mid TF): price sweeps a prior high (dashed), the run-up is a series of green candles, a blue **CISD** line at the open of the lowest green candle; close below it.
-  - **Entry** (LTF): price retraces to a blue **OB** line (open of the last upclose series); grey box above = risk, green box below = reward.
+  - **Bias** (HTF) (re-verified against the PDF at 110–150 dpi, 2026-09-12 — `docs/audits/2026-09-12-ict-pdf-recheck.md`): a **green candle with a long upper wick** — it is the candle that sweeps and gets rejected (Model11 candle 2 shape); then a **black full-bodied candle whose high is below the green candle's high** and whose body closes below the green candle's low (candle 3 expansion); a third grey (expected) candle drawn lower = candle 4 continuation. The bias is read after the expansion candle closes, not after the sweep candle.
+  - **Structure** (mid TF): price sweeps a prior high (dashed); the run into it is one green candle, three small black pullback candles, then a **single green candle that sweeps the dotted high**; the blue **CISD** line sits at the open of that last green candle (the first — and only — candle of the final up-close run); close below it.
+  - **Entry** (LTF): a black candle first **closes below** the blue **OB** line (open of the last upclose series — an LTF CISD through the OB); the retest is a green candle whose upper wick touches the line without closing above it; then expansion. Grey box above = risk, green box below = reward.
 - `[diagram]` **Timeframe Alignment** — `TFA p4 (2)`: Structure (CISD) and Entry (OB) panels only, same drawings.
 - `[diagram]` **Pairing table** — `TFA p5 (3)`: Weekly→H4, Daily→H1, H4→M15, H1→M5, M30→M3, M15→M1 (identical to Model11 pairings).
 - `[diagram]` **Example** — `TFA p6 (4)`: Structure chart (HTF): uptrend, then decline into a **Key Level** = a prior swing low from the left (dotted line), with a circle highlighting the candle that reaches it. Entry chart (LTF zoom): a lower low sweep (dotted line at the prior LTF low), a blue OB/CISD line at the open of the last downclose run, the close above it, entry with green reward box above and grey risk box below. Bottom row of pairs printed as `H4/W1, H1/D1, M15/H4, M5/H1, M3/M30, M1/M15`.
@@ -232,18 +232,18 @@ Total: 165 physical pages, all read (text layer via `pdftotext -layout` plus ful
 - **Concepts** (`[diagram]` only):
   - FVG — `p5 (3)`: three-candle sequence numbered 1-2-3; gap lines at candle-1 low / candle-3 high (bearish) and candle-1 high / candle-3 low (bullish).
   - Inversion — `p6 (4)`: a bearish FVG on the way down is closed through by the reversal; retested from above as support; continuation up.
-  - OB — `p7 (5)`: "Important Level" (yellow) above/below; prior swing swept (dotted); **OB** blue line at the open of the last opposing-colour candle before displacement; identical to the CISD construction in `08-ttrades-core-B` §2.3/2.5.
+  - OB — `p7 (5)`: "Important Level" (yellow) above/below; prior swing swept (dotted) and the sweep wick pierces the Important Level itself; **OB** blue line at the open of the last opposing-colour candle before displacement; identical to the CISD construction in `05-ttrades-core-B` §2.3/2.5.
   - Breaker — `p8 (6)`: bearish: high (▼) → low (▲) → higher high (▼) → displacement below the low (▲); blue box on the candles that formed the low. Bullish mirror.
   - OTE — `p9 (7)`: fib from swing high (1) to swing low (0) on a bearish leg, with levels **0.79, 0.705 (highlighted), 0.62, 0.5**; the retracement into 0.62–0.79 is the OTE zone.
-  - Premium & Discount — `p10 (8)` bullish: range low→high, 0.5 EQ line; a bullish FVG (two lines) sits in the **discount** half; price returns to it. `p11 (9)` bearish: OB/CISD line (blue) sits in the **premium** half; price falls into discount.
+  - Premium & Discount — `p10 (8)` bullish: range low→high, 0.5 EQ line; a bullish FVG (two lines) sits in the **discount** half; the last candles turn down toward it but the slide stops above 0.5 (the return is implied, not drawn). `p11 (9)` bearish: OB/CISD line (blue) sits in the **premium** half; price falls into discount.
   - SMT — `p12 (10)`: "Stronger Asset" makes a higher low while "Weaker Asset" makes a lower low (yellow divergence lines); both then rally.
 - **Order of reversal** (`[diagram]`, one element added per slide) — `TTRS p13–p17 (11–15)`:
   1. **turtle soup** — a prior low (dotted) is swept; pink box marks the sweep. `p13 (11)`
   2. **inversion** — the bearish FVG left on the way down is closed through and marked (two lines, label 2). `p14 (12)`
   3. **cisd / ob** — blue line at the open of the last downclose run before the up-move; the close above it (label 3). `p15 (13)`
   4. **fvg** — the bullish FVG created by the displacement candle (yellow box, label 4), sitting just above the CISD line; price retests it. `p16 (14)`
-  5. **breaker** — grey box (label 5) spanning the consolidation/down-close candles before the sweep, overlapping the CISD + FVG region; after the retest, price expands up. `p17 (15)`
-  Sequence reads: liquidity sweep → inversion → CISD/OB → FVG → breaker, each a progressively later confirmation/entry point on the same reversal.
+  5. **breaker** — grey box (label 5) from the **swing high** (wick of the first down-close candle, which is also the CISD-line candle) down to the **swept prior low**: it encloses the up-close candles that made the high *and* the down-close candles into the sweep, i.e. the whole pre-sweep swing, both colours (re-verified against the PDF at 110–150 dpi, 2026-09-12 — `docs/audits/2026-09-12-ict-pdf-recheck.md`). Same construction on `p8 (6)` and `Unicorn p5`. `p17 (15)`
+  Sequence reads: liquidity sweep → inversion → CISD/OB → FVG → breaker. The deck draws **one** pullback candle that wicks through the FVG (4), through the CISD line (3) and into the breaker box (5) in a single move, then expands — three nested zones and one confluence retest, not three separate retests (§6 item 16).
 
 ### 2.10 ICT Son's Model (as presented by TTrades)
 - Three steps `[text]`: 1 Draw On Liquidity, 2 Stop Raid, 3 Entry. — `Sons p2`.
@@ -329,9 +329,9 @@ Total: 165 physical pages, all read (text layer via `pdftotext -layout` plus ful
 1. Context: trade inside a killzone (EST times in §2.9). Choose entry TF by temperament: M15 (patient) or M1 (impatient). Use premium/discount: longs from discount (below 0.5 of the range), shorts from premium.
 2. Step 1 turtle soup: a prior low (longs) is swept.
 3. Step 2 inversion: the bearish FVG on the way down is closed through and now acts as support.
-4. Step 3 CISD/OB: close above the open of the last downclose run → reversal confirmed; the OB line is the first entry reference.
-5. Step 4 FVG: the displacement leaves a bullish FVG; retest = second entry reference.
-6. Step 5 breaker: the down-close candles before the sweep become a breaker; retest = third entry reference; expansion follows.
+4. Step 3 CISD/OB: close above the open of the last downclose run → reversal confirmed; the OB line is an entry reference.
+5. Step 4 FVG: the displacement leaves a bullish FVG just above the CISD line.
+6. Step 5 breaker: the whole pre-sweep swing (swing high down to the swept low, both candle colours) becomes a breaker box. Steps 3–5 are nested at one price region; the deck shows a single retest through all three followed by expansion. Treat OB line ∩ FVG ∩ breaker as **one** location at a higher quality grade (`10-integrated-method` §4.3), not three entries.
 7. Optional confluence: SMT (stronger asset fails to make the lower low) at step 1; OTE (0.62–0.79, 0.705 focus) for the retracement entry.
 8. Stops/targets: not stated in the deck (see §6).
 
@@ -342,7 +342,7 @@ Total: 165 physical pages, all read (text layer via `pdftotext -layout` plus ful
 4. Entry: limit or reaction in the overlap zone on the retrace. Stop/target: not stated in the deck (the 19. Breaker deck in `08-ttrades-core-B` covers breaker stop placement).
 
 ### 3.6 Timeframe Alignment (`TFA p3–p6`)
-1. Bias TF: read the HTF candle profile (e.g. a bearish candle-2-closure shape → expect the next HTF candle down).
+1. Bias TF: read the HTF candle profile — a sweep-and-reject candle (long wick, Model11 candle 2) **followed by a full-bodied expansion candle closing beyond it** (candle 3) → expect the next HTF candle (candle 4) to continue. The bias is decided after the expansion candle closes (`TFA p3`, §2.8).
 2. Structure TF (one pairing step down): find the sweep + CISD confirming the bias.
 3. Entry TF (next pairing step down, or the LTF of the pair): enter on the OB/CISD retest with the risk box beyond the OB and reward toward the draw.
 4. Pairings: Weekly→H4, Daily→H1, H4→M15, H1→M5, M30→M3, M15→M1.
@@ -425,13 +425,15 @@ No other thresholds (wick size for "large wick", "strong close" body ratio, "sha
 4. **"Expansion / retracement / reversal / consolidation" candle profiling** — the request framed the model as a 4-class HTF candle profile. Model11 does not use that taxonomy. It classifies **candle roles** as reversal (candle 2), expansion (candle 3), continuation (candle 4) and classifies **days** in weekly/daily profiles as "consolidated", "opposing run" (shallow / any amount), or "expanded". Do not encode a 4-class candle profiler as sourced content.
 5. **Monday rule vs Classic Expansion on Monday** — `p66` says Monday is avoided "in all scenarios"; `p74` (italic) says Classic Expansion logic "applies to a classic expansion weekly profile which forms the reversal on a Monday", with Friday as candle 1. Reconcile: Monday may be the *reversal day* (candle 2) whose CISD is read after the fact; entries are still taken Tue/Wed (candles 3/4), not on Monday.
 6. **Stops and targets for Sons, TTRS and Unicorn** are not stated in those decks; only Model11 gives explicit stop (candle-2 swing point) and target (projections, 2R minimum) rules. Applying Model11's stop/target to the other models is an extrapolation.
-7. **Sons Model entry element** is not labelled; the two lines on the 30s/1m/5m entry chart match an FVG (candle-1 high to candle-3 low around the displacement candle). It could also be read as an OB body. Marked as diagram inference.
+7. **Sons Model entry element** is not labelled; at 200 dpi the two lines on the 30s/1m/5m entry chart start exactly at the high of the candle before the displacement candle and the low of the candle after it, with no candle body at either line — only the FVG reading fits (the earlier "OB body" alternative is dropped, 2026-09-12). The pullback traverses the whole gap and overshoots below its lower line before the reversal candle closes back above; a stop under the FVG would have been hit.
 8. **Timeframe Alignment: 3 panels vs 2-column table** — `TFA p3` shows Bias / Structure / Entry (three TFs) but the pairing table (`p5`) has two columns and the example (`p6`) shows two charts. Whether "Bias" is a third, higher TF or the HTF of the pair is not stated. The example's bottom row prints pairs LTF-over-HTF (`H4/W1 ...`), inverting the table's left/right order — same pairs, different layout.
 9. **Failure-swing projection threshold** — "far overextended from any price logical objective" (`p21`) is discretionary; no numeric cutoff.
 10. **Monday range statistics** (`p67`) carry an `_amtrades` watermark, give no instrument or unit, and are for an unspecified 3-year window. Treat as anecdotal for non-index instruments.
 11. **Killzone timezone** — `TTRS p3` says "Eastern Standard Time (EST)" while Model11 charts use "NYO 8:30" with no zone. In practice these are New York local (ET) clock times; DST handling is not addressed.
 12. **Unicorn deck contents numbering** skips "3" (`Unicorn p2`) — cosmetic; the breaker section spans two slides (printed 2 and 3).
 13. **Weekly profile "consolidated" / "shallow opposing run" / "large range expansion"** are unquantified; classification is discretionary.
+15. **TFA Bias panel — which candle sweeps** (2026-09-12 re-check): the green candle carries the sweep wick; the black candle is the expansion whose high stays below the green high. The previous reading (black candle sweeps) was wrong and would have placed the bias one candle early. See §2.8, §3.6 rule 1.
+16. **TTRS breaker box and "three entries"** (2026-09-12 re-check): the breaker box spans the whole pre-sweep swing (both colours), wider than `19. Breaker`'s single-candle box; and the deck draws one confluence pullback through OB line, FVG and breaker, not three sequential retests. See §2.9 step 5, §3.4 rules 4–6. `Unicorn p4` also draws a solid line at the intermediate swing the displacement closes through (the break level), in addition to the dotted swept level.
 14. **CISD naming** — Model11 uses "opposing close candles" and "CISD" for the same construction; TFA and TTRS label the same line "CISD" (structure) and "OB" (entry). Treat OB / opposing candle / CISD line as one level with three roles (see `08-ttrades-core-B` §6 item 2).
 
 ---
@@ -574,7 +576,7 @@ models:
       - "no LTF CISD -> no entry"
       - "stop: LTF candle-2 swing point"
     targets: ["-2/-2.5 in candle 3", "-4/-4.5 in candle 4", "2R minimum"]
-    example: "NQ1! 20 Jun 2024, 1H candle 2 closure -> 5m CISD -> -4 reached in candle 4 at 08:30"
+    example: "NQ1! 20 Jun 2024, 1H candle 2 closure -> 5m CISD -> -4 reached in candle 4 (chart label 08:00)"
     source: "TTrades Model11.pdf"
     page: "p95-p99 (rules), p115-p118 (example)"
 
@@ -622,8 +624,8 @@ models:
       - "2 inversion: prior FVG closed through and retested as support/resistance"
       - "3 cisd/ob: close through open of last opposing-colour run"
       - "4 fvg: displacement FVG retested"
-      - "5 breaker: pre-sweep opposing candles retested; expansion follows"
-    entry_trigger: "retest of step 3 (OB line), step 4 (FVG) or step 5 (breaker), in that order of appearance [diagram]"
+      - "5 breaker: box over the whole pre-sweep swing (swing high -> swept low, both colours) retested; expansion follows"
+    entry_trigger: "one retest into the nested step-3/4/5 zone (OB line, FVG, breaker overlap); count as ONE location [diagram, TTRS p17]"
     confluence: ["SMT at the sweep (stronger asset holds higher low)", "OTE retrace 0.62-0.79 (0.705 focus)", "longs from discount (<0.5) / shorts from premium (>0.5)", "inside killzone"]
     invalidation: "not stated in source"
     targets: "not stated in source"
@@ -651,10 +653,10 @@ models:
     full_name: "Timeframe Alignment (top-down: bias -> structure -> entry)"
     timeframe_pairs: "shared_definitions.timeframe_pairs"
     sequence_steps:
-      - "Bias: HTF candle profile (e.g. bearish candle-2-closure shape -> expect next candle down)"
+      - "Bias: HTF sweep-and-reject candle (long wick) followed by a full-bodied expansion candle closing beyond it -> expect the next candle to continue; decided after the expansion candle closes (TFA p3)"
       - "Structure: sweep + CISD on the paired LTF at the key level"
       - "Entry: OB/CISD retest on the entry TF; risk box beyond OB, reward toward draw"
-    entry_trigger: "OB retest after CISD [diagram]"
+    entry_trigger: "LTF close through the OB line (CISD), then a wick retest of the line without a close back beyond it [diagram, TFA p3 Entry panel]"
     invalidation: "not stated; implied: close beyond OB / risk box"
     targets: "not stated; reward box drawn toward the draw"
     ambiguity: "3 panels (bias/structure/entry) vs 2-column pairing table; example prints pairs LTF-over-HTF"

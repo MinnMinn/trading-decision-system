@@ -31,8 +31,10 @@ Labels match the `session` enum already in `docs/architecture/schemas/trade-file
 | `london` | 08:00–11:00 | Europe/London | London open through the LBMA morning gold fix (10:30 London) |
 | `ny_am` | 08:30–11:00 | America/New_York | US macro release time (CPI, NFP, EIA) through the first 90 minutes of the equity session |
 | `ny_pm` | 13:30–16:00 | America/New_York | Afternoon session into the equity close |
-| `asia` | 00:00–06:00 | Asia/Tokyo | Recorded for journalling only; carries no timing credit for any instrument |
+| `asia` | 20:00–00:00 | America/New_York | The decks' own Asia killzone (`1. Killzones p3`). Used for the Asian session high/low liquidity levels (`knowledge/04` §2.9) and for journalling; carries no timing credit for any instrument. **Chosen by measurement 2026-09-12** — see below |
 | `off` | everything else | — | No timing credit |
+
+**Why `asia` is 20:00–00:00 New York (decided 2026-09-12 from data, replacing 00:00–06:00 Asia/Tokyo).** `scripts/asia-session-eval.py` scored five candidate clocks on 365 days of 15m BTC/ETH/SOL plus 70 days of XAUUSD by how much the session's high/low behave like liquidity: how often the rest of the day sweeps them, how often a sweep reverses back through the range (48% for this window vs 30% for the Tokyo 00–06 window, which is really the New York afternoon), and how narrow the session range is against the whole day (36% vs 55%). Results in `docs/backtests/2026-09-12-asia-session.md`. It is also the only Asia definition any ingested source gives. The `london`/`ny_*` windows were not part of that measurement.
 
 **The `ny_am` and `ny_pm` windows follow the *indices* set, not the forex set.** Choice, not a source: this project trades metals and oil, whose dominant scheduled catalyst is the 08:30 New York macro release, and the indices set is the only one whose NY AM window contains it. `knowledge/04` §6 item 1 records that both sets exist and the decks do not reconcile them.
 

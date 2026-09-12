@@ -78,8 +78,9 @@ NOTIONAL_CAP_PCT = 0.25     # never more than 25% of equity in one position
 MAX_OPEN = int(_envf("PILOT_MAX_OPEN", 2, 1, 4))
 MAX_TRADES_PER_DAY = int(_envf("PILOT_MAX_TRADES_PER_DAY", 3, 1, 6))
 SWEEP_LOOKBACK, MSS_LOOKBACK = 8, 3
+HTF_FILTER = True   # giảm khung: only trade in the direction the 4H structure allows (knowledge/07 §2.7, WA p93–96); user decision 2026-09-11
 VOL_MULT = 1.5
-MIN_RR = 1.5
+MIN_RR = 2.0   # knowledge/06 §3.1 rule 23 (Model11 p92): 2R is the minimum before taking profit; was 1.5 until 2026-09-12
 TIME_STOP_BARS = 24
 DAILY_LOSS_HALT = -0.02
 STOP_BUFFER_PCT = 0.0015
@@ -114,6 +115,8 @@ def automation_gate():
     # v2 (schema_version 2): the pilot trades crypto only, so markets.crypto is its market gate.
     if not c.get("markets", {}).get("crypto", {}).get("enabled", True):
         return "markets.crypto disabled (scripts/automation.py market crypto off) -- the pilot trades crypto only"
+    if MARKET == "futures" and c.get("execution", {}).get("pilot_profile", "legacy") == "top5":
+        return "pilot profile is top5 -- the futures loop runs scripts/strategy-runner.py, not these rules (one profile per account, docs/security/2026-09-11-top5-pilot.md PILOT-04)"
     if ENV_ERROR:
         return f"environment '{ENV_NAME}' unusable -- {ENV_ERROR}"
     ok, missing, note = trading_env.completeness(ENV_NAME, _ENV_KEYS)
@@ -238,6 +241,16 @@ def evaluate(sym, side="LONG"):
             reasons.append(f"volume nến quét/MSS < {VOL_MULT}x trung bình")
         if not strong_close:
             reasons.append(f"nến MSS đóng ở nửa {'dưới' if long else 'trên'} (kết quả yếu)")
+    # 4. higher-timeframe filter (giảm khung): the 4H context must be in Phase C/D/E of a structure pointing our way
+    htf_note = None
+    if HTF_FILTER:
+        import importlib.util as _iu
+        _hs = _iu.spec_from_file_location("htf_context", os.path.join(ROOT, "scripts", "htf_context.py")); _htf = _iu.module_from_spec(_hs); _hs.loader.exec_module(_htf)
+        ctx = _htf.load_context("daytrade", sym)
+        want = "long" if long else "short"
+        htf_note = f"{ctx['tf']}: bias {ctx['bias']}" if ctx else "không có bối cảnh"
+        if not ctx or ctx["bias"] != want:
+            reasons.append(f"bối cảnh {ctx['tf'] if ctx else '?'} không ủng hộ {side} (bias {ctx['bias'] if ctx else 'unknown'}: {(ctx or {}).get('basis', 'không có dữ liệu')})")
     entry = C[-1]
     stop = tp = None
     if sweep_i is not None:
@@ -251,7 +264,7 @@ def evaluate(sym, side="LONG"):
         if r <= 0:
             reasons.append("stop không hợp lệ")
     return {"symbol": sym, "side": side, "ok": not reasons, "reasons": reasons, "entry": entry, "stop": stop, "tp": tp,
-            "pct": a["pct"], "eq": a["eq"], "last_time": a["last_time"], "sweep_i": sweep_i, "mss_i": mss_i}
+            "pct": a["pct"], "eq": a["eq"], "last_time": a["last_time"], "sweep_i": sweep_i, "mss_i": mss_i, "htf": htf_note}
 
 
 def place_long(sym, d, equity, risk_mult, live):

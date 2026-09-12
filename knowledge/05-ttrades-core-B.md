@@ -57,12 +57,12 @@ Total: 126 physical pages, all read (text layer via `pdftotext -layout` plus ful
 - No prose definition; all `[diagram]` — `17. Orderblocks p3–p8`.
 - Definition by diagram: in a bullish reversal the OB is the **last down-close candle** before the displacement up; its **open** is marked as the OB line. In a bearish reversal the OB is the **last up-close candle** before the displacement down; its open is the OB line. — `p3 (1)`.
 - Validity/confirmation elements shown:
-  1. It forms **at an "Important Level"** after a **stop raid** of a prior swing (dashed line). — `p3 (1)`, `p6 (4)`.
+  1. It forms **at an "Important Level"** after a **stop raid** of a prior swing (dashed line). — `p3 (1)` (the Important Level label; `p6 (4)` shows the raid dashed line and OB line only).
   2. The candle after the OB **closes through the OB open** (this is the CISD). — `p3 (1)`, `p4 (2)`.
   3. In a trend, successive OBs stack: each down-close candle in an uptrend whose open is closed above becomes the next OB. — `p4 (2)`.
   4. OB + FVG confluence: the OB (down-close candle) sits inside/adjacent to a bullish FVG (orange box) formed by the preceding candles; the confirming green candle closes above the OB open. — `p5 (3)`.
 - **Mean Threshold**: a fib drawn over the OB candle body with 0 at the OB **open**, 0.5 at the **body midpoint** ("mean threshold"), 1 at the OB **close**. Price is shown retracing to the 0.5 level after the CISD and then continuing. — `p7 (5)`.
-- **Stop losses**: two options drawn side by side — (a) below the **OB candle's low** (tighter; risk zone from OB line down to OB low), or (b) below the **swing low** created by the stop raid (wider). Green shading above = reward, red below = risk. — `p8 (6)`.
+- **Stop losses**: two options drawn side by side — (a) at the **OB candle's body low (its close)** — the red risk zone of the "OB" column ends exactly on the body bottom while the candle's lower wick extends below it, so the tight stop is the close, not the wick low; or (b) below the **swing low** created by the stop raid (the raid candle's wick low, wider). Green shading above = reward, red below = risk; the green/red boundary (entry reference) is the blue OB line. — `p8 (6)` (re-verified against the PDF at 110–150 dpi, 2026-09-12 — `docs/audits/2026-09-12-ict-pdf-recheck.md`).
 
 ### 2.6 Fair Value Gap (FVG) — as used in these decks
 - `[diagram]` Bearish FVG: three consecutive down candles; the gap between candle 1's low and candle 3's high. Bullish FVG: gap between candle 1's high and candle 3's low. — `19. Breaker p16 (14)`; identical drawing labelled "Internal Range Liquidity" in `IRL-ERL p3 (1)`.
@@ -75,22 +75,22 @@ Total: 126 physical pages, all read (text layer via `pdftotext -layout` plus ful
   2. Bounce makes a **High** (▼). — p5 (3)
   3. Price takes out the Low → **Lower Low** (▲) (liquidity swept). — p6 (4)
   4. Displacement up closes above the High → **Higher High** (▼). — p7 (5)
-  5. The grey box (breaker) is drawn on the **candle bodies that formed the High** — the up-close candle(s) between the Low and the Lower Low (the range from those bodies' low to their high). — p8 (6)
+  5. The grey box (breaker) is drawn over the **full range, wicks included, of the up-close candle that formed the High** — box top = that candle's wick high, box bottom = its wick low; the adjacent down-close candle's wicks fall outside the box. Not a body-only zone. — p8 (6); same box on p3, p9, p17–p19 (re-verified against the PDF at 110–150 dpi, 2026-09-12 — `docs/audits/2026-09-12-ict-pdf-recheck.md`). Variant in the TTRS and Unicorn decks: the box spans the whole pre-sweep swing (both up-close and down-close candles) from the swing high down to the swept low — see `06-ttrades-models` §2.9 step 5, §6 item 16.
   6. Price retraces into the box and continues higher. — p9 (7)
-- **Bearish breaker** is the mirror: High → Low → **Higher High** (sweep) → **Lower Low** (displacement) → box on the **down-close candle(s) that formed the Low** → retrace into box → continuation down. — `p10–p15` (8–13).
+- **Bearish breaker** is the mirror: High → Low → **Higher High** (sweep) → **Lower Low** (displacement) → box over the **full range (wicks) of the down-close candle that formed the Low** → retrace into box → continuation down. — `p10–p15` (8–13); box verified on p14–p15.
 - Overview slide shows the completed bullish setup with the sweep dashed line, breaker box and continuation. — `p3 (1)`.
 - **OB vs BB** `[diagram]`: same bullish breaker; a blue "OB" line is drawn at the **open of the down-close candle inside the breaker box**. I.e. the breaker range contains the order block; the OB is the finer level within the breaker. — `p19 (printed 16, second use)`.
-- **Stop losses** `[diagram]`: (a) below the **breaker box low** (tighter), or (b) below the **Lower Low** (the swept extreme, wider). — `p18 (16)`.
+- **Stop losses** `[diagram]`: two shaded columns, no labels. The green→red boundary (entry reference) in both columns sits at the **top of the breaker box**. (a) Tight: the red zone ends **below the box bottom**, on the **low of the displacement candle** (the candle that made the Higher High) — not on the box's own low; (b) wide: below the **Lower Low** (the swept extreme). — `p18 (16)` (re-verified against the PDF at 110–150 dpi, 2026-09-12 — `docs/audits/2026-09-12-ict-pdf-recheck.md`).
 
 ### 2.8 Unicorn Model
 - `[diagram]` A breaker block that **overlaps with an FVG**. Bearish: sweep of a high (▼), displacement makes a lower low, grey breaker box at the prior swing-low candles, an FVG (two horizontal lines) sits inside/overlapping the box; price retraces into the overlap and continues down. Bullish mirror shown below it. — `19. Breaker p17 (15)`.
 
 ### 2.9 Mitigation Block (MB)
 - No prose; `[diagram]` only — `20. Mitigation p3–p14`.
-- Construction (`p3 (1)`): downtrend makes a Low; bounce makes a High; price returns down but **fails to take the Low** (the second low holds above the dashed line from the first low — a higher low / failure swing); displacement up closes above the High; grey box drawn on the up-close candle bodies that formed the High; price retraces into the box and continues.
+- Construction (`p3 (1)`): downtrend makes a Low; bounce makes a High; price returns down but **fails to take the Low** (the second low holds above the dashed line from the first low — a higher low / failure swing); displacement up closes above the High; grey box drawn over the **full range (wicks) of the up-close candle** that formed the High (same construction as the breaker box, p3–p4); price retraces into the box and continues.
 - **Key differentiator from a breaker** (from the two decks side by side): Breaker = the prior extreme **was** swept (Lower Low / Higher High made). Mitigation = the prior extreme was **not** swept (higher low / lower high made). — `19. Breaker p6 (4)` vs `20. Mitigation p3 (1)`.
 - `[diagram]` The second slide adds a blue "SMT" line across the two lows — the higher low that creates a mitigation block is the kind of failure swing that shows up as SMT versus a correlated asset. — `20. Mitigation p4 (2)`.
-- **Sequence in context** (`p5–p14`, printed 3–12): downtrend into an "HTF Level"; a small bounce high (orange line); a green displacement candle closes above that high leaving an FVG (two lines) — p6 (4); pullback into the FVG — p7 (5); grey mitigation box drawn at the bodies of the up-close candles from the **previous consolidation in the downtrend** — p8 (6); blue line at the bottom of the box as price enters — p9 (7); second blue line at the top as price passes through — p10 (8); continuation — p11 (9); a **second, higher mitigation box** drawn at the next earlier consolidation of the downtrend — p12 (10); price reaches it and a small dashed FVG inside it is respected — p13 (11); price continues above — p14 (12).
+- **Sequence in context** (`p5–p14`, printed 3–12): downtrend into an "HTF Level"; a small bounce high (line); a green displacement candle closes above that high leaving an FVG (two lines) — p6 (4); pullback into the FVG — p7 (5); grey mitigation box drawn over the up-close candles from the **previous consolidation in the downtrend** — box top at the wick high, box bottom at roughly the body lows (the deck is not consistent about the lower edge between p3–p4 and p8) — p8 (6); blue line slightly above the box bottom as price enters — p9 (7); second blue line slightly above the box top as price passes through — p10 (8) (both sit at the **open of a down-close candle**, i.e. the OB/CISD line convention of `17. Orderblocks p4`, rather than exactly on the box edges); continuation — p11 (9); a **second, higher mitigation box** drawn at the next earlier consolidation of the downtrend — p12 (10); price reaches it and a small dashed FVG inside it is respected — p13 (11); price continues above — p14 (12).
 - Reading: after the HTF-level reversal, the up-close candle bodies left behind on the way down (unmitigated) act as successive **targets / continuation levels** ("mitigation") on the way back up.
 
 ### 2.10 SMT (Smart Money Technique) divergence
@@ -103,7 +103,7 @@ Total: 126 physical pages, all read (text layer via `pdftotext -layout` plus ful
 - Used elsewhere: SMT marks the failure-swing low of a mitigation block (`20. Mitigation p4 (2)`) and defines relative strength/weakness (`Relative_Strength p4 (2)`).
 
 ### 2.11 Power of Three (PO3) / AMD
-- `[diagram]` **OHLC / OLHC**: a single bullish candle expanded into its lower-timeframe path: Open → dip **below the open** (Low) → rally (High) → Close = **O-L-H-C**. A bearish candle: Open → rally above open (High) → decline (Low) → Close = **O-H-L-C**. Dashed line drawn at the candle's open. — `22. PO3 p3 (1)`; `24. AMD_STD p4 (2)`.
+- `[diagram]` **OHLC / OLHC**: a single bullish candle expanded into its lower-timeframe path: Open → dip **below the open** (Low) → rally (High) → Close = **O-L-H-C**. A bearish candle: Open → rally above open (High) → decline (Low) → Close = **O-H-L-C**. Dashed line drawn at the candle's open. — `22. PO3 p3 (1)` (`24. AMD_STD p4 (2)` shows AMD boxes only, not this anatomy).
 - `[diagram]` **AMD** boxes: **Accumulation** (green) = ranging around the open; **Manipulation** (red) = the move **against** the eventual direction, beyond the open (below the open for a bullish candle, above for bearish); **Distribution** (blue) = the expansion in the true direction. Bearish is the mirror. — `22. PO3 p4 (2)`; `24. AMD_STD p3 (1)`.
 - `[diagram]` PO3 on candles: accumulation box around the open, manipulation box below the open (bullish) / above (bearish), distribution box after. — `22. PO3 p5 (3)`; `24. AMD_STD p5 (3)`.
 - `[diagram]` **Entries**: an arrow from the manipulation box (below the accumulation range) up into the distribution box; a second zig-zag arrow inside the distribution box. I.e. entries are taken **during/at the end of manipulation** (against the open) and on **pullbacks within distribution**. — `22. PO3 p6 (4)`.
@@ -112,9 +112,9 @@ Total: 126 physical pages, all read (text layer via `pdftotext -layout` plus ful
 ### 2.12 Standard Deviation Projections (STD)
 - `[diagram]` **Settings** (TradingView "Fib Retracement" tool): enabled levels **1, 0, -1, -2, -2.5, -4**; disabled 0.236, 0.5, 0.786, 1.618, 3.618, 1.272; Trend line off; Extend lines left/right off; Background on; Reverse off; Prices off; Levels = Values; Labels Left / Middle; Font 10; "Fib levels based on log scale" off. — `23. STD p3 (1)`.
 - `[diagram]` **Anchoring (bullish)**: fib drawn over the **manipulation leg** with **1 at the manipulation low** and **0 at the manipulation swing high** (where the manipulation began). Negative levels project **above**: -1, -2, -2.5, -4. Price expands to -4. — `23. STD p4 (2)`; `24. AMD_STD p8 (6)`.
-- `[diagram]` **Anchoring (bearish)**: uptrend sweeps a high (dashed), the orange line marks the **low of the manipulation leg** (where the sweep started) — p5 (3); that leg is boxed pink — p6 (4); fib with **1 at the sweep high, 0 at the manipulation low**; -1, -2, -2.5, -4 project **below** — p7 (5).
+- `[diagram]` **Anchoring (bearish)**: uptrend sweeps a high (dashed), a dashed line marks the **low of the manipulation leg** (where the sweep started) — p5 (3); that leg is boxed pink — p6 (4); fib with **1 at the sweep high, 0 at the manipulation low**; -1, -2, -2.5, -4 project **below** — p7 (5).
 - `[diagram]` **Retracement or Reversal zone**: the band between **-2 and -2.5** (yellow) — price reaching it is expected to retrace or reverse. — `23. STD p8 (6)`.
-- `[diagram]` **Max Expansion**: **-4** (orange line) is the maximum expected expansion. — `23. STD p9 (7)`.
+- `[diagram]` **Max Expansion**: **-4** is the maximum expected expansion. — `23. STD p9 (7)`.
 - `[diagram]` **PD Array Pairing**: the **-2** level coincides with a prior swing low (dashed line from an earlier low). Std-dev levels are confirmed/selected by pairing them with PD arrays / liquidity. — `23. STD p10 (8)`.
 - `[diagram]` **Combination**: AMD boxes plus STD — the distribution box runs from 0 up to the -4 level. — `24. AMD_STD p9 (7)`.
 
@@ -154,10 +154,10 @@ Total: 126 physical pages, all read (text layer via `pdftotext -layout` plus ful
 - R9. IF two correlated assets diverge at a swing (one makes a new extreme, the other fails) → **SMT**; the asset that **failed** to make the new low shows **relative strength** (prefer it for longs); the asset that failed to make the new high shows relative weakness (prefer it for shorts). `[diagram]` `21. SMT p4–p8`; `Relative_Strength p4 (2)`.
 
 ### 3.3 Entry
-- R10. **OB entry**: IF CISD confirmed at an Important Level, THEN entry at the OB open (limit) or at the 0.5 mean threshold of the OB body. Stop below the OB low (tight) or below the raid swing low (wide). `[diagram]` `17. OB p7 (5), p8 (6)`.
-- R11. **Breaker entry**: IF Low → High → Lower Low (sweep) → displacement to Higher High, THEN mark the up-close candle bodies at the High as the breaker; enter on the retrace into the breaker; stop below the breaker box low (tight) or below the Lower Low (wide). Mirror for bearish. `[diagram]` `19. Breaker p4–p9, p18 (16)`.
+- R10. **OB entry**: IF CISD confirmed at an Important Level, THEN entry at the OB open (limit) or at the 0.5 mean threshold of the OB body. Stop at the OB candle's body low / close (tight — p8 draws the risk zone ending on the close, not the wick) or below the raid swing low (wide). `[diagram]` `17. OB p7 (5), p8 (6)`.
+- R11. **Breaker entry**: IF Low → High → Lower Low (sweep) → displacement to Higher High, THEN mark the full range (wicks included) of the up-close candle at the High as the breaker; enter on the retrace into the breaker (entry reference = box top); stop below the low of the displacement candle that made the Higher High (tight — drawn below the box bottom on p18) or below the Lower Low (wide). Mirror for bearish. `[diagram]` `19. Breaker p4–p9, p18 (16)`.
 - R12. **Unicorn entry**: IF a breaker box overlaps an FVG, THEN entry zone = the overlap. `[diagram]` `19. Breaker p17 (15)`.
-- R13. **Mitigation entry/targets**: IF a reversal from an HTF level occurs **without** the prior extreme being swept (higher low / SMT), THEN mark the opposing-colour candle bodies at the prior swing as a mitigation block; use it for the pullback entry and mark successive earlier consolidation bodies as continuation targets. `[diagram]` `20. Mitigation p3–p14`.
+- R13. **Mitigation entry/targets**: IF a reversal from an HTF level occurs **without** the prior extreme being swept (higher low / SMT), THEN mark the opposing-colour candle range (wicks included on p3–p4) at the prior swing as a mitigation block; use it for the pullback entry and mark successive earlier consolidation bodies as continuation targets. `[diagram]` `20. Mitigation p3–p14`.
 - R14. **PO3 entry**: IF price trades **beyond the period open against the expected direction** (manipulation), THEN look to enter at/after the end of manipulation for the distribution leg; add on pullbacks within distribution. `[diagram]` `22. PO3 p6 (4)`.
 - R15. **Silver Bullet AM**: IF time is **10:00–11:00 New York**, THEN frame the trade on the **9:00am hourly candle's high/low**; IF price sweeps the 9:00 high (or low) inside the window and reverses, THEN target the opposite side of the 9:00 candle. `[text+diagram]` `Silver_Bullet_AM p3–p5`.
 
@@ -169,8 +169,8 @@ Total: 126 physical pages, all read (text layer via `pdftotext -layout` plus ful
 - R20. IF after ERL is taken price reaches IRL (FVG), THEN that is the first target; re-define ERL at the new sweep extreme for the next leg. `[diagram]` `IRL-ERL p6–p10`.
 
 ### 3.5 Invalidation
-- R21. OB long: invalid if price closes below the OB low (tight) or below the raid swing low (wide). `[diagram]` `17. OB p8 (6)`.
-- R22. Breaker long: invalid below the breaker low (tight) or below the Lower Low (wide). `[diagram]` `19. Breaker p18 (16)`.
+- R21. OB long: invalid if price closes below the OB candle's body low / close (tight) or below the raid swing low (wide). `[diagram]` `17. OB p8 (6)`.
+- R22. Breaker long: invalid below the displacement-candle low (tight, below the box bottom) or below the Lower Low (wide). `[diagram]` `19. Breaker p18 (16)`.
 - R23. MSS without an engaged HTF level, or without body closes beyond structure, is lower quality (stated as "important"/"preferred", not as hard invalidation). `[text]` `18. MSS p4–p5`.
 - R24. RS/RW ratio reversal is explicitly "My Theory" — treat as a supplementary read, not a standalone trigger. `[text]` `Relative_Strength p6 (4)`.
 
@@ -186,10 +186,10 @@ Total: 126 physical pages, all read (text layer via `pdftotext -layout` plus ful
 | **CISD (bearish)** | Rally into Important Level with sweep of prior high; a close **below the open of the last up-close candle(s)** of the rally (first candle of a same-colour run) | Close only below wick; no level/sweep context (diagram always shows both) | `16. CISD p3–p4` |
 | **CISD (bullish)** | Mirror: close above open of last down-close candle(s) | — | `16. CISD p3–p4` |
 | **Order Block (bullish)** | Last down-close candle before displacement up; forms at Important Level after stop raid; subsequent close above its open (CISD); ideally overlapping an FVG | Candle whose open was never closed through | `17. OB p3–p6` |
-| **Breaker (bullish)** | Sequence Low → High → **Lower Low** → **Higher High**; box on up-close bodies at the High; retrace into box | Lower Low not made (then it is a mitigation block) | `19. Breaker p4–p9` |
-| **Breaker (bearish)** | High → Low → **Higher High** → **Lower Low**; box on down-close bodies at the Low | — | `19. Breaker p10–p15` |
+| **Breaker (bullish)** | Sequence Low → High → **Lower Low** → **Higher High**; box over the up-close candle's full range (wicks) at the High; retrace into box | Lower Low not made (then it is a mitigation block) | `19. Breaker p4–p9` |
+| **Breaker (bearish)** | High → Low → **Higher High** → **Lower Low**; box over the down-close candle's full range (wicks) at the Low | — | `19. Breaker p10–p15` |
 | **Unicorn** | Breaker box AND FVG overlap; entry in overlap | Breaker or FVG alone | `19. Breaker p17` |
-| **Mitigation block (bullish)** | Low → High → **higher low (Low NOT swept)** → displacement above High; box on up-close bodies at the High; SMT often present at the higher low | Prior low swept (then breaker) | `20. Mitigation p3–p4` |
+| **Mitigation block (bullish)** | Low → High → **higher low (Low NOT swept)** → displacement above High; box over the up-close candle range at the High; SMT often present at the higher low | Prior low swept (then breaker) | `20. Mitigation p3–p4` |
 | **SMT (bullish)** | Correlated A: Low → Lower Low; B: Low → Higher Low at the same swing | Both make lower lows (no divergence) | `21. SMT p4–p5` |
 | **SMT (bearish)** | A: High → Higher High; B: High → Lower High | Both make higher highs | `21. SMT p7–p8` |
 | **Inverse SMT** | Inversely-correlated pair: A makes a new extreme, B fails to make its **opposite** new extreme | Both extend as expected | `21. SMT p10–p11` |
@@ -217,8 +217,8 @@ Total: 126 physical pages, all read (text layer via `pdftotext -layout` plus ful
 | Max expansion | -4 | std-dev | `23. STD p9 (7)` |
 | PD-array pairing example | -2 on prior swing low | — | `23. STD p10 (8)` |
 | OB mean threshold | 0.5 of OB body (0 = open, 1 = close) | fib on body | `17. OB p7 (5)` |
-| OB stop options | OB candle low; raid swing low | price | `17. OB p8 (6)` |
-| Breaker stop options | breaker box low; Lower Low | price | `19. Breaker p18 (16)` |
+| OB stop options | OB candle body low (close); raid swing low (wick) | price | `17. OB p8 (6)` |
+| Breaker stop options | displacement-candle low (below box bottom); Lower Low. Entry reference = box top | price | `19. Breaker p18 (16)` |
 | Ratio symbol for RS/RW | ES1! / NQ1! | TradingView | `Relative_Strength p5 (3)` |
 | Fib tool font | 10; labels Left/Middle; log scale off | TradingView | `23. STD p3 (1)` |
 
@@ -230,8 +230,8 @@ No other numeric thresholds (e.g. minimum displacement size, FVG size, ATR multi
 
 1. **CISD line placement**: `16. CISD p3` draws the line at the open of the *last* up-close candle; `p4` draws it at the open of the *first* candle of a same-colour run. Both are labelled "1". Reconcile as: use the open of the **first candle of the final consecutive same-colour run** (which equals the last candle when the run is length 1). Detector should treat both as valid and report which variant fired.
 2. **OB = CISD candle**: The OB deck reuses the CISD diagrams verbatim with the label swapped. Therefore "OB" in TTrades usage is the *opening price line* of the CISD candle, not necessarily a full-body zone. The Mean Threshold slide, however, treats the OB as a **body zone** (0 → 0.5 → 1). Both readings coexist: line for trigger, body for entry depth.
-3. **Breaker box extent**: the grey box is drawn by eye on candle bodies at the swing; whether it spans body-to-body or includes wicks is not stated. Diagrams appear to use **bodies** (top of highest body to bottom of lowest body of the up-close cluster). Treat exact box bounds as a tunable parameter.
-4. **Mitigation deck sequence (p5–p14)** does not explain what the two blue lines (p9, p10) are; they most plausibly mark the box bottom/top as price mitigates each edge. Marked as inference.
+3. **Breaker box extent** (re-verified against the PDF at 110–150 dpi, 2026-09-12 — `docs/audits/2026-09-12-ict-pdf-recheck.md`): in `19. Breaker` the box is the **wick-to-wick range of the single up-close (bullish) / down-close (bearish) candle** at the swing; the neighbouring candle's wicks are excluded. The earlier "bodies" reading was wrong. `TTRS p8, p17` and `Unicorn p5` draw a wider box covering **both colours** around the intermediate swing. Two sourced variants → box bounds stay a declared parameter, choose one per detector and say which.
+4. **Mitigation deck sequence (p5–p14)** does not explain what the two blue lines (p9, p10) are. At 150 dpi they sit slightly off the box edges, at the **opens of down-close candles** inside the mitigation leg — the OB/CISD line convention — rather than exactly on the box bottom/top. Both readings recorded; inference either way.
 5. **MSS "swing low" reference**: the MSS bracket in `18. MSS p4` and `MSS_vs_CISD p3` is on the swing low **immediately preceding the run-up into the raid**, not an older structural low. Detector should use the most recent opposing swing before the raid leg.
 6. **Silver Bullet "EST"**: slide says EST; in practice the window is NY local time. Ambiguity about DST is not addressed in the deck.
 7. **Relative-strength reversal rule** is explicitly labelled "My Theory" — lower confidence than the rest.
@@ -239,6 +239,9 @@ No other numeric thresholds (e.g. minimum displacement size, FVG size, ATR multi
 9. **PO3 "Entries" slide** shows arrows only; whether entry is at the manipulation extreme or on the first CISD after manipulation is not specified. Cross-deck consistency (CISD/OB decks) suggests: manipulation sweep → CISD → OB entry.
 10. **No timeframes** are specified anywhere except the 1-minute NASDAQ chart and the 9:00 hourly candle in the Silver Bullet deck, and "higher time frame level" / "lower time frame MSS" in the MSS deck.
 11. Std-dev deck shows **1 at the manipulation extreme** (the more recent point) and **0 at the origin** for both directions — do not flip anchors; the negative levels always project through 0 away from 1.
+12. **CISD before MSS is a level ordering, not a time ordering** — on `MSS_vs_CISD p5 (3)` the same displacement candle closes through both the CISD line and the MSS level. A detector must not assume a separate earlier CISD bar exists.
+13. **OB stop = body low** — `17. Orderblocks p8` ends the tight risk zone on the OB candle's close, with the wick below it (§2.5). **Breaker tight stop = displacement-candle low**, drawn below the box bottom (`19. Breaker p18`, §2.7). Recorded 2026-09-12 after the PDF re-check.
+14. **Minor citation fixes (2026-09-12)**: OHLC/OLHC appears only in `22. PO3 p3`, not in `24. AMD_STD`; the "orange" lines in `23. STD p5, p9` are plain dashed/grey lines; `18. MSS p4–p5` also mark a later continuation sweep (▲/▼) not described in §2.2; the "NY equities open" gloss on 9:30 in `Silver_Bullet_AM p3` is inference (the slide prints only the time); `17. Orderblocks p6` has no "Important Level" label (only p3 does).
 
 ---
 
@@ -328,7 +331,7 @@ concepts:
       - "valid when a subsequent candle closes through ob_line (CISD)"
       - "quality: formed at important level; prior swing swept; overlapping/adjacent FVG"
       - "mean_threshold = ob.open + 0.5*(ob.close - ob.open)  # 0=open, 0.5=mid, 1=close"
-      - "stops: ob_candle.low (tight) | raid_swing_low (wide); mirror for bearish"
+      - "stops: ob_candle.body_low = ob_candle.close (tight, 17. OB p8) | raid_swing_low (wide); mirror for bearish"
     source: "17. Orderblocks.pdf"
     page: "p3 (1), p4 (2), p5 (3), p6 (4), p7 (5), p8 (6)"
 
@@ -348,9 +351,9 @@ concepts:
     evidence: diagram
     detection_criteria:
       - "bullish: swing Low(L1) -> swing High(H1) -> Lower Low(L2 < L1, sweep) -> displacement CLOSE > H1 (Higher High)"
-      - "bullish box = bodies of up-close candle(s) forming H1: [min(body lows), max(body highs)]"
-      - "bearish: High(H1) -> Low(L1) -> Higher High(H2 > H1) -> displacement CLOSE < L1 (Lower Low); box = bodies of down-close candle(s) forming L1"
-      - "entry on first retrace into box; stops: box low (tight) | L2 (wide)"
+      - "bullish box = full range of the up-close candle forming H1: [low, high] wicks included (19. Breaker p8); variant (TTRS p17, Unicorn p5): [swept low, swing high] over both colours"
+      - "bearish: High(H1) -> Low(L1) -> Higher High(H2 > H1) -> displacement CLOSE < L1 (Lower Low); box = full range (wicks) of the down-close candle forming L1"
+      - "entry on first retrace into box (entry reference = box top); stops: displacement_candle.low (tight, below box bottom, 19. Breaker p18) | L2 (wide)"
       - "OB within breaker = open of the opposing candle inside the box (blue line)"
     source: "19. BreakerBlocks.pdf"
     page: "p3 (1), p4–p9 (2–7), p10–p15 (8–13), p18 (16), p19 (16)"
@@ -370,7 +373,7 @@ concepts:
     evidence: diagram
     detection_criteria:
       - "bullish: Low(L1) -> High(H1) -> L2 >= L1 (no sweep; failure swing) -> displacement CLOSE > H1"
-      - "box = bodies of up-close candle(s) forming H1"
+      - "box = full range (wicks) of the up-close candle forming H1 on p3-p4; p8 uses ~body lows for the bottom edge (deck inconsistent)"
       - "SMT vs correlated asset at L2 strengthens it"
       - "after HTF-level reversal, mark unmitigated opposing bodies of each prior consolidation as sequential targets"
       - "differentiator from breaker: sweep flag == false"
@@ -482,7 +485,7 @@ concepts:
     evidence: diagram
     detection_criteria:
       - "OB: ob_candle.low | raid_swing_low"
-      - "Breaker: breaker_box.low | lower_low"
+      - "Breaker: displacement_candle.low (below box bottom) | lower_low"
     source: "17. Orderblocks.pdf; 19. BreakerBlocks.pdf"
     page: "17: p8 (6); 19: p18 (16)"
 ```
