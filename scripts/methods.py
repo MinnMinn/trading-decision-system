@@ -17,15 +17,16 @@ PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                     "docs", "architecture", "methods.json")
 
 
-def _load():
-    with open(PATH, encoding="utf-8") as fh:
-        d = json.load(fh)
+def _validate(d):
+    """The invariants _load() must hold. Split out so each can be tested directly with a small inline dict,
+    rather than only via the real registry (where a collision may never happen to occur)."""
     seen = {}
     for p in d["presets"]:
         key = frozenset(p["dimensions"])
         if key in seen:
             raise ValueError(f"{PATH}: presets '{seen[key]}' and '{p['id']}' name the same dimension set "
-                             f"{sorted(key)}; profile_of would stop being a function.")
+                             f"{sorted(key)}; profile_of would stop being a function "
+                             f"(docs/specs/2026-09-12-method-switch-design.md §6 invariant 3).")
         seen[key] = p["id"]
         unknown = [x for x in p["dimensions"] if x not in d["dimensions"]]
         if unknown:
@@ -34,6 +35,12 @@ def _load():
         unknown = [x for x in m["requires"] if x not in d["dimensions"]]
         if unknown:
             raise ValueError(f"{PATH}: runner method '{name}' requires unknown dimension(s) {unknown}.")
+
+
+def _load():
+    with open(PATH, encoding="utf-8") as fh:
+        d = json.load(fh)
+    _validate(d)
     return d
 
 

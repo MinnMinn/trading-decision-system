@@ -36,6 +36,49 @@ class Registry(unittest.TestCase):
         ids = [p["id"] for p in M.presets_for("cfd")]
         self.assertEqual(ids, ["wyckoff", "ict", "wyckoff+ict"])
 
+    def test_markets_order_is_a_declared_contract(self):
+        self.assertEqual(M.markets(), ["crypto", "cfd"])
+
+
+class Validation(unittest.TestCase):
+    """_validate(d) is the invariant enforcement _load() calls at import time. Tested directly with small
+    inline dicts so a weakened check fails loudly instead of only showing up if the real registry ever
+    happens to collide (docs/specs/2026-09-12-method-switch-design.md §6 invariant 3)."""
+
+    def _base(self):
+        return {
+            "dimensions": {"wyckoff": {"markets": ["crypto"]}, "ict": {"markets": ["crypto"]}},
+            "presets": [{"id": "a", "dimensions": ["wyckoff"]}],
+            "runner_methods": {"WYCKOFF": {"requires": ["wyckoff"]}},
+        }
+
+    def test_duplicate_preset_dimension_sets_raise(self):
+        d = self._base()
+        d["presets"].append({"id": "b", "dimensions": ["wyckoff"]})
+        with self.assertRaises(ValueError) as ctx:
+            M._validate(d)
+        msg = str(ctx.exception)
+        self.assertIn("a", msg)
+        self.assertIn("b", msg)
+
+    def test_preset_naming_unknown_dimension_raises(self):
+        d = self._base()
+        d["presets"].append({"id": "c", "dimensions": ["heatmap"]})
+        with self.assertRaises(ValueError) as ctx:
+            M._validate(d)
+        msg = str(ctx.exception)
+        self.assertIn("c", msg)
+        self.assertIn("heatmap", msg)
+
+    def test_runner_method_requiring_unknown_dimension_raises(self):
+        d = self._base()
+        d["runner_methods"]["ICT"] = {"requires": ["heatmap"]}
+        with self.assertRaises(ValueError) as ctx:
+            M._validate(d)
+        msg = str(ctx.exception)
+        self.assertIn("ICT", msg)
+        self.assertIn("heatmap", msg)
+
 
 class RunnerMethods(unittest.TestCase):
     def test_requires_is_total_over_the_backtest_vocabulary(self):
@@ -55,6 +98,11 @@ class RunnerMethods(unittest.TestCase):
 
     def test_runnable_subset_matches_the_runner(self):
         self.assertEqual(M.runnable(), {"ICT", "COMBINED", "WYCKOFF", "WYCKOFF-BOOK"})
+
+    def test_runner_methods_for_a_footprint_preset_does_not_widen(self):
+        self.assertEqual(M.runner_methods(M.flags_for("wyckoff+footprint")), {"WYCKOFF", "WYCKOFF-BOOK"})
+        self.assertEqual(M.runner_methods(M.flags_for("full")),
+                         {"WYCKOFF", "WYCKOFF-BOOK", "ICT", "COMBINED", "COMBINED-BOOK", "PARTIAL"})
 
 
 class Unverifiable(unittest.TestCase):
