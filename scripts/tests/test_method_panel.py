@@ -103,6 +103,17 @@ class Instruments(unittest.TestCase):
         self.assertIn("không mở lệnh mới", html)
 
 
+def _preset_card_html(html, market, pid):
+    """The single <button class="preset-card" ...>...</button> chunk for one market/preset -- so a
+    rendered-copy assertion can be scoped to one card instead of the whole page (buttons never nest here,
+    so the next literal "</button>" after the opening tag is always the matching close)."""
+    marker = f'data-market="{market}" data-preset="{pid}"'
+    start = html.index(marker)
+    tag_start = html.rindex("<button", 0, start)
+    end = html.index("</button>", start) + len("</button>")
+    return html[tag_start:end]
+
+
 class PilotHonesty(unittest.TestCase):
     def test_each_preset_card_names_the_runner_methods_it_permits(self):
         html = mp.render(cfg())
@@ -117,6 +128,50 @@ class PilotHonesty(unittest.TestCase):
         """strategy-runner.py:167 refuses every top5 tick when environment is real."""
         self.assertIn("pilot không chạy ở REAL", mp.render(cfg(env="real")))
         self.assertNotIn("pilot không chạy ở REAL", mp.render(cfg(env="demo")))
+
+    def test_wyckoff_honesty_line_appears_iff_the_permitted_set_has_a_wyckoff_runner(self):
+        """The honesty line claims the mechanical Wyckoff rule engine ran. Printing it on a card whose
+        permitted runner set has no WYCKOFF/WYCKOFF-BOOK (e.g. the bare ICT preset) claims machinery
+        that never engaged -- the opposite failure from the one the line exists to prevent."""
+        html = mp.render(cfg())
+        seen_present, seen_absent = False, False
+        for market in ("crypto", "cfd"):
+            for p in M.presets_for(market):
+                pid = p["id"]
+                card = _preset_card_html(html, market, pid)
+                permitted = M.runner_methods(M.flags_for(pid))
+                expected = bool(permitted & {"WYCKOFF", "WYCKOFF-BOOK"})
+                actual = "wyckoff_rules.py" in card
+                self.assertEqual(actual, expected,
+                                  f"{market}/{pid}: permitted={sorted(permitted)}, "
+                                  f"honesty line present={actual}, expected={expected}")
+                seen_present = seen_present or actual
+                seen_absent = seen_absent or not actual
+        # Sanity: the registry must actually produce both outcomes, or this test cannot distinguish
+        # "correctly gated" from "always shows" / "never shows".
+        self.assertTrue(seen_present, "no preset triggered the honesty line at all")
+        self.assertTrue(seen_absent, "every preset triggered the honesty line -- gate is not selective")
+
+    def test_no_card_lists_a_non_runnable_method_under_runner(self):
+        """COMBINED-BOOK and PARTIAL are runnable: false in methods.json -- backtest-only
+        (scripts/backtest-methods.py:528) -- and strategy-runner.py's METHODS is methods.runnable(),
+        which excludes them. A card must never claim the pilot can fire a method it cannot."""
+        html = mp.render(cfg())
+        non_runnable = set(M.RUNNER_METHODS) - M.runnable()
+        self.assertTrue(non_runnable, "registry fixture has no non-runnable method to guard against")
+        checked_a_runner_line = False
+        for market in ("crypto", "cfd"):
+            for p in M.presets_for(market):
+                pid = p["id"]
+                card = _preset_card_html(html, market, pid)
+                m = re.search(r'runner: ([^<]*)</div>', card)
+                if not m:
+                    continue
+                checked_a_runner_line = True
+                listed = {x.strip() for x in m.group(1).split(",") if x.strip() and x.strip() != "(không có)"}
+                self.assertFalse(listed & non_runnable,
+                                  f"{market}/{pid}: runner line lists non-runnable {listed & non_runnable}")
+        self.assertTrue(checked_a_runner_line, "no card's runner line was found to check")
 
 
 class DbWiring(unittest.TestCase):
@@ -407,6 +462,29 @@ class PageIdentity(unittest.TestCase):
         head = html[:8192]
         self.assertIn("<title>", head)
         self.assertIn(mp.TITLE, head)
+
+
+class RenderedCopyStandingCheck(unittest.TestCase):
+    """The words a human actually reads, tags stripped -- the check that caught the honesty-line,
+    runner-list, mojibake label, and literal-backtick defects that every attribute/structure assertion
+    above missed. Kept as a standing regression guard, not a one-off."""
+
+    def _visible_text(self, html):
+        no_script = re.sub(r"<script[\s\S]*?</script>", " ", html)
+        no_style = re.sub(r"<style[\s\S]*?</style>", " ", no_script)
+        return re.sub(r"<[^>]+>", " ", no_style)
+
+    def test_no_raw_backticks_reach_the_visible_text(self):
+        """Markdown backticks inserted as plain text render literally -- scripts/wyckoff_rules.py and
+        strategy-runner.py:167 must be marked up (e.g. <code>), never shown with their backticks."""
+        html = mp.render(cfg(env="real"))  # real env renders the other backtick-bearing note
+        text = self._visible_text(mp.render(cfg())) + self._visible_text(html)
+        self.assertNotIn("`", text)
+
+    def test_full_preset_label_is_proper_vietnamese_not_mojibake_ascii(self):
+        html = mp.render(cfg())
+        self.assertIn("Đầy đủ 4 chiều", html)
+        self.assertNotIn("Day du 4 chieu", html)
 
 
 class NoInjection(unittest.TestCase):

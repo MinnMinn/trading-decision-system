@@ -231,6 +231,7 @@ body { background: var(--bg); color: var(--text); margin: 0; font-family: var(--
 .tier-badge[data-tier="research"] { background: var(--unvalidated-soft); color: var(--unvalidated); }
 .preset-dims { font-family: var(--font-mono); font-size: .74rem; color: var(--text-dim); }
 .preset-note { font-size: .72rem; color: var(--text-dim); line-height: 1.35; }
+.preset-note code { font-family: var(--font-mono); font-size: .95em; }
 .preset-note.locked { color: var(--nodata); }
 .preset-note.research { color: var(--unvalidated); }
 .preset-note.realgate { color: var(--danger); }
@@ -268,13 +269,30 @@ body { background: var(--bg); color: var(--text); margin: 0; font-family: var(--
 _TIER_LABEL = {"trade": "Đủ điều kiện vào lệnh", "research": "Chỉ nghiên cứu"}
 _RESEARCH_NOTE = ("/analyze luôn NO TRADE — dưới tối thiểu 2 dimension của NORMAL (§6.1); "
                    "chỉ pilot cơ học còn bắn.")
-_WYCKOFF_HONESTY = ("pilot chạy luật cơ học `scripts/wyckoff_rules.py` (CHoCH, TR từ SC/AR, "
-                     "Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.")
-_REAL_GATE_NOTE = "pilot không chạy ở REAL (`strategy-runner.py:167`) — chỉ nửa phân tích của preset còn hiệu lực."
+# The mechanical WYCKOFF/WYCKOFF-BOOK runner methods this line is about -- printing it on a card whose
+# permitted set contains neither claims machinery that never engaged (the exact opposite of what the
+# line exists to prevent: implying the pilot verifies the wyckoff DIMENSION).
+_WYCKOFF_RUNNER_METHODS = {"WYCKOFF", "WYCKOFF-BOOK"}
+# Written as (prefix, code, suffix) rather than one string with Markdown backticks -- esc()  only
+# HTML-escapes, it does not render Markdown, so backticks inserted as plain text show up literally on
+# the page. The filename/lineref is wrapped in a real <code> element instead; see _code_note() below.
+_WYCKOFF_HONESTY_PARTS = ("pilot chạy luật cơ học ", "scripts/wyckoff_rules.py",
+                           " (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc "
+                           "Wyckoff đầy đủ của skill.")
+_REAL_GATE_NOTE_PARTS = ("pilot không chạy ở REAL (", "strategy-runner.py:167",
+                          ") — chỉ nửa phân tích của preset còn hiệu lực.")
 _COINGLASS_NOTE = ("Khoá ở CFD — CoinGlass là nguồn order-flow cho footprint/heatmap, "
                     "chỉ có cho crypto-derivatives (SYSTEM-DESIGN.md §12 mục 3).")
 _EMPTY_NOTE = ("không cặp nào được chọn — không mở lệnh mới ở thị trường này; "
                "vị thế và lệnh chờ đang mở vẫn được quản lý.")
+
+
+def _code_note(parts):
+    """prefix/code/suffix -> one escaped string with the middle piece wrapped in <code>, never with
+    literal Markdown backticks. `parts` are fixed Python literals this module owns, not db content --
+    esc() is still applied to each piece individually as defense in depth."""
+    prefix, code, suffix = parts
+    return f'{esc(prefix)}<code>{esc(code)}</code>{esc(suffix)}'
 
 
 def _preset_card(market, preset, selected_id, environment):
@@ -295,11 +313,18 @@ def _preset_card(market, preset, selected_id, environment):
     if locked:
         parts.append(f'<div class="preset-note locked">{esc(_COINGLASS_NOTE)}</div>')
     elif environment == "real":
-        parts.append(f'<div class="preset-note realgate">{esc(_REAL_GATE_NOTE)}</div>')
+        parts.append(f'<div class="preset-note realgate">{_code_note(_REAL_GATE_NOTE_PARTS)}</div>')
     else:
-        methods = sorted(M.runner_methods(M.flags_for(pid)))
-        parts.append(f'<div class="preset-methods">runner: {esc(", ".join(methods) or "(không có)")}</div>')
-        parts.append(f'<div class="preset-note">{esc(_WYCKOFF_HONESTY)}</div>')
+        permitted = M.runner_methods(M.flags_for(pid))
+        # PANEL-style honesty: never overstate what the pilot can fire. COMBINED-BOOK/PARTIAL are
+        # runnable: false in methods.json (backtest-only, scripts/backtest-methods.py:528) --
+        # strategy-runner.py's own METHODS is methods.runnable(), so a card must intersect with it too.
+        runnable_methods = sorted(permitted & M.runnable())
+        parts.append(f'<div class="preset-methods">runner: '
+                     f'{esc(", ".join(runnable_methods) or "(không có)")}</div>')
+        # Only claim the mechanical Wyckoff rule engine ran where it actually can.
+        if permitted & _WYCKOFF_RUNNER_METHODS:
+            parts.append(f'<div class="preset-note">{_code_note(_WYCKOFF_HONESTY_PARTS)}</div>')
     if tier == "research":
         parts.append(f'<div class="preset-note research">{esc(_RESEARCH_NOTE)}</div>')
     parts.append("</button>")

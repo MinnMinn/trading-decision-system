@@ -41,7 +41,7 @@
     { "id": "wyckoff+ict",           "label": "Wyckoff + ICT",             "dimensions": ["wyckoff", "ict"],                        "tier": "trade" },
     { "id": "wyckoff+footprint",     "label": "Wyckoff + Footprint",       "dimensions": ["wyckoff", "footprint"],                  "tier": "trade" },
     { "id": "wyckoff+ict+footprint", "label": "Wyckoff + ICT + Footprint", "dimensions": ["wyckoff", "ict", "footprint"],           "tier": "trade" },
-    { "id": "full",                  "label": "Day du 4 chieu",            "dimensions": ["wyckoff", "ict", "footprint", "heatmap"], "tier": "trade" }
+    { "id": "full",                  "label": "Đầy đủ 4 chiều",            "dimensions": ["wyckoff", "ict", "footprint", "heatmap"], "tier": "trade" }
   ],
   "_preset_note": "tier research = below the NORMAL minimum of 2 engaged dimensions (SYSTEM-DESIGN.md §6.1), so /analyze can never return TRADE under it; the mechanical pilot still fires. The panel prints that on the card. Preset dimension sets MUST stay pairwise distinct or profile_of stops being a function -- scripts/methods.py raises on load if they collide.",
 
