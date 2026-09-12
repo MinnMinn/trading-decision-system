@@ -69,8 +69,13 @@ _tspec = importlib.util.spec_from_file_location("trading_env", os.path.join(ROOT
 trading_env = importlib.util.module_from_spec(_tspec); _tspec.loader.exec_module(trading_env)
 
 MARKETS = ["crypto", "cfd"]
-MARKET_INSTRUMENTS = {"crypto": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
-                      "cfd":    ["XAUUSD", "XAGUSD", "USOIL", "UKOIL"]}
+# Instrument allowlist: THE single source is docs/architecture/instruments.json, read through scripts/instruments.py.
+# Never hard-code a symbol list here again -- scripts/tests/test_instruments_sync.py fails the build on drift.
+# ANALYSIS != EXECUTION: this list is what the scanner and /analyze may touch; the pilot and the order connectors
+# use instruments.execution(), a subset, so a watch-only symbol can never reach a venue.
+_ispec = importlib.util.spec_from_file_location("instruments", os.path.join(ROOT, "scripts", "instruments.py"))
+instruments = importlib.util.module_from_spec(_ispec); _ispec.loader.exec_module(instruments)
+MARKET_INSTRUMENTS = {m: instruments.analysis(m) for m in instruments.MARKETS}
 # Footprint/Heatmap have NO commodities source (CoinGlass is crypto-derivatives only) -- SYSTEM-DESIGN.md §12 item 3.
 MARKET_DIMENSIONS = {"crypto": ["wyckoff", "ict", "footprint", "heatmap"], "cfd": ["wyckoff", "ict"]}
 # No 1m for cfd (user decision 2026-09-11: CFD scalping runs on M5 -- gold spread makes M1 noise); the EA exports
@@ -92,11 +97,50 @@ STYLE = {("crypto", "1m"): "scalping", ("crypto", "15m"): "daytrade", ("crypto",
          ("cfd", "5m"): "gold-scalp", ("cfd", "15m"): "gold", ("cfd", "1h"): "gold-1h", ("cfd", "4h"): "gold-4h",
          ("cfd", "1D"): "gold-swing"}
 STYLE_MARKET_TF = {v: k for k, v in STYLE.items()}
-# style -> the style whose WORKING window is this style's CONTEXT window (the "giảm khung" pair, knowledge/07 §2.7,
-# WA p93–96). None = the context is a timeframe no style scans (1W). Read by scripts/htf_context.py, build-artifact.py,
-# check-narrative.py and the pilot -- one mapping, never restate it elsewhere.
-CONTEXT_STYLE = {"scalping": "daytrade", "daytrade": "4h", "1h": "swing", "4h": "swing", "swing": None,
-                 "gold-scalp": "gold", "gold": "gold-4h", "gold-1h": "gold-swing", "gold-4h": "gold-swing", "gold-swing": None}
+# ---- Timeframe ladder: ONE rule, ONE table (docs/architecture/timeframe-mapping.md §3, §5). ----------------------------
+# Three tiers per style: Vào lệnh (E, the style's own window) -> Cấu trúc (S) -> Bias (B). Adjacent tiers are the next
+# available rung at least MIN_TIER_RATIO× slower ("rule of four", DailyFX/IG; Elder's factor of five; the TTrades pairing
+# table W→H4, D→H1, H4→M15, M15→M1 is this ladder with the middle rung skipped). The pilot and the backtest derive their
+# structure filter from the same function over the rungs THEY have (next_rung), so no second table exists.
+TF_MINUTES = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "1H": 60, "2h": 120, "2H": 120, "4h": 240, "4H": 240,
+              "1D": 1440, "1W": 10080}
+MIN_TIER_RATIO = 4
+
+
+def next_rung(tf, available):
+    """The slowest-nearest timeframe in `available` that is >= MIN_TIER_RATIO x `tf`; None when there is none."""
+    m = TF_MINUTES[tf]
+    cands = sorted((TF_MINUTES[t], t) for t in available if TF_MINUTES[t] >= MIN_TIER_RATIO * m)
+    return cands[0][1] if cands else None
+
+
+def ladder(tf, available):
+    """(structure_tf, bias_tf) for an entry timeframe over the rungs available in this context."""
+    s = next_rung(tf, available)
+    return s, (next_rung(s, available) if s else None)
+
+
+# Rungs the pages can draw: every scanned timeframe per market plus 1W (fetched for the swing pages, never scanned).
+PAGE_RUNGS = {"crypto": ["1m", "15m", "1h", "4h", "1D", "1W"], "cfd": ["5m", "15m", "1h", "4h", "1D", "1W"]}
+# style -> {"structure": tier, "bias": tier}; tier = {"tf": ..., "style": style-or-None} (None style = chart only, no read).
+TIERS = {}
+for (_mkt, _tf), _style in STYLE.items():
+    _s, _b = ladder(_tf, PAGE_RUNGS[_mkt])
+    TIERS[_style] = {k: ({"tf": t, "style": STYLE.get((_mkt, t))} if t else None) for k, t in (("structure", _s), ("bias", _b))}
+
+
+def gate_style(style):
+    """The tier whose read GATES the working-window verdict (giảm khung, WA p93–96): the bias tier when a scanned style
+    exists for it, else the structure tier. Returns (style, tier_name) or (None, None)."""
+    for name in ("bias", "structure"):
+        t = TIERS[style].get(name)
+        if t and t["style"]:
+            return t["style"], name
+    return None, None
+
+
+# Backwards-compatible alias: style -> gate style (read by htf_context.py, check-narrative.py, the pilot).
+CONTEXT_STYLE = {st: gate_style(st)[0] for st in TIERS}
 # Where each market's OHLCV lands; the 15m file is the "is this instrument actually wired up?" probe.
 DATA_DIR = {"crypto": "market-data", "cfd": "mt5-bridge"}
 
@@ -1011,7 +1055,8 @@ def pilot_start(a, cfg=None, embedded=False):
     if not cfg["layers"]["pilot"]:
         return 2, "layers.pilot is off -- `/automation layer pilot on` first. Nothing was started."
     if not cfg["markets"]["crypto"]["enabled"]:
-        return 2, ("markets.crypto is off and the pilot only trades BTCUSDT/ETHUSDT/SOLUSDT -- "
+        return 2, ("markets.crypto is off and the pilot only trades the crypto `execution` list "
+                   f"({', '.join(instruments.execution('crypto'))}) -- "
                    "`/automation market crypto on` first. Nothing was started.")
     envname = cfg["execution"].get("environment", "demo")
     keys = ("BINANCE_SPOT_API_KEY", "BINANCE_SPOT_SECRET_KEY") if market == "spot" \

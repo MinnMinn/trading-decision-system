@@ -7,12 +7,12 @@ argument-hint: <INSTRUMENT> [MODE=NORMAL|ENHANCED|STRICT] [mock]
 
 Run the full 12-step Decision Pipeline (master system prompt §12) for the instrument given in `$ARGUMENTS`. This command IS the DecisionAgent orchestration layer referenced in `docs/architecture/SYSTEM-DESIGN.md` §5/§6 — you (the main session) perform the synthesis steps directly; you dispatch structure-agent, flow-agent, liquidity-agent, and risk-agent for their respective read-only analysis passes.
 
-**Refuse immediately, before any analysis, if:** the instrument isn't in {BTCUSDT, ETHUSDT, SOLUSDT, XAUUSD, XAGUSD, USOIL, UKOIL}, or is any Forex pair — cite the hard rule and stop.
+**Refuse immediately, before any analysis, if:** the instrument is not on the `analysis` list of `docs/architecture/instruments.json` (read the file; do not trust a remembered list), or is any Forex pair — cite the hard rule and stop.
 
 ## Steps
 
 1. **Data Validation.**
-   - **Crypto instruments (BTCUSDT/ETHUSDT/SOLUSDT):** unless `mock` is in `$ARGUMENTS`, run `scripts/fetch-binance-klines.sh <SYMBOL> <TIMEFRAME>` for each needed timeframe (1D/4H/1H/15m). Exit 0 with `_source: "binance_public_rest_live"` in the output file → `crypto_market_data: AVAILABLE`, read from `data/live/market-data/`. Any failure → `crypto_market_data: UNAVAILABLE`, do not silently fall back to a stale live file or to mock without saying so.
+   - **Crypto instruments** (the `crypto.analysis` entries of `docs/architecture/instruments.json`)**:** unless `mock` is in `$ARGUMENTS`, run `scripts/fetch-binance-klines.sh <SYMBOL> <TIMEFRAME>` for each needed timeframe (1D/4H/1H/15m). Exit 0 with `_source: "binance_public_rest_live"` in the output file → `crypto_market_data: AVAILABLE`, read from `data/live/market-data/`. Any failure → `crypto_market_data: UNAVAILABLE`, do not silently fall back to a stale live file or to mock without saying so.
    - **Commodities (XAUUSD/XAGUSD/USOIL/UKOIL):** if an MT5 bridge file exists under `data/live/mt5-bridge/` and is fresh (per `docs/architecture/mt5-bridge.md`'s staleness rule), report `commodities_market_data: AVAILABLE` and read from it. Otherwise `UNAVAILABLE` — never invent commodities data.
    - **If `mock` is in `$ARGUMENTS`**, or a live fetch failed and the user wants a rehearsal anyway, use `mock/market-data/*.json` and `mock/coinglass/*.json` fixtures instead and set `rehearsal_mode: true` for the whole run.
    - Emit the `DataValidationStatus` block (`docs/architecture/schemas/data-validation-status.schema.json`) — every source AVAILABLE/STALE/UNAVAILABLE/MOCK, explicitly. If `rehearsal_mode` is true, print the banner: `⚠ REHEARSAL MODE — mock data in use, not a live signal.` at the very top of your final output, and again just before the Final Verdict.

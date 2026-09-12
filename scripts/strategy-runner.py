@@ -25,7 +25,7 @@ Rules = the backtest, function for function (scripts/backtest-methods.py, import
   (bt.htf_allows on HTF_OF[tf]) is logged as htf_pass for every signal; orders obey it only for setups with htf=true.
 Risk: PILOT_RISK_PCT of equity per trade (env file, clamped <= 1 %), halved after 2 consecutive losses; futures notional <= 25 % of
 equity x leverage 3, ISOLATED; MT5 lots from the bridge's contract data, capped by the EA's InpMaxLots. One position or resting
-order per symbol, MAX_OPEN per venue, MAX_TRADES_PER_DAY per symbol.
+order per symbol, MAX_OPEN per venue (= that venue's symbol count, i.e. a full book), MAX_TRADES_PER_DAY per symbol.
 Halts (STOP file written with the reason): equity <= 85 % of start (per venue), 5 consecutive losses (per venue), 3 consecutive
 connector errors. Refused per tick: kill switch, automation gate (master/pilot layer/market/profile/environment), event blackout.
 Reconcile (PILOT-06): venue positions/orders this runner does not own block new entries in that symbol.
@@ -54,13 +54,28 @@ MT5_LOG = os.path.join(PILOT_DIR, "top5-mt5-log.jsonl")
 STOP = os.path.join(PILOT_DIR, "STOP")
 AUTOMATION_CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
 SELECTION = os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")
-CRYPTO = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]; CFD = ["XAUUSD", "XAGUSD", "USOIL", "UKOIL"]
+_ispec = importlib.util.spec_from_file_location("instruments", os.path.join(ROOT, "scripts", "instruments.py"))
+instruments = importlib.util.module_from_spec(_ispec); _ispec.loader.exec_module(instruments)
+# EXECUTION list (docs/architecture/instruments.json) -- the orderable subset, never the analysis allowlist.
+CRYPTO = instruments.execution("crypto"); CFD = instruments.execution("cfd")
 DEFAULT_SETUPS = [dict(id="crypto-ict-30m-std25-c", market="crypto", symbols=CRYPTO, tf="30m", method="ICT", ict_target="std25", htf=True, mgmt="be", execution="futures")]
-HTF_OF = {"5m": "30m", "15m": "1H", "30m": "2H", "1H": "4H", "2H": "1D", "4H": "1D", "1D": None}
+# STRUCTURE tier = the next runner timeframe >= 4x (scripts/automation.py next_rung -- the one ladder rule, docs/architecture/
+# timeframe-mapping.md). Over the runner's rungs this yields 5m->30m, 15m->1H, 30m->2H, 1H->4H, 2H->1D, 4H->1D, 1D->None,
+# identical to the table the backtests were run with (scripts/tests/test_timeframe_ladder.py pins it).
+RUNNER_TFS = ["5m", "15m", "30m", "1H", "2H", "4H", "1D"]
+import importlib.util as _iu
+_as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py")); _auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
+HTF_OF = {tf: _auto.next_rung(tf, RUNNER_TFS) for tf in RUNNER_TFS}
 WINDOW = 300
 LEVERAGE = 3
 NOTIONAL_CAP_PCT = 0.25
-MAX_OPEN = 2                 # per venue (futures / mt5)
+# Full book (user decision 2026-09-12): one concurrent position per tradeable symbol, so the per-symbol rule
+# ("one position or resting order per symbol") becomes the only binding cap. Derived from the EXECUTION list
+# (docs/architecture/instruments.json) so adding a symbol raises the book by exactly one slot -- no second edit.
+# RISK NOTE: max simultaneous risk = len(symbols) x PILOT_RISK_PCT. Crypto is near-perfectly correlated in a dump,
+# so a full book is closer to ONE leveraged beta bet than to nine independent ones; EQUITY_HALT_FRAC is what bounds
+# the damage. Dial it back by lowering PILOT_RISK_PCT in config/env.<env>, not by editing this line.
+MAX_OPEN = {"futures": len(CRYPTO), "mt5": len(CFD)}   # per venue
 MAX_TRADES_PER_DAY = 3
 EQUITY_HALT_FRAC = 0.85
 CONSEC_LOSS_HALT = 5
@@ -728,6 +743,13 @@ def tick(live, tick_time=None, ignore_gate=False):
             if s["errors"] >= ERROR_HALT:
                 halt(s, f"{ERROR_HALT} consecutive connector errors")
             save_state(s); return
+        # LIVE ONLY. A dry run reads a NOTIONAL equity (the `or 10000.0` above), so seeding the baseline from it
+        # poisons the live halt check: the next live tick compares the real balance against a number that was never
+        # real and halts instantly. (That is exactly what happened on 2026-09-12 -- a dry run wrote equity_start=10000
+        # into the shared state file while the testnet account held 5000, and the next live tick halted at once.)
+        # For the same reason a dry run must never reach halt(), which writes the STOP kill switch.
+        if not live:
+            continue
         if s["venues"][v]["equity_start"] is None:
             s["venues"][v]["equity_start"] = equity[v]
         if equity[v] <= EQUITY_HALT_FRAC * s["venues"][v]["equity_start"]:
@@ -828,8 +850,8 @@ def tick(live, tick_time=None, ignore_gate=False):
                     reasons = []
                     if sym in s["positions"] or sym in s["pending"]:
                         reasons.append("đã có vị thế/lệnh chờ")
-                    if len(open_same) >= MAX_OPEN:
-                        reasons.append(f"đủ {MAX_OPEN} vị thế ({venue})")
+                    if len(open_same) >= MAX_OPEN[venue]:
+                        reasons.append(f"đủ {MAX_OPEN[venue]} vị thế ({venue})")
                     if s["trades_today"].get(sym, 0) >= MAX_TRADES_PER_DAY:
                         reasons.append("đủ lệnh trong ngày")
                     if blackout:
@@ -867,7 +889,11 @@ def replay(setup_ids, bars=600):
             continue
         bt.OPTS.update(mgmt=st.get("mgmt", "be"), htf=False, sides=("long", "short"), min_rr=0.0, types=(1, 2, 3), range_touches=0, entry="book", combined_entry="limit",
                        ict_target=st.get("ict_target") or "range")
-        for sym in st["symbols"]:
+        # The EXECUTION list, not st["symbols"]: replay must cover exactly what the live loop trades
+        # (enabled_symbols, line ~824) or parity is checked on a different universe than the one that
+        # places orders. Not config-gated -- a market switched off still deserves its parity check.
+        # Symbols with no history file are skipped below.
+        for sym in (CRYPTO if st["market"] == "crypto" else CFD):
             p = f"{ROOT}/data/history/ohlcv.{sym}.{st['tf']}.json"
             if not os.path.exists(p):
                 continue

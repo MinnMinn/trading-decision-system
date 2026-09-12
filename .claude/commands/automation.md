@@ -25,7 +25,7 @@ argument-hint: [status | env | demo | real | on | off | market <crypto|cfd> <on|
 3. **Show the output verbatim** — it lists what was enabled, what was skipped, launchd status, MT5 verdict, and the SESSION CRONS block.
 4. **Skip `/status`** — do not run it after `on` / `demo` / `real`. The script output is the final word.
 5. When the environment is `real`, say **"REAL MONEY"** clearly in your answer.
-6. **Session crons — mandatory if `on`.** (2026-09-11 night: only two remain — `publish-tick` every 5 min and `journal-publish` — because the Sonnet reads and the daily full analyses now run headless from the scanner loop (`scripts/model-read.sh`, `integrations/crons/README.md`); both templates are Sonnet, Haiku is retired.) (2026-09-11: every template now builds, reads and publishes the artifact **in the main session** — the cron turn itself — because a publish is refused unless this conversation has read or published the artifact and a subagent's read does not count; the Sonnet subagents only write the model blocks and run the checkers. Crons live only in the session that created them: if that session closes, artifacts stop updating until `/automation on` is run in an open session.) The script prints a `SESSION CRONS:` block with one `CronCreate(...)` line per enabled template. Read each prompt file and call `CronCreate` exactly as printed. Then `CronList` to confirm count. Do not skip. Background: `integrations/crons/README.md`.
+6. **Session crons — mandatory if `on`.** (2026-09-11 night: only two remain — `publish-tick` every 5 min and `journal-publish` — because the Sonnet reads and the daily full analyses now run headless from the scanner loop (`scripts/model-read.sh`, `integrations/crons/README.md`); both templates are Sonnet, Haiku is retired.) (2026-09-11: every template now builds, reads and publishes the artifact **in the main session** — the cron turn itself — because a publish is refused unless this conversation has read or published the artifact and a subagent's read does not count; the Sonnet subagents only write the model blocks and run the checkers. Crons live only in the session that created them: if that session closes, artifacts stop updating until `/automation on` is run in an open session.) The script prints a `SESSION CRONS:` block with one `CronCreate(...)` line per enabled template. Read each prompt file and call `CronCreate` exactly as printed. Then `CronList` to confirm count. Do not skip. If a CronCreate is refused with "Blocked by classifier", retry that same call once — it has succeeded on the identical retry (see the 2026-09-12 note in integrations/crons/README.md); if the retry is refused twice, stop and tell the user rather than rewording the prompt. Background: `integrations/crons/README.md`.
 
 ## Environments
 
@@ -40,10 +40,11 @@ Loaders: `scripts/trading-env.sh` (bash) and `scripts/trading_env.py` (python). 
 
 ## The v3 shape: markets, not a flat style list
 
-| | `crypto` (BTCUSDT/ETHUSDT/SOLUSDT) | `cfd` (XAUUSD/XAGUSD/USOIL/UKOIL) |
+| | `crypto` | `cfd` |
 |---|---|---|
 | dimensions | wyckoff, ict, footprint, heatmap | wyckoff, ict **only** (no CoinGlass source for commodities, §12 item 3) |
 | timeframes | 1m, 15m, 1h, 4h, 1D | **5m**, 15m, 1h, 4h, 1D — no 1m: CFD scalping runs on M5 (user decision 2026-09-11; the gold spread makes M1 noise). The EA must be recompiled with `ExportOne(PERIOD_M5, "5m")` / `PERIOD_W1` (integrations/mt5/ExportOHLCV.mq5) |
+| instruments | — both columns: the `analysis` list for that market in %s (single source; `python3 scripts/automation.py status` prints the live set) — |
 | data | Binance public REST, live | MT5 file bridge, one charted symbol at a time — today **XAUUSD only** |
 
 `(market, timeframe)` → chart style (`scripts/automation.py` `STYLE`): `1m`→`scalping`, `5m`→`gold-scalp` (cfd only), `15m`→`daytrade`/`gold`, `1h`→`1h`/`gold-1h`, `4h`→`4h`/`gold-4h`, `1D`→`swing`/`gold-swing`. Pages: crypto scalping/day-trade/swing and gold scalping (M5)/day (M15)/swing (D1); 1h/4h are scanner-only context.
@@ -62,7 +63,7 @@ The pilot loop re-reads the config every tick: flipping `layer pilot off` idles 
 
 ## Refusals (exit 2) — cite them, do not argue
 
-- **Forex** — any pair of two currency codes; and anything outside {BTCUSDT, ETHUSDT, SOLUSDT, XAUUSD, XAGUSD, USOIL, UKOIL}.
+- **Forex** — any pair of two currency codes; and anything off the `analysis` list in `docs/architecture/instruments.json` (SYSTEM-DESIGN.md §1). Being on that list makes a symbol scannable and analysable, **not** tradeable: the pilot and `/execute` use the `execution` list, a strict subset.
 - **`dimension footprint|heatmap ... --market cfd`**, **`timeframe 1m ... --market cfd`** and **`timeframe 5m ... --market crypto`** — impossible states, absent from the schema.
 - **`real` while `config/env.real` is incomplete** — correctness, not policy: say exactly which keys are still placeholders.
 - **`pilot start` while a loop is already running** (recorded or not), or while a `STOP` file exists for that market — `on` removes STOP files as part of re-arming; `pilot start` alone does not.

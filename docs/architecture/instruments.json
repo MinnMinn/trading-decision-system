@@ -1,0 +1,56 @@
+{
+  "_comment": "THE single source of truth for the instrument allowlist (SYSTEM-DESIGN.md §1). Nothing else in this repo may hard-code a symbol list: scripts/instruments.py (Python) and scripts/instruments.sh (bash/jq) are the two readers, and scripts/tests/test_instruments_sync.py fails the build if any file drifts from this one. Adding or removing a symbol = edit THIS file, run `python3 scripts/sync-instruments.py --write`, done.",
+  "_policy": "analysis != execution. A symbol on the analysis list is scannable and analysable (scanner, /analyze, /bias, /entry). Only a symbol on the execution list can ever have an order placed on it (pilot, /execute, the Binance connectors). Every execution list MUST be a subset of its analysis list -- scripts/instruments.py enforces this on load and raises on violation. Forex is prohibited outright and can never appear here (SYSTEM-DESIGN.md §1).",
+  "analysis": {
+    "crypto": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "ASTERUSDT",
+      "VIRTUALUSDT",
+      "SUIUSDT",
+      "TAOUSDT",
+      "RENDERUSDT",
+      "ONDOUSDT"
+    ],
+    "cfd": [
+      "XAUUSD",
+      "XAGUSD",
+      "USOIL",
+      "UKOIL"
+    ]
+  },
+  "execution": {
+    "crypto": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "ASTERUSDT",
+      "VIRTUALUSDT",
+      "SUIUSDT",
+      "TAOUSDT",
+      "RENDERUSDT",
+      "ONDOUSDT"
+    ],
+    "cfd": [
+      "XAUUSD",
+      "XAGUSD",
+      "USOIL",
+      "UKOIL"
+    ]
+  },
+  "history": [
+    {
+      "date": "2026-09-12",
+      "change": "analysis.crypto += ASTERUSDT, VIRTUALUSDT, SUIUSDT, TAOUSDT, RENDERUSDT, ONDOUSDT",
+      "reason": "explicit user approval -- \"thêm vài con hàng trong crypto để theo dõi\". Watch only: execution.crypto deliberately left at the core three.",
+      "approved_by": "user (in session)"
+    },
+    {
+      "date": "2026-09-12",
+      "change": "execution.crypto += ASTERUSDT, VIRTUALUSDT, SUIUSDT, TAOUSDT, RENDERUSDT, ONDOUSDT (now equals analysis.crypto, 9 symbols)",
+      "reason": "explicit user approval -- \"thêm cả vào execution đi, tao muốn xem kết quả trade của cả 9 token trong crypto\". CAVEAT ON RECORD: the pilot-top5 setups were backtested on BTCUSDT/ETHUSDT/SOLUSDT only (docs/architecture/pilot-top5.json -> backtest.source); the rule set is UNVALIDATED on the six added symbols, so their results are an experiment, not a measured edge. Environment at the time of approval: demo (Binance TESTNET, fake money).",
+      "approved_by": "user (in session)"
+    }
+  ]
+}

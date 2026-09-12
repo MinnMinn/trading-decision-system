@@ -29,7 +29,11 @@ GATE
 )"
 AUTO_SCANNER="${AUTO_SCANNER:-1}"
 AUTO_STYLES="${AUTO_STYLES:-scalping,daytrade,1h,4h,swing,gold,gold-1h,gold-4h,gold-swing}"
-AUTO_CRYPTO="${AUTO_CRYPTO:-BTCUSDT,ETHUSDT,SOLUSDT}"; AUTO_CFD="${AUTO_CFD:-XAUUSD}"
+# Fallback when the config is unreadable (UNCONFIGURED): the full ANALYSIS allowlist from the single source.
+source "$ROOT/scripts/instruments.sh" 2>/dev/null || true
+AUTO_CRYPTO="${AUTO_CRYPTO:-$(instruments_analysis crypto 2>/dev/null | tr " " ",")}"
+AUTO_CRYPTO="${AUTO_CRYPTO:-BTCUSDT,ETHUSDT,SOLUSDT}"   # last resort if jq/the file is missing
+AUTO_CFD="${AUTO_CFD:-XAUUSD}"
 AUTO_INSTRUMENTS="${AUTO_CRYPTO}${AUTO_CFD:+,$AUTO_CFD}"
 [ "$AUTO_SCANNER" = "1" ] || { echo "$(date -u +%FT%TZ) scanner disabled by /automation" >>"$LOG"; exit 0; }
 # mkdir-based lock (macOS has no flock); a lock older than 5 min is considered stale

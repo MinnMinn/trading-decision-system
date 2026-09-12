@@ -28,8 +28,22 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import method_purity as mp  # noqa: E402
 import artifact_theme as theme  # noqa: E402
+import instruments as I  # noqa: E402
 
-CRYPTO = [("BTCUSDT", "btc", "BTC/USDT", "int"), ("ETHUSDT", "eth", "ETH/USDT", "2"), ("SOLUSDT", "sol", "SOL/USDT", "2")]
+# (short id for CSS/HTML ids, display name, price-format kind: "int" or "2" decimals) -- presentation-only;
+# the symbol SET itself comes from instruments.py (single source of truth, SYSTEM-DESIGN.md §1), never hand-kept here.
+CRYPTO_META = {
+    "BTCUSDT": ("btc", "BTC/USDT", "int"),
+    "ETHUSDT": ("eth", "ETH/USDT", "2"),
+    "SOLUSDT": ("sol", "SOL/USDT", "2"),
+    "ASTERUSDT": ("aster", "ASTER/USDT", "2"),
+    "VIRTUALUSDT": ("virtual", "VIRTUAL/USDT", "2"),
+    "SUIUSDT": ("sui", "SUI/USDT", "2"),
+    "TAOUSDT": ("tao", "TAO/USDT", "2"),
+    "RENDERUSDT": ("render", "RENDER/USDT", "2"),
+    "ONDOUSDT": ("ondo", "ONDO/USDT", "2"),
+}
+CRYPTO = [(sym, *CRYPTO_META[sym]) for sym in I.analysis("crypto")]
 GOLD = [("XAUUSD", "xau", "XAU/USD", "2")]
 MT5 = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
 TF_MIN = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30, "1H": 60, "2H": 120, "4H": 240, "1D": 1440, "1W": 10080}

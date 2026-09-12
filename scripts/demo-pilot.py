@@ -50,7 +50,9 @@ STOP = os.path.join(PILOT_DIR, "STOP")
 LEVERAGE = 3                # futures only; ISOLATED margin; connector refuses > 3
 SIDES = ["LONG"] if MARKET == "spot" else ["LONG", "SHORT"]
 
-SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+_ispec = importlib.util.spec_from_file_location("instruments", os.path.join(ROOT, "scripts", "instruments.py"))
+instruments = importlib.util.module_from_spec(_ispec); _ispec.loader.exec_module(instruments)
+SYMBOLS = instruments.execution("crypto")   # EXECUTION list (docs/architecture/instruments.json), not the allowlist
 TF, N = "15m", 288
 
 # ---- environment (demo testnet | real mainnet) -- scripts/trading_env.py; secrets never printed ----

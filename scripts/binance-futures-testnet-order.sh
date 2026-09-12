@@ -9,7 +9,8 @@
 # never in argv, never printed. An incomplete environment (placeholder keys) exits 2 before any request is signed.
 #
 # HARD SCOPE LIMITS (enforced below, do not silently exceed):
-#   - Symbols: BTCUSDT / ETHUSDT / SOLUSDT only. ISOLATED margin. Leverage <= MAX_LEVERAGE.
+#   - Symbols: the EXECUTION list in docs/architecture/instruments.json (a subset of the analysis
+#     allowlist -- a watch-only symbol can never be ordered here). ISOLATED margin. Leverage <= MAX_LEVERAGE.
 #   - Every order here is a REAL testnet order. This script does not decide to trade; the caller
 #     (demo-pilot.py --market futures, or /execute after a human confirmation) does.
 #
@@ -34,7 +35,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/trading-env.sh" || exit 2
 BASE_URL="$BINANCE_FUTURES_BASE_URL"
 MAX_LEVERAGE=3
-ALLOWED_SYMBOLS="BTCUSDT ETHUSDT SOLUSDT"
+# shellcheck source=instruments.sh
+source "$SCRIPT_DIR/instruments.sh" || exit 2
+# EXECUTION list from docs/architecture/instruments.json -- the orderable subset, never the analysis allowlist.
+ALLOWED_SYMBOLS="$(instruments_execution crypto)"
 
 _check_symbol() {
   case " $ALLOWED_SYMBOLS " in *" $1 "*) ;; *) echo "Refused: symbol $1 not in allowlist ($ALLOWED_SYMBOLS)" >&2; exit 2 ;; esac
