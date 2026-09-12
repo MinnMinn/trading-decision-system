@@ -1,0 +1,53 @@
+{
+  "_comment": "THE single source of truth for the Confluence dimensions, the runner method table and the named presets (spec docs/specs/2026-09-12-method-switch-design.md §3). Nothing else in this repo may hard-code any of the three: scripts/methods.py is the reader, scripts/sync-methods.py regenerates the derived schema enums, and scripts/tests/test_methods_sync.py fails the build if any copy drifts. Twin of instruments.json.",
+  "schema_version": 1,
+
+  "dimensions": {
+    "wyckoff": {
+      "label": "Wyckoff", "markets": ["crypto", "cfd"], "agent": "structure-agent", "skill": "wyckoff-skill",
+      "data_sources": ["ohlcv"], "max_points": 25, "lane": "wyckoff",
+      "note": "Phase A-E vocabulary, doi nhan tests, Effort-vs-Result, SOT, Volume Profile (user decision 2026-09-10). NOT the same thing as the runner's mechanical WYCKOFF method -- see runner_methods."
+    },
+    "ict": {
+      "label": "ICT", "markets": ["crypto", "cfd"], "agent": "structure-agent", "skill": "ict-skill",
+      "data_sources": ["ohlcv"], "max_points": 25, "lane": "ict",
+      "note": "knowledge/04-06 carry no volume of any kind; volume is the only orthogonal axis against Wyckoff (SYSTEM-DESIGN.md §6.1)."
+    },
+    "footprint": {
+      "label": "Footprint", "markets": ["crypto"], "agent": "flow-agent", "skill": "footprint-skill",
+      "data_sources": ["coinglass_footprint"], "max_points": 25, "lane": "footprint",
+      "note": "No commodities source: CoinGlass is crypto-derivatives only (SYSTEM-DESIGN.md §12 item 3)."
+    },
+    "heatmap": {
+      "label": "Heatmap", "markets": ["crypto"], "agent": "liquidity-agent", "skill": "heatmap-skill",
+      "data_sources": ["coinglass_heatmap"], "max_points": 25, "lane": "heatmap",
+      "note": "Same CoinGlass limit. No ingested knowledge/ source either (SYSTEM-DESIGN.md §12 item 1)."
+    }
+  },
+
+  "runner_methods": {
+    "WYCKOFF":       { "requires": ["wyckoff"],       "runnable": true,  "scan": "wyckoff", "entry": "market" },
+    "WYCKOFF-BOOK":  { "requires": ["wyckoff"],       "runnable": true,  "scan": "wyckoff", "entry": "market" },
+    "ICT":           { "requires": ["ict"],           "runnable": true,  "scan": "ict",     "entry": "limit"  },
+    "COMBINED":      { "requires": ["wyckoff","ict"], "runnable": true,  "scan": "ict",     "entry": "limit"  },
+    "COMBINED-BOOK": { "requires": ["wyckoff","ict"], "runnable": false, "scan": "wyckoff", "entry": "market" },
+    "PARTIAL":       { "requires": ["wyckoff","ict"], "runnable": false, "scan": "ict",     "entry": "limit"  }
+  },
+  "_runner_note": "requires[] is the dimension gate, NOT a claim that the runner reproduces that dimension's full read. The runner's WYCKOFF/WYCKOFF-BOOK are mechanical rules (scripts/wyckoff_rules.py: CHoCH gate, TR from SC/AR, Spring vs Shakeout, VP veto); the wyckoff DIMENSION is the skill's discretionary read. Homonyms. runnable=false means backtest-only (scripts/backtest-methods.py:528); scan picks which causal scanner in strategy-runner.py produces the setups.",
+
+  "presets": [
+    { "id": "wyckoff",               "label": "Wyckoff",                   "dimensions": ["wyckoff"],                               "tier": "research" },
+    { "id": "ict",                   "label": "ICT",                       "dimensions": ["ict"],                                   "tier": "research" },
+    { "id": "wyckoff+ict",           "label": "Wyckoff + ICT",             "dimensions": ["wyckoff", "ict"],                        "tier": "trade" },
+    { "id": "wyckoff+footprint",     "label": "Wyckoff + Footprint",       "dimensions": ["wyckoff", "footprint"],                  "tier": "trade" },
+    { "id": "wyckoff+ict+footprint", "label": "Wyckoff + ICT + Footprint", "dimensions": ["wyckoff", "ict", "footprint"],           "tier": "trade" },
+    { "id": "full",                  "label": "Day du 4 chieu",            "dimensions": ["wyckoff", "ict", "footprint", "heatmap"], "tier": "trade" }
+  ],
+  "_preset_note": "tier research = below the NORMAL minimum of 2 engaged dimensions (SYSTEM-DESIGN.md §6.1), so /analyze can never return TRADE under it; the mechanical pilot still fires. The panel prints that on the card. Preset dimension sets MUST stay pairwise distinct or profile_of stops being a function -- scripts/methods.py raises on load if they collide.",
+
+  "history": [
+    { "date": "2026-09-12", "change": "initial registry: 4 dimensions, 6 runner methods, 6 presets",
+      "reason": "extracted from automation.py MARKET_DIMENSIONS, build-artifact.py LANES, strategy-runner.py METHODS and rank-setups.py RUNNABLE, which had drifted into 2-3 hand-kept copies",
+      "approved_by": "user (in session)" }
+  ]
+}
