@@ -274,7 +274,7 @@ def scan_of(name):
 - [ ] **Step 5: Chạy test, phải xanh**
 
 Run: `python3 -m pytest scripts/tests/test_methods.py -q`
-Expected: PASS, 8 passed
+Expected: PASS, 9 passed
 
 - [ ] **Step 6: Commit**
 
