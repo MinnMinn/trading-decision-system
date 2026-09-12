@@ -84,11 +84,14 @@ for _st, _S in STYLES.items():
 VERDICT_CLASS = [("SETUP", "setup"), ("THEO DÕI LONG", "long"), ("THEO DÕI SHORT", "short"), ("PHÁ", "warn"), ("CHỜ", "wait")]
 import htf_context as htf  # noqa: E402
 LANES = [(d, v["label"]) for d, v in _methods.DIMENSIONS.items()]   # source: docs/architecture/methods.json
-# Chart-rendering facts scripts/chart.js needs but methods.json does not own (which lanes have a drawing
-# engine at all, which lane's chart shows the volume pane). Kept here, injected into __PARAMS__, so chart.js
-# has exactly one place to read them instead of hand-keeping its own copy (Task 10b item 4).
+# Chart-rendering fact scripts/chart.js needs but methods.json does not own (which lanes have a shape-drawing
+# engine on the price chart at all). Kept here, injected into __PARAMS__, so chart.js has exactly one place
+# to read it instead of hand-keeping its own copy (Task 10b item 4).
 OVERLAY_LANES = tuple(d for d, _ in LANES if d in ("wyckoff", "ict"))   # only these have shape-drawing engines
-VOLUME_LANES = tuple(d for d, _ in LANES if d == "wyckoff")             # the ICT corpus carries no volume
+# The second pane (under the price chart) per dimension: docs/architecture/methods.json `pane` (kind + label)
+# is THE source -- not a second hand-kept lane list. chart.js renders by kind (volume | range_pct |
+# unavailable); a 5th dimension needs only a registry entry here plus one render branch there.
+PANES = {d: _methods.DIMENSIONS[d]["pane"] for d, _ in LANES}
 
 
 # ----------------------------------------------------------------------------------------------- helpers
@@ -660,7 +663,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
     P = dict(lookback=params.get("lookback_bars", 20), high=vol_p.get("high_min_ratio", 1.5), spike=vol_p.get("spike_min_ratio", 2.5))
     # lane facts chart.js reads instead of hand-keeping its own copy (Task 10b item 4)
     P.update(laneOrder=[m for m, _ in LANES], laneLabels=dict(LANES),
-             overlayLanes=list(OVERLAY_LANES), volumeLanes=list(VOLUME_LANES))
+             overlayLanes=list(OVERLAY_LANES), panes=PANES)
     cfg = read_json(f"{ROOT}/docs/architecture/automation-config.json", {}) or {}
     market = "cfd" if style.startswith("gold") else "crypto"
     dim_flags = ((cfg.get("markets") or {}).get(market) or {}).get("dimensions") or {}

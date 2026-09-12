@@ -6,24 +6,29 @@
     "wyckoff": {
       "label": "Wyckoff", "markets": ["crypto", "cfd"], "agent": "structure-agent", "skill": "wyckoff-skill",
       "data_sources": ["ohlcv"], "max_points": 25, "lane": "wyckoff",
-      "note": "Phase A-E vocabulary, doi nhan tests, Effort-vs-Result, SOT, Volume Profile (user decision 2026-09-10). NOT the same thing as the runner's mechanical WYCKOFF method -- see runner_methods."
+      "note": "Phase A-E vocabulary, doi nhan tests, Effort-vs-Result, SOT, Volume Profile (user decision 2026-09-10). NOT the same thing as the runner's mechanical WYCKOFF method -- see runner_methods.",
+      "pane": {"kind": "volume", "label": "Khối lượng"}
     },
     "ict": {
       "label": "ICT", "markets": ["crypto", "cfd"], "agent": "structure-agent", "skill": "ict-skill",
       "data_sources": ["ohlcv"], "max_points": 25, "lane": "ict",
-      "note": "knowledge/04-06 carry no volume of any kind; volume is the only orthogonal axis against Wyckoff (SYSTEM-DESIGN.md §6.1)."
+      "note": "knowledge/04-06 carry no volume of any kind; volume is the only orthogonal axis against Wyckoff (SYSTEM-DESIGN.md §6.1).",
+      "pane": {"kind": "range_pct", "label": "Vị trí trong dealing range (Premium / Discount)"}
     },
     "footprint": {
       "label": "Footprint", "markets": ["crypto"], "agent": "flow-agent", "skill": "footprint-skill",
       "data_sources": ["coinglass_footprint"], "max_points": 25, "lane": "footprint",
-      "note": "No commodities source: CoinGlass is crypto-derivatives only (SYSTEM-DESIGN.md §12 item 3)."
+      "note": "No commodities source: CoinGlass is crypto-derivatives only (SYSTEM-DESIGN.md §12 item 3).",
+      "pane": {"kind": "unavailable", "label": "Delta / CVD"}
     },
     "heatmap": {
       "label": "Heatmap", "markets": ["crypto"], "agent": "liquidity-agent", "skill": "heatmap-skill",
       "data_sources": ["coinglass_heatmap"], "max_points": 25, "lane": "heatmap",
-      "note": "Same CoinGlass limit. No ingested knowledge/ source either (SYSTEM-DESIGN.md §12 item 1)."
+      "note": "Same CoinGlass limit. No ingested knowledge/ source either (SYSTEM-DESIGN.md §12 item 1).",
+      "pane": {"kind": "unavailable", "label": "Cụm thanh lý (liquidation clusters)"}
     }
   },
+  "_pane_note": "The second chart pane under the price chart, one declared slot per dimension (docs/specs/2026-09-12-chart-lightweight-charts-design.md follow-up, 2026-09-12: replacing an ICT pane apology with a real reading and making the slot declarable). `kind` is one of: `volume` (Wyckoff's rolling-mean volume read, unchanged), `range_pct` (ICT's per-bar position within the dealing range, 0-100%, EQ marked at 50 -- knowledge/04 §2.18-2.19, R13), `unavailable` (footprint/heatmap: no live CoinGlass source yet, so the pane states that honestly instead of standing empty). `label` is the pane's own display name. scripts/build-artifact.py reads this into PARAMS.panes (the only source; there is no second lane->pane-kind list); scripts/chart.js renders each kind with its own function. A 5th dimension needs only a `pane` entry here plus one render branch in chart.js -- scripts/tests/test_methods.py fails the build if a dimension has no `pane` or an unknown `kind`.",
 
   "runner_methods": {
     "WYCKOFF":       { "requires": ["wyckoff"],       "runnable": true,  "scan": "wyckoff", "entry": "market" },
@@ -60,6 +65,9 @@
       "approved_by": "user (in session)" },
     { "date": "2026-09-12", "change": "added a `modes` table (NORMAL/ENHANCED/STRICT unchanged; new SOLO mode: minimum 1, threshold 85) and a `mode` field on every preset; retagged `wyckoff` and `ict` from tier:research to tier:trade",
       "reason": "wyckoff and ict are the only single-dimension presets and were structurally unable to ever pass /analyze's NORMAL minimum of 2 (SYSTEM-DESIGN.md section 6.1), making them permanently research-only; the user wants them usable for real entries. SOLO raises the score bar to 85 (vs NORMAL's 70) to compensate for having no cross-confirming dimension, and is gated to presets that themselves name exactly one dimension -- never derived from a multi-dimension preset degrading to one engaged dimension at runtime (e.g. CoinGlass down), which must keep failing NO TRADE on count exactly as before. This changes a scoring-mode rule inherited from the master spec (SYSTEM-DESIGN.md section 6.1/6.2 previously said minimums are 'unchanged from the master spec').",
+      "approved_by": "user (explicit decision, in session, 2026-09-12)" },
+    { "date": "2026-09-12", "change": "added a `pane` field (kind + label) to every dimension, declaring what the chart's second pane under the price chart shows for that dimension",
+      "reason": "the ICT pane was empty with an implementation-note apology explaining that volume does not belong to ICT and the pane was left blank so the chart would keep its size across method switches; the user asked for it removed and replaced with a real ICT reading (dealing-range position, EQ at 0.5) instead of an unexplained empty box, and for the slot to be declarable so footprint/heatmap can fill it once they have a live source rather than silently going empty again.",
       "approved_by": "user (explicit decision, in session, 2026-09-12)" }
   ]
 }

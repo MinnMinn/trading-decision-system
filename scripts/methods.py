@@ -23,10 +23,21 @@ import instruments as I
 PATH = os.path.join(ROOT, "docs", "architecture", "methods.json")
 
 
+PANE_KINDS = {"volume", "range_pct", "unavailable"}
+
+
 def _validate(d):
     """The invariants _load() must hold. Split out so each can be tested directly with a small inline dict,
     rather than only via the real registry (where a collision may never happen to occur)."""
     modes = d.get("modes", {})
+    for name, dim in d["dimensions"].items():
+        pane = dim.get("pane")
+        if not isinstance(pane, dict) or "kind" not in pane or "label" not in pane:
+            raise ValueError(f"{PATH}: dimension '{name}' has no `pane` spec (kind + label) -- every dimension "
+                              f"must declare what the chart's second pane shows for it, or a future dimension "
+                              f"silently renders an empty pane again.")
+        if pane["kind"] not in PANE_KINDS:
+            raise ValueError(f"{PATH}: dimension '{name}' pane.kind {pane['kind']!r} is not one of {sorted(PANE_KINDS)}.")
     seen = {}
     for p in d["presets"]:
         key = frozenset(p["dimensions"])

@@ -55,6 +55,31 @@ class Registry(unittest.TestCase):
                                      f"multi-dimension preset {p['id']!r} must never be mode SOLO")
 
 
+class Panes(unittest.TestCase):
+    """Every dimension declares a second-pane spec (docs/architecture/methods.json `pane`), so a future 5th
+    dimension cannot silently render an empty pane the way the old hand-written ICT note did."""
+
+    def test_every_dimension_has_a_pane_kind_and_label(self):
+        for name, dim in M.DIMENSIONS.items():
+            self.assertIn("pane", dim, f"dimension {name!r} has no pane spec")
+            self.assertIn(dim["pane"]["kind"], M.PANE_KINDS, f"dimension {name!r} has an unknown pane kind")
+            self.assertTrue(dim["pane"]["label"], f"dimension {name!r} pane has no label")
+
+    def test_wyckoff_pane_is_volume_unchanged(self):
+        self.assertEqual(M.DIMENSIONS["wyckoff"]["pane"]["kind"], "volume")
+
+    def test_ict_pane_is_range_pct_not_volume(self):
+        """ICT carries no volume concept (knowledge/10-integrated-method.md §4.1) -- its pane must never be
+        the volume kind."""
+        self.assertEqual(M.DIMENSIONS["ict"]["pane"]["kind"], "range_pct")
+
+    def test_footprint_and_heatmap_panes_are_unavailable(self):
+        """No live CoinGlass source yet (SYSTEM-DESIGN.md §12) -- must say so honestly, not render an
+        empty box."""
+        self.assertEqual(M.DIMENSIONS["footprint"]["pane"]["kind"], "unavailable")
+        self.assertEqual(M.DIMENSIONS["heatmap"]["pane"]["kind"], "unavailable")
+
+
 class Modes(unittest.TestCase):
     """SYSTEM-DESIGN.md §6.2 SOLO mode: minimum 1, threshold strictly higher than NORMAL's (no
     cross-confirmation to lean on). NORMAL/ENHANCED/STRICT are unchanged from the master spec."""
@@ -81,11 +106,32 @@ class Validation(unittest.TestCase):
 
     def _base(self):
         return {
-            "dimensions": {"wyckoff": {"markets": ["crypto"]}, "ict": {"markets": ["crypto"]}},
+            "dimensions": {
+                "wyckoff": {"markets": ["crypto"], "pane": {"kind": "volume", "label": "Khối lượng"}},
+                "ict": {"markets": ["crypto"], "pane": {"kind": "range_pct", "label": "Dealing range"}},
+            },
             "presets": [{"id": "a", "dimensions": ["wyckoff"], "mode": "SOLO"}],
             "runner_methods": {"WYCKOFF": {"requires": ["wyckoff"]}},
             "modes": {"SOLO": {"minimum": 1, "threshold": 85}, "NORMAL": {"minimum": 2, "threshold": 70}},
         }
+
+    def test_dimension_missing_pane_spec_raises(self):
+        """Exit criteria: a dimension with no declared pane must fail the build, not silently render an
+        empty pane the way the old hand-written ICT note did."""
+        d = self._base()
+        del d["dimensions"]["ict"]["pane"]
+        with self.assertRaises(ValueError) as ctx:
+            M._validate(d)
+        self.assertIn("ict", str(ctx.exception))
+        self.assertIn("pane", str(ctx.exception))
+
+    def test_dimension_unknown_pane_kind_raises(self):
+        d = self._base()
+        d["dimensions"]["ict"]["pane"] = {"kind": "confetti", "label": "x"}
+        with self.assertRaises(ValueError) as ctx:
+            M._validate(d)
+        self.assertIn("ict", str(ctx.exception))
+        self.assertIn("confetti", str(ctx.exception))
 
     def test_duplicate_preset_dimension_sets_raise(self):
         d = self._base()

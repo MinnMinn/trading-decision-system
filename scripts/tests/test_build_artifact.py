@@ -117,6 +117,63 @@ class Engine(unittest.TestCase):
         self.assertGreaterEqual(out["wyN"], 4)  # TR high + TR low + phase band + event mark
 
 
+class NoEmptyIctPaneApology(unittest.TestCase):
+    """The ICT second pane used to be an empty box with an implementation note explaining why it was empty.
+    That sentence must be gone, and VOLUME_LANES must be derived from the pane registry (methods.json), not
+    a hand-kept 'd == wyckoff' name comparison -- a second dimension could later declare a volume pane too."""
+
+    def test_apology_sentence_is_gone_from_chart_js(self):
+        src = open(CHART_JS, encoding="utf-8").read()
+        self.assertNotIn("khối lượng không thuộc ICT", src)
+
+    def test_volume_lanes_is_not_a_hardcoded_name_comparison(self):
+        src = open(os.path.join(ROOT, "scripts", "build-artifact.py"), encoding="utf-8").read()
+        self.assertNotIn('d == "wyckoff"', src)
+
+
+class PaneRegistryDrivesChartJs(unittest.TestCase):
+    """Every dimension's second-pane behaviour comes from ONE injected registry (PARAMS.panes), not a
+    parallel hand-kept list, and chart.js renders each declared kind (Task: ICT pane replacement)."""
+
+    def test_second_pane_choice_reads_the_injected_registry_not_a_lane_name_check(self):
+        src = open(CHART_JS, encoding="utf-8").read()
+        self.assertNotIn("P.volumeLanes", src, "old parallel volume-lane list must be gone")
+        self.assertIn("P.panes", src, "second-pane content must be driven by the injected pane registry")
+        self.assertIn("pane.kind==='volume'", src.replace(" ", ""))
+        self.assertIn("pane.kind==='range_pct'", src.replace(" ", ""))
+
+    def test_a_dimension_missing_a_pane_spec_fails_the_build(self):
+        methods = load("methods.py")
+        import copy
+        bad = copy.deepcopy(methods._DATA)
+        del bad["dimensions"]["ict"]["pane"]
+        with self.assertRaises(ValueError):
+            methods._validate(bad)
+
+
+@unittest.skipUnless(shutil.which("node"), "node not on PATH")
+class RangePctSeriesEngine(unittest.TestCase):
+    """Pure function backing the ICT pane's range_pct kind: per-bar position within the dealing range
+    (ict.lo/ict.hi, already computed by ictAnalyze), 0-100, so it can be checked without a browser."""
+
+    def run_js(self, body):
+        p = subprocess.run(["node", "-e", f"const T=require({json.dumps(CHART_JS)}); {body}"], capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return json.loads(p.stdout)
+
+    def test_series_is_a_pure_function_of_rows_and_dealing_range(self):
+        rows = [[r["time"][5:16], r["open"], r["high"], r["low"], r["close"], r["volume"], r["time"]] for r in synth(120)]
+        P = {"lookback": 20, "high": 1.5, "spike": 2.5, "ict": {}}
+        out = self.run_js(f"const rows={json.dumps(rows)}, P={json.dumps(P)};"
+                          "const ict=T.ictAnalyze(rows,{kz:true,tfMin:15,market:'crypto'},P);"
+                          "const s=T.rangePctSeries(rows,ict);"
+                          "console.log(JSON.stringify({n:s.length, allInRange:s.every(p=>p.value>=0&&p.value<=100), "
+                          "lastMatchesPct:Math.abs(s[s.length-1].value-ict.pct*100)<1e-6}))")
+        self.assertEqual(out["n"], 120)
+        self.assertTrue(out["allInRange"], "every bar's position must be clamped to [0,100]")
+        self.assertTrue(out["lastMatchesPct"], "the series' last point must agree with ict.pct (same lo/hi)")
+
+
 class DimensionFlagsAreReal(unittest.TestCase):
     def test_lanes_come_from_the_registry(self):
         src = open(os.path.join(ROOT, "scripts", "build-artifact.py"), encoding="utf-8").read()
@@ -222,7 +279,12 @@ class ChartJsReadsInjectedLaneFacts(unittest.TestCase):
             self.assertEqual(params.get("laneOrder"), ["wyckoff", "ict", "footprint", "heatmap"])
             self.assertIn("wyckoff", params.get("laneLabels", {}))
             self.assertEqual(set(params.get("overlayLanes", [])), {"wyckoff", "ict"})
-            self.assertEqual(set(params.get("volumeLanes", [])), {"wyckoff"})
+            panes = params.get("panes", {})
+            self.assertEqual(panes["wyckoff"]["kind"], "volume")
+            self.assertEqual(panes["ict"]["kind"], "range_pct")
+            self.assertEqual(panes["footprint"]["kind"], "unavailable")
+            self.assertEqual(panes["heatmap"]["kind"], "unavailable")
+            self.assertTrue(panes["ict"]["label"])
             sym = next(iter(data.values()))
             self.assertIn("engaged", sym)
             self.assertTrue(set(sym["engaged"]) <= {"wyckoff", "ict", "footprint", "heatmap"})
