@@ -119,6 +119,49 @@ class PilotHonesty(unittest.TestCase):
         self.assertNotIn("pilot không chạy ở REAL", mp.render(cfg(env="demo")))
 
 
+class DbWiring(unittest.TestCase):
+    def test_capability_declaration_is_owner_only(self):
+        """PANEL-01: the bare {db:{}} default lets every viewer WRITE the control docs, and declaring db makes
+        the artifact organization-internal. The `user` capability is unavailable, so no viewer identity exists
+        and attribution is impossible -- the only control left is the write rule."""
+        src = open(os.path.join(ROOT, "scripts", "method-panel.py"), encoding="utf-8").read()
+        self.assertIn('"path": ""', src)
+        self.assertIn('"write": "owner"', src)
+        self.assertIn('"read": "owner"', src)
+
+    def test_page_reads_applied_state_from_db_not_from_baked_html(self):
+        html = mp.render(cfg())
+        self.assertIn("control/applied.crypto", html)
+        self.assertIn("control/applied.cfd", html)
+
+    def test_request_doc_is_written_with_exactly_three_keys(self):
+        """PANEL-10: closed shape -- preset, instruments, requested_at. A missing key is an error, never a default."""
+        html = mp.render(cfg())
+        self.assertIn("control/request.crypto", html)
+        self.assertRegex(html, r"preset\s*:|['\"]preset['\"]")
+        self.assertRegex(html, r"instruments\s*:|['\"]instruments['\"]")
+        self.assertRegex(html, r"requested_at\s*:|['\"]requested_at['\"]")
+
+    def test_db_values_never_reach_the_page_as_markup(self):
+        """PANEL-03: textContent only. innerHTML with db content is the XSS sink."""
+        html = mp.render(cfg())
+        js = html[html.index("<script"):]
+        self.assertNotIn("innerHTML", js)
+
+    def test_page_degrades_when_db_is_unavailable(self):
+        """claude.use() resolves null when the capability is not granted; the page must still render."""
+        html = mp.render(cfg())
+        self.assertIn("claude.use", html)
+        self.assertRegex(html, r"null|!db")
+
+    def test_stale_applier_banner_exists(self):
+        """PANEL-07: without a heartbeat check, 'live applied state' is a promise the page cannot keep --
+        with no Claude session open, taps go nowhere forever and the page would look fine."""
+        html = mp.render(cfg())
+        self.assertIn("control/heartbeat", html)
+        self.assertIn("12", html)
+
+
 class NoInjection(unittest.TestCase):
     def test_no_cdn_and_no_external_fetch(self):
         html = mp.render(cfg())

@@ -24,6 +24,19 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import methods as M    # noqa: E402
 import instruments as I  # noqa: E402
 
+# PANEL-01/PANEL-08 (docs/security/2026-09-12-method-panel.md): the bare {"db": {}} default lets every
+# viewer of an org-internal artifact WRITE the shared control docs, and the `user` capability is not on this
+# account's roster, so no viewer identity exists to gate on instead. The only remaining control is the write
+# rule below, pinning both read and write to the artifact owner. Task B4's publish call MUST pass this
+# constant verbatim (or omit `capabilities` to carry the stored declaration forward) -- it must never pass a
+# bare `{"db": {}}`, which would restore the permissive default on republish (PANEL-08).
+CAPABILITIES = {"db": {"rules": [{"path": "", "read": "owner", "write": "owner"}]}}
+
+# PANEL-02: printed once, visibly, near the top of the rendered page -- a tap changes live trading
+# configuration and the panel structurally cannot record who tapped (no `user` capability on this account).
+_DISCLOSURE = ("Chạm vào đây thay đổi cấu hình giao dịch đang chạy. Trang này KHÔNG THỂ ghi nhận ai đã chạm "
+               "-- nhật ký chỉ ghi actor \"artifact-panel\".")
+
 CONFIG_PATH = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
 # scripts/automation.py:169 -- DATA_DIR = {"crypto": "market-data", "cfd": "mt5-bridge"}. Kept as a local
 # constant rather than importing automation.py (build-artifact.py does that only where it needs automation.py's
@@ -233,6 +246,16 @@ body { background: var(--bg); color: var(--text); margin: 0; font-family: var(--
 .badge-locked { background: var(--locked-soft); color: var(--locked); }
 .empty-note { font-size: .78rem; color: var(--text-dim); background: var(--surface-2); border: 1px dashed var(--border);
   border-radius: 8px; padding: .5rem .6rem; }
+.disclosure { font-size: .74rem; color: var(--text-dim); margin: 0; }
+.db-banner { font-size: .78rem; padding: .5rem .7rem; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-dim); }
+.db-banner[data-kind="ready"] { color: var(--good); border-color: var(--good); background: var(--good-soft); }
+.db-banner[data-kind="readonly"] { color: var(--nodata); border-color: var(--nodata); background: var(--nodata-soft); }
+.heartbeat-banner { font-size: .78rem; padding: .5rem .7rem; border-radius: 8px; border: 1px solid var(--danger);
+  background: var(--danger-soft); color: var(--danger); }
+.request-status { font-size: .72rem; color: var(--text-dim); }
+.preset-card.is-desired { outline: 2px dashed var(--accent); outline-offset: 2px; }
+.chip.is-desired { outline: 2px dashed var(--accent); outline-offset: 1px; }
 </style>"""
 
 _TIER_LABEL = {"trade": "Đủ điều kiện vào lệnh", "research": "Chỉ nghiên cứu"}
@@ -340,8 +363,322 @@ def _market_column(market, config, data_present, backtested, open_positions, env
         f'<div class="group-label">Cặp theo dõi</div>'
         f'{empty_note}'
         f'<ul class="chip-grid">{chips}</ul>'
+        f'<div class="request-status" data-market="{market}" aria-live="polite">chưa gửi</div>'
         f'</section>'
     )
+
+
+# --------------------------------------------------------------------------------------------------------- db JS
+# Wiring per docs/plans/2026-09-12-method-panel.md Task B2 and the runtime-contract-0.2.46 db.d.ts call
+# contract (loaded via the artifact-capabilities skill before this was written -- not from memory).
+#
+# Design notes (see the task report for the fuller reasoning):
+#  - `window.claude.use("db")` is awaited inside an IIFE placed at the end of the document; the browser has
+#    already painted the static (build-time) markup by the time this script tag runs, and the promise itself
+#    never resolves during this script's first synchronous pass (per claude.d.ts) -- so the page always shows
+#    the baked state first, then lights up. Controls start DISABLED (inert) until the promise settles, one way
+#    or the other: `null` (or no `window.claude` at all, e.g. a saved file opened directly) keeps them
+#    disabled and shows a read-only banner; a real namespace enables them and starts the three kinds of
+#    subscriptions.
+#  - Optimistic vs confirmed: tapping a preset/chip only ever sets a LOCAL "desired" indicator (a dashed
+#    outline via the `is-desired` class) and a per-market status line. `aria-pressed` on preset cards and
+#    chips is driven exclusively by the live `control/applied.<market>` snapshot -- never by a tap -- so a
+#    request can never be mistaken for something already in force.
+#  - A request document is always the full three-key desired set (PANEL-10): `{preset, instruments,
+#    requested_at}`, never a delta. Rapid taps within DEBOUNCE_MS collapse into a single `.set()`.
+#  - Write failures: `unavailable`/`resource_exhausted` retry once after a short randomized delay (db.d.ts's
+#    own guidance for verbs); `not_granted`/`revoked` permanently degrade to read-only; anything else clears
+#    the pending "desired" indicator and shows an inline failure -- a failed write never leaves a card looking
+#    selected.
+#  - Every value read from `db` is compared as a plain string/array against what the page itself already
+#    rendered from the registry (PANEL-03): no db string is ever used to build a CSS selector, an attribute,
+#    or markup -- only `===` comparisons and `textContent` assignments.
+_SCRIPT = """<script>
+(function () {
+  "use strict";
+
+  var MARKETS = ["crypto", "cfd"];
+  var STALE_MS = 12 * 60 * 1000;
+  var DEBOUNCE_MS = 400;
+  var RETRY_DELAY_MS = 600;
+  // Literal per-market document paths (CRON-06/PANEL-06: touch only the known control documents --
+  // never build a path by concatenating a runtime value into it).
+  var APPLIED_DOC_PATH = { "crypto": "control/applied.crypto", "cfd": "control/applied.cfd" };
+  var REQUEST_DOC_PATH = { "crypto": "control/request.crypto", "cfd": "control/request.cfd" };
+  var HEARTBEAT_DOC_PATH = "control/heartbeat";
+
+  var db = null;
+  var dbReady = false;
+  var applied = {};          // market -> {preset, instruments, applied_at, requested_at} | null
+  var request = {};          // market -> {preset, instruments, requested_at} | null
+  var pendingDesired = {};   // market -> {preset, instruments} | null -- unsent/in-flight local edits
+  var writeTimer = {};
+  var heartbeatAt = null;    // Date | null
+
+  function qa(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+  function q(sel) { return document.querySelector(sel); }
+
+  function marketPresetCards(market) { return qa('.preset-card[data-market="' + market + '"]'); }
+  function marketChips(market) { return qa('.chip-item[data-market="' + market + '"] .chip'); }
+  function statusEl(market) { return q('.request-status[data-market="' + market + '"]'); }
+  function dbBanner() { return q(".db-banner"); }
+  function heartbeatBanner() { return q(".heartbeat-banner"); }
+
+  function setStatusText(market, text) {
+    var el = statusEl(market);
+    if (el) { el.textContent = text; }
+  }
+
+  function setDbBanner(kind, text) {
+    var el = dbBanner();
+    if (!el) return;
+    el.setAttribute("data-kind", kind);
+    el.textContent = text;
+  }
+
+  function setControlsEnabled(enabled) {
+    MARKETS.forEach(function (market) {
+      marketPresetCards(market).forEach(function (card) {
+        if (card.getAttribute("aria-disabled") === "true") return; // CoinGlass lock stays locked regardless
+        card.disabled = !enabled;
+      });
+      marketChips(market).forEach(function (chip) { chip.disabled = !enabled; });
+    });
+  }
+
+  function isPlainObject(v) { return v !== null && typeof v === "object" && !Array.isArray(v); }
+
+  // PANEL-03: never trust shape or content. A field of the wrong type is simply dropped, never coerced.
+  function validDoc(data) {
+    if (!isPlainObject(data)) return null;
+    return {
+      preset: typeof data.preset === "string" ? data.preset : null,
+      instruments: Array.isArray(data.instruments)
+        ? data.instruments.filter(function (s) { return typeof s === "string"; })
+        : [],
+      requested_at: typeof data.requested_at === "string" ? data.requested_at : null,
+      applied_at: typeof data.applied_at === "string" ? data.applied_at : null
+    };
+  }
+
+  function sameInstrumentSet(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    var sa = a.slice().sort(), sb = b.slice().sort();
+    for (var i = 0; i < sa.length; i++) { if (sa[i] !== sb[i]) return false; }
+    return true;
+  }
+
+  function formatTs(raw) {
+    if (typeof raw !== "string") return "(không rõ)";
+    var d = new Date(raw);
+    return isNaN(d.getTime()) ? "(không rõ)" : d.toLocaleString("vi-VN");
+  }
+
+  // The build-time baked selection (what B1 rendered from automation-config.json), used only until the
+  // first live applied/request snapshot arrives -- read from the page's OWN rendered attributes, never from
+  // a db value, so this is always a trusted starting point.
+  function bakedState(market) {
+    var preset = null;
+    marketPresetCards(market).forEach(function (c) {
+      if (c.getAttribute("aria-pressed") === "true") preset = c.getAttribute("data-preset");
+    });
+    var instruments = [];
+    marketChips(market).forEach(function (c) {
+      if (c.getAttribute("aria-pressed") === "true") instruments.push(c.getAttribute("data-symbol"));
+    });
+    return { preset: preset, instruments: instruments };
+  }
+
+  function desiredBase(market) {
+    if (pendingDesired[market]) return pendingDesired[market];
+    if (applied[market]) return { preset: applied[market].preset, instruments: applied[market].instruments.slice() };
+    if (request[market]) return { preset: request[market].preset, instruments: request[market].instruments.slice() };
+    return bakedState(market);
+  }
+
+  function renderMarket(market) {
+    var doc = applied[market];
+    var pending = pendingDesired[market];
+    marketPresetCards(market).forEach(function (card) {
+      var pid = card.getAttribute("data-preset");
+      if (card.getAttribute("aria-disabled") !== "true") {
+        card.setAttribute("aria-pressed", (doc && doc.preset === pid) ? "true" : "false");
+      }
+      card.classList.toggle("is-desired", !!pending && pending.preset === pid);
+    });
+    var appliedSymbols = doc ? doc.instruments : [];
+    marketChips(market).forEach(function (chip) {
+      var sym = chip.getAttribute("data-symbol");
+      chip.setAttribute("aria-pressed", appliedSymbols.indexOf(sym) !== -1 ? "true" : "false");
+      chip.classList.toggle("is-desired", !!pending && pending.instruments.indexOf(sym) !== -1);
+    });
+    updateStatusLine(market);
+  }
+
+  function requestMatchesApplied(market) {
+    var req = request[market], doc = applied[market];
+    if (!req || !doc) return false;
+    return doc.preset === req.preset && sameInstrumentSet(doc.instruments, req.instruments)
+      && doc.requested_at === req.requested_at;
+  }
+
+  function updateStatusLine(market) {
+    if (pendingDesired[market]) { setStatusText(market, "chưa gửi"); return; }
+    var req = request[market], doc = applied[market];
+    if (!req) {
+      setStatusText(market, doc ? "đã áp dụng lúc " + formatTs(doc.applied_at) : "chưa gửi");
+      return;
+    }
+    setStatusText(market, requestMatchesApplied(market)
+      ? "đã áp dụng lúc " + formatTs(doc.applied_at)
+      : "đang chờ áp dụng (≤ 5 phút)");
+  }
+
+  function pendingMinutesAcrossMarkets() {
+    var max = null;
+    MARKETS.forEach(function (market) {
+      if (!request[market] || requestMatchesApplied(market)) return;
+      var reqAt = Date.parse(request[market].requested_at);
+      if (isNaN(reqAt)) return;
+      var minutes = Math.max(0, Math.round((Date.now() - reqAt) / 60000));
+      if (max === null || minutes > max) max = minutes;
+    });
+    return max;
+  }
+
+  function renderHeartbeatBanner() {
+    var el = heartbeatBanner();
+    if (!el) return;
+    var age = heartbeatAt ? (Date.now() - heartbeatAt.getTime()) : Infinity;
+    if (age <= STALE_MS) { el.hidden = true; el.textContent = ""; return; }
+    el.hidden = false;
+    var mins = pendingMinutesAcrossMarkets();
+    el.textContent = (mins === null)
+      ? "không có tiến trình áp dụng — bộ áp dụng không phản hồi"
+      : "không có tiến trình áp dụng — yêu cầu đang treo " + mins + " phút";
+  }
+
+  function scheduleWrite(market) {
+    if (writeTimer[market]) clearTimeout(writeTimer[market]);
+    writeTimer[market] = setTimeout(function () { flushWrite(market, 1); }, DEBOUNCE_MS);
+  }
+
+  function flushWrite(market, attempt) {
+    if (!db || !dbReady) return;
+    var desired = pendingDesired[market];
+    if (!desired) return;
+    var doc = { preset: desired.preset, instruments: desired.instruments.slice(),
+                requested_at: new Date().toISOString() };
+    db.doc(REQUEST_DOC_PATH[market]).set(doc).then(function () {
+      if (pendingDesired[market] === desired) pendingDesired[market] = null;
+      request[market] = doc;
+      renderMarket(market);
+    }).catch(function (err) { handleWriteError(market, err, attempt, desired); });
+  }
+
+  function handleWriteError(market, err, attempt, desired) {
+    var code = err && err.code;
+    if ((code === "unavailable" || code === "resource_exhausted") && attempt < 2) {
+      setTimeout(function () { flushWrite(market, attempt + 1); },
+        RETRY_DELAY_MS + Math.floor(Math.random() * RETRY_DELAY_MS));
+      return;
+    }
+    if (code === "not_granted" || code === "revoked") {
+      dbReady = false;
+      setControlsEnabled(false);
+      setDbBanner("readonly", "Chỉ xem — quyền ghi đã bị thu hồi.");
+    } else {
+      setStatusText(market, "gửi thất bại — thử lại");
+    }
+    // A failed write must never leave the card looking selected: drop the pending desired state and
+    // repaint from the last known applied snapshot.
+    if (pendingDesired[market] === desired) pendingDesired[market] = null;
+    renderMarket(market);
+  }
+
+  function onPresetClick(market, presetId) {
+    if (!dbReady) return;
+    var base = desiredBase(market);
+    pendingDesired[market] = { preset: presetId, instruments: base.instruments.slice() };
+    renderMarket(market);
+    scheduleWrite(market);
+  }
+
+  function onChipClick(market, symbol) {
+    if (!dbReady) return;
+    var base = desiredBase(market);
+    var instruments = base.instruments.slice();
+    var idx = instruments.indexOf(symbol);
+    if (idx === -1) { instruments.push(symbol); } else { instruments.splice(idx, 1); }
+    pendingDesired[market] = { preset: base.preset, instruments: instruments };
+    renderMarket(market);
+    scheduleWrite(market);
+  }
+
+  document.addEventListener("click", function (evt) {
+    var card = evt.target.closest ? evt.target.closest(".preset-card") : null;
+    if (card) {
+      if (!card.disabled) onPresetClick(card.getAttribute("data-market"), card.getAttribute("data-preset"));
+      return;
+    }
+    var chip = evt.target.closest ? evt.target.closest(".chip") : null;
+    if (chip && !chip.disabled) {
+      var li = chip.closest(".chip-item");
+      if (li) onChipClick(li.getAttribute("data-market"), chip.getAttribute("data-symbol"));
+    }
+  });
+
+  function subscribeMarket(market) {
+    db.doc(APPLIED_DOC_PATH[market]).onSnapshot(function (snap) {
+      applied[market] = snap.exists ? validDoc(snap.data()) : null;
+      renderMarket(market);
+      renderHeartbeatBanner();
+    }, function () { applied[market] = null; renderMarket(market); });
+
+    db.doc(REQUEST_DOC_PATH[market]).onSnapshot(function (snap) {
+      request[market] = snap.exists ? validDoc(snap.data()) : null;
+      updateStatusLine(market);
+      renderHeartbeatBanner();
+    }, function () { request[market] = null; });
+  }
+
+  function subscribeHeartbeat() {
+    db.doc(HEARTBEAT_DOC_PATH).onSnapshot(function (snap) {
+      var data = snap.exists ? snap.data() : null;
+      var at = (isPlainObject(data) && typeof data.at === "string") ? Date.parse(data.at) : NaN;
+      heartbeatAt = isNaN(at) ? null : new Date(at);
+      renderHeartbeatBanner();
+    }, function () { heartbeatAt = null; renderHeartbeatBanner(); });
+  }
+
+  function boot() {
+    setControlsEnabled(false); // inert until claude.use("db") settles, one way or the other
+    if (!window.claude || typeof window.claude.use !== "function") {
+      setDbBanner("readonly", "Chỉ xem — trình xem này không hỗ trợ bộ nhớ điều khiển.");
+      return;
+    }
+    window.claude.use("db").then(function (namespace) {
+      if (!namespace) {
+        db = null; dbReady = false;
+        setDbBanner("readonly",
+          "Chỉ xem — không có quyền ghi (chưa được cấp hoặc trình xem không hỗ trợ).");
+        return;
+      }
+      db = namespace; dbReady = true;
+      setDbBanner("ready", "Đã kết nối — chạm để thay đổi cấu hình đang chạy.");
+      setControlsEnabled(true);
+      MARKETS.forEach(subscribeMarket);
+      subscribeHeartbeat();
+    }).catch(function () {
+      db = null; dbReady = false;
+      setDbBanner("readonly", "Chỉ xem — không kết nối được bộ nhớ điều khiển.");
+    });
+  }
+
+  setInterval(renderHeartbeatBanner, 30000);
+  boot();
+})();
+</script>"""
 
 
 def render(config, data_present=None, backtested=None, open_positions=None):
@@ -360,7 +697,16 @@ def render(config, data_present=None, backtested=None, open_positions=None):
         '<div class="panel-head"><h1>Công tắc phương pháp</h1>'
         f'<span class="env-pill" data-env="{esc(environment)}">{esc(env_label)}</span></div>'
     )
-    return f'{_STYLE}\n<main class="panel">{header}<div class="markets">{columns}</div></main>'
+    # PANEL-02: printed unconditionally, static text -- never derived from db.
+    disclosure = f'<p class="disclosure">{esc(_DISCLOSURE)}</p>'
+    # PANEL-06/PANEL-07: connectivity + stale-applier banners. Both start inert/hidden; the script block
+    # fills them in once claude.use("db") settles and the control/heartbeat subscription reports.
+    db_banner = '<div class="db-banner" data-kind="connecting" role="status" aria-live="polite">' \
+                'Đang kết nối tới bộ nhớ điều khiển…</div>'
+    heartbeat_banner = '<div class="heartbeat-banner" data-kind="unknown" role="alert" aria-live="assertive" ' \
+                        'hidden></div>'
+    return (f'{_STYLE}\n<main class="panel">{header}{disclosure}{db_banner}{heartbeat_banner}'
+            f'<div class="markets">{columns}</div></main>\n{_SCRIPT}')
 
 
 # --------------------------------------------------------------------------------------------------------- main
