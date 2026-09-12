@@ -20,6 +20,8 @@
 #   account | balance | position-risk [SYM] | open-orders [SYM] | user-trades <SYM> [LIMIT] | income <SYM> [LIMIT]
 #   set-margin-type <SYM> ISOLATED | set-leverage <SYM> <N>     # N <= MAX_LEVERAGE
 #   open-long <SYM> <QTY> | open-short <SYM> <QTY>              # MARKET, newOrderRespType=RESULT
+#   open-long-limit <SYM> <QTY> <PRICE> [CLIENT_ID] | open-short-limit ...   # LIMIT, timeInForce=GTX (post-only: -5022 instead of taking); CLIENT_ID = idempotency key
+#   order-by-client-id <SYM> <CLIENT_ID>                        # resolve a timed-out POST without re-sending it
 #   stop-market <SYM> <SIDE> <STOP_PRICE>                       # closePosition=true, workingType=MARK_PRICE
 #   take-profit-market <SYM> <SIDE> <PRICE>                     # closePosition=true, workingType=MARK_PRICE
 #   close-position <SYM>                                        # MARKET reduceOnly for the whole positionAmt
@@ -87,7 +89,7 @@ from decimal import Decimal
 import sys
 raw, step = Decimal(sys.argv[1]), Decimal(sys.argv[2])
 v = (raw // step) * step
-print(v.normalize() if v == v.to_integral() else v)' "$1" "$2"
+print(format(v.normalize(), "f"))' "$1" "$2"   # format(..., "f"): never scientific notation (3.86E+4 was rejected by Binance, 2026-09-11)
 }
 
 cmd="${1:-}"
@@ -123,6 +125,9 @@ for s in d["symbols"]:
     _signed POST /fapi/v1/leverage "symbol=$2&leverage=$lev" | _pretty ;;
   open-long) _check_symbol "${2:?}"; _signed POST /fapi/v1/order "symbol=$2&side=BUY&type=MARKET&quantity=${3:?}&newOrderRespType=RESULT" | _pretty ;;
   open-short) _check_symbol "${2:?}"; _signed POST /fapi/v1/order "symbol=$2&side=SELL&type=MARKET&quantity=${3:?}&newOrderRespType=RESULT" | _pretty ;;
+  open-long-limit) _check_symbol "${2:?}"; _signed POST /fapi/v1/order "symbol=$2&side=BUY&type=LIMIT&timeInForce=GTX&quantity=${3:?}&price=${4:?}&newOrderRespType=RESULT${5:+&newClientOrderId=$5}" | _pretty ;;
+  open-short-limit) _check_symbol "${2:?}"; _signed POST /fapi/v1/order "symbol=$2&side=SELL&type=LIMIT&timeInForce=GTX&quantity=${3:?}&price=${4:?}&newOrderRespType=RESULT${5:+&newClientOrderId=$5}" | _pretty ;;
+  order-by-client-id) _check_symbol "${2:?}"; _signed GET /fapi/v1/order "symbol=$2&origClientOrderId=${3:?}" | _pretty ;;
   stop-market) _check_symbol "${2:?}"; side="${3:?SELL|BUY}"; _signed POST /fapi/v1/order "symbol=$2&side=$side&type=STOP_MARKET&stopPrice=${4:?}&closePosition=true&workingType=MARK_PRICE&priceProtect=TRUE" | _pretty ;;
   take-profit-market) _check_symbol "${2:?}"; side="${3:?SELL|BUY}"; _signed POST /fapi/v1/order "symbol=$2&side=$side&type=TAKE_PROFIT_MARKET&stopPrice=${4:?}&closePosition=true&workingType=MARK_PRICE&priceProtect=TRUE" | _pretty ;;
   close-position) _check_symbol "${2:?}"
@@ -134,5 +139,5 @@ for s in d["symbols"]:
   order-status) _check_symbol "${2:?}"; _signed GET /fapi/v1/order "symbol=$2&orderId=${3:?}" | _pretty ;;
   cancel-order) _check_symbol "${2:?}"; _signed DELETE /fapi/v1/order "symbol=$2&orderId=${3:?}" | _pretty ;;
   cancel-all) _check_symbol "${2:?}"; _signed DELETE /fapi/v1/allOpenOrders "symbol=$2" | _pretty ;;
-  *) echo "Usage: $0 {check|exchange-info|filters|price|mark-price|round-qty|round-price|account|balance|position-risk|open-orders|user-trades|income|set-margin-type|set-leverage|open-long|open-short|stop-market|take-profit-market|close-position|order-status|cancel-order|cancel-all} ..." >&2; exit 1 ;;
+  *) echo "Usage: $0 {check|exchange-info|filters|price|mark-price|round-qty|round-price|account|balance|position-risk|open-orders|user-trades|income|set-margin-type|set-leverage|open-long|open-short|open-long-limit|open-short-limit|order-by-client-id|stop-market|take-profit-market|close-position|order-status|cancel-order|cancel-all} ..." >&2; exit 1 ;;
 esac

@@ -1,10 +1,12 @@
 {
   "schema_version": 3,
   "_comment": "Written by scripts/automation.py (/automation). execution.environment may ALSO be edited by hand to switch between config/env.demo and config/env.real; `/automation demo|real` writes it too. The schema at docs/architecture/schemas/automation-config.schema.json is the contract.",
-  "enabled": true,
+  "enabled": false,
   "execution": {
     "environment": "demo",
-    "_note": "demo = Binance TESTNET via config/env.demo; real = Binance MAINNET (real money) via config/env.real. Switch by hand here or with `/automation demo|real`. The connectors and the pilot read this on every call; an environment file with placeholder secrets refuses to execute."
+    "pilot_profile": "top5",
+    "_note": "demo = Binance TESTNET via config/env.demo; real = Binance MAINNET (real money) via config/env.real. Switch by hand here or with `/automation demo|real`. The connectors and the pilot read this on every call; an environment file with placeholder secrets refuses to execute.",
+    "setup_spec": "top 5 (1y)"
   },
   "markets": {
     "crypto": {
@@ -38,6 +40,7 @@
         "ict": true
       },
       "timeframes": {
+        "5m": true,
         "15m": true,
         "1h": true,
         "4h": true,
@@ -52,20 +55,19 @@
   },
   "services": {
     "scanner_agent": false,
-    "pilot_agents": [
-      "com.tyme.trading.pilot"
-    ],
-    "keepawake_pid": 21691
+    "pilot_agents": [],
+    "keepawake_pid": null
   },
   "pilot_process": {
     "pid": 0,
-    "market": "spot",
-    "started_at": "2026-09-10T16:08:52Z",
-    "started_by": "claude:session_01KPk8z4famux11BiotDFhVm",
-    "log": "data/live/pilot/loop.log",
-    "launchd_label": "com.tyme.trading.pilot"
+    "market": "futures",
+    "started_at": "2026-09-11T15:13:19Z",
+    "started_by": "claude:session_01Ad4FsYEdbjnsEwD3nbLtxC",
+    "log": "data/live/pilot-futures/loop.log",
+    "launchd_label": "com.tyme.trading.pilot.futures",
+    "stopped_at": "2026-09-11T19:54:59Z"
   },
-  "last_updated": "2026-09-10T16:33:47Z",
+  "last_updated": "2026-09-11T19:54:59Z",
   "history": [
     {
       "ts": "2026-09-10T10:06:03Z",
@@ -541,6 +543,146 @@
       "actor": "test",
       "action": "on",
       "detail": "test verbose cleanup",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T18:52:16Z",
+      "actor": "claude:session_01KPk8z4famux11BiotDFhVm",
+      "action": "on",
+      "detail": "re-arm scanner launchd agent, detected not installed during backlog catch-up",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-10T23:50:42Z",
+      "actor": "claude:session_01KPk8z4famux11BiotDFhVm",
+      "action": "off",
+      "detail": "user ran /automation off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T08:22:35Z",
+      "actor": "claude:session_01VogPds1HeZMyYpv5QrtG4d",
+      "action": "on",
+      "detail": "user ran /automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T09:57:30Z",
+      "actor": "claude:session_01VogPds1HeZMyYpv5QrtG4d",
+      "action": "off",
+      "detail": "user ran /automation off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T09:58:19Z",
+      "actor": "claude:session_017N7Na7v3TeJwnvZ9pwfTBP",
+      "action": "on",
+      "detail": "user ran /automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T10:17:10Z",
+      "actor": "claude:session_017N7Na7v3TeJwnvZ9pwfTBP",
+      "action": "off",
+      "detail": "user ran /automation off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T10:18:07Z",
+      "actor": "claude:session_01HvqSbTMKvsiSZEgptAKmcD",
+      "action": "setup top 5",
+      "detail": "/automation on setup top 5",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T10:18:07Z",
+      "actor": "claude:session_01HvqSbTMKvsiSZEgptAKmcD",
+      "action": "on",
+      "detail": "/automation on setup top 5",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T10:23:06Z",
+      "actor": "claude:session_01HvqSbTMKvsiSZEgptAKmcD",
+      "action": "on",
+      "detail": "/automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T10:40:18Z",
+      "actor": "claude:session_01HvqSbTMKvsiSZEgptAKmcD",
+      "action": "on",
+      "detail": "regenerate cron prompts after gold artifact URL change",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T10:53:18Z",
+      "actor": "claude:session",
+      "action": "pilot profile top5",
+      "detail": "user decision 2026-09-11: /automation on runs scalping/day/swing for crypto and CFD",
+      "result": "no-op"
+    },
+    {
+      "ts": "2026-09-11T10:56:43Z",
+      "actor": "claude:session_01HvqSbTMKvsiSZEgptAKmcD",
+      "action": "off",
+      "detail": "/automation off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T10:57:11Z",
+      "actor": "claude:session_01DCeT1vqnEpFx7poafde8YV",
+      "action": "on",
+      "detail": "/automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T15:07:09Z",
+      "actor": "claude:session_01DCeT1vqnEpFx7poafde8YV",
+      "action": "off",
+      "detail": "/automation off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T15:08:01Z",
+      "actor": "claude:session_0117cBHdig2Gs4J9jEAfNvGd",
+      "action": "market cfd=on",
+      "detail": "on market CFD",
+      "result": "no-op"
+    },
+    {
+      "ts": "2026-09-11T15:08:34Z",
+      "actor": "claude:session_0117cBHdig2Gs4J9jEAfNvGd",
+      "action": "on",
+      "detail": "on market CFD",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T15:11:02Z",
+      "actor": "claude:session_0117cBHdig2Gs4J9jEAfNvGd",
+      "action": "off",
+      "detail": "off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T15:13:19Z",
+      "actor": "claude:session_01Ad4FsYEdbjnsEwD3nbLtxC",
+      "action": "on",
+      "detail": "/automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T15:16:54Z",
+      "actor": "claude:session_01Ad4FsYEdbjnsEwD3nbLtxC",
+      "action": "on",
+      "detail": "/automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-11T19:54:59Z",
+      "actor": "claude:session_01Ad4FsYEdbjnsEwD3nbLtxC",
+      "action": "off",
+      "detail": "/automation off",
       "result": "applied"
     }
   ]

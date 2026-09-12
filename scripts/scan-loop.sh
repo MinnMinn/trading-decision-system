@@ -38,6 +38,10 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 now() { date -u +%FT%TZ; }
+# Headless model layer (user decision 2026-09-11): after a style's scanner pass, start its Sonnet local read outside the session
+# (scripts/model-read.sh gates on /automation and on its own per-style interval, so calling it every tick is cheap). The daily full
+# analysis is started once a day in the 07:30-07:59Z window. Both are detached so the scanner never waits for a model.
+model_read() { local style=$1 kind=${2:-local}; ( nohup bash "$ROOT/scripts/model-read.sh" "$style" "$kind" >>"$ROOT/data/live/model-reads.log" 2>&1 </dev/null & ) ; }
 run_style() { # tf n style recent [symbols]   (symbols from the MT5 bridge are not fetched here: the EA writes them)
   local tf=$1 n=$2 style=$3 recent=$4 syms=${5:-$AUTO_CRYPTO} s out rc keep=""
   case ",$AUTO_STYLES," in *",$style,"*) ;; *) echo "$(now) $style disabled by /automation" >>"$LOG"; return 0 ;; esac
@@ -69,17 +73,20 @@ with open("data/live/events.jsonl", "a") as f:
         f.write(json.dumps({"t": d.get("_scanned_at"), "style": os.environ["STYLE"], **e}, ensure_ascii=False) + "\n")
 ' 2>>"$LOG"
   fi
-  echo "$(now) $style rc=$rc" >>"$LOG"
+  echo "$(now) $style rc=$rc" >>"$LOG"; case "$rc" in 0|3) model_read "$style" local ;; esac
 }
 FORCE="${1:-}"                       # scan-loop.sh all  -> run every style now (manual / first run)
 M=$(date -u +%M); H=$(date -u +%H)
 run_style 1m 180 scalping 4
-case "$M" in 01|16|31|46) run_style 15m 288 daytrade 2; run_style 15m 200 gold 2 "$AUTO_CFD" ;; esac
+# CFD scalping on M5 (user decision 2026-09-11): one minute after each 5-minute close
+case "$M" in *1|*6) run_style 5m 288 gold-scalp 4 "$AUTO_CFD" ;; esac
+case "$M" in 01|16|31|46) run_style 15m 288 daytrade 2; run_style 15m 288 gold 2 "$AUTO_CFD" ;; esac
 # 1h styles: minute :02 of every hour. 4h styles: minute :03 of every 4th hour (:03 not :02 so the hourly pass
 # and the 4-hourly pass never contend for the same minute's lock). Swing keeps its original :02 / H%4 slot.
 if [ "$M" = "02" ]; then run_style 1H 240 1h 2; run_style 1H 240 gold-1h 2 "$AUTO_CFD"; fi
-if [ "$M" = "02" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 1D 120 swing 1; run_style 1D 120 gold-swing 1 "$AUTO_CFD"; fi
+if [ "$M" = "02" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 1D 120 swing 1; run_style 1D 120 gold-swing 1 "$AUTO_CFD"; for s in ${AUTO_CRYPTO//,/ }; do bash scripts/fetch-binance-klines.sh "$s" 1W 104 >/dev/null 2>>"$LOG" || echo "$(now) fetch FAIL $s 1W" >>"$LOG"; done; fi   # 1W = swing context chart only, not scanned
 if [ "$M" = "03" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 4H 180 4h 2; run_style 4H 180 gold-4h 2 "$AUTO_CFD"; fi
-if [ "$FORCE" = "all" ]; then run_style 15m 288 daytrade 2; run_style 1H 240 1h 2; run_style 4H 180 4h 2; run_style 1D 120 swing 1; run_style 15m 200 gold 2 "$AUTO_CFD"; run_style 1H 240 gold-1h 2 "$AUTO_CFD"; run_style 4H 180 gold-4h 2 "$AUTO_CFD"; run_style 1D 120 gold-swing 1 "$AUTO_CFD"; fi
+if [ "$H" = "07" ] && [ "$M" -ge 30 ] && [ "$M" -le 59 ]; then for st in scalping daytrade swing gold-scalp gold gold-swing; do model_read "$st" full; done; fi   # once a day (model-read.sh keeps the 20 h interval)
+if [ "$FORCE" = "all" ]; then run_style 5m 288 gold-scalp 4 "$AUTO_CFD"; run_style 15m 288 daytrade 2; run_style 1H 240 1h 2; run_style 4H 180 4h 2; run_style 1D 120 swing 1; run_style 15m 288 gold 2 "$AUTO_CFD"; run_style 1H 240 gold-1h 2 "$AUTO_CFD"; run_style 4H 180 gold-4h 2 "$AUTO_CFD"; run_style 1D 120 gold-swing 1 "$AUTO_CFD"; fi
 # keep the log bounded
 if [ "$(wc -l < "$LOG")" -gt 5000 ]; then tail -n 2000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"; fi

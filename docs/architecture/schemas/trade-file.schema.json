@@ -192,9 +192,10 @@
         "manual",
         "analyze",
         "pilot_spot",
-        "pilot_futures"
+        "pilot_futures",
+        "pilot_mt5"
       ],
-      "description": "who produced the record: /analyze pipeline, the rules-only demo pilot, or a hand entry"
+      "description": "who produced the record: /analyze pipeline, the rules-only demo pilot, a hand entry, or the profile-top5 CFD leg (real orders on the MT5 DEMO account through integrations/mt5/OrderBridge.mq5)"
     },
     "timeframe": {
       "type": "string",
@@ -273,6 +274,15 @@
       "items": {
         "type": "string"
       }
+    },
+    "strategy": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "profile-top5 pilot only (scripts/strategy-runner.py): which mechanical rule produced the trade; absent for every other source"
+    },
+    "htf_pass": {
+      "type": "boolean",
+      "description": "profile-top5 pilot only: whether the 2H boundary filter (backtest config C) allowed the direction at signal time; logged either way so B vs C can be compared from the journal"
     },
     "screenshots": {
       "type": "array",

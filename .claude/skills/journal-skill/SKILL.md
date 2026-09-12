@@ -27,7 +27,7 @@ Storage design: `docs/architecture/SYSTEM-DESIGN.md` §8. Format: `trades/README
 
 ### Tooling
 Use `python3 scripts/journal.py` for every mechanical step below (`sync-pilot`, `review`, `index`, `views`, `stats`,
-`render`); do not re-implement them by hand. Demo-pilot trades are ingested with `sync-pilot`, never typed in.
+`render`); do not re-implement them by hand. Demo-pilot trades are ingested with `sync-pilot`, never typed in. Since 2026-09-11 `scripts/pilot-loop.sh` runs `journal.py all` after every pilot tick (mechanical, no model) and the `journal-publish` session cron (`integrations/crons/journal-publish.md`) publishes the page when it changed — so an empty journal after a night of pilot ticks means the pilot's rules never passed (the page's first section shows the evaluation counts and the top rejection reasons), not that the sync failed.
 
 ### Regenerating `trades/index.jsonl`
 Scan every `trades/*.md` file, extract its frontmatter, write one JSON line per file. This file is fully derived — never hand-edit it, never partially update it; always rebuild from scratch so it can't drift from the source `.md` files.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs the pilot every 15 minutes (aligned to 15m candle closes).
+# Runs the pilot every 15 minutes (legacy profile, aligned to 15m closes) or every 30 minutes (profile top5, futures).
 #   Usage: [PILOT_MARKET=spot|futures] [PILOT_END=<UTC ISO>|never] pilot-loop.sh [END_UTC_ISO|never]
 #   spot -> data/live/pilot (LONG only); futures -> data/live/pilot-futures (LONG/SHORT, ISOLATED, leverage <= 3).
 # Environment (demo testnet / real mainnet) is decided by docs/architecture/automation-config.json
@@ -19,7 +19,21 @@ echo "pilot loop [$PILOT_MARKET] env=${ENVNAME:-?} started $(date -u +%FT%TZ), e
 while :; do
   [ -f "$PD/STOP" ] && { echo "STOP file found, exiting" | tee -a "$PD/loop.log"; break; }
   if [ "$END" != "never" ] && [ "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \> "$END" ]; then echo "end time reached" | tee -a "$PD/loop.log"; break; fi
-  python3 "$ROOT/scripts/demo-pilot.py" --live --market "$PILOT_MARKET" >> "$PD/loop.log" 2>&1 || echo "tick error $(date -u +%FT%TZ)" >> "$PD/loop.log"
-  # sleep to 1 minute past the next quarter-hour so the 15m candle has closed
-  now=$(date -u +%s); next=$(( (now / 900 + 1) * 900 + 60 )); sleep $(( next - now ))
+  # Pilot profile (user decision 2026-09-11): execution.pilot_profile in docs/architecture/automation-config.json, read every tick
+  # (read-only here; scripts/automation.py is the writer). top5 = scripts/strategy-runner.py on the FUTURES loop only.
+  PROFILE="$(python3 -c 'import json;print(json.load(open("'"$ROOT"'/docs/architecture/automation-config.json")).get("execution",{}).get("pilot_profile","legacy"))' 2>/dev/null || echo legacy)"
+  if [ "$PROFILE" = "top5" ] && [ "$PILOT_MARKET" = "futures" ]; then
+    python3 "$ROOT/scripts/strategy-runner.py" --live >> "$PD/loop.log" 2>&1 || echo "top5 tick error $(date -u +%FT%TZ)" >> "$PD/loop.log"
+  elif [ "$PROFILE" = "top5" ]; then
+    # one profile = one rule set: while top5 is selected the spot loop idles (the legacy spot rules would be a second, unrelated strategy)
+    echo "$(date -u +%FT%TZ) profile top5: spot loop idle (top5 trades futures testnet + MT5 demo only)" >> "$PD/loop.log"
+  else
+    python3 "$ROOT/scripts/demo-pilot.py" --live --market "$PILOT_MARKET" >> "$PD/loop.log" 2>&1 || echo "tick error $(date -u +%FT%TZ)" >> "$PD/loop.log"
+  fi
+  # journal sync (mechanical, no model): ingest any entry/exit this tick produced, rebuild index/views/page.
+  # The page is published by the journal-publish session cron when it changed (integrations/crons/journal-publish.md).
+  python3 "$ROOT/scripts/journal.py" all >> "$PD/loop.log" 2>&1 || echo "journal sync error $(date -u +%FT%TZ)" >> "$PD/loop.log"
+  # sleep to 1 minute past the next candle close: 15m for the legacy rules; for profile top5 the fastest selected timeframe (5m..1D)
+  if [ "$PROFILE" = "top5" ] && [ "$PILOT_MARKET" = "futures" ]; then period="$(python3 "$ROOT/scripts/strategy-runner.py" --tick-seconds 2>/dev/null || echo 1800)"; else period=900; fi
+  now=$(date -u +%s); next=$(( (now / period + 1) * period + 60 )); sleep $(( next - now ))
 done

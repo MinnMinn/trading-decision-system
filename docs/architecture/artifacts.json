@@ -1,0 +1,35 @@
+{
+ "_comment": "style -> artifact URL + built page path. Written by scripts/publish-plan.py --mark (single writer); a PENDING url is replaced by the URL the first publish creates. Read by the session publish tick (integrations/crons/publish-tick.md).",
+ "styles": {
+  "daytrade": {
+   "url": "https://claude.ai/code/artifact/46b302c5-3a72-45f4-89d3-0a7eef282453",
+   "out": "data/live/.vi-daytrade-live.html",
+   "favicon": "⚡"
+  },
+  "gold": {
+   "url": "https://claude.ai/code/artifact/97773ba6-6903-412d-99dd-25fc33c690bb",
+   "out": "data/live/.vi-gold-live.html",
+   "favicon": "⚡"
+  },
+  "gold-scalp": {
+   "url": "https://claude.ai/code/artifact/7238cd92-2b73-49c9-819f-02edba87018d",
+   "out": "data/live/.vi-gold-scalp-live.html",
+   "favicon": "⚡"
+  },
+  "gold-swing": {
+   "url": "https://claude.ai/code/artifact/7013f87b-0ee2-43c8-9372-7bb6d929d326",
+   "out": "data/live/.vi-gold-swing-live.html",
+   "favicon": "⚡"
+  },
+  "scalping": {
+   "url": "https://claude.ai/code/artifact/59f0b15b-9d2c-4ac7-b15f-f630ae4a1c49",
+   "out": "data/live/.tmp-scalping-vi.html",
+   "favicon": "⚡"
+  },
+  "swing": {
+   "url": "https://claude.ai/code/artifact/c5cb9060-4e2a-4a53-be8c-f4c911c28961",
+   "out": "data/live/.vi-swing-live.html",
+   "favicon": "⚡"
+  }
+ }
+}

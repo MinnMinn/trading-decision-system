@@ -1,6 +1,13 @@
 # MT5 File-Bridge — commodities/CFD market data
 
-Referenced by `docs/architecture/SYSTEM-DESIGN.md` §3 and `data-sources.md`. This replaces the earlier "commodities provider TBD via Alpha Vantage/Twelve Data/etc." plan with a more direct approach: **pull the data straight out of the MT5 terminal you're actually trading on**, via a small Expert Advisor that writes JSON files, the same way the Binance connector writes files for crypto. No third-party commodities API, no extra account, no extra API key.
+Referenced by `docs/architecture/SYSTEM-DESIGN.md` §3 and `data-sources.md`.
+
+## Order bridge (2026-09-11, user decision: real orders on the MT5 DEMO account)
+
+`integrations/mt5/OrderBridge.mq5` is a second EA, attached to any one chart, that turns the same Common\Files folder into an order channel: `scripts/mt5-order-bridge.py` writes `bridge/cmd-<id>.json` (temp file + rename), the EA polls every second, executes, writes `bridge/res-<id>.json` and deletes the command; it also refreshes `bridge/state.json` (account, positions, orders) and `bridge/symbols.json` (tick size/value, volume min/max/step, digits). Verbs: `check | account | state | symbol | limit <SYM> <buy|sell> <LOTS> <PRICE> <SL> <TP> [COMMENT] | market <SYM> <buy|sell> <LOTS> <SL> <TP> [COMMENT] | cancel | modify | close | order-status | position-status` (`market` = Wyckoff entries at the bar close, SL/TP attached). Hard limits live in the EA (`InpDemoOnly`, symbol allowlist, `InpMaxLots`, magic number, SL/TP mandatory on every pending order) and are repeated on the Python side (allowlist, timeout → exit 3, a timed-out command file is removed so a later EA start never executes it). Consumer: `scripts/strategy-runner.py` (pilot profile `top5`, CFD setups, `execution: "mt5"`).
+
+Install: copy `OrderBridge.mq5` next to `ExportOHLCV.mq5` in `MQL5/Experts/`, compile in MetaEditor, attach to one chart of the demo account, allow algo trading, then `python3 scripts/mt5-order-bridge.py check` must print `"demo": true`. **Status: verified 2026-09-11 on the demo account (login masked, $100k, USD):** compiled through MetaEditor via the bundled Wine (0 errors); `check` → demo true; pending BUY LIMIT 0.01 lot far below market placed (retcode 10009), read back `pending`, cancelled, read back `canceled`; market BUY 0.01 with SL/TP filled at 4351.87, SL modified (breakeven path), closed by the bridge (reason `expert`, P&L −0.50 = spread), account back to no orders/positions. Two things learned: the terminal needs the toolbar **Algo Trading** button on and the EA's "Allow Algo Trading" ticked (else retcode 10027), and this broker lists XAUUSD/XAGUSD but not USOIL/UKOIL (the EA's `symbols.json` only carries symbols `SymbolSelect` accepts). The EA escapes backslashes/quotes in JSON strings since the fix that followed the first live ping; the connector also tolerates an older build. Python side covered by `scripts/tests/test_strategy_runner.py` (fake EA).
+ This replaces the earlier "commodities provider TBD via Alpha Vantage/Twelve Data/etc." plan with a more direct approach: **pull the data straight out of the MT5 terminal you're actually trading on**, via a small Expert Advisor that writes JSON files, the same way the Binance connector writes files for crypto. No third-party commodities API, no extra account, no extra API key.
 
 ## Why a file bridge, not the official MetaTrader5 Python package
 
@@ -8,7 +15,7 @@ MetaQuotes' official `MetaTrader5` Python package only works on **Windows** — 
 
 ## Components
 
-1. **`integrations/mt5/ExportOHLCV.mq5`** — an Expert Advisor you attach to one chart of the instrument you want (e.g. XAUUSD, any timeframe). It exports **all four** timeframes (1D/4H/1H/15m) for that symbol on a timer and on every new bar close, into files named `ohlcv.<SYMBOL>.<TIMEFRAME>.json` in MT5's shared "Common\Files" folder — the *exact same field shape* as the Binance connector's output, so Skills don't need to know or care which venue the data came from.
+1. **`integrations/mt5/ExportOHLCV.mq5`** — an Expert Advisor you attach to one chart of the instrument you want (e.g. XAUUSD, any timeframe). It exports **six** timeframes (1W/1D/4H/1H/15m/5m — 5m and 1W added 2026-09-11 for the CFD scalping page and the swing context chart; recompile in MetaEditor and re-attach after pulling that change) for that symbol on a timer and on every new bar close, into files named `ohlcv.<SYMBOL>.<TIMEFRAME>.json` in MT5's shared "Common\Files" folder — the *exact same field shape* as the Binance connector's output, so Skills don't need to know or care which venue the data came from.
 
    **Status: written, not yet tested against a real MT5 terminal.** Install it, attach it to a chart, check the Experts/Journal log tab for errors or the printed "Common data folder" path, and tell me what happens — I'll fix anything that doesn't work first try.
 
@@ -56,7 +63,7 @@ This bridge is **read-only** — it exports market data, it does not place order
 
 `ExportOHLCV` v1.01 attached to XAUUSD H1 in MetaTrader 5 (macOS build, prefix
 `~/Library/Application Support/net.metaquotes.wine.metatrader5`). `scripts/mt5-bridge-check.sh XAUUSD` → AVAILABLE
-for 1D/4H/1H/15m, files refreshed every 60 s (`last_updated`), 200 candles each (EA input `InpBarsToExport`).
+for 1W/1D/4H/1H/15m/5m, files refreshed every 60 s (`last_updated`), 300 candles each (EA input `InpBarsToExport`, raised from 200 on 2026-09-11 so the 288-bar 15m and 5m windows are full).
 Checked: timestamps are UTC (`_server_utc_offset_sec: 10800`, i.e. server UTC+3 — the 15m candle open times match
 the wall clock, the daily candle opens at 21:00Z = broker midnight), all six fields present, `_volume_caveat`
 present (tick volume, not traded volume — Effort-vs-Result reads on gold use it as a proxy only).

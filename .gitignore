@@ -43,4 +43,13 @@ config/secrets*.local.*
 !docs/mistakes/**
 !docs/backtests/
 !docs/backtests/**
+!docs/audits/
+!docs/audits/**
+!docs/plans/
+!docs/plans/**
+!docs/prompts/
+!docs/prompts/**
+!docs/security/
+!docs/security/**
 __pycache__/
+data/history/

@@ -1,0 +1,11 @@
+---
+name: publish-tick
+cron: "*/5 * * * *"
+model: sonnet
+market: crypto
+timeframe: 15m
+layer: local_read
+artifact: docs/architecture/artifacts.json
+note: The ONLY per-style cron since 2026-09-11 (night). The model layer runs headless outside the session (scripts/model-read.sh, started by scan-loop.sh, one Sonnet process per style in parallel); this tick just builds and publishes whatever changed. Per-style gates are checked inside scripts/publish-plan.py.
+---
+RUNTIME GATE (no judgement, do this first, in this session): run `python3 scripts/automation.py allows local_read daytrade`; if it exits 2 AND `python3 scripts/automation.py allows local_read gold` also exits 2, skip silently and do nothing else — automation is OFF (any session may have set it). Otherwise: PUBLISH TICK (read-only research; no trading; no subagent; no reasoning about the market). Run `python3 scripts/publish-plan.py` — it prints one line per style that is permitted by /automation and whose model blocks / narrative / facts are newer than its last publish: `<style> <url|PENDING_CREATE_ON_FIRST_RUN> <out-path> <build-command>`. If it prints nothing, reply "nothing to publish" and stop. For EACH line, in order: (1) run the build command exactly as printed (append ` --snapshot-dir {{SCRATCHPAD}}/publish-<style>`); it must print `BUILD OK` — on exit 2 (a method block leaked the other method's vocabulary) report the offending block for that style and continue with the next style, never pass --allow-impure. (2) If the url is a real https URL: Artifact action='read' with that url (the result may say the HTML was saved to a file — fine, do not Read that file), then Artifact action='publish' with file_path=<out-path> AND that url, no favicon; if refused because a newer version exists, read once more and publish once more, then move on. If the url is PENDING_CREATE_ON_FIRST_RUN: Artifact action='publish' with file_path=<out-path>, NO url, favicon '⚡', and take the URL from the result. (3) `python3 scripts/publish-plan.py --mark <style>` (add ` --url <new-url>` when you just created it). Never pass force. Reply with one line per style: `<style>: BUILD OK · published <url>` or `<style>: <error>`.

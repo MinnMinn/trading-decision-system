@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Layer-3 narrative (đánh giá toàn diện) for one chart style — data/live/narrative/<style>.json",
+  "description": "Wyckoff phase grammar is enforced by scripts/check-narrative.py: phases contiguous from A (A, A-B, A-B-C, …) in chronological order; event labels start with a Wyckoff event name (PS/SC/AR/ST/UA/Spring/Shakeout/Test/LPS/SOS/BU · PSY/BC/UT/UTAD/SOW/LPSY) and sit in their own phase; Phase A needs SC/BC, Phase C needs a test event (Spring/Shakeout/Test/LPS[C]/UTAD), Phase D needs SOS/LPS/BU (SOW/LPSY); SOS/SOW on volume < 1.0× is refused (WA p83–84 — that is UA/UT). Written ONLY by the daily full analysis (Sonnet). Rendered by scripts/build-artifact.py; validated by scripts/check-narrative.py (numbers from facts/candles, method purity via scripts/method_purity.py, consistency with data/live/anchors.<style>.json). Every per-method text uses only that method's vocabulary; Wyckoff-vs-ICT de-duplication (knowledge/10 §4.3) is stated ONLY in synthesis_html. Events and phases are addressed by candle time, never by index. Write atomically (temp file + rename).",
+  "type": "object",
+  "required": ["style", "updated", "mode", "headline", "symbols"],
+  "properties": {
+    "style": {"enum": ["scalping", "daytrade", "1h", "4h", "swing", "gold-scalp", "gold", "gold-1h", "gold-4h", "gold-swing"]},
+    "updated": {"type": "string", "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\dZ$"},
+    "source": {"type": "string", "description": "one line: which snapshot/brief this analysis was made from"},
+    "mode": {"enum": ["NORMAL", "ENHANCED", "STRICT"]},
+    "headline": {"type": "object", "required": ["text"], "properties": {"text": {"type": "string"}, "detail": {"type": "string"}}},
+    "symbols": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["verdict", "wyckoff", "ict", "synthesis_html"],
+        "properties": {
+          "verdict": {"enum": ["CHỜ", "THEO DÕI LONG", "THEO DÕI SHORT", "SETUP TIỀM NĂNG"]},
+          "invalidation": {"type": "object", "required": ["owner", "level", "rule"], "properties": {"owner": {"enum": ["wyckoff", "ict"]}, "level": {"type": "number"}, "rule": {"type": "string", "description": "e.g. 'đóng cửa dưới'"}}},
+          "lookback_html": {"type": "string", "description": "'Nhìn lại' — what resolved since the previous analysis; cross-method allowed (synthesis vocabulary)"},
+          "synthesis_html": {"type": "string", "description": "'Hiện tại' — the combined read, verdict reasoning, de-duplication statement, invalidation owner. Any vocabulary."},
+          "wyckoff": {
+            "type": "object", "required": ["text_html"],
+            "properties": {
+              "structure": {"type": "string", "description": "tích lũy | phân phối | tái tích lũy | tái phân phối | chưa xác lập"},
+              "phase": {"type": "string", "description": "A–E, or null when the CHoCH gate is not evidenced"},
+              "regime": {"enum": ["TRENDING", "RANGING", "TRANSITIONAL", "UNCLEAR"]},
+              "trading_range": {"type": "object", "properties": {"high": {"type": "number"}, "high_label": {"type": "string"}, "low": {"type": "number"}, "low_label": {"type": "string"}, "from": {"type": "string", "description": "ISO time the range starts (AR/SC)"}}},
+              "phases": {"type": "array", "items": {"type": "object", "required": ["from", "label"], "properties": {"from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string"}}}},
+              "events": {"type": "array", "items": {"type": "object", "required": ["time", "label"], "properties": {"time": {"type": "string"}, "label": {"type": "string", "description": "Wyckoff vocabulary only, ≤ 28 chars, e.g. 'SC 76,676 · KL 7.88×'"}, "up": {"type": "boolean", "description": "true = flag above the candle high, false = below the low"}}}},
+              "text_html": {"type": "string", "description": "Wyckoff read in Wyckoff vocabulary only (price + volume); <p> paragraphs each ending in <span class=\"cite\">…</span>"}
+            }
+          },
+          "ict": {
+            "type": "object", "required": ["text_html"],
+            "properties": {
+              "levels": {"type": "array", "items": {"type": "object", "required": ["price", "label"], "properties": {"price": {"type": "number"}, "label": {"type": "string", "description": "ICT vocabulary only"}, "time": {"type": "string"}}}},
+              "text_html": {"type": "string", "description": "ICT read in ICT vocabulary only — no Wyckoff event names, no volume (knowledge/10 §4.1)"}
+            }
+          },
+          "footprint": {"type": "object", "properties": {"status": {"enum": ["available", "unavailable", "off"]}, "text_html": {"type": "string", "description": "Wyckoff vocabulary allowed as foundation; no ICT vocabulary"}}},
+          "heatmap": {"type": "object", "properties": {"status": {"enum": ["available", "unavailable", "off"]}, "text_html": {"type": "string"}}},
+          "timeline": {"type": "array", "items": {"type": "object", "required": ["time", "event"], "properties": {"time": {"type": "string"}, "event": {"type": "string", "description": "neutral description of what price did"}, "wyckoff": {"type": "string"}, "ict": {"type": "string"}}}},
+          "context": {
+            "type": "object",
+            "description": "The higher-timeframe overview chart (e.g. 4H×180 for daytrade). Numbers must come from that style's own facts (scripts/local-eval-brief.py 4h) or its candles.",
+            "properties": {
+              "wyckoff": {"type": "object", "properties": {"trading_range": {"$ref": "#/properties/symbols/additionalProperties/properties/wyckoff/properties/trading_range"}, "phases": {"$ref": "#/properties/symbols/additionalProperties/properties/wyckoff/properties/phases"}, "events": {"$ref": "#/properties/symbols/additionalProperties/properties/wyckoff/properties/events"}, "text_html": {"type": "string"}}},
+              "ict": {"type": "object", "properties": {"text_html": {"type": "string"}}}
+            }
+          }
+        }
+      }
+    }
+  }
+}

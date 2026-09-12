@@ -40,6 +40,15 @@
           "enum": ["demo", "real"],
           "description": "demo = Binance TESTNET (fake funds) via config/env.demo. real = Binance MAINNET (REAL MONEY) via config/env.real. The value selects which env file scripts/trading-env.sh / scripts/trading_env.py load: endpoints (testnet.binance.vision + testnet.binancefuture.com vs api.binance.com + fapi.binance.com) and credentials (Keychain references or literals). Every order connector and the pilot read it on every call, so switching takes effect on the next tick. An environment whose required secrets are empty or __FILL_ME__ makes every execution path exit 2 ('environment incomplete') -- a correctness check, not a policy block. The scanner and the local read never place orders and ignore this value. Hard rules that survive in both environments: no Forex, the 7-instrument allowlist, PILOT_RISK_PCT clamped to <= 1% per trade."
         },
+        "pilot_profile": {
+          "type": "string",
+          "enum": ["legacy", "top5"],
+          "description": "Which rule set scripts/pilot-loop.sh runs (user decision 2026-09-11). legacy = scripts/demo-pilot.py (15m SSL/BSL sweep -> MSS -> FVG, market entries). top5 = scripts/strategy-runner.py: the three most stable backtested rules (ICT 30m, COMBINED 30m, ICT 1H; docs/backtests/2026-09-11-stability-by-timeframe.md) with post-only LIMIT entries at the FVG edge, STOP_MARKET + TAKE_PROFIT_MARKET exits, breakeven at +1R, time stop; FUTURES loop only, the spot loop always runs legacy. Set with `/automation pilot profile <name>`; read by the loop on every tick. Missing = legacy."
+        },
+        "setup_spec": {
+          "type": "string",
+          "description": "Set by `/automation on|demo setup top N` (2026-09-11): the spec that produced docs/architecture/pilot-top5.json, e.g. 'top 3 (1y)'. Informational; the runner reads the selection file, not this."
+        },
         "_note": { "type": "string" }
       }
     },
@@ -117,8 +126,9 @@
               "type": "object",
               "additionalProperties": false,
               "required": ["15m", "1h", "4h", "1D"],
-              "description": "15m -> gold (15m/200), 1h -> gold-1h (1H/240), 4h -> gold-4h (4H/180), 1D -> gold-swing (1D/120). The bar counts above 200 are project parameters, not source-derived: the EA's InpBarsToExport is 200, so a longer window simply yields fewer bars until it is raised.",
+              "description": "5m -> gold-scalp (5m/288, CFD scalping; M1 rejected 2026-09-11 because the gold spread makes it noise), 15m -> gold (15m/288), 1h -> gold-1h (1H/240), 4h -> gold-4h (4H/180), 1D -> gold-swing (1D/120, 1W context). The EA's InpBarsToExport is 300; a longer window simply yields fewer bars until it is raised.",
               "properties": {
+                "5m":  { "type": "boolean" },
                 "15m": { "type": "boolean" },
                 "1h":  { "type": "boolean" },
                 "4h":  { "type": "boolean" },

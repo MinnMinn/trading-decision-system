@@ -19,7 +19,7 @@
 #property copyright "Institutional Trading System MT5 Bridge"
 #property version   "1.01"
 
-input int InpBarsToExport     = 200;  // How many recent bars to export per timeframe
+input int InpBarsToExport     = 300;  // How many recent bars to export per timeframe (>= 288 for the 3-day 15m / 24h M5 windows)
 input int InpExportIntervalSec = 60;  // Seconds between timer-driven exports
 
 string g_symbol;
@@ -67,10 +67,12 @@ void OnTick()
 //+------------------------------------------------------------------+
 void ExportAllTimeframes()
 {
+   ExportOne(PERIOD_W1,  "1W");   // swing context (2 years)
    ExportOne(PERIOD_D1,  "1D");
    ExportOne(PERIOD_H4,  "4H");
    ExportOne(PERIOD_H1,  "1H");
    ExportOne(PERIOD_M15, "15m");
+   ExportOne(PERIOD_M5,  "5m");   // CFD scalping window (user decision 2026-09-11: M5, not M1)
 }
 
 //+------------------------------------------------------------------+

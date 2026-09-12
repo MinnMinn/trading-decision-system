@@ -5,7 +5,7 @@ SYMBOL="${1:-XAUUSD}"; MAX_AGE_SEC="${2:-900}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; DIR="$ROOT/data/live/mt5-bridge"
 [ -d "$DIR" ] || { echo "BRIDGE UNAVAILABLE: $DIR missing"; exit 1; }
 now=$(date -u +%s); rc=0
-for tf in 1D 4H 1H 15m; do
+for tf in 1W 1D 4H 1H 15m 5m; do
   f="$DIR/ohlcv.${SYMBOL}.${tf}.json"
   if [ ! -f "$f" ]; then echo "UNAVAILABLE $tf: $f not found (EA not attached / not exporting yet)"; rc=1; continue; fi
   if ! n=$(jq '.candles | length' "$f" 2>/dev/null); then echo "UNAVAILABLE $tf: invalid JSON"; rc=1; continue; fi
