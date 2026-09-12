@@ -84,6 +84,44 @@ class MethodCommand(unittest.TestCase):
         self.assertIn("custom", r.stdout)
 
 
+class MinimumWarningIsModeAware(unittest.TestCase):
+    """The warning used to hardcode `< 2` and the words "NORMAL minimum of 2". After SOLO landed (2026-09-12) a
+    single-dimension PRESET is a valid trading configuration, so that warning fired on a correct setup and told
+    the user no TRADE could pass when one could. It must read the preset's mode instead."""
+
+    def setUp(self):
+        self.backup = tempfile.NamedTemporaryFile(delete=False).name
+        shutil.copy(CONFIG, self.backup)
+
+    def tearDown(self):
+        shutil.copy(self.backup, CONFIG); os.unlink(self.backup)
+
+    def set_dims(self, dims):
+        c = json.load(open(CONFIG, encoding="utf-8"))
+        c["markets"]["crypto"]["dimensions"] = dims
+        json.dump(c, open(CONFIG, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+
+    def status(self):
+        return subprocess.run([sys.executable, AUTO, "status"], capture_output=True, text=True).stdout
+
+    def test_a_solo_preset_does_not_warn(self):
+        self.set_dims({"wyckoff": False, "ict": True, "footprint": False, "heatmap": False})
+        out = self.status()
+        self.assertIn("SOLO", out)
+        self.assertNotIn("no live TRADE verdict can pass for crypto", out)
+
+    def test_a_hand_toggled_custom_single_dimension_still_warns(self):
+        """SOLO must stay reachable only through a declared preset -- never by toggling flags one by one."""
+        self.set_dims({"wyckoff": False, "ict": False, "footprint": True, "heatmap": False})
+        out = self.status()
+        self.assertIn("NORMAL mode", out)
+        self.assertIn("no live TRADE verdict can pass for crypto", out)
+
+    def test_the_stale_flat_minimum_text_is_gone(self):
+        src = open(AUTO, encoding="utf-8").read()
+        self.assertNotIn("below the NORMAL minimum of 2", src)
+
+
 class AllowsMaster(unittest.TestCase):
     def run_auto(self, *args):
         return subprocess.run([sys.executable, AUTO, *args], capture_output=True, text=True)

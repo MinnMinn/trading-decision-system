@@ -484,9 +484,19 @@ def warnings(cfg, exists):
         if not mk["enabled"]:
             continue
         live = [d for d in MARKET_DIMENSIONS[m] if mk["dimensions"].get(d, True)]
-        if len(live) < 2:
-            w.append(f"{m}: only {len(live)} dimension(s) enabled -- below the NORMAL minimum of 2 "
-                     f"(SYSTEM-DESIGN.md §6.2), so no live TRADE verdict can pass for {m} instruments.")
+        # The minimum is per MODE, not a flat 2. A single-dimension preset runs in SOLO (minimum 1, threshold 85
+        # instead of NORMAL's 70) since 2026-09-12 -- so one enabled dimension is a valid trading configuration
+        # when it came from a declared single-dimension preset, and warning about it is a false alarm.
+        # methods.mode_of() is the only thing allowed to answer this: it reads the preset's own declared mode and
+        # falls back to NORMAL for a 'custom' flag set, which keeps SOLO from being reachable by hand-toggling
+        # dimensions rather than by choosing a preset (SYSTEM-DESIGN.md §6.2, preset-not-runtime safeguard).
+        prof = methods.profile_of(mk["dimensions"])
+        mode = methods.mode_of(prof)
+        minimum = methods.MODES[mode]["minimum"]
+        if len(live) < minimum:
+            w.append(f"{m}: preset '{prof}' runs in {mode} mode, which needs at least {minimum} engaged "
+                     f"dimension(s), but only {len(live)} is enabled -- no live TRADE verdict can pass for "
+                     f"{m} instruments (SYSTEM-DESIGN.md §6.2).")
         if m == "crypto" and (mk["dimensions"].get("footprint") or mk["dimensions"].get("heatmap")):
             w.append("Footprint/Heatmap depend on CoinGlass -- check coinglass_* source state via /status; a MOCK "
                      "source can rehearse but can never satisfy the Independent-Confluence Check (data-sources.md).")
@@ -556,10 +566,12 @@ def show(cfg, exists, as_json=False, brief=False):
         print("               timeframes: " + "  ".join(f"{onoff(mk['timeframes'].get(t, True))} {t}"
                                                         for t in MARKET_TIMEFRAMES[m]))
         prof = methods.profile_of(mk["dimensions"])
+        mode = methods.mode_of(prof)
+        minimum, threshold = methods.MODES[mode]["minimum"], methods.MODES[mode]["threshold"]
         live = [d for d in MARKET_DIMENSIONS[m] if mk["dimensions"].get(d, True)]
-        print(f"               method:     {prof}"
+        print(f"               method:     {prof}  [{mode}: min {minimum} dimension(s), score {threshold}]"
               + ("" if prof != "custom" else f"  (set from the terminal: {', '.join(live) or 'none'})")
-              + ("" if len(live) >= 2 else "   [below the NORMAL minimum of 2 -- no live TRADE verdict can pass]"))
+              + ("" if len(live) >= minimum else f"   [only {len(live)} enabled -- no live TRADE verdict can pass]"))
         print("               styles on:  " + (", ".join(styles) or "(none)"))
     pp = cfg.get("pilot_process")
     if pp:
