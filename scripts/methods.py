@@ -26,6 +26,7 @@ PATH = os.path.join(ROOT, "docs", "architecture", "methods.json")
 def _validate(d):
     """The invariants _load() must hold. Split out so each can be tested directly with a small inline dict,
     rather than only via the real registry (where a collision may never happen to occur)."""
+    modes = d.get("modes", {})
     seen = {}
     for p in d["presets"]:
         key = frozenset(p["dimensions"])
@@ -37,6 +38,19 @@ def _validate(d):
         unknown = [x for x in p["dimensions"] if x not in d["dimensions"]]
         if unknown:
             raise ValueError(f"{PATH}: preset '{p['id']}' names unknown dimension(s) {unknown}.")
+        mode = p.get("mode")
+        if mode not in modes:
+            raise ValueError(f"{PATH}: preset '{p['id']}' names unknown mode {mode!r}; known modes: "
+                             f"{sorted(modes)} (SYSTEM-DESIGN.md §6.2).")
+        # SOLO is the whole safety argument for the mode: it may only be reached by a preset that itself
+        # names exactly one dimension, a deliberate pre-analysis choice -- never by a multi-dimension preset
+        # (SYSTEM-DESIGN.md §6.2 "preset, not runtime" rule; docs/specs/2026-09-12-method-switch-design.md).
+        if mode == "SOLO" and len(p["dimensions"]) != 1:
+            raise ValueError(f"{PATH}: preset '{p['id']}' names {len(p['dimensions'])} dimensions but mode "
+                             f"SOLO -- SOLO is reserved for single-dimension presets (SYSTEM-DESIGN.md §6.2).")
+        if mode != "SOLO" and len(p["dimensions"]) == 1:
+            raise ValueError(f"{PATH}: preset '{p['id']}' names exactly one dimension but mode {mode!r} -- "
+                             f"a single-dimension preset must be mode SOLO (SYSTEM-DESIGN.md §6.2).")
     for name, m in d["runner_methods"].items():
         unknown = [x for x in m["requires"] if x not in d["dimensions"]]
         if unknown:
@@ -54,7 +68,9 @@ _DATA = _load()
 DIMENSIONS = _DATA["dimensions"]
 RUNNER_METHODS = _DATA["runner_methods"]
 PRESETS = _DATA["presets"]
+MODES = _DATA["modes"]          # {"SOLO": {"minimum": 1, "threshold": 85}, "NORMAL": {...}, ...} -- SYSTEM-DESIGN.md §6.2
 ALL_DIMENSIONS = list(DIMENSIONS)
+DEFAULT_MODE = "NORMAL"         # unchanged default when a preset can't be named (custom / UNREADABLE config)
 
 
 def dimensions(market):
@@ -106,6 +122,17 @@ def flags_for(pid):
     return {d: d in p["dimensions"] for d in ALL_DIMENSIONS}
 
 
+def mode_of(preset_name):
+    """The methodology mode a preset id resolves to, per its own `mode` field in the registry -- SOLO for the
+    two single-dimension presets, NORMAL for every multi-dimension preset today (SYSTEM-DESIGN.md §6.2).
+    `preset_name` may be 'custom' or 'UNREADABLE' (dispatch_plan's non-preset states); both fall back to
+    DEFAULT_MODE, the same behaviour as before SOLO existed. This is the ONLY function that may decide a run's
+    mode is SOLO -- it is a pure function of the preset id, never of how many dimensions turned out to be
+    engaged, which is exactly the preset-not-runtime rule the mode-lock exists to enforce."""
+    p = preset(preset_name)
+    return p["mode"] if p is not None else DEFAULT_MODE
+
+
 def runner_methods(flags):
     """Methods whose every required dimension is on. Lookup over requires[], not a hard-coded rule."""
     on = _on(flags)
@@ -121,13 +148,22 @@ def scan_of(name):
 
 
 CONFIG_PATH = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
-NORMAL_MINIMUM = 2          # SYSTEM-DESIGN.md §6.1
 
 
-def dispatch_plan(instrument, config_path=None):
+def dispatch_plan(instrument, config_path=None, unavailable=None):
     """Which read-only agents /analyze must dispatch for this instrument, and why each skipped one is skipped.
     The gating logic lives here so .claude/commands/analyze.md does not have to be edited when a dimension is
     added (spec §4.2).
+
+    `unavailable` (optional) names dimensions whose LIVE data source is known unavailable for this specific
+    run (e.g. CoinGlass down this morning) -- distinct from a dimension's /automation config flag being off.
+    This is deliberately a separate input from `config_path`'s flags: the config flags are the user's
+    deliberate preset selection and are what `mode` is derived from (SOLO only when the preset itself names
+    exactly one dimension); `unavailable` can only lower `engaged_count` for this run, exactly like a
+    config-off dimension does, but it must NEVER change which preset/mode is in force -- otherwise a
+    multi-dimension preset that loses a dimension to a live outage would silently downgrade to SOLO and could
+    pass on a single dimension, which is precisely the after-the-fact mode downgrade §6.2's mode-lock rule
+    forbids. See SYSTEM-DESIGN.md §6.2 "SOLO mode" for the full rule.
 
     Config states, distinguished so a corrupt file cannot masquerade as a real preset:
       - MISSING file -> unconfigured, exactly as before the switch existed: dispatch everything this market
@@ -144,6 +180,7 @@ def dispatch_plan(instrument, config_path=None):
     if market is None:
         raise ValueError(f"{instrument} is not on the allowlist (docs/architecture/instruments.json)")
     have = set(dimensions(market))
+    unavailable = set(unavailable or ())
     path = config_path or CONFIG_PATH
     config_missing = False
     config_corrupt = None
@@ -167,8 +204,11 @@ def dispatch_plan(instrument, config_path=None):
     # Preset NAME uses only this market's structurally possible dimensions (defaulting the rest to off) --
     # otherwise an unrelated market's missing keys (e.g. cfd has no footprint/heatmap keys at all) would read
     # as "on" and misname the preset (e.g. XAUUSD would wrongly show "full" instead of "wyckoff+ict").
+    # Deliberately built from CONFIG flags only, never from `unavailable` -- this is what makes `mode` a
+    # function of the preset the user selected, not of what turned out to be available at analysis time.
     preset_flags = {d: (flags.get(d, True) if d in have else False) for d in ALL_DIMENSIONS}
     preset_name = "UNREADABLE" if config_corrupt else profile_of(preset_flags)
+    mode = mode_of(preset_name)
 
     for d in ALL_DIMENSIONS:
         agent = DIMENSIONS[d]["agent"]
@@ -177,14 +217,20 @@ def dispatch_plan(instrument, config_path=None):
                           f"(SYSTEM-DESIGN.md §12 item 3)")
         elif not flags.get(d, True):
             skipped[d] = f"dimensions.{d} is off in /automation (method preset {preset_name})"
+        elif d in unavailable:
+            skipped[d] = (f"{d} data source unavailable for this run -- lowers engaged_count only; the locked "
+                          f"mode stays {mode} (preset {preset_name}) regardless, per the mode-lock rule "
+                          f"(SYSTEM-DESIGN.md §6.2) -- a degraded multi-dimension preset never becomes SOLO")
         else:
             engaged.append(d)
             if agent not in dispatch:
                 dispatch.append(agent)
 
+    mode_minimum = MODES[mode]["minimum"]
     return {"instrument": instrument, "market": market, "dispatch": dispatch, "skipped": skipped,
             "engaged": engaged, "engaged_count": len(engaged),
-            "meets_normal_minimum": len(engaged) >= NORMAL_MINIMUM,
+            "mode": mode, "mode_minimum": mode_minimum, "mode_threshold": MODES[mode]["threshold"],
+            "meets_mode_minimum": len(engaged) >= mode_minimum,
             "preset": preset_name, "config_missing": config_missing, "config_corrupt": config_corrupt}
 
 
@@ -201,9 +247,10 @@ if __name__ == "__main__":
             sys.exit(2)
         if p["config_corrupt"]:
             print(f"** CONFIG UNREADABLE: {p['config_corrupt']}", file=sys.stderr)
-        print(f"instrument: {p['instrument']} ({p['market']})   method preset: {p['preset']}")
+        print(f"instrument: {p['instrument']} ({p['market']})   method preset: {p['preset']}   "
+              f"mode: {p['mode']} (minimum {p['mode_minimum']}, threshold {p['mode_threshold']})")
         print(f"DISPATCH:   {', '.join(p['dispatch']) or '(none)'}")
         for d, why in p["skipped"].items():
             print(f"SKIP {d}: {why}")
-        print(f"engaged_count = {p['engaged_count']}; NORMAL minimum {NORMAL_MINIMUM} "
-              f"{'met' if p['meets_normal_minimum'] else 'NOT met -- verdict is NO TRADE on count alone'}")
+        print(f"engaged_count = {p['engaged_count']}; {p['mode']} minimum {p['mode_minimum']} "
+              f"{'met' if p['meets_mode_minimum'] else 'NOT met -- verdict is NO TRADE on count alone'}")

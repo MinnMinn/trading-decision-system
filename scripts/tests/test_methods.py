@@ -39,6 +39,40 @@ class Registry(unittest.TestCase):
     def test_markets_order_is_a_declared_contract(self):
         self.assertEqual(M.markets(), ["crypto", "cfd"])
 
+    def test_every_preset_resolves_to_exactly_one_mode(self):
+        """Added with SOLO (2026-09-12): every registry preset must carry a mode that exists in M.MODES."""
+        for p in M.PRESETS:
+            self.assertIn(p["mode"], M.MODES, f"preset {p['id']!r} names an unknown mode {p.get('mode')!r}")
+
+    def test_single_dimension_presets_resolve_to_solo(self):
+        """The two single-dimension presets (wyckoff, ict) are the only ones eligible for SOLO -- this is a
+        registry-level property, checked directly against the real presets, not just at _validate() level."""
+        for p in M.PRESETS:
+            if len(p["dimensions"]) == 1:
+                self.assertEqual(p["mode"], "SOLO", f"single-dimension preset {p['id']!r} must be mode SOLO")
+            else:
+                self.assertNotEqual(p["mode"], "SOLO",
+                                     f"multi-dimension preset {p['id']!r} must never be mode SOLO")
+
+
+class Modes(unittest.TestCase):
+    """SYSTEM-DESIGN.md §6.2 SOLO mode: minimum 1, threshold strictly higher than NORMAL's (no
+    cross-confirmation to lean on). NORMAL/ENHANCED/STRICT are unchanged from the master spec."""
+
+    def test_solo_minimum_is_one(self):
+        self.assertEqual(M.MODES["SOLO"]["minimum"], 1)
+
+    def test_solo_threshold_is_strictly_greater_than_normal(self):
+        self.assertGreater(M.MODES["SOLO"]["threshold"], M.MODES["NORMAL"]["threshold"])
+
+    def test_normal_enhanced_strict_minimums_and_thresholds_are_unchanged(self):
+        self.assertEqual(M.MODES["NORMAL"]["minimum"], 2)
+        self.assertEqual(M.MODES["NORMAL"]["threshold"], 70)
+        self.assertEqual(M.MODES["ENHANCED"]["minimum"], 3)
+        self.assertEqual(M.MODES["ENHANCED"]["threshold"], 80)
+        self.assertEqual(M.MODES["STRICT"]["minimum"], 3)
+        self.assertEqual(M.MODES["STRICT"]["threshold"], 85)
+
 
 class Validation(unittest.TestCase):
     """_validate(d) is the invariant enforcement _load() calls at import time. Tested directly with small
@@ -48,13 +82,14 @@ class Validation(unittest.TestCase):
     def _base(self):
         return {
             "dimensions": {"wyckoff": {"markets": ["crypto"]}, "ict": {"markets": ["crypto"]}},
-            "presets": [{"id": "a", "dimensions": ["wyckoff"]}],
+            "presets": [{"id": "a", "dimensions": ["wyckoff"], "mode": "SOLO"}],
             "runner_methods": {"WYCKOFF": {"requires": ["wyckoff"]}},
+            "modes": {"SOLO": {"minimum": 1, "threshold": 85}, "NORMAL": {"minimum": 2, "threshold": 70}},
         }
 
     def test_duplicate_preset_dimension_sets_raise(self):
         d = self._base()
-        d["presets"].append({"id": "b", "dimensions": ["wyckoff"]})
+        d["presets"].append({"id": "b", "dimensions": ["wyckoff"], "mode": "SOLO"})
         with self.assertRaises(ValueError) as ctx:
             M._validate(d)
         msg = str(ctx.exception)
@@ -141,11 +176,11 @@ class AutomationUsesRegistry(unittest.TestCase):
 
 
 class DispatchPlan(unittest.TestCase):
-    def plan(self, instrument, cfg):
+    def plan(self, instrument, cfg, unavailable=None):
         import json, tempfile
         tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, tmp); tmp.close()
         try:
-            return M.dispatch_plan(instrument, config_path=tmp.name)
+            return M.dispatch_plan(instrument, config_path=tmp.name, unavailable=unavailable)
         finally:
             os.unlink(tmp.name)
 
@@ -169,7 +204,46 @@ class DispatchPlan(unittest.TestCase):
         p = self.plan("BTCUSDT", self.base({"wyckoff": False, "ict": False, "footprint": True, "heatmap": True}))
         self.assertNotIn("structure-agent", p["dispatch"])
 
-    def test_plan_reports_the_engaged_count_and_the_normal_minimum(self):
+    def test_plan_reports_the_engaged_count_and_the_mode_minimum(self):
+        """wyckoff-only now names the real 'wyckoff' preset, which is mode SOLO (minimum 1) since 2026-09-12
+        -- so this exact config now MEETS its mode minimum, unlike before SOLO existed."""
         p = self.plan("BTCUSDT", self.base({"wyckoff": True, "ict": False, "footprint": False, "heatmap": False}))
         self.assertEqual(p["engaged_count"], 1)
-        self.assertFalse(p["meets_normal_minimum"])
+        self.assertEqual(p["mode"], "SOLO")
+        self.assertEqual(p["mode_minimum"], 1)
+        self.assertTrue(p["meets_mode_minimum"])
+
+    def test_dispatch_plan_reports_solo_for_a_single_dimension_preset(self):
+        p = self.plan("BTCUSDT", self.base({"wyckoff": False, "ict": True, "footprint": False, "heatmap": False}))
+        self.assertEqual(p["preset"], "ict")
+        self.assertEqual(p["mode"], "SOLO")
+        self.assertEqual(p["mode_minimum"], 1)
+        self.assertEqual(p["engaged_count"], 1)
+        self.assertTrue(p["meets_mode_minimum"])
+
+    def test_dispatch_plan_reports_normal_for_a_two_dimension_preset(self):
+        p = self.plan("BTCUSDT", self.base({"wyckoff": True, "ict": False, "footprint": True, "heatmap": False}))
+        self.assertEqual(p["preset"], "wyckoff+footprint")
+        self.assertEqual(p["mode"], "NORMAL")
+        self.assertEqual(p["mode_minimum"], 2)
+        self.assertEqual(p["engaged_count"], 2)
+        self.assertTrue(p["meets_mode_minimum"])
+
+    def test_trap_a_degraded_multi_dimension_preset_never_reports_solo(self):
+        """THE most important test in this task (SYSTEM-DESIGN.md §6.2 'preset, not runtime'). The user
+        deliberately selected 'wyckoff+footprint' (both flags ON in config -- NORMAL, minimum 2). Footprint's
+        live data source is unavailable for this run (e.g. CoinGlass down), so only 1 dimension is actually
+        engaged. If mode were derived from the runtime engaged count, this would silently become SOLO
+        (minimum 1) and could pass -- exactly the after-the-fact mode downgrade the mode-lock rule forbids.
+        The correct behaviour: mode/preset stay exactly what the config selected, engaged_count drops to 1,
+        the mode minimum (2) is NOT met, and the run is NO TRADE on count -- same as if there were no SOLO
+        mode at all."""
+        cfg = self.base({"wyckoff": True, "ict": False, "footprint": True, "heatmap": False})
+        p = self.plan("BTCUSDT", cfg, unavailable={"footprint"})
+        self.assertEqual(p["preset"], "wyckoff+footprint", "preset must stay the one the config selected")
+        self.assertEqual(p["mode"], "NORMAL", "mode must stay NORMAL, not be recomputed from engaged_count")
+        self.assertNotEqual(p["mode"], "SOLO", "a degraded multi-dimension preset must NEVER report SOLO")
+        self.assertEqual(p["engaged_count"], 1)
+        self.assertEqual(p["mode_minimum"], 2)
+        self.assertFalse(p["meets_mode_minimum"], "engaged_count 1 must NOT meet NORMAL's minimum of 2")
+        self.assertIn("footprint", p["skipped"])
