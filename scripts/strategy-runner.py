@@ -218,11 +218,30 @@ def event_blackout(t=None):
     return None
 
 
+EQUITY_BASIS = "equity"  # value of state["equity_basis"] once equity_start is captured from usdt_equity()/mt5_equity()
+
+
 def load_state():
     base = {"started": iso(now()), "pending": {}, "positions": {}, "seen": [], "day": None, "trades_today": {}, "errors": 0, "halted": None, "last_tick": None,
-            "venues": {v: {"equity_start": None, "closed": [], "consec_losses": 0} for v in VENUES}}
+            "equity_basis": EQUITY_BASIS, "venues": {v: {"equity_start": None, "closed": [], "consec_losses": 0} for v in VENUES}}
     if os.path.exists(STATE):
         s = json.load(open(STATE))
+        # PILOT-EQUITY-FIX (2026-09-13): equity_start used to be captured from usdt_free() (Binance
+        # availableBalance, i.e. free margin) for the futures venue. That is a different quantity from the
+        # equity reading the halt now compares it to (usdt_equity() = balance + crossUnPnl), and the two are
+        # not comparable -- continuing to check a corrected equity reading against a free-margin baseline
+        # could either falsely re-halt (baseline captured while margin was already reserved) or silently
+        # widen the drawdown guard (baseline captured before any order, so free margin == equity that once).
+        # A state file with no "equity_basis" marker predates this fix; re-baseline every venue by clearing
+        # equity_start so the next LIVE tick recaptures it from the corrected reading (same mechanism that
+        # already seeds a fresh equity_start today, load_state()/tick() -- no new code path). This is a
+        # one-time reset the first time a fixed runner picks up an old state file, not a repeating reset:
+        # once equity_basis == EQUITY_BASIS below, this branch does not fire again.
+        if s.get("equity_basis") != EQUITY_BASIS:
+            for v in VENUES:
+                s.setdefault("venues", {}).setdefault(v, dict(base["venues"][v]))
+                s["venues"][v]["equity_start"] = None
+            s["equity_basis"] = EQUITY_BASIS
         for k, v in base.items():
             s.setdefault(k, v)
         for v in VENUES:
@@ -236,14 +255,40 @@ def save_state(s):
     json.dump(s, open(STATE, "w"), indent=1)
 
 
-def usdt_free():
+def usdt_balance():
+    """Single Binance USDT-M futures balance fetch (GET /fapi/v2/balance via order_json("balance")).
+    Returns both readings this runner needs from the one snapshot, so they can never disagree within a
+    tick:
+      free   -- availableBalance: wallet balance minus margin reserved by open positions/resting orders.
+                This is FREE MARGIN, not equity -- it drops the instant a pending order reserves margin,
+                with nothing lost. Use for position sizing / order placement only (money actually spendable
+                on a NEW order); never for the capital-preservation halt.
+      equity -- balance + crossUnPnl: true account equity. This is what EQUITY_HALT_FRAC must compare to
+                equity_start (2026-09-13 incident: the halt was reading availableBalance instead and fired
+                on the pilot's first resting limit order at a 25 %-looking "drawdown" that was really just
+                margin held for an open order -- real equity was down ~1 USDT on a 5000 account).
+    """
     for b in order_json("balance"):
         if b["asset"] == "USDT":
-            return float(b["availableBalance"])
-    return 0.0
+            return {"free": float(b["availableBalance"]), "equity": float(b["balance"]) + float(b.get("crossUnPnl", 0.0))}
+    return {"free": 0.0, "equity": 0.0}
+
+
+def usdt_free():
+    """Free margin only -- see usdt_balance(). Sizing/order-placement callers want this one."""
+    return usdt_balance()["free"]
+
+
+def usdt_equity():
+    """Account equity only -- see usdt_balance(). The EQUITY_HALT_FRAC guard wants this one, not usdt_free()."""
+    return usdt_balance()["equity"]
 
 
 def mt5_equity():
+    """MT5's own ACCOUNT_EQUITY (balance + floating P/L of open positions, integrations/mt5/OrderBridge.mq5
+    JN("equity", AccountInfoDouble(ACCOUNT_EQUITY))) -- this already IS true equity, not free margin (that
+    field is separately exported as margin_free and this runner does not read it). No Binance-style
+    free-margin confusion on this venue; used unchanged for both the halt guard and MT5 lot sizing."""
     a = mt5_json("account")
     if a.get("trade_mode") not in ("demo", None) and a.get("trade_mode") != "demo":
         raise RuntimeError(f"MT5 account is not DEMO ({a.get('trade_mode')}) -- refusing")
@@ -755,10 +800,26 @@ def tick(live, tick_time=None, ignore_gate=False):
     if s["day"] != today:
         s["day"] = today; s["trades_today"] = {}
     venues_used = {st["execution"] for st in setups_cfg} | {p["execution"] for p in list(s["positions"].values()) + list(s["pending"].values())}
+    # Two readings per venue, deliberately kept separate (2026-09-13 fix):
+    #   equity        -- true account equity. ONLY input to the EQUITY_HALT_FRAC guard and its equity_start
+    #                    baseline. Margin reserved by a resting order/open position is still the trader's
+    #                    money, not a loss -- the guard must not fire on it.
+    #   sizing_equity -- free margin for futures (Binance availableBalance, via usdt_free()), true equity for
+    #                    MT5 (mt5_equity() -- no free-margin distinction on that venue, see mt5_equity()).
+    #                    Feeds place_market()/place_limit() exactly as before this fix; sizing/order-placement
+    #                    behaviour is intentionally UNCHANGED here -- do not fold this into `equity` above.
     equity = {}
+    sizing_equity = {}
     for v in venues_used:
         try:
-            equity[v] = (usdt_free() if v == "futures" else mt5_equity()) if live else (s["venues"][v]["equity_start"] or 10000.0); s["errors"] = 0
+            if live:
+                if v == "futures":
+                    bal = usdt_balance(); equity[v] = bal["equity"]; sizing_equity[v] = bal["free"]
+                else:
+                    equity[v] = sizing_equity[v] = mt5_equity()
+            else:
+                equity[v] = sizing_equity[v] = s["venues"][v]["equity_start"] or 10000.0
+            s["errors"] = 0
         except Exception as e:
             s["errors"] += 1; log("error", venue=v, where="balance", msg=str(e)[:200])
             if s["errors"] >= ERROR_HALT:
@@ -905,12 +966,12 @@ def tick(live, tick_time=None, ignore_gate=False):
                     risk_mult = 0.5 if s["venues"][venue]["consec_losses"] >= 2 else 1.0
                     try:
                         if sig.get("entry_now"):
-                            pos = place_market(sym, st, sig, equity.get(venue, 10000.0), risk_mult, live)
+                            pos = place_market(sym, st, sig, sizing_equity.get(venue, 10000.0), risk_mult, live)
                             if pos:
                                 s["positions"][sym] = pos; s["trades_today"][sym] = s["trades_today"].get(sym, 0) + 1
                             pend = None
                         else:
-                            pend = place_limit(sym, st, sig, equity.get(venue, 10000.0), risk_mult, live)
+                            pend = place_limit(sym, st, sig, sizing_equity.get(venue, 10000.0), risk_mult, live)
                     except Exception as e:
                         s["errors"] += 1; log("error", venue=venue, where=f"place {sym}", msg=str(e)[:200]); pend = None
                     if pend:

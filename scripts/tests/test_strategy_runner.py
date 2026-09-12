@@ -403,3 +403,181 @@ class ConfigReadFailureFallback(unittest.TestCase):
         self.assertEqual(filtered, [], "a corrupt/unreadable AUTOMATION_CONFIG must fail OPEN inside tick() too "
                          "(no preset filtering applied), matching allowed_methods()'s own documented fallback "
                          "-- not fail CLOSED (every method blocked)")
+
+
+class EquityHalt(unittest.TestCase):
+    """2026-09-13 incident: EQUITY_HALT_FRAC compared availableBalance (free margin) to equity_start and
+    halted the pilot on its first resting order -- margin reserved for a pending limit isn't a loss. The
+    fix reads usdt_equity() (balance + crossUnPnl) for the halt instead, while usdt_free() (unchanged) keeps
+    feeding position sizing. These tests hit tick(live=True) with order_json/mt5_json/automation_gate/
+    fetch_candles/manage_position/manage_pending all mocked -- no network call is made and the --live CLI
+    path is never invoked."""
+
+    def _run_live_tick(self, state, balance_row):
+        cfg = {"enabled": True, "layers": {"pilot": True},
+               "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"]}, "cfd": {"enabled": True, "instruments": []}},
+               "execution": {"environment": "demo", "pilot_profile": "top5"}}
+        cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, cfg_tmp); cfg_tmp.close()
+        sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump({"setups": []}, sel_tmp); sel_tmp.close()
+        state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(state, state_tmp); state_tmp.close()
+        stop_path = state_tmp.name + ".STOP"   # a path guaranteed not to exist yet
+
+        old = dict(cfg=sr.AUTOMATION_CONFIG, sel=sr.SELECTION, state=sr.STATE, stop=sr.STOP, gate=sr.automation_gate,
+                   order_json=sr.order_json, mt5_json=sr.mt5_json, fetch_candles=sr.fetch_candles, log=sr.log,
+                   manage_position=sr.manage_position, manage_pending=sr.manage_pending)
+        sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE, sr.STOP = cfg_tmp.name, sel_tmp.name, state_tmp.name, stop_path
+        sr.automation_gate = lambda: None
+        sr.order_json = lambda *a, **k: ([balance_row] if a and a[0] == "balance" else [])
+        sr.mt5_json = lambda *a, **k: {}
+        sr.fetch_candles = lambda *a, **k: []
+        sr.log = lambda *a, **k: None
+        sr.manage_position = lambda *a, **k: None
+        sr.manage_pending = lambda *a, **k: ("waiting", None, None, None)
+        try:
+            sr.tick(live=True, tick_time=sr.now(), ignore_gate=False)
+            out = json.load(open(state_tmp.name)); stop_written = os.path.exists(stop_path)
+            return out, stop_written
+        finally:
+            sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE, sr.STOP = old["cfg"], old["sel"], old["state"], old["stop"]
+            sr.automation_gate, sr.order_json, sr.mt5_json = old["gate"], old["order_json"], old["mt5_json"]
+            sr.fetch_candles, sr.log = old["fetch_candles"], old["log"]
+            sr.manage_position, sr.manage_pending = old["manage_position"], old["manage_pending"]
+            os.unlink(cfg_tmp.name); os.unlink(sel_tmp.name); os.unlink(state_tmp.name)
+            if os.path.exists(stop_path):
+                os.unlink(stop_path)
+
+    def _state(self, equity_start):
+        """One resting futures pending order so venues_used == {"futures"} without needing a live setup."""
+        return {"started": "2026-01-01T00:00:00Z", "positions": {}, "day": None, "trades_today": {}, "errors": 0,
+                "halted": None, "last_tick": None, "seen": [], "equity_basis": "equity",
+                "pending": {"BTCUSDT": dict(symbol="BTCUSDT", side="LONG", strategy="x", tf="30m", method="ICT",
+                                             execution="futures", qty="1", price="100", stop="99", tp="103",
+                                             order_id="1", client_id="c1", placed_at="2026-01-01T00:00:00Z",
+                                             bars_waited=0, expires_bar_left=5, htf_pass=True)},
+                "venues": {v: {"equity_start": equity_start, "closed": [], "consec_losses": 0} for v in sr.VENUES}}
+
+    def test_reserved_margin_for_a_resting_order_does_not_halt(self):
+        """Exact reconstruction of the 2026-09-12 incident: wallet balance 4999.00, zero unrealised P&L,
+        availableBalance 3750.48 (margin reserved for the BTCUSDT resting limit, qty 0.0485 @ 77289.7 / 3x
+        leverage = 1249.52 reserved), equity_start 5000.00. Old code compared 3750.48 to 85% of 5000 = 4250
+        and halted. Fixed code compares equity (4999.00) to the same threshold and must not halt."""
+        balance_row = {"asset": "USDT", "balance": "4999.00", "crossUnPnl": "0.00", "availableBalance": "3750.48"}
+        out, stop_written = self._run_live_tick(self._state(5000.0), balance_row)
+        self.assertIsNone(out["halted"], out["halted"])
+        self.assertFalse(stop_written, "no STOP file may be written for this scenario")
+        self.assertAlmostEqual(out["venues"]["futures"]["equity_start"], 5000.0)
+
+    def test_genuine_drawdown_still_halts(self):
+        """The guard must still work: wallet balance itself down past EQUITY_HALT_FRAC halts, STOP written."""
+        balance_row = {"asset": "USDT", "balance": "4000.00", "crossUnPnl": "0.00", "availableBalance": "4000.00"}
+        out, stop_written = self._run_live_tick(self._state(5000.0), balance_row)
+        self.assertIsNotNone(out["halted"])
+        self.assertIn("futures", out["halted"]["why"])
+        self.assertTrue(stop_written)
+
+    def test_open_position_unrealised_loss_halts_even_though_free_margin_looks_fine(self):
+        """balance 5000, crossUnPnl -900 -> equity 4100 <= 4250 halts. availableBalance (4995) stays high
+        because little margin is committed -- the old free-margin reading would have missed this real
+        drawdown entirely. This is the guard becoming MORE correct, not looser: EQUITY_HALT_FRAC (0.85) is
+        unchanged, only the quantity it is compared against changed."""
+        balance_row = {"asset": "USDT", "balance": "5000.00", "crossUnPnl": "-900.00", "availableBalance": "4995.00"}
+        out, _ = self._run_live_tick(self._state(5000.0), balance_row)
+        self.assertIsNotNone(out["halted"])
+        self.assertIn("4100.00", out["halted"]["why"])
+
+
+class EquityReadings(unittest.TestCase):
+    """Direct unit tests of the balance-reading split (point 1 of the fix): usdt_free() (free margin, feeds
+    sizing) and usdt_equity() (true equity, feeds the halt) must read different fields, from the same
+    underlying usdt_balance() fetch."""
+
+    def _with_balance_row(self, row, fn):
+        old = sr.order_json
+        sr.order_json = lambda *a, **k: ([row] if a and a[0] == "balance" else [])
+        try:
+            return fn()
+        finally:
+            sr.order_json = old
+
+    def test_usdt_free_returns_available_balance_unchanged(self):
+        row = {"asset": "USDT", "balance": "4999.00", "crossUnPnl": "0.00", "availableBalance": "3750.48"}
+        self.assertAlmostEqual(self._with_balance_row(row, sr.usdt_free), 3750.48)
+
+    def test_usdt_equity_returns_balance_plus_cross_unpnl(self):
+        row = {"asset": "USDT", "balance": "4999.00", "crossUnPnl": "0.00", "availableBalance": "3750.48"}
+        self.assertAlmostEqual(self._with_balance_row(row, sr.usdt_equity), 4999.00)
+
+    def test_usdt_equity_reflects_floating_pnl_that_free_margin_hides(self):
+        row = {"asset": "USDT", "balance": "5000.00", "crossUnPnl": "-900.00", "availableBalance": "4995.00"}
+        self.assertAlmostEqual(self._with_balance_row(row, sr.usdt_equity), 4100.00)
+        self.assertAlmostEqual(self._with_balance_row(row, sr.usdt_free), 4995.00)
+
+    def test_usdt_balance_free_and_equity_agree_with_the_named_wrappers(self):
+        row = {"asset": "USDT", "balance": "4999.00", "crossUnPnl": "0.00", "availableBalance": "3750.48"}
+        bal = self._with_balance_row(row, sr.usdt_balance)
+        self.assertAlmostEqual(bal["free"], self._with_balance_row(row, sr.usdt_free))
+        self.assertAlmostEqual(bal["equity"], self._with_balance_row(row, sr.usdt_equity))
+
+
+class SizingUsesFreeMarginNotEquity(unittest.TestCase):
+    """Call-site split (point 1): place_market()/place_limit() -- position sizing / order placement -- must
+    keep receiving the free-margin-based reading (sizing_equity), never the equity reading used by the
+    halt guard. A structural check on tick()'s source, matching this suite's existing convention (see
+    ScanDispatchFromRegistry, PresetFilter) for wiring invariants that don't have a deterministic signal to
+    trigger behaviourally."""
+
+    def test_place_calls_use_sizing_equity_not_equity(self):
+        src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        body = src[src.index("def tick("):]
+        self.assertIn("place_market(sym, st, sig, sizing_equity.get(venue, 10000.0)", body)
+        self.assertIn("place_limit(sym, st, sig, sizing_equity.get(venue, 10000.0)", body)
+        self.assertNotIn("place_market(sym, st, sig, equity.get(venue, 10000.0)", body)
+        self.assertNotIn("place_limit(sym, st, sig, equity.get(venue, 10000.0)", body)
+
+    def test_futures_sizing_equity_is_free_margin_not_true_equity(self):
+        """End-to-end within tick(): sizing_equity["futures"] must equal usdt_free()'s reading (availableBalance),
+        not usdt_equity()'s, even though the halt-check `equity` dict differs from it in the same tick."""
+        old_order_json = sr.order_json
+        row = {"asset": "USDT", "balance": "4999.00", "crossUnPnl": "0.00", "availableBalance": "3750.48"}
+        sr.order_json = lambda *a, **k: ([row] if a and a[0] == "balance" else [])
+        try:
+            bal = sr.usdt_balance()
+        finally:
+            sr.order_json = old_order_json
+        self.assertNotAlmostEqual(bal["free"], bal["equity"])
+        self.assertAlmostEqual(bal["free"], 3750.48)
+        self.assertAlmostEqual(bal["equity"], 4999.00)
+
+
+class EquityStartMigration(unittest.TestCase):
+    """Point 3 of the fix: equity_start persisted before this fix was captured under the OLD (free-margin)
+    reading and is not comparable to the NEW (equity) reading. load_state() must detect a state file with no
+    "equity_basis" marker (or a stale one) and re-baseline -- reset equity_start to None so the next LIVE
+    tick recaptures it from the corrected reading -- exactly once, not on every load."""
+
+    def _with_state_file(self, content, fn):
+        tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(content, tmp); tmp.close()
+        old = sr.STATE; sr.STATE = tmp.name
+        try:
+            return fn()
+        finally:
+            sr.STATE = old; os.unlink(tmp.name)
+
+    def test_legacy_state_without_equity_basis_is_rebaselined(self):
+        legacy = {"started": "2026-09-11T10:55:04Z", "pending": {}, "positions": {}, "seen": [], "day": None,
+                  "trades_today": {}, "errors": 0, "halted": None, "last_tick": None,
+                  "venues": {"futures": {"equity_start": 5000.0, "closed": [], "consec_losses": 0},
+                             "mt5": {"equity_start": 99999.5, "closed": [], "consec_losses": 0}}}
+        s = self._with_state_file(legacy, sr.load_state)
+        self.assertIsNone(s["venues"]["futures"]["equity_start"], "stale free-margin-basis baseline must be cleared")
+        self.assertIsNone(s["venues"]["mt5"]["equity_start"])
+        self.assertEqual(s["equity_basis"], sr.EQUITY_BASIS)
+
+    def test_already_migrated_state_is_left_alone(self):
+        migrated = {"started": "2026-09-11T10:55:04Z", "pending": {}, "positions": {}, "seen": [], "day": None,
+                    "trades_today": {}, "errors": 0, "halted": None, "last_tick": None, "equity_basis": sr.EQUITY_BASIS,
+                    "venues": {"futures": {"equity_start": 4999.0, "closed": [], "consec_losses": 0},
+                               "mt5": {"equity_start": 99999.5, "closed": [], "consec_losses": 0}}}
+        s = self._with_state_file(migrated, sr.load_state)
+        self.assertAlmostEqual(s["venues"]["futures"]["equity_start"], 4999.0, "an already-migrated baseline must not be reset again")
+        self.assertAlmostEqual(s["venues"]["mt5"]["equity_start"], 99999.5)
