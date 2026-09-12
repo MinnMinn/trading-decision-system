@@ -20,6 +20,22 @@
       "UKOIL"
     ]
   },
+  "display": {
+    "_comment": "OPTIONAL presentation metadata. A symbol with no entry gets id = lowercase symbol minus the USDT suffix, label = the symbol, price_decimals = 2. Override only when the default is wrong.",
+    "BTCUSDT":   { "label": "BTC/USDT", "price_decimals": 0 },
+    "ETHUSDT":   { "label": "ETH/USDT" },
+    "SOLUSDT":   { "label": "SOL/USDT" },
+    "ASTERUSDT": { "label": "ASTER/USDT" },
+    "VIRTUALUSDT": { "label": "VIRTUAL/USDT" },
+    "SUIUSDT":   { "label": "SUI/USDT" },
+    "TAOUSDT":   { "label": "TAO/USDT" },
+    "RENDERUSDT": { "label": "RENDER/USDT" },
+    "ONDOUSDT":  { "label": "ONDO/USDT" },
+    "XAUUSD":    { "id": "xau", "label": "XAU/USD" },
+    "XAGUSD":    { "label": "XAG/USD" },
+    "USOIL":     { "label": "USOIL" },
+    "UKOIL":     { "label": "UKOIL" }
+  },
   "execution": {
     "crypto": [
       "BTCUSDT",

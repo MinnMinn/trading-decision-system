@@ -31,20 +31,15 @@ import artifact_theme as theme  # noqa: E402
 import instruments as I  # noqa: E402
 
 # (short id for CSS/HTML ids, display name, price-format kind: "int" or "2" decimals) -- presentation-only;
-# the symbol SET itself comes from instruments.py (single source of truth, SYSTEM-DESIGN.md §1), never hand-kept here.
-CRYPTO_META = {
-    "BTCUSDT": ("btc", "BTC/USDT", "int"),
-    "ETHUSDT": ("eth", "ETH/USDT", "2"),
-    "SOLUSDT": ("sol", "SOL/USDT", "2"),
-    "ASTERUSDT": ("aster", "ASTER/USDT", "2"),
-    "VIRTUALUSDT": ("virtual", "VIRTUAL/USDT", "2"),
-    "SUIUSDT": ("sui", "SUI/USDT", "2"),
-    "TAOUSDT": ("tao", "TAO/USDT", "2"),
-    "RENDERUSDT": ("render", "RENDER/USDT", "2"),
-    "ONDOUSDT": ("ondo", "ONDO/USDT", "2"),
-}
-CRYPTO = [(sym, *CRYPTO_META[sym]) for sym in I.analysis("crypto")]
-GOLD = [("XAUUSD", "xau", "XAU/USD", "2")]
+# the symbol SET itself comes from instruments.py (single source of truth, SYSTEM-DESIGN.md §1), and the
+# metadata itself now lives in the optional "display" block of instruments.json, never hand-kept here.
+def _meta(sym):
+    d = I.display(sym)
+    return (sym, d["id"], d["label"], "int" if d["price_decimals"] == 0 else "2")
+
+
+CRYPTO = [_meta(sym) for sym in I.analysis("crypto")]
+GOLD = [_meta("XAUUSD")]
 MT5 = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
 TF_MIN = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30, "1H": 60, "2H": 120, "4H": 240, "1D": 1440, "1W": 10080}
 # Per-timeframe window spec (bars, axis label, human horizon). Bar counts are project parameters (no source gives them;

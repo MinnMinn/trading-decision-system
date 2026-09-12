@@ -69,5 +69,24 @@ class TestSingleSource(unittest.TestCase):
         self.assertEqual(offenders, [], f"hard-coded symbol list -- read it from instruments.py instead: {offenders}")
 
 
+class DisplayMetadata(unittest.TestCase):
+    def test_every_allowlisted_symbol_has_display_metadata(self):
+        """build-artifact.py used to keep a parallel hand-kept CRYPTO_META dict and index it directly, so a
+        symbol added to instruments.json crashed the build with a KeyError."""
+        for sym in I.analysis():
+            d = I.display(sym)
+            self.assertTrue(d["id"] and d["label"])
+            self.assertIsInstance(d["price_decimals"], int)
+
+    def test_display_falls_back_without_an_entry(self):
+        d = I.display("ZZZUSDT")
+        self.assertEqual(d["id"], "zzz")
+        self.assertEqual(d["price_decimals"], 2)
+
+    def test_build_artifact_has_no_parallel_symbol_table(self):
+        src = open(os.path.join(ROOT, "scripts", "build-artifact.py"), encoding="utf-8").read()
+        self.assertNotIn("CRYPTO_META = {", src)
+
+
 if __name__ == "__main__":
     unittest.main()

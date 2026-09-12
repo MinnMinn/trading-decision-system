@@ -48,3 +48,15 @@ def market_of(symbol):
         if symbol in ANALYSIS[m]:
             return m
     return None
+
+
+_DISPLAY = {k: v for k, v in (_DATA.get("display") or {}).items() if not k.startswith("_")}
+
+
+def display(symbol):
+    """Presentation metadata, with a derived default so adding a symbol needs no second edit anywhere."""
+    over = _DISPLAY.get(symbol, {})
+    base = symbol[:-4].lower() if symbol.endswith("USDT") else symbol.lower()
+    return {"id": over.get("id", base),
+            "label": over.get("label", symbol),
+            "price_decimals": int(over.get("price_decimals", 2))}
