@@ -76,12 +76,16 @@ MARKETS = ["crypto", "cfd"]
 _ispec = importlib.util.spec_from_file_location("instruments", os.path.join(ROOT, "scripts", "instruments.py"))
 instruments = importlib.util.module_from_spec(_ispec); _ispec.loader.exec_module(instruments)
 MARKET_INSTRUMENTS = {m: instruments.analysis(m) for m in instruments.MARKETS}
-# Footprint/Heatmap have NO commodities source (CoinGlass is crypto-derivatives only) -- SYSTEM-DESIGN.md §12 item 3.
-MARKET_DIMENSIONS = {"crypto": ["wyckoff", "ict", "footprint", "heatmap"], "cfd": ["wyckoff", "ict"]}
+_mspec = importlib.util.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py"))
+methods = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(methods)  # import methods as a sibling script, not a package
+# Which dimensions each market can have AT ALL -- the shape, from docs/architecture/methods.json.
+# Footprint/Heatmap have NO commodities source (CoinGlass is crypto-derivatives only) -- SYSTEM-DESIGN.md §12 item 3,
+# which is now expressed by those dimensions not listing "cfd" in their markets[].
+MARKET_DIMENSIONS = {m: methods.dimensions(m) for m in MARKETS}
 # No 1m for cfd (user decision 2026-09-11: CFD scalping runs on M5 -- gold spread makes M1 noise); the EA exports
 # 1W/1D/4H/1H/15m/5m (integrations/mt5/ExportOHLCV.mq5). 5m exists for cfd only; crypto scalping stays on 1m.
 MARKET_TIMEFRAMES = {"crypto": ["1m", "15m", "1h", "4h", "1D"], "cfd": ["5m", "15m", "1h", "4h", "1D"]}
-DIMENSIONS = ["wyckoff", "ict", "footprint", "heatmap"]                       # SYSTEM-DESIGN.md §6.2
+DIMENSIONS = list(methods.ALL_DIMENSIONS)                                    # SYSTEM-DESIGN.md §6.2
 TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D"]
 LAYERS = ["scanner", "local_read", "pilot"]
 ALLOWED_INSTRUMENTS = MARKET_INSTRUMENTS["crypto"] + MARKET_INSTRUMENTS["cfd"]

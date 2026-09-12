@@ -110,3 +110,18 @@ class Unverifiable(unittest.TestCase):
         """Footprint/heatmap never appear in any method's requires -- the page must say so honestly."""
         represented = set().union(*(set(v["requires"]) for v in M.RUNNER_METHODS.values()))
         self.assertEqual(set(M.ALL_DIMENSIONS) - represented, {"footprint", "heatmap"})
+
+
+class AutomationUsesRegistry(unittest.TestCase):
+    def test_no_hand_kept_dimension_list_left(self):
+        """The whole point of the registry: automation.py must not carry a second copy."""
+        src = open(os.path.join(ROOT, "scripts", "automation.py"), encoding="utf-8").read()
+        self.assertNotIn('"wyckoff", "ict", "footprint", "heatmap"', src)
+        self.assertIn("import methods", src)
+
+    def test_market_dimensions_comes_from_the_registry(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("auto", os.path.join(ROOT, "scripts", "automation.py"))
+        auto = importlib.util.module_from_spec(spec); spec.loader.exec_module(auto)
+        for m in M.markets():
+            self.assertEqual(auto.MARKET_DIMENSIONS[m], M.dimensions(m))
