@@ -46,12 +46,56 @@ class Presets(unittest.TestCase):
                 self.assertRegex(html, rf'data-market="cfd"[^>]*data-preset="{re.escape(p["id"])}"[^>]*disabled')
         self.assertIn("CoinGlass", html)
 
-    def test_research_tier_cards_state_the_no_trade_consequence(self):
+    def test_no_research_group_renders_when_every_preset_is_trade_tier(self):
+        """docs/architecture/methods.json 2026-09-12 SOLO addition: no preset is tagged research any more now
+        that SOLO makes the single-dimension presets tradeable. A heading with an empty grid under it is a
+        rendering bug, not a harmless empty group -- assert the group is omitted entirely."""
         html = mp.render(cfg())
-        self.assertIn("NO TRADE", html)
-        for p in M.PRESETS:
-            if p["tier"] == "research":
-                self.assertRegex(html, rf'data-preset="{re.escape(p["id"])}"[^>]*data-tier="research"')
+        self.assertFalse(any(p["tier"] == "research" for p in M.PRESETS),
+                          "fixture assumption stale: a research-tier preset exists again -- revisit this test")
+        self.assertNotIn(mp._TIER_LABEL["research"], html)
+
+    def test_solo_mode_cards_state_the_higher_threshold_consequence(self):
+        """wyckoff/ict are SOLO-mode presets (tier: trade) since the 2026-09-12 SOLO addition -- the stale
+        'always NO TRADE' research copy is gone; the card must instead say it runs SOLO, on one dimension, at
+        a higher score threshold than NORMAL, because nothing else confirms it (SYSTEM-DESIGN.md section 6.2)."""
+        html = mp.render(cfg())
+        solo_presets = [p for p in M.PRESETS if p["mode"] == "SOLO"]
+        self.assertTrue(solo_presets, "fixture assumption stale: no SOLO preset in the registry")
+        normal_threshold = M.MODES["NORMAL"]["threshold"]
+        solo_threshold = M.MODES["SOLO"]["threshold"]
+        checked = 0
+        for p in solo_presets:
+            for market in ("crypto", "cfd"):
+                if p not in M.presets_for(market):
+                    continue
+                card = _preset_card_html(html, market, p["id"])
+                self.assertIn("SOLO", card)
+                self.assertIn(str(solo_threshold), card)
+                self.assertIn(str(normal_threshold), card)
+                self.assertNotIn("NO TRADE", card, f"{market}/{p['id']} still carries the stale research copy")
+                checked += 1
+        self.assertTrue(checked, "no SOLO preset had an unlocked card in either market")
+
+    def test_card_mode_and_threshold_never_disagree_with_the_registry(self):
+        """A card that ever claims a mode or threshold other than the registry's own is worse than no claim at
+        all -- this is the invariant test, pinned to scripts/methods.py's MODES table via M.mode_of(), not to
+        today's numbers, so it still fails if a future registry edit and the page's copy ever drift apart."""
+        html = mp.render(cfg())
+        checked = 0
+        for market in ("crypto", "cfd"):
+            for p in M.presets_for(market):
+                card = _preset_card_html(html, market, p["id"])
+                mode = M.mode_of(p["id"])
+                info = M.MODES[mode]
+                self.assertRegex(card, rf'data-mode="{re.escape(mode)}"',
+                                  f"{market}/{p['id']}: card does not declare registry mode {mode}")
+                self.assertRegex(card, rf'data-mode-minimum="{info["minimum"]}"',
+                                  f"{market}/{p['id']}: card minimum disagrees with registry")
+                self.assertRegex(card, rf'data-mode-threshold="{info["threshold"]}"',
+                                  f"{market}/{p['id']}: card threshold disagrees with registry")
+                checked += 1
+        self.assertTrue(checked, "no unlocked card was found to check")
 
     def test_the_applied_preset_is_marked_selected(self):
         html = mp.render(cfg(crypto_dims={"wyckoff": True, "ict": True, "footprint": False, "heatmap": False}))
@@ -488,6 +532,27 @@ class DesiredBaseUsesInitialBakedSnapshot(unittest.TestCase):
                          "repaint the DOM from a live (possibly null) applied snapshot")
 
 
+class AriaPressedSourceOfTruth(unittest.TestCase):
+    """A request can never be mistaken for something already in force: aria-pressed on both preset cards
+    and instrument chips must be set exclusively from the live control/applied.<market> snapshot, never
+    from a locally-tapped/pending value -- a tap only ever toggles the separate `is-desired` class. Pinned
+    to paintMarket(), the sole function that writes aria-pressed (renderMarket() delegates to it after
+    reconciling), so a future change routing aria-pressed through `pending` anywhere fails this test."""
+
+    def test_aria_pressed_is_set_only_from_the_applied_doc_never_from_pending(self):
+        fn = _js_function_source(mp._SCRIPT, "paintMarket")
+        set_pressed_lines = [line for line in fn.splitlines() if 'setAttribute("aria-pressed"' in line]
+        self.assertEqual(len(set_pressed_lines), 2,
+                          "expected exactly one aria-pressed assignment for cards and one for chips")
+        for line in set_pressed_lines:
+            self.assertNotIn("pending", line,
+                              f"aria-pressed must never be derived from the pending/desired value: {line!r}")
+            self.assertTrue("doc" in line or "appliedSymbols" in line,
+                             f"aria-pressed must be derived from the applied doc: {line!r}")
+        # is-desired (the pending indicator) is a separate class toggle, never folded into aria-pressed.
+        self.assertIn('classList.toggle("is-desired"', fn)
+
+
 def _wrap_with_db_stub(panel_html, seed_docs):
     """Wraps rendered panel HTML with a stub window.claude whose db.doc().onSnapshot() fires once,
     synchronously, with the seeded doc (or exists:false if unseeded) -- and whose .set() records every
@@ -503,6 +568,39 @@ def _wrap_with_db_stub(panel_html, seed_docs):
             "          set: function (data) {\n"
             "            window.__writes.push({path: path, data: JSON.parse(JSON.stringify(data))});\n"
             "            return Promise.resolve();\n"
+            "          },\n"
+            "          onSnapshot: function (onNext) {\n"
+            "            var seed = window.__seedDocs[path];\n"
+            "            if (seed && seed.exists) {\n"
+            "              onNext({exists: true, data: function () { return seed.data; }});\n"
+            "            } else {\n"
+            "              onNext({exists: false, data: function () { return {}; }});\n"
+            "            }\n"
+            "            return function () {};\n"
+            "          }\n"
+            "        };\n"
+            "      }\n"
+            "    });\n"
+            "  }\n"
+            "};\n"
+            "</script>")
+    return "<!doctype html><html><head><meta charset='utf-8'></head><body>" + stub + "\n" + panel_html + "\n</body></html>"
+
+
+def _wrap_with_db_stub_rejecting_writes(panel_html, seed_docs, error_code):
+    """Same contract as _wrap_with_db_stub, except every .set() call rejects with {code: error_code} --
+    for reproducing handleWriteError's branches in a real browser instead of only grepping its source."""
+    stub = ("<script>\n"
+            "window.__seedDocs = " + json.dumps(seed_docs) + ";\n"
+            "window.__writes = [];\n"
+            "window.claude = {\n"
+            "  use: function () {\n"
+            "    return Promise.resolve({\n"
+            "      doc: function (path) {\n"
+            "        return {\n"
+            "          set: function (data) {\n"
+            "            window.__writes.push({path: path, data: JSON.parse(JSON.stringify(data))});\n"
+            "            return Promise.reject({code: " + json.dumps(error_code) + "});\n"
             "          },\n"
             "          onSnapshot: function (onNext) {\n"
             "            var seed = window.__seedDocs[path];\n"
@@ -600,6 +698,68 @@ class BrowserOverTimeBehaviour(unittest.TestCase):
                              "an empty list must only ever be sent because the user explicitly "
                              "unticked everything")
         self.assertEqual(sorted(writes[0]["data"]["instruments"]), sorted(nine))
+
+    def test_tapping_the_already_applied_preset_still_sends_a_write(self):
+        """Browser-sweep defect (2026-09-12): a tap on the card that is ALREADY the applied preset used to
+        be silently swallowed -- reconcilePending(), run as part of the old renderMarket() called
+        synchronously right after the tap, saw that the freshly-set pendingDesired already matched
+        applied[market] and cleared it before scheduleWrite()'s debounce timer ever fired, so flushWrite()
+        found nothing pending and never wrote. The card showed zero reaction and the tap produced zero
+        write -- exactly the 'a tap must never look like nothing happened' failure this file's other
+        Defect-1/2 fixes already guard against, just from a local tap instead of a write success. Fixed by
+        painting immediately from onPresetClick/onChipClick (paintMarket(), no reconcile) and only
+        reconciling on paths that receive new information (a snapshot, or a settled write)."""
+        nine = I.analysis("crypto")
+        page = self._open(cfg(crypto_syms=nine), applied_seed={
+            "preset": "wyckoff+ict", "instruments": nine,
+            "applied_at": "2026-09-12T09:00:00Z", "requested_at": "2026-09-12T08:59:00Z"})
+        card_sel = '.preset-card[data-market="crypto"][data-preset="wyckoff+ict"]'
+        page.click(card_sel)
+        page.wait_for_timeout(600)  # past the 400ms debounce
+        writes = page.evaluate("window.__writes")
+        self.assertEqual(len(writes), 1,
+                          "tapping the currently-applied preset must still send the full desired set -- "
+                          "PANEL-10 says every write is the full state, never a delta, and the APPLIER "
+                          "(not the page) is the one that decides a resend is a no-op (CFG-13)")
+        self.assertEqual(writes[0]["data"]["preset"], "wyckoff+ict")
+        self.assertEqual(sorted(writes[0]["data"]["instruments"]), sorted(nine))
+
+    def test_a_generic_write_failure_status_is_not_immediately_overwritten(self):
+        """Browser-sweep defect (2026-09-12): handleWriteError's generic-failure branch used to call
+        setRequestStatus(market, 'send-failed', ...) directly and then call renderMarket(market) right
+        after -- renderMarket's own updateStatusLine() recomputed the line from applied/request/pending in
+        that SAME synchronous call and overwrote the failure text (falling back to 'đã áp dụng...' since
+        the applied doc was untouched by the failed write) before the user could ever read it. Fixed by
+        routing the failure through a sendFailed[market] flag that updateStatusLine() itself checks, so
+        there is exactly one write to the status line per repaint."""
+        nine = I.analysis("crypto")
+        page = self._open_rejecting(cfg(crypto_syms=nine), applied_seed={
+            "preset": "wyckoff+ict", "instruments": nine,
+            "applied_at": "2026-09-12T09:00:00Z", "requested_at": "2026-09-12T08:59:00Z"},
+            error_code="some_unrecognised_code")
+        card_sel = '.preset-card[data-market="crypto"][data-preset="ict"]'
+        page.click(card_sel)
+        page.wait_for_timeout(600)
+        status = page.eval_on_selector('.request-status[data-market="crypto"]', "el => el.textContent")
+        self.assertIn("gửi thất bại", status,
+                       "a genuine send failure must stay visible on the status line, not be silently "
+                       "reverted to the old 'applied' text by the very same repaint that set it")
+
+    def _open_rejecting(self, config, applied_seed, error_code):
+        html = mp.render(config)
+        seed = {}
+        if applied_seed is not None:
+            seed["control/applied.crypto"] = {"exists": True, "data": applied_seed}
+        page_html = _wrap_with_db_stub_rejecting_writes(html, seed, error_code)
+        path = tempfile.mktemp(suffix=".html")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(page_html)
+        self.addCleanup(lambda: os.path.exists(path) and os.remove(path))
+        page = self._browser.new_page()
+        self.addCleanup(page.close)
+        page.goto("file://" + path)
+        page.wait_for_timeout(150)
+        return page
 
 
 class HeartbeatInteraction(unittest.TestCase):

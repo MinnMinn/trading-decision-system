@@ -237,7 +237,10 @@ body { background: var(--bg); color: var(--text); margin: 0; font-family: var(--
 .preset-note code { font-family: var(--font-mono); font-size: .95em; }
 .preset-note.locked { color: var(--nodata); }
 .preset-note.research { color: var(--unvalidated); }
+.preset-note.solo { color: var(--unvalidated); font-weight: 600; }
 .preset-note.realgate { color: var(--danger); }
+.preset-mode { font-family: var(--font-mono); font-size: .68rem; color: var(--text-dim); }
+.preset-mode[data-mode="SOLO"] { color: var(--unvalidated); }
 .preset-methods { font-family: var(--font-mono); font-size: .68rem; color: var(--text-dim); }
 .custom-note { font-size: .78rem; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border);
   border-radius: 8px; padding: .5rem .6rem; }
@@ -265,6 +268,7 @@ body { background: var(--bg); color: var(--text); margin: 0; font-family: var(--
   background: var(--danger-soft); color: var(--danger); }
 .request-status { font-size: .72rem; color: var(--text-dim); }
 .request-status[data-status="refused"] { color: var(--nodata); font-weight: 600; }
+.request-status[data-status="send-failed"] { color: var(--nodata); font-weight: 600; }
 .preset-card.is-desired { outline: 2px dashed var(--pending); outline-offset: 2px;
   border-color: var(--pending); background: var(--pending-soft); }
 .preset-pending-note { font-size: .68rem; font-weight: 600; color: var(--pending); }
@@ -274,8 +278,15 @@ body { background: var(--bg); color: var(--text); margin: 0; font-family: var(--
 </style>"""
 
 _TIER_LABEL = {"trade": "Đủ điều kiện vào lệnh", "research": "Chỉ nghiên cứu"}
-_RESEARCH_NOTE = ("/analyze luôn NO TRADE — dưới tối thiểu 2 dimension của NORMAL (§6.1); "
-                   "chỉ pilot cơ học còn bắn.")
+# SOLO (docs/architecture/methods.json, added 2026-09-12): the two single-dimension presets no longer sit in
+# a permanent "research" tier -- they can produce a live TRADE verdict, at a higher score bar than NORMAL,
+# because a single methodology has no cross-confirming dimension to lean on (SYSTEM-DESIGN.md §6.2). The
+# thresholds are interpolated from M.MODES, never hard-coded here, so this string cannot drift from the
+# registry the way the old _RESEARCH_NOTE's "tối thiểu 2 dimension" line eventually did.
+def _solo_note():
+    solo, normal = M.MODES["SOLO"], M.MODES["NORMAL"]
+    return (f"Chạy SOLO — {solo['minimum']} dimension, không có dimension nào khác xác nhận chéo, nên cần "
+            f"điểm ≥{solo['threshold']} (thay vì {normal['threshold']} của NORMAL) mới ra được TRADE.")
 # The mechanical WYCKOFF/WYCKOFF-BOOK runner methods this line is about -- printing it on a card whose
 # permitted set contains neither claims machinery that never engaged (the exact opposite of what the
 # line exists to prevent: implying the pilot verifies the wyckoff DIMENSION).
@@ -335,8 +346,18 @@ def _preset_card(market, preset, selected_id, environment):
         # Only claim the mechanical Wyckoff rule engine ran where it actually can.
         if permitted & _WYCKOFF_RUNNER_METHODS:
             parts.append(f'<div class="preset-note">{_code_note(_WYCKOFF_HONESTY_PARTS)}</div>')
-    if tier == "research":
-        parts.append(f'<div class="preset-note research">{esc(_RESEARCH_NOTE)}</div>')
+    # Mode/threshold sourced from scripts/methods.py (M.MODES via the preset's own `mode` field) -- never a
+    # value hand-kept on this page. data-mode/-minimum/-threshold are machine-checkable copies of the same
+    # numbers for scripts/tests/test_method_panel.py's registry-invariant test, independent of the Vietnamese
+    # prose next to them.
+    mode = preset["mode"]
+    mode_info = M.MODES[mode]
+    parts.append(f'<div class="preset-mode" data-mode="{esc(mode)}" '
+                 f'data-mode-minimum="{mode_info["minimum"]}" data-mode-threshold="{mode_info["threshold"]}">'
+                 f'chế độ {esc(mode)} · tối thiểu {mode_info["minimum"]} dimension · '
+                 f'ngưỡng điểm {mode_info["threshold"]}</div>')
+    if not locked and mode == "SOLO":
+        parts.append(f'<div class="preset-note solo">{esc(_solo_note())}</div>')
     parts.append("</button>")
     return "".join(parts)
 
@@ -395,6 +416,13 @@ def _market_column(market, config, data_present, backtested, open_positions, env
 
     empty_note = f'<div class="empty-note">{esc(_EMPTY_NOTE)}</div>' if not selected_syms else ""
 
+    # No preset is tier:research any more since the 2026-09-12 SOLO addition (docs/architecture/methods.json)
+    # made every single-dimension preset tradeable -- but this stays data-driven (checks research_cards, not
+    # a hard-coded "there are none today") so a future research-tier preset would bring the group back without
+    # a code change here. A heading with an empty grid under it is a rendering bug, not a harmless empty group.
+    research_group = (f'<div class="group-label">{_TIER_LABEL["research"]}</div>'
+                       f'<div class="preset-grid">{research_cards}</div>') if research_cards else ""
+
     market_label = "Crypto" if market == "crypto" else "CFD"
     ticker_hint = "/".join(I.analysis(market)[:3]) + ("…" if len(I.analysis(market)) > 3 else "")
     return (
@@ -403,8 +431,7 @@ def _market_column(market, config, data_present, backtested, open_positions, env
         f'{custom_note}'
         f'<div class="group-label">{_TIER_LABEL["trade"]}</div>'
         f'<div class="preset-grid">{trade_cards}</div>'
-        f'<div class="group-label">{_TIER_LABEL["research"]}</div>'
-        f'<div class="preset-grid">{research_cards}</div>'
+        f'{research_group}'
         f'<div class="group-label">Cặp theo dõi</div>'
         f'{empty_note}'
         f'<ul class="chip-grid">{chips}</ul>'
@@ -462,6 +489,15 @@ _SCRIPT = """<script>
   // PENDING_RECONCILE_GUARD below. A successful write ack alone must never clear this: the tap must
   // keep looking like something is in flight until the applier actually catches up or declines it.
   var pendingDesired = {};
+  // market -> bool -- true right after a write attempt failed for a reason other than not_granted/revoked
+  // (which degrades the whole page to read-only some other way) or unavailable/resource_exhausted (which
+  // retries silently). Bug found in the browser sweep (2026-09-12): handleWriteError used to call
+  // setRequestStatus() directly with "gửi thất bại", then immediately call renderMarket(), whose own
+  // updateStatusLine() recomputed the line from applied/request/pending and overwrote the failure text in
+  // the SAME synchronous tick -- the user never saw it. updateStatusLine() now owns displaying this state
+  // (checked once, see below) so there is exactly one write to the status line per repaint, not two racing
+  // ones. Cleared by the next tap (onPresetClick/onChipClick) so a retry supersedes the stale note.
+  var sendFailed = {};
   // Fixed Vietnamese copy for the in-card pending note (PENDING_RECONCILE follow-up) -- never db content.
   var PENDING_NOTE_TEXT = "đang chờ áp dụng";
   var writeTimer = {};
@@ -585,8 +621,21 @@ _SCRIPT = """<script>
     }
   }
 
-  function renderMarket(market) {
-    reconcilePending(market);
+  // paintMarket() is the pure DOM repaint from the current in-memory state -- it never decides whether
+  // pendingDesired should still count as outstanding, only reconcilePending() does that. Split out (bug
+  // found in the browser sweep, 2026-09-12): a tap on the card that is ALREADY the applied preset/set of
+  // instruments used to produce a pending value that, by construction, already equals applied[market] --
+  // and the OLD renderMarket() ran reconcilePending() (which clears a pending edit once it matches applied,
+  // by design, for the case an applied snapshot arrives and CONFIRMS an in-flight edit) synchronously,
+  // in the same tick as the tap, before flushWrite's debounce timer ever fired. That cleared the
+  // just-created pendingDesired before scheduleWrite() could send it, so flushWrite() found nothing to
+  // write and the tap produced zero visible reaction and zero write -- a tap silently looking like nothing
+  // happened, the exact class of defect this file's own PENDING_RECONCILE_GUARD/Defect-1 fix exists to
+  // prevent (see the comment there), just triggered from the opposite direction (a local tap, not a write
+  // success). onPresetClick/onChipClick now paint immediately with paintMarket() (no reconcile -- nothing
+  // new has been learned yet), and only call the reconciling renderMarket() again from the paths that
+  // actually receive new information: a snapshot arriving, or a write settling.
+  function paintMarket(market) {
     var doc = applied[market];
     var pending = pendingDesired[market];
     marketPresetCards(market).forEach(function (card) {
@@ -609,6 +658,11 @@ _SCRIPT = """<script>
       if (note) { note.hidden = !isPendingHere; note.textContent = isPendingHere ? PENDING_NOTE_TEXT : ""; }
     });
     updateStatusLine(market);
+  }
+
+  function renderMarket(market) {
+    reconcilePending(market);
+    paintMarket(market);
   }
 
   // REQUEST_OUTCOME_GUARD_START -- kept between these markers so scripts/tests/test_method_panel.py can
@@ -684,6 +738,10 @@ _SCRIPT = """<script>
       var written = req && req.preset === pending.preset && sameInstrumentSet(req.instruments, pending.instruments);
       setRequestStatus(market, written ? "waiting" : "unsent",
         written ? "đang chờ áp dụng (≤ 5 phút)" : "chưa gửi");
+      return;
+    }
+    if (sendFailed[market]) {
+      setRequestStatus(market, "send-failed", "gửi thất bại — thử lại");
       return;
     }
     if (!req) {
@@ -797,7 +855,10 @@ _SCRIPT = """<script>
       setControlsEnabled(false);
       setDbBanner("readonly", "Chỉ xem — quyền ghi đã bị thu hồi.");
     } else {
-      setRequestStatus(market, "send-failed", "gửi thất bại — thử lại");
+      // Set the flag, not the status text directly -- updateStatusLine() (called via renderMarket() just
+      // below) is the single place that writes to the status line, so this can never be clobbered by that
+      // same repaint the way the old direct setRequestStatus() call was (see sendFailed's declaration).
+      sendFailed[market] = true;
     }
     // A failed write must never leave the card looking selected: drop the pending desired state and
     // repaint from the last known applied snapshot.
@@ -807,20 +868,22 @@ _SCRIPT = """<script>
 
   function onPresetClick(market, presetId) {
     if (!dbReady) return;
+    sendFailed[market] = false; // a fresh tap supersedes any stale "gửi thất bại" note from a prior attempt
     var base = desiredBase(market);
     pendingDesired[market] = { preset: presetId, instruments: base.instruments.slice() };
-    renderMarket(market);
+    paintMarket(market); // not renderMarket(): see paintMarket()'s comment -- nothing new to reconcile yet
     scheduleWrite(market);
   }
 
   function onChipClick(market, symbol) {
     if (!dbReady) return;
+    sendFailed[market] = false;
     var base = desiredBase(market);
     var instruments = base.instruments.slice();
     var idx = instruments.indexOf(symbol);
     if (idx === -1) { instruments.push(symbol); } else { instruments.splice(idx, 1); }
     pendingDesired[market] = { preset: base.preset, instruments: instruments };
-    renderMarket(market);
+    paintMarket(market);
     scheduleWrite(market);
   }
 
