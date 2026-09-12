@@ -17,7 +17,7 @@ Inputs (all read-only; each has exactly one writer elsewhere):
 Task B1 only: this module has no `db` capability and does not publish. It renders a static HTML fragment
 (no <!doctype>/<html>/<head> -- the Artifact tool supplies those) from the registry and a config dict.
 """
-import argparse, json, os, re, sys
+import argparse, json, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -52,27 +52,17 @@ def _real_data_present(root=ROOT):
     return present
 
 
-_BACKTEST_CAVEAT_RE = re.compile(r"backtested on ([A-Z0-9/]+) only")
-
-
 def _real_backtested(root=ROOT):
-    """The set of symbols the pilot rules are actually validated on, read from the caveat recorded in
-    docs/architecture/instruments.json's history (instruments.json:68, dated 2026-09-12) rather than
-    hard-coded here -- there is no structured field for it yet, only the prose history entry the CAVEAT was
-    written into when the six extra crypto symbols were added to execution. If the file is missing/corrupt or
-    the caveat text is not found, the honest default is "unknown", not "assume nobody is backtested" (that
-    would badge every allowlisted symbol, crypto and CFD alike, as unvalidated on no evidence) -- so this
-    degrades to "everyone counts as backtested" (no badge) rather than a confident wrong warning."""
-    try:
-        with open(I.PATH, encoding="utf-8") as fh:
-            data = json.load(fh)
-    except (OSError, ValueError):
-        return set(I.ALL_ANALYSIS)
-    text = " ".join((h.get("reason", "") + " " + h.get("change", "")) for h in (data.get("history") or []))
-    m = _BACKTEST_CAVEAT_RE.search(text)
-    if not m:
-        return set(I.ALL_ANALYSIS)
-    return set(m.group(1).split("/"))
+    """The set of symbols the pilot rules are actually validated on, read from the structured
+    docs/architecture/instruments.json -> backtested field via scripts/instruments.py (the single source,
+    checked against docs/architecture/pilot-top5.json's own per-setup symbol lists when the field was written).
+
+    This used to regex a prose sentence out of instruments.json's history; that broke silently the moment
+    anyone reworded the sentence, and worse, degraded a MISS to "assume backtested" -- exactly backwards for a
+    warning whose entire point is that six of nine tradeable crypto symbols were never validated. The
+    structured field removes the parsing risk, and I.backtested() already answers "not backtested" for any
+    symbol absent from it (or if the field is missing entirely) -- there is nothing further to soften here."""
+    return set(I.backtested())
 
 
 def _real_open_positions(root=ROOT):

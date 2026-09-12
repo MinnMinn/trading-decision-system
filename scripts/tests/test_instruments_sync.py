@@ -22,6 +22,13 @@ class TestSingleSource(unittest.TestCase):
             self.assertTrue(set(I.execution(m)) <= set(I.analysis(m)),
                             f"execution.{m} escapes analysis.{m}")
 
+    def test_backtested_is_subset_of_execution(self):
+        """You cannot claim backtest validation for a symbol that cannot even be traded -- instruments.py
+        raises on load if this is violated; this test is the regression guard for that invariant."""
+        for m in I.MARKETS:
+            self.assertTrue(set(I.backtested(m)) <= set(I.execution(m)),
+                            f"backtested.{m} escapes execution.{m}")
+
     def test_no_forex_anywhere(self):
         """SYSTEM-DESIGN.md §1: Forex is prohibited outright and can never appear in the allowlist."""
         fx = {"USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "SGD", "HKD"}

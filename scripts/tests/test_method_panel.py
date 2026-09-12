@@ -80,6 +80,23 @@ class Instruments(unittest.TestCase):
         self.assertRegex(html, r'data-symbol="TAOUSDT"[^>]*data-unvalidated="1"')
         self.assertRegex(html, r'data-symbol="BTCUSDT"[^>]*data-unvalidated="0"')
 
+    def test_default_backtested_reads_the_registry_field_not_a_regex(self):
+        """No injected backtested= -- exercises the real docs/architecture/instruments.json 'backtested' field
+        via scripts/instruments.py, not a parsed sentence."""
+        html = mp.render(cfg())
+        self.assertRegex(html, r'data-symbol="BTCUSDT"[^>]*data-unvalidated="0"')
+        self.assertRegex(html, r'data-symbol="TAOUSDT"[^>]*data-unvalidated="1"')
+
+    def test_missing_backtested_data_badges_every_symbol_fail_loud(self):
+        """The warning must fail loud, not fail silent: if we do not know who was backtested (equivalent to
+        instruments.json's backtested{} field being absent), assume NOBODY was, and badge every allowlisted
+        symbol in both markets -- no exceptions."""
+        html = mp.render(cfg(), backtested=set())
+        for m in ("crypto", "cfd"):
+            for sym in I.analysis(m):
+                self.assertRegex(html, rf'data-symbol="{sym}"[^>]*data-unvalidated="1"',
+                                 f"{sym} was not badged when backtested data was unavailable")
+
     def test_empty_selection_renders_as_a_chosen_state_not_an_error(self):
         """PANEL-11: no instruments is a legitimate narrowing, and must look deliberate."""
         html = mp.render(cfg(cfd_syms=[]))
