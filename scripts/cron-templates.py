@@ -65,7 +65,7 @@ def enabled(meta, cfg):
     if not cfg.get("enabled", True):
         return False, "automation master switch is OFF"
     layer = meta.get("layer", "local_read")
-    if not cfg.get("layers", {}).get(layer, True):
+    if layer != "none" and not cfg.get("layers", {}).get(layer, True):
         return False, f"layers.{layer} is off"
     m = meta.get("market")
     mk = cfg.get("markets", {}).get(m, {}) if m else {}
