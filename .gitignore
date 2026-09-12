@@ -61,3 +61,6 @@ docs/architecture/automation-config.json.tmp
 
 __pycache__/
 data/history/
+
+# Playwright MCP scratch output (screenshots, console logs) from browser verification runs
+.playwright-mcp/
