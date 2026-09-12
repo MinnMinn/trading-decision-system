@@ -168,7 +168,10 @@ const wyckoffShapes = (rows, wy, cfg) => {
   return S;
 };
 
-const windowShape = (rows, fromIso) => { const a=spanOf(rows,fromIso); if(a>=rows.length) return []; return [{kind:'rect',i1:a-0.5,i2:null,p1:null,p2:null,fill:'accent',alpha:0.10,label:'vào lệnh →',labelColor:'accent',labelPos:'tl'}]; };
+// Right edge pinned to this tier's own last candle (rows.length-0.5), not the screen edge: i2:null would follow
+// whatever the viewer has panned/zoomed to, so the band would cover the whole visible chart once zoomed into the
+// recent portion. Pinning to the data end keeps the band's width equal to the entry tier's actual time span.
+const windowShape = (rows, fromIso) => { const a=spanOf(rows,fromIso); if(a>=rows.length) return []; return [{kind:'rect',i1:a-0.5,i2:rows.length-0.5,p1:null,p2:null,fill:'accent',alpha:0.10,label:'vào lệnh →',labelColor:'accent',labelPos:'tl'}]; };
 
 // Named levels (anchors) for the active lane: a dashed line from its time to the right edge, labelled on the price axis.
 const levelShapes = (rows, levels, lane, fmt) => (levels||[]).filter(L=>L.method===lane||L.method==='neutral').map(L=>({kind:'hseg',i1:Math.max(0,spanOf(rows,L.time))-0.5,i2:null,price:L.price,stroke:L.method==='neutral'?'muted':lane==='ict'?'i':'w',sw:1.2,dash:[6,4],label:(L.short||'')+' '+fmt(L.price),labelAt:'axis'}));

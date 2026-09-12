@@ -35,8 +35,8 @@ MT5 = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
 TF_MIN = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30, "1H": 60, "2H": 120, "4H": 240, "1D": 1440, "1W": 10080}
 # Per-timeframe window spec (bars, axis label, human horizon). Bar counts are project parameters (no source gives them;
 # they only need to hold the previous day/week/month for the PDH/PWH/PMH reads, knowledge/04 §2.8).
-TF_SPEC = {"1m": (180, "%H:%M", "3 giờ"), "5m": (288, "%m-%d %H:%M", "24 giờ"), "15m": (288, "%m-%d %H:%M", "3 ngày"),
-           "1H": (240, "%m-%d %H:%M", "10 ngày"), "4H": (180, "%m-%d %H:%M", "30 ngày"), "1D": (120, "%m-%d", "4 tháng"), "1W": (104, "%y-%m-%d", "2 năm")}
+TF_SPEC = {"1m": (360, "%H:%M", "6 giờ"), "5m": (576, "%m-%d %H:%M", "48 giờ"), "15m": (576, "%m-%d %H:%M", "6 ngày"),
+           "1H": (480, "%m-%d %H:%M", "20 ngày"), "4H": (360, "%m-%d %H:%M", "60 ngày"), "1D": (240, "%m-%d", "8 tháng"), "1W": (208, "%y-%m-%d", "4 năm")}
 TF_LABEL = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "1H", "4h": "4H", "1D": "1D", "1W": "1W"}   # automation spelling -> file spelling
 TIER_NAME = {"bias": "Bias", "structure": "Cấu trúc", "entry": "Vào lệnh"}
 TIER_ORDER = ("bias", "structure", "entry")
