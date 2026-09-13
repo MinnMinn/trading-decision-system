@@ -247,13 +247,28 @@ def htf_position(sym, tf):
 
 
 def htf_allows(htf, t, side):
-    """Boundary rule (htf_context.BOUNDARY_FRACTION): longs only when the HTF sits in the lower third of its range or has
+    """LEGACY: the pre-2026-09-13 rolling-percentile proxy, kept reachable via --rules legacy so it stays
+    comparable against the live gate; bias_allows() below is the gate strategy-runner.py should use going forward.
+    Boundary rule (htf_context.BOUNDARY_FRACTION): longs only when the HTF sits in the lower third of its range or has
     broken above it (markup); shorts the mirror. Uses the last HTF bar that CLOSED before t."""
     k = bisect.bisect_left(htf, (t,)) - 1
     if k < 0:
         return False
     pct = htf[k][1]
     return pct <= 1 / 3 or pct > 1.0 if side == "long" else pct >= 2 / 3 or pct < 0.0
+
+
+def bias_allows(bias, side):
+    """The giảm-khung gate read from the LIVE bias (htf_context.bias_of via live_rules.bias_at). `bias` is the
+    first element of the (bias, basis) tuple that live_rules.bias_at(...) / htf_context.bias_of(...) return --
+    i.e. call this as bias_allows(bias_at(...)[0], side), never with the (bias, basis) tuple itself. That first
+    element is a string with exactly four possible values: "long", "short", "neutral", "unknown"
+    (scripts/htf_context.py wyckoff_bias / ict_bias / bias_of).
+
+    Only an explicit agreement opens the gate: `neutral` is a real reading that found no direction and `unknown`
+    means no read was available, and neither is permission to take risk (capital preservation first). This
+    replaces htf_allows, the rolling-percentile proxy, which is kept above so --rules legacy still runs."""
+    return bias == side
 
 
 def scan(sym, tf):

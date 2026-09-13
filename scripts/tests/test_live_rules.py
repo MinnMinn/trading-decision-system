@@ -9,7 +9,7 @@ Code-quality review of the first cut (commit acd65c5) found two Critical defects
   window is a window live never produces (different median range/pivots/equilibrium).
 - window() must raise IndexError for i outside [0, len(candles)), not silently slice to something plausible.
 """
-import importlib.util, os, unittest
+import importlib.util, os, subprocess, unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -18,6 +18,21 @@ def load(name):
     p = os.path.join(ROOT, "scripts", name)
     spec = importlib.util.spec_from_file_location(name.replace("-", "_").replace(".py", ""), p)
     m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
+
+
+def load_git_revision(ref, name):
+    """Loads `name` as it existed at git ref `ref`, with __file__ pinned to the file's CURRENT path so
+    ROOT-relative reads inside the module (docs/architecture/analysis-params.json, scripts/automation.py, the
+    `import wyckoff_rules` on sys.path) resolve against the real repo, not a throwaway temp file. Used to derive
+    an expectation from a prior revision's actual behaviour, not from reading today's source."""
+    real_path = os.path.join(ROOT, "scripts", name)
+    src = subprocess.check_output(["git", "show", f"{ref}:scripts/{name}"], cwd=ROOT, text=True)
+    mod_name = f"{name.replace('-', '_').replace('.py', '')}_{ref}"
+    spec = importlib.util.spec_from_loader(mod_name, loader=None, origin=real_path)
+    m = importlib.util.module_from_spec(spec)
+    m.__file__ = real_path
+    exec(compile(src, real_path, "exec"), m.__dict__)
+    return m
 
 
 def candles(n=800, base=100.0):
@@ -160,6 +175,69 @@ class MethodsIsRequired(unittest.TestCase):
     def test_bias_at_without_methods_raises_type_error(self):
         with self.assertRaises(TypeError):
             self.lr.bias_at(candles(), 700, "15m")
+
+
+class HtfGate(unittest.TestCase):
+    """The gate strategy-runner.py:525 calls. `legacy` is the pre-2026-09-13 percentile proxy, kept so the two
+    can be compared; `live` is htf_context.bias_of."""
+
+    def setUp(self):
+        self.bt = load("backtest-methods.py")
+
+    def test_live_gate_passes_only_when_the_bias_agrees(self):
+        self.assertTrue(self.bt.bias_allows("long", "long"))
+        self.assertTrue(self.bt.bias_allows("short", "short"))
+        self.assertFalse(self.bt.bias_allows("short", "long"))
+
+    def test_live_gate_refuses_neutral_and_unknown(self):
+        self.assertFalse(self.bt.bias_allows("neutral", "long"))
+        self.assertFalse(self.bt.bias_allows("unknown", "long"))
+
+    def test_legacy_percentile_gate_is_still_reachable(self):
+        self.assertTrue(self.bt.htf_allows([("t", 0.2)], "u", "long"))
+        self.assertFalse(self.bt.htf_allows([("t", 0.5)], "u", "long"))
+
+    def test_live_gate_refuses_neutral_and_unknown_on_the_short_side_too(self):
+        """Mirrors test_live_gate_refuses_neutral_and_unknown for side='short', so a fix that only special-cased
+        the long side would still be caught."""
+        self.assertFalse(self.bt.bias_allows("neutral", "short"))
+        self.assertFalse(self.bt.bias_allows("unknown", "short"))
+
+    def test_live_gate_refuses_a_missing_bias(self):
+        """No bias read at all (facts unavailable) must never be silently treated as permission -- capital
+        preservation first."""
+        self.assertFalse(self.bt.bias_allows(None, "long"))
+        self.assertFalse(self.bt.bias_allows(None, "short"))
+
+
+class HtfAllowsUnchanged(unittest.TestCase):
+    """Guards that htf_allows -- the function strategy-runner.py:525 actually calls as the live order gate --
+    was not altered by adding bias_allows alongside it. Expectations come from running a1c75d4's own
+    htf_allows (load_git_revision), not from reading the new code: a change that happened to read the same to
+    a human reviewer but altered behaviour would still be caught here."""
+
+    def setUp(self):
+        self.bt = load("backtest-methods.py")
+        self.old = load_git_revision("a1c75d4", "backtest-methods.py")
+
+    def test_htf_allows_matches_a1c75d4_across_representative_percentiles(self):
+        cases = [-1.0, -0.2, -0.0001, 0.0, 0.1, 1 / 3, 0.34, 0.5, 2 / 3, 0.6667, 0.9, 1.0, 1.0001, 1.5]
+        for pct in cases:
+            for side in ("long", "short"):
+                htf = [("t", pct)]
+                self.assertEqual(
+                    self.bt.htf_allows(htf, "u", side),
+                    self.old.htf_allows(htf, "u", side),
+                    f"pct={pct} side={side}",
+                )
+
+    def test_htf_allows_matches_a1c75d4_with_no_htf_bar_before_t(self):
+        for side in ("long", "short"):
+            self.assertEqual(
+                self.bt.htf_allows([], "u", side),
+                self.old.htf_allows([], "u", side),
+                f"side={side}",
+            )
 
 
 if __name__ == "__main__":
