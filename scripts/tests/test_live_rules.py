@@ -3,6 +3,11 @@
 A look-ahead bug here is invisible in the results (it just makes them better), so it is pinned by construction:
 read_at(i) must depend only on candles[:i+1], which is asserted by mutating the future and re-reading, and by
 truncating the candle list at i+1 and checking the read is unchanged (docs/plans/2026-09-13-unify-backtest-with-live-rules.md).
+
+Code-quality review of the first cut (commit acd65c5) found two Critical defects, fixed here:
+- read_at must require the FULL live window (len(window) == bars), not merely "enough" bars -- a partial
+  window is a window live never produces (different median range/pivots/equilibrium).
+- window() must raise IndexError for i outside [0, len(candles)), not silently slice to something plausible.
 """
 import importlib.util, os, unittest
 
@@ -38,8 +43,43 @@ class Window(unittest.TestCase):
         c = candles(100)
         self.assertEqual(len(self.lr.window(c, 40, "15m")), 41)
 
+    def test_window_raises_index_error_for_negative_i(self):
+        c = candles(800)
+        with self.assertRaises(IndexError):
+            self.lr.window(c, -2, "15m")
+        with self.assertRaises(IndexError):
+            self.lr.window(c, -50, "15m")
+
+    def test_window_raises_index_error_for_i_at_or_past_len_candles(self):
+        c = candles(800)
+        with self.assertRaises(IndexError):
+            self.lr.window(c, len(c), "15m")
+        with self.assertRaises(IndexError):
+            self.lr.window(c, 1000, "15m")
+
+
+class ReadAtRequiresFullWindow(unittest.TestCase):
+    """Pins Critical 1's fix: read_at must return None until the window is the FULL live window, not merely
+    'enough' bars. Both boundary indices are derived from scan_spec(tf)[0] -- not hardcoded -- so this test
+    would have caught a MIN_BARS-style partial-window bug for any timeframe, not just the one checked."""
+
+    def setUp(self):
+        self.lr = load("live_rules.py")
+
     def test_read_at_is_none_before_there_are_enough_bars(self):
-        self.assertIsNone(self.lr.read_at(candles(20), 10, "15m"))
+        self.assertIsNone(self.lr.read_at(candles(20), 10, "15m", methods=("ict",)))
+
+    def test_read_at_is_none_one_bar_short_of_the_full_window(self):
+        bars, _ = self.lr.scan_spec("15m")
+        c = candles(bars + 50)
+        one_short = bars - 2  # index i=bars-2 -> window has bars-1 candles, one short of full
+        self.assertIsNone(self.lr.read_at(c, one_short, "15m", methods=("ict",)))
+
+    def test_read_at_returns_a_result_at_the_first_fully_windowed_index(self):
+        bars, _ = self.lr.scan_spec("15m")
+        c = candles(bars + 50)
+        first_full = bars - 1  # index i=bars-1 -> window has exactly `bars` candles
+        self.assertIsNotNone(self.lr.read_at(c, first_full, "15m", methods=("ict",)))
 
 
 class NoLookAhead(unittest.TestCase):
@@ -48,10 +88,10 @@ class NoLookAhead(unittest.TestCase):
 
     def test_future_bars_cannot_change_the_read(self):
         c = candles()
-        before = self.lr.read_at(c, 700, "15m")
+        before = self.lr.read_at(c, 700, "15m", methods=("ict",))
         for x in c[701:]:
             x["high"] += 5000; x["low"] -= 5000; x["close"] += 5000
-        after = self.lr.read_at(c, 700, "15m")
+        after = self.lr.read_at(c, 700, "15m", methods=("ict",))
         self.assertEqual(before, after)
 
     def test_truncating_the_candle_list_at_i_plus_1_reads_the_same(self):
@@ -59,8 +99,8 @@ class NoLookAhead(unittest.TestCase):
         rather than from i would not notice future bars being untouched, but WOULD notice the list
         being shorter."""
         c = candles()
-        full = self.lr.read_at(c, 700, "15m")
-        truncated = self.lr.read_at(c[:701], 700, "15m")
+        full = self.lr.read_at(c, 700, "15m", methods=("ict",))
+        truncated = self.lr.read_at(c[:701], 700, "15m", methods=("ict",))
         self.assertEqual(full, truncated)
 
 
@@ -80,12 +120,12 @@ class UnknownTimeframe(unittest.TestCase):
     def setUp(self):
         self.lr = load("live_rules.py")
 
-    def test_spec_raises_for_a_timeframe_live_never_scans(self):
+    def test_scan_spec_raises_for_a_timeframe_live_never_scans(self):
         """The backtest must fail loudly on a timeframe live doesn't run, not invent a window for it."""
         with self.assertRaises(KeyError):
-            self.lr.spec("30m")
+            self.lr.scan_spec("30m")
         with self.assertRaises(KeyError):
-            self.lr.spec("2H")
+            self.lr.scan_spec("2H")
 
 
 class BiasMatchesHtfContext(unittest.TestCase):
@@ -94,10 +134,32 @@ class BiasMatchesHtfContext(unittest.TestCase):
         self.htf = load("htf_context.py")
 
     def test_bias_at_uses_htf_context_not_a_reimplementation(self):
+        """methods=("wyckoff",) here, not ("ict",): ("ict",) happens to equal a plausible default, so a
+        bias_at that forgot to forward `methods` at all could still pass by accident. wyckoff exercises the
+        forwarding for real."""
         c = candles()
-        facts = self.lr.read_at(c, 700, "15m")
-        self.assertEqual(self.lr.bias_at(c, 700, "15m", ("ict",)),
-                         self.htf.bias_of(None, facts, methods=("ict",)))
+        facts = self.lr.read_at(c, 700, "15m", methods=("wyckoff",))
+        self.assertEqual(self.lr.bias_at(c, 700, "15m", methods=("wyckoff",)),
+                         self.htf.bias_of(None, facts, methods=("wyckoff",)))
+
+    def test_bias_at_accepts_precomputed_facts_instead_of_recomputing(self):
+        c = candles()
+        facts = self.lr.read_at(c, 700, "15m", methods=("wyckoff",))
+        self.assertEqual(self.lr.bias_at(c, 700, "15m", methods=("wyckoff",), facts=facts),
+                          self.htf.bias_of(None, facts, methods=("wyckoff",)))
+
+
+class MethodsIsRequired(unittest.TestCase):
+    def setUp(self):
+        self.lr = load("live_rules.py")
+
+    def test_read_at_without_methods_raises_type_error(self):
+        with self.assertRaises(TypeError):
+            self.lr.read_at(candles(), 700, "15m")
+
+    def test_bias_at_without_methods_raises_type_error(self):
+        with self.assertRaises(TypeError):
+            self.lr.bias_at(candles(), 700, "15m")
 
 
 if __name__ == "__main__":
