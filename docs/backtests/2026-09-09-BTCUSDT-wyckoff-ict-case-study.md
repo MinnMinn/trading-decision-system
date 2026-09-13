@@ -1,3 +1,5 @@
+> **Superseded 2026-09-13.** The ICT figures here were produced by the legacy in-file rules, replaced by the live scanner (`docs/plans/2026-09-13-unify-backtest-with-live-rules.md`); see `docs/backtests/2026-09-13-live-rules-vs-legacy.md`. Wyckoff / COMBINED / PARTIAL figures are unaffected.
+
 # BTCUSDT Wyckoff + ICT Case Study — historical validation (n=1)
 
 **Purpose:** requested as part of "test Stage 1 until good enough for Stage 2." This is a real historical case study against genuine Binance data (not mock, not live-forward), using the Wyckoff + ICT dimensions only (Footprint/Heatmap still unavailable — no CoinGlass key yet). **Read the "What this is NOT" section before drawing conclusions from it.**

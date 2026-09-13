@@ -1,3 +1,5 @@
+> **Superseded 2026-09-13.** The ICT figures here were produced by the legacy in-file rules, replaced by the live scanner (`docs/plans/2026-09-13-unify-backtest-with-live-rules.md`); see `docs/backtests/2026-09-13-live-rules-vs-legacy.md`. Wyckoff / COMBINED / PARTIAL figures are unaffected.
+
 # Wyckoff vs ICT vs kết hợp — lợi nhuận theo tháng/quý/năm, rủi ro 1%/lệnh — đo 2026-09-11
 
 _Bộ lọc: R/R kế hoạch ≥ 0.0 · loại KL 1,2,3 · biên TR chạm ≥ 0 lần mỗi bên · lọc khung lớn tắt · chiều long,short · vào lệnh Wyckoff book · quản lý be · phí 0.02%/chiều_

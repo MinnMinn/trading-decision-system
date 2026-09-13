@@ -1,3 +1,5 @@
+> **Superseded 2026-09-13.** The ICT figures here were produced by the legacy in-file rules, replaced by the live scanner (`docs/plans/2026-09-13-unify-backtest-with-live-rules.md`); see `docs/backtests/2026-09-13-live-rules-vs-legacy.md`. Wyckoff / COMBINED / PARTIAL figures are unaffected.
+
 # Sổ sự kiện Wyckoff của phân tích đầy đủ — đo 2026-09-11
 
 _`scripts/event-ledger.py measure`. Sự kiện được ghi lần đầu khi xuất hiện trong `data/live/narrative/*.json` (không nhìn trước), kết quả đo từ nến lưu. Entry = nến đóng lại trong TR sau sự kiện, stop dưới/trên cực trị sự kiện, target = biên đối diện TR mà phân tích vẽ, hoà vốn +1R, hạn H nến._

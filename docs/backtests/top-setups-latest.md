@@ -1,3 +1,5 @@
+> **Superseded 2026-09-13.** The ICT figures here were produced by the legacy in-file rules, replaced by the live scanner (`docs/plans/2026-09-13-unify-backtest-with-live-rules.md`); see `docs/backtests/2026-09-13-live-rules-vs-legacy.md`. Wyckoff / COMBINED / PARTIAL figures are unaffected.
+
 # Setup theo khung — scalping / day / swing — mỗi thị trường — xếp trên 12 tháng gần nhất — 2026-09-13
 
 _`scripts/rank-setups.py --horizons`. Quyết định người dùng 2026-09-11 (mở rộng 2026-09-13): mỗi thị trường chạy đủ 3 khung cho MỖI luật chạy được (RUNNABLE — WYCKOFF, WYCKOFF-BOOK, ICT, COMBINED), kể cả khi lợi thế backtest yếu hoặc âm. Lý do: `strategy-runner.py`'s `allowed_methods()` chỉ cho phép các luật mà method-switch preset đang bật; chọn theo (khung, luật) thay vì chỉ theo khung đảm bảo mọi preset (dù chỉ bật một luật, ví dụ ICT-only) vẫn có đủ 3 khung, thay vì chỉ có khung mà luật đó tình cờ thắng khi so giữa các luật. Trong mỗi (khung, luật), cấu hình/target tốt nhất theo cùng tiêu chí (không cháy → quý dương → năm dương → quý tệ nhất) — dòng âm được in nghiêng; scalping 5m/15m bị phí và trượt giá ăn nhiều nhất. Một khung có thể không đủ lệnh cho MỘT luật cụ thể dù các luật khác ở cùng khung có đủ — dòng đó vẫn được in để việc thiếu setup luôn hiện rõ, không âm thầm giảm số lượng._
@@ -35,4 +37,3 @@ _`scripts/rank-setups.py --horizons`. Quyết định người dùng 2026-09-11 
 | swing | 4H | ICT | std4 | B | 20 | $11,065 | +10.6% | −3.5% | 60% | -1.5% | 45 · +1.7%/năm · 44% quý dương · 1/3 năm |
 | *swing* | 4H | WYCKOFF | border | C | 196 | $8,753 | -12.5% | −25.8% | 40% | -15.5% | 456 · +17.9%/năm · 80% quý dương · 2/3 năm |
 | swing | 4H | WYCKOFF-BOOK | border | A | 9 | $10,733 | +7.3% | −2.3% | 40% | -1.1% | 21 · +3.6%/năm · 50% quý dương · 3/3 năm |
-

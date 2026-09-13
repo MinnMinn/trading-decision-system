@@ -1,3 +1,5 @@
+> **Superseded 2026-09-13.** The ICT figures here were produced by the legacy in-file rules, replaced by the live scanner (`docs/plans/2026-09-13-unify-backtest-with-live-rules.md`); see `docs/backtests/2026-09-13-live-rules-vs-legacy.md`. Wyckoff / COMBINED / PARTIAL figures are unaffected.
+
 # Độ ổn định theo thời gian của các phương pháp — 2026-09-11
 
 _`scripts/stability-report.py`. Xếp hạng theo: tỉ lệ quý dương → quý tệ nhất → tỉ số ổn định (trung bình quý / σ quý × √số quý). Chỉ xếp hạng dòng có ≥ 30 lệnh; tài khoản $10.000, CHÁY khi vốn ≤ $1.000 (dừng, ghi ngày, xếp cuối). Cấu hình A = phí taker 0,05 %, không quản lý; B = phí maker 0,02 % + hoà vốn tại +1R (WMT p272); C = B + lọc khung lớn (luật biên). Cả long lẫn short. Mọi số là của proxy bằng code (xem docstring của `backtest-methods.py` và `wyckoff_rules.py`)._
@@ -164,4 +166,3 @@ _`scripts/stability-report.py`. Xếp hạng theo: tỉ lệ quý dương → qu
 | C | ICT | 4 | $10,044 | +0.1% | −1.0% | 50% | -1.0% | +0.32 | +0.0% | +0.5% | +0.0% | -0.1% | +0.0% |
 | C | COMBINED | 3 | $10,073 | +0.2% | −1.0% | 50% | -1.0% | +0.45 | +0.3% | +0.0% | +0.0% | +0.4% | +0.0% |
 | C | COMBINED-BOOK | 0 | $10,000 | +0.0% | −0.0% | 0% | +0.0% | +0.00 | +0.0% | +0.0% | +0.0% | +0.0% | +0.0% |
-

@@ -1,3 +1,5 @@
+> **Superseded 2026-09-13.** The ICT figures here were produced by the legacy in-file rules, replaced by the live scanner (`docs/plans/2026-09-13-unify-backtest-with-live-rules.md`); see `docs/backtests/2026-09-13-live-rules-vs-legacy.md`. Wyckoff / COMBINED / PARTIAL figures are unaffected.
+
 # ICT theo đúng deck — ba công tắc mới của `backtest-methods.py`, đo 2026-09-12
 
 _Cùng cấu hình với setup pilot đang chọn (`docs/architecture/pilot-top5.json`): target `std4`, quản lý `be`, phí 0.02%/chiều, không lọc khung lớn, long + short. Nến ở `data/history/`. Số là của proxy bằng code, không phải phân tích đầy đủ. Bản gốc từng biến thể: `docs/backtests/2026-09-12-ict-deck-faithful/`._
