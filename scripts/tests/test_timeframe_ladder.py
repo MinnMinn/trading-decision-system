@@ -35,6 +35,16 @@ class Ladder(unittest.TestCase):
         r = load("strategy-runner.py"); b = load("backtest-methods.py")
         self.assertEqual({k: v for k, v in r.HTF_OF.items() if v}, b.HTF_OF)
 
+    def test_scan_window_table_matches_the_loop(self):
+        """The window the live scanner reads is a number the backtest must reproduce exactly; it lived only in
+        scan-loop.sh, where nothing could import it."""
+        self.assertEqual(self.a.SCAN_WINDOW["1m"], {"bars": 360, "recent": 4})
+        self.assertEqual(self.a.SCAN_WINDOW["15m"], {"bars": 576, "recent": 2})
+        self.assertEqual(self.a.SCAN_WINDOW["1H"], {"bars": 480, "recent": 2})
+        self.assertEqual(self.a.SCAN_WINDOW["4H"], {"bars": 360, "recent": 2})
+        self.assertEqual(self.a.SCAN_WINDOW["1D"], {"bars": 240, "recent": 1})
+        self.assertEqual(self.a.SCAN_WINDOW["5m"], {"bars": 576, "recent": 4})
+
 
 if __name__ == "__main__":
     unittest.main()

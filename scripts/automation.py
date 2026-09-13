@@ -121,6 +121,17 @@ STYLE = {("crypto", "1m"): "scalping", ("crypto", "15m"): "daytrade", ("crypto",
          ("cfd", "5m"): "gold-scalp", ("cfd", "15m"): "gold", ("cfd", "1h"): "gold-1h", ("cfd", "4h"): "gold-4h",
          ("cfd", "1D"): "gold-swing"}
 STYLE_MARKET_TF = {v: k for k, v in STYLE.items()}
+# How many bars the live scanner reads per timeframe, and how many count as "recent" for event detection.
+# THE one table: scripts/scan-loop.sh reads it (it used to hardcode the numbers). scripts/live_rules.py (Task 2,
+# not yet created) will reproduce the live window from it, so a backtest sees exactly the window the scanner saw.
+SCAN_WINDOW = {
+    "1m":  {"bars": 360, "recent": 4},
+    "5m":  {"bars": 576, "recent": 4},
+    "15m": {"bars": 576, "recent": 2},
+    "1H":  {"bars": 480, "recent": 2},
+    "4H":  {"bars": 360, "recent": 2},
+    "1D":  {"bars": 240, "recent": 1},
+}
 # ---- Timeframe ladder: ONE rule, ONE table (docs/architecture/timeframe-mapping.md §3, §5). ----------------------------
 # Three tiers per style: Vào lệnh (E, the style's own window) -> Cấu trúc (S) -> Bias (B). Adjacent tiers are the next
 # available rung at least MIN_TIER_RATIO× slower ("rule of four", DailyFX/IG; Elder's factor of five; the TTrades pairing

@@ -6,6 +6,18 @@
 # Claude ticks read those files and copy what they need. Read-only research: never places orders.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "$ROOT"
+# scan_window <tf> -> "<bars> <recent>". THE one table (scripts/automation.py SCAN_WINDOW): this used to be
+# hardcoded per call site below; this loop now reads it here. The backtest will read it too via
+# scripts/live_rules.py (Task 2, not yet created).
+scan_window() {
+  python3 - "$1" <<'PYEOF'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("automation", "scripts/automation.py")
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+w = m.SCAN_WINDOW[sys.argv[1]]
+print(w["bars"], w["recent"])
+PYEOF
+}
 LOG="data/live/scan-loop.log"; EVENTS="data/live/events.jsonl"; LOCK="data/live/.scan-loop.lock.d"
 mkdir -p data/live
 # Automation switch: docs/architecture/automation-config.json, written only by scripts/automation.py (/automation).
@@ -46,8 +58,8 @@ now() { date -u +%FT%TZ; }
 # (scripts/model-read.sh gates on /automation and on its own per-style interval, so calling it every tick is cheap). The daily full
 # analysis is started once a day in the 07:30-07:59Z window. Both are detached so the scanner never waits for a model.
 model_read() { local style=$1 kind=${2:-local}; ( nohup bash "$ROOT/scripts/model-read.sh" "$style" "$kind" >>"$ROOT/data/live/model-reads.log" 2>&1 </dev/null & ) ; }
-run_style() { # tf n style recent [symbols]   (symbols from the MT5 bridge are not fetched here: the EA writes them)
-  local tf=$1 n=$2 style=$3 recent=$4 syms=${5:-$AUTO_CRYPTO} s out rc keep=""
+run_style() { # tf style bars recent [symbols]   (bars/recent come from scan_window; symbols from the MT5 bridge are not fetched here: the EA writes them)
+  local tf=$1 style=$2 n=$3 recent=$4 syms=${5:-$AUTO_CRYPTO} s out rc keep=""
   case ",$AUTO_STYLES," in *",$style,"*) ;; *) echo "$(now) $style disabled by /automation" >>"$LOG"; return 0 ;; esac
   for s in ${syms//,/ }; do case ",$AUTO_INSTRUMENTS," in *",$s,"*) keep="${keep:+$keep,}$s" ;; esac; done
   [ -n "$keep" ] || { echo "$(now) $style skipped: no enabled instrument (/automation instrument)" >>"$LOG"; return 0; }
@@ -81,16 +93,16 @@ with open("data/live/events.jsonl", "a") as f:
 }
 FORCE="${1:-}"                       # scan-loop.sh all  -> run every style now (manual / first run)
 M=$(date -u +%M); H=$(date -u +%H)
-run_style 1m 360 scalping 4
+run_style 1m scalping $(scan_window 1m)
 # CFD scalping on M5 (user decision 2026-09-11): one minute after each 5-minute close
-case "$M" in *1|*6) run_style 5m 576 gold-scalp 4 "$AUTO_CFD" ;; esac
-case "$M" in 01|16|31|46) run_style 15m 576 daytrade 2; run_style 15m 576 gold 2 "$AUTO_CFD" ;; esac
+case "$M" in *1|*6) run_style 5m gold-scalp $(scan_window 5m) "$AUTO_CFD" ;; esac
+case "$M" in 01|16|31|46) run_style 15m daytrade $(scan_window 15m); run_style 15m gold $(scan_window 15m) "$AUTO_CFD" ;; esac
 # 1h styles: minute :02 of every hour. 4h styles: minute :03 of every 4th hour (:03 not :02 so the hourly pass
 # and the 4-hourly pass never contend for the same minute's lock). Swing keeps its original :02 / H%4 slot.
-if [ "$M" = "02" ]; then run_style 1H 480 1h 2; run_style 1H 480 gold-1h 2 "$AUTO_CFD"; fi
-if [ "$M" = "02" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 1D 240 swing 1; run_style 1D 240 gold-swing 1 "$AUTO_CFD"; for s in ${AUTO_CRYPTO//,/ }; do bash scripts/fetch-binance-klines.sh "$s" 1W 208 >/dev/null 2>>"$LOG" || echo "$(now) fetch FAIL $s 1W" >>"$LOG"; done; fi   # 1W = swing context chart only, not scanned
-if [ "$M" = "03" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 4H 360 4h 2; run_style 4H 360 gold-4h 2 "$AUTO_CFD"; fi
+if [ "$M" = "02" ]; then run_style 1H 1h $(scan_window 1H); run_style 1H gold-1h $(scan_window 1H) "$AUTO_CFD"; fi
+if [ "$M" = "02" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 1D swing $(scan_window 1D); run_style 1D gold-swing $(scan_window 1D) "$AUTO_CFD"; for s in ${AUTO_CRYPTO//,/ }; do bash scripts/fetch-binance-klines.sh "$s" 1W 208 >/dev/null 2>>"$LOG" || echo "$(now) fetch FAIL $s 1W" >>"$LOG"; done; fi   # 1W = swing context chart only, not scanned
+if [ "$M" = "03" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 4H 4h $(scan_window 4H); run_style 4H gold-4h $(scan_window 4H) "$AUTO_CFD"; fi
 if [ "$H" = "07" ] && [ "$M" -ge 30 ] && [ "$M" -le 59 ]; then for st in scalping daytrade swing gold-scalp gold gold-swing; do model_read "$st" full; done; fi   # once a day (model-read.sh keeps the 20 h interval)
-if [ "$FORCE" = "all" ]; then run_style 5m 576 gold-scalp 4 "$AUTO_CFD"; run_style 15m 576 daytrade 2; run_style 1H 480 1h 2; run_style 4H 360 4h 2; run_style 1D 240 swing 1; run_style 15m 576 gold 2 "$AUTO_CFD"; run_style 1H 480 gold-1h 2 "$AUTO_CFD"; run_style 4H 360 gold-4h 2 "$AUTO_CFD"; run_style 1D 240 gold-swing 1 "$AUTO_CFD"; fi
+if [ "$FORCE" = "all" ]; then run_style 5m gold-scalp $(scan_window 5m) "$AUTO_CFD"; run_style 15m daytrade $(scan_window 15m); run_style 1H 1h $(scan_window 1H); run_style 4H 4h $(scan_window 4H); run_style 1D swing $(scan_window 1D); run_style 15m gold $(scan_window 15m) "$AUTO_CFD"; run_style 1H gold-1h $(scan_window 1H) "$AUTO_CFD"; run_style 4H gold-4h $(scan_window 4H) "$AUTO_CFD"; run_style 1D gold-swing $(scan_window 1D) "$AUTO_CFD"; fi
 # keep the log bounded
 if [ "$(wc -l < "$LOG")" -gt 5000 ]; then tail -n 2000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"; fi
