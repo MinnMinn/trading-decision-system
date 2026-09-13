@@ -78,7 +78,8 @@ SCHEMA_VERSION = 3
 ENV_NAMES = ["demo", "real"]
 LAUNCH_AGENTS = os.path.expanduser("~/Library/LaunchAgents")
 SCANNER_LABEL = "com.tyme.trading.scanner"
-PILOT_LABEL = {"spot": "com.tyme.trading.pilot", "futures": "com.tyme.trading.pilot.futures"}
+# One venue since 2026-09-13 (PILOT_MARKETS below); the spot label belonged to the deleted legacy engine.
+PILOT_LABEL = {"futures": "com.tyme.trading.pilot.futures"}
 PLIST_SRC = {"scanner": os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.scanner.plist"),
              "pilot": os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.pilot.plist")}
 
@@ -1472,8 +1473,11 @@ def main():
     p = audited(sub.add_parser("layer"))
     p.add_argument("name", choices=LAYERS); p.add_argument("value", choices=["on", "off"])
     p = audited(sub.add_parser("pilot"))
-    p.add_argument("action", choices=["start", "stop", "status", "adopt", "profile"])
-    p.add_argument("profile", nargs="?", default=None, help="for `pilot profile`: legacy | top5")
+    # `profile` was removed with the second engine (2026-09-13): one engine means a profile can only select
+    # "the engine" or "nothing", and layers.pilot already expresses the second. Dropped from `choices` as well
+    # as from the handler -- leaving it accepted made `pilot profile top5` exit 0 and print the status block,
+    # so a user who typed it would believe they had changed something.
+    p.add_argument("action", choices=["start", "stop", "status", "adopt"])
     p.add_argument("--market", choices=PILOT_MARKETS, default=None)
     p.add_argument("--no-launchd", action="store_true", help="start detached from this shell instead of as a launchd agent")
     h = sub.add_parser("history"); h.add_argument("-n", type=int, default=20)

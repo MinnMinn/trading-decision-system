@@ -47,6 +47,22 @@ class LegacyEngineIsGone(unittest.TestCase):
                     continue
                 self.assertNotIn("pilot_profile", line, f"{path}:{i} still reads the deleted profile key")
 
+    def test_the_profile_subcommand_is_not_still_accepted(self):
+        """Deleting the handler but leaving the argparse choice is worse than leaving both: `automation.py pilot
+        profile top5` then exits 0 and prints the status block, so a user who types it believes they changed
+        something. A removed command must REFUSE, not fall through."""
+        src = open(os.path.join(SCRIPTS, "automation.py"), encoding="utf-8").read()
+        for line in src.splitlines():
+            if "choices=" in line and '"profile"' in line:
+                self.fail(f"`profile` is still an accepted pilot action: {line.strip()}")
+
+    def test_no_template_or_doc_claims_the_legacy_engine_still_runs(self):
+        """config/env.example is copied by hand into config/env.<env>. A comment there asserting that a second
+        order path clamps risk differently is a false statement about a file that no longer exists."""
+        for rel in ("config/env.example",):
+            src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
+            self.assertNotIn("demo-pilot", src, f"{rel} still describes the deleted engine")
+
     def test_the_config_carries_no_profile_key(self):
         cfg = json.load(open(CONFIG, encoding="utf-8"))
         self.assertNotIn("pilot_profile", cfg.get("execution", {}))
