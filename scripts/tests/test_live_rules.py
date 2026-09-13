@@ -240,5 +240,94 @@ class HtfAllowsUnchanged(unittest.TestCase):
             )
 
 
+class IctBranchUsesTheLiveScanner(unittest.TestCase):
+    def setUp(self):
+        self.bt = load("backtest-methods.py")
+
+    def test_rules_flag_defaults_to_live(self):
+        self.assertEqual(self.bt.OPTS["rules"], "live")
+
+    def test_live_ict_setups_come_from_setup_candidate(self):
+        """The live entry/stop/target rule is ict-scan.setup_candidate; the backtest must not re-derive one."""
+        import inspect
+        src = inspect.getsource(self.bt.ict_setups_live)
+        self.assertIn("setup_candidate", src)
+        self.assertNotIn("find_ict", src)
+
+    def test_live_ict_setups_require_the_limit_to_fill(self):
+        """entry is a LIMIT at the FVG near edge. A setup whose limit never filled is not a trade."""
+        import inspect
+        src = inspect.getsource(self.bt.ict_setups_live)
+        self.assertIn("fvg_fill", src)
+
+
+class IctMethodsResolveFromAutomation(unittest.TestCase):
+    """OPTS['methods'] must never be a hardcoded tuple: the default comes from /automation, the same source live
+    resolves through (htf_context.engaged_methods_for_market), via the symbol's market (automation.market_of)."""
+
+    def setUp(self):
+        self.bt = load("backtest-methods.py")
+
+    def test_default_methods_resolve_from_automation_for_the_symbols_market(self):
+        market = self.bt._auto.market_of("BTCUSDT")
+        expected = self.bt.lr.htf.engaged_methods_for_market(market)
+        self.assertIsNone(self.bt.OPTS["methods"])  # no --methods override -> resolve, do not hardcode
+        self.assertEqual(self.bt.resolve_methods("BTCUSDT"), expected)
+
+    def test_methods_cli_override_is_used_verbatim_instead_of_resolving(self):
+        self.bt.OPTS["methods"] = ("ict",)
+        self.assertEqual(self.bt.resolve_methods("BTCUSDT"), ("ict",))
+
+
+class LiveIctFillCheckActuallyFilters(unittest.TestCase):
+    """Proves fvg_fill is not a no-op on real data: some setups the live scanner finds must never come back to
+    fill their limit, so the trade count must be strictly less than the setup count. If they are equal, the fill
+    check is not doing anything and the whole backtest would be optimistic by construction.
+
+    Uses BTCUSDT 4H, not 1D: verified empirically (2026-09-13) that every complete ICT setup on BTCUSDT 1D over
+    the full stored history is long-side with the sweep bar closing in premium of the dealing range, so pd_ok
+    rejects all 6 of them (0 reach the fill check at all) -- 1D cannot demonstrate this property on this dataset.
+    4H has 30 pd_ok-passing setups and still runs in a few seconds (8,800 bars)."""
+
+    def setUp(self):
+        self.bt = load("backtest-methods.py")
+
+    def test_trade_count_is_strictly_less_than_setup_count_on_btcusdt_4h(self):
+        sym, tf = "BTCUSDT", "4H"
+        c, _ = self.bt.load(sym, tf)
+        self.assertIsNotNone(c, f"missing fixture data/history/ohlcv.{sym}.{tf}.json")
+        methods = self.bt.resolve_methods(sym)
+        seen = set()
+        for i in range(len(c)):
+            a = self.bt.lr.read_at(c, i, tf, methods)
+            if a is None:
+                continue
+            su = self.bt.lr.ict_scan.setup_candidate(a, self.bt.lr.window(c, i, tf), self.bt.lr.setup_lookback(tf))
+            if not su or not su.get("complete") or not su.get("pd_ok"):
+                continue
+            seen.add((su["side"], su["sweep"]["time"], su["mss"]["time"]))
+        setup_count = len(seen)
+        res = self.bt.scan(sym, tf)
+        trade_count = len(res["trades"]["ICT"])
+        with open("/tmp/task4-fill-bite.txt", "w") as f:
+            f.write(f"symbol={sym} tf={tf} methods={methods}\nsetups={setup_count}\ntrades={trade_count}\n")
+        self.assertGreater(setup_count, 0, f"no ICT setups found at all on {sym} {tf} -- cannot prove the fill check bites")
+        self.assertLess(trade_count, setup_count)
+
+
+class LegacyRulesUnchanged(unittest.TestCase):
+    """--rules legacy must reproduce ed1c8e9's ICT branch bit-for-bit: only the LIVE branch is new behaviour."""
+
+    def setUp(self):
+        self.bt = load("backtest-methods.py")
+        self.old = load_git_revision("ed1c8e9", "backtest-methods.py")
+
+    def test_legacy_ict_trades_match_ed1c8e9_for_one_symbol_tf(self):
+        self.bt.OPTS["rules"] = "legacy"
+        old_res = self.old.scan("BTCUSDT", "1D")
+        new_res = self.bt.scan("BTCUSDT", "1D")
+        self.assertEqual(new_res["trades"]["ICT"], old_res["trades"]["ICT"])
+
+
 if __name__ == "__main__":
     unittest.main()

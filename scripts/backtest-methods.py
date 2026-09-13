@@ -58,7 +58,7 @@ RISK = 0.01
 START = 10000.0      # account size in $ (user decision 2026-09-11: $10,000 for readability)
 RUIN_FRAC = 0.10     # the account is declared BLOWN (cháy) when equity <= 10 % of START; trading stops there and the report says so
 OPTS = dict(min_rr=0.0, types=(1, 2, 3), range_touches=0, htf=False, sides=("long", "short"), entry="book", mgmt="none", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit", ict_target="range",
-            ict_disp=False, ict_pd=False, std_origin="pivot")
+            ict_disp=False, ict_pd=False, std_origin="pivot", rules="live", methods=None)
 _ICT = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"].get("ict", {})
 DISP = _ICT.get("displacement", {"body_min_ratio": 0.6, "range_min_median_ratio": 1.2})
 
@@ -228,6 +228,10 @@ _RUNGS = ["5m", "15m", "30m", "1H", "2H", "4H", "1D"]
 import importlib.util as _iu
 _as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py")); _auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
 HTF_OF = {tf: _auto.next_rung(tf, _RUNGS) for tf in _RUNGS if _auto.next_rung(tf, _RUNGS)}
+# The live rules seam (scripts/live_rules.py): the ICT branch calls the live scanner through this handle instead of
+# re-deriving pivots/MSS/FVG itself (audit 2026-09-13 -- see docstring at the top of this file's ICT section).
+_lspec = _iu.spec_from_file_location("live_rules", os.path.join(ROOT, "scripts", "live_rules.py"))
+lr = _iu.module_from_spec(_lspec); _lspec.loader.exec_module(lr)
 
 
 def htf_position(sym, tf):
@@ -269,6 +273,59 @@ def bias_allows(bias, side):
     means no read was available, and neither is permission to take risk (capital preservation first). This
     replaces htf_allows, the rolling-percentile proxy, which is kept above so --rules legacy still runs."""
     return bias == side
+
+
+def resolve_methods(sym):
+    """The bias-reading methods engaged for `sym`, resolved from /automation the same way live does --
+    htf_context.engaged_methods_for_market(automation.market_of(sym)). OPTS["methods"] holds an explicit
+    --methods CLI override when one was given; None (its default) means "resolve it here", never a hardcoded
+    tuple -- a backtest that guessed its own default methods would silently diverge from the run being
+    reproduced (see live_rules.read_at's docstring for the same argument)."""
+    if OPTS["methods"] is not None:
+        return OPTS["methods"]
+    return lr.htf.engaged_methods_for_market(_auto.market_of(sym))
+
+
+def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
+    """ICT trades for one symbol/timeframe using the LIVE rules: at each bar, run the scanner over the window the
+    live scanner would have read and ask IT for the setup. No pivot/MSS/FVG logic of our own -- that duplication is
+    what made a backtest measure a system nobody trades (audit 2026-09-13).
+
+    The entry is a LIMIT at the FVG near edge, exactly as live places it (strategy-runner.py: "LIMIT at the FVG
+    near edge"). So a setup is NOT a trade: fvg_fill() decides whether price ever came back to that limit without
+    first hitting the stop, and returns None when the order would simply never have filled. Skipping that check
+    would enter every setup at a favourable price and make the whole backtest optimistic by construction."""
+    out, seen = [], set()
+    n = len(c)
+    idx_of_time = {t: j for j, t in enumerate(Tm)}
+    for i in range(n):
+        a = lr.read_at(c, i, tf, methods)
+        if a is None:            # window not yet the full live window -- live would not have scanned here at all
+            continue
+        su = lr.ict_scan.setup_candidate(a, lr.window(c, i, tf), lr.setup_lookback(tf))
+        if not su or not su.get("complete") or not su.get("pd_ok"):
+            continue
+        bias, _ = lr.bias_at(c, i, tf, methods, facts=a)      # facts reused: no second analyze()
+        if not bias_allows(bias, su["side"]):
+            continue
+        key = (su["side"], su["sweep"]["time"], su["mss"]["time"])
+        if key in seen:          # the same setup stays visible for many bars; take it once, at its first bar
+            continue
+        seen.add(key)
+        mss_i = idx_of_time.get(su["mss"]["time"])
+        if mss_i is None:
+            continue
+        entry = su["entry"]; stop = su["stop"]; target = su["target"]
+        far = su["entry_models"]["fill"]   # ict-scan.py setup_candidate: the key is "entry_models", not "entries"
+        fill = fvg_fill(su["side"], mss_i, entry, far, stop, H, L, P[tf]["K"], n)
+        if fill is None:         # the limit never filled: live would hold an unfilled order, not a position
+            continue
+        w = walk(su["side"], entry, stop, target, H, L, C, fill + 1, HZ)
+        if not w:
+            continue
+        out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], entry=entry, entry_time=Tm[fill],
+                        stop=stop, target=target, exit_time=Tm[w["exit"]], vol_type=None, **w))
+    return out
 
 
 def scan(sym, tf):
@@ -400,45 +457,52 @@ def scan(sym, tf):
                 w = walk(side, C[b], stop, target, H, L, C, b + 1, HZ)
                 if w:
                     trades["WYCKOFF-BOOK"].append(dict(base, event=base["event"] + "-D", entry=C[b], entry_time=Tm[b], stop=stop, target=target, exit_time=Tm[w["exit"]], leg="phase_d", **w))
-    # ---------- ICT only (sweep of a pivot, MSS, FVG entry; no range, no volume) ----------
-    for side in OPTS["sides"]:
-        last_i = -99
-        for i in range(R + 6, n - 3):
-            if i - last_i <= 5:
-                continue
-            if htf is not None and not htf_allows(htf, Tm[i], side):
-                continue
-            if side == "long":
-                pl = last_pivot(PL, i)
-                if pl is None or not L[i] < L[pl]:
+    # ---------- ICT only ----------
+    # "live" (default): the LIVE scanner (scripts/ict-scan.py + scripts/htf_context.py) decides every structure --
+    # pivot, sweep, MSS, FVG, dealing range, bias -- so the backtest measures the system actually traded (audit
+    # 2026-09-13). "legacy": the pre-2026-09-13 in-file proxies below, kept reachable only for the old-vs-new
+    # comparison a later task produces; do NOT change its behaviour.
+    if OPTS["rules"] == "live":
+        trades["ICT"] = ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, resolve_methods(sym))
+    else:
+        for side in OPTS["sides"]:
+            last_i = -99
+            for i in range(R + 6, n - 3):
+                if i - last_i <= 5:
                     continue
-                ext = L[i]; stop = ext * (1 - STOP_BUFFER_PCT); target = max(H[i - R:i])
-            else:
-                ph = last_pivot(PH, i)
-                if ph is None or not H[i] > H[ph]:
+                if htf is not None and not htf_allows(htf, Tm[i], side):
                     continue
-                ext = H[i]; stop = ext * (1 + STOP_BUFFER_PCT); target = min(L[i - R:i])
-            if OPTS["ict_pd"]:   # knowledge/04 §3.4 R13: longs in discount, shorts in premium of the R-bar range (proxy for the BSL<->SSL range)
-                eq_ = (max(H[i - R:i]) + min(L[i - R:i])) / 2
-                if (side == "long" and C[i] >= eq_) or (side == "short" and C[i] <= eq_):
+                if side == "long":
+                    pl = last_pivot(PL, i)
+                    if pl is None or not L[i] < L[pl]:
+                        continue
+                    ext = L[i]; stop = ext * (1 - STOP_BUFFER_PCT); target = max(H[i - R:i])
+                else:
+                    ph = last_pivot(PH, i)
+                    if ph is None or not H[i] > H[ph]:
+                        continue
+                    ext = H[i]; stop = ext * (1 + STOP_BUFFER_PCT); target = min(L[i - R:i])
+                if OPTS["ict_pd"]:   # knowledge/04 §3.4 R13: longs in discount, shorts in premium of the R-bar range (proxy for the BSL<->SSL range)
+                    eq_ = (max(H[i - R:i]) + min(L[i - R:i])) / 2
+                    if (side == "long" and C[i] >= eq_) or (side == "short" and C[i] <= eq_):
+                        continue
+                last_i = i
+                ict = find_ict(side, i, i, H, L, C, K, n, PH, PL, O=O)
+                if not ict:
                     continue
-            last_i = i
-            ict = find_ict(side, i, i, H, L, C, K, n, PH, PL, O=O)
-            if not ict:
-                continue
-            mss, edge, far = ict
-            # the sweep low may have extended after bar i up to the MSS: invalidation = lowest point of the excursion
-            ext2 = min(L[i:mss + 1]) if side == "long" else max(H[i:mss + 1])
-            stop = ext2 * (1 - STOP_BUFFER_PCT) if side == "long" else ext2 * (1 + STOP_BUFFER_PCT)
-            target = ict_target(side, i, mss, ext2, H, L, R, PH, PL, target)
-            if target is None:
-                continue
-            fill = fvg_fill(side, mss, edge, far, stop, H, L, K, n)
-            if fill is None:
-                continue
-            w = walk(side, edge, stop, target, H, L, C, fill + 1, HZ)
-            if w and ((side == "long" and target > edge) or (side == "short" and target < edge)):
-                trades["ICT"].append(dict(symbol=sym, tf=tf, side=side, time=Tm[i], entry=edge, entry_time=Tm[fill], stop=stop, target=target, exit_time=Tm[w["exit"]], vol_type=None, **w))
+                mss, edge, far = ict
+                # the sweep low may have extended after bar i up to the MSS: invalidation = lowest point of the excursion
+                ext2 = min(L[i:mss + 1]) if side == "long" else max(H[i:mss + 1])
+                stop = ext2 * (1 - STOP_BUFFER_PCT) if side == "long" else ext2 * (1 + STOP_BUFFER_PCT)
+                target = ict_target(side, i, mss, ext2, H, L, R, PH, PL, target)
+                if target is None:
+                    continue
+                fill = fvg_fill(side, mss, edge, far, stop, H, L, K, n)
+                if fill is None:
+                    continue
+                w = walk(side, edge, stop, target, H, L, C, fill + 1, HZ)
+                if w and ((side == "long" and target > edge) or (side == "short" and target < edge)):
+                    trades["ICT"].append(dict(symbol=sym, tf=tf, side=side, time=Tm[i], entry=edge, entry_time=Tm[fill], stop=stop, target=target, exit_time=Tm[w["exit"]], vol_type=None, **w))
     return dict(symbol=sym, tf=tf, source=src, bars=n, first=Tm[0], last=Tm[-1], trades=trades)
 
 
@@ -526,9 +590,15 @@ def main():
     ap.add_argument("--ict-disp", action="store_true", help="require a displacement candle for the MSS (knowledge/04 §2.16; project ratios)")
     ap.add_argument("--ict-pd", action="store_true", help="ICT-only: longs from discount / shorts from premium of the R-bar range (knowledge/04 §3.4 R13)")
     ap.add_argument("--std-origin", default="pivot", choices=["pivot", "highest"], help="std projection fib-0 anchor (see docstring)")
+    ap.add_argument("--rules", choices=["live", "legacy"], default="live",
+                    help="live = the rules scripts/ict-scan.py + scripts/htf_context.py run (default); "
+                         "legacy = the pre-2026-09-13 in-file proxies, kept for comparison")
+    ap.add_argument("--methods", default=None,
+                    help="comma-separated bias-reading methods (wyckoff,ict) for the live ICT rules; "
+                         "default = resolved per symbol from /automation (htf_context.engaged_methods_for_market)")
     a = ap.parse_args(); fee = a.fee_pct / 100
     OPTS.update(min_rr=a.min_rr, types=tuple(int(x) for x in a.types.split(",")), range_touches=a.range_touches, htf=a.htf, sides=tuple(a.sides.split(",")), entry=a.entry, mgmt=a.mgmt, sloped_gate=a.sloped_gate, st_min=a.st_min, phase_d=not a.no_phase_d, combined_entry=a.combined_entry, ict_target=a.ict_target,
-                ict_disp=a.ict_disp, ict_pd=a.ict_pd, std_origin=a.std_origin)
+                ict_disp=a.ict_disp, ict_pd=a.ict_pd, std_origin=a.std_origin, rules=a.rules, methods=tuple(a.methods.split(",")) if a.methods else None)
     today = datetime.date.today().isoformat()
     L = [f"# Wyckoff vs ICT vs kết hợp — lợi nhuận theo tháng/quý/năm, rủi ro 1%/lệnh — đo {today}", "",
          f"_Bộ lọc: R/R kế hoạch ≥ {a.min_rr} · loại KL {a.types} · biên TR chạm ≥ {a.range_touches} lần mỗi bên · lọc khung lớn {'bật' if a.htf else 'tắt'} · chiều {a.sides} · vào lệnh Wyckoff {a.entry} · quản lý {a.mgmt} · phí {a.fee_pct}%/chiều · target ICT {a.ict_target} · displacement {'bật' if a.ict_disp else 'tắt'} · P/D gate {'bật' if a.ict_pd else 'tắt'} · gốc STD {a.std_origin}_", "",

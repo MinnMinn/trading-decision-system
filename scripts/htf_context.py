@@ -171,14 +171,22 @@ METHOD_BIAS = {"wyckoff": wyckoff_bias, "ict": lambda wy, f: ict_bias(f)}
 BIAS_METHODS = ("wyckoff", "ict")
 
 
-def engaged_methods(style, cfg=None):
-    """The bias-reading methods ENGAGED for `style`'s market, per /automation. Flag semantics mirror
-    build-artifact.py's (`flag is not False`), so an absent key means on. Order is BIAS_METHODS, not dict order,
-    so the basis string reads the same way every run."""
+def engaged_methods_for_market(market, cfg=None):
+    """The bias-reading methods ENGAGED for `market`, per /automation. Flag semantics mirror build-artifact.py's
+    (`flag is not False`), so an absent key means on. Order is BIAS_METHODS, not dict order, so the basis string
+    reads the same way every run. engaged_methods(style) below resolves `market` from a chart style and delegates
+    here, so there is ONE implementation a caller with only a market (e.g. a backtest resolving from a symbol via
+    automation.market_of) can also reach directly."""
     if cfg is None:
         cfg = _read(_auto.CONFIG) or {}
-    flags = (((cfg.get("markets") or {}).get(_auto.market_of_style(style)) or {}).get("dimensions")) or {}
+    flags = (((cfg.get("markets") or {}).get(market) or {}).get("dimensions")) or {}
     return tuple(m for m in BIAS_METHODS if flags.get(m) is not False)
+
+
+def engaged_methods(style, cfg=None):
+    """The bias-reading methods ENGAGED for `style`'s market, per /automation. See engaged_methods_for_market for
+    the flag semantics; this just resolves the market from the style first."""
+    return engaged_methods_for_market(_auto.market_of_style(style), cfg=cfg)
 
 
 def bias_of(wyckoff, facts, methods=("wyckoff",)):
