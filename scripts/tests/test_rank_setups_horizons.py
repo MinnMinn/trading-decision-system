@@ -106,14 +106,46 @@ class PresetCoverageOfRealSelection(unittest.TestCase):
         cls.setups = [s for s in json.load(open(path, encoding="utf-8"))["setups"] if s["market"] == "crypto"]
 
     def test_every_preset_covers_all_three_horizons_for_crypto(self):
-        gaps = []
+        """A preset may be left without a horizon ONLY when the stability data has no candidate that clears the
+        threshold -- never because the ranking crowded one method out with another, which is the bug this class
+        exists to catch.
+
+        Live case (2026-09-13): the `ict` preset has no crypto swing setup. Its swing candidates are 4H with 4
+        trades in the ranking year and 1D with 0, against a threshold of 6. Nothing was crowded out; there was
+        nothing to rank. User accepted that rather than lowering the bar to make a 4-trade setup selectable
+        (option A) -- so the assertion below is that every gap is explained by the data, not that gaps cannot
+        exist."""
+        stability = json.load(open(os.path.join(ROOT, "data", "history", "stability", "crypto-live.json"),
+                                   encoding="utf-8"))
+        rows = stability if isinstance(stability, list) else stability.get("rows", stability)
+        min_1y = {"scalping": 20, "day": 15, "swing": 6}      # rank-setups.main_horizons, --window 1y
+
+        unexplained = []
         for p in M.PRESETS:
             allowed = M.runner_methods(M.flags_for(p["id"])) & M.runnable()
             covered = {s["horizon"] for s in self.setups if s["method"] in allowed}
-            missing = {"scalping", "day", "swing"} - covered
-            if missing:
-                gaps.append((p["id"], sorted(missing)))
-        self.assertEqual(gaps, [], f"presets missing horizon coverage for crypto: {gaps}")
+            for hz in {"scalping", "day", "swing"} - covered:
+                qualifying = [r for r in rows
+                              if r.get("method") in allowed
+                              and r.get("tf") in RS.HORIZONS[hz]
+                              and (r.get("w1y") or {}).get("n", 0) >= min_1y[hz]]
+                if qualifying:
+                    unexplained.append((p["id"], hz, [(r["tf"], r["method"], r["w1y"]["n"]) for r in qualifying]))
+        self.assertEqual(unexplained, [],
+                         "a preset lost a horizon even though the stability data HAS a candidate clearing the "
+                         f"threshold -- that is the crowding-out bug, not a data gap: {unexplained}")
+
+    def test_the_ict_swing_gap_is_still_the_only_one_and_is_still_data_driven(self):
+        """Pins the accepted gap so it cannot silently grow. If another preset/horizon goes empty, this fails and
+        someone has to look at whether the rules got more selective or the data got thinner."""
+        empty = []
+        for p in M.PRESETS:
+            allowed = M.runner_methods(M.flags_for(p["id"])) & M.runnable()
+            covered = {s["horizon"] for s in self.setups if s["method"] in allowed}
+            for hz in sorted({"scalping", "day", "swing"} - covered):
+                empty.append((p["id"], hz))
+        self.assertEqual(empty, [("ict", "swing")],
+                         f"the set of uncovered (preset, horizon) cells changed: {empty}")
 
 
 if __name__ == "__main__":
