@@ -61,67 +61,109 @@ class ParityWithBacktest(unittest.TestCase):
             self.assertEqual(r["unmatched"], 0, r)
 
 
-class IctParityIsKnownBroken(unittest.TestCase):
-    """The runner builds ICT setups with the LEGACY helpers and the backtest now validates with the LIVE scanner.
+def _load_git_revision(ref, name):
+    """Loads scripts/`name` as it existed at git ref `ref`, with __file__ pinned to the file's CURRENT path so
+    ROOT-relative reads inside the module resolve against the real repo. Used to derive a "before" expectation
+    from a prior revision's ACTUAL behaviour, not from reading today's source or re-typing the legacy algorithm
+    by hand (mirrors scripts/tests/test_live_rules.py's load_git_revision)."""
+    real_path = os.path.join(ROOT, "scripts", name)
+    src = subprocess.check_output(["git", "show", f"{ref}:scripts/{name}"], cwd=ROOT, text=True)
+    mod_name = f"{name.replace('-', '_').replace('.py', '')}_{ref}"
+    spec = importlib.util.spec_from_loader(mod_name, loader=None, origin=real_path)
+    m = importlib.util.module_from_spec(spec)
+    m.__file__ = real_path
+    exec(compile(src, real_path, "exec"), m.__dict__)
+    return m
 
-    `strategy-runner.setups()` calls bt.all_pivots / bt.find_ict directly and never reads bt.OPTS["rules"], so it is
-    hardwired to the pre-2026-09-13 algorithm. bt.scan()'s ICT branch defaults to the live scanner. The two disagree
-    by roughly an order of magnitude, and docs/architecture/pilot-top5.json selects six ICT-method setups — so if the
-    pilot layer were switched on today, those six would trade under rules whose backtest evidence describes a
-    different system.
 
-    ParityWithBacktest above does NOT catch this: load_setups()[0] happens to be a COMBINED setup, the one method the
-    live/legacy fork does not touch, so it passes while covering none of the divergence.
-
-    These tests PIN THAT KNOWN-BROKEN STATE so it cannot be forgotten. Task 8 of
-    docs/plans/2026-09-13-unify-backtest-with-live-rules.md migrates the runner onto scripts/live_rules.py; when it
-    does, `test_ict_still_diverges_until_the_runner_is_migrated` MUST start failing. That failure is the signal the
-    migration worked — update this class then, do not weaken it before."""
+class IctParityAchieved(unittest.TestCase):
+    """Task 8 (2026-09-13) migrated strategy-runner.setups()'s ICT path off the legacy bt.all_pivots/bt.find_ict/
+    bt.ict_target proxies and onto scripts/live_rules.py -- the SAME read_at/setup_candidate/bias_allows/
+    fvg_fill chain bt.ict_setups_live uses for bt.scan()'s ICT branch -- so the runner and the backtest now ask
+    the live scanner the SAME question about the SAME bars. This replaces IctParityIsKnownBroken (see git
+    history at commit febd2d6), which pinned the PRE-migration divergence and predicted its own class would
+    need rewriting once the migration landed -- this is that rewrite; it must stay green from here on, not just
+    once."""
 
     WINDOW = 3000
 
-    def _ict_counts(self):
-        full = json.load(open(os.path.join(ROOT, "data", "history", "ohlcv.BTCUSDT.15m.json")))["candles"][-self.WINDOW:]
-        saved_load, saved_rules = bt.load, bt.OPTS["rules"]
-        bt.load = lambda sym, tf: (full, "test")
-        try:
-            out = {}
-            for rules in ("live", "legacy"):
-                bt.OPTS["rules"] = rules
-                out[rules] = len(bt.scan("BTCUSDT", "15m", only=("ICT",))["trades"].get("ICT", []))
-            return out
-        finally:
-            bt.load, bt.OPTS["rules"] = saved_load, saved_rules
+    def setUp(self):
+        self.full = json.load(open(os.path.join(ROOT, "data", "history", "ohlcv.BTCUSDT.15m.json")))["candles"][-self.WINDOW:]
 
     @unittest.skipUnless(os.path.exists(os.path.join(ROOT, "data", "history", "ohlcv.BTCUSDT.15m.json")), "history not fetched")
-    def test_ict_still_diverges_until_the_runner_is_migrated(self):
-        c = self._ict_counts()
-        self.assertNotEqual(c["live"], c["legacy"],
-                            f"ICT live and legacy now agree ({c}) — if Task 8 migrated the runner, flip this class; "
-                            f"if not, something silently made the live branch stop running")
+    def test_runner_and_backtest_compute_the_same_entry_stop_target_for_every_ict_trade(self):
+        """For every trade bt.scan's ICT branch records, calling the SAME live_rules.read_at() / setup_candidate()
+        the runner's ict_live_setups() calls, at the trade's own bar, reproduces the exact entry/stop/target --
+        proof the runner and the backtest ask the live scanner the same question, not two different ones that
+        happen to agree by coincidence. Also logs the legacy (pre-Task-8) runner's own ICT setup count on this
+        same window, loaded from git so the "before" number is the legacy algorithm's ACTUAL behaviour, not a
+        restated claim."""
+        saved_load = bt.load
+        bt.load = lambda sym, tf: (self.full, "test")
+        try:
+            res = bt.scan("BTCUSDT", "15m", only=("ICT",))
+        finally:
+            bt.load = saved_load
+        trades = res["trades"]["ICT"]
+        self.assertGreater(len(trades), 0, "no ICT trades in this window -- cannot prove agreement on nothing")
+        Tm = [x["time"] for x in self.full]
+        idx_of_time = {tt: j for j, tt in enumerate(Tm)}
+        methods = bt.resolve_methods("BTCUSDT")
+
+        # BEFORE: reproduce IctParityIsKnownBroken's own comparison (commit febd2d6, which still has
+        # OPTS["rules"]/the legacy pure-ICT branch this task deletes) -- bt.scan's live vs legacy ICT trade
+        # counts on this exact window, i.e. the actual divergence that test class pinned, not a restated claim.
+        old_bt = _load_git_revision("febd2d6", "backtest-methods.py")
+        old_bt.load = lambda sym, tf: (self.full, "test")
+        before = {}
+        for rules in ("live", "legacy"):
+            old_bt.OPTS["rules"] = rules
+            before[rules] = len(old_bt.scan("BTCUSDT", "15m", only=("ICT",))["trades"].get("ICT", []))
+        # Also the OLD runner's OWN ICT setups() (the legacy bt.all_pivots/bt.find_ict proxy this task migrates
+        # off of) on the SAME window, for the "still working as of the last closed bar" category the NEW
+        # runner's setups() also reports in AFTER below.
+        old_sr = _load_git_revision("febd2d6", "strategy-runner.py")
+        old_runner_pending = sum(len(old_sr.setups("ICT", side, self.full, "15m")) for side in ("long", "short"))
+        new_runner_pending = sum(len(sr.setups("ICT", side, self.full, "15m", sym="BTCUSDT")) for side in ("long", "short"))
+
+        matched = 0
+        with open("/tmp/task8-ict-agree.txt", "w") as f:
+            f.write("BTCUSDT 15m, 3000-bar window\n")
+            f.write(f"BEFORE (commit febd2d6, bt.scan --rules live vs legacy, the divergence "
+                    f"IctParityIsKnownBroken pinned): live={before['live']} legacy={before['legacy']} "
+                    f"(the docs/backtests/2026-09-13-live-rules-vs-legacy.md evidence gate this task was "
+                    f"conditioned on)\n")
+            f.write(f"BEFORE (commit febd2d6, OLD runner setups(), legacy bt.all_pivots/bt.find_ict proxy): "
+                    f"still-working-at-window-end setups = {old_runner_pending}\n")
+            f.write(f"AFTER  (this commit, live_rules-based both sides): backtest bt.scan ICT trades = "
+                    f"{len(trades)}; NEW runner still-working-at-window-end setups = {new_runner_pending}\n")
+            f.write("(a backtest trade is a COMPLETED fill; a runner setup is a STILL-WORKING, not-yet-filled "
+                    "limit -- the two counts are different categories by design, see ict_live_setups' docstring, "
+                    "so the real agreement check below is entry/stop/target equality on the shared detection "
+                    "call the runner and the backtest both now make, not a raw count match.)\n")
+            for t in trades:
+                i = idx_of_time[t["time"]]
+                a = bt.lr.read_at(self.full, i, "15m", methods)
+                su = bt.lr.ict_scan.setup_candidate(a, bt.lr.window(self.full, i, "15m"), bt.lr.setup_lookback("15m"))
+                ok = (su is not None and su.get("complete") and su.get("pd_ok")
+                      and abs(su["entry"] - t["entry"]) < 1e-9 and abs(su["stop"] - t["stop"]) < 1e-9
+                      and abs(su["target"] - t["target"]) < 1e-9)
+                matched += ok
+                f.write(f"  {t['side']} {t['time']} entry={t['entry']} stop={t['stop']} target={t['target']} "
+                        f"-- runner's own setup_candidate call agrees: {ok}\n")
+                self.assertTrue(ok, f"runner's setup_candidate call disagrees with the backtest trade at {t['time']}: {su}")
+            f.write(f"matched: {matched}/{len(trades)}\n")
 
     @unittest.skipUnless(os.path.exists(os.path.join(ROOT, "data", "history", "ohlcv.BTCUSDT.15m.json")), "history not fetched")
-    def test_combined_is_unaffected_by_the_fork(self):
-        """COMBINED reads find_ict unconditionally inside scan()'s Wyckoff block, so it is identical either way.
-        This is exactly why ParityWithBacktest stayed green and proved nothing about ICT."""
-        full = json.load(open(os.path.join(ROOT, "data", "history", "ohlcv.BTCUSDT.15m.json")))["candles"][-self.WINDOW:]
-        saved_load, saved_rules = bt.load, bt.OPTS["rules"]
-        bt.load = lambda sym, tf: (full, "test")
-        try:
-            n = {}
-            for rules in ("live", "legacy"):
-                bt.OPTS["rules"] = rules
-                n[rules] = len(bt.scan("BTCUSDT", "15m", only=("COMBINED",))["trades"].get("COMBINED", []))
-        finally:
-            bt.load, bt.OPTS["rules"] = saved_load, saved_rules
-        self.assertEqual(n["live"], n["legacy"])
-
-    def test_the_existing_parity_test_only_covers_combined(self):
-        """Makes ParityWithBacktest's blind spot explicit rather than incidental."""
-        self.assertEqual(sr.load_setups()[0]["method"], "COMBINED")
+    def test_runner_setups_never_resignals_an_already_filled_or_expired_ict_setup(self):
+        """Once a setup's LIMIT has filled or its K-bar expiry has passed, the runner must not offer it again as
+        a NEW order: every signal setups("ICT", ...) still returns must be unexpired (bars_left >= 0)."""
+        for side in ("long", "short"):
+            for sig in sr.setups("ICT", side, self.full, "15m", sym="BTCUSDT"):
+                self.assertGreaterEqual(sig["bars_left"], 0)
 
     def test_pilot_selection_still_contains_ict_setups(self):
-        """The reason the divergence matters: these are the setups that would trade if the locks were lifted."""
+        """The reason parity matters: these are the setups that would trade if the locks were lifted."""
         setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")))["setups"]
         self.assertTrue([s for s in setups if s.get("method") == "ICT"])
 

@@ -313,14 +313,17 @@ def drop_forming(c, tf, t):
     return c
 
 
-def fetch_candles(sym, tf, market, t, at=None):
-    """Closed candles only. Crypto: private Binance copy. CFD: the MT5 export file (2H aggregated from 1H). --replay: history cut at `at`."""
+def fetch_candles(sym, tf, market, t, at=None, window=None):
+    """Closed candles only. Crypto: private Binance copy. CFD: the MT5 export file (2H aggregated from 1H). --replay: history cut at `at`.
+    `window`: candle count to return, default WINDOW (300) -- enough for WYCKOFF/COMBINED. ICT setups need
+    live_rules' own (larger, per-tf) trailing window, see ict_scan_bars() in tick() below (2026-09-13, Task 8)."""
+    window = window or WINDOW
     if at is not None:
         c = json.load(open(f"{ROOT}/data/history/ohlcv.{sym}.{tf}.json"))["candles"]
-        return [x for x in c if x["time"] <= at][-WINDOW:]
+        return [x for x in c if x["time"] <= at][-window:]
     if market == "crypto":
         env = dict(os.environ, KLINES_OUT_DIR=CANDLES)
-        r = subprocess.run(["bash", FETCH, sym, tf, str(WINDOW)], capture_output=True, text=True, env=env)
+        r = subprocess.run(["bash", FETCH, sym, tf, str(window)], capture_output=True, text=True, env=env)
         if r.returncode != 0:
             raise RuntimeError(f"fetch {sym} {tf}: {r.stderr.strip()[:200]}")
         c = json.load(open(f"{CANDLES}/ohlcv.{sym}.{tf}.json"))["candles"]
@@ -336,7 +339,7 @@ def fetch_candles(sym, tf, market, t, at=None):
             c = aggregate(c, 2)
         elif tf == "30m":
             c = aggregate_minutes(c, 30)
-    return drop_forming(c, tf, t)[-WINDOW:]
+    return drop_forming(c, tf, t)[-window:]
 
 
 def aggregate_minutes(c, minutes):
@@ -365,10 +368,95 @@ def due(tf, t, market="crypto"):
 
 
 # ---------------------------------------------------------------- signals (mirror of backtest-methods.scan, causal cut)
-def setups(method, side, candles, tf, ict_target="range", ict_disp=False, ict_pd=False, std_origin="pivot"):
-    """Every setup of `method`/`side` in the window whose LIMIT would still be working at the last closed bar. Mirrors bt.scan.
-    ict_disp / ict_pd / std_origin are the deck-faithful switches of backtest-methods.py (2026-09-12); a setup enables them with the
-    same-named keys in docs/architecture/pilot-top5.json — all default off so the rule set does not change without a selection."""
+def ict_scan_bars(tf):
+    """The live scanner's required trailing window for `tf` (live_rules.scan_spec), or None if live never scans
+    this tf at all -- automation.SCAN_WINDOW has no "2H"/"30m" entry today, a pre-existing gap from the Task
+    4/6 wiring, not introduced here: `bt.scan(sym, "2H", only=("ICT",))` already raises this same KeyError on
+    the current commit (verified empirically 2026-09-13). Callers must treat None as "cannot run the live ICT
+    rules on this tf" and degrade to no-signal, not crash the whole tick over one setup."""
+    try:
+        bars, _ = bt.lr.scan_spec(tf)
+        return bars
+    except KeyError:
+        return None
+
+
+def ict_live_setups(side, candles, tf, sym):
+    """ICT setups from the LIVE rules, mirroring bt.ict_setups_live (2026-09-13, Task 8). Before this, the
+    runner built ICT setups with bt.all_pivots/bt.last_pivot/bt.find_ict/bt.ict_target -- the LEGACY algorithm --
+    while bt.scan() validates ICT with the live scanner (scripts/ict-scan.py via scripts/live_rules.py), so the
+    two disagreed by roughly an order of magnitude (docs/backtests/2026-09-13-live-rules-vs-legacy.md). This
+    function asks the SAME live scanner the SAME question bt.ict_setups_live asks, at every bar of the window:
+    live_rules.read_at() for the facts, live_rules.ict_scan.setup_candidate() for the setup, require
+    complete + pd_ok, gate on bt.bias_allows(live_rules.bias_at(...)[0], side). The one difference from
+    bt.ict_setups_live: that function decides whether the LIMIT eventually filled (a completed BACKTEST trade,
+    via bt.fvg_fill); this one decides whether the LIMIT is STILL working as of the last closed bar (a NEW
+    order for the runner to place) -- same fvg_fill call, opposite reading of its result: fvg_fill returning a
+    bar index means the limit ALREADY triggered on an earlier bar (an earlier tick should already have placed
+    and filled it -- not a new signal); still within its K-bar expiry with no fill and no stop-hit means it is
+    still a working, placeable order.
+
+    `sym` resolves which bias-reading dimensions are engaged for this symbol's market (bt.resolve_methods --
+    htf_context.engaged_methods_for_market via /automation), exactly as the backtest does -- never a hardcoded
+    default (see live_rules.read_at's own docstring for why). Returns [] rather than raising when `sym` is not
+    given, when live never scans `tf` at all (ict_scan_bars() above), or once the window runs out -- one setup
+    must not crash the tick for every other symbol."""
+    if sym is None:
+        return []
+    if ict_scan_bars(tf) is None:
+        return []
+    methods = bt.resolve_methods(sym)
+    H = [x["high"] for x in candles]; L = [x["low"] for x in candles]; Tm = [x["time"] for x in candles]
+    n = len(candles)
+    if n == 0:
+        return []
+    K = bt.P[tf]["K"]
+    idx_of_time = {tt: j for j, tt in enumerate(Tm)}
+    out = []; seen = set()
+    for i in range(n):
+        a = bt.lr.read_at(candles, i, tf, methods)
+        if a is None:            # window not yet the full live window -- live would not have scanned here at all
+            continue
+        su = bt.lr.ict_scan.setup_candidate(a, bt.lr.window(candles, i, tf), bt.lr.setup_lookback(tf))
+        if not su or not su.get("complete") or not su.get("pd_ok") or su["side"] != side:
+            continue
+        bias, _ = bt.lr.bias_at(candles, i, tf, methods, facts=a)
+        if not bt.bias_allows(bias, su["side"]):
+            continue
+        key = (su["side"], su["sweep"]["time"], su["mss"]["time"])
+        if key in seen:           # the same setup stays visible for many bars; take it once, at its first bar
+            continue
+        seen.add(key)
+        mss_i = idx_of_time.get(su["mss"]["time"])
+        if mss_i is None:
+            continue
+        entry = su["entry"]; stop = su["stop"]; target = su["target"]
+        if (side == "long" and not target > entry) or (side == "short" and not target < entry):
+            continue
+        far = su["entry_models"]["fill"]   # ict-scan.py setup_candidate: the key is "entry_models", not "entries"
+        fill = bt.fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, n)
+        bars_left = (mss_i + K) - (n - 1)
+        if fill is not None or bars_left < 0:
+            continue          # already triggered on an earlier bar, or expired unfilled -- not a NEW order to place
+        out.append(dict(time=Tm[i], vol_type=None, side=su["side"], sweep_bar=idx_of_time.get(su["sweep"]["time"]),
+                        mss_bar=mss_i, mss_time=su["mss"]["time"], entry=entry, stop=stop, target=target,
+                        expires_bar=mss_i + K, bars_left=bars_left, r_planned=abs(target - entry) / abs(entry - stop)))
+    return out
+
+
+def setups(method, side, candles, tf, ict_target="range", ict_disp=False, ict_pd=False, std_origin="pivot", sym=None):
+    """Every setup of `method`/`side` in the window whose LIMIT would still be working at the last closed bar.
+    ICT (2026-09-13, Task 8): sourced from the LIVE rules -- see ict_live_setups() above -- migrated off the
+    legacy bt.all_pivots/bt.find_ict/bt.ict_target proxies so the runner and bt.scan() agree on what an ICT
+    setup is. `sym` is required for this path (method resolution, see ict_live_setups); it is otherwise unused.
+    COMBINED/PARTIAL (unchanged, Task 8 dependency map): Spring/Upthrust proxy (R-bar border pierce, reclaim <=
+    2 bars, volume type gate) + bt.find_ict confirmation -> LIMIT at the FVG edge; mirrors bt.scan's
+    COMBINED/PARTIAL block. ict_disp / ict_pd / std_origin are the deck-faithful switches of
+    backtest-methods.py (2026-09-12); ict_pd/std_origin no longer affect anything here (only the now-removed
+    legacy ICT branch read them) but ict_disp still gates this branch's call into bt.find_ict via bt.OPTS,
+    unchanged from before this migration."""
+    if method == "ICT":
+        return ict_live_setups(side, candles, tf, sym)
     p = bt.P[tf]; R, K = p["R"], p["K"]
     H = [x["high"] for x in candles]; L = [x["low"] for x in candles]; C = [x["close"] for x in candles]; V = [x.get("volume", 0) for x in candles]
     O = [x["open"] for x in candles]; T = [x["time"] for x in candles]; n = len(candles)
@@ -377,62 +465,33 @@ def setups(method, side, candles, tf, ict_target="range", ict_disp=False, ict_pd
     bt.OPTS.update(ict_target=ict_target, ict_disp=bool(ict_disp), ict_pd=bool(ict_pd), std_origin=std_origin or "pivot")
     try:
         for i in range(R + 6, n):
-            if method == "ICT":
-                if i - last_i <= 5:
+            support = min(L[i - R:i - 5]); resistance = max(H[i - R:i - 5])
+            if resistance <= support or i - last_i <= 5:
+                continue
+            if side == "long":
+                if not L[i] < support:
                     continue
-                if side == "long":
-                    pl = bt.last_pivot(PL, i)
-                    if pl is None or not L[i] < L[pl]:
-                        continue
-                    range_target = max(H[i - R:i])
-                else:
-                    ph = bt.last_pivot(PH, i)
-                    if ph is None or not H[i] > H[ph]:
-                        continue
-                    range_target = min(L[i - R:i])
-                if bt.OPTS["ict_pd"]:   # knowledge/04 §3.4 R13, same proxy as backtest-methods.scan
-                    eq_ = (max(H[i - R:i]) + min(L[i - R:i])) / 2
-                    if (side == "long" and C[i] >= eq_) or (side == "short" and C[i] <= eq_):
-                        continue
-                last_i = i
-                ict = bt.find_ict(side, i, i, H, L, C, K, n, PH, PL, O=O)
-                if not ict:
-                    continue
-                mss, edge, far = ict
-                ext = min(L[i:mss + 1]) if side == "long" else max(H[i:mss + 1])
-                stop = ext * (1 - STOP_BUFFER_PCT) if side == "long" else ext * (1 + STOP_BUFFER_PCT)
-                target = bt.ict_target(side, i, mss, ext, H, L, R, PH, PL, range_target)
-                if target is None:
-                    continue
-                base = dict(time=T[i], vol_type=None)
+                rec = next((j for j in range(i, min(i + 3, n)) if C[j] > support), None)
             else:
-                support = min(L[i - R:i - 5]); resistance = max(H[i - R:i - 5])
-                if resistance <= support or i - last_i <= 5:
+                if not H[i] > resistance:
                     continue
-                if side == "long":
-                    if not L[i] < support:
-                        continue
-                    rec = next((j for j in range(i, min(i + 3, n)) if C[j] > support), None)
-                else:
-                    if not H[i] > resistance:
-                        continue
-                    rec = next((j for j in range(i, min(i + 3, n)) if C[j] < resistance), None)
-                if rec is None:
-                    continue
-                last_i = i
-                ext = min(L[i:rec + 1]) if side == "long" else max(H[i:rec + 1])
-                avg20 = sum(V[i - 20:i]) / 20 if i >= 20 else 0
-                ratio = V[i] / avg20 if avg20 else None
-                vt = bt.vtype(ratio); rec_ratio = (V[rec] / avg20) if avg20 else None
-                if not (vt in (1, 2) or (vt == 3 and rec_ratio is not None and rec_ratio >= bt.VOL["high_min_ratio"])):
-                    continue
-                ict = bt.find_ict(side, i, rec, H, L, C, K, n, PH, PL, O=O)
-                if not ict:
-                    continue
-                mss, edge, far = ict
-                stop = ext * (1 - STOP_BUFFER_PCT) if side == "long" else ext * (1 + STOP_BUFFER_PCT)
-                target = resistance if side == "long" else support
-                base = dict(time=T[i], vol_type=vt)
+                rec = next((j for j in range(i, min(i + 3, n)) if C[j] < resistance), None)
+            if rec is None:
+                continue
+            last_i = i
+            ext = min(L[i:rec + 1]) if side == "long" else max(H[i:rec + 1])
+            avg20 = sum(V[i - 20:i]) / 20 if i >= 20 else 0
+            ratio = V[i] / avg20 if avg20 else None
+            vt = bt.vtype(ratio); rec_ratio = (V[rec] / avg20) if avg20 else None
+            if not (vt in (1, 2) or (vt == 3 and rec_ratio is not None and rec_ratio >= bt.VOL["high_min_ratio"])):
+                continue
+            ict = bt.find_ict(side, i, rec, H, L, C, K, n, PH, PL, O=O)
+            if not ict:
+                continue
+            mss, edge, far = ict
+            stop = ext * (1 - STOP_BUFFER_PCT) if side == "long" else ext * (1 + STOP_BUFFER_PCT)
+            target = resistance if side == "long" else support
+            base = dict(time=T[i], vol_type=vt)
             if (side == "long" and not target > edge) or (side == "short" and not target < edge):
                 continue
             if mss < n - 1 - K:
@@ -515,14 +574,28 @@ def setups_wyckoff(method, side, candles, tf):
     return out
 
 
-def htf_pass(side, at_time, candles_htf, htf_tf):
+def htf_pass(sym, side, candles_htf, htf_tf):
+    """Higher-timeframe boundary gate. Migrated onto the LIVE bias read (2026-09-13, Task 8): bt.bias_allows
+    over bt.lr.bias_at (scripts/htf_context.py via scripts/live_rules.py) replaces the pre-2026-09-13
+    rolling-percentile proxy (bt.htf_allows over a percentile series this function used to compute inline from
+    `candles_htf`). `candles_htf` is already causal (fetch_candles/drop_forming upstream), so its LAST element
+    IS the last CLOSED bar of `htf_tf` as of this tick -- exactly the bar a live bias read would use; unlike the
+    old proxy, no `at_time` lookup is needed to find "the htf bar that had closed by the signal's own time".
+
+    Returns None -- not False -- when the live rules cannot be asked here at ALL: htf_tf has no bt.P entry, no
+    candles were fetched, or automation.SCAN_WINDOW has no entry for htf_tf (a pre-existing gap from Task 4/6
+    for "2H"/"30m" -- bt.scan() already raises the same KeyError for those timeframes today; ict_scan_bars()
+    above is the same guard used for the ICT setup path). None means "structurally unable to judge" and does
+    NOT block a caller checking `is False` (tick() only blocks on an explicit False); a live bias read that DID
+    run but came back neutral/unknown returns False via bt.bias_allows, which DOES block -- capital preservation
+    first, per bias_allows' own docstring."""
     if not candles_htf or htf_tf not in bt.P:
         return None
-    Rh = bt.P[htf_tf]["R"]; pos = []
-    for i in range(Rh, len(candles_htf)):
-        lo = min(x["low"] for x in candles_htf[i - Rh:i]); hi = max(x["high"] for x in candles_htf[i - Rh:i])
-        pos.append((candles_htf[i]["time"], (candles_htf[i]["close"] - lo) / (hi - lo) if hi > lo else 0.5))
-    return bt.htf_allows(pos, at_time, side) if pos else None
+    if ict_scan_bars(htf_tf) is None:
+        return None
+    methods = bt.resolve_methods(sym)
+    bias, _ = bt.lr.bias_at(candles_htf, len(candles_htf) - 1, htf_tf, methods)
+    return bt.bias_allows(bias, side)
 
 
 # ---------------------------------------------------------------- sizing and orders
@@ -892,10 +965,26 @@ def tick(live, tick_time=None, ignore_gate=False):
                     need.add((st["market"], sym, HTF_OF[st["tf"]]))
     for sym, p in list(s["positions"].items()) + list(s["pending"].items()):
         need.add(("crypto" if sym in CRYPTO else "cfd", sym, p["tf"]))
+    # htf_pass() and ict_live_setups() both read scripts/live_rules.py now (2026-09-13, Task 8), which needs its
+    # OWN trailing window per tf (automation.SCAN_WINDOW, up to 576 bars) -- larger than WINDOW (300), which
+    # stays enough for WYCKOFF/WYCKOFF-BOOK/COMBINED's own setup detection. Widen the fetch for exactly the
+    # (market, tf) pairs live_rules will be asked about -- an ICT setup's own entry tf, and EVERY setup's HTF_OF
+    # tf (htf_pass runs for every method, not just ICT) -- so read_at()/bias_at() ever see a full window.
+    # Non-ICT methods still see candles[...][-WINDOW:] at the point they're used below, so their input is
+    # byte-identical to what fetch_candles(..., window=WINDOW) alone would have produced.
+    wide_tf_bars = {}
+    for st in setups_cfg:
+        for cand_tf in (st["tf"] if st["method"] == "ICT" else None, HTF_OF.get(st["tf"])):
+            if not cand_tf:
+                continue
+            b = ict_scan_bars(cand_tf)
+            if b:
+                key = (st["market"], cand_tf); wide_tf_bars[key] = max(wide_tf_bars.get(key, 0), b)
     candles = {}
     for market, sym, tf in sorted(need):
+        b = wide_tf_bars.get((market, tf))
         try:
-            candles[(sym, tf)] = fetch_candles(sym, tf, market, t)
+            candles[(sym, tf)] = fetch_candles(sym, tf, market, t, window=(max(WINDOW, b) if b else WINDOW))
         except Exception as e:
             log("error", venue=venue_of(sym), where=f"candles {sym} {tf}", msg=str(e)[:200])
     # 1. positions
@@ -989,14 +1078,21 @@ def tick(live, tick_time=None, ignore_gate=False):
             c = candles.get((sym, st["tf"]))
             if not c or len(c) < bt.P[st["tf"]]["R"] + 10:
                 continue
+            # ICT reads the (possibly widened, see wide_tf_bars above) fetched array as-is; every other method
+            # gets exactly the last WINDOW bars, whether or not this (sym, tf) happened to be widened for ICT
+            # or an HTF read elsewhere -- so their input is unchanged by this migration.
+            c_for_setups = c if st["method"] == "ICT" else c[-WINDOW:]
             for side in ("long", "short"):
-                sigs = setups(st["method"], side, c, st["tf"], st.get("ict_target") or "range", st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot") if mreg.scan_of(st["method"]) == "ict" else setups_wyckoff(st["method"], side, c, st["tf"])
+                try:
+                    sigs = setups(st["method"], side, c_for_setups, st["tf"], st.get("ict_target") or "range", st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot", sym=sym) if mreg.scan_of(st["method"]) == "ict" else setups_wyckoff(st["method"], side, c_for_setups, st["tf"])
+                except Exception as e:
+                    log("error", venue=venue, where=f"setups {st['id']} {sym} {side}", msg=str(e)[:200]); continue
                 for sig in sigs:
                     key = f"{st['id']}-{sym}-{side}-{sig['time']}"
                     if key in s["seen"]:
                         continue
                     s["seen"].append(key); s["seen"] = s["seen"][-800:]
-                    sig["htf_pass"] = htf_pass(side, sig["time"], candles.get((sym, HTF_OF.get(st["tf"]))), HTF_OF.get(st["tf"]))
+                    sig["htf_pass"] = htf_pass(sym, side, candles.get((sym, HTF_OF.get(st["tf"]))), HTF_OF.get(st["tf"]))
                     open_same = [k for k, p in list(s["positions"].items()) + list(s["pending"].items()) if p["execution"] == venue]
                     reasons = []
                     if sym in s["positions"] or sym in s["pending"]:
@@ -1055,7 +1151,7 @@ def replay(setup_ids, bars=600):
             for k in range(WINDOW, len(span) + 1):
                 window = span[k - WINDOW:k]
                 for side in ("long", "short"):
-                    sigs = setups_wyckoff(st["method"], side, window, st["tf"]) if wy else setups(st["method"], side, window, st["tf"], st.get("ict_target") or "range", st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot")
+                    sigs = setups_wyckoff(st["method"], side, window, st["tf"]) if wy else setups(st["method"], side, window, st["tf"], st.get("ict_target") or "range", st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot", sym=sym)
                     for sig in sigs:
                         placements.setdefault((side, sig["time"]), dict(sig, first_seen=window[-1]["time"]))
             sc = bt.scan(sym, st["tf"], only=(st["method"],)); span_start = span[WINDOW - 1]["time"]  # only the method being checked -- skip the rest of scan()'s work, esp. the live ICT scanner when unused (2026-09-13)
