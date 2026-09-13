@@ -61,6 +61,71 @@ class ParityWithBacktest(unittest.TestCase):
             self.assertEqual(r["unmatched"], 0, r)
 
 
+class IctParityIsKnownBroken(unittest.TestCase):
+    """The runner builds ICT setups with the LEGACY helpers and the backtest now validates with the LIVE scanner.
+
+    `strategy-runner.setups()` calls bt.all_pivots / bt.find_ict directly and never reads bt.OPTS["rules"], so it is
+    hardwired to the pre-2026-09-13 algorithm. bt.scan()'s ICT branch defaults to the live scanner. The two disagree
+    by roughly an order of magnitude, and docs/architecture/pilot-top5.json selects six ICT-method setups — so if the
+    pilot layer were switched on today, those six would trade under rules whose backtest evidence describes a
+    different system.
+
+    ParityWithBacktest above does NOT catch this: load_setups()[0] happens to be a COMBINED setup, the one method the
+    live/legacy fork does not touch, so it passes while covering none of the divergence.
+
+    These tests PIN THAT KNOWN-BROKEN STATE so it cannot be forgotten. Task 8 of
+    docs/plans/2026-09-13-unify-backtest-with-live-rules.md migrates the runner onto scripts/live_rules.py; when it
+    does, `test_ict_still_diverges_until_the_runner_is_migrated` MUST start failing. That failure is the signal the
+    migration worked — update this class then, do not weaken it before."""
+
+    WINDOW = 3000
+
+    def _ict_counts(self):
+        full = json.load(open(os.path.join(ROOT, "data", "history", "ohlcv.BTCUSDT.15m.json")))["candles"][-self.WINDOW:]
+        saved_load, saved_rules = bt.load, bt.OPTS["rules"]
+        bt.load = lambda sym, tf: (full, "test")
+        try:
+            out = {}
+            for rules in ("live", "legacy"):
+                bt.OPTS["rules"] = rules
+                out[rules] = len(bt.scan("BTCUSDT", "15m", only=("ICT",))["trades"].get("ICT", []))
+            return out
+        finally:
+            bt.load, bt.OPTS["rules"] = saved_load, saved_rules
+
+    @unittest.skipUnless(os.path.exists(os.path.join(ROOT, "data", "history", "ohlcv.BTCUSDT.15m.json")), "history not fetched")
+    def test_ict_still_diverges_until_the_runner_is_migrated(self):
+        c = self._ict_counts()
+        self.assertNotEqual(c["live"], c["legacy"],
+                            f"ICT live and legacy now agree ({c}) — if Task 8 migrated the runner, flip this class; "
+                            f"if not, something silently made the live branch stop running")
+
+    @unittest.skipUnless(os.path.exists(os.path.join(ROOT, "data", "history", "ohlcv.BTCUSDT.15m.json")), "history not fetched")
+    def test_combined_is_unaffected_by_the_fork(self):
+        """COMBINED reads find_ict unconditionally inside scan()'s Wyckoff block, so it is identical either way.
+        This is exactly why ParityWithBacktest stayed green and proved nothing about ICT."""
+        full = json.load(open(os.path.join(ROOT, "data", "history", "ohlcv.BTCUSDT.15m.json")))["candles"][-self.WINDOW:]
+        saved_load, saved_rules = bt.load, bt.OPTS["rules"]
+        bt.load = lambda sym, tf: (full, "test")
+        try:
+            n = {}
+            for rules in ("live", "legacy"):
+                bt.OPTS["rules"] = rules
+                n[rules] = len(bt.scan("BTCUSDT", "15m", only=("COMBINED",))["trades"].get("COMBINED", []))
+        finally:
+            bt.load, bt.OPTS["rules"] = saved_load, saved_rules
+        self.assertEqual(n["live"], n["legacy"])
+
+    def test_the_existing_parity_test_only_covers_combined(self):
+        """Makes ParityWithBacktest's blind spot explicit rather than incidental."""
+        self.assertEqual(sr.load_setups()[0]["method"], "COMBINED")
+
+    def test_pilot_selection_still_contains_ict_setups(self):
+        """The reason the divergence matters: these are the setups that would trade if the locks were lifted."""
+        setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")))["setups"]
+        self.assertTrue([s for s in setups if s.get("method") == "ICT"])
+
+
 class Sizing(unittest.TestCase):
     def test_risk_never_above_one_percent_and_notional_capped(self):
         self.assertLessEqual(sr.RISK_PCT, 0.01)
