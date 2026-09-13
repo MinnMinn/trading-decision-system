@@ -23,6 +23,9 @@ _ba = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_ba)
 STYLES = _ba.STYLES
 VERDICTS = ("SETUP TIỀM NĂNG", "THEO DÕI LONG", "THEO DÕI SHORT", "CHỜ")
 import htf_context as htf              # noqa: E402
+import methods as _M                   # noqa: E402
+
+OWNERS = _M.invalidation_owners()      # docs/architecture/methods.json is the one list; never hand-keep it here
 CTX_STYLE = {k: v for k, v in htf.CONTEXT_STYLE.items() if v}
 ISO = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 
@@ -138,7 +141,11 @@ def main():
         su = ((facts.get("symbols") or {}).get(sym) or {}).get("setup") or {}
         if d.get("verdict") == "SETUP TIỀM NĂNG" and not su.get("complete"): bad(pre + "SETUP TIỀM NĂNG but facts has no complete setup")
         inv = d.get("invalidation")
-        if inv and inv.get("owner") not in ("wyckoff", "ict"): bad(pre + f"invalidation.owner {inv.get('owner')!r}")
+        if inv and inv.get("owner") not in OWNERS: bad(pre + f"invalidation.owner {inv.get('owner')!r}")
+        # The invalidation level is what sizing and stop management use (.claude/skills/ict-skill/SKILL.md §"one
+        # invalidation owner"). A disengaged method may not own it, or a switched-off read still sets the stop.
+        if inv and inv.get("owner") in OWNERS and inv["owner"] not in htf.engaged_methods(style):
+            bad(pre + f"invalidation.owner is {inv['owner']!r} but that dimension is off in /automation — the stop would be owned by a method this run does not read")
         for m in ("wyckoff", "ict"):
             t = (d.get(m) or {}).get("text_html", "")
             if not t.strip(): bad(pre + f"{m}.text_html empty")
@@ -158,17 +165,23 @@ def main():
         # giảm khung (knowledge/07 §2.7, WA p93–96): the context read is mandatory when a context window exists, and the
         # working-timeframe verdict must respect the higher-timeframe structure
         if ctx_style:
+            # A context read is mandatory only for the methods /automation has ENGAGED. Requiring the Wyckoff one
+            # unconditionally made an ICT-only narrative impossible to validate, which is the method switch leaking
+            # back in through the validator (user decision 2026-09-13).
+            engaged = htf.engaged_methods(style)
             ci = (d.get("context") or {}).get("ict") or {}
-            if not (cw.get("text_html") or "").strip() or 'class="cite"' not in cw.get("text_html", ""):
-                bad(pre + "context.wyckoff.text_html missing or uncited — the higher-timeframe Wyckoff read is mandatory (giảm khung, knowledge/07 §2.7)")
-            if not (ci.get("text_html") or "").strip():
+            if "wyckoff" in engaged:
+                if not (cw.get("text_html") or "").strip() or 'class="cite"' not in cw.get("text_html", ""):
+                    bad(pre + "context.wyckoff.text_html missing or uncited — the higher-timeframe Wyckoff read is mandatory (giảm khung, knowledge/07 §2.7)")
+                if not (cw.get("structure") or cw.get("phase")):
+                    bad(pre + "context.wyckoff needs structure + phase (or structure 'chưa xác lập') so the bias can be derived")
+                if (cw.get("phase") or "").upper()[:1] == "B" and not ((cw.get("trading_range") or {}).get("high") and (cw.get("trading_range") or {}).get("low")):
+                    bad(pre + "context.wyckoff is Phase B but has no trading_range {high, low} — the boundary rule (WA p93, p201) needs the higher-timeframe AR / SC-ST levels")
+            if "ict" in engaged and not (ci.get("text_html") or "").strip():
                 bad(pre + "context.ict.text_html missing — the higher-timeframe ICT read is mandatory")
-            if not (cw.get("structure") or cw.get("phase")):
-                bad(pre + "context.wyckoff needs structure + phase (or structure 'chưa xác lập') so the bias can be derived")
             ctx_facts_sym = ((ctx_facts.get("symbols") or {}).get(sym) or {})
-            if (cw.get("phase") or "").upper()[:1] == "B" and not ((cw.get("trading_range") or {}).get("high") and (cw.get("trading_range") or {}).get("low")):
-                bad(pre + "context.wyckoff is Phase B but has no trading_range {high, low} — the boundary rule (WA p93, p201) needs the higher-timeframe AR / SC-ST levels")
-            bias, basis = htf.bias_of({"structure": cw.get("structure"), "phase": cw.get("phase"), "trading_range": cw.get("trading_range")}, ctx_facts_sym)
+            bias, basis = htf.bias_of({"structure": cw.get("structure"), "phase": cw.get("phase"), "trading_range": cw.get("trading_range")},
+                                      ctx_facts_sym, methods=engaged)
             side = (su.get("side") or "").lower() or None
             for p_ in htf.check_verdict(d.get("verdict"), side, {"tf": htf.STYLE_TF.get(ctx_style, "?"), "bias": bias}, d.get("synthesis_html", "")):
                 bad(pre + p_)

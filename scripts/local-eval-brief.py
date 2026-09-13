@@ -111,12 +111,22 @@ def main():
 
 ## Bản đồ trích dẫn
 """ + CITES)
-    print("\n## THANG KHUNG (code tính; luật giảm khung — knowledge/07 §2.7, WA p93–96; docs/architecture/timeframe-mapping.md)")
     import importlib.util as _iu
     _hs = _iu.spec_from_file_location("htf_context", f"{ROOT}/scripts/htf_context.py"); _htf = _iu.module_from_spec(_hs); _hs.loader.exec_module(_htf)
+    _engaged = _htf.engaged_methods(a.style)
+    # Which method blocks THIS run owes. Mục 6 lists the shape of all four; /automation decides which are required,
+    # and scripts/check-model-prose.py checks exactly this set. Demanding m-wyckoff in an ICT-only run forced the
+    # model to write Wyckoff prose the run does not read (audit 2026-09-13).
+    print(f"\n## KHỐI BẮT BUỘC CHO LẦN CHẠY NÀY (/automation): "
+          + " + ".join(f"m-{m}" for m in _engaged + ("synth",))
+          + (f"  — KHÔNG viết khối m-{', m-'.join(m for m in ('wyckoff', 'ict') if m not in _engaged)}: "
+             "dimension đang tắt, khối đó sẽ bị check-model-prose.py từ chối."
+             if set(("wyckoff", "ict")) - set(_engaged) else ""))
+    print("\n## THANG KHUNG (code tính; luật giảm khung — knowledge/07 §2.7, WA p93–96; docs/architecture/timeframe-mapping.md)")
+    print(f"Chỉ in bản đọc của lớp đang bật: {', '.join(_engaged) or '(không có lớp nào)'}.")
     for sym in syms:
         f = lambda v: fmt(sym, v)
-        print(f"\n## {sym}"); print("\n".join(_htf.ladder_lines(a.style, sym, f)))
+        print(f"\n## {sym}"); print("\n".join(_htf.ladder_lines(a.style, sym, f, methods=_engaged)))
     print("\n## FACTS (scanner, không được thay đổi)")
     for sym in syms:
         d = facts["symbols"][sym]; f = lambda v: fmt(sym, v)

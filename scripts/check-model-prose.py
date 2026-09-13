@@ -54,7 +54,9 @@ for sym, d in facts["symbols"].items():
     if verdict not in VERDICTS:
         print(f"{sym}: verdict '{verdict}' not in {VERDICTS}"); status = max(status, 1)
     blocks = split_blocks(h)
-    for m in ("wyckoff", "ict", "synth"):
+    # Only the ENGAGED methods owe a block. Demanding m-wyckoff while /automation has Wyckoff off forced the model
+    # to write Wyckoff prose in an ICT-only run — the method switch leaking back in through the validator.
+    for m in htf.engaged_methods(style) + ("synth",):
         if m not in blocks or not blocks[m]:
             print(f"{sym}: missing <div class=\"m-{m}\"> block"); status = max(status, 1)
         elif 'class="cite"' not in blocks[m]:

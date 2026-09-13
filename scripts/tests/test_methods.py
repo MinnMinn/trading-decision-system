@@ -107,8 +107,8 @@ class Validation(unittest.TestCase):
     def _base(self):
         return {
             "dimensions": {
-                "wyckoff": {"markets": ["crypto"], "pane": {"kind": "volume", "label": "Khối lượng"}},
-                "ict": {"markets": ["crypto"], "pane": {"kind": "range_pct", "label": "Dealing range"}},
+                "wyckoff": {"markets": ["crypto"], "owns_invalidation": True, "pane": {"kind": "volume", "label": "Khối lượng"}},
+                "ict": {"markets": ["crypto"], "owns_invalidation": True, "pane": {"kind": "range_pct", "label": "Dealing range"}},
             },
             "presets": [{"id": "a", "dimensions": ["wyckoff"], "mode": "SOLO"}],
             "runner_methods": {"WYCKOFF": {"requires": ["wyckoff"]}},
@@ -132,6 +132,16 @@ class Validation(unittest.TestCase):
             M._validate(d)
         self.assertIn("ict", str(ctx.exception))
         self.assertIn("confetti", str(ctx.exception))
+
+    def test_dimension_missing_owns_invalidation_raises(self):
+        """A new dimension must SAY whether it can own a stop; defaulting either way silently changes
+        narrative.schema.json's owner enum via scripts/sync-methods.py."""
+        d = self._base()
+        del d["dimensions"]["ict"]["owns_invalidation"]
+        with self.assertRaises(ValueError) as ctx:
+            M._validate(d)
+        self.assertIn("ict", str(ctx.exception))
+        self.assertIn("owns_invalidation", str(ctx.exception))
 
     def test_duplicate_preset_dimension_sets_raise(self):
         d = self._base()

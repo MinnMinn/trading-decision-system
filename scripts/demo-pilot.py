@@ -81,6 +81,25 @@ MAX_OPEN = int(_envf("PILOT_MAX_OPEN", 2, 1, 4))
 MAX_TRADES_PER_DAY = int(_envf("PILOT_MAX_TRADES_PER_DAY", 3, 1, 6))
 SWEEP_LOOKBACK, MSS_LOOKBACK = 8, 3
 HTF_FILTER = True   # giảm khung: only trade in the direction the 4H structure allows (knowledge/07 §2.7, WA p93–96); user decision 2026-09-11
+# Which methods may set that filter's bias. PINNED to Wyckoff — the value htf_context.bias_of() used before it
+# became method-aware — so the analysis-side method-switch fix (2026-09-13) cannot change order gating as a side
+# effect. Unpinning this to htf_context.engaged_methods("daytrade") is a separate, deliberate change (step 6);
+# scripts/tests/test_bias_methods.py pins it so that edit shows up in a diff.
+BIAS_METHODS = ("wyckoff",)
+
+
+def htf_reject_reason(ctx, want, side):
+    """Why the giảm-khung filter rejects this setup, or None when it passes (knowledge/07 §2.7, WA p93–96).
+
+    Extracted as its own function so the gate that stops real orders is testable without a live data directory:
+    scripts/tests/test_bias_methods.py characterizes every branch. Behaviour here is byte-for-byte what it was
+    before the 2026-09-13 method-switch work — including the flaw that a bias of `unknown` (no read available)
+    is reported with the same wording as a bias that genuinely disagrees. Step 6 changes that; until then the
+    tests pin it so the change cannot happen by accident."""
+    if not ctx or ctx["bias"] != want:
+        return (f"bối cảnh {ctx['tf'] if ctx else '?'} không ủng hộ {side} "
+                f"(bias {ctx['bias'] if ctx else 'unknown'}: {(ctx or {}).get('basis', 'không có dữ liệu')})")
+    return None
 VOL_MULT = 1.5
 MIN_RR = 2.0   # knowledge/06 §3.1 rule 23 (Model11 p92): 2R is the minimum before taking profit; was 1.5 until 2026-09-12
 TIME_STOP_BARS = 24
@@ -248,11 +267,12 @@ def evaluate(sym, side="LONG"):
     if HTF_FILTER:
         import importlib.util as _iu
         _hs = _iu.spec_from_file_location("htf_context", os.path.join(ROOT, "scripts", "htf_context.py")); _htf = _iu.module_from_spec(_hs); _hs.loader.exec_module(_htf)
-        ctx = _htf.load_context("daytrade", sym)
+        ctx = _htf.load_context("daytrade", sym, methods=BIAS_METHODS)
         want = "long" if long else "short"
         htf_note = f"{ctx['tf']}: bias {ctx['bias']}" if ctx else "không có bối cảnh"
-        if not ctx or ctx["bias"] != want:
-            reasons.append(f"bối cảnh {ctx['tf'] if ctx else '?'} không ủng hộ {side} (bias {ctx['bias'] if ctx else 'unknown'}: {(ctx or {}).get('basis', 'không có dữ liệu')})")
+        why = htf_reject_reason(ctx, want, side)
+        if why:
+            reasons.append(why)
     entry = C[-1]
     stop = tp = None
     if sweep_i is not None:

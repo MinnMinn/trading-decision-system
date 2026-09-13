@@ -9,6 +9,7 @@ scripts/tests/test_methods_sync.py runs this in --check mode so drift fails the 
 
 Derived spots (add new ones HERE, never a new hand-kept list):
   - schemas/automation-config.schema.json  markets.<m>.dimensions.{properties,required}  <- dimensions[*].markets
+  - schemas/narrative.schema.json          symbols.*.invalidation.owner.enum             <- dimensions[*].owns_invalidation
 
 Generating the shape from dimensions[*].markets is what keeps SYSTEM-DESIGN.md §12's property alive: a market
 that has no source for a dimension does not get a flag it would silently ignore -- the key is simply absent and
@@ -21,6 +22,14 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import methods as M
 
 SCHEMA = os.path.join(ROOT, "docs", "architecture", "schemas", "automation-config.schema.json")
+NARRATIVE_SCHEMA = os.path.join(ROOT, "docs", "architecture", "schemas", "narrative.schema.json")
+OWNER_PATH = ("properties", "symbols", "additionalProperties", "properties", "invalidation", "properties", "owner")
+
+
+def _at(doc, path):
+    for k in path:
+        doc = doc[k]
+    return doc
 
 
 def _desc(market):
@@ -71,18 +80,35 @@ def main():
             if a.write:
                 doc["properties"]["markets"]["properties"][market]["properties"]["dimensions"] = block
 
+    # narrative.schema.json: the invalidation owner enum. A stop is a price level, so only the dimensions that
+    # declare owns_invalidation may be named here -- hand-keeping this pair let it drift from the registry.
+    ndoc = json.load(open(NARRATIVE_SCHEMA, encoding="utf-8"))
+    owners = list(M.invalidation_owners())
+    owner_block = _at(ndoc, OWNER_PATH)
+    ndrift = owner_block.get("enum") != owners
+    if ndrift and a.write:
+        owner_block["enum"] = owners
+
     if a.check:
         for m in drift:
             print(f"DRIFT: {os.path.relpath(SCHEMA, ROOT)} markets.{m}.dimensions does not match "
                   f"docs/architecture/methods.json (expected {M.dimensions(m)})")
-        return 1 if drift else 0
+        if ndrift:
+            print(f"DRIFT: {os.path.relpath(NARRATIVE_SCHEMA, ROOT)} invalidation.owner.enum does not match "
+                  f"docs/architecture/methods.json (expected {owners})")
+        return 1 if (drift or ndrift) else 0
 
     if drift:
         with open(SCHEMA, "w", encoding="utf-8") as f:
             json.dump(doc, f, indent=2, ensure_ascii=False)
             f.write("\n")
         print(f"wrote {os.path.relpath(SCHEMA, ROOT)}: {', '.join(drift)}")
-    else:
+    if ndrift:
+        with open(NARRATIVE_SCHEMA, "w", encoding="utf-8") as f:
+            json.dump(ndoc, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        print(f"wrote {os.path.relpath(NARRATIVE_SCHEMA, ROOT)}: invalidation.owner.enum = {owners}")
+    if not drift and not ndrift:
         print("no drift; nothing to write")
     return 0
 

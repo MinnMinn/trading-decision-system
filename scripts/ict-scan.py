@@ -77,7 +77,12 @@ def load_anchors(style):
         return None
 
 
-def analyze(c, recent):
+def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
+    """`methods` = the dimensions /automation has engaged. A disengaged one's work is SKIPPED, not merely hidden:
+    the FVG-mitigation and pool-sweep scans are the quadratic part of this function and the volume-outlier scan is
+    Wyckoff's alone, so paying for a read nothing will show slows down the methods that are on (2026-09-13).
+    The shared window facts (last, window extremes, median range) are neither method's and are always computed."""
+    ict, wyk = "ict" in methods, "wyckoff" in methods
     n = len(c)
     O = [x["open"] for x in c]; H = [x["high"] for x in c]; L = [x["low"] for x in c]; C = [x["close"] for x in c]
     V = [x.get("volume", 0) for x in c]; T = [x["time"] for x in c]
@@ -86,12 +91,12 @@ def analyze(c, recent):
     avgv = sum(V) / n if n else 0
 
     sh, sl = [], []
-    for i in range(PIV, n - PIV):
+    for i in (range(PIV, n - PIV) if ict else ()):
         if all(H[j] <= H[i] for j in range(i - PIV, i + PIV + 1) if j != i): sh.append(i)
         if all(L[j] >= L[i] for j in range(i - PIV, i + PIV + 1) if j != i): sl.append(i)
 
     fvgs = []
-    for i in range(1, n - 1):
+    for i in (range(1, n - 1) if ict else ()):
         f = None
         if H[i - 1] < L[i + 1]: f = {"type": "bull", "i": i, "lo": H[i - 1], "hi": L[i + 1]}
         elif L[i - 1] > H[i + 1]: f = {"type": "bear", "i": i, "lo": H[i + 1], "hi": L[i - 1]}
@@ -171,31 +176,41 @@ def analyze(c, recent):
         o["h"] = max(o["h"], H[i]); o["l"] = min(o["l"], L[i])
     dkeys = sorted(days)
     prev_day = None
-    if len(dkeys) >= 2:
+    if ict and len(dkeys) >= 2:
         pd_ = days[dkeys[-2]]; cur = days[dkeys[-1]]["i"]
         prev_day = {"date": dkeys[-2], "pdh": pd_["h"], "pdl": pd_["l"],
                     "pdh_state": "closed_through" if any(C[q] > pd_["h"] for q in range(cur, n)) else ("swept" if any(H[q] > pd_["h"] for q in range(cur, n)) else "intact"),
                     "pdl_state": "closed_through" if any(C[q] < pd_["l"] for q in range(cur, n)) else ("swept" if any(L[q] < pd_["l"] for q in range(cur, n)) else "intact")}
+    # previous candle of THIS timeframe — ICT's own bias unit (knowledge/04 §2.11 PCH/PCL on H4/H1/M30/M15;
+    # on a 1D/1W rung the previous candle IS the previous day/week, §2.12 PDH/PDL). Same three states as prev_day:
+    # a body close beyond = that level was the draw; a wick beyond with the body closing back = failure to
+    # displace (§2.14, §3.2 R5–R8). htf_context.ict_bias() reads this; it must reach facts.json to be usable.
+    prev_candle = None
+    if ict and n >= 2:
+        prev_candle = {"tf": tf, "pch": H[n - 2], "pcl": L[n - 2],
+                       "pch_state": "closed_through" if C[n - 1] > H[n - 2] else ("swept" if H[n - 1] > H[n - 2] else "intact"),
+                       "pcl_state": "closed_through" if C[n - 1] < L[n - 2] else ("swept" if L[n - 1] < L[n - 2] else "intact")}
     cut = n - recent
     events = []
     for p in pools:
         if p["swept"] >= cut:
             events.append({"kind": "sweep", "pool": p["kind"], "level": p["level"], "i": p["swept"], "time": T[p["swept"]]})
-    if hi_i >= cut: events.append({"kind": "erl_high", "level": hi, "i": hi_i, "time": T[hi_i]})
-    if lo_i >= cut: events.append({"kind": "erl_low", "level": lo, "i": lo_i, "time": T[lo_i]})
+    if ict and hi_i >= cut: events.append({"kind": "erl_high", "level": hi, "i": hi_i, "time": T[hi_i]})
+    if ict and lo_i >= cut: events.append({"kind": "erl_low", "level": lo, "i": lo_i, "time": T[lo_i]})
     for m in mss:
         if m["i"] >= cut: events.append({"kind": "mss_" + m["type"], "level": m["level"], "i": m["i"], "time": T[m["i"]]})
     for f in fvgs:
         if f["i"] >= cut: events.append({"kind": "fvg_" + f["type"], "lo": f["lo"], "hi": f["hi"], "i": f["i"], "time": T[f["i"]]})
     for i in range(cut, n):
-        if avgv and V[i] >= 1.5 * avgv:
+        if wyk and avgv and V[i] >= 1.5 * avgv:
             events.append({"kind": "volume", "mult": round(V[i] / avgv, 2), "i": i, "time": T[i], "dir": "up" if C[i] >= O[i] else "down"})
 
     open_fvgs = [f for f in fvgs if not f["mitigated"]]
     nearest_fvg = min(open_fvgs, key=lambda f: min(abs(last - f["lo"]), abs(last - f["hi"])), default=None)
     unswept = [p for p in pools if p["swept"] < 0]
     return {
-        "last": last, "lo": lo, "hi": hi, "eq": eq, "pct": pct, "dr_source": dr_source, "window_lo": wlo, "window_hi": whi, "prev_day": prev_day,
+        "last": last, "lo": lo, "hi": hi, "eq": eq, "pct": pct, "dr_source": dr_source, "window_lo": wlo, "window_hi": whi,
+        "prev_day": prev_day, "prev_candle": prev_candle,
         "med_range": med, "last_time": T[-1], "avgv": avgv,
         "pools": pools, "unswept": unswept, "mss": mss[-3:], "fvgs_all": fvgs, "fvgs_open": open_fvgs[-4:], "nearest_fvg": nearest_fvg,
         "events": events, "last_mss": mss[-1] if mss else None,
@@ -220,7 +235,11 @@ def anchor_facts(c, spec):
         if first is not None:
             seg = range(first, ref_i + 1)
             extreme = min(L[i] for i in seg) if role == "support" else max(H[i] for i in seg)
-        d = {"name": a["name"], "label": a.get("label", a["name"]), "role": role, "price": price, "time": t0,
+        # `method` and `short` come straight from anchors.<style>.json. They were dropped here, so every consumer
+        # reading facts (htf_context.brief_lines, the ladder) lost the ability to tell a Wyckoff-named level from
+        # an ICT one — and handed Wyckoff anchor NAMES to an ICT-only run (audit 2026-09-13).
+        d = {"name": a["name"], "label": a.get("label", a["name"]), "method": a.get("method"), "short": a.get("short"),
+             "role": role, "price": price, "time": t0,
              "ref_close": ref, "ref_vs": "above" if ref > price else "below",
              "dist_pct": round((ref - price) / price * 100, 3),
              "first_close_beyond": ({"time": T[first], "close": C[first]} if first is not None else None),
@@ -292,6 +311,17 @@ def setup_candidate(a, c, lookback):
                  "entry": entry, "entry_models": entries, "stop": stop, "stop_owner": "sweep_extreme", "stop_options": stops,
                  "target": target, "target_kind": tk, "std_targets": std, "R": R, "rr_ok": (R is not None and R >= MIN_RR), "min_rr": MIN_RR})
     return base
+
+
+def facts_entry(a, stance, an, su, ctx):
+    """The per-symbol payload written to prelim/<style>.facts.json — the ONLY channel by which a scan reaches
+    htf_context, the checkers and the page builder. Extracted from main() so what it carries is testable: the draw
+    levels (prev_day) were computed in analyze() and then dropped here, which is why ICT had no bias of its own."""
+    return {"last": a["last"], "last_time": a["last_time"], "lo": a["lo"], "hi": a["hi"], "eq": a["eq"], "pct": round(a["pct"], 4),
+            "stance": stance, "anchors": an, "setup": su, "last_mss": a["last_mss"], "nearest_fvg": a["nearest_fvg"],
+            "prev_day": a["prev_day"], "prev_candle": a["prev_candle"],
+            "unswept_pools": a["unswept"], "events_recent": a["events"],
+            "context": ctx}   # HTF context: giảm khung (knowledge/07 §2.7, WA p93–96)
 
 
 def fmt(sym, v):
@@ -411,6 +441,14 @@ def main():
     ap.add_argument("--state", default=None)
     ap.add_argument("--setup-lookback", type=int, default=None, help="bars in which the setup's sweep must sit (default max(12, 6*recent))")
     args = ap.parse_args()
+    # This scanner feeds BOTH structural lanes (the ICT structures and, via anchors + volume outliers, Wyckoff's
+    # Effort-vs-Result hint), so it stops entirely only when neither is engaged. With one of the two on, the
+    # per-method work is skipped inside analyze() instead (user decision 2026-09-13).
+    scan_methods = htf.engaged_methods(args.style)
+    if not scan_methods:
+        print(json.dumps({"skipped": f"no structural dimension engaged for style '{args.style}' "
+                                     f"(/automation dimension wyckoff|ict on) — scanner did no work"}, ensure_ascii=False))
+        sys.exit(0)   # 0 = "no NEW events", the same contract scan-loop.sh already handles
     syms = args.symbols.split(",")
     state_path = args.state or f"{ROOT}/data/live/scan-state.{args.style}.json"
     try:
@@ -422,7 +460,7 @@ def main():
     result, new_events, facts = {}, [], {}
     for sym in syms:
         c = load(sym, args.tf)[-args.n:]
-        a = analyze(c, args.recent)
+        a = analyze(c, args.recent, tf=args.tf, methods=scan_methods)
         spec = (anchors.get("symbols") or {}).get(sym)
         an = anchor_facts(c, {**spec, "source": anchors.get("source"), "updated": anchors.get("updated")}) if spec else None
         su = setup_candidate(a, c, args.setup_lookback or max(12, args.recent * 6))
@@ -438,10 +476,7 @@ def main():
         result[sym] = {"last": a["last"], "pct": round(a["pct"], 4), "eq": a["eq"], "stance": stance,
                        "verdict": an["verdict"] if an else None, "setup": su,
                        "events_recent": a["events"], "new_events": fresh, "prelim_file": f"data/live/prelim/{args.style}.{sym}.html"}
-        facts[sym] = {"last": a["last"], "last_time": a["last_time"], "lo": a["lo"], "hi": a["hi"], "eq": a["eq"], "pct": round(a["pct"], 4),
-                      "stance": stance, "anchors": an, "setup": su, "last_mss": a["last_mss"], "nearest_fvg": a["nearest_fvg"],
-                      "unswept_pools": a["unswept"], "events_recent": a["events"],
-                      "context": htf.load_context(args.style, sym)}   # HTF context: giảm khung (knowledge/07 §2.7, WA p93–96)
+        facts[sym] = facts_entry(a, stance, an, su, htf.load_context(args.style, sym))
     json.dump(state, open(state_path, "w"))
     first_t = load(syms[0], args.tf)[-args.n:][0]["time"]
     meta = {"tf": args.tf, "n": args.n, "window_first": first_t,

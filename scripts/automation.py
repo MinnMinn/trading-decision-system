@@ -213,6 +213,12 @@ def market_of(sym):
     return None
 
 
+def market_of_style(style):
+    """Which market's dimension flags a chart style obeys. The gold-* styles are the CFD market; everything else
+    is crypto. One definition — build-artifact.py and htf_context.py both read it here rather than re-deriving it."""
+    return "cfd" if (style or "").startswith("gold") else "crypto"
+
+
 def _market_default(m):
     return {"enabled": True, "instruments": list(MARKET_INSTRUMENTS[m]),
             "dimensions": {d: True for d in MARKET_DIMENSIONS[m]},
@@ -464,6 +470,14 @@ def write_stop(reason_prefix="  "):
 
 
 # ---------- status ----------
+def _read_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
 def warnings(cfg, exists):
     w = []
     if not exists:
@@ -497,6 +511,22 @@ def warnings(cfg, exists):
             w.append(f"{m}: preset '{prof}' runs in {mode} mode, which needs at least {minimum} engaged "
                      f"dimension(s), but only {len(live)} is enabled -- no live TRADE verdict can pass for "
                      f"{m} instruments (SYSTEM-DESIGN.md §6.2).")
+        # Switching a dimension off orphans any trade whose STOP that dimension owns. The narrative stays on disk
+        # claiming an owner this configuration no longer reads, and check-narrative.py refuses it -- so say which
+        # files need a fresh full analysis at switch time, not only when the checker next runs.
+        off_owners = [d for d in methods.invalidation_owners() if d in MARKET_DIMENSIONS[m] and not mk["dimensions"].get(d, True)]
+        if off_owners:
+            orphans = []
+            for st in sorted(s for s in TIERS if market_of_style(s) == m):
+                n = _read_json(os.path.join(ROOT, "data", "live", "narrative", f"{st}.json"))
+                for sym, d in ((n or {}).get("symbols") or {}).items():
+                    if ((d or {}).get("invalidation") or {}).get("owner") in off_owners:
+                        orphans.append(f"{st}/{sym}")
+            if orphans:
+                w.append(f"{m}: {', '.join(off_owners)} is off but {len(orphans)} narrative(s) still name it as "
+                         f"invalidation.owner -- the stop is owned by a read this configuration does not make. "
+                         f"Re-run the full analysis for: {', '.join(orphans)}.")
+
         if m == "crypto" and (mk["dimensions"].get("footprint") or mk["dimensions"].get("heatmap")):
             w.append("Footprint/Heatmap depend on CoinGlass -- check coinglass_* source state via /status; a MOCK "
                      "source can rehearse but can never satisfy the Independent-Confluence Check (data-sources.md).")

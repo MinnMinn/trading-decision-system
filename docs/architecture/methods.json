@@ -5,25 +5,25 @@
   "dimensions": {
     "wyckoff": {
       "label": "Wyckoff", "markets": ["crypto", "cfd"], "agent": "structure-agent", "skill": "wyckoff-skill",
-      "data_sources": ["ohlcv"], "max_points": 25, "lane": "wyckoff",
+      "data_sources": ["ohlcv"], "max_points": 25, "lane": "wyckoff", "owns_invalidation": true,
       "note": "Phase A-E vocabulary, doi nhan tests, Effort-vs-Result, SOT, Volume Profile (user decision 2026-09-10). NOT the same thing as the runner's mechanical WYCKOFF method -- see runner_methods.",
       "pane": {"kind": "volume", "label": "Khối lượng"}
     },
     "ict": {
       "label": "ICT", "markets": ["crypto", "cfd"], "agent": "structure-agent", "skill": "ict-skill",
-      "data_sources": ["ohlcv"], "max_points": 25, "lane": "ict",
+      "data_sources": ["ohlcv"], "max_points": 25, "lane": "ict", "owns_invalidation": true,
       "note": "knowledge/04-06 carry no volume of any kind; volume is the only orthogonal axis against Wyckoff (SYSTEM-DESIGN.md §6.1).",
       "pane": {"kind": "range_pct", "label": "Vị trí trong dealing range (Premium / Discount)"}
     },
     "footprint": {
       "label": "Footprint", "markets": ["crypto"], "agent": "flow-agent", "skill": "footprint-skill",
-      "data_sources": ["coinglass_footprint"], "max_points": 25, "lane": "footprint",
+      "data_sources": ["coinglass_footprint"], "max_points": 25, "lane": "footprint", "owns_invalidation": false,
       "note": "No commodities source: CoinGlass is crypto-derivatives only (SYSTEM-DESIGN.md §12 item 3).",
       "pane": {"kind": "unavailable", "label": "Delta / CVD"}
     },
     "heatmap": {
       "label": "Heatmap", "markets": ["crypto"], "agent": "liquidity-agent", "skill": "heatmap-skill",
-      "data_sources": ["coinglass_heatmap"], "max_points": 25, "lane": "heatmap",
+      "data_sources": ["coinglass_heatmap"], "max_points": 25, "lane": "heatmap", "owns_invalidation": false,
       "note": "Same CoinGlass limit. No ingested knowledge/ source either (SYSTEM-DESIGN.md §12 item 1).",
       "pane": {"kind": "unavailable", "label": "Cụm thanh lý (liquidation clusters)"}
     }

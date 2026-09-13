@@ -38,6 +38,10 @@ def _validate(d):
                               f"silently renders an empty pane again.")
         if pane["kind"] not in PANE_KINDS:
             raise ValueError(f"{PATH}: dimension '{name}' pane.kind {pane['kind']!r} is not one of {sorted(PANE_KINDS)}.")
+        if not isinstance(dim.get("owns_invalidation"), bool):
+            raise ValueError(f"{PATH}: dimension '{name}' has no boolean `owns_invalidation` -- every dimension "
+                             f"must declare whether it may own a trade's stop, or narrative.schema.json's "
+                             f"owner enum silently loses (or gains) a value when a dimension is added.")
     seen = {}
     for p in d["presets"]:
         key = frozenset(p["dimensions"])
@@ -87,6 +91,13 @@ DEFAULT_MODE = "NORMAL"         # unchanged default when a preset can't be named
 def dimensions(market):
     """The dimensions this market can have AT ALL -- the shape, not the on/off state."""
     return [d for d, v in DIMENSIONS.items() if market in v["markets"]]
+
+
+def invalidation_owners():
+    """Dimensions that may OWN a trade's invalidation level. A stop is a price level: the two structural reads
+    define one, footprint/heatmap describe activity AT a level. Order is registry order, so generated enums and
+    error messages are stable. Read this — do not hand-keep the pair in a checker or a schema."""
+    return tuple(d for d, v in DIMENSIONS.items() if v.get("owns_invalidation"))
 
 
 def markets():

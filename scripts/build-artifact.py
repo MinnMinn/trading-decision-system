@@ -693,7 +693,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
     P.update(laneOrder=[m for m, _ in LANES], laneLabels=dict(LANES),
              overlayLanes=list(OVERLAY_LANES), panes=PANES)
     cfg = read_json(f"{ROOT}/docs/architecture/automation-config.json", {}) or {}
-    market = "cfd" if style.startswith("gold") else "crypto"
+    market = _auto.market_of_style(style)
     dim_flags = ((cfg.get("markets") or {}).get(market) or {}).get("dimensions") or {}
     mode = (narrative or {}).get("mode") or "NORMAL"
 
@@ -745,8 +745,14 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
             engaged = bool(avail and has and flag is not False) if coinglass else bool(avail and flag is not False)
             dims[m] = {"engaged": engaged, "reason": reason or "đang dùng"}
             lane_engaged[m] = lane_engaged[m] or engaged
-        # purity: layer 2 blocks, layer 3 texts, chart labels, timeline cells
+        # purity: layer 1 cells, layer 2 blocks, layer 3 texts, chart labels, timeline cells.
+        # Layer 1 was excluded on the assumption that scanner-written text is "pure by construction" -- an
+        # assumption, not a check, and the only layer nothing verified (audit 2026-09-13).
         blocks = mp.narrative_blocks(n3)
+        if l1:
+            for m in ("wyckoff", "ict"):
+                if l1.get(m):
+                    blocks[m] += [l1[m]]
         if l2 and not l2["legacy"]:
             for m, v in mp.model_blocks(l2).items():
                 blocks[m] += v
@@ -762,7 +768,10 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
         # Wyckoff overlay per tier: the tier style's own full analysis (one read per candle series, two pages never disagree);
         # the gate tier falls back to this style's narrative.context when that style has no page yet
         gate_style, gate_name = _auto.gate_style(style)
-        tier_ctx = {tn: htf.load_tier(style, tn, sym) for tn in ("bias", "structure")}
+        # The bias the ladder shows must be read by the SAME methods whose columns the page draws -- `dims` is the
+        # page's own engaged set (it also accounts for availability, which the config flags alone do not).
+        bias_methods = tuple(m for m in ("wyckoff", "ict") if dims.get(m, {}).get("engaged"))
+        tier_ctx = {tn: htf.load_tier(style, tn, sym, methods=bias_methods) for tn in ("bias", "structure")}
         tier_wy = {}
         for tname in tier_rows:
             t = S["tiers"][tname]; twy = {}
