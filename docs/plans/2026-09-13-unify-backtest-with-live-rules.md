@@ -698,20 +698,27 @@ stated as evidence, not impression: ΣR, profit factor and blow-up count per met
 If live is worse or mixed, STOP and report — the user decided to delete legacy *if the new setup wins*, not
 regardless. Deleting the comparison baseline while it still favours the old rules would destroy the evidence.
 
-**Dependency map — read before deleting anything.** `strategy-runner.py` calls these by name:
+**Dependency map — VERIFIED 2026-09-13, read before deleting anything.**
 
-| symbol | called at | status after Task 4 |
+Almost none of the "legacy" code is actually unused. Measured by call site:
+
+| symbol | still called from | deletable? |
 |---|---|---|
-| `bt.scan` | `strategy-runner.py:1061` | still used — keep, it now routes to the live branch |
-| `bt.all_pivots` | `:375` | legacy only |
-| `bt.last_pivot` | `:384` | legacy only |
-| `bt.find_ict` | `:398` | legacy only |
-| `bt.ict_target` | `:404` | legacy only |
-| `bt.vtype` | `:426` | **Wyckoff volume typing — keep**, it is not part of the ICT legacy |
-| `bt.htf_allows` | `:525` | legacy only, replaced by `bias_allows` |
+| `find_ict` | `:409` COMBINED/PARTIAL, `:465` COMBINED-BOOK, `:512` legacy ICT branch | **NO** — COMBINED needs it |
+| `all_pivots`, `last_pivot` | `:350`, used for every method | **NO** |
+| `ict_target`, `is_displacement` | COMBINED block and the legacy ICT branch | **NO** |
+| `htf_allows`, `htf_position` | `:362`, `:445` WYCKOFF/COMBINED/PARTIAL, `:495`, and `strategy-runner.py:525` | **NO** |
+| `fvg_fill` | **`ict_setups_live` itself** | **NO — the live path calls it** |
+| `vtype` | Wyckoff volume typing, `strategy-runner.py:426` | **NO** |
+| the legacy pure-ICT `else:` branch in `scan()` | nothing, once `--rules` goes | **yes** |
+| `--rules` / `OPTS["rules"]` | only the comparison, now committed as a report | **yes** |
 
-Deleting the legacy functions therefore requires migrating `strategy-runner.py`'s ICT path to `live_rules` FIRST.
-The pilot layer is off, so this is safe to do — but it is still an edit to order gating.
+COMBINED is "Wyckoff Spring + ICT confirmation" and takes its ICT half from `find_ict`. Migrating COMBINED to the
+live rules is a SEPARATE change with its own evidence requirement — the 2026-09-13 comparison shows COMBINED
+byte-identical between the two engines, so there is currently no evidence either way. Do not fold it into this task.
+
+So this task is: migrate `strategy-runner.py`'s ICT setup path off the legacy helpers (which is what unblocks the
+pilot), then delete only the two genuinely dead things above.
 
 **Files:**
 - Modify: `scripts/strategy-runner.py` (ICT setup path and the HTF gate)
@@ -733,10 +740,12 @@ class LegacyEngineIsGone(unittest.TestCase):
     def test_rules_flag_is_gone(self):
         self.assertNotIn("rules", self.bt.OPTS)
 
-    def test_legacy_ict_helpers_are_gone(self):
+    def test_the_helpers_other_methods_need_are_still_present(self):
+        """COMBINED/PARTIAL/COMBINED-BOOK/WYCKOFF still call these, and ict_setups_live calls fvg_fill.
+        Deleting them was in an earlier draft of this plan and would have broken four methods."""
         for name in ("all_pivots", "last_pivot", "find_ict", "fvg_fill", "is_displacement",
-                     "ict_target", "htf_allows", "htf_position"):
-            self.assertFalse(hasattr(self.bt, name), f"{name} still present")
+                     "ict_target", "htf_allows", "htf_position", "vtype"):
+            self.assertTrue(hasattr(self.bt, name), f"{name} was removed but is still used")
 
     def test_the_helpers_the_wyckoff_side_needs_are_kept(self):
         for name in ("vtype", "walk", "scan", "simulate", "bias_allows"):
@@ -757,9 +766,9 @@ closed bar, and the gate at `:525` with `bt.bias_allows(bias, side)` where `bias
 
 - [ ] **Step 4: Delete the legacy engine**
 
-From `scripts/backtest-methods.py` remove: the `--rules` argument and `OPTS["rules"]`, the legacy branch inside
-`scan()`, and the functions `all_pivots`, `last_pivot`, `find_ict`, `fvg_fill`, `is_displacement`, `ict_target`,
-`htf_allows`, `htf_position`. Keep `vtype`, `walk`, `scan`, `simulate`, `bias_allows` and all reporting.
+From `scripts/backtest-methods.py` remove ONLY: the `--rules` argument, `OPTS["rules"]`, and the legacy pure-ICT
+`else:` branch inside `scan()`. Keep every helper in the dependency map marked NOT deletable — COMBINED, PARTIAL,
+COMBINED-BOOK and WYCKOFF all still call them, and `ict_setups_live` itself calls `fvg_fill`.
 
 Also remove the now-dead `--ict-disp`, `--ict-pd`, `--std-origin` and `--ict-target` switches if they only fed
 the deleted code, and delete their paragraphs from the module docstring. Verify with:
