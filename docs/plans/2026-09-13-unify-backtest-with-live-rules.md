@@ -466,31 +466,45 @@ Expected: FAIL — `KeyError: 'rules'` and `AttributeError: ... 'ict_setups_live
 Add `"rules": "live"` to the `OPTS` dict in `scripts/backtest-methods.py`, and add this function next to `scan()`:
 
 ```python
-def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C):
+def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
     """ICT trades for one symbol/timeframe using the LIVE rules: at each bar, run the scanner over the window the
-    live scanner would have read and ask it for a setup candidate. No pivot/MSS/FVG logic of our own — that
-    duplication is exactly what made a backtest measure a system nobody trades (audit 2026-09-13)."""
-    out = []
-    seen = set()
-    for i in range(len(c)):
-        a = lr.read_at(c, i, tf)
-        if a is None:
+    live scanner would have read and ask IT for the setup. No pivot/MSS/FVG logic of our own — that duplication is
+    what made a backtest measure a system nobody trades (audit 2026-09-13).
+
+    The entry is a LIMIT at the FVG near edge, exactly as live places it (strategy-runner.py: "LIMIT at the FVG
+    near edge"). So a setup is NOT a trade: fvg_fill() decides whether price ever came back to that limit without
+    first hitting the stop, and returns None when the order would simply never have filled. Skipping that check
+    would enter every setup at a favourable price and make the whole backtest optimistic by construction."""
+    out, seen = [], set()
+    n = len(c)
+    idx_of_time = {t: j for j, t in enumerate(Tm)}
+    for i in range(n):
+        a = lr.read_at(c, i, tf, methods)
+        if a is None:            # window not yet the full live window — live would not have scanned here at all
             continue
-        bias, _ = lr.htf.bias_of(None, a, methods=("ict",))
         su = lr.ict_scan.setup_candidate(a, lr.window(c, i, tf), lr.setup_lookback(tf))
         if not su or not su.get("complete") or not su.get("pd_ok"):
             continue
+        bias, _ = lr.bias_at(c, i, tf, methods, facts=a)      # facts reused: no second analyze()
         if not bias_allows(bias, su["side"]):
             continue
         key = (su["side"], su["sweep"]["time"], su["mss"]["time"])
-        if key in seen:
+        if key in seen:          # the same setup stays visible for many bars; take it once, at its first bar
             continue
         seen.add(key)
-        w = walk(su["side"], su["entry"], su["stop"], su["target"], H, L, C, i + 1, HZ)
+        mss_i = idx_of_time.get(su["mss"]["time"])
+        if mss_i is None:
+            continue
+        entry = su["entry"]; stop = su["stop"]; target = su["target"]
+        far = su["entries"]["fill"]
+        fill = fvg_fill(su["side"], mss_i, entry, far, stop, H, L, P[tf]["K"], n)
+        if fill is None:         # the limit never filled: live would hold an unfilled order, not a position
+            continue
+        w = walk(su["side"], entry, stop, target, H, L, C, fill + 1, HZ)
         if not w:
             continue
-        out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], entry=su["entry"], entry_time=Tm[i],
-                        stop=su["stop"], target=su["target"], exit_time=Tm[w["exit"]], vol_type=None, **w))
+        out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], entry=entry, entry_time=Tm[fill],
+                        stop=stop, target=target, exit_time=Tm[w["exit"]], vol_type=None, **w))
     return out
 ```
 
@@ -505,7 +519,7 @@ In `scan()`, replace the body of the `--- ICT ---` branch with:
 
 ```python
     if OPTS["rules"] == "live":
-        trades["ICT"] = ict_setups_live(sym, tf, c, Tm, HZ, H, L, C)
+        trades["ICT"] = ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, OPTS["methods"])
     else:
         <the existing legacy ICT block, unchanged>
 ```
@@ -807,6 +821,10 @@ PILOT-04 (profile exclusivity) names it explicitly. Report it as a follow-up que
 
 ## Settled decisions (user, 2026-09-13)
 
+- **`P[tf]["K"]` stays the fill-wait horizon.** How many bars a resting LIMIT is given to fill has NO live
+  counterpart — live places the order and `strategy-runner.py` manages it per tick; `ict-scan.py` has no such
+  parameter. So this is not a fork where live has a different value, it is a parameter only the backtest needs.
+  Keep `P[tf]["K"]` and say so in the Task 6 report.
 - **Live defaults everywhere.** Where the backtest has a parameter of its own and live has a different one, take live's. Concretely: `setup_candidate`'s lookback is `max(12, recent * 6)` (`ict-scan.py:466`) via `live_rules.setup_lookback(tf)`, NOT `P[tf]["K"]`. Same rule for any other such fork found during implementation — take live's value and note it in the Task 6 report.
 - **`--rules live` is the default**, `legacy` exists only to produce the Task 6 comparison.
 - **If live beats legacy in Task 6, delete the legacy engine** — see Task 8.
