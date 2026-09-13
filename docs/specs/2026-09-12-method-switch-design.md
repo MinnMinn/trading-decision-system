@@ -195,7 +195,7 @@ và đưa vào phạm vi `test_instruments_sync.py`. Sau đó thêm token thật
   `report_state:929`, `--tick-seconds:949`, `--list:952`. Lọc ở đó sẽ:
   - phá parity replay — `replay():893-895` có chú thích rõ *"Not config-gated — a market switched off still
     deserves its parity check"*;
-  - đổi chu kỳ vòng lặp giữa chừng: `--tick-seconds` nuôi `scripts/pilot-loop.sh:37` vốn tính lại chu kỳ mỗi vòng,
+  - đổi chu kỳ vòng lặp giữa chừng: `--tick-seconds` nuôi `scripts/pilot-loop.sh:30` vốn tính lại chu kỳ mỗi vòng,
     và danh sách rỗng cho `[] or ["30m"]` → 1800 giây;
   - làm `--list` in khác `pilot-top5.json`.
 - Bộ lọc đặt ở **bước 3 của `tick()`** (`:833 for st in setups_cfg:` → lặp trên danh sách đã lọc), sau khi bước 1
@@ -311,7 +311,7 @@ về `instruments.execution(market)` **giao với** `markets.<m>.instruments`, v
 (PANEL-09). Mỗi chip mang nhãn trạng thái, lấy từ hàm dò sẵn có chứ không từ danh sách chép tay:
 
 - *chưa có dữ liệu* — không có file `ohlcv.<SYM>.15m.json` trong `data/live/<DATA_DIR[m]>/`; dùng đúng phép dò của
-  `automation.py:720-743` (`def mt5_freshness(`) và của `automation.py:1152` (`def cmd_instrument(`). Hôm nay USOIL/UKOIL rơi vào đây;
+  `automation.py:715-738` (`def mt5_freshness(`) và của `automation.py:1147` (`def cmd_instrument(`). Hôm nay USOIL/UKOIL rơi vào đây;
   XAUUSD và XAGUSD đều đã có export tươi.
 - *không đặt lệnh được* — có trong `analysis` nhưng ngoài `execution`, nên tick chỉ mở rộng phạm vi phân tích chứ
   không cho pilot đặt lệnh (CFG-15). Hôm nay `analysis == execution` ở cả hai market nên chưa cặp nào rơi vào đây.

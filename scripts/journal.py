@@ -165,7 +165,7 @@ def sync_pilot(market):
                              (f"Luật pilot (không có model quyết định): {'quét SSL/ERL-low trong 8 nến, MSS tăng trong 3 nến, FVG tăng sau cú quét, giá ở discount' if side=='LONG' else 'quét BSL/ERL-high trong 8 nến, MSS giảm trong 3 nến, FVG giảm sau cú quét, giá ở premium'}, "
                               f"volume nến quét/MSS ≥ 1.5× trung bình (Effort-vs-Result). Entry {entry} · stop {stop} · TP {tp} · rủi ro {risk_usd} USDT."))}
             body = ("\n## Decision Output (at plan time)\n\n"
-                    f"Nguồn: demo pilot ({mk}), luật cố định trong `{'scripts/strategy-runner.py' if strat else 'scripts/demo-pilot.py'}`; không có Confluence Score vì không chạy DecisionAgent.\n\n"
+                    f"Nguồn: pilot ({mk}), luật cố định trong `scripts/strategy-runner.py`; không có Confluence Score vì không chạy DecisionAgent.\n\n"
                     f"- Setup: {fm['setup_type']}\n- Entry {entry} · Stop {stop} · TP {tp} · R kế hoạch {planned_rr}\n- Rủi ro {risk_usd} USDT (0.5% vốn) · size {e['qty']}\n"
                     f"- Lệnh sàn: entry {e.get('entry_order')} · TP {e.get('tp_order')} · SL {e.get('stop_order')}\n\n"
                     "## Post-Trade Review (filled in at close time, master spec section 26)\n"

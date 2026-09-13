@@ -31,8 +31,7 @@ What this module gives every consumer (scanner facts, local-read brief, checkers
   load_context(style, sym[, methods])     -> load_tier for the gate tier (what the verdict checks and the pilot filter use)
   wyckoff_bias(wyckoff, facts) / ict_bias(facts) -> one method's ("long"|"short"|"neutral"|"unknown", basis)
   bias_of(wyckoff, facts[, methods])      -> the combined read; `methods` defaults to ("wyckoff",), the pre-2026-09-13
-                                  behaviour, so an un-plumbed caller is unchanged (scripts/demo-pilot.py pins it there
-                                  on purpose — changing order gating is a separate step).
+                                  behaviour, so an un-plumbed caller is unchanged.
   check_verdict(verdict, side, ctx, text) -> list of problems (empty = consistent with the book's top-down rule)
 Numbers here are copied from code-written files; the phase/structure words come from the last full analysis and carry
 their own `updated` timestamp so staleness is visible.
@@ -194,8 +193,7 @@ def bias_of(wyckoff, facts, methods=("wyckoff",)):
     decision layer, not just the columns that get drawn (user decision 2026-09-13).
 
     `methods` defaults to ("wyckoff",), which is exactly what this function did before it took the argument, so
-    callers that have not been plumbed yet keep their current behaviour verbatim (scripts/demo-pilot.py is
-    deliberately one of them — the execution filter is a separate change).
+    callers that have not been plumbed yet keep their current behaviour verbatim.
 
     Two engaged methods disagreeing is a **Contradiction to raise**, not something to resolve quietly
     (.claude/skills/ict-skill/SKILL.md §1; user decision 2026-09-13) -> neutral, with both readings in the basis.
@@ -224,7 +222,7 @@ def bias_of(wyckoff, facts, methods=("wyckoff",)):
 def load_tier(style, name, sym, methods=None):
     """Facts + Wyckoff read + bias of one tier ("bias" | "structure") of `style`; None when that tier has no scanned style.
     `methods` = the engaged bias readers; None resolves them from /automation (bias_methods). Pass an explicit
-    tuple only to pin a caller to a fixed set — scripts/demo-pilot.py does, deliberately."""
+    tuple only to pin a caller to a fixed set."""
     if methods is None:
         methods = engaged_methods(style)
     t = tiers(style).get(name)

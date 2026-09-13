@@ -4,8 +4,8 @@
 (scripts/binance-futures-testnet-order.sh); CFD setups trade the MT5 DEMO account through the file bridge
 (scripts/mt5-order-bridge.py + integrations/mt5/OrderBridge.mq5). Real trades, fake money, on both venues.
 
-Selected by `/automation pilot profile top5` (docs/architecture/automation-config.json -> execution.pilot_profile); run by
-scripts/pilot-loop.sh every 30 minutes one minute after the half-hour close. No LLM decides an order. This runner REFUSES to
+The one execution engine (user decision 2026-09-13: the legacy engine and the profile switch that used to choose
+between them were deleted). Run by scripts/pilot-loop.sh every tick-seconds. No LLM decides an order. This runner REFUSES to
 tick when execution.environment is "real" (user decision 2026-09-11: demo/testnet pilot first) and the MT5 bridge EA refuses
 non-demo accounts on its side too.
 
@@ -176,8 +176,8 @@ def automation_gate():
         return "automation master switch is OFF"
     if not c.get("layers", {}).get("pilot", True):
         return "pilot layer disabled"
-    if c.get("execution", {}).get("pilot_profile", "legacy") != "top5":
-        return "pilot profile is not top5 (scripts/automation.py pilot profile top5)"
+    # (deleted 2026-09-13) the pilot_profile != "top5" refusal: there is one engine now, so the only thing this
+    # key could still express is "run nothing", which layers.pilot already expresses.
     if c.get("execution", {}).get("environment", "demo") == "real":
         return "environment is REAL -- the top5 profile is a demo/testnet pilot (user decision 2026-09-11); refusing"
     if ENV_ERROR:
@@ -468,7 +468,7 @@ def rr_reason(sig):
     so the runner took setups planning as little as 0.00R -- 38 % of last year's planned under 2R.
 
     FAILS CLOSED on an unreadable floor too (MIN_RR None, from trading_env.min_rr via bt) -- added after the
-    2026-09-13 security review (F1) found this path inheriting a 2.0 fallback that demo-pilot.py did not have, so
+    2026-09-13 security review (F1) found this path inheriting a 2.0 fallback that the other live order path did not have, so
     a dropped analysis-params key would have put the live runner back on the superseded 2R floor at the 3 % risk
     ceiling. In practice bt raises at import when the floor is unreadable, so this branch is the second layer.
 

@@ -149,101 +149,34 @@ class LiveGate(unittest.TestCase):
                 self.assertIsNone(pinned.search(line), f"{fname}:{i} pins the R:R floor to zero: {line.strip()}")
 
 
-class DemoPilotGate(unittest.TestCase):
-    """demo-pilot.py is the OTHER live order path (pilot-loop.sh:31 runs it whenever the profile/market pair is
-    not top5+futures, where pilot-loop.sh:26 runs strategy-runner.py instead). It was missed by the 2026-09-13
-    change: it carried its own `MIN_RR = 2.0`, hardcoded rather than read from analysis-params.json, and that
-    number never gated an entry at all -- it only chose between the window EQ and a `2 * r` stretch for the TP.
-    So the floor the user decided (3R) did not exist on this path in any form.
-    """
-
-    def setUp(self):
-        self.dp = _load("demo-pilot.py", "dp")
-        self.src = open(os.path.join(ROOT, "scripts", "demo-pilot.py"), encoding="utf-8").read()
-
-    def test_floor_comes_from_the_one_source(self):
-        v = json.load(open(PARAMS, encoding="utf-8"))["project_defined"]["ict"]["min_rr"]["value"]
-        self.assertEqual(self.dp.MIN_RR, v)
-
-    def test_the_floor_is_not_a_hardcoded_copy(self):
-        """A literal is what caused this bug: the value was raised to 3.0 in analysis-params.json and this copy
-        stayed at 2.0, silently trading a floor the project had already replaced."""
-        import re
-        self.assertIsNone(re.search(r"^MIN_RR\s*=\s*\d", self.src, re.M),
-                          "MIN_RR must be read from analysis-params.json, not assigned a literal")
-
-    def test_passes_a_setup_at_or_above_the_floor(self):
-        self.assertIsNone(self.dp.rr_reason({"r_planned": 3.0}))
-        self.assertIsNone(self.dp.rr_reason({"r_planned": 6.1}))
-
-    def test_refuses_a_setup_below_the_floor(self):
-        for rr in (0.0, 1.9, 2.0, 2.99):
-            self.assertIsNotNone(self.dp.rr_reason({"r_planned": rr}), f"{rr}R should be refused")
-
-    def test_fails_closed_on_an_uncomputable_rr(self):
-        """Same rule as the runner's gate: an R:R that could not be computed is not permission to trade. NaN is
-        the one that bites -- `nan < 3.0` is False, so a plain comparison would OPEN the gate."""
-        for bad in ({}, {"r_planned": None}, {"r_planned": "3"}, {"r_planned": float("nan")}):
-            self.assertIsNotNone(self.dp.rr_reason(bad), f"{bad} should be refused")
-
-    def test_fails_closed_when_the_floor_itself_is_unreadable(self):
-        """An unknown floor is not a floor of zero. Warrant: the user decision of 2026-09-13 and
-        docs/backtests/2026-09-13-rr-floor-and-risk.md (the floor is what makes the 3 % ceiling survivable).
-        NOT PILOT-03 -- the first version of this docstring miscited it; that rule is about
-        strategy-runner.py's automation_gate() and it grandfathers demo-pilot.py's fail-open config default."""
-        saved = self.dp.MIN_RR
-        try:
-            self.dp.MIN_RR = None
-            self.assertIsNotNone(self.dp.rr_reason({"r_planned": 99.0}))
-        finally:
-            self.dp.MIN_RR = saved
-
-    def test_the_gate_is_wired_into_evaluate(self):
-        """A correct rr_reason() that nothing calls blocks nothing."""
-        self.assertIn("rr_reason(", self.src.split("def evaluate(")[1].split("\ndef ")[0])
-
-    def test_the_tp_no_longer_stretches_to_a_second_hardcoded_floor(self):
-        """`tp = eq if ... else entry + 2 * r` was a SECOND copy of the old 2R floor, and it defeated any gate:
-        a setup whose structural target sits closer than the floor was given a synthetic target at exactly 2R
-        instead of being refused. Both the backtest (backtest-methods.py:464) and the runner (rr_reason) refuse
-        instead of stretching; this path must agree, or the measured population is not the traded one.
-
-        Comment lines are skipped for the same reason test_no_decision_path_pins_the_floor_to_zero skips them:
-        the fix has to be documentable in prose without the test banning its own explanation."""
-        for i, line in enumerate(self.src.splitlines(), 1):
-            if line.lstrip().startswith("#"):
-                continue
-            for banned in ("2 * r", "MIN_RR * r"):
-                self.assertNotIn(banned, line, f"demo-pilot.py:{i} stretches the TP: {line.strip()}")
-
-
 class OneFloorReaderForBothOrderPaths(unittest.TestCase):
-    """Security review 2026-09-13 (F1, HIGH): the first pass gave demo-pilot.py a strict validating reader while
-    backtest-methods.py -- and therefore strategy-runner.py, which does `MIN_RR = bt.MIN_RR` -- kept
-    `_ICT.get("min_rr", {}).get("value", 2.0)`. Two live order paths then had OPPOSITE fail modes on one config
-    key: drop or rename project_defined.ict.min_rr and demo-pilot refuses every entry while the runner silently
-    reverts to a 2R floor and keeps sizing at RISK_CEILING = 3 % -- exactly the 3 %/2R pair this project's own
-    evidence rejected. One reader, one validation, read by every path.
+    """Security review 2026-09-13 (F1, HIGH): the first pass gave the legacy engine (deleted 2026-09-13) a strict
+    validating reader while backtest-methods.py -- and therefore strategy-runner.py, which does
+    `MIN_RR = bt.MIN_RR` -- kept `_ICT.get("min_rr", {}).get("value", 2.0)`. The two live order paths then had
+    OPPOSITE fail modes on one config key: drop or rename project_defined.ict.min_rr and the legacy engine
+    refused every entry while the runner silently reverted to a 2R floor and kept sizing at RISK_CEILING = 3 %
+    -- exactly the 3 %/2R pair this project's own evidence rejected. One reader, one validation, read by every
+    path. The legacy engine is gone now (one-system collapse, 2026-09-13); this class keeps proving there is
+    exactly one reader for the remaining path.
     """
 
     def setUp(self):
         import importlib
         self.te = importlib.import_module("trading_env")
         self.bt = _load("backtest-methods.py", "bt3")
-        self.dp = _load("demo-pilot.py", "dp2")
         self.sr = _load("strategy-runner.py", "sr2")
 
     def test_every_path_reports_the_same_floor(self):
         v = json.load(open(PARAMS, encoding="utf-8"))["project_defined"]["ict"]["min_rr"]["value"]
         for name, got in (("trading_env", self.te.min_rr()), ("backtest", self.bt.MIN_RR),
-                          ("demo-pilot", self.dp.MIN_RR), ("strategy-runner", self.sr.MIN_RR)):
+                          ("strategy-runner", self.sr.MIN_RR)):
             self.assertEqual(got, v, f"{name} disagrees with analysis-params.json")
 
     def test_no_path_keeps_a_two_r_fallback(self):
         """`.get("value", 2.0)` is the exact shape of the bug: a silent revert to the superseded floor."""
         import re
         bad = re.compile(r'min_rr.*\.get\(\s*"value"\s*,\s*[0-9]')
-        for fname in ("backtest-methods.py", "demo-pilot.py", "strategy-runner.py", "trading_env.py", "ict-scan.py"):
+        for fname in ("backtest-methods.py", "strategy-runner.py", "trading_env.py", "ict-scan.py"):
             for i, line in enumerate(open(os.path.join(ROOT, "scripts", fname), encoding="utf-8"), 1):
                 if line.lstrip().startswith("#"):
                     continue

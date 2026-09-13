@@ -34,9 +34,9 @@ ANALYSIS_PARAMS = os.path.join(ROOT, "docs", "architecture", "analysis-params.js
 def min_rr(path=None):
     """The planned-R:R floor, validated. Returns the float, or None if it cannot be trusted.
 
-    Lives here because this module is the one thing BOTH live order paths already import -- demo-pilot.py and
-    strategy-runner.py (via backtest-methods) -- so the floor gets one reader and one validation instead of a
-    per-file copy. It is the twin of MAX_RISK_PCT above: same decision, same single-definition rule.
+    Lives here because this module is the thing the live order path already imports -- strategy-runner.py (via
+    backtest-methods) -- so the floor gets one reader and one validation instead of a per-file copy. It is the
+    twin of MAX_RISK_PCT above: same decision, same single-definition rule.
 
     Returns None (never a fallback number) on: unreadable/absent file, bad JSON, missing key, and any value that
     is not a positive real float -- bool, string, 0, negative and NaN all rejected. Callers MUST treat None as

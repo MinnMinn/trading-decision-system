@@ -4,7 +4,6 @@
   "enabled": true,
   "execution": {
     "environment": "demo",
-    "pilot_profile": "top5",
     "_note": "demo = Binance TESTNET via config/env.demo; real = Binance MAINNET (real money) via config/env.real. Switch by hand here or with `/automation demo|real`. The connectors and the pilot read this on every call; an environment file with placeholder secrets refuses to execute.",
     "setup_spec": "horizons (1y)"
   },

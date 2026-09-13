@@ -200,7 +200,7 @@ class HtfGateFailsClosed(unittest.TestCase):
         cfg = {"enabled": True, "layers": {"pilot": True},
                "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"], "dimensions": {"wyckoff": True, "ict": True}},
                            "cfd": {"enabled": False, "instruments": []}},
-               "execution": {"environment": "demo", "pilot_profile": "top5"}}
+               "execution": {"environment": "demo"}}
         selection = {"setups": [dict(id="test-ict-htf", market="crypto", symbols=["BTCUSDT"], tf="15m",
                                       method="ICT", htf=True, mgmt="be", execution="futures")]}
         state = {}
@@ -292,13 +292,10 @@ class Gate(unittest.TestCase):
             sr.AUTOMATION_CONFIG = old; os.unlink(tmp.name)
 
     def base(self, **exe):
-        return {"enabled": True, "layers": {"pilot": True}, "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"]}}, "execution": {"environment": "demo", "pilot_profile": "top5", **exe}}
+        return {"enabled": True, "layers": {"pilot": True}, "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"]}}, "execution": {"environment": "demo", **exe}}
 
     def test_refuses_real_environment(self):
         self.assertIn("REAL", self._gate_with(self.base(environment="real")) or "")
-
-    def test_refuses_wrong_profile(self):
-        self.assertIn("profile", self._gate_with(self.base(pilot_profile="legacy")) or "")
 
     def test_refuses_master_off(self):
         cfg = self.base(); cfg["enabled"] = False
@@ -361,12 +358,6 @@ class Mt5BridgeProtocol(unittest.TestCase):
             stop.set(); th.join(timeout=1)
 
 
-class AutomationProfile(unittest.TestCase):
-    def test_profiles_declared(self):
-        au = load("au", os.path.join(ROOT, "scripts", "automation.py"))
-        self.assertEqual(au.PILOT_PROFILES, ["legacy", "top5"]); self.assertEqual(au.DEFAULTS["execution"]["pilot_profile"], "top5")
-
-
 if __name__ == "__main__":
     unittest.main()
 
@@ -397,7 +388,7 @@ class SetupSpec(unittest.TestCase):
             calls.append(args); return type("R", (), {"returncode": 0, "stderr": ""})()
         with mock.patch.object(au.subprocess, "run", fake_run):
             rc, lines = au.apply_setup_spec(cfg, type("A", (), {"setup": [], "cmd": "on", "who": None, "reason": None})())
-        self.assertEqual(rc, 0); self.assertIn("--horizons", calls[0]); self.assertIn("1y", calls[0]); self.assertEqual(cfg["execution"]["pilot_profile"], "top5")
+        self.assertEqual(rc, 0); self.assertIn("--horizons", calls[0]); self.assertIn("1y", calls[0])
         cfg["execution"]["setup_spec"] = "top 3 (1y)"; calls.clear()
         with mock.patch.object(au.subprocess, "run", fake_run):
             rc, lines = au.apply_setup_spec(cfg, type("A", (), {"setup": [], "cmd": "on", "who": None, "reason": None})())
@@ -412,7 +403,7 @@ class PresetFilter(unittest.TestCase):
         return {"enabled": True, "layers": {"pilot": True},
                 "markets": {"crypto": {"enabled": True, "instruments": list(instruments), "dimensions": dims},
                             "cfd": {"enabled": False, "instruments": [], "dimensions": {"wyckoff": True, "ict": True}}},
-                "execution": {"environment": "demo", "pilot_profile": "top5"}}
+                "execution": {"environment": "demo"}}
 
     def _with_config(self, cfg, fn):
         tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, tmp); tmp.close()
@@ -522,7 +513,7 @@ class GrandfatherBehavioral(unittest.TestCase):
                "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT", "ETHUSDT"],
                                        "dimensions": {"wyckoff": True, "ict": True, "footprint": False, "heatmap": False}},
                            "cfd": {"enabled": False, "instruments": [], "dimensions": {"wyckoff": True, "ict": True}}},
-               "execution": {"environment": "demo", "pilot_profile": "top5"}}
+               "execution": {"environment": "demo"}}
         selection = {"setups": []}
         state = {"started": "2026-01-01T00:00:00Z", "day": None, "trades_today": {}, "errors": 0,
                  "halted": None, "last_tick": None, "seen": [],
@@ -552,7 +543,7 @@ class GrandfatherBehavioral(unittest.TestCase):
                "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"],
                                        "dimensions": {"wyckoff": False, "ict": False, "footprint": False, "heatmap": False}},
                            "cfd": {"enabled": False, "instruments": [], "dimensions": {"wyckoff": True, "ict": True}}},
-               "execution": {"environment": "demo", "pilot_profile": "top5"}}
+               "execution": {"environment": "demo"}}
         selection = {"setups": [dict(id="grandfather-test", market="crypto", symbols=["BTCUSDT"], tf="30m",
                                       method="ICT", htf=False, mgmt="be", execution="futures")]}
         state = {"started": "2026-01-01T00:00:00Z", "pending": {}, "day": None, "trades_today": {}, "errors": 0,
@@ -620,7 +611,7 @@ class EquityHalt(unittest.TestCase):
     def _run_live_tick(self, state, balance_row):
         cfg = {"enabled": True, "layers": {"pilot": True},
                "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"]}, "cfd": {"enabled": True, "instruments": []}},
-               "execution": {"environment": "demo", "pilot_profile": "top5"}}
+               "execution": {"environment": "demo"}}
         cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, cfg_tmp); cfg_tmp.close()
         sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump({"setups": []}, sel_tmp); sel_tmp.close()
         state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(state, state_tmp); state_tmp.close()
@@ -779,7 +770,7 @@ class ProtectiveOrderFailure(unittest.TestCase):
     def _run_live_tick(self, state, order_json_fn):
         cfg = {"enabled": True, "layers": {"pilot": True},
                "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"]}, "cfd": {"enabled": True, "instruments": []}},
-               "execution": {"environment": "demo", "pilot_profile": "top5"}}
+               "execution": {"environment": "demo"}}
         cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, cfg_tmp); cfg_tmp.close()
         sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump({"setups": []}, sel_tmp); sel_tmp.close()
         state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(state, state_tmp); state_tmp.close()

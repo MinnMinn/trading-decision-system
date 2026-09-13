@@ -47,9 +47,8 @@ class TestSingleSource(unittest.TestCase):
         self.assertEqual(m.MARKET_INSTRUMENTS, {k: I.analysis(k) for k in I.MARKETS})
 
     def test_pilot_universe_is_the_execution_list(self):
-        """The pilot and the demo pilot must never widen to the analysis allowlist."""
+        """The pilot must never widen to the analysis allowlist."""
         self.assertEqual(_load("strategy_runner", "strategy-runner.py").CRYPTO, I.execution("crypto"))
-        self.assertEqual(_load("demo_pilot", "demo-pilot.py").SYMBOLS, I.execution("crypto"))
 
     def test_futures_connector_allowlist_is_the_execution_list(self):
         out = subprocess.run(["bash", "-c",

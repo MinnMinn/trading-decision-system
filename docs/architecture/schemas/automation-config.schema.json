@@ -67,14 +67,6 @@
           ],
           "description": "demo = Binance TESTNET (fake funds) via config/env.demo. real = Binance MAINNET (REAL MONEY) via config/env.real. The value selects which env file scripts/trading-env.sh / scripts/trading_env.py load: endpoints (testnet.binance.vision + testnet.binancefuture.com vs api.binance.com + fapi.binance.com) and credentials (Keychain references or literals). Every order connector and the pilot read it on every call, so switching takes effect on the next tick. An environment whose required secrets are empty or __FILL_ME__ makes every execution path exit 2 ('environment incomplete') -- a correctness check, not a policy block. The scanner and the local read never place orders and ignore this value. Hard rules that survive in both environments: no Forex, the instrument allowlist in docs/architecture/instruments.json, PILOT_RISK_PCT clamped to <= 1% per trade."
         },
-        "pilot_profile": {
-          "type": "string",
-          "enum": [
-            "legacy",
-            "top5"
-          ],
-          "description": "Which rule set scripts/pilot-loop.sh runs (user decision 2026-09-11). legacy = scripts/demo-pilot.py (15m SSL/BSL sweep -> MSS -> FVG, market entries). top5 = scripts/strategy-runner.py: the three most stable backtested rules (ICT 30m, COMBINED 30m, ICT 1H; docs/backtests/2026-09-11-stability-by-timeframe.md) with post-only LIMIT entries at the FVG edge, STOP_MARKET + TAKE_PROFIT_MARKET exits, breakeven at +1R, time stop; FUTURES loop only, the spot loop always runs legacy. Set with `/automation pilot profile <name>`; read by the loop on every tick. Missing = legacy."
-        },
         "setup_spec": {
           "type": "string",
           "description": "Set by `/automation on|demo setup top N` (2026-09-11): the spec that produced docs/architecture/pilot-top5.json, e.g. 'top 3 (1y)'. Informational; the runner reads the selection file, not this."

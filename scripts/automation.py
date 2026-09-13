@@ -76,7 +76,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
 SCHEMA_VERSION = 3
 ENV_NAMES = ["demo", "real"]
-PILOT_PROFILES = ["legacy", "top5"]   # execution.pilot_profile -- which rule set scripts/pilot-loop.sh runs (user decision 2026-09-11)
 LAUNCH_AGENTS = os.path.expanduser("~/Library/LaunchAgents")
 SCANNER_LABEL = "com.tyme.trading.scanner"
 PILOT_LABEL = {"spot": "com.tyme.trading.pilot", "futures": "com.tyme.trading.pilot.futures"}
@@ -179,7 +178,7 @@ CONTEXT_STYLE = {st: gate_style(st)[0] for st in TIERS}
 # Where each market's OHLCV lands; the 15m file is the "is this instrument actually wired up?" probe.
 DATA_DIR = {"crypto": "market-data", "cfd": "mt5-bridge"}
 
-PILOT_MARKETS = ["spot", "futures"]
+PILOT_MARKETS = ["futures"]   # one engine, one venue (user decision 2026-09-13); the spot loop ran the deleted legacy engine
 # Anchored: match the bash process that IS the loop ("bash scripts/pilot-loop.sh" from a terminal, or
 # "/bin/bash /abs/path/scripts/pilot-loop.sh" from launchd) -- not any shell whose command text merely
 # mentions the file (a verification one-liner containing this string once produced a phantom PID).
@@ -244,12 +243,9 @@ DEFAULTS = {
     "enabled": True,
     "execution": {
         "environment": "demo",
-        "pilot_profile": "top5",
         "_note": "demo = Binance TESTNET via config/env.demo; real = Binance MAINNET (real money) via "
                  "config/env.real. Switch by hand here or with `/automation demo|real`. The connectors and the "
-                 "pilot read this on every call; an environment file with placeholder secrets refuses to execute. "
-                 "pilot_profile: legacy = scripts/demo-pilot.py (15m sweep/MSS/FVG rules); top5 = scripts/strategy-runner.py "
-                 "(ICT 30m, COMBINED 30m, ICT 1H with limit entries + breakeven; futures only). Set with `/automation pilot profile`.",
+                 "pilot read this on every call; an environment file with placeholder secrets refuses to execute.",
     },
     "markets": {m: _market_default(m) for m in MARKETS},
     "layers": {l: True for l in LAYERS},
@@ -577,9 +573,8 @@ def show(cfg, exists, as_json=False, brief=False):
     onoff = lambda b: "ON " if b else "off"
     envname = cfg["execution"].get("environment", "demo")
     print(f"AUTOMATION: {'ON' if cfg['enabled'] else 'OFF'}   "
-          f"environment: {envname.upper()} ({'TESTNET' if envname == 'demo' else 'REAL MONEY'})   "
-          f"pilot profile: {cfg['execution'].get('pilot_profile', 'legacy')}"
-          + (f" (setup {cfg['execution']['setup_spec']})" if cfg['execution'].get('setup_spec') else ""))
+          f"environment: {envname.upper()} ({'TESTNET' if envname == 'demo' else 'REAL MONEY'})"
+          + (f"   (setup {cfg['execution']['setup_spec']})" if cfg['execution'].get('setup_spec') else ""))
     if brief:
         svc = cfg.get("services") or {}
         print(f"  scanner: {'installed' if svc.get('scanner_agent') else 'not installed'}; "
@@ -868,7 +863,7 @@ def session_cron_block(on):
 # ---------- mutating subcommands ----------
 def apply_setup_spec(cfg, a):
     """`setup top N` (user decision 2026-09-11): rank the last 365 days with scripts/rank-setups.py, write docs/architecture/pilot-top5.json
-    with N crypto + N CFD setups, set execution.pilot_profile = top5. Returns (rc, lines). `setup` absent -> no change."""
+    with N crypto + N CFD setups. Returns (rc, lines). `setup` absent -> no change."""
     spec = [x.lower() for x in (getattr(a, "setup", None) or [])]
     sel = os.path.join(ROOT, "docs", "architecture", "pilot-top5.json"); out = os.path.join(ROOT, "docs", "backtests", "top-setups-latest.md")
     cfd_syms = ",".join(cfg["markets"]["cfd"]["instruments"] or ["XAUUSD"]); crypto_syms = ",".join(cfg["markets"]["crypto"]["instruments"] or MARKET_INSTRUMENTS["crypto"])
@@ -876,7 +871,7 @@ def apply_setup_spec(cfg, a):
         # user decision 2026-09-11 (night): plain `on`/`demo` runs scalping + day + swing for crypto AND CFD -- one setup per horizon per
         # market, ranked on the last 12 months -- unless a `setup top N` selection is in force (execution.setup_spec starts with "top").
         if (cfg["execution"].get("setup_spec") or "").startswith("top") and os.path.exists(sel):
-            return 0, [f"pilot profile {cfg['execution'].get('pilot_profile')} keeps the selection `{cfg['execution']['setup_spec']}` ({rel(sel)}); `on setup horizons` re-selects per horizon"]
+            return 0, [f"keeps the selection `{cfg['execution']['setup_spec']}` ({rel(sel)}); `on setup horizons` re-selects per horizon"]
         spec = ["setup", "horizons"]
     if spec == ["setup", "horizons"]:
         r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "rank-setups.py"), "--horizons", "--window", "1y", "--select", sel, "--out", out,
@@ -887,9 +882,9 @@ def apply_setup_spec(cfg, a):
             setups = json.load(open(sel, encoding="utf-8"))["setups"]
         except Exception as e:
             return 2, [f"selection file unreadable after ranking: {e}"]
-        cfg["execution"]["pilot_profile"] = "top5"; cfg["execution"]["setup_spec"] = "horizons (1y)"
+        cfg["execution"]["setup_spec"] = "horizons (1y)"
         record(cfg, a, "setup horizons", "applied")
-        lines = [f"SETUP HORIZONS: {len(setups)} setups (scalping / day / swing per market, ranked on the last 12 months) -> {rel(sel)} (table {rel(out)}); pilot profile = top5"]
+        lines = [f"SETUP HORIZONS: {len(setups)} setups (scalping / day / swing per market, ranked on the last 12 months) -> {rel(sel)} (table {rel(out)})"]
         for st in setups:
             b = st.get("backtest", {})
             lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['horizon']} {st['tf']} {st['method']} htf={st.get('htf')} exec={st['execution']} | 1y: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
@@ -910,9 +905,9 @@ def apply_setup_spec(cfg, a):
         setups = json.load(open(sel, encoding="utf-8"))["setups"]
     except Exception as e:
         return 2, [f"selection file unreadable after ranking: {e}"]
-    cfg["execution"]["pilot_profile"] = "top5"; cfg["execution"]["setup_spec"] = f"top {n} (1y)"
+    cfg["execution"]["setup_spec"] = f"top {n} (1y)"
     record(cfg, a, f"setup top {n}", "applied")
-    lines = [f"SETUP TOP {n}: {len(setups)} setups selected on the last 12 months -> {rel(sel)} (table {rel(out)}); pilot profile = top5"]
+    lines = [f"SETUP TOP {n}: {len(setups)} setups selected on the last 12 months -> {rel(sel)} (table {rel(out)})"]
     for st in setups:
         b = st.get("backtest", {})
         lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['tf']} {st['method']} htf={st.get('htf')} exec={st['execution']} | 1y: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
@@ -1336,33 +1331,6 @@ def cmd_pilot(a):
     # defaults; acceptable because `status`/`env`/`allows`/`history` remain the documented always-safe readers.
     cfg, exists, _ = load(require_readable=True)
     market = a.market or (cfg.get("pilot_process") or {}).get("market") or "spot"
-
-    if a.action == "profile":
-        name = getattr(a, "profile", None)
-        if name not in PILOT_PROFILES:
-            return _refuse(cfg, a, f"pilot profile {name}", f"unknown profile {name!r}; choose one of {', '.join(PILOT_PROFILES)}.")
-        prev = cfg["execution"].get("pilot_profile", "legacy")
-        cfg["execution"]["pilot_profile"] = name
-        record(cfg, a, f"pilot profile {name}", "applied" if name != prev else "no-op")
-        save(cfg)
-        running = [(p, m) for p, m in running_pilots()]
-        print(f"  pilot profile: {prev} -> {name}")
-        if name == "top5":
-            sel = os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")
-            print("  top5 = scripts/strategy-runner.py on the futures loop: crypto setups on Binance futures TESTNET, CFD setups on the MT5 DEMO "
-                  "account through integrations/mt5/OrderBridge.mq5 (attach it to a chart). The spot loop idles while top5 is selected; "
-                  "the loop reads the profile every tick. State: data/live/pilot-futures/top5-state.json.")
-            try:
-                for st in json.load(open(sel, encoding="utf-8"))["setups"]:
-                    b = st.get("backtest", {})
-                    print(f"    {st.get('rank', '-')}. {st['id']}: {st['market']} {st['tf']} {st['method']} htf={st.get('htf')} "
-                          f"exec={st['execution']} | backtest {b.get('ann_pct')}%/yr, DD -{b.get('max_dd_pct')}%, quarters+ {b.get('q_pos_pct')}%, years+ {b.get('years_pos')}")
-            except Exception as e:
-                print(f"  ! selection file {rel(sel)} unreadable ({e}) -- the runner will refuse to tick")
-        if running:
-            print("  running loops: " + ", ".join(f"pid {p} ({m})" for p, m in running) + " -- they pick the new profile up on their next tick.")
-        show(cfg, True, brief=True)
-        return 0
 
     if a.action == "start":
         rc, note = pilot_start(a, cfg)

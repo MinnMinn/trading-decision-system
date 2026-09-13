@@ -2,8 +2,8 @@
 
 Why this exists: the threat model docs/security/2026-09-11-top5-pilot.md cites its own enforcement points by
 line number in ~26 places. On 2026-09-13 a security review verified that ELEVEN of them were already stale --
-it cited demo-pilot.py:63 for a call that had moved to :65 -- and every one of those sat inside a
-CRITICAL/HIGH rule. Then the same day's edits moved them AGAIN while the review was being read.
+one cited a line in the (now-deleted) legacy engine that had moved by two lines -- and every one of those sat
+inside a CRITICAL/HIGH rule. Then the same day's edits moved them AGAIN while the review was being read.
 
 A stale citation is worse than no citation: it reads as evidence (rules/reduce-hallucinations.md), and a
 reviewer who follows it lands on unrelated code and concludes the rule is satisfied.

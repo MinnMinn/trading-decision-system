@@ -85,7 +85,7 @@ class BiasOfPerMethod(unittest.TestCase):
         self.htf = load("htf_context.py")
 
     def test_defaults_to_wyckoff_only_so_existing_callers_are_unchanged(self):
-        # demo-pilot.py and the checkers call bias_of() with two args; step 6 plumbs dims to them deliberately.
+        # the checkers call bias_of() with two args; step 6 plumbs dims to them deliberately.
         self.assertEqual(self.htf.bias_of(ACC_C, facts(pch_state="closed_through"))[0], "long")
         self.assertEqual(self.htf.bias_of(DIST_C, facts(pch_state="closed_through"))[0], "short")
 
@@ -226,50 +226,6 @@ class BriefLinesFollowTheSwitch(unittest.TestCase):
     def test_ladder_lines_pass_the_engaged_methods_down(self):
         # ladder_lines is what local-eval-brief.py actually calls; it must not widen the set again.
         self.assertIn("methods", self.htf.ladder_lines.__code__.co_varnames)
-
-
-class ExecutionFilterIsStillPinnedToWyckoff(unittest.TestCase):
-    """The pilot's giảm-khung filter (demo-pilot.py) gates real orders. Steps 1-5 deliberately leave it reading
-    Wyckoff-only so the analysis change and the execution change are separate, reviewable diffs.
-
-    These are CHARACTERIZATION tests: they pin what the filter does TODAY, including the behaviour that is wrong
-    (see the `unknown` case below). Step 6 is expected to change them — that is the point. A step-6 diff that
-    leaves this class untouched has not actually changed order gating."""
-
-    def setUp(self):
-        self.pilot = load("demo-pilot.py")
-
-    def ctx(self, bias):
-        return {"tf": "4h", "bias": bias, "basis": f"[wyckoff] {bias} …"}
-
-    def test_bias_methods_are_pinned_to_wyckoff(self):
-        self.assertEqual(self.pilot.BIAS_METHODS, ("wyckoff",))
-
-    def test_the_pin_is_actually_passed_to_load_context(self):
-        # A pinned constant that nothing reads is the classic way a pin silently stops holding.
-        src = open(os.path.join(ROOT, "scripts", "demo-pilot.py"), encoding="utf-8").read()
-        self.assertIn("load_context(\"daytrade\", sym, methods=BIAS_METHODS)", src)
-
-    def test_matching_bias_passes_the_filter(self):
-        self.assertIsNone(self.pilot.htf_reject_reason(self.ctx("long"), "long", "LONG"))
-        self.assertIsNone(self.pilot.htf_reject_reason(self.ctx("short"), "short", "SHORT"))
-
-    def test_opposing_bias_rejects(self):
-        self.assertIn("không ủng hộ", self.pilot.htf_reject_reason(self.ctx("short"), "long", "LONG"))
-
-    def test_neutral_bias_rejects(self):
-        self.assertIsNotNone(self.pilot.htf_reject_reason(self.ctx("neutral"), "long", "LONG"))
-
-    def test_unknown_bias_rejects_and_is_worded_as_disagreement(self):
-        """TODAY'S BUG, pinned so step 6 must confront it: "no data" and "the context disagrees" produce the
-        same rejection. In an ICT-only configuration the Wyckoff-pinned bias is `unknown` for every symbol, so
-        the pilot silently rejects 100% of setups and the log says the context did not support them."""
-        why = self.pilot.htf_reject_reason(self.ctx("unknown"), "long", "LONG")
-        self.assertIsNotNone(why)
-        self.assertIn("không ủng hộ", why)
-
-    def test_missing_context_rejects(self):
-        self.assertIn("?", self.pilot.htf_reject_reason(None, "long", "LONG"))
 
 
 def candles(n=30, base=100.0):
