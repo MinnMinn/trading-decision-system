@@ -146,10 +146,10 @@ w=m.SCAN_WINDOW['$1']; print(w['bars'], w['recent'])"; }
 Then change each call site to use it, e.g. line 84:
 
 ```bash
-run_style 1m $(win 1m) scalping
+run_style 1m scalping $(win 1m)
 ```
 
-and change `run_style()`'s signature comment and positional use so it takes `tf bars recent [symbols]` (the `$(win ...)` expands to two words: bars then recent). Apply the same edit to lines 86, 87, 90, 91, 92 and 94.
+`run_style`'s current signature is `tf n style recent [symbols]`, and `style` is load-bearing in the body (the `AUTO_STYLES` gate, `--style` to `ict-scan.py`, the `model_read` call, the log line) — keep it. Reorder to `tf style bars recent [symbols]` so the two words `$(win <tf>)` expands to land on `bars recent`, and keep `symbols` last for the MT5 bridge. Apply the same edit to every other `run_style` call in the file.
 
 - [ ] **Step 6: Verify the loop still resolves the same numbers**
 
