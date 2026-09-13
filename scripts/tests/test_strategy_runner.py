@@ -238,30 +238,20 @@ class HtfGateFailsClosed(unittest.TestCase):
         placed = self._run(True)
         self.assertEqual(len(placed), 1, "htf_pass()=True must still let a setup that declared htf:true place")
 
-    def test_before_after_decision_for_the_real_pilot_setup_hitting_this_gap(self):
-        """crypto-scalping-wyckoff-5m-border-c (WYCKOFF, 5m, htf:true) is the setup concern 2 named:
-        HTF_OF["5m"] == "30m", which automation.SCAN_WINDOW has no entry for, so its htf_pass is structurally
-        None on every tick, forever (not a transient data gap). Writes the OLD vs NEW block decision for it."""
-        setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")))["setups"]
-        st = next(s for s in setups if s["id"] == "crypto-scalping-wyckoff-5m-border-c")
-        self.assertTrue(st.get("htf"))
-        htf_tf = sr.HTF_OF[st["tf"]]
-        self.assertIsNone(sr.ict_scan_bars(htf_tf), f"expected {htf_tf} to be the unscannable gap this test documents")
-        htf_pass_value = None   # what htf_pass() returns for this setup, every tick, per the assertion above
-        old_blocks = bool(st.get("htf")) and htf_pass_value is False       # pre-fix condition (:1108 before this commit)
-        new_blocks = bool(st.get("htf")) and htf_pass_value is not True    # post-fix condition
-        with open("/tmp/task8-failclosed.txt", "w") as f:
-            f.write(f"setup: {st['id']} (method={st['method']} tf={st['tf']} htf={st.get('htf')})\n")
-            f.write(f"HTF_OF[{st['tf']!r}] = {htf_tf!r} -- automation.SCAN_WINDOW has no entry for it, so "
-                    f"htf_pass() returns None every tick, forever\n")
-            f.write(f"sig['htf_pass'] = {htf_pass_value!r}\n")
-            f.write(f"BEFORE (tick() blocked on `is False`):    blocks_new_entry = {old_blocks}  "
-                    f"-- fail-OPEN: the gate never refused this setup\n")
-            f.write(f"AFTER  (tick() blocks on `is not True`):  blocks_new_entry = {new_blocks}  "
-                    f"-- fail-CLOSED: the gate refuses until it can actually judge\n")
-        self.assertFalse(old_blocks, "sanity check: reproduces the fail-open bug under the OLD condition")
-        self.assertTrue(new_blocks, "the NEW condition must refuse this setup until the SCAN_WINDOW gap is fixed")
+    def test_no_selected_setup_can_have_an_unjudgeable_htf_tier(self):
+        """The gate failing closed is only half the answer: a setup whose HTF tier is a timeframe live never
+        scans would be refused on EVERY tick, forever -- correct, but useless, and invisible except as an
+        absence.
 
+        crypto-scalping-wyckoff-5m-border-c was exactly that (WYCKOFF, 5m, htf:true, HTF_OF["5m"] == "30m",
+        which automation.SCAN_WINDOW has no entry for). The 2026-09-13 re-rank onto live-scannable timeframes
+        removed it. This asserts the selection cannot reacquire one -- it is the invariant, not that one id."""
+        setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")))["setups"]
+        doomed = [s["id"] for s in setups
+                  if s.get("htf") and sr.ict_scan_bars(sr.HTF_OF.get(s["tf"])) is None]
+        self.assertEqual(doomed, [],
+                         "these setups declare htf:true but their HTF tier is a timeframe live never scans, so "
+                         "the gate would refuse them on every tick forever")
 
 class Sizing(unittest.TestCase):
     def test_risk_never_above_one_percent_and_notional_capped(self):
