@@ -1058,7 +1058,7 @@ def replay(setup_ids, bars=600):
                     sigs = setups_wyckoff(st["method"], side, window, st["tf"]) if wy else setups(st["method"], side, window, st["tf"], st.get("ict_target") or "range", st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot")
                     for sig in sigs:
                         placements.setdefault((side, sig["time"]), dict(sig, first_seen=window[-1]["time"]))
-            sc = bt.scan(sym, st["tf"]); span_start = span[WINDOW - 1]["time"]
+            sc = bt.scan(sym, st["tf"], only=(st["method"],)); span_start = span[WINDOW - 1]["time"]  # only the method being checked -- skip the rest of scan()'s work, esp. the live ICT scanner when unused (2026-09-13)
             trades = [t for t in sc["trades"][st["method"]] if span_start <= t["time"] <= span[-1]["time"] and (not wy or t["entry_time"] >= span_start)]
             matched = unmatched = 0; details = []
             for t in trades:

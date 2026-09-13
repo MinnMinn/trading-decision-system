@@ -328,7 +328,20 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
     return out
 
 
-def scan(sym, tf):
+RUNNER_METHODS = ("WYCKOFF", "WYCKOFF-BOOK", "ICT", "COMBINED", "COMBINED-BOOK", "PARTIAL")
+
+
+def scan(sym, tf, only=None):
+    """`only`: which of RUNNER_METHODS to compute; None (default) computes all six -- today's behaviour, unchanged.
+    A caller that needs exactly one method's trades should pass e.g. only=("COMBINED",) so scan() SKIPS the other
+    methods' work rather than computing and discarding it -- in particular so it never calls the live ICT scanner
+    (ict_setups_live, one ict-scan.analyze() per bar) when nobody asked for ICT trades. strategy-runner.replay()
+    checks one method at a time across 9 symbols; before this, it paid the full live-scanner cost for ICT on every
+    call regardless, which 27x'd the test suite for a COMBINED-only check that never touches that branch
+    (code-quality review, 2026-09-13). NOT the same axis as OPTS["methods"] -- that key holds the wyckoff/ict BIAS
+    DIMENSIONS the live rules read (resolve_methods/engaged_methods_for_market); `only` here names RUNNER methods
+    (WYCKOFF, ICT, COMBINED, ...). Deliberately a different name (`only`, not `methods`) so the two never collide."""
+    want = set(RUNNER_METHODS) if only is None else set(only)
     c, src = load(sym, tf)
     if not c:
         return None
@@ -337,172 +350,181 @@ def scan(sym, tf):
     n = len(c); trades = collections.defaultdict(list); PH = all_pivots(H, "high"); PL = all_pivots(L, "low")
     # ---------- WYCKOFF and COMBINED / PARTIAL (Spring / Upthrust at the TR border) ----------
     htf = htf_position(sym, tf) if OPTS["htf"] else None
-    for side in OPTS["sides"]:
-        last_i = -99
-        for i in range(R + 6, n - 3):
-            support = min(L[i - R:i - 5]); resistance = max(H[i - R:i - 5])
-            if resistance <= support or i - last_i <= 5:
-                continue
-            if OPTS["range_touches"] and not range_established(H, L, i - R, i - 5, support, resistance, OPTS["range_touches"]):
-                continue
-            if htf is not None and not htf_allows(htf, Tm[i], side):
-                continue
-            if side == "long":
-                if not L[i] < support:
-                    continue
-                rec = next((j for j in range(i, min(i + 3, n)) if C[j] > support), None)
-            else:
-                if not H[i] > resistance:
-                    continue
-                rec = next((j for j in range(i, min(i + 3, n)) if C[j] < resistance), None)
-            if rec is None:
-                continue
-            last_i = i
-            ext = min(L[i:rec + 1]) if side == "long" else max(H[i:rec + 1])
-            avg20 = sum(V[i - 20:i]) / 20 if i >= 20 else 0
-            ratio = V[i] / avg20 if avg20 else None
-            vt = vtype(ratio)
-            if vt not in OPTS["types"]:
-                continue
-            rec_ratio = (V[rec] / avg20) if avg20 else None
-            stop = ext * (1 - STOP_BUFFER_PCT) if side == "long" else ext * (1 + STOP_BUFFER_PCT)
-            target = resistance if side == "long" else support
-            tr = resistance - support
-            # --- Wyckoff entry bar ---
-            w_bar = None
-            if OPTS["entry"] == "book" and (vt == 1 or (vt == 3 and rec_ratio is not None and rec_ratio >= VOL["high_min_ratio"])):
-                w_bar = rec
-            else:  # retest (type 2, or type 3 without high-volume reclaim)
-                for j in range(rec + 1, min(rec + 1 + T, n)):
-                    if side == "long":
-                        ok = ext <= L[j] <= support + tr / 3 and V[j] < V[i] and C[j] >= L[j] + 0.5 * (H[j] - L[j])
-                    else:
-                        ok = resistance - tr / 3 <= H[j] <= ext and V[j] < V[i] and C[j] <= H[j] - 0.5 * (H[j] - L[j])
-                    if (side == "long" and L[j] <= stop) or (side == "short" and H[j] >= stop):
-                        break
-                    if ok:
-                        w_bar = j; break
-            base = dict(symbol=sym, tf=tf, side=side, time=Tm[i], event=f"{sym}-{side}-{Tm[i]}", support=support, resistance=resistance, vol_type=vt, vol_ratio=round(ratio, 2) if ratio else None)
-            w = None
-            if w_bar is not None:
-                w = walk(side, C[w_bar], stop, target, H, L, C, w_bar + 1, HZ)
-                if w:
-                    trades["WYCKOFF"].append(dict(base, entry=C[w_bar], entry_time=Tm[w_bar], stop=stop, target=target, exit_time=Tm[w["exit"]], **w))
-            # --- Combined: Spring + ICT confirmation ---
-            ict = find_ict(side, i, rec, H, L, C, K, n, PH, PL)
-            c_trade = None
-            if ict and (vt in (1, 2) or (vt == 3 and rec_ratio is not None and rec_ratio >= VOL["high_min_ratio"])):
-                mss, edge, far = ict
-                fill = fvg_fill(side, mss, edge, far, stop, H, L, K, n)
-                # combined_entry: "limit" = limit at the FVG edge, no fill -> no trade (causal, maker fee);
-                # "market" = market at the MSS close always (causal, taker fee); "hindsight" = the pre-2026-09-11 rule
-                # (limit if the future shows a fill, else MSS close) -- NOT causal, kept only for comparison.
-                ce = OPTS["combined_entry"]
-                if ce == "limit" and fill is None:
-                    e_bar = None
-                elif ce == "market":
-                    e_bar, e_px = mss, C[mss]
-                else:
-                    e_bar, e_px = (fill, edge) if fill is not None else (mss, C[mss])
-                cw = walk(side, e_px, stop, target, H, L, C, e_bar + 1, HZ) if e_bar is not None else None
-                if cw:
-                    c_trade = dict(base, entry=e_px, entry_time=Tm[e_bar], stop=stop, target=target, exit_time=Tm[cw["exit"]], via="fvg" if fill is not None else "mss", **cw)
-                    trades["COMBINED"].append(c_trade)
-            # --- Partial: half at Wyckoff entry, half at combined entry ---
-            if w:
-                trades["PARTIAL"].append(dict(base, entry=C[w_bar], entry_time=Tm[w_bar], stop=stop, target=target, exit_time=Tm[w["exit"]], outcome=w["outcome"], R=w["R"], exit=w["exit"], size=0.5, leg="early"))
-                if c_trade:
-                    trades["PARTIAL"].append(dict(c_trade, size=0.5, leg="add"))
-            elif c_trade:  # no early leg possible (no retest): the ICT-confirmed entry is taken at full size, as in COMBINED
-                trades["PARTIAL"].append(dict(c_trade, size=1.0, leg="add-only"))
-    # ---------- WYCKOFF-BOOK / COMBINED-BOOK (scripts/wyckoff_rules.py: CHoCH gate, TR from SC/AR, Phase B, Spring vs Shakeout, VP veto, Test, Phase D) ----------
-    W.PARAMS["spring_max_bars_outside"] = p["sob"]
-    O = [x["open"] for x in c]
-    for side, recs in (("long", W.detect_accumulations(O, H, L, C, V)), ("short", W.detect_distributions(O, H, L, C, V))):
-        if side not in OPTS["sides"]:
-            continue
-        for r in recs:
-            t0 = Tm[r["spring"] if r["spring"] is not None else r["sos"]]
-            if htf is not None and not htf_allows(htf, t0, side):
-                continue
-            if OPTS["sloped_gate"] and r["sloped"]:
-                continue
-            if OPTS["st_min"] is not None and r["st_pct"] < OPTS["st_min"]:
-                continue
-            tr = r["tr_hi"] - r["tr_lo"]
-            base = dict(symbol=sym, tf=tf, side=side, time=t0, event=f"{sym}-{side}-book-{t0}", support=r["tr_lo"], resistance=r["tr_hi"], vol_type=r["vol_type"], vol_ratio=r["vol_ratio"],
-                        st_pct=r["st_pct"], sot=r["sot"], path=r["path"])
-            if r["path"] == "spring" and not r["shakeout"] and not r["abandon"] and not r["sot_too_strong"] and r["vol_type"] in OPTS["types"]:
-                rec = r["reclaim"]; vt = r["vol_type"]; rr = r["rec_ratio"]
-                stop = r["spring_low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["spring_low"] * (1 + STOP_BUFFER_PCT)
-                target = r["tr_hi"] if side == "long" else r["tr_lo"]
-                w_bar = rec if (OPTS["entry"] == "book" and (vt == 1 or (vt == 3 and rr is not None and rr >= VOL["high_min_ratio"]))) else r["test"]
-                if w_bar is not None:
-                    w = walk(side, C[w_bar], stop, target, H, L, C, w_bar + 1, HZ)
-                    if w:
-                        trades["WYCKOFF-BOOK"].append(dict(base, entry=C[w_bar], entry_time=Tm[w_bar], stop=stop, target=target, exit_time=Tm[w["exit"]], leg="spring", **w))
-                if rec is not None:
-                    ict = find_ict(side, r["spring"], rec, H, L, C, K, n, PH, PL)
-                    if ict:
-                        mss, edge, far = ict
-                        fill = fvg_fill(side, mss, edge, far, stop, H, L, K, n)
-                        e_bar, e_px = (fill, edge) if fill is not None else (mss, C[mss])
-                        cw = walk(side, e_px, stop, target, H, L, C, e_bar + 1, HZ)
-                        if cw:
-                            trades["COMBINED-BOOK"].append(dict(base, entry=e_px, entry_time=Tm[e_bar], stop=stop, target=target, exit_time=Tm[cw["exit"]], via="fvg" if fill is not None else "mss", **cw))
-            if OPTS["phase_d"] and r["bu"]:
-                b = r["bu"]["bar"]
-                stop = r["bu"]["low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["bu"]["low"] * (1 + STOP_BUFFER_PCT)
-                target = r["tr_hi"] + W.PARAMS["d_target_tr"] * tr if side == "long" else r["tr_lo"] - W.PARAMS["d_target_tr"] * tr
-                w = walk(side, C[b], stop, target, H, L, C, b + 1, HZ)
-                if w:
-                    trades["WYCKOFF-BOOK"].append(dict(base, event=base["event"] + "-D", entry=C[b], entry_time=Tm[b], stop=stop, target=target, exit_time=Tm[w["exit"]], leg="phase_d", **w))
-    # ---------- ICT only ----------
-    # "live" (default): the LIVE scanner (scripts/ict-scan.py + scripts/htf_context.py) decides every structure --
-    # pivot, sweep, MSS, FVG, dealing range, bias -- so the backtest measures the system actually traded (audit
-    # 2026-09-13). "legacy": the pre-2026-09-13 in-file proxies below, kept reachable only for the old-vs-new
-    # comparison a later task produces; do NOT change its behaviour.
-    if OPTS["rules"] == "live":
-        trades["ICT"] = ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, resolve_methods(sym))
-    else:
+    if want & {"WYCKOFF", "COMBINED", "PARTIAL"}:
         for side in OPTS["sides"]:
             last_i = -99
             for i in range(R + 6, n - 3):
-                if i - last_i <= 5:
+                support = min(L[i - R:i - 5]); resistance = max(H[i - R:i - 5])
+                if resistance <= support or i - last_i <= 5:
+                    continue
+                if OPTS["range_touches"] and not range_established(H, L, i - R, i - 5, support, resistance, OPTS["range_touches"]):
                     continue
                 if htf is not None and not htf_allows(htf, Tm[i], side):
                     continue
                 if side == "long":
-                    pl = last_pivot(PL, i)
-                    if pl is None or not L[i] < L[pl]:
+                    if not L[i] < support:
                         continue
-                    ext = L[i]; stop = ext * (1 - STOP_BUFFER_PCT); target = max(H[i - R:i])
+                    rec = next((j for j in range(i, min(i + 3, n)) if C[j] > support), None)
                 else:
-                    ph = last_pivot(PH, i)
-                    if ph is None or not H[i] > H[ph]:
+                    if not H[i] > resistance:
                         continue
-                    ext = H[i]; stop = ext * (1 + STOP_BUFFER_PCT); target = min(L[i - R:i])
-                if OPTS["ict_pd"]:   # knowledge/04 §3.4 R13: longs in discount, shorts in premium of the R-bar range (proxy for the BSL<->SSL range)
-                    eq_ = (max(H[i - R:i]) + min(L[i - R:i])) / 2
-                    if (side == "long" and C[i] >= eq_) or (side == "short" and C[i] <= eq_):
-                        continue
+                    rec = next((j for j in range(i, min(i + 3, n)) if C[j] < resistance), None)
+                if rec is None:
+                    continue
                 last_i = i
-                ict = find_ict(side, i, i, H, L, C, K, n, PH, PL, O=O)
-                if not ict:
+                ext = min(L[i:rec + 1]) if side == "long" else max(H[i:rec + 1])
+                avg20 = sum(V[i - 20:i]) / 20 if i >= 20 else 0
+                ratio = V[i] / avg20 if avg20 else None
+                vt = vtype(ratio)
+                if vt not in OPTS["types"]:
                     continue
-                mss, edge, far = ict
-                # the sweep low may have extended after bar i up to the MSS: invalidation = lowest point of the excursion
-                ext2 = min(L[i:mss + 1]) if side == "long" else max(H[i:mss + 1])
-                stop = ext2 * (1 - STOP_BUFFER_PCT) if side == "long" else ext2 * (1 + STOP_BUFFER_PCT)
-                target = ict_target(side, i, mss, ext2, H, L, R, PH, PL, target)
-                if target is None:
+                rec_ratio = (V[rec] / avg20) if avg20 else None
+                stop = ext * (1 - STOP_BUFFER_PCT) if side == "long" else ext * (1 + STOP_BUFFER_PCT)
+                target = resistance if side == "long" else support
+                tr = resistance - support
+                base = dict(symbol=sym, tf=tf, side=side, time=Tm[i], event=f"{sym}-{side}-{Tm[i]}", support=support, resistance=resistance, vol_type=vt, vol_ratio=round(ratio, 2) if ratio else None)
+                # --- Wyckoff entry bar --- (needed for WYCKOFF trades AND for PARTIAL's early leg; skip if neither wanted)
+                w = None
+                if {"WYCKOFF", "PARTIAL"} & want:
+                    w_bar = None
+                    if OPTS["entry"] == "book" and (vt == 1 or (vt == 3 and rec_ratio is not None and rec_ratio >= VOL["high_min_ratio"])):
+                        w_bar = rec
+                    else:  # retest (type 2, or type 3 without high-volume reclaim)
+                        for j in range(rec + 1, min(rec + 1 + T, n)):
+                            if side == "long":
+                                ok = ext <= L[j] <= support + tr / 3 and V[j] < V[i] and C[j] >= L[j] + 0.5 * (H[j] - L[j])
+                            else:
+                                ok = resistance - tr / 3 <= H[j] <= ext and V[j] < V[i] and C[j] <= H[j] - 0.5 * (H[j] - L[j])
+                            if (side == "long" and L[j] <= stop) or (side == "short" and H[j] >= stop):
+                                break
+                            if ok:
+                                w_bar = j; break
+                    if w_bar is not None:
+                        w = walk(side, C[w_bar], stop, target, H, L, C, w_bar + 1, HZ)
+                        if w and "WYCKOFF" in want:
+                            trades["WYCKOFF"].append(dict(base, entry=C[w_bar], entry_time=Tm[w_bar], stop=stop, target=target, exit_time=Tm[w["exit"]], **w))
+                # --- Combined: Spring + ICT confirmation --- (needed for COMBINED trades AND PARTIAL's add leg)
+                c_trade = None
+                if {"COMBINED", "PARTIAL"} & want:
+                    ict = find_ict(side, i, rec, H, L, C, K, n, PH, PL)
+                    if ict and (vt in (1, 2) or (vt == 3 and rec_ratio is not None and rec_ratio >= VOL["high_min_ratio"])):
+                        mss, edge, far = ict
+                        fill = fvg_fill(side, mss, edge, far, stop, H, L, K, n)
+                        # combined_entry: "limit" = limit at the FVG edge, no fill -> no trade (causal, maker fee);
+                        # "market" = market at the MSS close always (causal, taker fee); "hindsight" = the pre-2026-09-11 rule
+                        # (limit if the future shows a fill, else MSS close) -- NOT causal, kept only for comparison.
+                        ce = OPTS["combined_entry"]
+                        if ce == "limit" and fill is None:
+                            e_bar = None
+                        elif ce == "market":
+                            e_bar, e_px = mss, C[mss]
+                        else:
+                            e_bar, e_px = (fill, edge) if fill is not None else (mss, C[mss])
+                        cw = walk(side, e_px, stop, target, H, L, C, e_bar + 1, HZ) if e_bar is not None else None
+                        if cw:
+                            c_trade = dict(base, entry=e_px, entry_time=Tm[e_bar], stop=stop, target=target, exit_time=Tm[cw["exit"]], via="fvg" if fill is not None else "mss", **cw)
+                            if "COMBINED" in want:
+                                trades["COMBINED"].append(c_trade)
+                # --- Partial: half at Wyckoff entry, half at combined entry ---
+                if "PARTIAL" in want:
+                    if w:
+                        trades["PARTIAL"].append(dict(base, entry=C[w_bar], entry_time=Tm[w_bar], stop=stop, target=target, exit_time=Tm[w["exit"]], outcome=w["outcome"], R=w["R"], exit=w["exit"], size=0.5, leg="early"))
+                        if c_trade:
+                            trades["PARTIAL"].append(dict(c_trade, size=0.5, leg="add"))
+                    elif c_trade:  # no early leg possible (no retest): the ICT-confirmed entry is taken at full size, as in COMBINED
+                        trades["PARTIAL"].append(dict(c_trade, size=1.0, leg="add-only"))
+    # ---------- WYCKOFF-BOOK / COMBINED-BOOK (scripts/wyckoff_rules.py: CHoCH gate, TR from SC/AR, Phase B, Spring vs Shakeout, VP veto, Test, Phase D) ----------
+    if want & {"WYCKOFF-BOOK", "COMBINED-BOOK"}:
+        W.PARAMS["spring_max_bars_outside"] = p["sob"]
+        O = [x["open"] for x in c]
+        for side, recs in (("long", W.detect_accumulations(O, H, L, C, V)), ("short", W.detect_distributions(O, H, L, C, V))):
+            if side not in OPTS["sides"]:
+                continue
+            for r in recs:
+                t0 = Tm[r["spring"] if r["spring"] is not None else r["sos"]]
+                if htf is not None and not htf_allows(htf, t0, side):
                     continue
-                fill = fvg_fill(side, mss, edge, far, stop, H, L, K, n)
-                if fill is None:
+                if OPTS["sloped_gate"] and r["sloped"]:
                     continue
-                w = walk(side, edge, stop, target, H, L, C, fill + 1, HZ)
-                if w and ((side == "long" and target > edge) or (side == "short" and target < edge)):
-                    trades["ICT"].append(dict(symbol=sym, tf=tf, side=side, time=Tm[i], entry=edge, entry_time=Tm[fill], stop=stop, target=target, exit_time=Tm[w["exit"]], vol_type=None, **w))
+                if OPTS["st_min"] is not None and r["st_pct"] < OPTS["st_min"]:
+                    continue
+                tr = r["tr_hi"] - r["tr_lo"]
+                base = dict(symbol=sym, tf=tf, side=side, time=t0, event=f"{sym}-{side}-book-{t0}", support=r["tr_lo"], resistance=r["tr_hi"], vol_type=r["vol_type"], vol_ratio=r["vol_ratio"],
+                            st_pct=r["st_pct"], sot=r["sot"], path=r["path"])
+                if r["path"] == "spring" and not r["shakeout"] and not r["abandon"] and not r["sot_too_strong"] and r["vol_type"] in OPTS["types"]:
+                    rec = r["reclaim"]; vt = r["vol_type"]; rr = r["rec_ratio"]
+                    stop = r["spring_low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["spring_low"] * (1 + STOP_BUFFER_PCT)
+                    target = r["tr_hi"] if side == "long" else r["tr_lo"]
+                    if "WYCKOFF-BOOK" in want:
+                        w_bar = rec if (OPTS["entry"] == "book" and (vt == 1 or (vt == 3 and rr is not None and rr >= VOL["high_min_ratio"]))) else r["test"]
+                        if w_bar is not None:
+                            w = walk(side, C[w_bar], stop, target, H, L, C, w_bar + 1, HZ)
+                            if w:
+                                trades["WYCKOFF-BOOK"].append(dict(base, entry=C[w_bar], entry_time=Tm[w_bar], stop=stop, target=target, exit_time=Tm[w["exit"]], leg="spring", **w))
+                    if "COMBINED-BOOK" in want and rec is not None:
+                        ict = find_ict(side, r["spring"], rec, H, L, C, K, n, PH, PL)
+                        if ict:
+                            mss, edge, far = ict
+                            fill = fvg_fill(side, mss, edge, far, stop, H, L, K, n)
+                            e_bar, e_px = (fill, edge) if fill is not None else (mss, C[mss])
+                            cw = walk(side, e_px, stop, target, H, L, C, e_bar + 1, HZ)
+                            if cw:
+                                trades["COMBINED-BOOK"].append(dict(base, entry=e_px, entry_time=Tm[e_bar], stop=stop, target=target, exit_time=Tm[cw["exit"]], via="fvg" if fill is not None else "mss", **cw))
+                if "WYCKOFF-BOOK" in want and OPTS["phase_d"] and r["bu"]:
+                    b = r["bu"]["bar"]
+                    stop = r["bu"]["low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["bu"]["low"] * (1 + STOP_BUFFER_PCT)
+                    target = r["tr_hi"] + W.PARAMS["d_target_tr"] * tr if side == "long" else r["tr_lo"] - W.PARAMS["d_target_tr"] * tr
+                    w = walk(side, C[b], stop, target, H, L, C, b + 1, HZ)
+                    if w:
+                        trades["WYCKOFF-BOOK"].append(dict(base, event=base["event"] + "-D", entry=C[b], entry_time=Tm[b], stop=stop, target=target, exit_time=Tm[w["exit"]], leg="phase_d", **w))
+    # ---------- ICT only ----------
+    # "live" (default): the LIVE scanner (scripts/ict-scan.py + scripts/htf_context.py) decides every structure --
+    # pivot, sweep, MSS, FVG, dealing range, bias -- so the backtest measures the system actually traded (audit
+    # 2026-09-13). "legacy": the pre-2026-09-13 in-file proxies below, kept reachable only for the old-vs-new
+    # comparison a later task produces; do NOT change its behaviour. Skipped entirely (never calls the live
+    # scanner) when "ICT" is not in `only` -- see scan()'s docstring.
+    if "ICT" in want:
+        if OPTS["rules"] == "live":
+            trades["ICT"] = ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, resolve_methods(sym))
+        else:
+            for side in OPTS["sides"]:
+                last_i = -99
+                for i in range(R + 6, n - 3):
+                    if i - last_i <= 5:
+                        continue
+                    if htf is not None and not htf_allows(htf, Tm[i], side):
+                        continue
+                    if side == "long":
+                        pl = last_pivot(PL, i)
+                        if pl is None or not L[i] < L[pl]:
+                            continue
+                        ext = L[i]; stop = ext * (1 - STOP_BUFFER_PCT); target = max(H[i - R:i])
+                    else:
+                        ph = last_pivot(PH, i)
+                        if ph is None or not H[i] > H[ph]:
+                            continue
+                        ext = H[i]; stop = ext * (1 + STOP_BUFFER_PCT); target = min(L[i - R:i])
+                    if OPTS["ict_pd"]:   # knowledge/04 §3.4 R13: longs in discount, shorts in premium of the R-bar range (proxy for the BSL<->SSL range)
+                        eq_ = (max(H[i - R:i]) + min(L[i - R:i])) / 2
+                        if (side == "long" and C[i] >= eq_) or (side == "short" and C[i] <= eq_):
+                            continue
+                    last_i = i
+                    ict = find_ict(side, i, i, H, L, C, K, n, PH, PL, O=O)
+                    if not ict:
+                        continue
+                    mss, edge, far = ict
+                    # the sweep low may have extended after bar i up to the MSS: invalidation = lowest point of the excursion
+                    ext2 = min(L[i:mss + 1]) if side == "long" else max(H[i:mss + 1])
+                    stop = ext2 * (1 - STOP_BUFFER_PCT) if side == "long" else ext2 * (1 + STOP_BUFFER_PCT)
+                    target = ict_target(side, i, mss, ext2, H, L, R, PH, PL, target)
+                    if target is None:
+                        continue
+                    fill = fvg_fill(side, mss, edge, far, stop, H, L, K, n)
+                    if fill is None:
+                        continue
+                    w = walk(side, edge, stop, target, H, L, C, fill + 1, HZ)
+                    if w and ((side == "long" and target > edge) or (side == "short" and target < edge)):
+                        trades["ICT"].append(dict(symbol=sym, tf=tf, side=side, time=Tm[i], entry=edge, entry_time=Tm[fill], stop=stop, target=target, exit_time=Tm[w["exit"]], vol_type=None, **w))
     return dict(symbol=sym, tf=tf, source=src, bars=n, first=Tm[0], last=Tm[-1], trades=trades)
 
 

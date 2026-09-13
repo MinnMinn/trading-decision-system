@@ -10,6 +10,7 @@ Code-quality review of the first cut (commit acd65c5) found two Critical defects
 - window() must raise IndexError for i outside [0, len(candles)), not silently slice to something plausible.
 """
 import importlib.util, os, subprocess, unittest
+import unittest.mock as mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -327,6 +328,55 @@ class LegacyRulesUnchanged(unittest.TestCase):
         old_res = self.old.scan("BTCUSDT", "1D")
         new_res = self.bt.scan("BTCUSDT", "1D")
         self.assertEqual(new_res["trades"]["ICT"], old_res["trades"]["ICT"])
+
+
+class ScanOnlyFilterMatchesUnfiltered(unittest.TestCase):
+    """A `only=` filter must never silently drop a method nobody excluded from the request -- that would make the
+    backtest under-report trades, the same class of silent wrongness this whole plan exists to remove. Runs on
+    1D (small, fast) so this stays cheap to run on every review pass."""
+
+    def setUp(self):
+        self.bt = load("backtest-methods.py")
+
+    def test_unfiltered_scan_matches_scan_with_all_six_methods_named_explicitly(self):
+        sym, tf = "BTCUSDT", "1D"
+        unfiltered = self.bt.scan(sym, tf)
+        filtered = self.bt.scan(sym, tf, only=self.bt.RUNNER_METHODS)
+        self.assertEqual(set(unfiltered["trades"].keys()), set(filtered["trades"].keys()))
+        for m in self.bt.RUNNER_METHODS:
+            self.assertEqual(unfiltered["trades"][m], filtered["trades"][m], m)
+
+    def test_a_single_named_method_matches_its_slice_of_the_unfiltered_scan(self):
+        sym, tf = "BTCUSDT", "4H"   # 4H has real COMBINED/ICT trades (see LiveIctFillCheckActuallyFilters)
+        unfiltered = self.bt.scan(sym, tf)
+        for m in self.bt.RUNNER_METHODS:
+            filtered = self.bt.scan(sym, tf, only=(m,))
+            self.assertEqual(filtered["trades"][m], unfiltered["trades"][m], m)
+
+
+class ScanOnlySkipsUnwantedWork(unittest.TestCase):
+    """The point of `only` is to SKIP computing a method, not compute-then-discard: it must never invoke the live
+    ICT scanner when nobody asked for ICT trades -- that unconditional call is what made strategy-runner.replay()
+    pay the live-scanner cost on every symbol for a COMBINED-only parity check, 27x-ing the test suite
+    (code-quality review, 2026-09-13)."""
+
+    def setUp(self):
+        self.bt = load("backtest-methods.py")
+
+    def test_only_combined_never_calls_the_live_ict_scanner(self):
+        with mock.patch.object(self.bt.lr, "read_at", wraps=self.bt.lr.read_at) as spy:
+            self.bt.scan("BTCUSDT", "1D", only=("COMBINED",))
+        spy.assert_not_called()
+
+    def test_only_ict_does_call_the_live_ict_scanner(self):
+        with mock.patch.object(self.bt.lr, "read_at", wraps=self.bt.lr.read_at) as spy:
+            self.bt.scan("BTCUSDT", "1D", only=("ICT",))
+        spy.assert_called()
+
+    def test_only_filters_unwanted_methods_out_of_the_trades_dict(self):
+        res = self.bt.scan("BTCUSDT", "4H", only=("COMBINED",))
+        self.assertTrue(set(res["trades"].keys()) <= {"COMBINED"}, res["trades"].keys())
+        self.assertGreater(len(res["trades"]["COMBINED"]), 0, "fixture must exercise a real COMBINED trade")
 
 
 if __name__ == "__main__":
