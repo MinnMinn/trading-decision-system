@@ -26,18 +26,17 @@ class SetupsAreCausal(unittest.TestCase):
     def test_setup_fields_and_validity(self):
         c = synthetic()
         for method in ("ICT", "COMBINED"):
-            for target in ("range", "std25"):
-                for side in ("long", "short"):
-                    for s in sr.setups(method, side, c, "30m", target):
-                        n = len(c); K = bt.P["30m"]["K"]
-                        self.assertGreaterEqual(s["mss_bar"], n - 1 - K)
-                        self.assertGreater(s["r_planned"], 0)
-                        if side == "long":
-                            self.assertLess(s["stop"], s["entry"]); self.assertGreater(s["target"], s["entry"])
-                        else:
-                            self.assertGreater(s["stop"], s["entry"]); self.assertLess(s["target"], s["entry"])
-                        for j in range(s["mss_bar"] + 1, n):
-                            self.assertTrue(c[j]["low"] > s["entry"] if side == "long" else c[j]["high"] < s["entry"])
+            for side in ("long", "short"):
+                for s in sr.setups(method, side, c, "30m"):
+                    n = len(c); K = bt.P["30m"]["K"]
+                    self.assertGreaterEqual(s["mss_bar"], n - 1 - K)
+                    self.assertGreater(s["r_planned"], 0)
+                    if side == "long":
+                        self.assertLess(s["stop"], s["entry"]); self.assertGreater(s["target"], s["entry"])
+                    else:
+                        self.assertGreater(s["stop"], s["entry"]); self.assertLess(s["target"], s["entry"])
+                    for j in range(s["mss_bar"] + 1, n):
+                        self.assertTrue(c[j]["low"] > s["entry"] if side == "long" else c[j]["high"] < s["entry"])
 
     def test_fvg_complete_by_mss_close(self):
         c = synthetic(); H = [x["high"] for x in c]; L = [x["low"] for x in c]; C = [x["close"] for x in c]
@@ -48,8 +47,14 @@ class SetupsAreCausal(unittest.TestCase):
                 mss, edge, far = r
                 self.assertTrue(any(H[k - 1] < L[k + 1] and L[k + 1] == edge for k in range(i + 1, mss)))
 
-    def test_ict_target_restored_after_setups(self):
-        before = bt.OPTS["ict_target"]; sr.setups("ICT", "long", synthetic(), "30m", "std4"); self.assertEqual(bt.OPTS["ict_target"], before)
+    def test_ict_disp_and_std_origin_restored_after_setups(self):
+        """ict_target is gone from setups()'s signature (2026-09-13 audit: its only reader, bt.ict_target(), had
+        no caller left). ict_disp/std_origin are the remaining OPTS keys this function still saves/restores
+        (see setups()'s `prev` dict) -- this replaces the old test_ict_target_restored_after_setups, which
+        asserted on a key that no longer exists in bt.OPTS."""
+        before = (bt.OPTS["ict_disp"], bt.OPTS["std_origin"])
+        sr.setups("COMBINED", "long", synthetic(), "30m", ict_disp=True, std_origin="highest")
+        self.assertEqual((bt.OPTS["ict_disp"], bt.OPTS["std_origin"]), before)
 
 
 class ParityWithBacktest(unittest.TestCase):
@@ -123,6 +128,12 @@ class IctParityAchieved(unittest.TestCase):
         # off of) on the SAME window, for the "still working as of the last closed bar" category the NEW
         # runner's setups() also reports in AFTER below.
         old_sr = _load_git_revision("febd2d6", "strategy-runner.py")
+        # old_sr's own ROOT-relative import loads bt fresh from disk -- i.e. the CURRENT backtest-methods.py,
+        # not the febd2d6 blob -- so left alone it would carry today's OPTS schema and be missing bt.ict_target()
+        # entirely (this task deleted it, 2026-09-13: no caller left). old_sr's febd2d6-era setups() ICT branch
+        # calls bt.ict_target() directly, so it needs the ACTUAL febd2d6 backtest-methods.py, not today's --
+        # rebind it to the old_bt already loaded above (the matching commit) rather than the disk version.
+        old_sr.bt = old_bt
         old_runner_pending = sum(len(old_sr.setups("ICT", side, self.full, "15m")) for side in ("long", "short"))
         new_runner_pending = sum(len(sr.setups("ICT", side, self.full, "15m", sym="BTCUSDT")) for side in ("long", "short"))
 
@@ -187,7 +198,7 @@ class HtfGateFailsClosed(unittest.TestCase):
                            "cfd": {"enabled": False, "instruments": []}},
                "execution": {"environment": "demo", "pilot_profile": "top5"}}
         selection = {"setups": [dict(id="test-ict-htf", market="crypto", symbols=["BTCUSDT"], tf="15m",
-                                      method="ICT", ict_target="range", htf=True, mgmt="be", execution="futures")]}
+                                      method="ICT", htf=True, mgmt="be", execution="futures")]}
         state = {}
         cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, cfg_tmp); cfg_tmp.close()
         sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(selection, sel_tmp); sel_tmp.close()
@@ -541,7 +552,7 @@ class GrandfatherBehavioral(unittest.TestCase):
                            "cfd": {"enabled": False, "instruments": [], "dimensions": {"wyckoff": True, "ict": True}}},
                "execution": {"environment": "demo", "pilot_profile": "top5"}}
         selection = {"setups": [dict(id="grandfather-test", market="crypto", symbols=["BTCUSDT"], tf="30m",
-                                      method="ICT", ict_target="range", htf=False, mgmt="be", execution="futures")]}
+                                      method="ICT", htf=False, mgmt="be", execution="futures")]}
         state = {"started": "2026-01-01T00:00:00Z", "pending": {}, "day": None, "trades_today": {}, "errors": 0,
                  "halted": None, "last_tick": None, "seen": [],
                  "positions": {"BTCUSDT": dict(side="LONG", strategy="grandfather-test", tf="30m", method="ICT",
@@ -570,7 +581,7 @@ class ConfigReadFailureFallback(unittest.TestCase):
     def test_corrupt_automation_config_does_not_block_every_method_in_tick(self):
         bad_cfg = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); bad_cfg.write("{not valid json"); bad_cfg.close()
         selection = {"setups": [dict(id="corrupt-cfg-test", market="crypto", symbols=["BTCUSDT"], tf="30m",
-                                      method="ICT", ict_target="range", htf=False, mgmt="be", execution="futures")]}
+                                      method="ICT", htf=False, mgmt="be", execution="futures")]}
         sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(selection, sel_tmp); sel_tmp.close()
         state = {"started": "2026-01-01T00:00:00Z", "pending": {}, "positions": {}, "day": None, "trades_today": {},
                  "errors": 0, "halted": None, "last_tick": None, "seen": [],

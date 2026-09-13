@@ -333,14 +333,51 @@ class LegacyEngineIsGone(unittest.TestCase):
 
     def test_the_helpers_other_methods_need_are_still_present(self):
         """COMBINED/PARTIAL/COMBINED-BOOK/WYCKOFF still call these, and ict_setups_live calls fvg_fill.
-        Deleting them was in an earlier draft of this plan and would have broken four methods."""
+        Deleting them was in an earlier draft of this plan and would have broken four methods.
+        ict_target is NOT in this list (see test_ict_target_engine_is_gone below): its only caller was the
+        legacy ICT branch this class already asserts is gone, so unlike the names here it has no remaining
+        caller to protect (audit 2026-09-13: grep for "ict_target(" outside its own def returns nothing)."""
         for name in ("all_pivots", "last_pivot", "find_ict", "fvg_fill", "is_displacement",
-                     "ict_target", "htf_allows", "htf_position", "vtype"):
+                     "htf_allows", "htf_position", "vtype"):
             self.assertTrue(hasattr(self.bt, name), f"{name} was removed but is still used")
 
     def test_the_helpers_the_wyckoff_side_needs_are_kept(self):
         for name in ("vtype", "walk", "scan", "simulate", "bias_allows"):
             self.assertTrue(hasattr(self.bt, name), f"{name} was removed but is still used")
+
+    def test_ict_target_engine_is_gone(self):
+        """The six-way ICT target-model switch (range/std2/std25/std4/erl_next/irl) was dead: its only caller
+        was the legacy ICT branch removed alongside LegacyEngineIsGone above, and the live ICT path
+        (ict_setups_live -> live_rules.ict_scan.setup_candidate) takes its target from su["target"], never
+        from OPTS["ict_target"] (audit 2026-09-13, docs/plans/2026-09-13-unify-backtest-with-live-rules.md)."""
+        self.assertFalse(hasattr(self.bt, "ict_target"), "ict_target() should have been deleted -- it has no caller left")
+        self.assertNotIn("ict_target", self.bt.OPTS)
+
+
+class IctTargetComesFromLiveSetupCandidate(unittest.TestCase):
+    """After the ict_target() removal, ict_setups_live (bt.scan's ICT branch) is the ONLY source of an ICT
+    trade's target: su["target"] from live_rules.ict_scan.setup_candidate. ict_disp / ict_pd / std_origin are
+    the last OPTS knobs that used to feed the deleted target-model switch (via std_origin) or the deleted
+    legacy ICT branch (ict_pd) -- ict_setups_live never reads bt.OPTS at all, so varying them must not change
+    a single ICT trade. Runs on 4H, which has real ICT trades (LiveIctFillCheckActuallyFilters below) --
+    1D produces zero ICT trades on this symbol, which would make the invariance check vacuous."""
+
+    def setUp(self):
+        self.bt = load("backtest-methods.py")
+
+    def test_varying_the_leftover_ict_opts_does_not_change_ict_targets(self):
+        sym, tf = "BTCUSDT", "4H"   # 4H has real ICT trades (see LiveIctFillCheckActuallyFilters)
+        base = dict(self.bt.OPTS)
+        try:
+            self.bt.OPTS.update(ict_disp=False, ict_pd=False, std_origin="pivot")
+            baseline = self.bt.scan(sym, tf, only=("ICT",))["trades"]["ICT"]
+            self.assertGreater(len(baseline), 0, "no ICT trades on BTCUSDT 1D -- cannot prove invariance")
+            self.bt.OPTS.update(ict_disp=True, ict_pd=True, std_origin="highest")
+            varied = self.bt.scan(sym, tf, only=("ICT",))["trades"]["ICT"]
+            self.assertEqual(baseline, varied, "ICT trades changed when ict_disp/ict_pd/std_origin changed -- "
+                                                "the live ICT path must be fully independent of these OPTS")
+        finally:
+            self.bt.OPTS.update(base)
 
 
 class ScanOnlyFilterMatchesUnfiltered(unittest.TestCase):

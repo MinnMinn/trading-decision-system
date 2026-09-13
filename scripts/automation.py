@@ -892,7 +892,7 @@ def apply_setup_spec(cfg, a):
         lines = [f"SETUP HORIZONS: {len(setups)} setups (scalping / day / swing per market, ranked on the last 12 months) -> {rel(sel)} (table {rel(out)}); pilot profile = top5"]
         for st in setups:
             b = st.get("backtest", {})
-            lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['horizon']} {st['tf']} {st['method']} target={st.get('ict_target')} htf={st.get('htf')} exec={st['execution']} | 1y: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
+            lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['horizon']} {st['tf']} {st['method']} htf={st.get('htf')} exec={st['execution']} | 1y: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
                          + ("  [BACKTEST ÂM]" if st.get("negative_backtest") else ""))
         for m in ("crypto", "cfd"):
             missing = [h for h in ("scalping", "day", "swing") if not any(st["market"] == m and st["horizon"] == h for st in setups)]
@@ -915,7 +915,7 @@ def apply_setup_spec(cfg, a):
     lines = [f"SETUP TOP {n}: {len(setups)} setups selected on the last 12 months -> {rel(sel)} (table {rel(out)}); pilot profile = top5"]
     for st in setups:
         b = st.get("backtest", {})
-        lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['tf']} {st['method']} target={st.get('ict_target')} htf={st.get('htf')} exec={st['execution']} | 1y: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
+        lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['tf']} {st['method']} htf={st.get('htf')} exec={st['execution']} | 1y: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
                      + ("  [BACKTEST ÂM]" if st.get("negative_backtest") else ""))
     missing = [m for m in ("crypto", "cfd") if not any(st["market"] == m for st in setups)]
     if missing:
@@ -1355,7 +1355,7 @@ def cmd_pilot(a):
             try:
                 for st in json.load(open(sel, encoding="utf-8"))["setups"]:
                     b = st.get("backtest", {})
-                    print(f"    {st.get('rank', '-')}. {st['id']}: {st['market']} {st['tf']} {st['method']} target={st.get('ict_target')} htf={st.get('htf')} "
+                    print(f"    {st.get('rank', '-')}. {st['id']}: {st['market']} {st['tf']} {st['method']} htf={st.get('htf')} "
                           f"exec={st['execution']} | backtest {b.get('ann_pct')}%/yr, DD -{b.get('max_dd_pct')}%, quarters+ {b.get('q_pos_pct')}%, years+ {b.get('years_pos')}")
             except Exception as e:
                 print(f"  ! selection file {rel(sel)} unreadable ({e}) -- the runner will refuse to tick")

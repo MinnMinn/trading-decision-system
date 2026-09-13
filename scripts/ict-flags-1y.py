@@ -61,7 +61,7 @@ def main():
         base_opts = dict(bt.OPTS)
         rows = []
         for combo in COMBOS:
-            bt.OPTS.update(base_opts); bt.OPTS.update(min_rr=0.0, sides=("long", "short"), htf=bool(st.get("htf")), mgmt=st.get("mgmt", "none"), ict_target=st.get("ict_target") or "range", **combo)
+            bt.OPTS.update(base_opts); bt.OPTS.update(min_rr=0.0, sides=("long", "short"), htf=bool(st.get("htf")), mgmt=st.get("mgmt", "none"), **combo)
             trades = []; last = None
             for sym in st["symbols"]:
                 r = bt.scan(sym, tf)
@@ -85,7 +85,7 @@ def main():
             reason += f"; theo tiêu chí còn lại thì chọn disp={'bật' if alt['ict_disp'] else 'tắt'}/P-D={'bật' if alt['ict_pd'] else 'tắt'}/{alt['std_origin']}"
         if chosen:
             decisions[st["id"]] = dict(ict_disp=chosen["ict_disp"], ict_pd=chosen["ict_pd"], std_origin=chosen["std_origin"], reason=reason, window=f"{chosen['start']}→{chosen['last']}", n=chosen["n"])
-        L += [f"## {st['id']} — {st['market']} {tf} target {st.get('ict_target')} · {'lọc HTF' if st.get('htf') else 'không lọc HTF'} · {st.get('mgmt')} · phí {fee*100:.2f}%", "",
+        L += [f"## {st['id']} — {st['market']} {tf} · {'lọc HTF' if st.get('htf') else 'không lọc HTF'} · {st.get('mgmt')} · phí {fee*100:.2f}%", "",
               f"Cửa sổ {rows[0]['start']} → {rows[0]['last']} (dữ liệu đến {rows[0]['last']}). Ngưỡng số lệnh: {need}.", "",
               "| disp | P/D | gốc STD | Lệnh | Thắng | ΣR | Lợi nhuận | Sụt giảm | LN/DD | Quý dương | Quý tệ nhất | Từng quý | Tháng dương | Chọn |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
         for r in sorted(rows, key=key, reverse=True):

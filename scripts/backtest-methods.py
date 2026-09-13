@@ -57,7 +57,7 @@ STOP_BUFFER_PCT = 0.0005
 RISK = 0.01
 START = 10000.0      # account size in $ (user decision 2026-09-11: $10,000 for readability)
 RUIN_FRAC = 0.10     # the account is declared BLOWN (cháy) when equity <= 10 % of START; trading stops there and the report says so
-OPTS = dict(min_rr=0.0, types=(1, 2, 3), range_touches=0, htf=False, sides=("long", "short"), entry="book", mgmt="none", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit", ict_target="range",
+OPTS = dict(min_rr=0.0, types=(1, 2, 3), range_touches=0, htf=False, sides=("long", "short"), entry="book", mgmt="none", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit",
             ict_disp=False, ict_pd=False, std_origin="pivot", methods=None)
 _ICT = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"].get("ict", {})
 DISP = _ICT.get("displacement", {"body_min_ratio": 0.6, "range_min_median_ratio": 1.2})
@@ -148,51 +148,6 @@ def find_ict(side, i, rec, H, L, C, K, n, PH, PL, O=None):
             if L[k - 1] > H[k + 1]:
                 return mss, H[k + 1], L[k - 1]
     return None
-
-
-def ict_target(side, i, mss, ext, H, L, R, PH, PL, range_target):
-    """Target models for the ICT-only method (OPTS["ict_target"]):
-      range    = the R-bar extreme before the sweep (this project's original proxy for the opposite liquidity)
-      std2 / std25 / std4 = standard-deviation projection of the MANIPULATION LEG (knowledge/05 §2.12, R16–R18): fib 1 at the
-               sweep extreme, 0 at the swing the manipulation began from (the last pivot before the sweep); -2 .. -2.5 = retrace/
-               reverse zone (take profit, R17), -4 = max expansion (R18)
-      erl_next = the next external liquidity beyond the swing the MSS broke: the first pivot high (long) above the MSS level within R
-               bars before the sweep, else the R-bar extreme (knowledge/05 §2.13, R3/R20: after IRL, target the next ERL)
-      irl      = the nearest opposing FVG above (long) the MSS level formed within R bars before the sweep, its near edge; else erl_next
-    """
-    mode = OPTS["ict_target"]
-    if mode == "range":
-        return range_target
-    if side == "long":
-        origin_i = last_pivot(PH, i); origin = H[origin_i] if origin_i is not None else None
-        if origin is not None and OPTS["std_origin"] == "highest":
-            origin = max(H[origin_i:i + 1])   # Model11 p20: "low to the previous high which made the highest high"
-    else:
-        origin_i = last_pivot(PL, i); origin = L[origin_i] if origin_i is not None else None
-        if origin is not None and OPTS["std_origin"] == "highest":
-            origin = min(L[origin_i:i + 1])
-    if origin is None:
-        return None
-    leg = abs(origin - ext)
-    if leg <= 0:
-        return None
-    if mode.startswith("std"):
-        mult = {"std2": 2.0, "std25": 2.5, "std4": 4.0}[mode]
-        return origin + mult * leg if side == "long" else origin - mult * leg
-    if mode in ("erl_next", "irl"):
-        if mode == "irl":
-            lo_i = max(3, i - R)
-            for k in range(i - 1, lo_i, -1):                      # nearest first
-                if side == "long" and L[k - 1] > H[k + 1] and H[k + 1] > origin:
-                    return H[k + 1]
-                if side == "short" and H[k - 1] < L[k + 1] and L[k + 1] < origin:
-                    return L[k + 1]
-        piv = PH if side == "long" else PL
-        for q in reversed([q for q in piv if i - R <= q < i]):
-            if (side == "long" and H[q] > origin) or (side == "short" and L[q] < origin):
-                return H[q] if side == "long" else L[q]
-        return range_target
-    return range_target
 
 
 def fvg_fill(side, mss, edge, far, stop, H, L, K, n):
@@ -574,7 +529,6 @@ def main():
     ap.add_argument("--st-min", type=float, default=None, help="book engine: require ST[A] at least this fraction of the TR above the SC (WA p75: 0.5 = supply thinned)")
     ap.add_argument("--no-phase-d", action="store_true", help="book engine: no BU/LPS Phase D entries")
     ap.add_argument("--combined-entry", default="limit", choices=["limit", "market", "hindsight"], help="COMBINED entry rule (see scan); default limit = causal")
-    ap.add_argument("--ict-target", default="range", choices=["range", "std2", "std25", "std4", "erl_next", "irl"], help="ICT target model (see ict_target)")
     ap.add_argument("--ict-disp", action="store_true", help="require a displacement candle for the MSS (knowledge/04 §2.16; project ratios)")
     ap.add_argument("--ict-pd", action="store_true", help="ICT-only: longs from discount / shorts from premium of the R-bar range (knowledge/04 §3.4 R13)")
     ap.add_argument("--std-origin", default="pivot", choices=["pivot", "highest"], help="std projection fib-0 anchor (see docstring)")
@@ -582,11 +536,11 @@ def main():
                     help="comma-separated bias-reading methods (wyckoff,ict) for the live ICT rules; "
                          "default = resolved per symbol from /automation (htf_context.engaged_methods_for_market)")
     a = ap.parse_args(); fee = a.fee_pct / 100
-    OPTS.update(min_rr=a.min_rr, types=tuple(int(x) for x in a.types.split(",")), range_touches=a.range_touches, htf=a.htf, sides=tuple(a.sides.split(",")), entry=a.entry, mgmt=a.mgmt, sloped_gate=a.sloped_gate, st_min=a.st_min, phase_d=not a.no_phase_d, combined_entry=a.combined_entry, ict_target=a.ict_target,
+    OPTS.update(min_rr=a.min_rr, types=tuple(int(x) for x in a.types.split(",")), range_touches=a.range_touches, htf=a.htf, sides=tuple(a.sides.split(",")), entry=a.entry, mgmt=a.mgmt, sloped_gate=a.sloped_gate, st_min=a.st_min, phase_d=not a.no_phase_d, combined_entry=a.combined_entry,
                 ict_disp=a.ict_disp, ict_pd=a.ict_pd, std_origin=a.std_origin, methods=tuple(a.methods.split(",")) if a.methods else None)
     today = datetime.date.today().isoformat()
     L = [f"# Wyckoff vs ICT vs kết hợp — lợi nhuận theo tháng/quý/năm, rủi ro 1%/lệnh — đo {today}", "",
-         f"_Bộ lọc: R/R kế hoạch ≥ {a.min_rr} · loại KL {a.types} · biên TR chạm ≥ {a.range_touches} lần mỗi bên · lọc khung lớn {'bật' if a.htf else 'tắt'} · chiều {a.sides} · vào lệnh Wyckoff {a.entry} · quản lý {a.mgmt} · phí {a.fee_pct}%/chiều · target ICT {a.ict_target} · displacement {'bật' if a.ict_disp else 'tắt'} · P/D gate {'bật' if a.ict_pd else 'tắt'} · gốc STD {a.std_origin}_", "",
+         f"_Bộ lọc: R/R kế hoạch ≥ {a.min_rr} · loại KL {a.types} · biên TR chạm ≥ {a.range_touches} lần mỗi bên · lọc khung lớn {'bật' if a.htf else 'tắt'} · chiều {a.sides} · vào lệnh Wyckoff {a.entry} · quản lý {a.mgmt} · phí {a.fee_pct}%/chiều · displacement {'bật' if a.ict_disp else 'tắt'} · P/D gate {'bật' if a.ict_pd else 'tắt'} · gốc STD {a.std_origin}_", "",
          f"_`scripts/backtest-methods.py` trên nến lưu tại `data/history/`; phí taker {a.fee_pct}%/chiều; mọi định nghĩa và THAM SỐ DỰ ÁN ở docstring của script. Số ở đây là của proxy bằng code, không phải của phân tích đầy đủ — đọc caveats cuối file._", ""]
     allres = {}
     for tf in a.tf.split(","):

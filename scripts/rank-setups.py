@@ -119,8 +119,12 @@ def main():
         L.append("")
         for i, r in enumerate(top, 1):
             cfg = CFG_DESC[r["cfg"]]
+            # ict_target is NOT stamped here (2026-09-13): its only reader, backtest-methods.py's legacy ICT
+            # target-model switch, was deleted -- the live ICT path takes its target from ict_scan.setup_candidate
+            # and never consults it. Stamping an explicit null would still tell a reader "a target model concept
+            # applies to ICT setups", which is no longer true; dropping the key is the honest schema.
             selection["setups"].append(dict(id=f"{market}-{r['method'].lower()}-{r['tf'].lower()}-{r['target']}-{r['cfg'].lower()}", rank=i, market=market, symbols=syms, tf=r["tf"], method=r["method"],
-                                            ict_target=r["target"] if r["method"] == "ICT" else None, htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
+                                            htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
                                             execution="futures" if market == "crypto" else "mt5",
                                             backtest=dict(n=r["n"], ann_pct=round(r["ann"], 1), max_dd_pct=round(r["dd"], 1), q_pos_pct=round(r["q_pos"]), years_pos=f"{r['y_pos']}/{r['y_n']}", period=f"{r['first']}→{r['last']}", source=r["file"])))
     md = "\n".join(L) + "\n"; print(md)
@@ -148,8 +152,9 @@ def main_window_1y(a, today):
         L.append("")
         for i, r in enumerate(top, 1):
             cfg = CFG_DESC[r["cfg"]]; w = r["w1y"]
+            # ict_target dropped (see the top-level rank() call above for why).
             selection["setups"].append(dict(id=f"{market}-{r['method'].lower()}-{r['tf'].lower()}-{r['target']}-{r['cfg'].lower()}", rank=i, market=market, symbols=syms, tf=r["tf"], method=r["method"],
-                                            ict_target=r["target"] if r["method"] == "ICT" else None, htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
+                                            htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
                                             execution="futures" if market == "crypto" else "mt5", negative_backtest=bool(w["ann"] < 0),
                                             backtest=dict(window="1y", n=w["n"], ann_pct=round(w["ann"], 1), max_dd_pct=round(w["dd"], 1), q_pos_pct=round(w["q_pos"]), since=w["since"],
                                                           full_n=r["n"], full_ann_pct=round(r["ann"], 1), full_q_pos_pct=round(r["q_pos"]), years_pos=f"{r['y_pos']}/{r['y_n']}", source=r["file"])))
@@ -179,8 +184,9 @@ def main_horizons(a, today):
                 r = ranked[0]; w = r["w1y"] if a.window == "1y" else r; row = fmt(r, a.window if a.window == "1y" else None).replace("| ", "| " + hz + " | ", 1)
                 L.append(row if w["ann"] >= 0 else row.replace(f"| {hz} |", f"| *{hz}* |", 1))
                 cfg = CFG_DESC[r["cfg"]]
+                # ict_target dropped (see the top-level rank() call above for why).
                 selection["setups"].append(dict(id=f"{market}-{hz}-{r['method'].lower()}-{r['tf'].lower()}-{r['target']}-{r['cfg'].lower()}", horizon=hz, rank=len(selection["setups"]) + 1, market=market, symbols=syms, tf=r["tf"], method=r["method"],
-                                                ict_target=r["target"] if r["method"] == "ICT" else None, htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
+                                                htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
                                                 execution="futures" if market == "crypto" else "mt5", negative_backtest=bool(w["ann"] < 0),
                                                 backtest=dict(window=a.window, n=w["n"], ann_pct=round(w["ann"], 1), max_dd_pct=round(w["dd"], 1), q_pos_pct=round(w["q_pos"]), full_n=r["n"], full_ann_pct=round(r["ann"], 1), years_pos=f"{r['y_pos']}/{r['y_n']}", period=f"{r['first']}→{r['last']}", source=r["file"])))
         L.append("")

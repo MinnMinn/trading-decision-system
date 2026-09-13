@@ -14,9 +14,11 @@ Rules = the backtest, function for function (scripts/backtest-methods.py, import
             retest (WMT p049, WA p80) -- MARKET at that bar's close; stop = Spring extreme; target = opposite border
   WYCKOFF-BOOK  scripts/wyckoff_rules.py structures on the window (CHoCH gate, TR from SC/AR, Phase B, Spring vs Shakeout, VP veto, Test, Phase D
             BU) -- MARKET at the entry bar close; Phase D target = TR top + 1 TR
-  ICT       sweep of the last 3-bar pivot -> MSS body close within K -> FVG complete before the MSS -> LIMIT at the FVG near edge;
-            stop = excursion extreme -/+ 0.05 %; target per the setup's ict_target (range | std2 | std25 | std4 | erl_next | irl,
-            bt.ict_target -- std = knowledge/05 §2.12 projections of the manipulation leg)
+  ICT       sourced from the LIVE rules (ict_live_setups -> live_rules.ict_scan.setup_candidate), same as bt.scan's ICT branch:
+            sweep of the last 3-bar pivot -> MSS body close within K -> FVG complete before the MSS -> LIMIT at the FVG near edge;
+            stop = excursion extreme -/+ 0.05 %; target = the live scanner's su["target"] (no configurable target model --
+            the six-way range/std2/std25/std4/erl_next/irl switch and bt.ict_target() were deleted 2026-09-13, dead since
+            the legacy ICT branch that was their only caller was removed)
   COMBINED  Spring/Upthrust proxy (R-bar border pierce, reclaim <= 2 bars, volume type gate) + the ICT confirmation -> LIMIT at the
             FVG edge; stop = Spring extreme; target = the opposite border
   Entry = LIMIT valid K bars after the MSS (post-only GTX on Binance; a pending order with SL/TP attached on MT5); no fill -> no
@@ -60,7 +62,7 @@ instruments = importlib.util.module_from_spec(_ispec); _ispec.loader.exec_module
 CRYPTO = instruments.execution("crypto"); CFD = instruments.execution("cfd")
 _mspec = importlib.util.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py"))
 mreg = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(mreg)
-DEFAULT_SETUPS = [dict(id="crypto-ict-30m-std25-c", market="crypto", symbols=CRYPTO, tf="30m", method="ICT", ict_target="std25", htf=True, mgmt="be", execution="futures")]
+DEFAULT_SETUPS = [dict(id="crypto-ict-30m-std25-c", market="crypto", symbols=CRYPTO, tf="30m", method="ICT", htf=True, mgmt="be", execution="futures")]
 # STRUCTURE tier = the next runner timeframe >= 4x (scripts/automation.py next_rung -- the one ladder rule, docs/architecture/
 # timeframe-mapping.md). Over the runner's rungs this yields 5m->30m, 15m->1H, 30m->2H, 1H->4H, 2H->1D, 4H->1D, 1D->None,
 # identical to the table the backtests were run with (scripts/tests/test_timeframe_ladder.py pins it).
@@ -444,7 +446,7 @@ def ict_live_setups(side, candles, tf, sym):
     return out
 
 
-def setups(method, side, candles, tf, ict_target="range", ict_disp=False, ict_pd=False, std_origin="pivot", sym=None):
+def setups(method, side, candles, tf, ict_disp=False, ict_pd=False, std_origin="pivot", sym=None):
     """Every setup of `method`/`side` in the window whose LIMIT would still be working at the last closed bar.
     ICT (2026-09-13, Task 8): sourced from the LIVE rules -- see ict_live_setups() above -- migrated off the
     legacy bt.all_pivots/bt.find_ict/bt.ict_target proxies so the runner and bt.scan() agree on what an ICT
@@ -454,15 +456,18 @@ def setups(method, side, candles, tf, ict_target="range", ict_disp=False, ict_pd
     COMBINED/PARTIAL block. ict_disp / ict_pd / std_origin are the deck-faithful switches of
     backtest-methods.py (2026-09-12); ict_pd/std_origin no longer affect anything here (only the now-removed
     legacy ICT branch read them) but ict_disp still gates this branch's call into bt.find_ict via bt.OPTS,
-    unchanged from before this migration."""
+    unchanged from before this migration. No ict_target parameter (2026-09-13 audit): its only reader,
+    backtest-methods.py's ict_target(), was deleted -- its only caller was the legacy ICT branch removed
+    alongside it, and this COMBINED/PARTIAL branch's target has always been the range border (see `target =`
+    below), never bt.ict_target()'s output."""
     if method == "ICT":
         return ict_live_setups(side, candles, tf, sym)
     p = bt.P[tf]; R, K = p["R"], p["K"]
     H = [x["high"] for x in candles]; L = [x["low"] for x in candles]; C = [x["close"] for x in candles]; V = [x.get("volume", 0) for x in candles]
     O = [x["open"] for x in candles]; T = [x["time"] for x in candles]; n = len(candles)
     PH = bt.all_pivots(H, "high"); PL = bt.all_pivots(L, "low")
-    out = []; last_i = -99; prev = {k: bt.OPTS[k] for k in ("ict_target", "ict_disp", "ict_pd", "std_origin")}
-    bt.OPTS.update(ict_target=ict_target, ict_disp=bool(ict_disp), ict_pd=bool(ict_pd), std_origin=std_origin or "pivot")
+    out = []; last_i = -99; prev = {k: bt.OPTS[k] for k in ("ict_disp", "ict_pd", "std_origin")}
+    bt.OPTS.update(ict_disp=bool(ict_disp), ict_pd=bool(ict_pd), std_origin=std_origin or "pivot")
     try:
         for i in range(R + 6, n):
             support = min(L[i - R:i - 5]); resistance = max(H[i - R:i - 5])
@@ -1097,7 +1102,7 @@ def tick(live, tick_time=None, ignore_gate=False):
             c_for_setups = c if st["method"] == "ICT" else c[-WINDOW:]
             for side in ("long", "short"):
                 try:
-                    sigs = setups(st["method"], side, c_for_setups, st["tf"], st.get("ict_target") or "range", st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot", sym=sym) if mreg.scan_of(st["method"]) == "ict" else setups_wyckoff(st["method"], side, c_for_setups, st["tf"])
+                    sigs = setups(st["method"], side, c_for_setups, st["tf"], st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot", sym=sym) if mreg.scan_of(st["method"]) == "ict" else setups_wyckoff(st["method"], side, c_for_setups, st["tf"])
                 except Exception as e:
                     log("error", venue=venue, where=f"setups {st['id']} {sym} {side}", msg=str(e)[:200]); continue
                 for sig in sigs:
@@ -1158,8 +1163,7 @@ def replay(setup_ids, bars=600):
     for st in load_setups():
         if setup_ids != ["all"] and st["id"] not in setup_ids:
             continue
-        bt.OPTS.update(mgmt=st.get("mgmt", "be"), htf=False, sides=("long", "short"), min_rr=0.0, types=(1, 2, 3), range_touches=0, entry="book", combined_entry="limit",
-                       ict_target=st.get("ict_target") or "range")
+        bt.OPTS.update(mgmt=st.get("mgmt", "be"), htf=False, sides=("long", "short"), min_rr=0.0, types=(1, 2, 3), range_touches=0, entry="book", combined_entry="limit")
         # The EXECUTION list, not st["symbols"]: replay must cover exactly what the live loop trades
         # (enabled_symbols, line ~824) or parity is checked on a different universe than the one that
         # places orders. Not config-gated -- a market switched off still deserves its parity check.
@@ -1173,7 +1177,7 @@ def replay(setup_ids, bars=600):
             for k in range(WINDOW, len(span) + 1):
                 window = span[k - WINDOW:k]
                 for side in ("long", "short"):
-                    sigs = setups_wyckoff(st["method"], side, window, st["tf"]) if wy else setups(st["method"], side, window, st["tf"], st.get("ict_target") or "range", st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot", sym=sym)
+                    sigs = setups_wyckoff(st["method"], side, window, st["tf"]) if wy else setups(st["method"], side, window, st["tf"], st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot", sym=sym)
                     for sig in sigs:
                         placements.setdefault((side, sig["time"]), dict(sig, first_seen=window[-1]["time"]))
             sc = bt.scan(sym, st["tf"], only=(st["method"],)); span_start = span[WINDOW - 1]["time"]  # only the method being checked -- skip the rest of scan()'s work, esp. the live ICT scanner when unused (2026-09-13)
@@ -1223,7 +1227,7 @@ def main():
         for st in load_setups():
             flags = f" disp={st.get('ict_disp', False)} pd={st.get('ict_pd', False)} std_origin={st.get('std_origin', 'pivot')}" if mreg.scan_of(st["method"]) == "ict" else ""
             blocked = "" if st["method"] in allowed_methods(st["market"]) else "  [preset: blocked]"
-            print(f"{st.get('rank', '-')}. {st['id']}: {st['market']} {st['tf']} {st['method']} target={st.get('ict_target')}{flags} htf={st.get('htf')} mgmt={st.get('mgmt')} exec={st['execution']} symbols={','.join(st['symbols'])}{blocked}")
+            print(f"{st.get('rank', '-')}. {st['id']}: {st['market']} {st['tf']} {st['method']}{flags} htf={st.get('htf')} mgmt={st.get('mgmt')} exec={st['execution']} symbols={','.join(st['symbols'])}{blocked}")
         return
     if a.replay:
         print(json.dumps(replay(a.replay, a.bars), indent=1)); return
