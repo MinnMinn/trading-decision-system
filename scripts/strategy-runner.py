@@ -585,10 +585,13 @@ def htf_pass(sym, side, candles_htf, htf_tf):
     Returns None -- not False -- when the live rules cannot be asked here at ALL: htf_tf has no bt.P entry, no
     candles were fetched, or automation.SCAN_WINDOW has no entry for htf_tf (a pre-existing gap from Task 4/6
     for "2H"/"30m" -- bt.scan() already raises the same KeyError for those timeframes today; ict_scan_bars()
-    above is the same guard used for the ICT setup path). None means "structurally unable to judge" and does
-    NOT block a caller checking `is False` (tick() only blocks on an explicit False); a live bias read that DID
-    run but came back neutral/unknown returns False via bt.bias_allows, which DOES block -- capital preservation
-    first, per bias_allows' own docstring."""
+    above is the same guard used for the ICT setup path). None means "structurally unable to judge", which is
+    kept distinct from False ("judged and refused") purely for the LOGGED record -- the two are different facts
+    worth telling apart later. It is NOT permission: the caller (tick()) blocks a setup that declared htf:true
+    on anything other than an explicit True (2026-09-13, Task 8 fix round 1 -- a bare `is False` check used to
+    let None sail through as if the gate had opened, which is a fail-OPEN order gate; every other gate this
+    task touched fails closed on missing data -- scan-loop.sh, bias_allows' own neutral/unknown refusal,
+    live_rules.window raising rather than clamping -- and htf_pass's caller now matches that)."""
     if not candles_htf or htf_tf not in bt.P:
         return None
     if ict_scan_bars(htf_tf) is None:
@@ -1073,6 +1076,16 @@ def tick(live, tick_time=None, ignore_gate=False):
             log("preset_filtered", setup=st["id"], market=st["market"], method=st["method"],
                 why="method not permitted by the current method preset")
             continue
+        # 2026-09-13, Task 8 fix round 1: ict_live_setups() silently returns [] when live never scans this
+        # setup's entry tf (automation.SCAN_WINDOW has no "2H"/"30m" entry). Silent-empty in an order loop looks
+        # identical to a quiet market -- make it loud instead, once per tick this setup is due, naming the
+        # setup id and the timeframe, so the reason is IN the pilot log rather than inferred from an absence.
+        # Do NOT invent a window size here: live never scans 2H/30m, so there is no live value to copy.
+        if st["method"] == "ICT" and ict_scan_bars(st["tf"]) is None:
+            log("unscannable_tf", setup=st["id"], market=st["market"], method=st["method"], tf=st["tf"],
+                why=f"automation.SCAN_WINDOW has no entry for {st['tf']} -- live never scans this timeframe, so "
+                    f"this ICT setup can never produce a signal until that gap is closed")
+            continue
         venue = st["execution"]
         for sym in enabled_symbols(st["market"]):
             c = candles.get((sym, st["tf"]))
@@ -1105,8 +1118,17 @@ def tick(live, tick_time=None, ignore_gate=False):
                         reasons.append(f"blackout sự kiện {blackout}")
                     if sym in foreign:
                         reasons.append("sàn đang có vị thế/lệnh không thuộc runner này")
-                    if st.get("htf") and sig["htf_pass"] is False:
-                        reasons.append("khung lớn không cho hướng này")
+                    # FAIL CLOSED (2026-09-13, Task 8 fix round 1): a setup that declares htf:true is asking for a
+                    # higher-timeframe gate; if that gate cannot be evaluated, the answer is NOT permission. Before
+                    # this fix, htf_pass() could only return True/False (a percentile it could always compute from
+                    # bt.P), so `is False` was equivalent to `is not True` -- checking only for False cost nothing.
+                    # Now htf_pass() reads the live rules, which can genuinely be unable to judge (None) for
+                    # reasons that have nothing to do with the actual bias -- no candles fetched, htf_tf not in
+                    # bt.P, or automation.SCAN_WINDOW has no entry for htf_tf (the 2H/30m gap) -- and `is False`
+                    # would let every one of those sail through as if the gate had opened. Block on anything other
+                    # than an explicit True: only a live bias read that actually ran and agreed with `side` permits.
+                    if st.get("htf") and sig["htf_pass"] is not True:
+                        reasons.append("khung lớn không cho hướng này" if sig["htf_pass"] is False else "khung lớn: không đọc được bias (thiếu dữ liệu/không quét được khung này)")
                     log("signal", venue=venue, symbol=sym, strategy=st["id"], side=side, sweep_time=sig["time"], mss_time=sig["mss_time"], entry=sig["entry"], stop=sig["stop"],
                         target=sig["target"], r_planned=round(sig["r_planned"], 2), vol_type=sig["vol_type"], htf_pass=sig["htf_pass"], ok=not reasons, reasons=reasons)
                     if reasons:

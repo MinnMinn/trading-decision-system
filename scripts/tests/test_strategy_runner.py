@@ -168,6 +168,90 @@ class IctParityAchieved(unittest.TestCase):
         self.assertTrue([s for s in setups if s.get("method") == "ICT"])
 
 
+class HtfGateFailsClosed(unittest.TestCase):
+    """2026-09-13, Task 8 fix round 1: a setup that declares htf:true is asking for a higher-timeframe gate.
+    Before this fix, tick() only blocked on an explicit `sig["htf_pass"] is False`; once htf_pass() started
+    reading the live rules (this task), it can also return None for reasons that have NOTHING to do with the
+    actual bias -- no candles fetched, htf_tf not in bt.P, or automation.SCAN_WINDOW has no entry for htf_tf
+    (the 2H/30m gap) -- and every one of those sailed through as if the gate had opened. This is a fail-OPEN
+    order gate; every other gate this task touched fails closed on missing data. These tests assert on the
+    DECISION (was place_limit/place_market ever called), not on htf_pass's return value, per the coordinator's
+    review."""
+
+    ONE_SIG = dict(time="2026-01-01T00:00:00Z", mss_time="2026-01-01T00:00:00Z", entry=100.0, stop=99.0,
+                   target=102.0, bars_left=5, r_planned=2.0, vol_type=None)
+
+    def _run(self, htf_pass_return):
+        cfg = {"enabled": True, "layers": {"pilot": True},
+               "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"], "dimensions": {"wyckoff": True, "ict": True}},
+                           "cfd": {"enabled": False, "instruments": []}},
+               "execution": {"environment": "demo", "pilot_profile": "top5"}}
+        selection = {"setups": [dict(id="test-ict-htf", market="crypto", symbols=["BTCUSDT"], tf="15m",
+                                      method="ICT", ict_target="range", htf=True, mgmt="be", execution="futures")]}
+        state = {}
+        cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, cfg_tmp); cfg_tmp.close()
+        sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(selection, sel_tmp); sel_tmp.close()
+        state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(state, state_tmp); state_tmp.close()
+
+        saved = dict(AUTOMATION_CONFIG=sr.AUTOMATION_CONFIG, SELECTION=sr.SELECTION, STATE=sr.STATE,
+                     fetch_candles=sr.fetch_candles, log=sr.log, setups=sr.setups, htf_pass=sr.htf_pass,
+                     place_limit=sr.place_limit, place_market=sr.place_market, event_blackout=sr.event_blackout)
+        placed = []
+        candles80 = [dict(time=f"2026-01-01T{(m // 60) % 24:02d}:{m % 60:02d}:00Z", open=100, high=101, low=99, close=100, volume=1) for m in range(0, 80 * 15, 15)]
+        sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = cfg_tmp.name, sel_tmp.name, state_tmp.name
+        sr.fetch_candles = lambda *a, **k: list(candles80)
+        sr.log = lambda *a, **k: None
+        sr.event_blackout = lambda *a, **k: None
+        sr.setups = lambda method, side, c, tf, *a, **k: ([dict(self.ONE_SIG, side=side)] if side == "long" else [])
+        sr.htf_pass = lambda *a, **k: htf_pass_return
+        sr.place_limit = lambda sym, st, sig, equity, risk_mult, live: (placed.append((sym, sig)), None)[1]
+        sr.place_market = lambda *a, **k: (placed.append(("market",)), None)[1]
+        try:
+            sr.tick(live=False, tick_time=sr.parse_t("2026-01-02T00:01:00Z"), ignore_gate=True)
+        finally:
+            for k, v in saved.items():
+                setattr(sr, k, v)
+            os.unlink(cfg_tmp.name); os.unlink(sel_tmp.name); os.unlink(state_tmp.name)
+        return placed
+
+    def test_htf_pass_none_must_not_place_an_order(self):
+        """The regression: htf_pass() unable to judge (None) used to sail through as permission."""
+        self.assertEqual(self._run(None), [], "htf_pass()=None must refuse a setup that declared htf:true")
+
+    def test_htf_pass_false_must_not_place_an_order(self):
+        """The pre-existing, always-worked case: an explicit refusal still blocks."""
+        self.assertEqual(self._run(False), [])
+
+    def test_htf_pass_true_still_places_an_order(self):
+        """The fix must not just block everything: an explicit agreement still permits."""
+        placed = self._run(True)
+        self.assertEqual(len(placed), 1, "htf_pass()=True must still let a setup that declared htf:true place")
+
+    def test_before_after_decision_for_the_real_pilot_setup_hitting_this_gap(self):
+        """crypto-scalping-wyckoff-5m-border-c (WYCKOFF, 5m, htf:true) is the setup concern 2 named:
+        HTF_OF["5m"] == "30m", which automation.SCAN_WINDOW has no entry for, so its htf_pass is structurally
+        None on every tick, forever (not a transient data gap). Writes the OLD vs NEW block decision for it."""
+        setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")))["setups"]
+        st = next(s for s in setups if s["id"] == "crypto-scalping-wyckoff-5m-border-c")
+        self.assertTrue(st.get("htf"))
+        htf_tf = sr.HTF_OF[st["tf"]]
+        self.assertIsNone(sr.ict_scan_bars(htf_tf), f"expected {htf_tf} to be the unscannable gap this test documents")
+        htf_pass_value = None   # what htf_pass() returns for this setup, every tick, per the assertion above
+        old_blocks = bool(st.get("htf")) and htf_pass_value is False       # pre-fix condition (:1108 before this commit)
+        new_blocks = bool(st.get("htf")) and htf_pass_value is not True    # post-fix condition
+        with open("/tmp/task8-failclosed.txt", "w") as f:
+            f.write(f"setup: {st['id']} (method={st['method']} tf={st['tf']} htf={st.get('htf')})\n")
+            f.write(f"HTF_OF[{st['tf']!r}] = {htf_tf!r} -- automation.SCAN_WINDOW has no entry for it, so "
+                    f"htf_pass() returns None every tick, forever\n")
+            f.write(f"sig['htf_pass'] = {htf_pass_value!r}\n")
+            f.write(f"BEFORE (tick() blocked on `is False`):    blocks_new_entry = {old_blocks}  "
+                    f"-- fail-OPEN: the gate never refused this setup\n")
+            f.write(f"AFTER  (tick() blocks on `is not True`):  blocks_new_entry = {new_blocks}  "
+                    f"-- fail-CLOSED: the gate refuses until it can actually judge\n")
+        self.assertFalse(old_blocks, "sanity check: reproduces the fail-open bug under the OLD condition")
+        self.assertTrue(new_blocks, "the NEW condition must refuse this setup until the SCAN_WINDOW gap is fixed")
+
+
 class Sizing(unittest.TestCase):
     def test_risk_never_above_one_percent_and_notional_capped(self):
         self.assertLessEqual(sr.RISK_PCT, 0.01)
