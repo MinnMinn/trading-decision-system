@@ -822,7 +822,12 @@ PILOT-04 (profile exclusivity) names it explicitly. Report it as a follow-up que
 
 - **Do NOT restart the pilot or turn `/automation` on, and do NOT set `layers.pilot on`.** All three locks stay as they are; lifting them is a separate, explicit user decision after the Task 6 comparison has been read.
 - **Do NOT re-rank `docs/architecture/pilot-top5.json`.** The user paused top5 on 2026-09-13 ("tạm dừng … sau này có nhu cầu thì sẽ làm lại sau"). The file stays on disk untouched as the record of what was selected under the legacy rules. Re-ranking (`scripts/rank-setups.py --horizons --window 1y`) belongs to whatever session brings the pilot back, because the selection must be made from the rules in force at that time.
-- **Do NOT change `demo-pilot.py`.** It is the inactive `legacy` profile. Its pin (`BIAS_METHODS`) and the step-6 characterization tests in `scripts/tests/test_bias_methods.py` stay as they are.
+- ~~**Do NOT change `demo-pilot.py`.** It is the inactive `legacy` profile. Its pin (`BIAS_METHODS`) and the step-6 characterization tests in `scripts/tests/test_bias_methods.py` stay as they are.~~
+  **SUPERSEDED 2026-09-13 by `docs/plans/2026-09-13-collapse-to-one-system.md`.** The user chose one engine:
+  `demo-pilot.py` is deleted outright, and with it the `legacy` profile, the `execution.pilot_profile` switch and
+  the `PilotHtfFilter` characterization tests. This line is struck through rather than removed so a later reader
+  who arrives via a git blame or an old link sees that the prohibition was lifted deliberately, not forgotten —
+  it was still in force when commit `dc4a475` fixed that file's missing R:R gate under it.
 - **Do NOT touch `wyckoff_rules.py` or the WYCKOFF / WYCKOFF-BOOK methods.** They already share code between backtest and runner.
 - **Do NOT change the trade dict shape** returned by `scan()`. `simulate()`, the reporting code and `strategy-runner.py` all read it.
 - **Do NOT delete the legacy ICT block or `htf_allows`.** `--rules legacy` is what makes the comparison in Task 5 possible.
