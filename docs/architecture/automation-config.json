@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "_comment": "Written by scripts/automation.py (/automation). execution.environment may ALSO be edited by hand to switch between config/env.demo and config/env.real; `/automation demo|real` writes it too. The schema at docs/architecture/schemas/automation-config.schema.json is the contract.",
-  "enabled": false,
+  "enabled": true,
   "execution": {
     "environment": "demo",
     "pilot_profile": "top5",
@@ -61,9 +61,9 @@
     "pilot": false
   },
   "services": {
-    "scanner_agent": false,
+    "scanner_agent": true,
     "pilot_agents": [],
-    "keepawake_pid": null
+    "keepawake_pid": 90087
   },
   "pilot_process": {
     "pid": 0,
@@ -74,7 +74,7 @@
     "launchd_label": "com.tyme.trading.pilot.futures",
     "stopped_at": "2026-09-12T18:25:54Z"
   },
-  "last_updated": "2026-09-13T04:58:52Z",
+  "last_updated": "2026-09-13T09:26:54Z",
   "history": [
     {
       "ts": "2026-09-10T10:06:03Z",
@@ -1019,6 +1019,20 @@
       "actor": "user (via Claude)",
       "action": "layer pilot=off",
       "detail": "pause the top5 pilot while the backtest is unified with the live rules; nothing deleted, re-enable with: automation.py layer pilot on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-13T09:26:54Z",
+      "actor": "user (via Claude)",
+      "action": "setup horizons",
+      "detail": "re-enable analysis only: scanner + local_read; layers.pilot stays off pending Security re-review and re-rank after the backtest/live-rules unification",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-13T09:26:54Z",
+      "actor": "user (via Claude)",
+      "action": "on",
+      "detail": "re-enable analysis only: scanner + local_read; layers.pilot stays off pending Security re-review and re-rank after the backtest/live-rules unification",
       "result": "applied"
     }
   ]
