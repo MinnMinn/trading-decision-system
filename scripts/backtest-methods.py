@@ -58,7 +58,7 @@ RISK = 0.01
 START = 10000.0      # account size in $ (user decision 2026-09-11: $10,000 for readability)
 RUIN_FRAC = 0.10     # the account is declared BLOWN (cháy) when equity <= 10 % of START; trading stops there and the report says so
 OPTS = dict(min_rr=0.0, types=(1, 2, 3), range_touches=0, htf=False, sides=("long", "short"), entry="book", mgmt="none", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit", ict_target="range",
-            ict_disp=False, ict_pd=False, std_origin="pivot", rules="live", methods=None)
+            ict_disp=False, ict_pd=False, std_origin="pivot", methods=None)
 _ICT = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"].get("ict", {})
 DISP = _ICT.get("displacement", {"body_min_ratio": 0.6, "range_min_median_ratio": 1.2})
 
@@ -251,10 +251,12 @@ def htf_position(sym, tf):
 
 
 def htf_allows(htf, t, side):
-    """LEGACY: the pre-2026-09-13 rolling-percentile proxy, kept reachable via --rules legacy so it stays
-    comparable against the live gate; bias_allows() below is the gate strategy-runner.py should use going forward.
-    Boundary rule (htf_context.BOUNDARY_FRACTION): longs only when the HTF sits in the lower third of its range or has
-    broken above it (markup); shorts the mirror. Uses the last HTF bar that CLOSED before t."""
+    """LEGACY: the pre-2026-09-13 rolling-percentile proxy. Still the higher-timeframe boundary filter for THIS
+    scan()'s WYCKOFF/COMBINED/PARTIAL and WYCKOFF-BOOK/COMBINED-BOOK blocks (unchanged, Task 8 dependency map --
+    those methods are not migrated by this task); strategy-runner.py's own htf_pass() no longer calls this (it
+    was migrated onto bias_allows() below, Task 8, 2026-09-13). Boundary rule (htf_context.BOUNDARY_FRACTION):
+    longs only when the HTF sits in the lower third of its range or has broken above it (markup); shorts the
+    mirror. Uses the last HTF bar that CLOSED before t."""
     k = bisect.bisect_left(htf, (t,)) - 1
     if k < 0:
         return False
@@ -270,8 +272,10 @@ def bias_allows(bias, side):
     (scripts/htf_context.py wyckoff_bias / ict_bias / bias_of).
 
     Only an explicit agreement opens the gate: `neutral` is a real reading that found no direction and `unknown`
-    means no read was available, and neither is permission to take risk (capital preservation first). This
-    replaces htf_allows, the rolling-percentile proxy, which is kept above so --rules legacy still runs."""
+    means no read was available, and neither is permission to take risk (capital preservation first). This is
+    what strategy-runner.py's htf_pass() uses now (Task 8, 2026-09-13); htf_allows above is the rolling-
+    percentile proxy it replaced there, kept because WYCKOFF/COMBINED/PARTIAL/WYCKOFF-BOOK/COMBINED-BOOK in
+    THIS file's scan() still use it (unchanged, Task 8 dependency map)."""
     return bias == side
 
 
@@ -478,53 +482,15 @@ def scan(sym, tf, only=None):
                     if w:
                         trades["WYCKOFF-BOOK"].append(dict(base, event=base["event"] + "-D", entry=C[b], entry_time=Tm[b], stop=stop, target=target, exit_time=Tm[w["exit"]], leg="phase_d", **w))
     # ---------- ICT only ----------
-    # "live" (default): the LIVE scanner (scripts/ict-scan.py + scripts/htf_context.py) decides every structure --
-    # pivot, sweep, MSS, FVG, dealing range, bias -- so the backtest measures the system actually traded (audit
-    # 2026-09-13). "legacy": the pre-2026-09-13 in-file proxies below, kept reachable only for the old-vs-new
-    # comparison a later task produces; do NOT change its behaviour. Skipped entirely (never calls the live
-    # scanner) when "ICT" is not in `only` -- see scan()'s docstring.
+    # The LIVE scanner (scripts/ict-scan.py + scripts/htf_context.py, via scripts/live_rules.py) decides every
+    # structure -- pivot, sweep, MSS, FVG, dealing range, bias -- so the backtest measures the system actually
+    # traded (audit 2026-09-13). The pre-2026-09-13 in-file proxy this branch used to fall back to under
+    # `--rules legacy` is gone (Task 8, 2026-09-13): the evidence gate was met
+    # (docs/backtests/2026-09-13-live-rules-vs-legacy.md -- live's profit factor beat legacy on every timeframe
+    # measured and legacy blew the account up twice where live never did), so the second implementation is dead
+    # weight. Skipped entirely (never calls the live scanner) when "ICT" is not in `only` -- see scan()'s docstring.
     if "ICT" in want:
-        if OPTS["rules"] == "live":
-            trades["ICT"] = ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, resolve_methods(sym))
-        else:
-            for side in OPTS["sides"]:
-                last_i = -99
-                for i in range(R + 6, n - 3):
-                    if i - last_i <= 5:
-                        continue
-                    if htf is not None and not htf_allows(htf, Tm[i], side):
-                        continue
-                    if side == "long":
-                        pl = last_pivot(PL, i)
-                        if pl is None or not L[i] < L[pl]:
-                            continue
-                        ext = L[i]; stop = ext * (1 - STOP_BUFFER_PCT); target = max(H[i - R:i])
-                    else:
-                        ph = last_pivot(PH, i)
-                        if ph is None or not H[i] > H[ph]:
-                            continue
-                        ext = H[i]; stop = ext * (1 + STOP_BUFFER_PCT); target = min(L[i - R:i])
-                    if OPTS["ict_pd"]:   # knowledge/04 §3.4 R13: longs in discount, shorts in premium of the R-bar range (proxy for the BSL<->SSL range)
-                        eq_ = (max(H[i - R:i]) + min(L[i - R:i])) / 2
-                        if (side == "long" and C[i] >= eq_) or (side == "short" and C[i] <= eq_):
-                            continue
-                    last_i = i
-                    ict = find_ict(side, i, i, H, L, C, K, n, PH, PL, O=O)
-                    if not ict:
-                        continue
-                    mss, edge, far = ict
-                    # the sweep low may have extended after bar i up to the MSS: invalidation = lowest point of the excursion
-                    ext2 = min(L[i:mss + 1]) if side == "long" else max(H[i:mss + 1])
-                    stop = ext2 * (1 - STOP_BUFFER_PCT) if side == "long" else ext2 * (1 + STOP_BUFFER_PCT)
-                    target = ict_target(side, i, mss, ext2, H, L, R, PH, PL, target)
-                    if target is None:
-                        continue
-                    fill = fvg_fill(side, mss, edge, far, stop, H, L, K, n)
-                    if fill is None:
-                        continue
-                    w = walk(side, edge, stop, target, H, L, C, fill + 1, HZ)
-                    if w and ((side == "long" and target > edge) or (side == "short" and target < edge)):
-                        trades["ICT"].append(dict(symbol=sym, tf=tf, side=side, time=Tm[i], entry=edge, entry_time=Tm[fill], stop=stop, target=target, exit_time=Tm[w["exit"]], vol_type=None, **w))
+        trades["ICT"] = ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, resolve_methods(sym))
     return dict(symbol=sym, tf=tf, source=src, bars=n, first=Tm[0], last=Tm[-1], trades=trades)
 
 
@@ -612,15 +578,12 @@ def main():
     ap.add_argument("--ict-disp", action="store_true", help="require a displacement candle for the MSS (knowledge/04 §2.16; project ratios)")
     ap.add_argument("--ict-pd", action="store_true", help="ICT-only: longs from discount / shorts from premium of the R-bar range (knowledge/04 §3.4 R13)")
     ap.add_argument("--std-origin", default="pivot", choices=["pivot", "highest"], help="std projection fib-0 anchor (see docstring)")
-    ap.add_argument("--rules", choices=["live", "legacy"], default="live",
-                    help="live = the rules scripts/ict-scan.py + scripts/htf_context.py run (default); "
-                         "legacy = the pre-2026-09-13 in-file proxies, kept for comparison")
     ap.add_argument("--methods", default=None,
                     help="comma-separated bias-reading methods (wyckoff,ict) for the live ICT rules; "
                          "default = resolved per symbol from /automation (htf_context.engaged_methods_for_market)")
     a = ap.parse_args(); fee = a.fee_pct / 100
     OPTS.update(min_rr=a.min_rr, types=tuple(int(x) for x in a.types.split(",")), range_touches=a.range_touches, htf=a.htf, sides=tuple(a.sides.split(",")), entry=a.entry, mgmt=a.mgmt, sloped_gate=a.sloped_gate, st_min=a.st_min, phase_d=not a.no_phase_d, combined_entry=a.combined_entry, ict_target=a.ict_target,
-                ict_disp=a.ict_disp, ict_pd=a.ict_pd, std_origin=a.std_origin, rules=a.rules, methods=tuple(a.methods.split(",")) if a.methods else None)
+                ict_disp=a.ict_disp, ict_pd=a.ict_pd, std_origin=a.std_origin, methods=tuple(a.methods.split(",")) if a.methods else None)
     today = datetime.date.today().isoformat()
     L = [f"# Wyckoff vs ICT vs kết hợp — lợi nhuận theo tháng/quý/năm, rủi ro 1%/lệnh — đo {today}", "",
          f"_Bộ lọc: R/R kế hoạch ≥ {a.min_rr} · loại KL {a.types} · biên TR chạm ≥ {a.range_touches} lần mỗi bên · lọc khung lớn {'bật' if a.htf else 'tắt'} · chiều {a.sides} · vào lệnh Wyckoff {a.entry} · quản lý {a.mgmt} · phí {a.fee_pct}%/chiều · target ICT {a.ict_target} · displacement {'bật' if a.ict_disp else 'tắt'} · P/D gate {'bật' if a.ict_pd else 'tắt'} · gốc STD {a.std_origin}_", "",

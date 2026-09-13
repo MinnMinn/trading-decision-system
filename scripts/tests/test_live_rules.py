@@ -242,11 +242,11 @@ class HtfAllowsUnchanged(unittest.TestCase):
 
 
 class IctBranchUsesTheLiveScanner(unittest.TestCase):
+    """The `--rules`/OPTS["rules"] toggle itself is gone (Task 8, see LegacyEngineIsGone below) -- the ICT branch
+    of scan() now unconditionally uses the live scanner, which is what these tests check directly."""
+
     def setUp(self):
         self.bt = load("backtest-methods.py")
-
-    def test_rules_flag_defaults_to_live(self):
-        self.assertEqual(self.bt.OPTS["rules"], "live")
 
     def test_live_ict_setups_come_from_setup_candidate(self):
         """The live entry/stop/target rule is ict-scan.setup_candidate; the backtest must not re-derive one."""
@@ -316,18 +316,31 @@ class LiveIctFillCheckActuallyFilters(unittest.TestCase):
         self.assertLess(trade_count, setup_count)
 
 
-class LegacyRulesUnchanged(unittest.TestCase):
-    """--rules legacy must reproduce ed1c8e9's ICT branch bit-for-bit: only the LIVE branch is new behaviour."""
+class LegacyEngineIsGone(unittest.TestCase):
+    """Task 8 (2026-09-13): the evidence gate was met (docs/backtests/2026-09-13-live-rules-vs-legacy.md -- ICT
+    profit factor improved on every timeframe measured, legacy blew the account up twice, live never did), so
+    the second implementation -- --rules legacy and OPTS["rules"] -- is dead weight that can silently drift back
+    into use. These assertions are what make the removal real rather than a flag nobody sets. The
+    ed1c8e9-vs-live comparison LegacyRulesUnchanged used to run here is retired along with the branch it
+    exercised; the legacy figures it protected are preserved as a report, not as runnable code
+    (docs/backtests/2026-09-13-live-rules-vs-legacy.md)."""
 
     def setUp(self):
         self.bt = load("backtest-methods.py")
-        self.old = load_git_revision("ed1c8e9", "backtest-methods.py")
 
-    def test_legacy_ict_trades_match_ed1c8e9_for_one_symbol_tf(self):
-        self.bt.OPTS["rules"] = "legacy"
-        old_res = self.old.scan("BTCUSDT", "1D")
-        new_res = self.bt.scan("BTCUSDT", "1D")
-        self.assertEqual(new_res["trades"]["ICT"], old_res["trades"]["ICT"])
+    def test_rules_flag_is_gone(self):
+        self.assertNotIn("rules", self.bt.OPTS)
+
+    def test_the_helpers_other_methods_need_are_still_present(self):
+        """COMBINED/PARTIAL/COMBINED-BOOK/WYCKOFF still call these, and ict_setups_live calls fvg_fill.
+        Deleting them was in an earlier draft of this plan and would have broken four methods."""
+        for name in ("all_pivots", "last_pivot", "find_ict", "fvg_fill", "is_displacement",
+                     "ict_target", "htf_allows", "htf_position", "vtype"):
+            self.assertTrue(hasattr(self.bt, name), f"{name} was removed but is still used")
+
+    def test_the_helpers_the_wyckoff_side_needs_are_kept(self):
+        for name in ("vtype", "walk", "scan", "simulate", "bias_allows"):
+            self.assertTrue(hasattr(self.bt, name), f"{name} was removed but is still used")
 
 
 class ScanOnlyFilterMatchesUnfiltered(unittest.TestCase):
