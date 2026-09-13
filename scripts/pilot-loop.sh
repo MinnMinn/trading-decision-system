@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Runs the pilot every tick-seconds (scripts/strategy-runner.py --tick-seconds: the fastest selected timeframe).
-#   Usage: [PILOT_MARKET=spot|futures] [PILOT_END=<UTC ISO>|never] pilot-loop.sh [END_UTC_ISO|never]
-#   spot -> data/live/pilot (LONG only); futures -> data/live/pilot-futures (LONG/SHORT, ISOLATED, leverage <= 3).
+#   Usage: [PILOT_END=<UTC ISO>|never] pilot-loop.sh [END_UTC_ISO|never]
+#   One venue: data/live/pilot-futures (USDT-M futures, LONG/SHORT, ISOLATED, leverage <= 3).
+#
+# PILOT_MARKET is gone (2026-09-13). It used to choose between two engines; once the legacy spot engine was
+# deleted the loop stopped branching on it, so it selected only a STATE DIRECTORY -- and `data/live/pilot`
+# was no longer covered by automation.py's PILOT_STOP list, so a loop that took the old `spot` default placed
+# real orders with a kill switch `/automation off` could not reach. One venue, one directory, one STOP path.
 # Environment (demo testnet / real mainnet) is decided by docs/architecture/automation-config.json
 # -> execution.environment and config/env.<environment>; scripts/strategy-runner.py loads it on every tick.
 # Stops when <pilot dir>/STOP exists or END passes. While automation is OFF (master switch, layers.pilot,
@@ -11,11 +16,10 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 END="${1:-${PILOT_END:-$(date -u -v+24H +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '+24 hours' +%Y-%m-%dT%H:%M:%SZ)}}"
-export PILOT_MARKET="${PILOT_MARKET:-spot}"
-PD="$ROOT/data/live/pilot"; [ "$PILOT_MARKET" = "futures" ] && PD="$ROOT/data/live/pilot-futures"
+PD="$ROOT/data/live/pilot-futures"
 mkdir -p "$PD"
 ENVNAME="$(TRADING_ENV="${TRADING_ENV:-}" python3 "$ROOT/scripts/trading_env.py" 2>/dev/null | sed -n 's/^active environment: \([a-z]*\).*/\1/p')"
-echo "pilot loop [$PILOT_MARKET] env=${ENVNAME:-?} started $(date -u +%FT%TZ), ends $END, STOP file: ${PD#$ROOT/}/STOP" | tee -a "$PD/loop.log"
+echo "pilot loop env=${ENVNAME:-?} started $(date -u +%FT%TZ), ends $END, STOP file: ${PD#$ROOT/}/STOP" | tee -a "$PD/loop.log"
 while :; do
   [ -f "$PD/STOP" ] && { echo "STOP file found, exiting" | tee -a "$PD/loop.log"; break; }
   if [ "$END" != "never" ] && [ "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \> "$END" ]; then echo "end time reached" | tee -a "$PD/loop.log"; break; fi

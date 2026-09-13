@@ -81,7 +81,7 @@ SCANNER_LABEL = "com.tyme.trading.scanner"
 # One venue since 2026-09-13 (PILOT_MARKETS below); the spot label belonged to the deleted legacy engine.
 PILOT_LABEL = {"futures": "com.tyme.trading.pilot.futures"}
 PLIST_SRC = {"scanner": os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.scanner.plist"),
-             "pilot": os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.pilot.plist")}
+             "pilot": os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.pilot.futures.plist")}
 
 _tspec = importlib.util.spec_from_file_location("trading_env", os.path.join(ROOT, "scripts", "trading_env.py"))
 trading_env = importlib.util.module_from_spec(_tspec); _tspec.loader.exec_module(trading_env)
@@ -179,7 +179,8 @@ CONTEXT_STYLE = {st: gate_style(st)[0] for st in TIERS}
 # Where each market's OHLCV lands; the 15m file is the "is this instrument actually wired up?" probe.
 DATA_DIR = {"crypto": "market-data", "cfd": "mt5-bridge"}
 
-PILOT_MARKETS = ["futures"]   # one engine, one venue (user decision 2026-09-13); the spot loop ran the deleted legacy engine
+# One engine, one venue (user decision 2026-09-13). The second entry ran the deleted legacy engine.
+PILOT_MARKETS = ["futures"]
 # Anchored: match the bash process that IS the loop ("bash scripts/pilot-loop.sh" from a terminal, or
 # "/bin/bash /abs/path/scripts/pilot-loop.sh" from launchd) -- not any shell whose command text merely
 # mentions the file (a verification one-liner containing this string once produced a phantom PID).
@@ -191,7 +192,14 @@ def dryrun():
 
 
 def pilot_dir(market):
-    return os.path.join(ROOT, "data", "live", "pilot" if market == "spot" else "pilot-futures")
+    """State/log/STOP directory for a pilot market. One venue since 2026-09-13, so one directory.
+
+    The `"pilot" if market == "spot"` branch is gone: `data/live/pilot` belonged to the deleted spot engine and
+    is not in PILOT_STOP, so anything that resolved to it got a kill switch `/automation off` could not write.
+    Unknown markets now raise instead of silently landing there."""
+    if market not in PILOT_MARKETS:
+        raise KeyError(f"unknown pilot market {market!r}; known: {', '.join(PILOT_MARKETS)}")
+    return os.path.join(ROOT, "data", "live", "pilot-futures")
 
 
 def stop_path(market):
@@ -427,26 +435,16 @@ def alive(pid):
         return False
 
 
-def _market_from_env(pid):
-    try:
-        out = subprocess.run(["ps", "eww", str(pid)], capture_output=True, text=True, timeout=10).stdout
-    except Exception:
-        return None
-    if "PILOT_MARKET=futures" in out:
-        return "futures"
-    if "PILOT_MARKET=spot" in out:
-        return "spot"
-    return None
+def _pilot_market():
+    """The market a running scripts/pilot-loop.sh is on. One venue since 2026-09-13, so there is one answer.
 
-
-def _market_from_logs():
-    """Fallback when the process env carries no PILOT_MARKET: whichever loop.log was written most recently."""
-    best, best_mt = None, -1.0
-    for m in PILOT_MARKETS:
-        p = log_path(m)
-        if os.path.exists(p) and os.path.getmtime(p) > best_mt:
-            best, best_mt = m, os.path.getmtime(p)
-    return best or "spot"
+    Replaces _market_from_env() + _market_from_logs(). Both became unreachable-as-designed the moment
+    pilot-loop.sh stopped taking PILOT_MARKET: _market_from_env() grepped a running process's environment for
+    `PILOT_MARKET=`, which nothing sets any more, so it always returned None; _market_from_logs() then guessed
+    from whichever loop.log was newest and fell back to the literal "spot" -- a market this tool can no longer
+    stop, which would have mislabelled a live futures loop as unmanageable.
+    """
+    return PILOT_MARKETS[0]
 
 
 def running_pilots():
@@ -459,7 +457,7 @@ def running_pilots():
     except Exception:
         return []
     pids = [int(x) for x in out.split() if x.strip().isdigit() and int(x) not in own]
-    return [(p, _market_from_env(p) or _market_from_logs()) for p in pids]
+    return [(p, _pilot_market()) for p in pids]
 
 
 def write_stop(reason_prefix="  "):
@@ -553,7 +551,7 @@ def warnings(cfg, exists):
     pp = cfg.get("pilot_process")
     if pp and pp.get("pid") and alive(pp["pid"]) and not pp.get("stopped_at"):
         w.append(f"Pilot loop RUNNING: pid {pp['pid']} ({pp.get('market')}) since {pp.get('started_at')} -- "
-                 f"kill switch {rel(stop_path(pp.get('market', 'spot')))}.")
+                 f"kill switch {rel(stop_path(pp.get('market') or PILOT_MARKETS[0]))}.")
     managed = bool(pp and pp.get("launchd_label") and _agent_loaded(pp["launchd_label"]))
     unrecorded = [(p, m) for p, m in running_pilots()
                   if not (pp and pp.get("pid") == p) and not (managed and m == pp.get("market"))]
@@ -660,8 +658,6 @@ def _install_agent(label, src, env_overrides=None):
             txt = head + marker + v + "</string>" + rest
         else:
             txt = txt.replace("<key>PATH</key>", f"<key>{k}</key><string>{v}</string>\n    <key>PATH</key>", 1)
-    if env_overrides and "PILOT_MARKET" in env_overrides and env_overrides["PILOT_MARKET"] == "futures":
-        txt = txt.replace("data/live/pilot/launchd", "data/live/pilot-futures/launchd")
     if dryrun():
         return True, f"DRY RUN: would install {dst} and bootstrap gui/{_uid()}/{label}"
     with open(dst, "w", encoding="utf-8") as f:
@@ -759,7 +755,7 @@ def bring_up(cfg, a):
     fresh, mnote = mt5_freshness(cfg)
     notes.append(("+ " if fresh else "! ") + mnote)
     if cfg["layers"]["pilot"] and cfg["markets"]["crypto"]["enabled"]:
-        wanted = [m.strip() for m in (env.get("PILOT_MARKETS", "spot")).split(",") if m.strip() in PILOT_MARKETS]
+        wanted = [m.strip() for m in (env.get("PILOT_MARKETS", PILOT_MARKETS[0])).split(",") if m.strip() in PILOT_MARKETS]
         # A loop started outside launchd (a terminal, nohup) trades the same account. Never install a managed
         # loop next to it: that would double-trade. The user stops it first (touch its STOP file) or adopts it.
         unmanaged = [(p, m) for p, m in running_pilots()
@@ -776,8 +772,10 @@ def bring_up(cfg, a):
                              + "). Stop it first (touch data/live/pilot*/STOP, wait one tick) or `pilot adopt` it, "
                                "then run `/automation on` again -- installing a second loop would double-trade.")
                 continue
-            keys = ("BINANCE_SPOT_API_KEY", "BINANCE_SPOT_SECRET_KEY") if m == "spot" \
-                else ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY")
+            # One venue, one key pair. The branch here used to pick the SPOT keys for the deleted market; with
+            # one venue it was unreachable, and picking those keys for a futures order path would sign against
+            # the wrong API.
+            keys = ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY")
             ok, missing, cnote = trading_env.completeness(envname, keys)
             if not ok:
                 notes.append(f"! pilot [{m}] NOT started: environment '{envname}' incomplete ({cnote})")
@@ -786,7 +784,7 @@ def bring_up(cfg, a):
             if os.path.exists(sp) and not dryrun():
                 os.remove(sp)
                 notes.append(f"+ removed kill switch {rel(sp)} (on = re-arm)")
-            ok, note = _install_agent(PILOT_LABEL[m], PLIST_SRC["pilot"], {"PILOT_MARKET": m, "PILOT_END": "never"})
+            ok, note = _install_agent(PILOT_LABEL[m], PLIST_SRC["pilot"], {"PILOT_END": "never"})
             notes.append(("+ " if ok else "! ") + f"pilot [{m}] {note}")
             if ok and not dryrun() and PILOT_LABEL[m] not in cfg["services"]["pilot_agents"]:
                 cfg["services"]["pilot_agents"].append(PILOT_LABEL[m])
@@ -946,10 +944,11 @@ def cmd_master(a):
 def cmd_env(a):
     cfg, exists, _ = load(require_readable=False)
     envname = cfg["execution"].get("environment", "demo")
-    ok, missing, note = trading_env.completeness(envname)
-    print(f"environment: {envname}  file: config/env.{envname}  spot secrets: {note}")
-    okf, missf, notef = trading_env.completeness(envname, ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY"))
-    print(f"  futures secrets: {notef}")
+    # One venue, one key pair to report. This printed two lines -- trading_env.completeness()'s default (the SPOT
+    # keys) and then the futures keys -- which for a futures-only system meant the first line reported the
+    # completeness of credentials nothing uses, directly above the ones that matter.
+    ok, missing, note = trading_env.completeness(envname, ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY"))
+    print(f"environment: {envname}  file: config/env.{envname}  futures secrets: {note}")
     print("  switch: `/automation demo|real`, or edit execution.environment in " + rel(CONFIG))
     return 0
 
@@ -1251,7 +1250,10 @@ def pilot_start(a, cfg=None, embedded=False):
     own = cfg is None
     if own:
         cfg, _, _ = load(require_readable=True)
-    market = getattr(a, "market", None) or "spot"
+    # Default to the one venue there is, read from the registry rather than written out again. This used to
+    # fall back to the literal "spot"; when PILOT_MARKETS narrowed to futures and PILOT_LABEL lost its spot key
+    # (2026-09-13) that turned the plain `pilot start` into an uncaught KeyError at PILOT_LABEL[market].
+    market = getattr(a, "market", None) or PILOT_MARKETS[0]
     action = f"pilot start --market {market}"
     if not cfg["enabled"]:
         return 2, "master switch is OFF -- run `/automation demo` (or `on`) first. Nothing was started."
@@ -1262,8 +1264,9 @@ def pilot_start(a, cfg=None, embedded=False):
                    f"({', '.join(instruments.execution('crypto'))}) -- "
                    "`/automation market crypto on` first. Nothing was started.")
     envname = cfg["execution"].get("environment", "demo")
-    keys = ("BINANCE_SPOT_API_KEY", "BINANCE_SPOT_SECRET_KEY") if market == "spot" \
-        else ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY")
+    # One venue, one key pair. The branch here used to pick the deleted market's keys; picking those for a
+    # futures order path would sign against the wrong API.
+    keys = ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY")
     ok, missing, cnote = trading_env.completeness(envname, keys)
     if not ok:
         return 2, (f"environment '{envname}' is incomplete ({cnote}). Fill config/env.{envname} first. "
@@ -1289,7 +1292,7 @@ def pilot_start(a, cfg=None, embedded=False):
     lp = log_path(market)
     use_launchd = not getattr(a, "no_launchd", False) and not dryrun() and shutil.which("launchctl")
     if use_launchd:
-        ok, note = _install_agent(PILOT_LABEL[market], PLIST_SRC["pilot"], {"PILOT_MARKET": market, "PILOT_END": "never"})
+        ok, note = _install_agent(PILOT_LABEL[market], PLIST_SRC["pilot"], {"PILOT_END": "never"})
         if not ok:
             return 2, note + " Nothing was started."
         cfg.setdefault("services", {"scanner_agent": False, "pilot_agents": [], "keepawake_pid": None})
@@ -1331,12 +1334,12 @@ def cmd_pilot(a):
     # mutating branches (CFG-02). Cost: `pilot status` on a corrupt config now also exits 2 instead of showing
     # defaults; acceptable because `status`/`env`/`allows`/`history` remain the documented always-safe readers.
     cfg, exists, _ = load(require_readable=True)
-    market = a.market or (cfg.get("pilot_process") or {}).get("market") or "spot"
+    market = a.market or (cfg.get("pilot_process") or {}).get("market") or PILOT_MARKETS[0]
 
     if a.action == "start":
         rc, note = pilot_start(a, cfg)
         if rc != 0:
-            return _refuse(cfg, a, f"pilot start --market {a.market or 'spot'}", note)
+            return _refuse(cfg, a, f"pilot start --market {a.market or PILOT_MARKETS[0]}", note)
         save(cfg)
         print("  " + note.replace("\n", "\n  "))
         show(cfg, True)
@@ -1371,7 +1374,7 @@ def cmd_pilot(a):
             return _refuse(cfg, a, "pilot adopt",
                            "more than one pilot loop is running (" +
                            ", ".join(f"pid {p} ({m})" for p, m in found) +
-                           ") -- name one with --market spot|futures.")
+                           ") -- name one with --market futures.")
         pid, mkt = found[0]
         cfg["pilot_process"] = {"pid": pid, "market": a.market or mkt, "started_at": now(),
                                 "started_by": "human (adopted)", "log": rel(log_path(a.market or mkt))}

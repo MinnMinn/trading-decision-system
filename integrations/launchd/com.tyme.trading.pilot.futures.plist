@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <!-- Pilot loop (scripts/pilot-loop.sh). ONE venue: USDT-M futures. Installed/removed by `/automation on|off`
+       via scripts/automation.py:
+         on  -> copied to ~/Library/LaunchAgents/ and `launchctl bootstrap gui/<uid> ...`
+         off -> `launchctl bootout gui/<uid>/com.tyme.trading.pilot.futures` and the file is removed, so a reboot
+                does NOT bring it back.
+       This template was shaped for the deleted venue until 2026-09-13, and _install_agent() rewrote its label and log paths into
+       futures ones -- but only when it was handed PILOT_MARKET=futures. With the second venue deleted that
+       indirection had nothing left to choose, and the failure mode if it ever stopped firing was logs landing in
+       data/live/pilot/, the one directory PILOT_STOP does not cover. Futures natively; no rewrite needed.
+       The loop reads docs/architecture/automation-config.json every tick and idles while automation is OFF.
+       Environment (demo testnet / real mainnet) comes from execution.environment + config/env.<environment>.
+       Kill switch: data/live/pilot-futures/STOP (loop exits; with KeepAlive launchd restarts it, so `off` boots the job out first). -->
+  <key>Label</key><string>com.tyme.trading.pilot.futures</string>
+  <key>ProgramArguments</key><array><string>/bin/bash</string><string>/Users/tungnguyen/TYME/Trading/scripts/pilot-loop.sh</string></array>
+  <key>WorkingDirectory</key><string>/Users/tungnguyen/TYME/Trading</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>60</integer>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>PILOT_END</key><string>never</string>
+  </dict>
+  <key>StandardOutPath</key><string>/Users/tungnguyen/TYME/Trading/data/live/pilot-futures/launchd.out</string>
+  <key>StandardErrorPath</key><string>/Users/tungnguyen/TYME/Trading/data/live/pilot-futures/launchd.err</string>
+</dict></plist>
