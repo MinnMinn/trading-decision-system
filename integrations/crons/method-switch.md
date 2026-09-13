@@ -6,7 +6,11 @@ layer: none
 artifact: https://claude.ai/code/artifact/819225e6-f2cc-4299-a4af-c606efd3044d
 note: Applies the method preset and instrument selection a human tapped on the control panel. Mechanical only -- no market reasoning, no subagent. Gated on the master switch alone (layer: none), because turning the scanner or the local read off is not a reason to stop honouring the human's configuration choice.
 ---
-BEFORE ANYTHING ELSE: if the `artifact:` line in this template's own front matter still reads the literal
+This panel's artifact URL is: {{ARTIFACT}}
+(substituted by scripts/cron-templates.py render() -- a cron session never sees this file's front matter, so the
+URL has to be in the prompt itself.)
+
+BEFORE ANYTHING ELSE: if the URL on the line above reads the literal
 placeholder `PENDING_CREATE_ON_FIRST_RUN` (the panel has not been published yet, Task B4), there is no URL to call
 the Artifact tool with. Do nothing at all -- no gate check, no Bash, no Artifact call of any kind, not even the
 heartbeat (there is nowhere to write it). Reply exactly one line: `method-switch: panel not yet published
@@ -34,7 +38,7 @@ never taken from a db string:
 
 1. **Gate already checked above.** If you reached this line, the gate exited 0 -- continue.
 
-2. `Artifact action='read_db'`, `db_op='get'`, url = this template's own artifact URL. The tool takes the
+2. `Artifact action='read_db'`, `db_op='get'`, url = the artifact URL given at the top of this prompt. The tool takes the
    collection and the document id as **two separate parameters**, and `db` requires a collection path to have an
    ODD number of segments -- so the pair is `collection='control'` with `doc_id='request.crypto'`, then
    `collection='control'` with `doc_id='request.cfd'`. Do NOT pass `collection='control/request'`: that is two

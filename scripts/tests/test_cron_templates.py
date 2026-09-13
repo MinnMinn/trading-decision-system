@@ -10,6 +10,26 @@ class MethodSwitchTemplate(unittest.TestCase):
     def setUp(self):
         self.src = open(TPL, encoding="utf-8").read()
 
+    def test_rendered_prompt_carries_its_own_artifact_url(self):
+        """A cron session gets ONLY the rendered body — cron_templates.render() drops the front matter. This
+        template tells the session to call the Artifact tool with "this template's own artifact URL", so if the
+        URL is not substituted into the body the session is asked to use a value it cannot see, three lines after
+        being told not to go looking for one.
+
+        Found 2026-09-13 while debugging the panel's "bộ áp dụng không phản hồi" banner: the rendered prompt at
+        the time contained the instruction and no URL anywhere."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("ct", os.path.join(ROOT, "scripts", "cron-templates.py"))
+        ct = importlib.util.module_from_spec(spec); spec.loader.exec_module(ct)
+        for meta, body in ct.templates():
+            url = meta.get("artifact", "")
+            if not url.startswith("http"):
+                continue                      # points at a file (publish-tick) or is still the placeholder
+            rendered = ct.render(meta, body, "/tmp/scratch")
+            self.assertIn(url, rendered,
+                          f"{meta['name']}: the rendered prompt does not contain its own artifact URL, so a cron "
+                          f"session has no way to obtain it")
+
     def test_gate_proceeds_only_on_exit_zero(self):
         """CRON-01: exit 2 is REFUSED and exit 1 is a usage error, so 'stop on exit 2' is fail-open."""
         self.assertIn("allows master", self.src)
