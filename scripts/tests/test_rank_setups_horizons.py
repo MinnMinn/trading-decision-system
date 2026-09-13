@@ -110,11 +110,10 @@ class PresetCoverageOfRealSelection(unittest.TestCase):
         threshold -- never because the ranking crowded one method out with another, which is the bug this class
         exists to catch.
 
-        Live case (2026-09-13): the `ict` preset has no crypto swing setup. Its swing candidates are 4H with 4
-        trades in the ranking year and 1D with 0, against a threshold of 6. Nothing was crowded out; there was
-        nothing to rank. User accepted that rather than lowering the bar to make a 4-trade setup selectable
-        (option A) -- so the assertion below is that every gap is explained by the data, not that gaps cannot
-        exist."""
+        A gap is explained by the data when no candidate clears BOTH bars: the trade minimum, and rank-setups'
+        solvent() -- at least 3 months of history, no blow-up, and actually profitable (user decision
+        2026-09-13). Before that decision only the trade minimum applied here, so this test would have called a
+        solvency gap "unexplained" and failed on a selection that is behaving exactly as asked."""
         stability = json.load(open(os.path.join(ROOT, "data", "history", "stability", "crypto-live.json"),
                                    encoding="utf-8"))
         rows = stability if isinstance(stability, list) else stability.get("rows", stability)
@@ -128,25 +127,113 @@ class PresetCoverageOfRealSelection(unittest.TestCase):
                 qualifying = [r for r in rows
                               if r.get("method") in allowed
                               and r.get("tf") in RS.HORIZONS[hz]
-                              and (r.get("w1y") or {}).get("n", 0) >= min_1y[hz]]
+                              and (r.get("w1y") or {}).get("n", 0) >= min_1y[hz]
+                              and RS.solvent(r, "1y")]
                 if qualifying:
                     unexplained.append((p["id"], hz, [(r["tf"], r["method"], r["w1y"]["n"]) for r in qualifying]))
         self.assertEqual(unexplained, [],
                          "a preset lost a horizon even though the stability data HAS a candidate clearing the "
                          f"threshold -- that is the crowding-out bug, not a data gap: {unexplained}")
 
-    def test_the_ict_swing_gap_is_still_the_only_one_and_is_still_data_driven(self):
-        """Pins the accepted gap so it cannot silently grow. If another preset/horizon goes empty, this fails and
-        someone has to look at whether the rules got more selective or the data got thinner."""
+    def test_the_accepted_gaps_are_exactly_these_and_are_still_data_driven(self):
+        """Pins the accepted gaps so they cannot silently grow. If another preset/horizon goes empty, this fails
+        and someone has to look at whether the rules got more selective or the data got thinner.
+
+        Was `[("ict", "swing")]` until 2026-09-13, when the user replaced "fill every slot with the best
+        available candidate" with "only profitable candidates, otherwise leave the slot empty". Three more cells
+        emptied as a direct result -- every crypto `day` candidate for WYCKOFF and for ICT either lost money or
+        had too few trades in the ranking year. That is the rule working, not a regression; the test above is
+        what proves each gap is a data gap rather than crowding-out."""
         empty = []
         for p in M.PRESETS:
             allowed = M.runner_methods(M.flags_for(p["id"])) & M.runnable()
             covered = {s["horizon"] for s in self.setups if s["method"] in allowed}
             for hz in sorted({"scalping", "day", "swing"} - covered):
                 empty.append((p["id"], hz))
-        self.assertEqual(empty, [("ict", "swing")],
+        self.assertEqual(empty, [("wyckoff", "day"), ("ict", "day"), ("ict", "swing"),
+                                 ("wyckoff+footprint", "day")],
                          f"the set of uncovered (preset, horizon) cells changed: {empty}")
 
+
+
+
+class LosersAreNeverSelected(unittest.TestCase):
+    """User decision 2026-09-13, overriding the 2026-09-11 "run all 3 horizons for every runnable method even
+    when the backtest edge is weak or negative" rule: with at least 3 months of data, drop every candidate that
+    loses money and leave the slot EMPTY rather than filling it with the least-bad loser.
+
+    What forced it: the 2026-09-13 re-rank selected cfd-day-wyckoff-1h-border-a, whose own ranking window ends
+    at $988 from $10,000 (ruin 2026-01-29, -92.3 % drawdown). The old code filled the (cfd, day, WYCKOFF) slot
+    with it because it was the best of three candidates that ALL blew up -- "best available" with no floor under
+    it. Under 3 months of data there is no evidence either way, so nothing is selected (fail closed): that is the
+    CFD case, whose history at the time was 71 days.
+    """
+
+    def _rank1(self, rows, window=None):
+        return RS.rank(rows, min_trades=1, window=window)
+
+    def _losing(self, **kw):
+        r = _row("1H", "WYCKOFF", **kw)
+        r["final"] = 900.0; r["ann"] = -90.0
+        r["w1y"] = dict(r["w1y"], final=900.0, ann=-90.0)
+        return r
+
+    def _ruined(self):
+        r = self._losing()
+        r["ruin"] = "2026-01-29T04:00:00Z"
+        r["w1y"] = dict(r["w1y"], ruin="2026-01-29T04:00:00Z")
+        return r
+
+    def test_a_blown_up_row_is_never_selected(self):
+        self.assertEqual(self._rank1([self._ruined()]), [])
+        self.assertEqual(self._rank1([self._ruined()], window="1y"), [])
+
+    def test_a_losing_but_not_blown_up_row_is_never_selected(self):
+        """$900 from $10,000 never crosses the 10 % ruin threshold in the *whole-history* sense but is still a
+        rule that loses money. 'Not blown up' is not the bar; 'made money' is."""
+        self.assertEqual(self._rank1([self._losing()]), [])
+        self.assertEqual(self._rank1([self._losing()], window="1y"), [])
+
+    def test_a_profitable_row_is_still_selected(self):
+        self.assertEqual(len(self._rank1([_row("1H", "WYCKOFF")])), 1)
+        self.assertEqual(len(self._rank1([_row("1H", "WYCKOFF")], window="1y")), 1)
+
+    def test_a_window_shorter_than_three_months_is_not_rankable(self):
+        """The CFD case: 2026-07-02 -> 2026-09-11 is 71 days. Profitable on 71 days is not evidence."""
+        r = _row("1H", "WYCKOFF")
+        r["first"], r["last"] = "2026-07-02", "2026-09-11"
+        r["w1y"] = dict(r["w1y"], since="2026-07-02")
+        self.assertEqual(self._rank1([r]), [])
+        self.assertEqual(self._rank1([r], window="1y"), [])
+        self.assertEqual(RS.MIN_WINDOW_DAYS, 90)
+
+    def test_exactly_three_months_is_enough(self):
+        r = _row("1H", "WYCKOFF")
+        r["first"], r["last"] = "2026-01-01", "2026-04-01"      # 90 days
+        r["w1y"] = dict(r["w1y"], since="2026-01-01")
+        self.assertEqual(len(self._rank1([r])), 1)
+
+    def test_the_slot_is_left_empty_not_filled_with_the_least_bad_loser(self):
+        """Two losers at the same (horizon, method): the old code took the better of the two. Now: no setup."""
+        rows = [self._losing(cfg="A"), self._ruined()]
+        orig = RS.load_rows
+        RS.load_rows = lambda paths, market: (rows if market == "crypto" else [])
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                a = Args(rows, []); a.out = os.path.join(td, "o.md"); a.select = os.path.join(td, "s.json")
+                RS.main_horizons(a, "2026-09-13")
+                setups = json.load(open(a.select, encoding="utf-8"))["setups"]
+                md = open(a.out, encoding="utf-8").read()
+        finally:
+            RS.load_rows = orig
+        self.assertEqual(setups, [], "a slot whose every candidate loses money must stay empty")
+        self.assertIn("không đủ", md, "an empty slot must still be visible in the report, not silently dropped")
+
+    def test_the_note_no_longer_claims_negative_rows_are_kept(self):
+        """rank-setups.py's own header text stated the opposite rule ('kể cả khi lợi thế backtest yếu hoặc âm').
+        Leaving it would make the document contradict the code it documents."""
+        src = open(os.path.join(ROOT, "scripts", "rank-setups.py"), encoding="utf-8").read()
+        self.assertNotIn("kể cả khi lợi thế backtest yếu hoặc âm", src)
 
 if __name__ == "__main__":
     unittest.main()

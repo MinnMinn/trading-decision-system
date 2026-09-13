@@ -59,7 +59,14 @@ PIV = ICT.get("pivot_bars", {}).get("value", 3)
 EQ_TOL = ICT.get("equal_level_tolerance_pct", {}).get("value", 0.08) / 100
 FVG_MIN = ICT.get("fvg_min_size_median_ratio", {}).get("value", 0.6)
 DISP = ICT.get("displacement", {"body_min_ratio": 0.6, "range_min_median_ratio": 1.2})
-MIN_RR = ICT.get("min_rr", {}).get("value", 2.0)
+# Same one reader every other path uses (trading_env.min_rr): None rather than a fallback number when the value
+# cannot be trusted. Here MIN_RR only drives the advisory `rr_ok` flag and the note printed at :359 -- but the
+# `.get("value", 2.0)` shape is the bug the 2026-09-13 security review (F1) found on the live order paths, and a
+# scanner that silently advises against the superseded 2R floor is the same defect with a quieter blast radius.
+import importlib.util as _teu
+_tespec = _teu.spec_from_file_location("trading_env", f"{ROOT}/scripts/trading_env.py")
+trading_env = _teu.module_from_spec(_tespec); _tespec.loader.exec_module(trading_env)
+MIN_RR = trading_env.min_rr()
 
 
 def load(sym, tf):
@@ -309,7 +316,7 @@ def setup_candidate(a, c, lookback):
     R = round(reward / risk, 2) if risk > 0 else None
     base.update({"complete": True, "fvg": {"lo": f["lo"], "hi": f["hi"], "ce": f["ce"], "time": T[f["i"]], "mitigated": f["mitigated"]}, "ob": ob,
                  "entry": entry, "entry_models": entries, "stop": stop, "stop_owner": "sweep_extreme", "stop_options": stops,
-                 "target": target, "target_kind": tk, "std_targets": std, "R": R, "rr_ok": (R is not None and R >= MIN_RR), "min_rr": MIN_RR})
+                 "target": target, "target_kind": tk, "std_targets": std, "R": R, "rr_ok": (R is not None and MIN_RR is not None and R >= MIN_RR), "min_rr": MIN_RR})
     return base
 
 
@@ -356,7 +363,8 @@ def facts_table(sym, a, an, su):
             rows.append(("Entry (3 mô hình FVG)", f"IOFED {f(em['iofed'])} · CE {f(em['ce'])} · lấp đầy {f(em['fill'])}" + (f" · OB open {f(ob['open'])} / 0.5 MT {f(ob['mt'])}" if ob else "")))
             rows.append(("Stop (chủ sở hữu = cực trị cú quét)", " · ".join(f"{k} {f(v)}" for k, v in so.items() if v is not None)))
             st_ = su.get("std_targets"); st_s = f" · STD −2 {f(st_['-2'])} / −2.5 {f(st_['-2.5'])} / −4 {f(st_['-4'])}" if st_ else ""
-            rr_note = "" if su["rr_ok"] else f" (< {su['min_rr']}R tối thiểu, knowledge/06 §3.1 luật 23)"
+            rr_note = "" if su["rr_ok"] else (f" (< {su['min_rr']}R tối thiểu, knowledge/06 §3.1 luật 23)"
+                                              if su["min_rr"] is not None else " (không đọc được sàn R/R)")
             rows.append(("Entry / Stop / Target / R", f"{f(su['entry'])} / {f(su['stop'])} / {f(su['target'])} ({su['target_kind']}) / R = {su['R']}{rr_note}{st_s}"))
         else:
             rows.append(("Setup ứng viên", f"{su['side'].upper()} chưa hoàn chỉnh: quét {su['sweep']['pool']} {f(su['sweep']['level'])} → MSS {f(su['mss']['level'])}, thiếu {su['missing']}"))

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backtest three entry methods on stored candles and report % returns per month / quarter / year at 1% risk per trade.
+"""Backtest three entry methods on stored candles and report % returns per month / quarter / year at RISK per trade.
 
 Usage: backtest-methods.py [--tf 15m,1H,4H,1D] [--symbols BTCUSDT,ETHUSDT,SOLUSDT] [--fee-pct 0.05] [--out docs/backtests/<file>.md] [--json PATH]
 Data: data/history/ohlcv.<SYM>.<TF>.json (scripts/fetch-history.py). Everything is computed; nothing is judged by a model.
@@ -42,7 +42,8 @@ METHODS (long = accumulation side; short = the distribution mirror with the same
 
 OUTCOME — walk forward H bars: stop hit → −1R; target hit → +R_planned; both in one bar → loss; neither → mark-to-market R at bar H.
 FEES    — taker fee per side (default 0.05%, Binance futures) charged on the notional; in R that is fee·2·entry/(entry−stop). Slippage not modelled.
-ACCOUNT — 1% of current equity risked per trade (0.5% per half of PARTIAL), compounding, one open position per symbol, all symbols of a timeframe share one account.
+ACCOUNT — RISK of current equity risked per trade (half that per half of PARTIAL), compounding, one open position per symbol, all symbols of a timeframe share one account.
+          RISK is one number, set below and equal to strategy-runner.RISK_CEILING -- do NOT restate it as a literal in prose here or in the report title; it read "1%" for the whole day after the ceiling moved to 3%.
           Monthly / quarterly / yearly returns are equity-curve returns (closed trades booked at exit time).
 """
 import argparse, bisect, collections, importlib.util, datetime, json, os, statistics, sys
@@ -54,13 +55,31 @@ P = {"5m": dict(R=60, K=18, T=20, H=120, sob=8), "15m": dict(R=48, K=16, T=16, H
      "2H": dict(R=36, K=10, T=10, H=48, sob=3), "4H": dict(R=30, K=8, T=8, H=30, sob=3), "1D": dict(R=20, K=6, T=6, H=20, sob=2)}  # sob = bars a Spring may stay outside the TR (wyckoff_rules R6)
 VOL = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"]["volume"]
 STOP_BUFFER_PCT = 0.0005
-RISK = 0.01
+RISK = 0.03          # per-trade risk of equity. MUST equal strategy-runner.RISK_CEILING (test_min_rr_and_risk.py)
+                     # -- otherwise this report measures a different account than the one that trades.
 START = 10000.0      # account size in $ (user decision 2026-09-11: $10,000 for readability)
 RUIN_FRAC = 0.10     # the account is declared BLOWN (cháy) when equity <= 10 % of START; trading stops there and the report says so
-OPTS = dict(min_rr=0.0, types=(1, 2, 3), range_touches=0, htf=False, sides=("long", "short"), entry="book", mgmt="none", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit",
+OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see the note there
+             types=(1, 2, 3), range_touches=0, htf=False, sides=("long", "short"), entry="book", mgmt="none", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit",
             ict_disp=False, ict_pd=False, std_origin="pivot", methods=None)
 _ICT = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"].get("ict", {})
 DISP = _ICT.get("displacement", {"body_min_ratio": 0.6, "range_min_median_ratio": 1.2})
+# The PLANNED-R:R floor. ONE reader for every path: trading_env.min_rr() validates and returns None rather than
+# a fallback number. This used to be `_ICT.get("min_rr", {}).get("value", 2.0)`, and strategy-runner.py takes its
+# floor from here (`MIN_RR = bt.MIN_RR`) -- so a dropped or renamed key would have silently put the LIVE runner
+# back on the superseded 2R floor while it kept sizing at the 3 % ceiling (security review 2026-09-13, F1).
+# Refuse loudly instead: this is an analysis script, and a measured population built on an unknown floor is not
+# evidence. strategy-runner's own gate refuses per-signal when the floor is None.
+_tespec = importlib.util.spec_from_file_location("trading_env", f"{ROOT}/scripts/trading_env.py")
+trading_env = importlib.util.module_from_spec(_tespec); _tespec.loader.exec_module(trading_env)
+MIN_RR = trading_env.min_rr()
+if MIN_RR is None:
+    raise SystemExit("analysis-params.json: project_defined.ict.min_rr.value is missing or not a positive number "
+                     "-- the planned-R:R floor has one source and it must be readable")
+OPTS["min_rr"] = MIN_RR
+# The floor is ON by default (user decision 2026-09-13). It used to default to 0.0, which meant every caller that
+# did not pass --min-rr measured a trade population the live gate would now refuse: 38 % of last year's setups
+# planned under 2R. A caller that genuinely wants the unfiltered population (a flag sweep, say) must now say so.
 
 
 def load(sym, tf):
@@ -450,7 +469,7 @@ def scan(sym, tf, only=None):
 
 
 def simulate(trades, fee_pct):
-    """Chronological 1%-risk compounding account; one open position per symbol (a trade whose entry falls inside an open trade of the same symbol is skipped, except the second leg of the same PARTIAL event)."""
+    """Chronological RISK-per-trade compounding account (half that per leg of a PARTIAL); one open position per symbol (a trade whose entry falls inside an open trade of the same symbol is skipped, except the second leg of the same PARTIAL event)."""
     ts = sorted(trades, key=lambda t: t["entry_time"])
     equity = START; open_pos = {}; curve = []; taken = []; ruin = None
     for t in ts:
@@ -499,6 +518,15 @@ def quarter_key(t): return f"{t[:4]}-Q{(int(t[5:7]) - 1) // 3 + 1}"
 def year_key(t): return t[:4]
 
 
+def period_keys(res, key):
+    """Row labels for the year/quarter/month tables: the UNION across every method, chronologically.
+
+    Was `[k for k, _ in res["WYCKOFF"][key]]`. simulate() stops booking periods once a method ruins, and WYCKOFF
+    ruins in 2023 on this data -- so 2024 and 2025 disappeared from the table for EVERY method, including the
+    only profitable one. One method's lifespan must not decide what the table shows about the others."""
+    return sorted({k for m in res.values() for k, _ in m[key]})
+
+
 def max_dd(curve):
     peak = START; dd = 0.0
     for _, e in curve:
@@ -518,7 +546,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tf", default="15m,1H,4H,1D"); ap.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT")
     ap.add_argument("--fee-pct", type=float, default=0.05, help="taker fee per side in percent"); ap.add_argument("--out"); ap.add_argument("--json")
-    ap.add_argument("--min-rr", type=float, default=0.0, help="skip trades whose PLANNED R (target distance / stop distance) is below this")
+    ap.add_argument("--min-rr", type=float, default=MIN_RR, help="skip trades whose PLANNED R (target distance / stop distance) is below this")
     ap.add_argument("--types", default="1,2,3", help="Spring/Upthrust volume types allowed for WYCKOFF/COMBINED/PARTIAL")
     ap.add_argument("--range-touches", type=int, default=0, help="require this many tests of EACH border before a Spring counts (0 = off)")
     ap.add_argument("--htf", action="store_true", help="higher-timeframe boundary filter (long only when the HTF is in the lower third of its range or above it)")
@@ -539,7 +567,7 @@ def main():
     OPTS.update(min_rr=a.min_rr, types=tuple(int(x) for x in a.types.split(",")), range_touches=a.range_touches, htf=a.htf, sides=tuple(a.sides.split(",")), entry=a.entry, mgmt=a.mgmt, sloped_gate=a.sloped_gate, st_min=a.st_min, phase_d=not a.no_phase_d, combined_entry=a.combined_entry,
                 ict_disp=a.ict_disp, ict_pd=a.ict_pd, std_origin=a.std_origin, methods=tuple(a.methods.split(",")) if a.methods else None)
     today = datetime.date.today().isoformat()
-    L = [f"# Wyckoff vs ICT vs kết hợp — lợi nhuận theo tháng/quý/năm, rủi ro 1%/lệnh — đo {today}", "",
+    L = [f"# Wyckoff vs ICT vs kết hợp — lợi nhuận theo tháng/quý/năm, rủi ro {RISK * 100:g}%/lệnh — đo {today}", "",
          f"_Bộ lọc: R/R kế hoạch ≥ {a.min_rr} · loại KL {a.types} · biên TR chạm ≥ {a.range_touches} lần mỗi bên · lọc khung lớn {'bật' if a.htf else 'tắt'} · chiều {a.sides} · vào lệnh Wyckoff {a.entry} · quản lý {a.mgmt} · phí {a.fee_pct}%/chiều · displacement {'bật' if a.ict_disp else 'tắt'} · P/D gate {'bật' if a.ict_pd else 'tắt'} · gốc STD {a.std_origin}_", "",
          f"_`scripts/backtest-methods.py` trên nến lưu tại `data/history/`; phí taker {a.fee_pct}%/chiều; mọi định nghĩa và THAM SỐ DỰ ÁN ở docstring của script. Số ở đây là của proxy bằng code, không phải của phân tích đầy đủ — đọc caveats cuối file._", ""]
     allres = {}
@@ -568,7 +596,7 @@ def main():
             L.append(f"| {m} | {s['n']} | {s['win_rate']:.0f}% | {s['avg_R']:+.2f} | {s['sum_R']:+.1f} | {s['pf']:.2f} | ${r['final']:,.0f} ({(r['final'] / START - 1) * 100:+.1f}%) | {ann:+.1f}% | −{r['dd']:.1f}% | {ruin} |" if s["pf"] else
                      f"| {m} | {s['n']} | {s['win_rate']:.0f}% | {s['avg_R']:+.2f} | {s['sum_R']:+.1f} | — | ${r['final']:,.0f} ({(r['final'] / START - 1) * 100:+.1f}%) | {ann:+.1f}% | −{r['dd']:.1f}% | {ruin} |")
         for label, key in (("năm", "years"), ("quý", "quarters"), ("tháng", "months")):
-            keys = [k for k, _ in res["WYCKOFF"][key]]
+            keys = period_keys(res, key)
             L += ["", f"**Theo {label} (% thay đổi vốn)**", "", "| Kỳ | " + " | ".join(methods) + " |", "|---|" + "---|" * len(methods)]
             for k in keys:
                 L.append(f"| {k} | " + " | ".join(f"{dict(res[m][key]).get(k, 0):+.1f}%" for m in methods) + " |")
@@ -592,7 +620,7 @@ def main():
           "- Phí taker tính cả hai chiều trên giá trị lệnh; không tính trượt giá, funding. Với stop hẹp (scalping 15m) phí ăn một phần đáng kể của R.",
           "- Một vị thế mở/mã; lệnh trùng thời gian bị bỏ. Không lọc khung lớn (để so sánh công bằng giữa ba phương pháp).",
           "- Nến chạm cả stop và target trong cùng một nến tính là thua. Lệnh chưa đóng sau H nến được đóng theo giá đóng cửa (mark-to-market).",
-          "- Tài khoản bắt đầu ${START:,.0f}; khi vốn ≤ 10 % vốn ban đầu thì coi là CHÁY: dừng giao dịch tại đó, ghi ngày cháy, các kỳ sau bằng 0. Kỳ chưa đủ dữ liệu chỉ tính phần có dữ liệu; %/năm quy đổi từ tổng % theo số ngày của mẫu.",
+          f"- Tài khoản bắt đầu ${START:,.0f}, rủi ro {RISK * 100:g} % mỗi lệnh; khi vốn ≤ 10 % vốn ban đầu thì coi là CHÁY: dừng giao dịch tại đó, ghi ngày cháy, các kỳ sau bằng 0. Kỳ chưa đủ dữ liệu chỉ tính phần có dữ liệu; %/năm quy đổi từ tổng % theo số ngày của mẫu.",
           "- R, K, T, H và ngưỡng khối lượng là THAM SỐ DỰ ÁN (không phải số trong sách); đổi chúng sẽ đổi kết quả. Không tối ưu hoá tham số ở đây."]
     md = "\n".join(L) + "\n"
     print(md)

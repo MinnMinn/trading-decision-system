@@ -2,7 +2,7 @@
 """Rank entry methods by CONSISTENCY over time, not by total return.
 
 Runs scripts/backtest-methods.py's engine over several timeframes and configurations, books every closed trade on a
-1%-risk compounding account, and reports per method: trades, annualised %, max drawdown, share of positive quarters,
+compounding account at bt.RISK per trade (= the live per-trade ceiling), and reports per method: trades, annualised %, max drawdown, share of positive quarters,
 worst quarter, median quarter, quarter mean/σ (a t-like stability ratio), share of positive years, per-year returns.
 
 Usage: stability-report.py [--tf 15m,30m,1H,2H,4H,1D] [--symbols ...] [--out docs/backtests/<file>.md] [--json PATH]
@@ -36,7 +36,7 @@ def main():
     a = ap.parse_args(); today = datetime.date.today().isoformat(); rows = []
     for tf in a.tf.split(","):
         for cname, cfg in CONFIGS.items():
-            bt.OPTS.update(mgmt=cfg["mgmt"], htf=cfg["htf"], sides=("long", "short"), min_rr=0.0, types=(1, 2, 3), range_touches=0, entry="book", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit", ict_target=a.ict_target)
+            bt.OPTS.update(mgmt=cfg["mgmt"], htf=cfg["htf"], sides=("long", "short"), types=(1, 2, 3), range_touches=0, entry="book", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit", ict_target=a.ict_target)
             scans = [s for s in (bt.scan(sym, tf) for sym in a.symbols.split(",")) if s]
             if not scans:
                 continue

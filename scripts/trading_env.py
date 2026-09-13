@@ -9,7 +9,8 @@ active environment = docs/architecture/automation-config.json -> execution.envir
 TRADING_ENV environment variable. File = config/env.<name> (template config/env.example).
 Secret values "keychain:<service>[@<account>]" are resolved via scripts/get-secret.sh (macOS Keychain).
 Values are returned in a dict and never printed by this module.
-PILOT_RISK_PCT is clamped to <= 0.01 (hard rule: max 1% per trade) whatever the file says.
+PILOT_RISK_PCT is clamped to <= MAX_RISK_PCT whatever the file says. That constant is the SINGLE source of the
+per-trade risk ceiling -- strategy-runner.RISK_CEILING reads it from here rather than keeping its own copy.
 """
 import json, os, subprocess
 
@@ -19,8 +20,36 @@ GET_SECRET = os.path.join(ROOT, "scripts", "get-secret.sh")
 ENV_NAMES = ("demo", "real")
 PLACEHOLDER = "__FILL_ME__"
 SECRET_SUFFIXES = ("_KEY", "_SECRET_KEY", "_PASSWORD")
-MAX_RISK_PCT = 0.01
+# Per-trade risk ceiling, raised 1 % -> 3 % by explicit user decision 2026-09-13, together with the planned-R:R
+# floor (analysis-params.json ict.min_rr = 3R) -- the two are one decision and neither is safe alone. This is the
+# ONLY definition: the clamp exists in two layers (here on the file value, again in strategy-runner) but the
+# NUMBER must not. On 2026-09-13 the runner's copy was raised and this one was left at 0.01, so config/env's 0.03
+# was silently cut back to 1 % while the runner reported a ceiling it could never reach.
+# Evidence: docs/backtests/2026-09-13-rr-floor-and-risk.md.
+MAX_RISK_PCT = 0.03
 REQUIRED_URLS = ("BINANCE_SPOT_BASE_URL", "BINANCE_FUTURES_BASE_URL")
+ANALYSIS_PARAMS = os.path.join(ROOT, "docs", "architecture", "analysis-params.json")
+
+
+def min_rr(path=None):
+    """The planned-R:R floor, validated. Returns the float, or None if it cannot be trusted.
+
+    Lives here because this module is the one thing BOTH live order paths already import -- demo-pilot.py and
+    strategy-runner.py (via backtest-methods) -- so the floor gets one reader and one validation instead of a
+    per-file copy. It is the twin of MAX_RISK_PCT above: same decision, same single-definition rule.
+
+    Returns None (never a fallback number) on: unreadable/absent file, bad JSON, missing key, and any value that
+    is not a positive real float -- bool, string, 0, negative and NaN all rejected. Callers MUST treat None as
+    "refuse", not as "no floor": security review 2026-09-13 (F1) found backtest-methods defaulting to 2.0 here,
+    which would have let the runner silently trade the superseded 2R floor at the 3 % risk ceiling if the key
+    were ever dropped -- the one combination docs/backtests/2026-09-13-rr-floor-and-risk.md rules out."""
+    try:
+        v = json.load(open(path or ANALYSIS_PARAMS, encoding="utf-8"))["project_defined"]["ict"]["min_rr"]["value"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or v <= 0:
+        return None
+    return float(v)
 
 
 class EnvIncomplete(RuntimeError):

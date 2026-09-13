@@ -18,7 +18,7 @@ deterministic: no LLM decides an order. Rules (all must hold for an entry, evalu
   4. Not inside an event blackout (docs/architecture/event-calendar.md, +/- 30 min), no open position in the
      symbol, < MAX_TRADES_PER_DAY for the symbol, < MAX_OPEN positions overall, pilot not halted.
 Risk: RISK_PCT of USDT equity per trade (halved after 2 consecutive losses), notional capped at
-NOTIONAL_CAP_PCT of equity, stop below the swept low, TP = window EQ if >= MIN_RR R else 2R, exits via OCO,
+NOTIONAL_CAP_PCT of equity, stop below the swept low, TP = window EQ (refused if it plans < MIN_RR R), exits via OCO,
 time-stop after TIME_STOP_BARS. Halt for the UTC day after 3 consecutive losses or daily loss <= -2% equity.
 Kill switch: create data/live/pilot/STOP. `--flatten` closes everything. `--report` prints P&L.
 Permission gate: docs/architecture/automation-config.json (the /automation command) can forbid a tick --
@@ -101,7 +101,35 @@ def htf_reject_reason(ctx, want, side):
                 f"(bias {ctx['bias'] if ctx else 'unknown'}: {(ctx or {}).get('basis', 'không có dữ liệu')})")
     return None
 VOL_MULT = 1.5
-MIN_RR = 2.0   # knowledge/06 §3.1 rule 23 (Model11 p92): 2R is the minimum before taking profit; was 1.5 until 2026-09-12
+
+
+# The planned-R:R floor. ONE reader for every path (trading_env.min_rr, the twin of MAX_RISK_PCT); None when the
+# value cannot be trusted, and rr_reason() then refuses every entry. An unknown floor is not a floor of zero.
+#
+# Was `MIN_RR = 2.0` hardcoded here until 2026-09-13: the user raised the floor to 3R in analysis-params.json and
+# this copy stayed at 2.0, so the pilot kept a floor the project had already replaced -- and never gated an entry
+# with it anyway (it only picked the TP; see rr_reason and evaluate). Warrant for failing CLOSED here is the user
+# decision of 2026-09-13 plus docs/backtests/2026-09-13-rr-floor-and-risk.md (the floor is what makes the 3 % risk
+# ceiling survivable), NOT PILOT-03 -- that rule's subject is strategy-runner.py's automation_gate(), and it
+# explicitly grandfathers THIS file's fail-open config default. No numbered rule covers a floor read yet; the
+# 2026-09-13 security review recommends issuing one (its suggested id: PILOT-40).
+MIN_RR = trading_env.min_rr()
+
+
+def rr_reason(sig):
+    """Why this setup fails the planned-R:R floor, or None if it passes. Mirrors strategy-runner.rr_reason().
+
+    FAILS CLOSED three ways: unreadable floor (MIN_RR None), and a missing / non-numeric / NaN r_planned. Note
+    `rr != rr` is the NaN test -- a NaN would make a plain `rr < MIN_RR` False and OPEN the gate, which is
+    exactly the direction that must not happen."""
+    if MIN_RR is None:
+        return "không đọc được sàn R/R kế hoạch (docs/architecture/analysis-params.json)"
+    rr = sig.get("r_planned")
+    if not isinstance(rr, (int, float)) or isinstance(rr, bool) or rr != rr:
+        return "không tính được R/R kế hoạch"
+    if rr < MIN_RR:
+        return f"R/R kế hoạch {rr:.2f} < {MIN_RR} tối thiểu"
+    return None
 TIME_STOP_BARS = 24
 DAILY_LOSS_HALT = -0.02
 STOP_BUFFER_PCT = 0.0015
@@ -274,19 +302,27 @@ def evaluate(sym, side="LONG"):
         if why:
             reasons.append(why)
     entry = C[-1]
-    stop = tp = None
+    stop = tp = r_planned = None
     if sweep_i is not None:
-        eq = a["eq"]
+        # TP is the window equilibrium -- the structural target, never a synthetic multiple of r. Until 2026-09-13
+        # a target closer than the floor was stretched to `entry + 2 * r` instead of being refused, which both
+        # hardcoded a second copy of the old 2R floor and made any floor unenforceable. The backtest
+        # (backtest-methods.py:464) and strategy-runner (rr_reason) both REFUSE below the floor; so does this now.
+        tp = eq = a["eq"]
         if long:
             swept = min(L[sweep_i:]); stop = swept - max(STOP_BUFFER_PCT * entry, (entry - swept) * 0.1); r = entry - stop
-            tp = eq if (eq - entry) >= MIN_RR * r else entry + 2 * r
         else:
             swept = max(H[sweep_i:]); stop = swept + max(STOP_BUFFER_PCT * entry, (swept - entry) * 0.1); r = stop - entry
-            tp = eq if (entry - eq) >= MIN_RR * r else entry - 2 * r
         if r <= 0:
             reasons.append("stop không hợp lệ")
+        else:
+            r_planned = ((eq - entry) if long else (entry - eq)) / r
+        why = rr_reason({"r_planned": r_planned})
+        if why:
+            reasons.append(why)
     return {"symbol": sym, "side": side, "ok": not reasons, "reasons": reasons, "entry": entry, "stop": stop, "tp": tp,
-            "pct": a["pct"], "eq": a["eq"], "last_time": a["last_time"], "sweep_i": sweep_i, "mss_i": mss_i, "htf": htf_note}
+            "r_planned": r_planned, "pct": a["pct"], "eq": a["eq"], "last_time": a["last_time"],
+            "sweep_i": sweep_i, "mss_i": mss_i, "htf": htf_note}
 
 
 def place_long(sym, d, equity, risk_mult, live):
@@ -317,7 +353,8 @@ def place_long(sym, d, equity, risk_mult, live):
     ids = {rep.get("type"): rep.get("orderId") for rep in reports}
     pos = {"qty": sell_qty, "entry": avg_px, "entry_order": buy.get("orderId"), "stop": float(stop_r), "tp": float(tp_r),
            "oco_list": oco.get("orderListId"), "tp_order": ids.get("LIMIT_MAKER"), "stop_order": ids.get("STOP_LOSS_LIMIT"),
-           "opened_at": now().strftime("%Y-%m-%dT%H:%M:%SZ"), "bars": 0, "risk_usd": plan["risk_usd"]}
+           "opened_at": now().strftime("%Y-%m-%dT%H:%M:%SZ"), "bars": 0, "risk_usd": plan["risk_usd"],
+           "r_planned": round(d["r_planned"], 2) if d["r_planned"] is not None else None}
     log("entry", symbol=sym, market=MARKET_LABEL, env=ENV_NAME, **pos)
     return pos
 
@@ -350,7 +387,8 @@ def place_futures(sym, d, equity, risk_mult, live):
     tp = order_json("take-profit-market", sym, prot_side, tp_r)
     pos = {"side": d["side"], "qty": f"{filled:.8f}".rstrip("0").rstrip("."), "entry": avg_px, "entry_order": o.get("orderId"),
            "stop": float(stop_r), "tp": float(tp_r), "stop_order": sl.get("orderId"), "tp_order": tp.get("orderId"), "leverage": LEVERAGE,
-           "opened_at": now().strftime("%Y-%m-%dT%H:%M:%SZ"), "bars": 0, "risk_usd": plan["risk_usd"]}
+           "opened_at": now().strftime("%Y-%m-%dT%H:%M:%SZ"), "bars": 0, "risk_usd": plan["risk_usd"],
+           "r_planned": round(d["r_planned"], 2) if d["r_planned"] is not None else None}
     log("entry", symbol=sym, market=MARKET_LABEL, env=ENV_NAME, **pos)
     return pos
 
@@ -495,7 +533,11 @@ def main():
             d["reasons"].append("đã dừng trong ngày"); d["ok"] = False
         if blackout:
             d["reasons"].append(f"blackout sự kiện {blackout}"); d["ok"] = False
-        log("eval", symbol=sym, side=side, ok=d["ok"], pct=round(d["pct"], 3), reasons=d["reasons"], last_time=d["last_time"])
+        # r_planned is recorded on a PASS as well as a refusal (a refusal carries it inside the reason string).
+        # Security review 2026-09-13 (F4): without it nothing records what the R:R gate actually admitted, and
+        # journal.py only recomputes it from entry/stop/tp -- which agrees today solely because tp == eq.
+        log("eval", symbol=sym, side=side, ok=d["ok"], pct=round(d["pct"], 3), reasons=d["reasons"],
+            r_planned=(round(d["r_planned"], 2) if d["r_planned"] is not None else None), last_time=d["last_time"])
         if d["ok"]:
             risk_mult = 0.5 if s["consec_losses"] >= 2 else 1.0
             pos = (place_futures if MARKET == "futures" else place_long)(sym, d, equity, risk_mult, live)

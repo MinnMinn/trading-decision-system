@@ -25,7 +25,8 @@ Rules = the backtest, function for function (scripts/backtest-methods.py, import
   trade. Management = STOP_MARKET + TAKE_PROFIT_MARKET closePosition (futures) or the position's own SL/TP (MT5); breakeven at +1R
   on a CLOSED candle when the setup says mgmt=be (WMT p272); time stop after H bars. The higher-timeframe boundary filter
   (bt.htf_allows on HTF_OF[tf]) is logged as htf_pass for every signal; orders obey it only for setups with htf=true.
-Risk: PILOT_RISK_PCT of equity per trade (env file, clamped <= 1 %), halved after 2 consecutive losses; futures notional <= 25 % of
+Risk: PILOT_RISK_PCT of equity per trade (env file, clamped <= RISK_CEILING = 3 %), halved after 2 consecutive
+losses; every entry must plan >= MIN_RR (3R, analysis-params.json) or it is refused; futures notional <= 25 % of
 equity x leverage 3, ISOLATED; MT5 lots from the bridge's contract data, capped by the EA's InpMaxLots. One position or resting
 order per symbol, MAX_OPEN per venue (= that venue's symbol count, i.e. a full book), MAX_TRADES_PER_DAY per symbol.
 Halts (STOP file written with the reason): equity <= 85 % of start (per venue), 5 consecutive losses (per venue), 3 consecutive
@@ -76,7 +77,8 @@ NOTIONAL_CAP_PCT = 0.25
 # Full book (user decision 2026-09-12): one concurrent position per tradeable symbol, so the per-symbol rule
 # ("one position or resting order per symbol") becomes the only binding cap. Derived from the EXECUTION list
 # (docs/architecture/instruments.json) so adding a symbol raises the book by exactly one slot -- no second edit.
-# RISK NOTE: max simultaneous risk = len(symbols) x PILOT_RISK_PCT. Crypto is near-perfectly correlated in a dump,
+# RISK NOTE: max simultaneous risk = len(symbols) x PILOT_RISK_PCT -- at the 3 % ceiling that is 27 %, though
+# the measured peak over the last year was 6.1 % (the R:R floor thins the book). Crypto is near-perfectly correlated in a dump,
 # so a full book is closer to ONE leveraged beta bet than to nine independent ones; EQUITY_HALT_FRAC is what bounds
 # the damage. Dial it back by lowering PILOT_RISK_PCT in config/env.<env>, not by editing this line.
 MAX_OPEN = {"futures": len(CRYPTO), "mt5": len(CFD)}   # per venue
@@ -94,10 +96,20 @@ try:
     _env = trading_env.load_env(resolve_secrets=False); ENV_ERROR = None
 except trading_env.EnvIncomplete as e:
     _env, ENV_ERROR = {}, str(e)
+# Per-trade risk ceiling. Raised from 1 % to 3 % by explicit user decision, 2026-09-13, TOGETHER WITH the
+# planned-R:R floor (MIN_RR below) -- the two are one decision and neither is safe without the other. Measured on
+# the last year of ICT 15m setups across the nine crypto instruments: with the 3R floor, 3 % risk returned +180 %
+# with a 29 % drawdown and never tripped EQUITY_HALT_FRAC. 5 % was REJECTED, not merely disfavoured: its equity
+# curve crossed -15 % from start on 2025-10-12, which halts this runner permanently (line ~963) -- the backtest
+# does not model that halt, so its +366 % for 5 % is unreachable here. Do not raise this to 0.05 without also
+# deciding what happens to EQUITY_HALT_FRAC; that is a separate decision and it has not been made.
+# Evidence: docs/backtests/2026-09-13-rr-floor-and-risk.md.
+RISK_CEILING = trading_env.MAX_RISK_PCT   # one source, see scripts/trading_env.py
 try:
-    RISK_PCT = min(0.01, max(0.0, float(_env.get("PILOT_RISK_PCT", 0.005))))
+    RISK_PCT = min(RISK_CEILING, max(0.0, float(_env.get("PILOT_RISK_PCT", 0.005))))
 except (TypeError, ValueError):
     RISK_PCT = 0.005
+MIN_RR = bt.MIN_RR   # planned-R:R floor, one source: docs/architecture/analysis-params.json
 MARKET_LABEL = f"futures_{'mainnet' if ENV_NAME == 'real' else 'testnet'}"
 
 
@@ -444,6 +456,33 @@ def ict_live_setups(side, candles, tf, sym):
                         mss_bar=mss_i, mss_time=su["mss"]["time"], entry=entry, stop=stop, target=target,
                         expires_bar=mss_i + K, bars_left=bars_left, r_planned=abs(target - entry) / abs(entry - stop)))
     return out
+
+
+def rr_reason(sig):
+    """Why this signal fails the planned-R:R floor, or None if it passes.
+
+    Called from the one reasons[] block every method's signal passes through -- not from each setups() branch:
+    ICT, COMBINED and PARTIAL all emit r_planned and all must obey the same floor, and a per-branch copy would
+    drift. User decision 2026-09-13: MIN_RR = 3R (docs/architecture/analysis-params.json). Before this gate the
+    floor existed only as an advisory note printed by ict-scan.py:359 while every decision path ran min_rr=0.0,
+    so the runner took setups planning as little as 0.00R -- 38 % of last year's planned under 2R.
+
+    FAILS CLOSED on an unreadable floor too (MIN_RR None, from trading_env.min_rr via bt) -- added after the
+    2026-09-13 security review (F1) found this path inheriting a 2.0 fallback that demo-pilot.py did not have, so
+    a dropped analysis-params key would have put the live runner back on the superseded 2R floor at the 3 % risk
+    ceiling. In practice bt raises at import when the floor is unreadable, so this branch is the second layer.
+
+    FAILS CLOSED on a missing, non-numeric or NaN r_planned, for the same reason the htf gate does (see there):
+    an R:R that could not be computed is not permission to trade. Note `rr != rr` is the NaN test -- a NaN would
+    make a plain `rr < MIN_RR` False and open the gate, which is exactly the direction that must not happen."""
+    if MIN_RR is None:
+        return "không đọc được sàn R/R kế hoạch (docs/architecture/analysis-params.json)"
+    rr = sig.get("r_planned")
+    if not isinstance(rr, (int, float)) or isinstance(rr, bool) or rr != rr:
+        return "không tính được R/R kế hoạch"
+    if rr < MIN_RR:
+        return f"R/R kế hoạch {rr:.2f} < {MIN_RR} tối thiểu"
+    return None
 
 
 def setups(method, side, candles, tf, ict_disp=False, ict_pd=False, std_origin="pivot", sym=None):
@@ -1134,6 +1173,9 @@ def tick(live, tick_time=None, ignore_gate=False):
                     # than an explicit True: only a live bias read that actually ran and agreed with `side` permits.
                     if st.get("htf") and sig["htf_pass"] is not True:
                         reasons.append("khung lớn không cho hướng này" if sig["htf_pass"] is False else "khung lớn: không đọc được bias (thiếu dữ liệu/không quét được khung này)")
+                    rr_why = rr_reason(sig)
+                    if rr_why:
+                        reasons.append(rr_why)
                     log("signal", venue=venue, symbol=sym, strategy=st["id"], side=side, sweep_time=sig["time"], mss_time=sig["mss_time"], entry=sig["entry"], stop=sig["stop"],
                         target=sig["target"], r_planned=round(sig["r_planned"], 2), vol_type=sig["vol_type"], htf_pass=sig["htf_pass"], ok=not reasons, reasons=reasons)
                     if reasons:
@@ -1163,7 +1205,11 @@ def replay(setup_ids, bars=600):
     for st in load_setups():
         if setup_ids != ["all"] and st["id"] not in setup_ids:
             continue
-        bt.OPTS.update(mgmt=st.get("mgmt", "be"), htf=False, sides=("long", "short"), min_rr=0.0, types=(1, 2, 3), range_touches=0, entry="book", combined_entry="limit")
+        # min_rr NOT pinned (2026-09-13): it inherits bt.OPTS' default (= bt.MIN_RR = the same 3R floor that
+        # rr_reason() applies to live signals). replay() exists to check parity between this runner and the
+        # backtest; pinning 0.0 here would have it compare the live path -- which now refuses sub-3R setups --
+        # against a backtest that still takes them, and report the difference as a parity failure.
+        bt.OPTS.update(mgmt=st.get("mgmt", "be"), htf=False, sides=("long", "short"), types=(1, 2, 3), range_touches=0, entry="book", combined_entry="limit")
         # The EXECUTION list, not st["symbols"]: replay must cover exactly what the live loop trades
         # (enabled_symbols, line ~824) or parity is checked on a different universe than the one that
         # places orders. Not config-gated -- a market switched off still deserves its parity check.

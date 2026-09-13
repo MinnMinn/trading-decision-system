@@ -61,7 +61,12 @@ def main():
         base_opts = dict(bt.OPTS)
         rows = []
         for combo in COMBOS:
-            bt.OPTS.update(base_opts); bt.OPTS.update(min_rr=0.0, sides=("long", "short"), htf=bool(st.get("htf")), mgmt=st.get("mgmt", "none"), **combo)
+            # min_rr is NOT pinned here (2026-09-13): it inherits bt.OPTS' default, which is bt.MIN_RR (3R). This
+            # script's --apply writes ict_disp/ict_pd/std_origin straight into pilot-top5.json (line ~98) and
+            # rank-setups.py carries those keys over on rewrite, so it is a decision path like any other. Choosing
+            # a setup's ICT variant on a trade population the live rr_reason() gate would refuse picks the winner
+            # of a race the pilot never runs.
+            bt.OPTS.update(base_opts); bt.OPTS.update(sides=("long", "short"), htf=bool(st.get("htf")), mgmt=st.get("mgmt", "none"), **combo)
             trades = []; last = None
             for sym in st["symbols"]:
                 r = bt.scan(sym, tf)

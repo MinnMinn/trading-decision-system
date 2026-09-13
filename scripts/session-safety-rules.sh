@@ -12,7 +12,7 @@ EXEC_CRYPTO="$(instruments_execution crypto | tr ' ' '/')"
 TEXT="TRADING SYSTEM HARD SAFETY RULES: capital preservation first; NEVER trade Forex; \
 analysis allowlist = ${ANALYSIS} and nothing else; \
 EXECUTION (pilot, /execute) is narrower still -- crypto orders only on ${EXEC_CRYPTO}; \
-max 1% risk per trade. The allowlist has ONE source: docs/architecture/instruments.json (never hard-code a \
+max 3% risk per trade. The allowlist has ONE source: docs/architecture/instruments.json (never hard-code a \
 symbol list; run scripts/sync-instruments.py --write after editing it). See \
 docs/architecture/SYSTEM-DESIGN.md for the full architecture before making any design changes."
 

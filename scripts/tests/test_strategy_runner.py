@@ -189,8 +189,12 @@ class HtfGateFailsClosed(unittest.TestCase):
     DECISION (was place_limit/place_market ever called), not on htf_pass's return value, per the coordinator's
     review."""
 
+    # r_planned 3.0 (target 103 against a 1.0 stop), not the 2.0 this fixture carried until 2026-09-13: the
+    # planned-R:R floor (rr_reason, MIN_RR = 3R) now also sits in the reasons[] block, and a signal that fails it
+    # never reaches the order stage. These tests are about the HTF gate, so the fixture has to clear every OTHER
+    # gate to isolate it. Entry/stop/target stay internally consistent with r_planned.
     ONE_SIG = dict(time="2026-01-01T00:00:00Z", mss_time="2026-01-01T00:00:00Z", entry=100.0, stop=99.0,
-                   target=102.0, bars_left=5, r_planned=2.0, vol_type=None)
+                   target=103.0, bars_left=5, r_planned=3.0, vol_type=None)
 
     def _run(self, htf_pass_return):
         cfg = {"enabled": True, "layers": {"pilot": True},
@@ -254,8 +258,12 @@ class HtfGateFailsClosed(unittest.TestCase):
                          "the gate would refuse them on every tick forever")
 
 class Sizing(unittest.TestCase):
-    def test_risk_never_above_one_percent_and_notional_capped(self):
-        self.assertLessEqual(sr.RISK_PCT, 0.01)
+    def test_risk_never_above_the_ceiling_and_notional_capped(self):
+        # Asserts against the ceiling constant, not a literal. This test read `0.01` until 2026-09-13, when the
+        # user raised the per-trade ceiling to 3 % together with the 3R planned-R:R floor; a literal here means
+        # the test has to be edited every time the policy moves, and an edit is a chance to weaken it by mistake.
+        # The invariant being protected is "sizing never exceeds the configured ceiling", not any one number.
+        self.assertLessEqual(sr.RISK_PCT, sr.RISK_CEILING)
         qty, risk = sr.size(10000, 100.0, 99.0, 1.0)
         self.assertAlmostEqual(risk, 10000 * sr.RISK_PCT)
         self.assertLessEqual(qty * 100.0, 10000 * sr.NOTIONAL_CAP_PCT * sr.LEVERAGE + 1e-9)
@@ -267,7 +275,11 @@ class Sizing(unittest.TestCase):
         lots, risk, per_lot = sr.mt5_lots("XAUUSD", 10000, 2000.0, 1990.0, 1.0)      # 10 $ stop = 1000 ticks x 1 $ = 1000 $/lot
         self.assertAlmostEqual(risk, 10000 * sr.RISK_PCT)
         self.assertLessEqual(lots * per_lot, risk + 1e-9)
-        self.assertAlmostEqual(lots % 0.01, 0, places=6)
+        # Step check via the QUOTIENT, not `lots % step`. Float modulo on a step this small returns the step
+        # itself rather than 0 for most multiples: 0.3 % 0.01 == 0.00999999999999998, while 0.1 % 0.01 == 3.5e-18.
+        # The old `lots % 0.01` assertion passed only because 1 % risk happened to land on 0.1 lots; raising the
+        # ceiling to 3 % moved it to 0.3 and the test failed on a perfectly valid size (0.3 / 0.01 == 30.0).
+        self.assertAlmostEqual(lots / 0.01, round(lots / 0.01), places=6)
 
 
 class Gate(unittest.TestCase):

@@ -52,9 +52,44 @@ def load_rows(paths, market):
     return rows
 
 
+MIN_WINDOW_DAYS = 90   # 3 months: below this a row has no evidence either way, so it is not rankable (see solvent())
+
+
+def solvent(r, window=None):
+    """Is this row allowed to be selected at all? User decision 2026-09-13, replacing the 2026-09-11 rule that
+    filled every (horizon, method) slot with the best available candidate even when that candidate lost money.
+
+    Three conditions, all required:
+      1. At least MIN_WINDOW_DAYS of measured history. Profitable over 71 days is not evidence -- that was the
+         CFD case (2026-07-02 -> 2026-09-11) where every rule was being judged on ten weeks.
+      2. Did not blow the account up.
+      3. Actually made money. "Did not blow up" is a much lower bar than "made money": the row that forced this
+         change, CFD 1H WYCKOFF, ended its ranking window at $988 from $10,000.
+
+    Measured as `ann > 0`, not `final > START`: `ann` is already on every row (so this module needs no dependency
+    on backtest-methods just to learn the account size), it is the same field main_horizons() already uses for the
+    `negative_backtest` flag, and it is strictly monotonic in `final` -- ann = ((final/START)**(365/days) - 1),
+    so ann > 0 and final > START are the same condition.
+
+    Why here rather than in main_horizons(): every caller of rank() -- the top-N mode and the horizons mode --
+    picks rules that will place real orders. A rule that loses money should not be selectable from either.
+    """
+    m = r["w1y"] if window == "1y" else r
+    start = r["w1y"]["since"] if window == "1y" and r.get("w1y", {}).get("since") else r["first"]
+    try:
+        days = (datetime.date.fromisoformat(r["last"][:10]) - datetime.date.fromisoformat(max(start, r["first"])[:10])).days
+    except (ValueError, KeyError, TypeError):
+        return False                      # unparseable dates: no evidence, fail closed
+    return days >= MIN_WINDOW_DAYS and m.get("ruin") is None and m.get("ann", 0) > 0
+
+
 def rank(rows, min_trades, window=None):
     """window=None: whole history (consistency first). window='1y': the row's last-365-day metrics -- not blown up, then share of
-    positive quarters in that year, then the year's return, then its worst quarter (user decision 2026-09-11: 'hiệu quả nhất trong 1 năm')."""
+    positive quarters in that year, then the year's return, then its worst quarter (user decision 2026-09-11: 'hiệu quả nhất trong 1 năm').
+
+    Rows that fail solvent() are dropped before sorting, so an empty return means "nothing here earned selection",
+    and every caller already renders that as an empty slot rather than a fallback."""
+    rows = [r for r in rows if solvent(r, window)]
     if window == "1y":
         ok = [r for r in rows if r.get("w1y") and r["w1y"]["n"] >= min_trades]
         ok.sort(key=lambda r: (r["w1y"]["ruin"] is None, r["w1y"]["q_pos"], r["w1y"]["ann"], r["w1y"]["q_worst"]), reverse=True)
@@ -168,7 +203,7 @@ def main_window_1y(a, today):
 
 def main_horizons(a, today):
     L = [f"# Setup theo khung — scalping / day / swing — mỗi thị trường — {today}", "",
-         "_`scripts/rank-setups.py --horizons`. Quyết định người dùng 2026-09-11 (mở rộng 2026-09-13): mỗi thị trường chạy đủ 3 khung cho MỖI luật chạy được (RUNNABLE — WYCKOFF, WYCKOFF-BOOK, ICT, COMBINED), kể cả khi lợi thế backtest yếu hoặc âm. Lý do: `strategy-runner.py`'s `allowed_methods()` chỉ cho phép các luật mà method-switch preset đang bật; chọn theo (khung, luật) thay vì chỉ theo khung đảm bảo mọi preset (dù chỉ bật một luật, ví dụ ICT-only) vẫn có đủ 3 khung, thay vì chỉ có khung mà luật đó tình cờ thắng khi so giữa các luật. Trong mỗi (khung, luật), cấu hình/target tốt nhất theo cùng tiêu chí (không cháy → quý dương → năm dương → quý tệ nhất) — dòng âm được in nghiêng; scalping 5m/15m bị phí và trượt giá ăn nhiều nhất. Một khung có thể không đủ lệnh cho MỘT luật cụ thể dù các luật khác ở cùng khung có đủ — dòng đó vẫn được in để việc thiếu setup luôn hiện rõ, không âm thầm giảm số lượng._", ""]
+         "_`scripts/rank-setups.py --horizons`. Quyết định người dùng 2026-09-11 (mở rộng 2026-09-13): mỗi thị trường chạy đủ 3 khung cho MỖI luật chạy được (RUNNABLE — WYCKOFF, WYCKOFF-BOOK, ICT, COMBINED). Sửa 2026-09-13 (quyết định người dùng): một ô CHỈ được lấp bởi luật có ≥ 3 tháng dữ liệu, không cháy, VÀ có lãi — không ai qua thì **bỏ trống ô**, không lấp bằng đứa đỡ tệ nhất. Trước đó ô được lấp kể cả khi mọi ứng viên đều lỗ, và lần xếp hạng 2026-09-13 đã chọn một luật CFD kết thúc ở $988 trên vốn $10.000. Lý do: `strategy-runner.py`'s `allowed_methods()` chỉ cho phép các luật mà method-switch preset đang bật; chọn theo (khung, luật) thay vì chỉ theo khung đảm bảo mọi preset (dù chỉ bật một luật, ví dụ ICT-only) vẫn có đủ 3 khung, thay vì chỉ có khung mà luật đó tình cờ thắng khi so giữa các luật. Trong mỗi (khung, luật), cấu hình/target tốt nhất theo cùng tiêu chí (không cháy → quý dương → năm dương → quý tệ nhất) — dòng âm được in nghiêng; scalping 5m/15m bị phí và trượt giá ăn nhiều nhất. Một khung có thể không đủ lệnh cho MỘT luật cụ thể dù các luật khác ở cùng khung có đủ — dòng đó vẫn được in để việc thiếu setup luôn hiện rõ, không âm thầm giảm số lượng._", ""]
     selection = dict(generated=today, mode="horizons", note="Written by scripts/rank-setups.py --horizons. One setup per (horizon, method) per market -- every RUNNABLE method gets its own scalping/day/swing setups so any method-switch preset (strategy-runner.py allowed_methods()) still covers all 3 horizons (user decision 2026-09-11, extended 2026-09-13 for the per-method split). Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.", setups=[])
     methods_order = sorted(RUNNABLE)   # deterministic order; RUNNABLE comes from the registry (scripts/methods.py runnable()), never hardcoded here
     for market, paths, syms in (("crypto", a.crypto, a.crypto_symbols.split(",")), ("cfd", a.cfd, a.cfd_symbols.split(","))):
