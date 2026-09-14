@@ -10,6 +10,8 @@ The method-preset switch is deliberately NOT covered here -- all six presets and
 """
 import json, os, re, unittest
 
+from srcscan import code_lines, code_text   # the ONE source-scanning helper; see scripts/tests/srcscan.py
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPTS = os.path.join(ROOT, "scripts")
 CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
@@ -22,34 +24,6 @@ def sources():
         for fn in sorted(os.listdir(d)):
             if fn.endswith((".py", ".sh")) and fn != "test_one_system.py":
                 out[os.path.relpath(os.path.join(d, fn), ROOT)] = open(os.path.join(d, fn), encoding="utf-8").read()
-    return out
-
-
-def code_lines(rel):
-    """Lines of `rel` with comments AND docstrings removed, 1-indexed as (lineno, text).
-
-    Why docstrings too: a test that bans a token everywhere also bans the sentence EXPLAINING why the token was
-    removed. That bit three times on 2026-09-13 -- including forcing an implementer to edit unrelated docstrings
-    in htf_context.py just to satisfy a scan. Prose may discuss a deleted thing; code may not resolve it.
-    """
-    src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
-    skip = set()
-    if rel.endswith(".py"):
-        import ast
-        tree = ast.parse(src)
-        for node in ast.walk(tree):
-            body = getattr(node, "body", None)
-            if not isinstance(body, list) or not body:
-                continue
-            first = body[0]
-            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) \
-               and isinstance(first.value.value, str):
-                skip.update(range(first.lineno, (first.end_lineno or first.lineno) + 1))
-    out = []
-    for i, line in enumerate(src.splitlines(), 1):
-        if i in skip or line.lstrip().startswith(("#", "<!--")):
-            continue
-        out.append((i, line))
     return out
 
 

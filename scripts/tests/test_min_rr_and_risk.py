@@ -15,6 +15,8 @@ less than 2R and the worst planned 0.00R.
 """
 import importlib.util, json, os, unittest
 
+from srcscan import code_text   # scan CODE, not the prose explaining what was removed
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PARAMS = os.path.join(ROOT, "docs", "architecture", "analysis-params.json")
 
@@ -251,3 +253,64 @@ class BacktestReportHonesty(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OneRiskCeilingForBothLoaders(unittest.TestCase):
+    """The risk ceiling has TWO readers, and until 2026-09-13 they disagreed.
+
+    scripts/trading_env.py MAX_RISK_PCT = 0.03 and its own docstring calls that constant "the SINGLE source";
+    scripts/trading-env.sh clamped to a hardcoded 0.01 and its header said "max 1% per trade". The shell loader is
+    not a side path -- scripts/binance-testnet-order.sh and scripts/binance-futures-testnet-order.sh source it,
+    so the SAME configured PILOT_RISK_PCT produced a different position size depending on which script placed the
+    order, and the user's 3 % decision silently never reached the shell path.
+
+    This is the identical shape to the 2026-09-13 F1 finding on the planned-R:R floor: two readers of one config
+    key, each carrying its own literal. That one was closed by making every path read one validated function; so
+    is this one. The shell must carry no ceiling of its own and must fail closed if it cannot read the constant.
+
+    These tests deliberately do NOT `source` the loader: sourcing it reads config/env.<environment>, which holds
+    secrets and need not exist on a given machine, so such a test would be both flaky and a secret-reader. They
+    assert the loader's SHAPE plus the exact command it uses to obtain the ceiling.
+    """
+
+    SH = os.path.join(ROOT, "scripts", "trading-env.sh")
+
+    def setUp(self):
+        self.env = _load("trading_env.py", "trading_env_ceiling")
+        self.src = open(self.SH, encoding="utf-8").read()   # raw, for shape assertions
+        self.code = code_text("scripts/trading-env.sh")     # comments stripped, for token bans
+
+    def test_the_shell_loader_does_not_carry_its_own_ceiling(self):
+        for lit in ("0.01", "0.03"):
+            self.assertNotIn(lit, self.code,
+                             f"trading-env.sh hardcodes the ceiling {lit} -- it must read MAX_RISK_PCT instead")
+
+    def test_the_clamp_bound_is_the_value_read_from_python(self):
+        """A clamp whose bound is a shell variable cannot drift from the constant; a numeric literal can."""
+        clamp = [l for l in self.src.splitlines() if "PILOT_RISK_PCT=" in l and "min(" in l]
+        self.assertEqual(len(clamp), 1, f"expected exactly one clamp line, found {len(clamp)}")
+        self.assertIn("$_TE_MAX_RISK", clamp[0], "the clamp bound must be the value read from trading_env.py")
+
+    def test_the_ceiling_read_command_yields_max_risk_pct(self):
+        """Run the loader's own extraction command and compare with the constant it claims to read."""
+        import re, subprocess
+        m = re.search(r'_TE_MAX_RISK="\$\((.+?)\)"', self.src, re.S)
+        self.assertIsNotNone(m, "could not find the _TE_MAX_RISK extraction in trading-env.sh")
+        out = subprocess.run(["bash", "-c", f'_TE_DIR="{os.path.join(ROOT, "scripts")}"; {m.group(1)}'],
+                             capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, f"extraction failed: {out.stderr.strip()}")
+        self.assertEqual(out.stdout.strip(), str(self.env.MAX_RISK_PCT))
+
+    def test_the_loader_fails_closed_when_the_constant_is_unreadable(self):
+        """Same rule as min_rr(): an unreadable ceiling must refuse, never fall back to a guessed number."""
+        guard = self.code[self.code.index("_TE_MAX_RISK"):]
+        self.assertRegex(guard.split("PILOT_RISK_PCT=")[0], r'-z "\$_TE_MAX_RISK"',
+                         "trading-env.sh must test the ceiling for emptiness BEFORE using it to clamp")
+        self.assertRegex(guard.split("PILOT_RISK_PCT=")[0], r"(return 2|exit 2)",
+                         "trading-env.sh must refuse (exit 2) when it cannot read MAX_RISK_PCT")
+
+    def test_no_stale_one_percent_claim_survives_in_either_loader(self):
+        for rel in ("scripts/trading-env.sh", "scripts/trading_env.py"):
+            code = code_text(rel)
+            self.assertNotIn("max 1%", code, f"{rel} still claims a 1 % ceiling in CODE")
+            self.assertNotIn("1% per trade", code, f"{rel} still claims a 1 % ceiling in CODE")

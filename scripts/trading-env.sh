@@ -10,7 +10,9 @@
 # A required secret that is empty or still "__FILL_ME__" makes this loader fail (exit 2) BEFORE any caller
 # can place an order. That is a correctness check ("environment incomplete"), not a policy block.
 #
-# Hard rules enforced here regardless of environment: PILOT_RISK_PCT is clamped to <= 0.01 (max 1% per trade).
+# Hard rules enforced here regardless of environment: PILOT_RISK_PCT is clamped to <= trading_env.MAX_RISK_PCT,
+# read from scripts/trading_env.py at load time rather than restated here (see the clamp at the foot of this file).
+# This header said "max 1% per trade" until 2026-09-13 while trading_env.py said 3 % -- one key, two ceilings.
 set -u
 _TE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _TE_ROOT="$(cd "$_TE_DIR/.." && pwd)"
@@ -80,8 +82,23 @@ trading_env_require() {   # trading_env_require BINANCE_SPOT_API_KEY ...   -> ex
     fi
   done
 }
-# risk ceiling (hard rule: max 1% per trade)
+# Risk ceiling. ONE source: scripts/trading_env.py MAX_RISK_PCT -- read it, never restate it. Until 2026-09-13
+# this line carried its own literal (0.01) while trading_env.py said 0.03, so the SAME configured PILOT_RISK_PCT
+# produced a different position size depending on whether the order went out through this loader
+# (binance-testnet-order.sh, binance-futures-testnet-order.sh) or through strategy-runner.py -- and the user's
+# 3 % decision never reached this path at all. Same failure shape as the planned-R:R floor F1 the same day: two
+# readers of one config key, each with its own number.
+_TE_MAX_RISK="$(python3 -c 'import importlib.util, sys
+spec = importlib.util.spec_from_file_location("trading_env", sys.argv[1])
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+print(mod.MAX_RISK_PCT)' "$_TE_DIR/trading_env.py" 2>/dev/null)"
+# Fail CLOSED, exactly as trading_env.min_rr() does: an unreadable ceiling must refuse to trade, never fall back
+# to a guessed number -- a guess here is a position size nobody decided.
+if [ -z "$_TE_MAX_RISK" ]; then
+  echo "trading-env: cannot read MAX_RISK_PCT from scripts/trading_env.py -- refusing to set a risk ceiling" >&2
+  return 2 2>/dev/null || exit 2
+fi
 PILOT_RISK_PCT="${PILOT_RISK_PCT:-0.005}"
-PILOT_RISK_PCT="$(python3 -c "import sys; v=float(sys.argv[1]); print(min(v, 0.01))" "$PILOT_RISK_PCT")"
+PILOT_RISK_PCT="$(python3 -c "import sys; v=float(sys.argv[1]); print(min(v, float(sys.argv[2])))" "$PILOT_RISK_PCT" "$_TE_MAX_RISK")"
 export PILOT_RISK_PCT
 unset _req
