@@ -79,7 +79,8 @@ def main():
         # the gate above fails open on; it is the fallback for an unreachable source, not a second source.
         _cfd = _auto.market_of_style(a.style) == "cfd" if _auto else a.style.startswith("cfd-")
         a.symbols = "XAUUSD" if _cfd else "BTCUSDT,ETHUSDT,SOLUSDT"
-    # Freeze the scanner outputs for THIS read: the background scanner rewrites facts.json every minute (scalping),
+    # Freeze the scanner outputs for THIS read: the background scanner rewrites facts.json on its own
+    # cadence (scalping is 15m since 2026-09-13 -- scan-loop.sh fires it at :01/:16/:31/:46, not every minute),
     # so the model must be judged against the snapshot it was given, not against whatever is newest at check time.
     import shutil, time
     snap_dir = os.path.join(a.snapshot_dir, f"local-eval-{a.style}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}")

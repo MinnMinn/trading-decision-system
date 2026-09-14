@@ -399,7 +399,8 @@ def ict_live_setups(side, candles, tf, sym):
     """ICT setups from the LIVE rules, mirroring bt.ict_setups_live (2026-09-13, Task 8). Before this, the
     runner built ICT setups with bt.all_pivots/bt.last_pivot/bt.find_ict/bt.ict_target -- the LEGACY algorithm --
     while bt.scan() validates ICT with the live scanner (scripts/ict-scan.py via scripts/live_rules.py), so the
-    two disagreed by roughly an order of magnitude (docs/backtests/2026-09-13-live-rules-vs-legacy.md). This
+    two disagreed by roughly an order of magnitude (measured in the legacy-vs-live comparison, deleted with the
+    legacy engine on 2026-09-13 -- docs/plans/2026-09-13-collapse-to-one-system.md Task 4). This
     function asks the SAME live scanner the SAME question bt.ict_setups_live asks, at every bar of the window:
     live_rules.read_at() for the facts, live_rules.ict_scan.setup_candidate() for the setup, require
     complete + pd_ok, gate on bt.bias_allows(live_rules.bias_at(...)[0], side). The one difference from

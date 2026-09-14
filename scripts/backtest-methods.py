@@ -460,7 +460,8 @@ def scan(sym, tf, only=None):
     # structure -- pivot, sweep, MSS, FVG, dealing range, bias -- so the backtest measures the system actually
     # traded (audit 2026-09-13). The pre-2026-09-13 in-file proxy this branch used to fall back to under
     # `--rules legacy` is gone (Task 8, 2026-09-13): the evidence gate was met
-    # (docs/backtests/2026-09-13-live-rules-vs-legacy.md -- live's profit factor beat legacy on every timeframe
+    # (the legacy-vs-live comparison, deleted with the legacy engine on 2026-09-13 -- docs/plans/2026-09-13-collapse-to-one-system.md Task 4:
+    # live's profit factor beat legacy on every timeframe
     # measured and legacy blew the account up twice where live never did), so the second implementation is dead
     # weight. Skipped entirely (never calls the live scanner) when "ICT" is not in `only` -- see scan()'s docstring.
     if "ICT" in want:

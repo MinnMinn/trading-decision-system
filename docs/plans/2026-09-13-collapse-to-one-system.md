@@ -766,6 +766,70 @@ git commit -m "one-system: the flat style consumers follow the one vocabulary"
 
 ---
 
+### Task 2 review findings and the fix (2026-09-13)
+
+A read-only review of `385f034` found the stale-value trap the plan called irreversible living in a namespace the
+plan never enumerated. The plan pinned `docs/architecture/artifacts.json` and missed that **the same style names
+key four namespaces of runtime state under `data/live/`** — which is gitignored, so the repo carries no record of
+it and no test could see it. This section is that record.
+
+**The hazard, realized.** `scripts/publish-plan.py` calls a style "due" when
+`data/live/prelim/<style>.*.model.html`, `data/live/narrative/<style>.json` or `data/live/prelim/<style>.facts.json`
+is newer than `data/live/.published-<style>`. Two names were REUSED for a different timeframe (`scalping` 1m→15m,
+`swing` 1D→4h), so after the rename:
+
+- `scalping` was **due**, pointing at the real 15-minute page (`46b302c5…`), while
+  `prelim/scalping.*.model.html` was 1-minute prose from 2026-09-11 (`"Trên khung 1 phút…"`) — and the scanner had
+  ALREADY refilled `scalping.facts.json` with fresh 15m facts, so the next publish tick would have put 15m numbers
+  and 1m prose on one page.
+- `swing` was **due** with `url: PENDING`, so the first 4-hour page ever created would have been built from
+  1D-era inputs.
+- `data/live/scan-state.scalping.json` was being appended to by the new 15m pass on top of 1m event history.
+  `scripts/ict-scan.py` uses that file for state, so a real 15m event could be suppressed as already-seen.
+
+**The fix**, applied to the four namespaces (`prelim/`, `narrative/`, `anchors.*`, `.published-*`, plus
+`scan-state.*` and `model-reads/*`): remap the state whose TIMEFRAME still matches onto the new name, delete the
+state belonging to a retired timeframe. `daytrade`(15m) → `scalping`, `1h` → `day`, `4h` → `swing`,
+`gold`(15m cfd) → `cfd-scalping`, `gold-1h` → `cfd-day`, `gold-4h` → `cfd-swing`; deleted: the 1m `scalping.*`
+prose, the 1D `swing.*` and `gold-swing.*`, the 5m `gold-scalp.*`, and the orphan `.published-*` markers. A byte
+copy of everything touched was taken first. After the remap every one of the six namespaces lists exactly the six
+live styles, `day`/`swing` are due with genuine 1h/4h inputs, and nothing is due with mismatched content.
+
+**The lesson, stated plainly because it cost two CRITICALs in Task 1 and one here:** enumerating the tables that
+key off a renamed identifier is not enough. Runtime state is keyed by the same names, and it is exactly where a
+test cannot reach. When a rename REUSES a name for a different meaning, every namespace keyed by that name has to
+be inventoried by hand — not just the ones in the repo.
+
+Also fixed in the same pass:
+
+- **`scan-loop.sh` had stopped fetching `1D` candles.** The deleted 1D scanning pass was also the only caller of
+  `fetch-binance-klines.sh <sym> 1D`. `1D` is still `day`'s bias rung and `swing`'s structure rung in
+  `PAGE_RUNGS`, `build-artifact.py` draws it with no freshness guard, and `automation.py timeframe 1D on` is now a
+  usage error — so those two pages would have drawn a chart frozen at 2026-09-10 with no way to refresh it. The
+  `4H` branch now fetches `1D` and `1W` as context.
+- **`integrations/crons/` was in no task's file list.** `publish-tick.md`'s runtime gate ran
+  `allows local_read daytrade|gold`; `automation.py` returns True for an unknown style ("not this switch's
+  business"), so both exited 0 and the gate silently degraded from master+layer+market+timeframe to master+layer.
+  Gate now names live styles. The same file branched on `PENDING_CREATE_ON_FIRST_RUN` while `publish-plan.py`
+  prints the literal `PENDING` — a token belonging to `cron-templates.py`, so neither branch would have matched on
+  the first `day`/`swing` publish. `journal-publish.md`'s gate and `crons/README.md`'s cadence line fixed too.
+- **A fifth vacuous test.** `test_no_gold_prefixed_names_survive` required DOUBLE QUOTES around the token, so it
+  matched none of the places the name actually lived — not `AUTO_STYLES="…,gold,gold-1h"`, not
+  `case "$STYLE" in scalping|gold-scalp)`, not single-quoted Python. It would have passed against an unchanged
+  `scan-loop.sh` and `model-read.sh`. Now a plain substring test over `code_lines()`, proven by reintroducing
+  `gold-scalp` into `model-read.sh` and watching it fail.
+- Five prose citations of the evidence document Task 4 deleted, and two comments still claiming the scanner
+  refreshes scalping "every minute" (true at 1m, false at 15m).
+
+**Deliberately NOT changed, for the user to decide:** `gate_style("swing")` is now `(None, None)` — the 4-hour
+horizon has no HTF gate, because both its rungs (`1D`, `1W`) are context-only and carry no scanned style. Before
+the collapse the 4-hour style was gated by a scanned 1D read. This is not on the order path
+(`strategy-runner.py`, `live_rules.py` and `pilot-loop.sh` read neither `gate_style` nor `CONTEXT_STYLE`), so it
+affects the pages' HTF objections, not execution. Restoring a gate means either scanning `1D` again or gating
+`swing` from a context-only rung, and both are trading decisions rather than cleanup.
+
+---
+
 ### Task 3: Make the horizon→timeframe mapping single-valued in rank-setups
 
 **Symbols to change** (not line numbers — the same symbol survey that rewrote Task 2 found two sites this

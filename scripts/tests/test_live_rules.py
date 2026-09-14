@@ -317,13 +317,14 @@ class LiveIctFillCheckActuallyFilters(unittest.TestCase):
 
 
 class LegacyEngineIsGone(unittest.TestCase):
-    """Task 8 (2026-09-13): the evidence gate was met (docs/backtests/2026-09-13-live-rules-vs-legacy.md -- ICT
+    """Task 8 (2026-09-13): the evidence gate was met (the legacy-vs-live comparison, deleted 2026-09-13 with the
+    engine it compared -- docs/plans/2026-09-13-collapse-to-one-system.md Task 4; git history keeps the numbers -- ICT
     profit factor improved on every timeframe measured, legacy blew the account up twice, live never did), so
     the second implementation -- --rules legacy and OPTS["rules"] -- is dead weight that can silently drift back
     into use. These assertions are what make the removal real rather than a flag nobody sets. The
     ed1c8e9-vs-live comparison LegacyRulesUnchanged used to run here is retired along with the branch it
     exercised; the legacy figures it protected are preserved as a report, not as runnable code
-    (docs/backtests/2026-09-13-live-rules-vs-legacy.md)."""
+    (measured before the comparison document was deleted; docs/plans/2026-09-13-collapse-to-one-system.md Task 4)."""
 
     def setUp(self):
         self.bt = load("backtest-methods.py")

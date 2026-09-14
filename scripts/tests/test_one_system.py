@@ -189,10 +189,18 @@ class OneStyleVocabulary(unittest.TestCase):
             self.assertNotIn(gone, self.auto.TIMEFRAMES, f"{gone} is still a selectable timeframe")
 
     def test_no_gold_prefixed_names_survive(self):
-        """The cfd market is distinguished by a `cfd-` prefix now, the way pilot-top5.json uses a market field."""
+        """The cfd market is distinguished by a `cfd-` prefix now, the way pilot-top5.json uses a market field.
+
+        This asserted `re.search(r'"gold(-[a-z0-9]+)?"')` until the 2026-09-13 review: requiring DOUBLE QUOTES
+        around the token meant it matched none of the places the name actually lived -- not
+        `AUTO_STYLES="${AUTO_STYLES:-...,gold,gold-1h}"`, not `case "$STYLE" in scalping|gold-scalp)`, not
+        `run_style 5m gold-scalp`, not single-quoted Python. It would have passed against an UNCHANGED
+        scan-loop.sh and model-read.sh. That was the fifth vacuous test in this plan; a plain substring test over
+        code_lines() is what its sibling below already does, and it covers bash.
+        """
         for path in sources():
             for i, line in code_lines(path):
-                self.assertIsNone(re.search(r'"gold(-[a-z0-9]+)?"', line), f"{path}:{i} keeps a gold-* style name")
+                self.assertNotIn("gold", line, f"{path}:{i} keeps a gold-* style name")
 
     def test_daytrade_is_not_a_name_any_more(self):
         """`daytrade` (15m) and `day` (1H) were two names one keystroke apart for different timeframes."""

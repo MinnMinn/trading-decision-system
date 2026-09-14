@@ -142,7 +142,7 @@ class IctParityAchieved(unittest.TestCase):
             f.write("BTCUSDT 15m, 3000-bar window\n")
             f.write(f"BEFORE (commit febd2d6, bt.scan --rules live vs legacy, the divergence "
                     f"IctParityIsKnownBroken pinned): live={before['live']} legacy={before['legacy']} "
-                    f"(the docs/backtests/2026-09-13-live-rules-vs-legacy.md evidence gate this task was "
+                    f"(the legacy-vs-live evidence gate this task was "
                     f"conditioned on)\n")
             f.write(f"BEFORE (commit febd2d6, OLD runner setups(), legacy bt.all_pivots/bt.find_ict proxy): "
                     f"still-working-at-window-end setups = {old_runner_pending}\n")
