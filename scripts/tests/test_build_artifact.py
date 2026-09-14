@@ -34,8 +34,8 @@ class Page(unittest.TestCase):
         keep = ("analysis-params.json", "automation-config.json")
         b.read_json = lambda path, default=None: real_read(path, default) if path.endswith(keep) else default
         b.candles = lambda sym, tf, n, snap=None: (synth(n, step_min=b.TF_MIN.get(tf, 15)), "2026-09-12T00:00:00Z", "test-fixture")
-        cls.tmp = tempfile.mkdtemp(); cls.out = os.path.join(cls.tmp, "daytrade.html")
-        b.build("daytrade", cls.out)
+        cls.tmp = tempfile.mkdtemp(); cls.out = os.path.join(cls.tmp, "scalping.html")
+        b.build("scalping", cls.out)
         cls.html = open(cls.out, encoding="utf-8").read()
 
     @classmethod
@@ -379,8 +379,8 @@ class ChartJsReadsInjectedLaneFacts(unittest.TestCase):
         b.candles = lambda sym, tf, n, snap=None: (synth(n, step_min=b.TF_MIN.get(tf, 15)), "2026-09-12T00:00:00Z", "test-fixture")
         tmp = tempfile.mkdtemp()
         try:
-            out = os.path.join(tmp, "daytrade.html")
-            b.build("daytrade", out)
+            out = os.path.join(tmp, "scalping.html")
+            b.build("scalping", out)
             html = open(out, encoding="utf-8").read()
             at = html.find("TChart.init(")
             dec = json.JSONDecoder()

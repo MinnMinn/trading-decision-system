@@ -12,7 +12,7 @@ WHAT `on` / `off` MEAN (user decision 2026-09-10):
           pilot + scanner launchd agents booted out AND their plists removed from ~/Library/LaunchAgents (so a
           reboot does NOT resurrect them), keep-awake killed.
   demo / real -> set execution.environment to that name, apply the preset (both markets, every instrument that has
-          data on disk, EVERY timeframe ON: scalping 1m/5m, day 15m, 1h/4h, swing 1D); dimensions and the chosen
+          data on disk, EVERY timeframe ON: scalping 15m, day 1h, swing 4h); dimensions and the chosen
           method preset are left exactly as they are (spec docs/specs/2026-09-12-method-switch-design.md §4.1 --
           before this, demo/real turned every dimension back on and silently erased the user's preset), then `on`.
           `real` refuses (exit 2) only while config/env.real still has placeholder secrets.
@@ -24,8 +24,9 @@ environment on policy grounds. Hard rules that stay in every environment: no For
 PILOT_RISK_PCT <= 1% (clamped by the loaders).
 
 v3 shape (schema_version 3): per-MARKET config (crypto | cfd) with instruments, Confluence dimensions (§6.2) and
-timeframes; (market, timeframe) maps to the chart-style vocabulary (STYLE below). `services` records what `on`
-installed so `off` can remove exactly that.
+timeframes; (market, timeframe) maps to the chart-style vocabulary (STYLE below), which is DERIVED from the three
+authored horizons (HORIZONS / HORIZON_TF: scalping 15m, day 1h, swing 4h) -- crypto keeps the bare horizon word,
+cfd takes a `cfd-` prefix. `services` records what `on` installed so `off` can remove exactly that.
 
 Subcommands
   status [--json]                     full effective configuration + warnings (safe any time, works with no file)
@@ -34,7 +35,7 @@ Subcommands
   on  [--who W] [--reason R]          bring everything up in the CURRENT environment
   off [--who W] [--reason R]          stop everything (persists across reboot)
   market <crypto|cfd> <on|off>
-  timeframe <1m|5m|15m|1h|4h|1D> <on|off> [--market crypto|cfd]   (5m = cfd scalping only)
+  timeframe <15m|1h|4h> <on|off> [--market crypto|cfd]   one scanned set, both markets (scalping|day|swing)
   dimension <wyckoff|ict|footprint|heatmap> <on|off> [--market crypto|cfd]
   method <preset> [--market crypto|cfd]   apply a named preset from docs/architecture/methods.json as a set of the
                                       dimension flags; the preset is only a NAME for that set, nothing extra is
@@ -100,11 +101,13 @@ methods = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(met
 # Footprint/Heatmap have NO commodities source (CoinGlass is crypto-derivatives only) -- SYSTEM-DESIGN.md §12 item 3,
 # which is now expressed by those dimensions not listing "cfd" in their markets[].
 MARKET_DIMENSIONS = {m: methods.dimensions(m) for m in MARKETS}
-# No 1m for cfd (user decision 2026-09-11: CFD scalping runs on M5 -- gold spread makes M1 noise); the EA exports
-# 1W/1D/4H/1H/15m/5m (integrations/mt5/ExportOHLCV.mq5). 5m exists for cfd only; crypto scalping stays on 1m.
-MARKET_TIMEFRAMES = {"crypto": ["1m", "15m", "1h", "4h", "1D"], "cfd": ["5m", "15m", "1h", "4h", "1D"]}
+# One scanned set for both markets (user decision 2026-09-13). 1m and 5m were the two scalping entry windows and
+# 1D was the swing entry; all three leave the scanned set when the horizons become 15m/1h/4h. 1D and 1W stay in
+# PAGE_RUNGS below as context-only rungs, which is what keeps swing a full ladder. The MT5 EA
+# (integrations/mt5/ExportOHLCV.mq5) exports 1W/1D/4H/1H/15m/5m, so every scanned cfd rung has a source.
+MARKET_TIMEFRAMES = {"crypto": ["15m", "1h", "4h"], "cfd": ["15m", "1h", "4h"]}
 DIMENSIONS = list(methods.ALL_DIMENSIONS)                                    # SYSTEM-DESIGN.md §6.2
-TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D"]
+TIMEFRAMES = ["15m", "1h", "4h"]
 LAYERS = ["scanner", "local_read", "pilot"]
 ALLOWED_INSTRUMENTS = MARKET_INSTRUMENTS["crypto"] + MARKET_INSTRUMENTS["cfd"]
 COMMODITIES = set(MARKET_INSTRUMENTS["cfd"])
@@ -114,12 +117,19 @@ HISTORY_MAX = 200
 HISTORY_ARCHIVE = os.path.join(ROOT, "data", "live", "history-archive.automation.jsonl")
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 
-# (market, timeframe) -> chart style. THE canonical mapping: scan-loop.sh and local-eval-brief.py both read it
-# from here so the vocabulary cannot drift. Never rename an existing style -- artifacts and data/live paths use them.
-STYLE = {("crypto", "1m"): "scalping", ("crypto", "15m"): "daytrade", ("crypto", "1h"): "1h",
-         ("crypto", "4h"): "4h", ("crypto", "1D"): "swing",
-         ("cfd", "5m"): "gold-scalp", ("cfd", "15m"): "gold", ("cfd", "1h"): "gold-1h", ("cfd", "4h"): "gold-4h",
-         ("cfd", "1D"): "gold-swing"}
+# ONE authored style vocabulary (user decision 2026-09-13): three horizons, one timeframe each, shared by both
+# markets. The flat (market, timeframe) -> name table below is DERIVED from it, not authored a second time -- it
+# exists because scan-loop.sh, model-read.sh, build-artifact.py, artifacts.json and local-eval-brief.py key off a
+# single flat name and carry no market field. Crypto keeps the bare horizon word; cfd takes a `cfd-` prefix.
+# This replaces ten hand-written labels -- five per market, the cfd half named after the INSTRUMENT rather than the
+# market -- which disagreed with rank-setups.HORIZONS about what `scalping` and `swing` meant (1m vs 15m, 1D vs 4H).
+# The retired names are spelled out once, in scripts/tests/test_one_system.py OneStyleVocabulary, so that no live
+# source keeps a token a grep is meant to prove gone.
+HORIZONS = ["scalping", "day", "swing"]
+HORIZON_TF = {"scalping": "15m", "day": "1h", "swing": "4h"}
+TF_HORIZON = {tf: hz for hz, tf in HORIZON_TF.items()}
+STYLE_PREFIX = {"crypto": "", "cfd": "cfd-"}
+STYLE = {(m, HORIZON_TF[h]): STYLE_PREFIX[m] + h for m in MARKETS for h in HORIZONS}
 STYLE_MARKET_TF = {v: k for k, v in STYLE.items()}
 # How many bars the live scanner reads per timeframe, and how many count as "recent" for event detection.
 # THE one table: scripts/scan-loop.sh reads it (it used to hardcode the numbers). scripts/live_rules.py (Task 2,
@@ -155,8 +165,10 @@ def ladder(tf, available):
     return s, (next_rung(s, available) if s else None)
 
 
-# Rungs the pages can draw: every scanned timeframe per market plus 1W (fetched for the swing pages, never scanned).
-PAGE_RUNGS = {"crypto": ["1m", "15m", "1h", "4h", "1D", "1W"], "cfd": ["5m", "15m", "1h", "4h", "1D", "1W"]}
+# Rungs the pages can draw: every scanned timeframe per market plus 1D and 1W, which are fetched as CONTEXT for the
+# slower horizons and never scanned. Dropping 1m/5m here cannot change any ladder -- next_rung only ever looks
+# upward from the entry timeframe -- and keeping 1D/1W is what leaves `swing` (4h) a full structure+bias ladder.
+PAGE_RUNGS = {"crypto": ["15m", "1h", "4h", "1D", "1W"], "cfd": ["15m", "1h", "4h", "1D", "1W"]}
 # style -> {"structure": tier, "bias": tier}; tier = {"tf": ..., "style": style-or-None} (None style = chart only, no read).
 TIERS = {}
 for (_mkt, _tf), _style in STYLE.items():
@@ -233,9 +245,10 @@ def market_of(sym):
 
 
 def market_of_style(style):
-    """Which market's dimension flags a chart style obeys. The gold-* styles are the CFD market; everything else
-    is crypto. One definition — build-artifact.py and htf_context.py both read it here rather than re-deriving it."""
-    return "cfd" if (style or "").startswith("gold") else "crypto"
+    """Which market's dimension flags a chart style obeys. `cfd-` prefixed styles are the CFD market; everything
+    else is crypto. One definition — build-artifact.py and htf_context.py both read it here rather than
+    re-deriving it. (Before 2026-09-13 the prefix was `gold`, which named the instrument, not the market.)"""
+    return "cfd" if (style or "").startswith("cfd-") else "crypto"
 
 
 def _market_default(m):
@@ -538,8 +551,8 @@ def warnings(cfg, exists):
                      "source can rehearse but can never satisfy the Independent-Confluence Check (data-sources.md).")
         if m == "cfd" and mk["instruments"]:
             w.append("CFD instruments are structurally capped at NORMAL mode (Wyckoff + ICT only; §12 item 3) and "
-                     "have no 1m data -- the MT5 EA exports 1W/1D/4H/1H/15m/5m for one charted symbol at a time "
-                     "(§12 item 6).")
+                     "the MT5 EA exports one charted symbol at a time -- 1W/1D/4H/1H/15m/5m, which covers the "
+                     "scanned 15m/1h/4h plus the 1D/1W context charts (§12 item 6).")
             missing = [s for s in mk["instruments"] if not os.path.exists(
                 os.path.join(ROOT, "data", "live", DATA_DIR["cfd"], f"ohlcv.{s}.15m.json"))]
             if missing:
@@ -977,7 +990,7 @@ def apply_preset(cfg, a, envname):
         # demo/real turned every dimension back on and silently erased it.
         prof = methods.profile_of(mk["dimensions"])
         enabled_msgs.append(f"{m}: method preset kept as {prof}")
-        for t in MARKET_TIMEFRAMES[m]:          # every timeframe of the market: scalping (1m/5m), day (15m), 1h/4h, swing (1D) -- user decision 2026-09-11
+        for t in MARKET_TIMEFRAMES[m]:          # every timeframe of the market: scalping (15m), day (1h), swing (4h) -- user decision 2026-09-13
             mk["timeframes"][t] = True
         on_tfs = [t for t in MARKET_TIMEFRAMES[m] if mk["timeframes"].get(t, True)]
         enabled_msgs.append(f"{m}: instruments {', '.join(keep) or '(none)'}; timeframes ON {', '.join(on_tfs)} "
@@ -986,7 +999,8 @@ def apply_preset(cfg, a, envname):
             skipped_msgs.append(f"{m}: no instrument has data on disk, so every {m} style will no-op")
     skipped_msgs.append("cfd dimensions footprint/heatmap do not exist -- no CoinGlass source for commodities "
                         "(SYSTEM-DESIGN.md §12 item 3)")
-    skipped_msgs.append("cfd timeframe 1m does not exist -- CFD scalping runs on 5m (gold-scalp), the EA exports 1W/1D/4H/1H/15m/5m")
+    skipped_msgs.append("scanned timeframes are 15m/1h/4h for both markets (scalping/day/swing) -- 1m, 5m and 1D "
+                        "left the scanned set on 2026-09-13; 1D and 1W are still fetched as context charts")
     return enabled_msgs, skipped_msgs
 
 
@@ -1045,9 +1059,12 @@ def cmd_timeframe(a):
     if bad:
         record(cfg, a, f"timeframe {a.name}={a.value} --market {','.join(bad)}", "refused")
         save(cfg)
-        print(f"REFUSED: timeframe {a.name} does not exist for market '{bad[0]}'. "
-              f"integrations/mt5/ExportOHLCV.mq5 exports 1W/1D/4H/1H/15m/5m -- there is no 1m CFD data to scan (CFD scalping = 5m), so "
-              f"no CFD scalping style exists (SYSTEM-DESIGN.md §12 item 6). "
+        # Both markets scan the same three horizons since 2026-09-13, so argparse's `choices` already rejects
+        # everything this branch would catch. It stays because MARKET_TIMEFRAMES is per-market BY SHAPE: the day a
+        # market loses a rung, this refuses instead of writing a flag nothing reads.
+        print(f"REFUSED: timeframe {a.name} does not exist for market '{bad[0]}'. The scanned set is one horizon "
+              f"per timeframe (automation.HORIZON_TF: scalping 15m, day 1h, swing 4h); 1D and 1W are context "
+              f"charts only and are not switchable here. "
               f"{bad[0]} timeframes: {', '.join(MARKET_TIMEFRAMES[bad[0]])}.", file=sys.stderr)
         show(cfg, True)
         return 2

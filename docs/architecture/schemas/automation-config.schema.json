@@ -151,17 +151,12 @@
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "1m",
                 "15m",
                 "1h",
-                "4h",
-                "1D"
+                "4h"
               ],
-              "description": "Which timeframes the scanner and the local read may run for crypto. Each maps to one chart style: 1m -> scalping (1m/180), 15m -> daytrade (15m/288), 1h -> 1h (1H/240), 4h -> 4h (4H/180), 1D -> swing (1D/120). The style names are the vocabulary of scripts/local-eval-brief.py's TF map, scripts/scan-loop.sh and scripts/patch-arrays.py's STYLES -- never rename one.",
+              "description": "Which timeframes the scanner and the local read may run for crypto. One horizon per timeframe: 15m -> scalping (15m/288), 1h -> day (1H/240), 4h -> swing (4H/180). 1m, 5m and 1D left the scanned set on 2026-09-13; 1D and 1W are still fetched as context charts (automation.PAGE_RUNGS) and are not switchable here. The style names are DERIVED from scripts/automation.py's HORIZON_TF (crypto keeps the bare horizon word, cfd takes a cfd- prefix), and docs/architecture/artifacts.json keys its published pages off them -- so a rename here is a rename of a page key, not a local edit.",
               "properties": {
-                "1m": {
-                  "type": "boolean"
-                },
                 "15m": {
                   "type": "boolean"
                 },
@@ -169,9 +164,6 @@
                   "type": "boolean"
                 },
                 "4h": {
-                  "type": "boolean"
-                },
-                "1D": {
                   "type": "boolean"
                 }
               }
@@ -187,7 +179,7 @@
             "dimensions",
             "timeframes"
           ],
-          "description": "Commodity CFDs via the MT5 file bridge (docs/architecture/mt5-bridge.md). Two structural limits are encoded in the shape of this object rather than left to a flag: there are no footprint/heatmap keys (CoinGlass is crypto-derivatives only, SYSTEM-DESIGN.md section 12 item 3, so NORMAL mode is the permanent ceiling here) and there is no 1m key (integrations/mt5/ExportOHLCV.mq5 exports 1D/4H/1H/15m only, section 12 item 6, so no CFD scalping style exists). additionalProperties:false makes both refusals a validation error, not a runtime surprise.",
+          "description": "Commodity CFDs via the MT5 file bridge (docs/architecture/mt5-bridge.md). One structural limit is encoded in the shape of this object rather than left to a flag: there are no footprint/heatmap keys (CoinGlass is crypto-derivatives only, SYSTEM-DESIGN.md section 12 item 3, so NORMAL mode is the permanent ceiling here), and additionalProperties:false makes that refusal a validation error rather than a runtime surprise. The timeframe keys are the same three horizons crypto carries: since 2026-09-13 CFD scalping is 15m, so the old no-1m-export limit (section 12 item 6) no longer removes a horizon from this market.",
           "properties": {
             "enabled": {
               "type": "boolean"
@@ -231,14 +223,10 @@
               "required": [
                 "15m",
                 "1h",
-                "4h",
-                "1D"
+                "4h"
               ],
-              "description": "5m -> gold-scalp (5m/288, CFD scalping; M1 rejected 2026-09-11 because the gold spread makes it noise), 15m -> gold (15m/288), 1h -> gold-1h (1H/240), 4h -> gold-4h (4H/180), 1D -> gold-swing (1D/120, 1W context). The EA's InpBarsToExport is 300; a longer window simply yields fewer bars until it is raised.",
+              "description": "The same three horizons crypto scans, market-qualified by a cfd- prefix: 15m -> cfd-scalping (15m/288), 1h -> cfd-day (1H/240), 4h -> cfd-swing (4H/180). 5m and 1D left the scanned set on 2026-09-13 (M1 was already rejected 2026-09-11 because the gold spread makes it noise); 1D and 1W remain context charts only. The style names are DERIVED from scripts/automation.py's HORIZON_TF, and docs/architecture/artifacts.json keys its published pages off them. The EA's InpBarsToExport is 300; a longer window simply yields fewer bars until it is raised.",
               "properties": {
-                "5m": {
-                  "type": "boolean"
-                },
                 "15m": {
                   "type": "boolean"
                 },
@@ -246,9 +234,6 @@
                   "type": "boolean"
                 },
                 "4h": {
-                  "type": "boolean"
-                },
-                "1D": {
                   "type": "boolean"
                 }
               }

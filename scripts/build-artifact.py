@@ -3,7 +3,8 @@
 layers 1/2/3 each split per method then synthesised, one method = one vocabulary, trader-grade UI).
 
 Usage: build-artifact.py <style> --out FILE [--snapshot-dir DIR] [--narrative PATH] [--check-only] [--allow-impure]
-  style: scalping | daytrade | 1h | 4h | swing | gold | gold-1h | gold-4h | gold-swing
+  style: scalping | day | swing | cfd-scalping | cfd-day | cfd-swing   (three horizons x two markets;
+         the names are derived in scripts/automation.py from HORIZON_TF -- crypto bare, cfd prefixed)
 
 Inputs (all read-only here; each has exactly one writer elsewhere):
   data/live/market-data|mt5-bridge/ohlcv.<SYM>.<tf>.json   working window AND the context (HTF) window   (launchd scanner / MT5 EA)
@@ -61,16 +62,12 @@ def _style(tf, syms, name, kz):
 
 # The three tiers of every style come from ONE table: scripts/automation.py TIERS (docs/architecture/timeframe-mapping.md).
 STYLES = {
-    "scalping":   _style("1m",  CRYPTO, "Crypto Scalping", False),
-    "daytrade":   _style("15m", CRYPTO, "Crypto Day", True),
-    "1h":         _style("1H",  CRYPTO, "Crypto 1H", True),
-    "4h":         _style("4H",  CRYPTO, "Crypto 4H", False),
-    "swing":      _style("1D",  CRYPTO, "Crypto Swing", False),
-    "gold-scalp": _style("5m",  GOLD,   "CFD Scalping", True),
-    "gold":       _style("15m", GOLD,   "CFD Day", True),
-    "gold-1h":    _style("1H",  GOLD,   "CFD 1H", True),
-    "gold-4h":    _style("4H",  GOLD,   "CFD 4H", False),
-    "gold-swing": _style("1D",  GOLD,   "CFD Swing", False),
+    "scalping":     _style("15m", CRYPTO, "Crypto Scalping", True),
+    "day":          _style("1H",  CRYPTO, "Crypto Day", True),
+    "swing":        _style("4H",  CRYPTO, "Crypto Swing", False),
+    "cfd-scalping": _style("15m", GOLD,   "CFD Scalping", True),
+    "cfd-day":      _style("1H",  GOLD,   "CFD Day", True),
+    "cfd-swing":    _style("4H",  GOLD,   "CFD Swing", False),
 }
 for _st, _S in STYLES.items():
     _S["tiers"] = {}

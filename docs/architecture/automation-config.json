@@ -28,11 +28,9 @@
         "heatmap": false
       },
       "timeframes": {
-        "1m": true,
         "15m": true,
         "1h": true,
-        "4h": true,
-        "1D": false
+        "4h": true
       }
     },
     "cfd": {
@@ -46,11 +44,9 @@
         "ict": true
       },
       "timeframes": {
-        "5m": true,
         "15m": true,
         "1h": true,
-        "4h": true,
-        "1D": false
+        "4h": true
       }
     }
   },

@@ -11,13 +11,14 @@ Usage: local-eval-brief.py <style> [--bars 40] [--symbols BTCUSDT,ETHUSDT,SOLUSD
 import argparse, json, os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # style -> (timeframe code as scripts/fetch-binance-klines.sh spells it, bars in the window).
-# gold* = XAUUSD via the MT5 bridge (the EA exports 200 bars per timeframe, InpBarsToExport).
-# The 1h/4h window sizes (240 / 180) are PROJECT PARAMETERS -- no source prescribes them; they are ~10 days of
-# hourly and ~30 days of 4-hourly bars, chosen to match the swing window's horizon. On the MT5 bridge a 240-bar
-# 1H request simply yields the 200 bars the EA exports until InpBarsToExport is raised.
-TF = {"scalping": ("1m", 180), "daytrade": ("15m", 288), "1h": ("1H", 240), "4h": ("4H", 180),
-      "swing": ("1D", 120),
-      "gold-scalp": ("5m", 288), "gold": ("15m", 288), "gold-1h": ("1H", 240), "gold-4h": ("4H", 180), "gold-swing": ("1D", 120)}
+# The `cfd-` prefixed styles are XAUUSD via the MT5 bridge (the EA exports 200 bars per timeframe,
+# InpBarsToExport); the bare names are crypto. Six names since 2026-09-13: three horizons x two markets, derived
+# in scripts/automation.py (HORIZON_TF / STYLE) -- this table only adds the WINDOW each one reads.
+# The 1H/4H window sizes (240 / 180) are PROJECT PARAMETERS -- no source prescribes them; they are ~10 days of
+# hourly and ~30 days of 4-hourly bars. On the MT5 bridge a 240-bar 1H request simply yields the 200 bars the EA
+# exports until InpBarsToExport is raised.
+TF = {"scalping": ("15m", 288), "day": ("1H", 240), "swing": ("4H", 180),
+      "cfd-scalping": ("15m", 288), "cfd-day": ("1H", 240), "cfd-swing": ("4H", 180)}
 MT5_SYMBOLS = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
 CITES = """- Trading Range: WA p71–72 · knowledge/07 §2.7 · WMT p023–026 · knowledge/08 §2.4 · Pha A–E (phases): knowledge/07 §2.7–2.10
 - Spring/Shakeout (sự kiện): WA p80 · knowledge/07 §2.7.3 · Spring loại 1/2/3 (theo khối lượng): WMT p036–049 · knowledge/08 §2.6
@@ -58,6 +59,7 @@ def main():
     # Missing file = unconfigured = behave as before; present file is authoritative and can only stop this read.
     # The (market, timeframe) -> style mapping lives in scripts/automation.py so the vocabulary cannot drift;
     # if that module is unavailable we fail OPEN, exactly as a missing config file does.
+    _auto = None
     try:
         import importlib.util
         _s = importlib.util.spec_from_file_location("automation", f"{ROOT}/scripts/automation.py")
@@ -71,7 +73,12 @@ def main():
         print(f"# /automation đang tắt ({_why}) — đọc THỦ CÔNG theo yêu cầu người dùng; không có tick nền nào chạy.")
     tf, n = TF[a.style]
     if a.symbols is None:
-        a.symbols = "XAUUSD" if a.style.startswith("gold") else "BTCUSDT,ETHUSDT,SOLUSDT"
+        # ONE definition of which market a flat style name belongs to: automation.market_of_style -- not a second
+        # prefix test here, which is how `gold` came to mean the market in one file and the instrument in another.
+        # The `startswith` is reached ONLY when automation.py itself would not import, the same unconfigured path
+        # the gate above fails open on; it is the fallback for an unreachable source, not a second source.
+        _cfd = _auto.market_of_style(a.style) == "cfd" if _auto else a.style.startswith("cfd-")
+        a.symbols = "XAUUSD" if _cfd else "BTCUSDT,ETHUSDT,SOLUSDT"
     # Freeze the scanner outputs for THIS read: the background scanner rewrites facts.json every minute (scalping),
     # so the model must be judged against the snapshot it was given, not against whatever is newest at check time.
     import shutil, time

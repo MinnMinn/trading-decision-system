@@ -149,24 +149,26 @@ class BiasMethodsFromTheSwitch(unittest.TestCase):
         return {"markets": {market: {"dimensions": dims}}}
 
     def test_ict_only_market_yields_ict_only(self):
-        self.assertEqual(self.htf.engaged_methods("daytrade", self.cfg("crypto", {"wyckoff": False, "ict": True})), ("ict",))
+        self.assertEqual(self.htf.engaged_methods("scalping", self.cfg("crypto", {"wyckoff": False, "ict": True})), ("ict",))
 
     def test_wyckoff_only_market_yields_wyckoff_only(self):
-        self.assertEqual(self.htf.engaged_methods("daytrade", self.cfg("crypto", {"wyckoff": True, "ict": False})), ("wyckoff",))
+        self.assertEqual(self.htf.engaged_methods("scalping", self.cfg("crypto", {"wyckoff": True, "ict": False})), ("wyckoff",))
 
     def test_both_on_yields_both_in_a_stable_order(self):
-        self.assertEqual(self.htf.engaged_methods("daytrade", self.cfg("crypto", {"wyckoff": True, "ict": True})), ("wyckoff", "ict"))
+        self.assertEqual(self.htf.engaged_methods("scalping", self.cfg("crypto", {"wyckoff": True, "ict": True})), ("wyckoff", "ict"))
 
     def test_all_off_yields_nothing(self):
-        self.assertEqual(self.htf.engaged_methods("daytrade", self.cfg("crypto", {"wyckoff": False, "ict": False})), ())
+        self.assertEqual(self.htf.engaged_methods("scalping", self.cfg("crypto", {"wyckoff": False, "ict": False})), ())
 
     def test_absent_flag_counts_as_engaged(self):
-        self.assertEqual(self.htf.engaged_methods("daytrade", self.cfg("crypto", {})), ("wyckoff", "ict"))
+        self.assertEqual(self.htf.engaged_methods("scalping", self.cfg("crypto", {})), ("wyckoff", "ict"))
 
-    def test_gold_styles_read_the_cfd_market(self):
+    def test_cfd_prefixed_styles_read_the_cfd_market(self):
+        """The two markets share all three horizon words, so the `cfd-` prefix is the ONLY thing that routes a
+        flat style name to a market's dimension flags (automation.market_of_style). Same horizon, both markets."""
         cfg = {"markets": {"crypto": {"dimensions": {"wyckoff": False, "ict": True}},
                            "cfd": {"dimensions": {"wyckoff": True, "ict": False}}}}
-        self.assertEqual(self.htf.engaged_methods("gold-scalp", cfg), ("wyckoff",))
+        self.assertEqual(self.htf.engaged_methods("cfd-scalping", cfg), ("wyckoff",))
         self.assertEqual(self.htf.engaged_methods("scalping", cfg), ("ict",))
 
 
@@ -178,11 +180,11 @@ class BriefLinesFollowTheSwitch(unittest.TestCase):
         self.htf = load("htf_context.py")
 
     def ctx(self):
-        return {"tf": "1h", "style": "1h", "scanned_at": "2026-09-12T18:00:00Z", "last_time": "2026-09-12T18:00:00Z",
+        return {"tf": "1h", "style": "day", "scanned_at": "2026-09-12T18:00:00Z", "last_time": "2026-09-12T18:00:00Z",
                 "last": 100.0, "lo": 90.0, "hi": 110.0, "eq": 100.0, "pct": 0.5, "stance": "CHỜ", "verdict": None,
                 "anchors": [], "last_mss": {"type": "bear", "level": 99.0},
                 "wyckoff": {"structure": "tái tích lũy", "phase": "C", "updated": "2026-09-12T15:02:00Z"},
-                "wyckoff_source": "data/live/narrative/1h.json", "bias": "short", "basis": "[ict] ..."}
+                "wyckoff_source": "data/live/narrative/day.json", "bias": "short", "basis": "[ict] ..."}
 
     def test_ict_only_brief_does_not_print_the_wyckoff_read(self):
         joined = " ".join(self.htf.brief_lines(self.ctx(), str, methods=("ict",)))

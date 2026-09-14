@@ -53,6 +53,17 @@ def code_lines(rel):
     return out
 
 
+def load_script(name):
+    """Import one of the hyphenated scripts by PATH. `importlib.import_module` cannot reach `local-eval-brief.py`
+    or `build-artifact.py` -- a hyphen is not a legal module name and underscoring the string just asks for a
+    module that does not exist. This is the same spec_from_file_location loader test_timeframe_ladder.py uses."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(name.replace("-", "_")[:-3], os.path.join(SCRIPTS, name))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 class LegacyEngineIsGone(unittest.TestCase):
     def test_the_file_does_not_exist(self):
         self.assertFalse(os.path.exists(os.path.join(SCRIPTS, "demo-pilot.py")))
@@ -132,3 +143,144 @@ class LegacyEngineIsGone(unittest.TestCase):
     def test_the_config_carries_no_profile_key(self):
         cfg = json.load(open(CONFIG, encoding="utf-8"))
         self.assertNotIn("pilot_profile", cfg.get("execution", {}))
+
+
+HORIZONS = ("scalping", "day", "swing")
+HORIZON_TF = {"scalping": "15m", "day": "1h", "swing": "4h"}
+STYLES = {("crypto", "15m"): "scalping", ("crypto", "1h"): "day", ("crypto", "4h"): "swing",
+          ("cfd", "15m"): "cfd-scalping", ("cfd", "1h"): "cfd-day", ("cfd", "4h"): "cfd-swing"}
+# No skip list. An earlier draft of these scans carried a PENDING_FLAT_CONSUMERS tuple while the six flat-name
+# consumers were still being renamed; it is deliberately gone rather than left empty, because a skip list that
+# outlives its reason is exactly the second, drifting source this whole change exists to remove.
+
+
+class OneStyleVocabulary(unittest.TestCase):
+    """Before 2026-09-13 there were two vocabularies: automation.STYLE mapped (market, tf) to ten HAND-WRITTEN
+    labels (scalping/daytrade/1h/4h/swing + five gold-*), while rank-setups.HORIZONS mapped three horizon names to
+    timeframe SETS. They overlapped and DISAGREED -- `scalping` was 1m in one and 15m in the other, `swing` was 1D
+    in one and 4H in the other. Now there is one authored source (HORIZONS + HORIZON_TF) and STYLE is DERIVED from
+    it, so a flat style name cannot drift from the horizon it belongs to."""
+
+    def setUp(self):
+        import importlib
+        self.auto = importlib.import_module("automation")
+
+    def test_horizons_are_the_only_authored_names(self):
+        self.assertEqual(tuple(self.auto.HORIZONS), HORIZONS)
+
+    def test_each_horizon_maps_to_exactly_one_timeframe(self):
+        self.assertEqual(self.auto.HORIZON_TF, HORIZON_TF)
+
+    def test_style_is_derived_from_the_horizon_table(self):
+        """Six flat names, three horizons, two markets -- and each name's horizon half must map back through
+        HORIZON_TF to the timeframe its own key carries. A hand-edited STYLE entry fails here."""
+        self.assertEqual(self.auto.STYLE, STYLES)
+        for (m, tf), style in self.auto.STYLE.items():
+            hz = style[4:] if style.startswith("cfd-") else style
+            self.assertIn(hz, HORIZONS, f"{style} is not one of the three horizons")
+            self.assertEqual(HORIZON_TF[hz], tf, f"{style} claims {tf}, HORIZON_TF says {HORIZON_TF[hz]}")
+            self.assertEqual(self.auto.market_of_style(style), m, f"market_of_style({style}) != {m}")
+
+    def test_the_dropped_timeframes_are_not_scanned(self):
+        """1m and 5m were entry windows; 1D was the swing entry. All three leave the SCANNED set (decision 3)."""
+        for m, tfs in self.auto.MARKET_TIMEFRAMES.items():
+            self.assertEqual(tfs, ["15m", "1h", "4h"], f"{m} still scans {tfs}")
+        for gone in ("1m", "5m", "1D"):
+            self.assertNotIn(gone, self.auto.TIMEFRAMES, f"{gone} is still a selectable timeframe")
+
+    def test_no_gold_prefixed_names_survive(self):
+        """The cfd market is distinguished by a `cfd-` prefix now, the way pilot-top5.json uses a market field."""
+        for path in sources():
+            for i, line in code_lines(path):
+                self.assertIsNone(re.search(r'"gold(-[a-z0-9]+)?"', line), f"{path}:{i} keeps a gold-* style name")
+
+    def test_daytrade_is_not_a_name_any_more(self):
+        """`daytrade` (15m) and `day` (1H) were two names one keystroke apart for different timeframes."""
+        for path in sources():
+            for i, line in code_lines(path):
+                self.assertNotIn("daytrade", line, f"{path}:{i} keeps the superseded `daytrade` name")
+
+    def test_every_style_still_has_a_full_context_ladder(self):
+        """Dropping 1D from the SCANNED set must not leave swing without a bias tier -- PAGE_RUNGS keeps 1D and
+        1W as context-only rungs, and this asserts that the distinction actually holds."""
+        for style in STYLES.values():
+            tiers = self.auto.TIERS[style]
+            self.assertIsNotNone(tiers["structure"], f"{style} lost its structure tier")
+            self.assertIsNotNone(tiers["bias"], f"{style} lost its bias tier")
+
+    def test_a_tier_never_points_at_the_other_market(self):
+        """TIERS is built per market; a crypto style's structure tier must not resolve to a cfd style."""
+        for (m, _tf), style in self.auto.STYLE.items():
+            for name in ("structure", "bias"):
+                t = self.auto.TIERS[style][name]
+                if t and t["style"]:
+                    self.assertEqual(self.auto.market_of_style(t["style"]), m,
+                                     f"{style}.{name} points at {t['style']}, the other market")
+
+
+ARTIFACTS = os.path.join(ROOT, "docs", "architecture", "artifacts.json")
+RETIRED_URLS = {                       # style -> the page that style USED to publish, before the 2026-09-13 collapse
+    "scalping@1m": "59f0b15b-9d2c-4ac7-b15f-f630ae4a1c49",
+    "swing@1D": "c5cb9060-4e2a-4a53-be8c-f4c911c28961",
+    "gold-scalp@5m": "7238cd92-2b73-49c9-819f-02edba87018d",
+    "gold-swing@1D": "7013f87b-0ee2-43c8-9372-7bb6d929d326",
+}
+
+
+class FlatStyleConsumersFollowTheVocabulary(unittest.TestCase):
+    """Six consumers key off the flat style name and carry no market field. Two names were REUSED for a different
+    timeframe (scalping 1m -> 15m, swing 1D -> 4h), so every one of these tables had a stale-value trap."""
+
+    def setUp(self):
+        import importlib
+        self.auto = importlib.import_module("automation")
+        with open(ARTIFACTS, encoding="utf-8") as f:
+            self.artifacts = json.load(f)["styles"]
+
+    def test_every_style_has_exactly_one_artifact_entry(self):
+        self.assertEqual(sorted(self.artifacts), sorted(self.auto.STYLE.values()))
+
+    def test_no_reused_name_inherited_a_retired_page(self):
+        """THE hazard: `scalping` means 15m now. If its url were still the 1m page's, the publish tick would push
+        15m content onto the page the user knows as the 1m scalping page."""
+        for style, entry in self.artifacts.items():
+            for what, uid in RETIRED_URLS.items():
+                self.assertNotIn(uid, entry.get("url", ""),
+                                 f"{style} inherited the retired {what} page")
+
+    def test_scalping_inherited_the_fifteen_minute_page(self):
+        self.assertIn("46b302c5", self.artifacts["scalping"]["url"])
+        self.assertIn("97773ba6", self.artifacts["cfd-scalping"]["url"])
+
+    def test_styles_with_no_page_yet_are_pending_not_wrong(self):
+        for style in ("day", "swing", "cfd-day", "cfd-swing"):
+            self.assertEqual(self.artifacts[style]["url"], "PENDING",
+                             f"{style} has no page yet; the registry's own convention is PENDING")
+
+    def test_local_eval_brief_covers_exactly_the_six_styles(self):
+        self.assertEqual(sorted(load_script("local-eval-brief.py").TF),
+                         sorted(self.auto.STYLE.values()))
+
+    def test_build_artifact_covers_exactly_the_six_styles(self):
+        self.assertEqual(sorted(load_script("build-artifact.py").STYLES),
+                         sorted(self.auto.STYLE.values()))
+
+    def test_every_headless_prompt_names_a_live_style(self):
+        """A prompt file for a retired style is a cron pointing at nothing: model-read.sh exits 2 on a missing
+        prompt, but a SURVIVING prompt for a deleted style would run a read no page consumes."""
+        live = set(self.auto.STYLE.values())
+        for fn in sorted(os.listdir(os.path.join(ROOT, "integrations", "headless"))):
+            style = re.sub(r"-(local-read|daily-full)\.md$", "", fn)
+            self.assertIn(style, live, f"integrations/headless/{fn} names a retired style")
+
+    def test_scan_loop_default_styles_are_the_live_ones(self):
+        src = open(os.path.join(ROOT, "scripts", "scan-loop.sh"), encoding="utf-8").read()
+        m = re.search(r'AUTO_STYLES="\$\{AUTO_STYLES:-([^}"]*)\}"', src)
+        self.assertIsNotNone(m, "AUTO_STYLES default not found")
+        self.assertEqual(sorted(m.group(1).split(",")), sorted(self.auto.STYLE.values()))
+
+    def test_narrative_schema_enumerates_the_six(self):
+        with open(os.path.join(ROOT, "docs", "architecture", "schemas", "narrative.schema.json"),
+                  encoding="utf-8") as f:
+            enum = json.load(f)["properties"]["style"]["enum"]
+        self.assertEqual(sorted(enum), sorted(self.auto.STYLE.values()))

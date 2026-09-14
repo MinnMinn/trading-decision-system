@@ -35,7 +35,7 @@ except Exception:
 GATE
 )"
 AUTO_SCANNER="${AUTO_SCANNER:-1}"
-AUTO_STYLES="${AUTO_STYLES:-scalping,daytrade,1h,4h,swing,gold,gold-1h,gold-4h,gold-swing}"
+AUTO_STYLES="${AUTO_STYLES:-scalping,day,swing,cfd-scalping,cfd-day,cfd-swing}"
 # Fallback when the config is unreadable (UNCONFIGURED): the full ANALYSIS allowlist from the single source.
 source "$ROOT/scripts/instruments.sh" 2>/dev/null || true
 AUTO_CRYPTO="${AUTO_CRYPTO:-$(instruments_analysis crypto 2>/dev/null | tr " " ",")}"
@@ -101,16 +101,14 @@ with open("data/live/events.jsonl", "a") as f:
 }
 FORCE="${1:-}"                       # scan-loop.sh all  -> run every style now (manual / first run)
 M=$(date -u +%M); H=$(date -u +%H)
-run_style 1m scalping "${SCANWIN_BARS_1m:-}" "${SCANWIN_RECENT_1m:-}"
-# CFD scalping on M5 (user decision 2026-09-11): one minute after each 5-minute close
-case "$M" in *1|*6) run_style 5m gold-scalp "${SCANWIN_BARS_5m:-}" "${SCANWIN_RECENT_5m:-}" "$AUTO_CFD" ;; esac
-case "$M" in 01|16|31|46) run_style 15m daytrade "${SCANWIN_BARS_15m:-}" "${SCANWIN_RECENT_15m:-}"; run_style 15m gold "${SCANWIN_BARS_15m:-}" "${SCANWIN_RECENT_15m:-}" "$AUTO_CFD" ;; esac
-# 1h styles: minute :02 of every hour. 4h styles: minute :03 of every 4th hour (:03 not :02 so the hourly pass
-# and the 4-hourly pass never contend for the same minute's lock). Swing keeps its original :02 / H%4 slot.
-if [ "$M" = "02" ]; then run_style 1H 1h "${SCANWIN_BARS_1H:-}" "${SCANWIN_RECENT_1H:-}"; run_style 1H gold-1h "${SCANWIN_BARS_1H:-}" "${SCANWIN_RECENT_1H:-}" "$AUTO_CFD"; fi
-if [ "$M" = "02" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 1D swing "${SCANWIN_BARS_1D:-}" "${SCANWIN_RECENT_1D:-}"; run_style 1D gold-swing "${SCANWIN_BARS_1D:-}" "${SCANWIN_RECENT_1D:-}" "$AUTO_CFD"; for s in ${AUTO_CRYPTO//,/ }; do bash scripts/fetch-binance-klines.sh "$s" 1W 208 >/dev/null 2>>"$LOG" || echo "$(now) fetch FAIL $s 1W" >>"$LOG"; done; fi   # 1W = swing context chart only, not scanned
-if [ "$M" = "03" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 4H 4h "${SCANWIN_BARS_4H:-}" "${SCANWIN_RECENT_4H:-}"; run_style 4H gold-4h "${SCANWIN_BARS_4H:-}" "${SCANWIN_RECENT_4H:-}" "$AUTO_CFD"; fi
-if [ "$H" = "07" ] && [ "$M" -ge 30 ] && [ "$M" -le 59 ]; then for st in scalping daytrade swing gold-scalp gold gold-swing; do model_read "$st" full; done; fi   # once a day (model-read.sh keeps the 20 h interval)
-if [ "$FORCE" = "all" ]; then run_style 5m gold-scalp "${SCANWIN_BARS_5m:-}" "${SCANWIN_RECENT_5m:-}" "$AUTO_CFD"; run_style 15m daytrade "${SCANWIN_BARS_15m:-}" "${SCANWIN_RECENT_15m:-}"; run_style 1H 1h "${SCANWIN_BARS_1H:-}" "${SCANWIN_RECENT_1H:-}"; run_style 4H 4h "${SCANWIN_BARS_4H:-}" "${SCANWIN_RECENT_4H:-}"; run_style 1D swing "${SCANWIN_BARS_1D:-}" "${SCANWIN_RECENT_1D:-}"; run_style 15m gold "${SCANWIN_BARS_15m:-}" "${SCANWIN_RECENT_15m:-}" "$AUTO_CFD"; run_style 1H gold-1h "${SCANWIN_BARS_1H:-}" "${SCANWIN_RECENT_1H:-}" "$AUTO_CFD"; run_style 4H gold-4h "${SCANWIN_BARS_4H:-}" "${SCANWIN_RECENT_4H:-}" "$AUTO_CFD"; run_style 1D gold-swing "${SCANWIN_BARS_1D:-}" "${SCANWIN_RECENT_1D:-}" "$AUTO_CFD"; fi
+# Three horizons x two markets since 2026-09-13 (scripts/automation.py HORIZON_TF): scalping 15m, day 1h,
+# swing 4h. The 1m, 5m and 1D passes are gone -- those timeframes left the scanned set.
+case "$M" in 01|16|31|46) run_style 15m scalping "${SCANWIN_BARS_15m:-}" "${SCANWIN_RECENT_15m:-}"; run_style 15m cfd-scalping "${SCANWIN_BARS_15m:-}" "${SCANWIN_RECENT_15m:-}" "$AUTO_CFD" ;; esac
+# day (1h): minute :02 of every hour. swing (4h): minute :03 of every 4th hour (:03 not :02 so the hourly pass
+# and the 4-hourly pass never contend for the same minute's lock).
+if [ "$M" = "02" ]; then run_style 1H day "${SCANWIN_BARS_1H:-}" "${SCANWIN_RECENT_1H:-}"; run_style 1H cfd-day "${SCANWIN_BARS_1H:-}" "${SCANWIN_RECENT_1H:-}" "$AUTO_CFD"; fi
+if [ "$M" = "03" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 4H swing "${SCANWIN_BARS_4H:-}" "${SCANWIN_RECENT_4H:-}"; run_style 4H cfd-swing "${SCANWIN_BARS_4H:-}" "${SCANWIN_RECENT_4H:-}" "$AUTO_CFD"; for s in ${AUTO_CRYPTO//,/ }; do bash scripts/fetch-binance-klines.sh "$s" 1W 208 >/dev/null 2>>"$LOG" || echo "$(now) fetch FAIL $s 1W" >>"$LOG"; done; fi   # 1W = swing context chart only, not scanned (moved here from the deleted 1D pass: swing is 4h now, and 1W is its bias rung)
+if [ "$H" = "07" ] && [ "$M" -ge 30 ] && [ "$M" -le 59 ]; then for st in scalping cfd-scalping; do model_read "$st" full; done; fi   # once a day; only these two have a prompt pair (integrations/headless/)
+if [ "$FORCE" = "all" ]; then run_style 15m scalping "${SCANWIN_BARS_15m:-}" "${SCANWIN_RECENT_15m:-}"; run_style 1H day "${SCANWIN_BARS_1H:-}" "${SCANWIN_RECENT_1H:-}"; run_style 4H swing "${SCANWIN_BARS_4H:-}" "${SCANWIN_RECENT_4H:-}"; run_style 15m cfd-scalping "${SCANWIN_BARS_15m:-}" "${SCANWIN_RECENT_15m:-}" "$AUTO_CFD"; run_style 1H cfd-day "${SCANWIN_BARS_1H:-}" "${SCANWIN_RECENT_1H:-}" "$AUTO_CFD"; run_style 4H cfd-swing "${SCANWIN_BARS_4H:-}" "${SCANWIN_RECENT_4H:-}" "$AUTO_CFD"; fi
 # keep the log bounded
 if [ "$(wc -l < "$LOG")" -gt 5000 ]; then tail -n 2000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"; fi

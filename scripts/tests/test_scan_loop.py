@@ -83,7 +83,7 @@ class ScanLoopWindowResolution(unittest.TestCase):
                 f.write("set -uo pipefail\n")               # same guard the real script runs under
                 f.write('ROOT="%s"; cd "$ROOT"\n' % tmp)
                 f.write('LOG="data/live/test.log"\n')
-                f.write('AUTO_STYLES="scalping,daytrade"\nAUTO_CRYPTO="BTCUSDT"\nAUTO_INSTRUMENTS="BTCUSDT"\n')
+                f.write('AUTO_STYLES="scalping,day"\nAUTO_CRYPTO="BTCUSDT"\nAUTO_INSTRUMENTS="BTCUSDT"\n')
                 f.write('now() { date -u +%FT%TZ; }\n')
                 f.write('model_read() { :; }\n')            # not under test here; keep it a no-op
                 f.write(run_style_src + "\n")

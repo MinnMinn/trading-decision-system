@@ -45,6 +45,11 @@ So `MARKET_TIMEFRAMES` (scanned) shrinks to three per market while `PAGE_RUNGS` 
 - `scripts/automation.py` — drop `PILOT_PROFILES`, `pilot_profile`, `STYLE`, `STYLE_MARKET_TF`, `gold-*`; shrink `MARKET_TIMEFRAMES` and `PILOT_MARKETS`
 - `scripts/htf_context.py` — `STYLE_TF` / `CONTEXT_STYLE` aliases follow the new vocabulary
 - `scripts/check-narrative.py` — reads `CONTEXT_STYLE`
+- The six consumers that key off the flat style name and carry no `market` field (found by the symbol survey that
+  rewrote Task 2, not in this plan's first draft): `scripts/local-eval-brief.py`, `scripts/build-artifact.py`,
+  `scripts/scan-loop.sh`, `scripts/model-read.sh`, `scripts/event-ledger.py`,
+  `docs/architecture/artifacts.json` — plus `docs/architecture/schemas/narrative.schema.json` and the twelve
+  `integrations/headless/*.md` prompt files whose FILENAMES are style names (four renamed, eight deleted)
 - `scripts/rank-setups.py` — `HORIZONS` becomes single-valued
 - `scripts/strategy-runner.py` — drop the `pilot_profile != "top5"` gate (there is no other profile)
 - `scripts/journal.py`, `scripts/journal_render.py` — drop profile-conditional prose
@@ -225,14 +230,50 @@ git commit -m "one-system: delete the legacy engine and the pilot-profile switch
 
 ---
 
-### Task 2: Collapse the style vocabulary to three horizons
+### Task 2: Collapse the style vocabulary to three horizons (REWRITTEN 2026-09-13)
+
+**Why this section was rewritten.** The first version of Task 2 scoped itself by line number
+(`automation.py:105,119-123,162-164,...`) and listed five files. A symbol-scoped survey found the style names are a
+**flat namespace** that six other consumers use as their only key — they have no `market` field, so the first
+version's `HORIZON_TF = {scalping, day, swing}` (no market dimension) would have made crypto and cfd collide and
+broken `scan-loop.sh`, `model-read.sh`, `build-artifact.py`, `artifacts.json`, `local-eval-brief.py` and the
+narrative schema. Scoping by line number is what let two CRITICAL regressions through in Task 1; this section is
+scoped by SYMBOL.
+
+**User decision (2026-09-13, asked after the survey):** six market-qualified names. Crypto keeps the bare horizon
+word, cfd takes a `cfd-` prefix. `gold-*` and `daytrade` are gone; `1D` and `5m`/`1m` leave the scanned set.
+
+| new style | market | timeframe | replaces | artifact page it inherits | headless prompt |
+|---|---|---|---|---|---|
+| `scalping` | crypto | 15m | `daytrade` | `46b302c5…` (the 15m page) | `daytrade-*` renamed |
+| `day` | crypto | 1h | `1h` | none yet → `PENDING` | none (none existed) |
+| `swing` | crypto | 4h | `4h` | none yet → `PENDING` | none (none existed) |
+| `cfd-scalping` | cfd | 15m | `gold` | `97773ba6…` (the 15m gold page) | `gold-*` renamed |
+| `cfd-day` | cfd | 1h | `gold-1h` | none yet → `PENDING` | none (none existed) |
+| `cfd-swing` | cfd | 4h | `gold-4h` | none yet → `PENDING` | none (none existed) |
+
+Retired outright (their timeframe is no longer scanned): crypto `scalping`@1m, crypto `swing`@1D, `gold-scalp`@5m,
+`gold-swing`@1D.
+
+**THE HAZARD, stated once because it is the one thing here that can publish wrong content to a real page.** Two
+names are being REUSED for a different timeframe: `scalping` moves 1m → 15m and `swing` moves 1D → 4h. Every table
+keyed by style name therefore has a stale-value trap, and `docs/architecture/artifacts.json` is the dangerous one:
+if key `scalping` keeps the URL it has today (`59f0b15b…`, the 1m page) the publish tick will push 15m content onto
+the page the user knows as the 1m scalping page. `scalping` must inherit `46b302c5…` (today's `daytrade`) and the
+1m/1D/5m URLs must leave the registry. A test asserts this rather than trusting the edit.
+
+---
+
+#### Task 2a: the vocabulary itself and everything that derives from it
+
+**Symbols (not line numbers) to change in `scripts/automation.py`:** `MARKET_TIMEFRAMES`, `TIMEFRAMES`,
+`PAGE_RUNGS`, `STYLE`, `STYLE_MARKET_TF`, `TIERS`, `market_of_style`, `enabled_styles`, the `timeframe`
+subcommand's argparse `choices`, and every prose string naming `1m`, `5m`, `gold-scalp` or `daytrade`.
 
 **Files:**
-- Modify: `scripts/automation.py:105,119-123,162-164,178,287,377-386,601,989,1068` (leave `PAGE_RUNGS:159` alone)
-- Modify: `scripts/htf_context.py:47,50`
-- Modify: `scripts/check-narrative.py:29,108`
-- Modify: `scripts/tests/test_one_system.py` (add the vocabulary class)
-- Modify: `docs/architecture/automation-config.json` (timeframes), `docs/architecture/timeframe-mapping.md`
+- Modify: `scripts/automation.py`, `scripts/htf_context.py`
+- Modify: `docs/architecture/automation-config.json`, `docs/architecture/schemas/automation-config.schema.json`
+- Modify: `scripts/tests/test_one_system.py`, `scripts/tests/test_timeframe_ladder.py`, `scripts/tests/test_bias_methods.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -241,165 +282,480 @@ Append to `scripts/tests/test_one_system.py`:
 ```python
 HORIZONS = ("scalping", "day", "swing")
 HORIZON_TF = {"scalping": "15m", "day": "1h", "swing": "4h"}
+STYLES = {("crypto", "15m"): "scalping", ("crypto", "1h"): "day", ("crypto", "4h"): "swing",
+          ("cfd", "15m"): "cfd-scalping", ("cfd", "1h"): "cfd-day", ("cfd", "4h"): "cfd-swing"}
 
 
 class OneStyleVocabulary(unittest.TestCase):
-    """Before 2026-09-13 there were two: automation.STYLE mapped (market, tf) to ten labels
-    (scalping/daytrade/1h/4h/swing + five gold-*), while rank-setups.HORIZONS mapped three horizon names to
-    timeframe sets. They overlapped and DISAGREED -- `scalping` was 1m in one and 15m in the other, `swing` was
-    1D in one and 4H in the other. One vocabulary, one mapping."""
+    """Before 2026-09-13 there were two vocabularies: automation.STYLE mapped (market, tf) to ten HAND-WRITTEN
+    labels (scalping/daytrade/1h/4h/swing + five gold-*), while rank-setups.HORIZONS mapped three horizon names to
+    timeframe SETS. They overlapped and DISAGREED -- `scalping` was 1m in one and 15m in the other, `swing` was 1D
+    in one and 4H in the other. Now there is one authored source (HORIZONS + HORIZON_TF) and STYLE is DERIVED from
+    it, so a flat style name cannot drift from the horizon it belongs to."""
 
     def setUp(self):
         import importlib
         self.auto = importlib.import_module("automation")
 
-    def test_the_ten_value_style_map_is_gone(self):
-        self.assertFalse(hasattr(self.auto, "STYLE"), "automation.STYLE is the superseded vocabulary")
-        self.assertFalse(hasattr(self.auto, "STYLE_MARKET_TF"))
-
-    def test_horizons_are_the_only_names(self):
+    def test_horizons_are_the_only_authored_names(self):
         self.assertEqual(tuple(self.auto.HORIZONS), HORIZONS)
 
     def test_each_horizon_maps_to_exactly_one_timeframe(self):
         self.assertEqual(self.auto.HORIZON_TF, HORIZON_TF)
 
+    def test_style_is_derived_from_the_horizon_table(self):
+        """Six flat names, three horizons, two markets -- and each name's horizon half must map back through
+        HORIZON_TF to the timeframe its own key carries. A hand-edited STYLE entry fails here."""
+        self.assertEqual(self.auto.STYLE, STYLES)
+        for (m, tf), style in self.auto.STYLE.items():
+            hz = style[4:] if style.startswith("cfd-") else style
+            self.assertIn(hz, HORIZONS, f"{style} is not one of the three horizons")
+            self.assertEqual(HORIZON_TF[hz], tf, f"{style} claims {tf}, HORIZON_TF says {HORIZON_TF[hz]}")
+            self.assertEqual(self.auto.market_of_style(style), m, f"market_of_style({style}) != {m}")
+
+    def test_the_dropped_timeframes_are_not_scanned(self):
+        """1m and 5m were entry windows; 1D was the swing entry. All three leave the SCANNED set (decision 3)."""
+        for m, tfs in self.auto.MARKET_TIMEFRAMES.items():
+            self.assertEqual(tfs, ["15m", "1h", "4h"], f"{m} still scans {tfs}")
+        for gone in ("1m", "5m", "1D"):
+            self.assertNotIn(gone, self.auto.TIMEFRAMES, f"{gone} is still a selectable timeframe")
+
     def test_no_gold_prefixed_names_survive(self):
-        """The cfd market is distinguished by its `market` field, the way pilot-top5.json already did it."""
-        for path, src in sources().items():
-            for i, line in enumerate(src.splitlines(), 1):
-                if line.lstrip().startswith("#"):
-                    continue
-                self.assertIsNone(re.search(r'"gold-[a-z0-9]+"', line), f"{path}:{i} keeps a gold-* style name")
+        """The cfd market is distinguished by a `cfd-` prefix now, the way pilot-top5.json uses a market field."""
+        for path in sources():
+            for i, line in code_lines(path):
+                self.assertIsNone(re.search(r'"gold(-[a-z0-9]+)?"', line), f"{path}:{i} keeps a gold-* style name")
 
     def test_daytrade_is_not_a_name_any_more(self):
         """`daytrade` (15m) and `day` (1H) were two names one keystroke apart for different timeframes."""
-        for path, src in sources().items():
-            for i, line in enumerate(src.splitlines(), 1):
-                if line.lstrip().startswith("#"):
-                    continue
+        for path in sources():
+            for i, line in code_lines(path):
                 self.assertNotIn("daytrade", line, f"{path}:{i} keeps the superseded `daytrade` name")
 
-    def test_every_horizon_still_has_a_full_context_ladder(self):
+    def test_every_style_still_has_a_full_context_ladder(self):
         """Dropping 1D from the SCANNED set must not leave swing without a bias tier -- PAGE_RUNGS keeps 1D and
         1W as context-only rungs, and this asserts that the distinction actually holds."""
-        for hz in HORIZONS:
-            tiers = self.auto.TIERS[hz]
-            self.assertIsNotNone(tiers["structure"], f"{hz} lost its structure tier")
-            self.assertIsNotNone(tiers["bias"], f"{hz} lost its bias tier")
+        for style in STYLES.values():
+            tiers = self.auto.TIERS[style]
+            self.assertIsNotNone(tiers["structure"], f"{style} lost its structure tier")
+            self.assertIsNotNone(tiers["bias"], f"{style} lost its bias tier")
+
+    def test_a_tier_never_points_at_the_other_market(self):
+        """TIERS is built per market; a crypto style's structure tier must not resolve to a cfd style."""
+        for (m, _tf), style in self.auto.STYLE.items():
+            for name in ("structure", "bias"):
+                t = self.auto.TIERS[style][name]
+                if t and t["style"]:
+                    self.assertEqual(self.auto.market_of_style(t["style"]), m,
+                                     f"{style}.{name} points at {t['style']}, the other market")
 ```
+
+`code_lines(rel)` already exists in this file — the `ast`-based helper that strips comments AND docstrings, so
+these two source scans do not ban their own explanations. Use it, not a `startswith("#")` filter.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `PYTHONPATH=scripts python3 -m pytest scripts/tests/test_one_system.py::OneStyleVocabulary -q -p no:cacheprovider`
-Expected: failures on `test_the_ten_value_style_map_is_gone` (STYLE exists), `test_horizons_are_the_only_names` (no `HORIZONS` attribute), `test_each_horizon_maps_to_exactly_one_timeframe`, `test_no_gold_prefixed_names_survive`, `test_daytrade_is_not_a_name_any_more`.
+Expected: FAIL on `test_horizons_are_the_only_authored_names` (no `HORIZONS` attribute), `test_each_horizon_maps_to_exactly_one_timeframe`, `test_style_is_derived_from_the_horizon_table`, `test_the_dropped_timeframes_are_not_scanned`, `test_no_gold_prefixed_names_survive`, `test_daytrade_is_not_a_name_any_more`.
 
-- [ ] **Step 3: Replace STYLE with the horizon vocabulary**
+- [ ] **Step 3: One authored vocabulary, STYLE derived from it**
 
-In `scripts/automation.py` replace lines 119-123 with:
+Replace the hand-written `STYLE` table and its comment with:
 
 ```python
-# One style vocabulary (user decision 2026-09-13): three horizons, shared by both markets, one timeframe each.
-# Replaces the ten-value STYLE map, which disagreed with rank-setups.HORIZONS about what `scalping` and `swing`
-# meant (1m vs 15m, 1D vs 4H) and carried a parallel gold-* set for cfd that the `market` field already covers.
+# ONE authored style vocabulary (user decision 2026-09-13): three horizons, one timeframe each, shared by both
+# markets. The flat (market, timeframe) -> name table below is DERIVED from it, not authored a second time -- it
+# exists because scan-loop.sh, model-read.sh, build-artifact.py, artifacts.json and local-eval-brief.py key off a
+# single flat name and carry no market field. Crypto keeps the bare horizon word; cfd takes a `cfd-` prefix.
+# This replaces the ten hand-written labels (scalping/daytrade/1h/4h/swing + five gold-*), which disagreed with
+# rank-setups.HORIZONS about what `scalping` and `swing` meant (1m vs 15m, 1D vs 4H).
 HORIZONS = ["scalping", "day", "swing"]
 HORIZON_TF = {"scalping": "15m", "day": "1h", "swing": "4h"}
 TF_HORIZON = {tf: hz for hz, tf in HORIZON_TF.items()}
+STYLE_PREFIX = {"crypto": "", "cfd": "cfd-"}
+STYLE = {(m, HORIZON_TF[h]): STYLE_PREFIX[m] + h for m in MARKETS for h in HORIZONS}
+STYLE_MARKET_TF = {v: k for k, v in STYLE.items()}
 ```
 
-Change line 105 to the scanned set:
+`STYLE` must be defined AFTER `MARKETS` (it iterates it). Keep `STYLE` and `STYLE_MARKET_TF` as names: every
+consumer of the flat namespace reads them, and keeping them derived is what makes one vocabulary true instead of
+merely renamed.
+
+Shrink the scanned set and the selectable list:
 
 ```python
+# One scanned set for both markets (user decision 2026-09-13). 1m and 5m were the two scalping entry windows and
+# 1D was the swing entry; all three leave the scanned set when the horizons become 15m/1h/4h. 1D and 1W stay in
+# PAGE_RUNGS below as context-only rungs, which is what keeps swing a full ladder.
 MARKET_TIMEFRAMES = {"crypto": ["15m", "1h", "4h"], "cfd": ["15m", "1h", "4h"]}
+TIMEFRAMES = ["15m", "1h", "4h"]
 ```
 
-Leave `PAGE_RUNGS` (line 159) exactly as it is — it is the context ladder, not the scanned set, and Task 2 Step 1's ladder test depends on it keeping `1D` and `1W`.
+`PAGE_RUNGS` drops the two retired entry rungs and keeps the context rungs:
 
-Replace the `TIERS` build (lines 162-164) with:
+```python
+PAGE_RUNGS = {"crypto": ["15m", "1h", "4h", "1D", "1W"], "cfd": ["15m", "1h", "4h", "1D", "1W"]}
+```
+
+Dropping `1m`/`5m` from `PAGE_RUNGS` cannot change any ladder, because `next_rung` only ever looks upward from the
+entry timeframe — Step 1's ladder test is what proves it.
+
+Rebuild `TIERS` per market so a tier can never resolve to the other market's style:
 
 ```python
 TIERS = {}
-for _hz in HORIZONS:
-    _s, _b = ladder(HORIZON_TF[_hz], PAGE_RUNGS["crypto"])
-    TIERS[_hz] = {k: ({"tf": t, "style": TF_HORIZON.get(t)} if t else None)
-                  for k, t in (("structure", _s), ("bias", _b))}
+for (_mkt, _tf), _style in STYLE.items():
+    _s, _b = ladder(_tf, PAGE_RUNGS[_mkt])
+    TIERS[_style] = {k: ({"tf": t, "style": STYLE.get((_mkt, t))} if t else None)
+                     for k, t in (("structure", _s), ("bias", _b))}
 ```
 
-(Both markets now share `PAGE_RUNGS` above `15m`, so one build covers both.)
+(That is the existing loop unchanged — it already keys `STYLE.get((_mkt, t))` by the same market. Verify it, do not
+rewrite it.)
 
-- [ ] **Step 4: Update every STYLE consumer in automation.py**
+- [ ] **Step 4: The one function whose logic actually changes**
 
-Line 287 (config migration) becomes:
+`market_of_style` keyed off the `gold` prefix. It becomes:
 
 ```python
-        mk["timeframes"] = {t: bool(old_styles.get(TF_HORIZON[t], True)) for t in MARKET_TIMEFRAMES[m]}
+def market_of_style(style):
+    """Which market's dimension flags a chart style obeys. `cfd-` prefixed styles are the CFD market; everything
+    else is crypto. One definition — build-artifact.py and htf_context.py both read it here rather than
+    re-deriving it. (Before 2026-09-13 the prefix was `gold`, which named the instrument, not the market.)"""
+    return "cfd" if (style or "").startswith("cfd-") else "crypto"
 ```
 
-Lines 377-386: the function is `enabled_styles(cfg=None)` — **keep that name and that signature**, including the
-`load(require_readable=False)` fallback, because `scan-loop.sh` and `local-eval-brief.py` call it with no
-argument. Replace only the body:
+`enabled_styles(cfg=None)` — **keep the name, the signature and the `load(require_readable=False)` fallback**
+(`scan-loop.sh` and `local-eval-brief.py` call it with no argument). Its body already iterates `STYLE.items()` and
+returns names in `STYLE.values()` order, which is now the derived six. Re-read it and change it only if it names a
+retired style; do not rewrite a working body.
+
+Then check every consumer of the flat list still gets what it expects:
+
+Run: `grep -rn "enabled_styles\|market_of_style\|STYLE_MARKET_TF" scripts/ | grep -v __pycache__`
+Expected: every hit either iterates the value or passes it to something that accepts a style name. Fix any caller
+that compares against a literal `"daytrade"`, `"gold"`, `"gold-scalp"`, `"1h"`-as-a-style or `"gold-swing"`.
+
+- [ ] **Step 5: The prose that names retired timeframes**
+
+These strings assert facts that stop being true. Find them by grep, not by line number:
+
+Run: `grep -n '1m\|5m\|1D\|gold\|daytrade\|chart style' scripts/automation.py`
+
+Each hit is one of: (a) the module docstring's description of the vocabulary, (b) the `MARKET_TIMEFRAMES` comment
+about the MT5 export, (c) the `cmd_preset` loop comment listing "scalping (1m/5m), day (15m), 1h/4h, swing (1D)",
+(d) the `skipped_msgs` line "cfd timeframe 1m does not exist -- CFD scalping runs on 5m (gold-scalp)…", (e) the
+`SCAN_WINDOW` table. Rewrite (a)-(d) to the new vocabulary. **Leave `SCAN_WINDOW` alone** — `scan-loop.sh` reads it
+and its `1m`/`5m`/`1D` rows are harmless unused rows; deleting them is Task 2b's call after its own grep, not a
+guess here.
+
+The `timeframe` subcommand's argparse `choices` must be the new `TIMEFRAMES`. Find it:
+
+Run: `grep -n 'add_parser("timeframe"\|choices=TIMEFRAMES\|choices=\[.*1m' scripts/automation.py`
+Expected: the choices list resolves to `["15m", "1h", "4h"]`. A retired timeframe must be a usage error (exit 1),
+not a silent no-op — that is the same failure mode as the `pilot profile top5` bug Task 1 closed.
+
+- [ ] **Step 6: Follow through in htf_context.py**
+
+`scripts/htf_context.py` derives `STYLE_TF` from `_auto.STYLE`:
 
 ```python
-def enabled_styles(cfg=None):
-    """The horizons the scanner and the local read are permitted to run, in HORIZONS order."""
-    if cfg is None:
-        cfg, _, _ = load(require_readable=False)
-    out = set()
-    for m in MARKETS:                       # MARKETS is defined at automation.py:89
-        mk = cfg.get("markets", {}).get(m, {})
-        if not mk.get("enabled", True):
-            continue
-        for tf in MARKET_TIMEFRAMES[m]:
-            if mk.get("timeframes", {}).get(tf, True):
-                out.add(TF_HORIZON[tf])
-    return [h for h in HORIZONS if h in out]
+STYLE_TF = {v: k[1] for k, v in _auto.STYLE.items()}   # style -> timeframe label as /automation spells it
 ```
 
-Then check its callers still get what they expect — the return is now three horizon names, not up to ten style
-labels:
+That line needs no edit — it is already derived. Confirm by running the checks in Step 8 rather than assuming, and
+confirm `CONTEXT_STYLE` still resolves (it is built from `TIERS`, which Step 3 rebuilt).
 
-Run: `grep -rn "enabled_styles" scripts/ | grep -v __pycache__`
-Expected: every hit either iterates the list or passes each element to something that accepts a horizon name.
-Fix any caller that indexes it positionally or compares against a literal `"daytrade"` / `"gold-*"`.
+- [ ] **Step 7: Shrink the scanned timeframes in the live config and both schemas**
 
-Line 601 becomes `styles = [TF_HORIZON[tf] for tf in MARKET_TIMEFRAMES[m] if mk["timeframes"].get(tf, True)]`; line 989 becomes `f"-> horizons {', '.join(TF_HORIZON[t] for t in on_tfs)}"`; line 1068 becomes `print("  horizons affected: " + TF_HORIZON[a.name])`.
-
-- [ ] **Step 5: Follow through in htf_context.py and check-narrative.py**
-
-`scripts/htf_context.py:50` becomes:
-
-```python
-STYLE_TF = dict(_auto.HORIZON_TF)    # horizon -> timeframe label as /automation spells it
-```
-
-Line 47 keeps `CONTEXT_STYLE = _auto.CONTEXT_STYLE` unchanged (that alias is built from `TIERS`, which Step 3 rebuilt). `scripts/check-narrative.py` needs no edit if `CONTEXT_STYLE` still resolves — confirm with the Step 7 run rather than assuming.
-
-- [ ] **Step 6: Shrink the scanned timeframes in the live config**
-
-Edit `docs/architecture/automation-config.json` so both markets' `timeframes` read exactly:
+`docs/architecture/automation-config.json` — both markets' `timeframes` read exactly:
 
 ```json
    "timeframes": { "15m": true, "1h": true, "4h": true }
 ```
 
-- [ ] **Step 7: Run the tests and the real commands**
+`docs/architecture/schemas/automation-config.schema.json` — the crypto and cfd `timeframes` property shapes and
+their two `description` strings both enumerate the retired timeframes and the retired style names. Rewrite both to
+the six new names. The crypto description currently claims the style names are "the vocabulary of
+scripts/local-eval-brief.py's TF map, scripts/scan-loop.sh and scripts/patch-arrays.py's STYLES -- never rename
+one": `patch-arrays.py` no longer exists (the headless prompts call it "retired"), so drop that reference, and the
+"never rename one" clause is now false — this task renames them. Say instead that the names are derived from
+`automation.HORIZON_TF` and that `docs/architecture/artifacts.json` keys off them.
+
+- [ ] **Step 8: Run the tests and the real commands**
 
 Run: `PYTHONPATH=scripts python3 -m pytest scripts/tests/test_one_system.py -q -p no:cacheprovider`
 Expected: PASS.
 
-Run: `python3 -m pytest scripts/tests/ -q -p no:cacheprovider`
-Expected: all pass. Tests asserting `daytrade`, `gold-*` or a `1m` tier must be updated to the new vocabulary, not deleted wholesale — read each failure before changing it.
+Run: `python3 -m pytest scripts/tests/ -q -p no:cacheprovider > /tmp/t2a.log 2>&1; echo "EXIT=$?"; tail -30 /tmp/t2a.log`
+Expected: `EXIT=0`. Check the exit code directly — piping into `tail` makes `$?` the pipe's, which is how a red
+suite got committed earlier in this plan. `test_timeframe_ladder.py` asserts the ten-style ladder table and
+`CONTEXT_STYLE["gold-scalp"]`; `test_bias_methods.py` asserts `engaged_methods("daytrade", …)` and
+`("gold-scalp", …)`. Update them to the new vocabulary — read each failure before changing it, and do not delete a
+case wholesale.
 
 Run: `python3 scripts/automation.py status`
-Expected: exit 0; the crypto and cfd blocks list three timeframes each and horizons `scalping, day, swing`.
+Expected: exit 0; crypto and cfd each list three timeframes, and the styles line reads `scalping, day, swing` for
+crypto and `cfd-scalping, cfd-day, cfd-swing` for cfd.
 
 Run: `python3 scripts/check-narrative.py --help`
 Expected: exit 0 (proves `CONTEXT_STYLE` still resolves).
 
-- [ ] **Step 8: Commit**
+Run: `python3 scripts/automation.py timeframe 1D off --market crypto`
+Expected: exit 1, a usage error naming the valid choices — NOT exit 0.
+
+- [ ] **Step 9: Commit**
 
 ```bash
 git add -A
-git commit -m "one-system: one style vocabulary -- three horizons, one timeframe each"
+git commit -m "one-system: one authored style vocabulary -- three horizons, six derived names"
+```
+
+---
+
+#### Task 2b: the six consumers that key off the flat style name
+
+**Symbols to change:** `TF` (`local-eval-brief.py`), `STYLES` + `TF_SPEC` use (`build-artifact.py`), the `styles`
+object (`artifacts.json`), `AUTO_STYLES` + `run_style` + `model_read` calls (`scan-loop.sh`), the interval `case`
+(`model-read.sh`), `STYLE_TF` use (`event-ledger.py`), the `style` enum (`narrative.schema.json`), and the twelve
+`integrations/headless/*.md` filenames.
+
+**Files:**
+- Modify: `scripts/local-eval-brief.py`, `scripts/build-artifact.py`, `scripts/scan-loop.sh`,
+  `scripts/model-read.sh`, `scripts/event-ledger.py`
+- Modify: `docs/architecture/artifacts.json`, `docs/architecture/schemas/narrative.schema.json`
+- Rename: `integrations/headless/daytrade-local-read.md` → `scalping-local-read.md`,
+  `daytrade-daily-full.md` → `scalping-daily-full.md`, `gold-local-read.md` → `cfd-scalping-local-read.md`,
+  `gold-daily-full.md` → `cfd-scalping-daily-full.md` (use `git mv`)
+- Delete: `integrations/headless/scalping-local-read.md` and `scalping-daily-full.md` **as they exist today** (the
+  1m pair), `swing-local-read.md`, `swing-daily-full.md` (1D), `gold-scalp-local-read.md`,
+  `gold-scalp-daily-full.md` (5m), `gold-swing-local-read.md`, `gold-swing-daily-full.md` (1D)
+- Modify: `scripts/tests/test_scan_loop.py`, `scripts/tests/test_build_artifact.py`, `scripts/tests/test_one_system.py`
+
+**Rename order matters.** The 1m pair currently occupies the filenames the 15m pair must take. Delete the 1m pair
+FIRST, then `git mv` the `daytrade` pair onto those names, or git will refuse / clobber. The same is not true for
+`gold-*` → `cfd-scalping-*` (no collision).
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `scripts/tests/test_one_system.py`:
+
+```python
+ARTIFACTS = os.path.join(ROOT, "docs", "architecture", "artifacts.json")
+RETIRED_URLS = {                       # style -> the page that style USED to publish, before the 2026-09-13 collapse
+    "scalping@1m": "59f0b15b-9d2c-4ac7-b15f-f630ae4a1c49",
+    "swing@1D": "c5cb9060-4e2a-4a53-be8c-f4c911c28961",
+    "gold-scalp@5m": "7238cd92-2b73-49c9-819f-02edba87018d",
+    "gold-swing@1D": "7013f87b-0ee2-43c8-9372-7bb6d929d326",
+}
+
+
+class FlatStyleConsumersFollowTheVocabulary(unittest.TestCase):
+    """Six consumers key off the flat style name and carry no market field. Two names were REUSED for a different
+    timeframe (scalping 1m -> 15m, swing 1D -> 4h), so every one of these tables had a stale-value trap."""
+
+    def setUp(self):
+        import importlib
+        self.auto = importlib.import_module("automation")
+        with open(ARTIFACTS, encoding="utf-8") as f:
+            self.artifacts = json.load(f)["styles"]
+
+    def test_every_style_has_exactly_one_artifact_entry(self):
+        self.assertEqual(sorted(self.artifacts), sorted(self.auto.STYLE.values()))
+
+    def test_no_reused_name_inherited_a_retired_page(self):
+        """THE hazard: `scalping` means 15m now. If its url were still the 1m page's, the publish tick would push
+        15m content onto the page the user knows as the 1m scalping page."""
+        for style, entry in self.artifacts.items():
+            for what, uid in RETIRED_URLS.items():
+                self.assertNotIn(uid, entry.get("url", ""),
+                                 f"{style} inherited the retired {what} page")
+
+    def test_scalping_inherited_the_fifteen_minute_page(self):
+        self.assertIn("46b302c5", self.artifacts["scalping"]["url"])
+        self.assertIn("97773ba6", self.artifacts["cfd-scalping"]["url"])
+
+    def test_styles_with_no_page_yet_are_pending_not_wrong(self):
+        for style in ("day", "swing", "cfd-day", "cfd-swing"):
+            self.assertEqual(self.artifacts[style]["url"], "PENDING",
+                             f"{style} has no page yet; the registry's own convention is PENDING")
+
+    def test_local_eval_brief_covers_exactly_the_six_styles(self):
+        import importlib
+        self.assertEqual(sorted(importlib.import_module("local-eval-brief".replace("-", "_")).TF),
+                         sorted(self.auto.STYLE.values()))
+
+    def test_build_artifact_covers_exactly_the_six_styles(self):
+        import importlib
+        self.assertEqual(sorted(importlib.import_module("build-artifact".replace("-", "_")).STYLES),
+                         sorted(self.auto.STYLE.values()))
+
+    def test_every_headless_prompt_names_a_live_style(self):
+        """A prompt file for a retired style is a cron pointing at nothing: model-read.sh exits 2 on a missing
+        prompt, but a SURVIVING prompt for a deleted style would run a read no page consumes."""
+        live = set(self.auto.STYLE.values())
+        for fn in sorted(os.listdir(os.path.join(ROOT, "integrations", "headless"))):
+            style = re.sub(r"-(local-read|daily-full)\.md$", "", fn)
+            self.assertIn(style, live, f"integrations/headless/{fn} names a retired style")
+
+    def test_scan_loop_default_styles_are_the_live_ones(self):
+        src = open(os.path.join(ROOT, "scripts", "scan-loop.sh"), encoding="utf-8").read()
+        m = re.search(r'AUTO_STYLES="\$\{AUTO_STYLES:-([^}"]*)\}"', src)
+        self.assertIsNotNone(m, "AUTO_STYLES default not found")
+        self.assertEqual(sorted(m.group(1).split(",")), sorted(self.auto.STYLE.values()))
+
+    def test_narrative_schema_enumerates_the_six(self):
+        with open(os.path.join(ROOT, "docs", "architecture", "schemas", "narrative.schema.json"),
+                  encoding="utf-8") as f:
+            enum = json.load(f)["properties"]["style"]["enum"]
+        self.assertEqual(sorted(enum), sorted(self.auto.STYLE.values()))
+```
+
+If `sources()` / `code_lines()` in this file do not already import `json` or expose `ROOT`, add what is missing at
+the top of the file rather than inlining a second path constant.
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `PYTHONPATH=scripts python3 -m pytest scripts/tests/test_one_system.py::FlatStyleConsumersFollowTheVocabulary -q -p no:cacheprovider`
+Expected: FAIL on every test in the class.
+
+- [ ] **Step 3: `local-eval-brief.py` — the (timeframe, window) table**
+
+`TF` maps style → (timeframe label, bar count). Keep each surviving style's window; drop the retired rows:
+
+```python
+TF = {"scalping": ("15m", 288), "day": ("1H", 240), "swing": ("4H", 180),
+      "cfd-scalping": ("15m", 288), "cfd-day": ("1H", 240), "cfd-swing": ("4H", 180)}
+```
+
+The window numbers are the ones those timeframes already used (15m→288, 1H→240, 4H→180), so no window changes
+size. The comment above `TF` explains gold* = XAUUSD via the MT5 bridge — reword it for the `cfd-` prefix.
+
+Then fix the symbol default, which keyed off the `gold` prefix:
+
+Run: `grep -n 'startswith("gold")\|a.symbols' scripts/local-eval-brief.py`
+Expected: one site defaulting `a.symbols` by prefix. It must use `_auto.market_of_style(a.style) == "cfd"`, not a
+second prefix test — `market_of_style` is the one definition (Task 2a Step 4).
+
+- [ ] **Step 4: `build-artifact.py` — the page registry**
+
+`STYLES` has ten entries built by `_style(tf, syms, name, kz)`. It becomes six. `kz` is whether killzones apply;
+keep each timeframe's existing answer (15m True, 1H True, 4H False):
+
+```python
+STYLES = {
+    "scalping":     _style("15m", CRYPTO, "Crypto Scalping", True),
+    "day":          _style("1H",  CRYPTO, "Crypto Day", True),
+    "swing":        _style("4H",  CRYPTO, "Crypto Swing", False),
+    "cfd-scalping": _style("15m", GOLD,   "CFD Scalping", True),
+    "cfd-day":      _style("1H",  GOLD,   "CFD Day", True),
+    "cfd-swing":    _style("4H",  GOLD,   "CFD Swing", False),
+}
+```
+
+The module docstring's `style:` line lists the ten old names — rewrite it to the six. The `_S["tiers"]` loop below
+reads `_auto.TIERS[_st]`, which Task 2a rebuilt; it needs no edit, but the run in Step 9 must prove it.
+
+- [ ] **Step 5: `artifacts.json` — remap the URLs, do not just rename the keys**
+
+Six entries, in `STYLE.values()` order. `scalping` takes the URL and `out` path of today's `daytrade`;
+`cfd-scalping` takes today's `gold`. The four styles with no page yet get `"url": "PENDING"` (the registry's own
+documented convention) and an `out` path named after the new style. The four retired URLs
+(`59f0b15b…`, `c5cb9060…`, `7238cd92…`, `7013f87b…`) must not appear anywhere in the file.
+
+```json
+ "styles": {
+  "scalping":     { "url": "https://claude.ai/code/artifact/46b302c5-3a72-45f4-89d3-0a7eef282453", "out": "data/live/.vi-scalping-live.html", "favicon": "⚡" },
+  "day":          { "url": "PENDING", "out": "data/live/.vi-day-live.html", "favicon": "⚡" },
+  "swing":        { "url": "PENDING", "out": "data/live/.vi-swing-live.html", "favicon": "⚡" },
+  "cfd-scalping": { "url": "https://claude.ai/code/artifact/97773ba6-6903-412d-99dd-25fc33c690bb", "out": "data/live/.vi-cfd-scalping-live.html", "favicon": "⚡" },
+  "cfd-day":      { "url": "PENDING", "out": "data/live/.vi-cfd-day-live.html", "favicon": "⚡" },
+  "cfd-swing":    { "url": "PENDING", "out": "data/live/.vi-cfd-swing-live.html", "favicon": "⚡" }
+ }
+```
+
+Match the file's existing indentation and key order style rather than this compact form. Update `_comment` if it
+names a retired style. Do NOT publish anything — this task only edits the registry.
+
+- [ ] **Step 6: `scan-loop.sh` — the schedule**
+
+`AUTO_STYLES` default and every `run_style` / `model_read` call name styles. The old file ran nine `run_style`
+calls across five timeframes plus a `FORCE=all` branch that repeats them. The new schedule has three timeframes ×
+two markets:
+
+- `AUTO_STYLES="${AUTO_STYLES:-scalping,day,swing,cfd-scalping,cfd-day,cfd-swing}"`
+- delete the `5m` branch (`*1|*6` → `gold-scalp`) and the `1D` branch (`swing` / `gold-swing`) outright
+- `15m` branch: `run_style 15m scalping …; run_style 15m cfd-scalping … "$AUTO_CFD"`
+- `1H` branch: `run_style 1H day …; run_style 1H cfd-day … "$AUTO_CFD"`
+- `4H` branch: `run_style 4H swing …; run_style 4H cfd-swing … "$AUTO_CFD"`
+- the `1W` fetch on the old `1D` branch is **swing context and must survive** — move it to the `4H` branch, keeping
+  its comment (`1W = swing context chart only, not scanned`). Losing it would leave swing's bias tier undrawable.
+- the daily `model_read` list becomes `scalping cfd-scalping` only — those are the two styles that still have a
+  prompt pair after Step 8. Do not list a style whose prompt was deleted.
+- the `FORCE=all` branch: the same six `run_style` calls, no retired ones
+
+`SCANWIN_BARS_5m` / `SCANWIN_RECENT_5m` / `SCANWIN_BARS_1D` / `SCANWIN_RECENT_1D` become unread. Grep before
+deciding whether to delete them:
+
+Run: `grep -rn 'SCANWIN_BARS_5m\|SCANWIN_RECENT_5m\|SCANWIN_BARS_1D\|SCANWIN_RECENT_1D\|SCAN_WINDOW' scripts/ | grep -v __pycache__`
+If nothing outside `scan-loop.sh` and `automation.py`'s `SCAN_WINDOW` reads them, drop the `1m`/`5m`/`1D` rows from
+`SCAN_WINDOW` too and say so in its comment. If something else reads them, leave both alone and note why.
+
+- [ ] **Step 7: `model-read.sh` — the interval table**
+
+The `case "$STYLE" in` line maps style → `MODEL_READ_INTERVAL`. It becomes the three horizons × two markets, and
+the retired names go:
+
+```bash
+    case "$STYLE" in scalping|cfd-scalping) MODEL_READ_INTERVAL=900 ;; day|cfd-day) MODEL_READ_INTERVAL=3600 ;; swing|cfd-swing) MODEL_READ_INTERVAL=14400 ;; *) MODEL_READ_INTERVAL=21600 ;; esac
+```
+
+15m keeps the 900 s that `daytrade` had, 1H keeps 3600, 4H keeps 14400 — no cadence changes. Line 45's
+`if [ "$STYLE" = scalping ] && [ "$KIND" = local ]` special case was written for the 1m style: read it, decide
+whether it still applies at 15m, and say which in the commit message. Do not leave it unexamined.
+
+- [ ] **Step 8: the headless prompt files**
+
+Delete the 1m `scalping-*`, 1D `swing-*`, 5m `gold-scalp-*` and 1D `gold-swing-*` pairs. Then `git mv` the
+`daytrade-*` pair to `scalping-*` and the `gold-*` pair to `cfd-scalping-*` (deletes first — see the note above the
+steps). Inside the two surviving pairs, replace every occurrence of the old style token with the new one: the
+`local-eval-brief.py <style>`, `check-model-prose.py <style>` and `data/live/prelim/<style>.<SYM>.model.html`
+arguments all carry it. **Do not change the artifact URL inside a prompt** — `46b302c5…` and `97773ba6…` are the
+pages those reads already feed, and they are the same pages Step 5 assigns to the new names. Do not rewrite any
+trading instruction, window size or citation; this is a rename, not an authoring pass.
+
+- [ ] **Step 9: `event-ledger.py` and `narrative.schema.json`**
+
+`scripts/event-ledger.py` maps `{"1h": "1H", "4h": "4H"}` over `htf.STYLE_TF.get(style)`. `STYLE_TF` now yields
+`15m`/`1h`/`4h` only, so the map still covers what it must — confirm by reading it, and extend the map only if a
+surviving timeframe would fall through.
+
+`docs/architecture/schemas/narrative.schema.json` — the `style` enum lists the ten old names; replace with the six.
+Its `description` for the higher-timeframe chart says "e.g. 4H×180 for daytrade" — reword to a live style.
+
+- [ ] **Step 10: Run the tests and the real commands**
+
+Run: `PYTHONPATH=scripts python3 -m pytest scripts/tests/test_one_system.py -q -p no:cacheprovider`
+Expected: PASS.
+
+Run: `python3 -m pytest scripts/tests/ -q -p no:cacheprovider > /tmp/t2b.log 2>&1; echo "EXIT=$?"; tail -30 /tmp/t2b.log`
+Expected: `EXIT=0`. Check `$?` directly, not through a pipe. `test_scan_loop.py` writes an `AUTO_STYLES` fixture
+and `test_build_artifact.py` builds the `daytrade` page — both need the new names.
+
+Run: `python3 scripts/local-eval-brief.py scalping --bars 10 2>&1 | head -5`
+Expected: it runs or fails only for missing candle data — not with a `KeyError` on the style name.
+
+Run: `bash -n scripts/scan-loop.sh && bash -n scripts/model-read.sh`
+Expected: exit 0 from both (syntax only; do not execute the loops).
+
+Run: `python3 -c "import json;d=json.load(open('docs/architecture/artifacts.json'));print(sorted(d['styles']))"`
+Expected: the six new names.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add -A
+git commit -m "one-system: the flat style consumers follow the one vocabulary"
 ```
 
 ---

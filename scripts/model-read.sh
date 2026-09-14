@@ -24,7 +24,9 @@ LOG="$DIR/../$STYLE.$KIND.log"; LOCK="$DIR/.lock-$KIND"; STAMP="$DIR/.last-$KIND
 # default intervals (seconds): local reads follow the old cron cadence, full = once a day
 if [ -z "${MODEL_READ_INTERVAL:-}" ]; then
   if [ "$KIND" = full ]; then MODEL_READ_INTERVAL=72000; else
-    case "$STYLE" in scalping|gold-scalp) MODEL_READ_INTERVAL=600 ;; daytrade|gold) MODEL_READ_INTERVAL=900 ;; 1h|gold-1h) MODEL_READ_INTERVAL=3600 ;; 4h|gold-4h) MODEL_READ_INTERVAL=14400 ;; *) MODEL_READ_INTERVAL=21600 ;; esac
+    # One interval per horizon, both markets (scripts/automation.py HORIZON_TF). Each keeps the cadence its
+    # timeframe already had: 15m -> 900, 1h -> 3600, 4h -> 14400. No cadence changed in the 2026-09-13 rename.
+    case "$STYLE" in scalping|cfd-scalping) MODEL_READ_INTERVAL=900 ;; day|cfd-day) MODEL_READ_INTERVAL=3600 ;; swing|cfd-swing) MODEL_READ_INTERVAL=14400 ;; *) MODEL_READ_INTERVAL=21600 ;; esac
   fi
 fi
 now=$(date -u +%s)
@@ -42,6 +44,12 @@ RUN="$DIR/run-$(date -u +%Y%m%dT%H%M%SZ)-$KIND"; mkdir -p "$RUN"
 sed "s#{{SCRATCHPAD}}#$RUN#g" "$PROMPT" > "$RUN/prompt.md"
 # scalping local read is event-driven (scripts/scalping-events-since.py): NONE = nothing new since the last read -> skip; else the
 # events line replaces the EVENTS placeholder of the prompt (the same guard the old cron had).
+# KEPT after the 2026-09-13 rename, deliberately: this guard was written when `scalping` meant 1m and the scanner
+# re-emitted the same MSS every minute, so it was load-bearing. At 15m (and MODEL_READ_INTERVAL 900 above) the
+# interval alone already caps it at one read per bar, so the guard is now a cost saver rather than a necessity --
+# but it is still CORRECT: it skips a read when the closed bar produced no structural event. It needs no rename
+# because it keys off the style NAME `scalping` and the data/live/prelim/scalping.<SYM>.model.html files, both of
+# which the new vocabulary keeps; only the timeframe behind the name changed.
 if [ "$STYLE" = scalping ] && [ "$KIND" = local ]; then
   EVENTS="$(cd "$ROOT" && python3 scripts/scalping-events-since.py 2>/dev/null || echo NONE)"
   if [ "$EVENTS" = NONE ] || [ -z "$EVENTS" ]; then rm -rf "$RUN"; rm -f "$STAMP"; exit 0; fi
