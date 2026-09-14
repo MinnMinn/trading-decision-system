@@ -13,7 +13,7 @@ t(){ python3 $A "$@" >/dev/null 2>&1; echo $?; }
 export AUTOMATION_PILOT_DRYRUN=1
 
 echo "== 1 compile"
-python3 -m py_compile scripts/automation.py scripts/trading_env.py scripts/demo-pilot.py scripts/local-eval-brief.py && ok py || bad py
+python3 -m py_compile scripts/automation.py scripts/trading_env.py scripts/strategy-runner.py scripts/local-eval-brief.py && ok py || bad py
 bash -n scripts/trading-env.sh scripts/pilot-loop.sh scripts/scan-loop.sh scripts/binance-testnet-order.sh scripts/binance-futures-testnet-order.sh && ok bash || bad bash
 
 echo "== 2 config + schema"
@@ -65,7 +65,7 @@ bash scripts/binance-testnet-order.sh price BTCUSDT >/dev/null 2>&1 && ok "spot 
 bash scripts/binance-futures-testnet-order.sh check >/dev/null 2>&1 && ok "futures connector: check" || echo "  (futures connector check failed -- fine if you have no futures keys in this environment)"
 
 echo "== 7 pilot gate reads the environment"
-python3 scripts/demo-pilot.py --report >/dev/null 2>&1 && ok "demo-pilot --report runs" || echo "  (demo-pilot --report failed -- needs valid keys for the active environment)"
+python3 scripts/strategy-runner.py --report >/dev/null 2>&1 && ok "strategy-runner --report runs" || echo "  (strategy-runner --report failed -- needs valid keys for the active environment)"
 
 echo; echo "PASS=$pass FAIL=$fail"
 [ "$fail" = 0 ] && echo "v3 refactor verified. Next: fill config/env.real, then '/automation real'." || echo "Fix the FAILs before any real tick."

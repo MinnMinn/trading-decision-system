@@ -4,8 +4,8 @@
 (scripts/binance-futures-testnet-order.sh); CFD setups trade the MT5 DEMO account through the file bridge
 (scripts/mt5-order-bridge.py + integrations/mt5/OrderBridge.mq5). Real trades, fake money, on both venues.
 
-Selected by `/automation pilot profile top5` (docs/architecture/automation-config.json -> execution.pilot_profile); run by
-scripts/pilot-loop.sh every 30 minutes one minute after the half-hour close. No LLM decides an order. This runner REFUSES to
+The one execution engine (user decision 2026-09-13: the legacy engine and the profile switch that used to choose
+between them were deleted). Run by scripts/pilot-loop.sh every tick-seconds. No LLM decides an order. This runner REFUSES to
 tick when execution.environment is "real" (user decision 2026-09-11: demo/testnet pilot first) and the MT5 bridge EA refuses
 non-demo accounts on its side too.
 
@@ -14,18 +14,21 @@ Rules = the backtest, function for function (scripts/backtest-methods.py, import
             retest (WMT p049, WA p80) -- MARKET at that bar's close; stop = Spring extreme; target = opposite border
   WYCKOFF-BOOK  scripts/wyckoff_rules.py structures on the window (CHoCH gate, TR from SC/AR, Phase B, Spring vs Shakeout, VP veto, Test, Phase D
             BU) -- MARKET at the entry bar close; Phase D target = TR top + 1 TR
-  ICT       sweep of the last 3-bar pivot -> MSS body close within K -> FVG complete before the MSS -> LIMIT at the FVG near edge;
-            stop = excursion extreme -/+ 0.05 %; target per the setup's ict_target (range | std2 | std25 | std4 | erl_next | irl,
-            bt.ict_target -- std = knowledge/05 §2.12 projections of the manipulation leg)
+  ICT       sourced from the LIVE rules (ict_live_setups -> live_rules.ict_scan.setup_candidate), same as bt.scan's ICT branch:
+            sweep of the last 3-bar pivot -> MSS body close within K -> FVG complete before the MSS -> LIMIT at the FVG near edge;
+            stop = excursion extreme -/+ 0.05 %; target = the live scanner's su["target"] (no configurable target model --
+            the six-way range/std2/std25/std4/erl_next/irl switch and bt.ict_target() were deleted 2026-09-13, dead since
+            the legacy ICT branch that was their only caller was removed)
   COMBINED  Spring/Upthrust proxy (R-bar border pierce, reclaim <= 2 bars, volume type gate) + the ICT confirmation -> LIMIT at the
             FVG edge; stop = Spring extreme; target = the opposite border
   Entry = LIMIT valid K bars after the MSS (post-only GTX on Binance; a pending order with SL/TP attached on MT5); no fill -> no
   trade. Management = STOP_MARKET + TAKE_PROFIT_MARKET closePosition (futures) or the position's own SL/TP (MT5); breakeven at +1R
   on a CLOSED candle when the setup says mgmt=be (WMT p272); time stop after H bars. The higher-timeframe boundary filter
   (bt.htf_allows on HTF_OF[tf]) is logged as htf_pass for every signal; orders obey it only for setups with htf=true.
-Risk: PILOT_RISK_PCT of equity per trade (env file, clamped <= 1 %), halved after 2 consecutive losses; futures notional <= 25 % of
+Risk: PILOT_RISK_PCT of equity per trade (env file, clamped <= RISK_CEILING = 3 %), halved after 2 consecutive
+losses; every entry must plan >= MIN_RR (3R, analysis-params.json) or it is refused; futures notional <= 25 % of
 equity x leverage 3, ISOLATED; MT5 lots from the bridge's contract data, capped by the EA's InpMaxLots. One position or resting
-order per symbol, MAX_OPEN per venue, MAX_TRADES_PER_DAY per symbol.
+order per symbol, MAX_OPEN per venue (= that venue's symbol count, i.e. a full book), MAX_TRADES_PER_DAY per symbol.
 Halts (STOP file written with the reason): equity <= 85 % of start (per venue), 5 consecutive losses (per venue), 3 consecutive
 connector errors. Refused per tick: kill switch, automation gate (master/pilot layer/market/profile/environment), event blackout.
 Reconcile (PILOT-06): venue positions/orders this runner does not own block new entries in that symbol.
@@ -54,13 +57,31 @@ MT5_LOG = os.path.join(PILOT_DIR, "top5-mt5-log.jsonl")
 STOP = os.path.join(PILOT_DIR, "STOP")
 AUTOMATION_CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
 SELECTION = os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")
-CRYPTO = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]; CFD = ["XAUUSD", "XAGUSD", "USOIL", "UKOIL"]
-DEFAULT_SETUPS = [dict(id="crypto-ict-30m-std25-c", market="crypto", symbols=CRYPTO, tf="30m", method="ICT", ict_target="std25", htf=True, mgmt="be", execution="futures")]
-HTF_OF = {"5m": "30m", "15m": "1H", "30m": "2H", "1H": "4H", "2H": "1D", "4H": "1D", "1D": None}
+_ispec = importlib.util.spec_from_file_location("instruments", os.path.join(ROOT, "scripts", "instruments.py"))
+instruments = importlib.util.module_from_spec(_ispec); _ispec.loader.exec_module(instruments)
+# EXECUTION list (docs/architecture/instruments.json) -- the orderable subset, never the analysis allowlist.
+CRYPTO = instruments.execution("crypto"); CFD = instruments.execution("cfd")
+_mspec = importlib.util.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py"))
+mreg = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(mreg)
+DEFAULT_SETUPS = [dict(id="crypto-ict-30m-std25-c", market="crypto", symbols=CRYPTO, tf="30m", method="ICT", htf=True, mgmt="be", execution="futures")]
+# STRUCTURE tier = the next runner timeframe >= 4x (scripts/automation.py next_rung -- the one ladder rule, docs/architecture/
+# timeframe-mapping.md). Over the runner's rungs this yields 5m->30m, 15m->1H, 30m->2H, 1H->4H, 2H->1D, 4H->1D, 1D->None,
+# identical to the table the backtests were run with (scripts/tests/test_timeframe_ladder.py pins it).
+RUNNER_TFS = ["5m", "15m", "30m", "1H", "2H", "4H", "1D"]
+import importlib.util as _iu
+_as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py")); _auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
+HTF_OF = {tf: _auto.next_rung(tf, RUNNER_TFS) for tf in RUNNER_TFS}
 WINDOW = 300
 LEVERAGE = 3
 NOTIONAL_CAP_PCT = 0.25
-MAX_OPEN = 2                 # per venue (futures / mt5)
+# Full book (user decision 2026-09-12): one concurrent position per tradeable symbol, so the per-symbol rule
+# ("one position or resting order per symbol") becomes the only binding cap. Derived from the EXECUTION list
+# (docs/architecture/instruments.json) so adding a symbol raises the book by exactly one slot -- no second edit.
+# RISK NOTE: max simultaneous risk = len(symbols) x PILOT_RISK_PCT -- at the 3 % ceiling that is 27 %, though
+# the measured peak over the last year was 6.1 % (the R:R floor thins the book). Crypto is near-perfectly correlated in a dump,
+# so a full book is closer to ONE leveraged beta bet than to nine independent ones; EQUITY_HALT_FRAC is what bounds
+# the damage. Dial it back by lowering PILOT_RISK_PCT in config/env.<env>, not by editing this line.
+MAX_OPEN = {"futures": len(CRYPTO), "mt5": len(CFD)}   # per venue
 MAX_TRADES_PER_DAY = 3
 EQUITY_HALT_FRAC = 0.85
 CONSEC_LOSS_HALT = 5
@@ -68,17 +89,27 @@ ERROR_HALT = 3
 STOP_BUFFER_PCT = bt.STOP_BUFFER_PCT
 TF_SEC = {"5m": 300, "15m": 900, "30m": 1800, "1H": 3600, "2H": 7200, "4H": 14400, "1D": 86400}
 VENUES = ("futures", "mt5")
-METHODS = ("ICT", "COMBINED", "WYCKOFF", "WYCKOFF-BOOK")   # ICT/COMBINED = limit at the FVG edge; WYCKOFF* = market at the entry bar close
+METHODS = tuple(sorted(mreg.runnable()))   # ICT/COMBINED = limit at the FVG edge; WYCKOFF* = market at the bar close
 
 ENV_NAME = trading_env.active_env_name()
 try:
     _env = trading_env.load_env(resolve_secrets=False); ENV_ERROR = None
 except trading_env.EnvIncomplete as e:
     _env, ENV_ERROR = {}, str(e)
+# Per-trade risk ceiling. Raised from 1 % to 3 % by explicit user decision, 2026-09-13, TOGETHER WITH the
+# planned-R:R floor (MIN_RR below) -- the two are one decision and neither is safe without the other. Measured on
+# the last year of ICT 15m setups across the nine crypto instruments: with the 3R floor, 3 % risk returned +180 %
+# with a 29 % drawdown and never tripped EQUITY_HALT_FRAC. 5 % was REJECTED, not merely disfavoured: its equity
+# curve crossed -15 % from start on 2025-10-12, which halts this runner permanently (line ~963) -- the backtest
+# does not model that halt, so its +366 % for 5 % is unreachable here. Do not raise this to 0.05 without also
+# deciding what happens to EQUITY_HALT_FRAC; that is a separate decision and it has not been made.
+# Evidence: docs/backtests/2026-09-13-rr-floor-and-risk.md.
+RISK_CEILING = trading_env.MAX_RISK_PCT   # one source, see scripts/trading_env.py
 try:
-    RISK_PCT = min(0.01, max(0.0, float(_env.get("PILOT_RISK_PCT", 0.005))))
+    RISK_PCT = min(RISK_CEILING, max(0.0, float(_env.get("PILOT_RISK_PCT", 0.005))))
 except (TypeError, ValueError):
     RISK_PCT = 0.005
+MIN_RR = bt.MIN_RR   # planned-R:R floor, one source: docs/architecture/analysis-params.json
 MARKET_LABEL = f"futures_{'mainnet' if ENV_NAME == 'real' else 'testnet'}"
 
 
@@ -145,8 +176,8 @@ def automation_gate():
         return "automation master switch is OFF"
     if not c.get("layers", {}).get("pilot", True):
         return "pilot layer disabled"
-    if c.get("execution", {}).get("pilot_profile", "legacy") != "top5":
-        return "pilot profile is not top5 (scripts/automation.py pilot profile top5)"
+    # (deleted 2026-09-13) the pilot_profile != "top5" refusal: there is one engine now, so the only thing this
+    # key could still express is "run nothing", which layers.pilot already expresses.
     if c.get("execution", {}).get("environment", "demo") == "real":
         return "environment is REAL -- the top5 profile is a demo/testnet pilot (user decision 2026-09-11); refusing"
     if ENV_ERROR:
@@ -168,6 +199,24 @@ def enabled_symbols(market):
         return []
 
 
+def allowed_methods(market, dims=None):
+    """Runner methods the current method preset permits for this market. Empty set = no NEW entries; open
+    positions and pending orders are still managed (spec §4.3, grandfather). Pass `dims` (an already-parsed
+    market "dimensions" dict) to avoid re-reading/re-parsing AUTOMATION_CONFIG once per setup inside a tick;
+    omit it for a one-off caller (e.g. --list) that reads fresh.
+    automation_gate() already refuses a tick when AUTOMATION_CONFIG is missing or unreadable (PILOT-03), so in
+    the live tick path the except-Exception fallback below is unreachable; it is reachable for a caller that
+    invokes allowed_methods() directly without going through tick() (e.g. --list run against a moved/corrupt
+    config), where it deliberately behaves as if no method preset switch existed."""
+    if dims is None:
+        try:
+            c = json.load(open(AUTOMATION_CONFIG, encoding="utf-8"))
+            dims = c.get("markets", {}).get(market, {}).get("dimensions", {})
+        except Exception:
+            return set(METHODS)                    # unconfigured = behave exactly as before this switch existed
+    return mreg.runner_methods(dims) & set(METHODS)
+
+
 def event_blackout(t=None):
     p = os.path.join(ROOT, "docs", "architecture", "event-calendar.md")
     if not os.path.exists(p):
@@ -183,11 +232,30 @@ def event_blackout(t=None):
     return None
 
 
+EQUITY_BASIS = "equity"  # value of state["equity_basis"] once equity_start is captured from usdt_equity()/mt5_equity()
+
+
 def load_state():
     base = {"started": iso(now()), "pending": {}, "positions": {}, "seen": [], "day": None, "trades_today": {}, "errors": 0, "halted": None, "last_tick": None,
-            "venues": {v: {"equity_start": None, "closed": [], "consec_losses": 0} for v in VENUES}}
+            "equity_basis": EQUITY_BASIS, "venues": {v: {"equity_start": None, "closed": [], "consec_losses": 0} for v in VENUES}}
     if os.path.exists(STATE):
         s = json.load(open(STATE))
+        # PILOT-EQUITY-FIX (2026-09-13): equity_start used to be captured from usdt_free() (Binance
+        # availableBalance, i.e. free margin) for the futures venue. That is a different quantity from the
+        # equity reading the halt now compares it to (usdt_equity() = balance + crossUnPnl), and the two are
+        # not comparable -- continuing to check a corrected equity reading against a free-margin baseline
+        # could either falsely re-halt (baseline captured while margin was already reserved) or silently
+        # widen the drawdown guard (baseline captured before any order, so free margin == equity that once).
+        # A state file with no "equity_basis" marker predates this fix; re-baseline every venue by clearing
+        # equity_start so the next LIVE tick recaptures it from the corrected reading (same mechanism that
+        # already seeds a fresh equity_start today, load_state()/tick() -- no new code path). This is a
+        # one-time reset the first time a fixed runner picks up an old state file, not a repeating reset:
+        # once equity_basis == EQUITY_BASIS below, this branch does not fire again.
+        if s.get("equity_basis") != EQUITY_BASIS:
+            for v in VENUES:
+                s.setdefault("venues", {}).setdefault(v, dict(base["venues"][v]))
+                s["venues"][v]["equity_start"] = None
+            s["equity_basis"] = EQUITY_BASIS
         for k, v in base.items():
             s.setdefault(k, v)
         for v in VENUES:
@@ -201,14 +269,40 @@ def save_state(s):
     json.dump(s, open(STATE, "w"), indent=1)
 
 
-def usdt_free():
+def usdt_balance():
+    """Single Binance USDT-M futures balance fetch (GET /fapi/v2/balance via order_json("balance")).
+    Returns both readings this runner needs from the one snapshot, so they can never disagree within a
+    tick:
+      free   -- availableBalance: wallet balance minus margin reserved by open positions/resting orders.
+                This is FREE MARGIN, not equity -- it drops the instant a pending order reserves margin,
+                with nothing lost. Use for position sizing / order placement only (money actually spendable
+                on a NEW order); never for the capital-preservation halt.
+      equity -- balance + crossUnPnl: true account equity. This is what EQUITY_HALT_FRAC must compare to
+                equity_start (2026-09-13 incident: the halt was reading availableBalance instead and fired
+                on the pilot's first resting limit order at a 25 %-looking "drawdown" that was really just
+                margin held for an open order -- real equity was down ~1 USDT on a 5000 account).
+    """
     for b in order_json("balance"):
         if b["asset"] == "USDT":
-            return float(b["availableBalance"])
-    return 0.0
+            return {"free": float(b["availableBalance"]), "equity": float(b["balance"]) + float(b.get("crossUnPnl", 0.0))}
+    return {"free": 0.0, "equity": 0.0}
+
+
+def usdt_free():
+    """Free margin only -- see usdt_balance(). Sizing/order-placement callers want this one."""
+    return usdt_balance()["free"]
+
+
+def usdt_equity():
+    """Account equity only -- see usdt_balance(). The EQUITY_HALT_FRAC guard wants this one, not usdt_free()."""
+    return usdt_balance()["equity"]
 
 
 def mt5_equity():
+    """MT5's own ACCOUNT_EQUITY (balance + floating P/L of open positions, integrations/mt5/OrderBridge.mq5
+    JN("equity", AccountInfoDouble(ACCOUNT_EQUITY))) -- this already IS true equity, not free margin (that
+    field is separately exported as margin_free and this runner does not read it). No Binance-style
+    free-margin confusion on this venue; used unchanged for both the halt guard and MT5 lot sizing."""
     a = mt5_json("account")
     if a.get("trade_mode") not in ("demo", None) and a.get("trade_mode") != "demo":
         raise RuntimeError(f"MT5 account is not DEMO ({a.get('trade_mode')}) -- refusing")
@@ -233,14 +327,17 @@ def drop_forming(c, tf, t):
     return c
 
 
-def fetch_candles(sym, tf, market, t, at=None):
-    """Closed candles only. Crypto: private Binance copy. CFD: the MT5 export file (2H aggregated from 1H). --replay: history cut at `at`."""
+def fetch_candles(sym, tf, market, t, at=None, window=None):
+    """Closed candles only. Crypto: private Binance copy. CFD: the MT5 export file (2H aggregated from 1H). --replay: history cut at `at`.
+    `window`: candle count to return, default WINDOW (300) -- enough for WYCKOFF/COMBINED. ICT setups need
+    live_rules' own (larger, per-tf) trailing window, see ict_scan_bars() in tick() below (2026-09-13, Task 8)."""
+    window = window or WINDOW
     if at is not None:
         c = json.load(open(f"{ROOT}/data/history/ohlcv.{sym}.{tf}.json"))["candles"]
-        return [x for x in c if x["time"] <= at][-WINDOW:]
+        return [x for x in c if x["time"] <= at][-window:]
     if market == "crypto":
         env = dict(os.environ, KLINES_OUT_DIR=CANDLES)
-        r = subprocess.run(["bash", FETCH, sym, tf, str(WINDOW)], capture_output=True, text=True, env=env)
+        r = subprocess.run(["bash", FETCH, sym, tf, str(window)], capture_output=True, text=True, env=env)
         if r.returncode != 0:
             raise RuntimeError(f"fetch {sym} {tf}: {r.stderr.strip()[:200]}")
         c = json.load(open(f"{CANDLES}/ohlcv.{sym}.{tf}.json"))["candles"]
@@ -256,7 +353,7 @@ def fetch_candles(sym, tf, market, t, at=None):
             c = aggregate(c, 2)
         elif tf == "30m":
             c = aggregate_minutes(c, 30)
-    return drop_forming(c, tf, t)[-WINDOW:]
+    return drop_forming(c, tf, t)[-window:]
 
 
 def aggregate_minutes(c, minutes):
@@ -285,74 +382,161 @@ def due(tf, t, market="crypto"):
 
 
 # ---------------------------------------------------------------- signals (mirror of backtest-methods.scan, causal cut)
-def setups(method, side, candles, tf, ict_target="range", ict_disp=False, ict_pd=False, std_origin="pivot"):
-    """Every setup of `method`/`side` in the window whose LIMIT would still be working at the last closed bar. Mirrors bt.scan.
-    ict_disp / ict_pd / std_origin are the deck-faithful switches of backtest-methods.py (2026-09-12); a setup enables them with the
-    same-named keys in docs/architecture/pilot-top5.json — all default off so the rule set does not change without a selection."""
+def ict_scan_bars(tf):
+    """The live scanner's required trailing window for `tf` (live_rules.scan_spec), or None if live never scans
+    this tf at all -- automation.SCAN_WINDOW has no "2H"/"30m" entry today, a pre-existing gap from the Task
+    4/6 wiring, not introduced here: `bt.scan(sym, "2H", only=("ICT",))` already raises this same KeyError on
+    the current commit (verified empirically 2026-09-13). Callers must treat None as "cannot run the live ICT
+    rules on this tf" and degrade to no-signal, not crash the whole tick over one setup."""
+    try:
+        bars, _ = bt.lr.scan_spec(tf)
+        return bars
+    except KeyError:
+        return None
+
+
+def ict_live_setups(side, candles, tf, sym):
+    """ICT setups from the LIVE rules, mirroring bt.ict_setups_live (2026-09-13, Task 8). Before this, the
+    runner built ICT setups with bt.all_pivots/bt.last_pivot/bt.find_ict/bt.ict_target -- the LEGACY algorithm --
+    while bt.scan() validates ICT with the live scanner (scripts/ict-scan.py via scripts/live_rules.py), so the
+    two disagreed by roughly an order of magnitude (measured in the legacy-vs-live comparison, deleted with the
+    legacy engine on 2026-09-13 -- docs/plans/2026-09-13-collapse-to-one-system.md Task 4). This
+    function asks the SAME live scanner the SAME question bt.ict_setups_live asks, at every bar of the window:
+    live_rules.read_at() for the facts, live_rules.ict_scan.setup_candidate() for the setup, require
+    complete + pd_ok, gate on bt.bias_allows(live_rules.bias_at(...)[0], side). The one difference from
+    bt.ict_setups_live: that function decides whether the LIMIT eventually filled (a completed BACKTEST trade,
+    via bt.fvg_fill); this one decides whether the LIMIT is STILL working as of the last closed bar (a NEW
+    order for the runner to place) -- same fvg_fill call, opposite reading of its result: fvg_fill returning a
+    bar index means the limit ALREADY triggered on an earlier bar (an earlier tick should already have placed
+    and filled it -- not a new signal); still within its K-bar expiry with no fill and no stop-hit means it is
+    still a working, placeable order.
+
+    `sym` resolves which bias-reading dimensions are engaged for this symbol's market (bt.resolve_methods --
+    htf_context.engaged_methods_for_market via /automation), exactly as the backtest does -- never a hardcoded
+    default (see live_rules.read_at's own docstring for why). Returns [] rather than raising when `sym` is not
+    given, when live never scans `tf` at all (ict_scan_bars() above), or once the window runs out -- one setup
+    must not crash the tick for every other symbol."""
+    if sym is None:
+        return []
+    if ict_scan_bars(tf) is None:
+        return []
+    methods = bt.resolve_methods(sym)
+    H = [x["high"] for x in candles]; L = [x["low"] for x in candles]; Tm = [x["time"] for x in candles]
+    n = len(candles)
+    if n == 0:
+        return []
+    K = bt.P[tf]["K"]
+    idx_of_time = {tt: j for j, tt in enumerate(Tm)}
+    out = []; seen = set()
+    for i in range(n):
+        a = bt.lr.read_at(candles, i, tf, methods)
+        if a is None:            # window not yet the full live window -- live would not have scanned here at all
+            continue
+        su = bt.lr.ict_scan.setup_candidate(a, bt.lr.window(candles, i, tf), bt.lr.setup_lookback(tf))
+        if not su or not su.get("complete") or not su.get("pd_ok") or su["side"] != side:
+            continue
+        bias, _ = bt.lr.bias_at(candles, i, tf, methods, facts=a)
+        if not bt.bias_allows(bias, su["side"]):
+            continue
+        key = (su["side"], su["sweep"]["time"], su["mss"]["time"])
+        if key in seen:           # the same setup stays visible for many bars; take it once, at its first bar
+            continue
+        seen.add(key)
+        mss_i = idx_of_time.get(su["mss"]["time"])
+        if mss_i is None:
+            continue
+        entry = su["entry"]; stop = su["stop"]; target = su["target"]
+        if (side == "long" and not target > entry) or (side == "short" and not target < entry):
+            continue
+        far = su["entry_models"]["fill"]   # ict-scan.py setup_candidate: the key is "entry_models", not "entries"
+        fill = bt.fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, n)
+        bars_left = (mss_i + K) - (n - 1)
+        if fill is not None or bars_left < 0:
+            continue          # already triggered on an earlier bar, or expired unfilled -- not a NEW order to place
+        out.append(dict(time=Tm[i], vol_type=None, side=su["side"], sweep_bar=idx_of_time.get(su["sweep"]["time"]),
+                        mss_bar=mss_i, mss_time=su["mss"]["time"], entry=entry, stop=stop, target=target,
+                        expires_bar=mss_i + K, bars_left=bars_left, r_planned=abs(target - entry) / abs(entry - stop)))
+    return out
+
+
+def rr_reason(sig):
+    """Why this signal fails the planned-R:R floor, or None if it passes.
+
+    Called from the one reasons[] block every method's signal passes through -- not from each setups() branch:
+    ICT, COMBINED and PARTIAL all emit r_planned and all must obey the same floor, and a per-branch copy would
+    drift. User decision 2026-09-13: MIN_RR = 3R (docs/architecture/analysis-params.json). Before this gate the
+    floor existed only as an advisory note printed by ict-scan.py:359 while every decision path ran min_rr=0.0,
+    so the runner took setups planning as little as 0.00R -- 38 % of last year's planned under 2R.
+
+    FAILS CLOSED on an unreadable floor too (MIN_RR None, from trading_env.min_rr via bt) -- added after the
+    2026-09-13 security review (F1) found this path inheriting a 2.0 fallback that the other live order path did not have, so
+    a dropped analysis-params key would have put the live runner back on the superseded 2R floor at the 3 % risk
+    ceiling. In practice bt raises at import when the floor is unreadable, so this branch is the second layer.
+
+    FAILS CLOSED on a missing, non-numeric or NaN r_planned, for the same reason the htf gate does (see there):
+    an R:R that could not be computed is not permission to trade. Note `rr != rr` is the NaN test -- a NaN would
+    make a plain `rr < MIN_RR` False and open the gate, which is exactly the direction that must not happen."""
+    if MIN_RR is None:
+        return "không đọc được sàn R/R kế hoạch (docs/architecture/analysis-params.json)"
+    rr = sig.get("r_planned")
+    if not isinstance(rr, (int, float)) or isinstance(rr, bool) or rr != rr:
+        return "không tính được R/R kế hoạch"
+    if rr < MIN_RR:
+        return f"R/R kế hoạch {rr:.2f} < {MIN_RR} tối thiểu"
+    return None
+
+
+def setups(method, side, candles, tf, ict_disp=False, ict_pd=False, std_origin="pivot", sym=None):
+    """Every setup of `method`/`side` in the window whose LIMIT would still be working at the last closed bar.
+    ICT (2026-09-13, Task 8): sourced from the LIVE rules -- see ict_live_setups() above -- migrated off the
+    legacy bt.all_pivots/bt.find_ict/bt.ict_target proxies so the runner and bt.scan() agree on what an ICT
+    setup is. `sym` is required for this path (method resolution, see ict_live_setups); it is otherwise unused.
+    COMBINED/PARTIAL (unchanged, Task 8 dependency map): Spring/Upthrust proxy (R-bar border pierce, reclaim <=
+    2 bars, volume type gate) + bt.find_ict confirmation -> LIMIT at the FVG edge; mirrors bt.scan's
+    COMBINED/PARTIAL block. ict_disp / ict_pd / std_origin are the deck-faithful switches of
+    backtest-methods.py (2026-09-12); ict_pd/std_origin no longer affect anything here (only the now-removed
+    legacy ICT branch read them) but ict_disp still gates this branch's call into bt.find_ict via bt.OPTS,
+    unchanged from before this migration. No ict_target parameter (2026-09-13 audit): its only reader,
+    backtest-methods.py's ict_target(), was deleted -- its only caller was the legacy ICT branch removed
+    alongside it, and this COMBINED/PARTIAL branch's target has always been the range border (see `target =`
+    below), never bt.ict_target()'s output."""
+    if method == "ICT":
+        return ict_live_setups(side, candles, tf, sym)
     p = bt.P[tf]; R, K = p["R"], p["K"]
     H = [x["high"] for x in candles]; L = [x["low"] for x in candles]; C = [x["close"] for x in candles]; V = [x.get("volume", 0) for x in candles]
     O = [x["open"] for x in candles]; T = [x["time"] for x in candles]; n = len(candles)
     PH = bt.all_pivots(H, "high"); PL = bt.all_pivots(L, "low")
-    out = []; last_i = -99; prev = {k: bt.OPTS[k] for k in ("ict_target", "ict_disp", "ict_pd", "std_origin")}
-    bt.OPTS.update(ict_target=ict_target, ict_disp=bool(ict_disp), ict_pd=bool(ict_pd), std_origin=std_origin or "pivot")
+    out = []; last_i = -99; prev = {k: bt.OPTS[k] for k in ("ict_disp", "ict_pd", "std_origin")}
+    bt.OPTS.update(ict_disp=bool(ict_disp), ict_pd=bool(ict_pd), std_origin=std_origin or "pivot")
     try:
         for i in range(R + 6, n):
-            if method == "ICT":
-                if i - last_i <= 5:
+            support = min(L[i - R:i - 5]); resistance = max(H[i - R:i - 5])
+            if resistance <= support or i - last_i <= 5:
+                continue
+            if side == "long":
+                if not L[i] < support:
                     continue
-                if side == "long":
-                    pl = bt.last_pivot(PL, i)
-                    if pl is None or not L[i] < L[pl]:
-                        continue
-                    range_target = max(H[i - R:i])
-                else:
-                    ph = bt.last_pivot(PH, i)
-                    if ph is None or not H[i] > H[ph]:
-                        continue
-                    range_target = min(L[i - R:i])
-                if bt.OPTS["ict_pd"]:   # knowledge/04 §3.4 R13, same proxy as backtest-methods.scan
-                    eq_ = (max(H[i - R:i]) + min(L[i - R:i])) / 2
-                    if (side == "long" and C[i] >= eq_) or (side == "short" and C[i] <= eq_):
-                        continue
-                last_i = i
-                ict = bt.find_ict(side, i, i, H, L, C, K, n, PH, PL, O=O)
-                if not ict:
-                    continue
-                mss, edge, far = ict
-                ext = min(L[i:mss + 1]) if side == "long" else max(H[i:mss + 1])
-                stop = ext * (1 - STOP_BUFFER_PCT) if side == "long" else ext * (1 + STOP_BUFFER_PCT)
-                target = bt.ict_target(side, i, mss, ext, H, L, R, PH, PL, range_target)
-                if target is None:
-                    continue
-                base = dict(time=T[i], vol_type=None)
+                rec = next((j for j in range(i, min(i + 3, n)) if C[j] > support), None)
             else:
-                support = min(L[i - R:i - 5]); resistance = max(H[i - R:i - 5])
-                if resistance <= support or i - last_i <= 5:
+                if not H[i] > resistance:
                     continue
-                if side == "long":
-                    if not L[i] < support:
-                        continue
-                    rec = next((j for j in range(i, min(i + 3, n)) if C[j] > support), None)
-                else:
-                    if not H[i] > resistance:
-                        continue
-                    rec = next((j for j in range(i, min(i + 3, n)) if C[j] < resistance), None)
-                if rec is None:
-                    continue
-                last_i = i
-                ext = min(L[i:rec + 1]) if side == "long" else max(H[i:rec + 1])
-                avg20 = sum(V[i - 20:i]) / 20 if i >= 20 else 0
-                ratio = V[i] / avg20 if avg20 else None
-                vt = bt.vtype(ratio); rec_ratio = (V[rec] / avg20) if avg20 else None
-                if not (vt in (1, 2) or (vt == 3 and rec_ratio is not None and rec_ratio >= bt.VOL["high_min_ratio"])):
-                    continue
-                ict = bt.find_ict(side, i, rec, H, L, C, K, n, PH, PL, O=O)
-                if not ict:
-                    continue
-                mss, edge, far = ict
-                stop = ext * (1 - STOP_BUFFER_PCT) if side == "long" else ext * (1 + STOP_BUFFER_PCT)
-                target = resistance if side == "long" else support
-                base = dict(time=T[i], vol_type=vt)
+                rec = next((j for j in range(i, min(i + 3, n)) if C[j] < resistance), None)
+            if rec is None:
+                continue
+            last_i = i
+            ext = min(L[i:rec + 1]) if side == "long" else max(H[i:rec + 1])
+            avg20 = sum(V[i - 20:i]) / 20 if i >= 20 else 0
+            ratio = V[i] / avg20 if avg20 else None
+            vt = bt.vtype(ratio); rec_ratio = (V[rec] / avg20) if avg20 else None
+            if not (vt in (1, 2) or (vt == 3 and rec_ratio is not None and rec_ratio >= bt.VOL["high_min_ratio"])):
+                continue
+            ict = bt.find_ict(side, i, rec, H, L, C, K, n, PH, PL, O=O)
+            if not ict:
+                continue
+            mss, edge, far = ict
+            stop = ext * (1 - STOP_BUFFER_PCT) if side == "long" else ext * (1 + STOP_BUFFER_PCT)
+            target = resistance if side == "long" else support
+            base = dict(time=T[i], vol_type=vt)
             if (side == "long" and not target > edge) or (side == "short" and not target < edge):
                 continue
             if mss < n - 1 - K:
@@ -435,14 +619,31 @@ def setups_wyckoff(method, side, candles, tf):
     return out
 
 
-def htf_pass(side, at_time, candles_htf, htf_tf):
+def htf_pass(sym, side, candles_htf, htf_tf):
+    """Higher-timeframe boundary gate. Migrated onto the LIVE bias read (2026-09-13, Task 8): bt.bias_allows
+    over bt.lr.bias_at (scripts/htf_context.py via scripts/live_rules.py) replaces the pre-2026-09-13
+    rolling-percentile proxy (bt.htf_allows over a percentile series this function used to compute inline from
+    `candles_htf`). `candles_htf` is already causal (fetch_candles/drop_forming upstream), so its LAST element
+    IS the last CLOSED bar of `htf_tf` as of this tick -- exactly the bar a live bias read would use; unlike the
+    old proxy, no `at_time` lookup is needed to find "the htf bar that had closed by the signal's own time".
+
+    Returns None -- not False -- when the live rules cannot be asked here at ALL: htf_tf has no bt.P entry, no
+    candles were fetched, or automation.SCAN_WINDOW has no entry for htf_tf (a pre-existing gap from Task 4/6
+    for "2H"/"30m" -- bt.scan() already raises the same KeyError for those timeframes today; ict_scan_bars()
+    above is the same guard used for the ICT setup path). None means "structurally unable to judge", which is
+    kept distinct from False ("judged and refused") purely for the LOGGED record -- the two are different facts
+    worth telling apart later. It is NOT permission: the caller (tick()) blocks a setup that declared htf:true
+    on anything other than an explicit True (2026-09-13, Task 8 fix round 1 -- a bare `is False` check used to
+    let None sail through as if the gate had opened, which is a fail-OPEN order gate; every other gate this
+    task touched fails closed on missing data -- scan-loop.sh, bias_allows' own neutral/unknown refusal,
+    live_rules.window raising rather than clamping -- and htf_pass's caller now matches that)."""
     if not candles_htf or htf_tf not in bt.P:
         return None
-    Rh = bt.P[htf_tf]["R"]; pos = []
-    for i in range(Rh, len(candles_htf)):
-        lo = min(x["low"] for x in candles_htf[i - Rh:i]); hi = max(x["high"] for x in candles_htf[i - Rh:i])
-        pos.append((candles_htf[i]["time"], (candles_htf[i]["close"] - lo) / (hi - lo) if hi > lo else 0.5))
-    return bt.htf_allows(pos, at_time, side) if pos else None
+    if ict_scan_bars(htf_tf) is None:
+        return None
+    methods = bt.resolve_methods(sym)
+    bias, _ = bt.lr.bias_at(candles_htf, len(candles_htf) - 1, htf_tf, methods)
+    return bt.bias_allows(bias, side)
 
 
 # ---------------------------------------------------------------- sizing and orders
@@ -575,12 +776,57 @@ def place_market(sym, st, sig, equity, risk_mult, live):
     return open_position(sym, pend, filled, avg_px, live)
 
 
+class UnprotectedPositionError(RuntimeError):
+    """The one case a naked leveraged position may exist: a filled entry's protective stop could not be placed
+    AND the emergency close (MARKET reduceOnly) also failed. Callers MUST halt hard on this (write the STOP
+    kill switch) rather than let it surface as an ordinary connector error -- PILOT-13, 2026-09-13 incident."""
+    def __init__(self, symbol, qty, reason):
+        self.symbol = symbol; self.qty = qty
+        super().__init__(f"UNPROTECTED POSITION {symbol} qty={qty}: {reason}")
+
+
+def _emergency_close(sym):
+    """Best-effort MARKET reduceOnly flatten of `sym` right after a protective-order failure. Re-derives qty
+    from the exchange's own position-risk (via close-position) rather than trusting our fill record, since the
+    exchange is the source of truth for what is actually open. Returns (True, detail) on success, else
+    (False, error)."""
+    try:
+        return True, order_json("close-position", sym)
+    except Exception as e:
+        return False, str(e)[:300]
+
+
 def open_position(sym, pend, filled_qty, avg_px, live, position_ticket=None):
+    """PILOT-13 (2026-09-13): placing the protective stop is part of opening a position, not a step after it.
+    A stop-market failure here used to raise straight out of this function AFTER the entry had already filled
+    on the exchange -- leaving a naked position while callers' state bookkeeping (pending/positions) never ran.
+    Now: a stop-market failure triggers an immediate emergency close (MARKET reduceOnly) before anything can
+    surface; only if THAT also fails do we raise UnprotectedPositionError, which callers must turn into a hard
+    halt (see tick()). A take-profit failure is handled differently on purpose (see below): it does NOT unwind
+    the position, because the stop -- already placed at this point -- is what bounds the loss; a missing
+    take-profit only forgoes an automatic exit at the target, not protection against further loss."""
     venue = pend["execution"]; long = pend["side"] == "LONG"
     sl = tp = {}
     if venue == "futures" and live:
         prot = "SELL" if long else "BUY"
-        sl = order_json("stop-market", sym, prot, pend["stop"]); tp = order_json("take-profit-market", sym, prot, pend["tp"])
+        try:
+            sl = order_json("stop-market", sym, prot, pend["stop"])
+        except Exception as e:
+            stop_err = str(e)[:200]
+            closed, detail = _emergency_close(sym)
+            if not closed:
+                raise UnprotectedPositionError(sym, filled_qty, f"stop-market failed ({stop_err}) AND emergency close also failed ({detail})")
+            log("protection_failed_closed", venue=venue, symbol=sym, qty=filled_qty, entry=avg_px, stage="stop",
+                reason=stop_err, close=detail,
+                note="protective stop could not be placed -- the just-filled entry was closed immediately (market, reduceOnly), no naked position left open")
+            return None
+        try:
+            tp = order_json("take-profit-market", sym, prot, pend["tp"])
+        except Exception as e:
+            tp = {}
+            log("tp_placement_failed", venue=venue, symbol=sym, qty=filled_qty, reason=str(e)[:200],
+                note="stop is already in place and bounds the loss -- a missing take-profit only forgoes an "
+                     "automatic exit at the target, so the position is left open, not unwound")
     r = abs(avg_px - float(pend["stop"]))
     pos = dict(side=pend["side"], strategy=pend["strategy"], tf=pend["tf"], method=pend["method"], execution=venue, mgmt=pend["mgmt"],
                qty=f"{filled_qty:.8f}".rstrip("0").rstrip("."), entry=avg_px, entry_order=pend["order_id"], client_id=pend.get("client_id"),
@@ -701,8 +947,9 @@ def venue_of(sym):
 
 def tick(live, tick_time=None, ignore_gate=False):
     s = load_state(); setups_cfg = load_setups()
-    if not setups_cfg:
-        log("halt", why=f"no runnable setup in {os.path.relpath(SELECTION, ROOT)}"); return
+    # NO early return on an empty selection: steps 1 and 2 below manage positions and pending orders that were
+    # opened under a previous configuration, and a resting futures limit carries no stop until open_position()
+    # sees it fill. Returning here would leave it naked. Spec §2.2.
     dry_override = (not live) and ignore_gate
     if os.path.exists(STOP) and not dry_override:
         for sym, pend in list(s["pending"].items()):
@@ -719,15 +966,38 @@ def tick(live, tick_time=None, ignore_gate=False):
     if s["day"] != today:
         s["day"] = today; s["trades_today"] = {}
     venues_used = {st["execution"] for st in setups_cfg} | {p["execution"] for p in list(s["positions"].values()) + list(s["pending"].values())}
+    # Two readings per venue, deliberately kept separate (2026-09-13 fix):
+    #   equity        -- true account equity. ONLY input to the EQUITY_HALT_FRAC guard and its equity_start
+    #                    baseline. Margin reserved by a resting order/open position is still the trader's
+    #                    money, not a loss -- the guard must not fire on it.
+    #   sizing_equity -- free margin for futures (Binance availableBalance, via usdt_free()), true equity for
+    #                    MT5 (mt5_equity() -- no free-margin distinction on that venue, see mt5_equity()).
+    #                    Feeds place_market()/place_limit() exactly as before this fix; sizing/order-placement
+    #                    behaviour is intentionally UNCHANGED here -- do not fold this into `equity` above.
     equity = {}
+    sizing_equity = {}
     for v in venues_used:
         try:
-            equity[v] = (usdt_free() if v == "futures" else mt5_equity()) if live else (s["venues"][v]["equity_start"] or 10000.0); s["errors"] = 0
+            if live:
+                if v == "futures":
+                    bal = usdt_balance(); equity[v] = bal["equity"]; sizing_equity[v] = bal["free"]
+                else:
+                    equity[v] = sizing_equity[v] = mt5_equity()
+            else:
+                equity[v] = sizing_equity[v] = s["venues"][v]["equity_start"] or 10000.0
+            s["errors"] = 0
         except Exception as e:
             s["errors"] += 1; log("error", venue=v, where="balance", msg=str(e)[:200])
             if s["errors"] >= ERROR_HALT:
                 halt(s, f"{ERROR_HALT} consecutive connector errors")
             save_state(s); return
+        # LIVE ONLY. A dry run reads a NOTIONAL equity (the `or 10000.0` above), so seeding the baseline from it
+        # poisons the live halt check: the next live tick compares the real balance against a number that was never
+        # real and halts instantly. (That is exactly what happened on 2026-09-12 -- a dry run wrote equity_start=10000
+        # into the shared state file while the testnet account held 5000, and the next live tick halted at once.)
+        # For the same reason a dry run must never reach halt(), which writes the STOP kill switch.
+        if not live:
+            continue
         if s["venues"][v]["equity_start"] is None:
             s["venues"][v]["equity_start"] = equity[v]
         if equity[v] <= EQUITY_HALT_FRAC * s["venues"][v]["equity_start"]:
@@ -743,10 +1013,26 @@ def tick(live, tick_time=None, ignore_gate=False):
                     need.add((st["market"], sym, HTF_OF[st["tf"]]))
     for sym, p in list(s["positions"].items()) + list(s["pending"].items()):
         need.add(("crypto" if sym in CRYPTO else "cfd", sym, p["tf"]))
+    # htf_pass() and ict_live_setups() both read scripts/live_rules.py now (2026-09-13, Task 8), which needs its
+    # OWN trailing window per tf (automation.SCAN_WINDOW, up to 576 bars) -- larger than WINDOW (300), which
+    # stays enough for WYCKOFF/WYCKOFF-BOOK/COMBINED's own setup detection. Widen the fetch for exactly the
+    # (market, tf) pairs live_rules will be asked about -- an ICT setup's own entry tf, and EVERY setup's HTF_OF
+    # tf (htf_pass runs for every method, not just ICT) -- so read_at()/bias_at() ever see a full window.
+    # Non-ICT methods still see candles[...][-WINDOW:] at the point they're used below, so their input is
+    # byte-identical to what fetch_candles(..., window=WINDOW) alone would have produced.
+    wide_tf_bars = {}
+    for st in setups_cfg:
+        for cand_tf in (st["tf"] if st["method"] == "ICT" else None, HTF_OF.get(st["tf"])):
+            if not cand_tf:
+                continue
+            b = ict_scan_bars(cand_tf)
+            if b:
+                key = (st["market"], cand_tf); wide_tf_bars[key] = max(wide_tf_bars.get(key, 0), b)
     candles = {}
     for market, sym, tf in sorted(need):
+        b = wide_tf_bars.get((market, tf))
         try:
-            candles[(sym, tf)] = fetch_candles(sym, tf, market, t)
+            candles[(sym, tf)] = fetch_candles(sym, tf, market, t, window=(max(WINDOW, b) if b else WINDOW))
         except Exception as e:
             log("error", venue=venue_of(sym), where=f"candles {sym} {tf}", msg=str(e)[:200])
     # 1. positions
@@ -768,8 +1054,15 @@ def tick(live, tick_time=None, ignore_gate=False):
         except Exception as e:
             s["errors"] += 1; log("error", venue=pend["execution"], where=f"pending {sym}", msg=str(e)[:200]); continue
         if state == "filled":
-            s["positions"][sym] = open_position(sym, pend, qty, px, live, pt); del s["pending"][sym]
+            try:
+                pos = open_position(sym, pend, qty, px, live, pt)
+            except UnprotectedPositionError as e:
+                del s["pending"][sym]  # PILOT-13: never leave a stale pending entry once the exchange fill is known
+                halt(s, str(e)); save_state(s); return
+            del s["pending"][sym]
             s["trades_today"][sym] = s["trades_today"].get(sym, 0) + 1
+            if pos:
+                s["positions"][sym] = pos
         elif state == "gone":
             del s["pending"][sym]
     for v in VENUES:
@@ -807,37 +1100,83 @@ def tick(live, tick_time=None, ignore_gate=False):
                 s["errors"] += 1; log("error", venue="mt5", where="reconcile", msg=str(e)[:200]); foreign |= set(CFD)
         if foreign:
             log("reconcile", note="symbols with venue state this runner does not own -- no new entries there", symbols=sorted(foreign))
-    # 3. signals
+    # 3. signals -- the preset filters NEW entries only (spec §4.3); steps 1 and 2 above are never filtered.
+    # Read AUTOMATION_CONFIG once for the whole tick and reuse per-market dims, rather than re-opening/re-parsing
+    # the file inside allowed_methods() on every setup below. On a read failure use None (not {}) per market so
+    # allowed_methods() re-tries and falls through to its OWN except-Exception fallback (set(METHODS), fail-OPEN
+    # -- "unconfigured = behave exactly as before this switch existed"). Passing {} here would fail CLOSED
+    # instead: runner_methods({}) is the empty set because every runner method requires >=1 dimension, so every
+    # method would look preset-blocked -- the opposite of allowed_methods()'s own documented fallback. Not
+    # reachable on the live path (automation_gate() already refuses a tick on a missing/unreadable config), but
+    # the two fallbacks must still agree.
+    try:
+        _cfg = json.load(open(AUTOMATION_CONFIG, encoding="utf-8"))
+        _dims_by_market = {m: _cfg.get("markets", {}).get(m, {}).get("dimensions", {}) for m in ("crypto", "cfd")}
+    except Exception:
+        _dims_by_market = {"crypto": None, "cfd": None}
     for st in setups_cfg:
         if not due(st["tf"], t, st["market"]):
+            continue
+        if st["method"] not in allowed_methods(st["market"], _dims_by_market.get(st["market"])):
+            log("preset_filtered", setup=st["id"], market=st["market"], method=st["method"],
+                why="method not permitted by the current method preset")
+            continue
+        # 2026-09-13, Task 8 fix round 1: ict_live_setups() silently returns [] when live never scans this
+        # setup's entry tf (automation.SCAN_WINDOW has no "2H"/"30m" entry). Silent-empty in an order loop looks
+        # identical to a quiet market -- make it loud instead, once per tick this setup is due, naming the
+        # setup id and the timeframe, so the reason is IN the pilot log rather than inferred from an absence.
+        # Do NOT invent a window size here: live never scans 2H/30m, so there is no live value to copy.
+        if st["method"] == "ICT" and ict_scan_bars(st["tf"]) is None:
+            log("unscannable_tf", setup=st["id"], market=st["market"], method=st["method"], tf=st["tf"],
+                why=f"automation.SCAN_WINDOW has no entry for {st['tf']} -- live never scans this timeframe, so "
+                    f"this ICT setup can never produce a signal until that gap is closed")
             continue
         venue = st["execution"]
         for sym in enabled_symbols(st["market"]):
             c = candles.get((sym, st["tf"]))
             if not c or len(c) < bt.P[st["tf"]]["R"] + 10:
                 continue
+            # ICT reads the (possibly widened, see wide_tf_bars above) fetched array as-is; every other method
+            # gets exactly the last WINDOW bars, whether or not this (sym, tf) happened to be widened for ICT
+            # or an HTF read elsewhere -- so their input is unchanged by this migration.
+            c_for_setups = c if st["method"] == "ICT" else c[-WINDOW:]
             for side in ("long", "short"):
-                sigs = setups(st["method"], side, c, st["tf"], st.get("ict_target") or "range", st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot") if st["method"] in ("ICT", "COMBINED") else setups_wyckoff(st["method"], side, c, st["tf"])
+                try:
+                    sigs = setups(st["method"], side, c_for_setups, st["tf"], st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot", sym=sym) if mreg.scan_of(st["method"]) == "ict" else setups_wyckoff(st["method"], side, c_for_setups, st["tf"])
+                except Exception as e:
+                    log("error", venue=venue, where=f"setups {st['id']} {sym} {side}", msg=str(e)[:200]); continue
                 for sig in sigs:
                     key = f"{st['id']}-{sym}-{side}-{sig['time']}"
                     if key in s["seen"]:
                         continue
                     s["seen"].append(key); s["seen"] = s["seen"][-800:]
-                    sig["htf_pass"] = htf_pass(side, sig["time"], candles.get((sym, HTF_OF.get(st["tf"]))), HTF_OF.get(st["tf"]))
+                    sig["htf_pass"] = htf_pass(sym, side, candles.get((sym, HTF_OF.get(st["tf"]))), HTF_OF.get(st["tf"]))
                     open_same = [k for k, p in list(s["positions"].items()) + list(s["pending"].items()) if p["execution"] == venue]
                     reasons = []
                     if sym in s["positions"] or sym in s["pending"]:
                         reasons.append("đã có vị thế/lệnh chờ")
-                    if len(open_same) >= MAX_OPEN:
-                        reasons.append(f"đủ {MAX_OPEN} vị thế ({venue})")
+                    if len(open_same) >= MAX_OPEN[venue]:
+                        reasons.append(f"đủ {MAX_OPEN[venue]} vị thế ({venue})")
                     if s["trades_today"].get(sym, 0) >= MAX_TRADES_PER_DAY:
                         reasons.append("đủ lệnh trong ngày")
                     if blackout:
                         reasons.append(f"blackout sự kiện {blackout}")
                     if sym in foreign:
                         reasons.append("sàn đang có vị thế/lệnh không thuộc runner này")
-                    if st.get("htf") and sig["htf_pass"] is False:
-                        reasons.append("khung lớn không cho hướng này")
+                    # FAIL CLOSED (2026-09-13, Task 8 fix round 1): a setup that declares htf:true is asking for a
+                    # higher-timeframe gate; if that gate cannot be evaluated, the answer is NOT permission. Before
+                    # this fix, htf_pass() could only return True/False (a percentile it could always compute from
+                    # bt.P), so `is False` was equivalent to `is not True` -- checking only for False cost nothing.
+                    # Now htf_pass() reads the live rules, which can genuinely be unable to judge (None) for
+                    # reasons that have nothing to do with the actual bias -- no candles fetched, htf_tf not in
+                    # bt.P, or automation.SCAN_WINDOW has no entry for htf_tf (the 2H/30m gap) -- and `is False`
+                    # would let every one of those sail through as if the gate had opened. Block on anything other
+                    # than an explicit True: only a live bias read that actually ran and agreed with `side` permits.
+                    if st.get("htf") and sig["htf_pass"] is not True:
+                        reasons.append("khung lớn không cho hướng này" if sig["htf_pass"] is False else "khung lớn: không đọc được bias (thiếu dữ liệu/không quét được khung này)")
+                    rr_why = rr_reason(sig)
+                    if rr_why:
+                        reasons.append(rr_why)
                     log("signal", venue=venue, symbol=sym, strategy=st["id"], side=side, sweep_time=sig["time"], mss_time=sig["mss_time"], entry=sig["entry"], stop=sig["stop"],
                         target=sig["target"], r_planned=round(sig["r_planned"], 2), vol_type=sig["vol_type"], htf_pass=sig["htf_pass"], ok=not reasons, reasons=reasons)
                     if reasons:
@@ -845,12 +1184,14 @@ def tick(live, tick_time=None, ignore_gate=False):
                     risk_mult = 0.5 if s["venues"][venue]["consec_losses"] >= 2 else 1.0
                     try:
                         if sig.get("entry_now"):
-                            pos = place_market(sym, st, sig, equity.get(venue, 10000.0), risk_mult, live)
+                            pos = place_market(sym, st, sig, sizing_equity.get(venue, 10000.0), risk_mult, live)
                             if pos:
                                 s["positions"][sym] = pos; s["trades_today"][sym] = s["trades_today"].get(sym, 0) + 1
                             pend = None
                         else:
-                            pend = place_limit(sym, st, sig, equity.get(venue, 10000.0), risk_mult, live)
+                            pend = place_limit(sym, st, sig, sizing_equity.get(venue, 10000.0), risk_mult, live)
+                    except UnprotectedPositionError as e:
+                        halt(s, str(e)); save_state(s); return
                     except Exception as e:
                         s["errors"] += 1; log("error", venue=venue, where=f"place {sym}", msg=str(e)[:200]); pend = None
                     if pend:
@@ -865,21 +1206,28 @@ def replay(setup_ids, bars=600):
     for st in load_setups():
         if setup_ids != ["all"] and st["id"] not in setup_ids:
             continue
-        bt.OPTS.update(mgmt=st.get("mgmt", "be"), htf=False, sides=("long", "short"), min_rr=0.0, types=(1, 2, 3), range_touches=0, entry="book", combined_entry="limit",
-                       ict_target=st.get("ict_target") or "range")
-        for sym in st["symbols"]:
+        # min_rr NOT pinned (2026-09-13): it inherits bt.OPTS' default (= bt.MIN_RR = the same 3R floor that
+        # rr_reason() applies to live signals). replay() exists to check parity between this runner and the
+        # backtest; pinning 0.0 here would have it compare the live path -- which now refuses sub-3R setups --
+        # against a backtest that still takes them, and report the difference as a parity failure.
+        bt.OPTS.update(mgmt=st.get("mgmt", "be"), htf=False, sides=("long", "short"), types=(1, 2, 3), range_touches=0, entry="book", combined_entry="limit")
+        # The EXECUTION list, not st["symbols"]: replay must cover exactly what the live loop trades
+        # (enabled_symbols, line ~824) or parity is checked on a different universe than the one that
+        # places orders. Not config-gated -- a market switched off still deserves its parity check.
+        # Symbols with no history file are skipped below.
+        for sym in (CRYPTO if st["market"] == "crypto" else CFD):
             p = f"{ROOT}/data/history/ohlcv.{sym}.{st['tf']}.json"
             if not os.path.exists(p):
                 continue
             span = json.load(open(p))["candles"][-bars:]
-            placements = {}; wy = st["method"] in ("WYCKOFF", "WYCKOFF-BOOK")
+            placements = {}; wy = mreg.scan_of(st["method"]) == "wyckoff"
             for k in range(WINDOW, len(span) + 1):
                 window = span[k - WINDOW:k]
                 for side in ("long", "short"):
-                    sigs = setups_wyckoff(st["method"], side, window, st["tf"]) if wy else setups(st["method"], side, window, st["tf"], st.get("ict_target") or "range", st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot")
+                    sigs = setups_wyckoff(st["method"], side, window, st["tf"]) if wy else setups(st["method"], side, window, st["tf"], st.get("ict_disp", False), st.get("ict_pd", False), st.get("std_origin") or "pivot", sym=sym)
                     for sig in sigs:
                         placements.setdefault((side, sig["time"]), dict(sig, first_seen=window[-1]["time"]))
-            sc = bt.scan(sym, st["tf"]); span_start = span[WINDOW - 1]["time"]
+            sc = bt.scan(sym, st["tf"], only=(st["method"],)); span_start = span[WINDOW - 1]["time"]  # only the method being checked -- skip the rest of scan()'s work, esp. the live ICT scanner when unused (2026-09-13)
             trades = [t for t in sc["trades"][st["method"]] if span_start <= t["time"] <= span[-1]["time"] and (not wy or t["entry_time"] >= span_start)]
             matched = unmatched = 0; details = []
             for t in trades:
@@ -924,8 +1272,9 @@ def main():
         print(min(TF_SEC[tf] for tf in tfs)); return
     if a.list:
         for st in load_setups():
-            flags = f" disp={st.get('ict_disp', False)} pd={st.get('ict_pd', False)} std_origin={st.get('std_origin', 'pivot')}" if st["method"] in ("ICT", "COMBINED") else ""
-            print(f"{st.get('rank', '-')}. {st['id']}: {st['market']} {st['tf']} {st['method']} target={st.get('ict_target')}{flags} htf={st.get('htf')} mgmt={st.get('mgmt')} exec={st['execution']} symbols={','.join(st['symbols'])}")
+            flags = f" disp={st.get('ict_disp', False)} pd={st.get('ict_pd', False)} std_origin={st.get('std_origin', 'pivot')}" if mreg.scan_of(st["method"]) == "ict" else ""
+            blocked = "" if st["method"] in allowed_methods(st["market"]) else "  [preset: blocked]"
+            print(f"{st.get('rank', '-')}. {st['id']}: {st['market']} {st['tf']} {st['method']}{flags} htf={st.get('htf')} mgmt={st.get('mgmt')} exec={st['execution']} symbols={','.join(st['symbols'])}{blocked}")
         return
     if a.replay:
         print(json.dumps(replay(a.replay, a.bars), indent=1)); return

@@ -68,11 +68,16 @@ Checked: timestamps are UTC (`_server_utc_offset_sec: 10800`, i.e. server UTC+3 
 the wall clock, the daily candle opens at 21:00Z = broker midnight), all six fields present, `_volume_caveat`
 present (tick volume, not traded volume — Effort-vs-Result reads on gold use it as a proxy only).
 The deterministic scanner reads the bridge directly (`scripts/ict-scan.py` `load()` routes XAUUSD/XAGUSD/USOIL/UKOIL
-to `data/live/mt5-bridge/`); the launchd loop scans style `gold` (15m×200) at :01/:16/:31/:46, `gold-1h`
-(1H×240) at :02 every hour, `gold-4h` (4H×180) at :03 every 4 h and `gold-swing` (1D×120) at :02 every 4 h, emitting
-events to `data/live/events.jsonl` like the crypto styles. Which of the four actually run is gated per timeframe by
-`/automation` (`markets.cfd.timeframes`), and the symbols come from `markets.cfd.instruments` — a symbol with no
-bridge file on disk is skipped rather than aborting the style. There is no CFD 1m style: the EA does not export 1m
-(SYSTEM-DESIGN.md §12 item 6). No gold chart artifact exists yet; `scripts/local-eval-brief.py gold` (and `gold-1h` /
-`gold-4h` / `gold-swing`) already produces the Sonnet brief. Raise `InpBarsToExport` to ≥300 in the EA
-inputs if a 288-bar 15m window is wanted.
+to `data/live/mt5-bridge/`); **since 2026-09-13 the CFD side runs the same three horizons as crypto and nothing
+else** — the launchd loop scans `cfd-scalping` (15m) at :01/:16/:31/:46, `cfd-day` (1H) at :02 every hour and
+`cfd-swing` (4H) at :03 of every 4th hour (`scan-loop.sh:106-110` (`run_style 15m scalping`)), emitting events to
+`data/live/events.jsonl` like the crypto styles. The style names are derived from one authored table,
+`automation.HORIZON_TF` (`automation.py:129` (`HORIZON_TF = {"scalping": "15m"`)) — read that, do not re-list them
+here. Bar counts per timeframe come from `automation.SCAN_WINDOW` (`automation.py:137` (`SCAN_WINDOW = {`)). Which
+of the three actually run is gated per timeframe by `/automation` (`markets.cfd.timeframes`, keys `15m`/`1h`/`4h`),
+and the symbols come from `markets.cfd.instruments` — a symbol with no bridge file on disk is skipped rather than
+aborting the style (`scan-loop.sh:84` (`if [ -s "data/live/mt5-bridge/ohlcv.`)). There is no CFD 1m style: the EA
+does not export 1m (SYSTEM-DESIGN.md §12 item 6). `1D` and `1W` stay as **context rungs** — exported and drawn,
+never scanned. No CFD chart artifact exists yet; `scripts/local-eval-brief.py cfd-scalping` (and `cfd-day` /
+`cfd-swing`) already produces the Sonnet brief, though only `cfd-scalping` has a headless prompt pair in
+`integrations/headless/`, so it is the only CFD style whose local read actually runs.

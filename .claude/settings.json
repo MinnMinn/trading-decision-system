@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"SessionStart\\\",\\\"additionalContext\\\":\\\"TRADING SYSTEM HARD SAFETY RULES: capital preservation first; NEVER trade Forex; only BTCUSDT/ETHUSDT/SOLUSDT/XAUUSD/XAGUSD/USOIL/UKOIL; max 1% risk per trade; see docs/architecture/SYSTEM-DESIGN.md for the full architecture before making any design changes.\\\"}}\""
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/session-safety-rules.sh\""
           }
         ]
       }

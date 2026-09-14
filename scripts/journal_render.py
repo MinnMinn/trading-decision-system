@@ -36,8 +36,7 @@ def pilot_activity(now):
     except Exception:
         pass
     out = []
-    profile = (cfg.get("execution") or {}).get("pilot_profile", "legacy")
-    sources = list(PILOT_DIRS.items()) if profile != "top5" else [(m, d) for m, (d, _) in TOP5_LOGS.items()]
+    sources = [(m, d) for m, (d, _) in TOP5_LOGS.items()]
     for market, d in sources:
         p = os.path.join(ROOT, d, TOP5_LOGS[market][1] if market in TOP5_LOGS else "log.jsonl")
         recs = []

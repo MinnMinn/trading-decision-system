@@ -1,0 +1,73 @@
+{
+  "_comment": "THE single source of truth for the Confluence dimensions, the runner method table and the named presets (spec docs/specs/2026-09-12-method-switch-design.md §3). Nothing else in this repo may hard-code any of the three: scripts/methods.py is the reader, scripts/sync-methods.py regenerates the derived schema enums, and scripts/tests/test_methods_sync.py fails the build if any copy drifts. Twin of instruments.json.",
+  "schema_version": 1,
+
+  "dimensions": {
+    "wyckoff": {
+      "label": "Wyckoff", "markets": ["crypto", "cfd"], "agent": "structure-agent", "skill": "wyckoff-skill",
+      "data_sources": ["ohlcv"], "max_points": 25, "lane": "wyckoff", "owns_invalidation": true,
+      "note": "Phase A-E vocabulary, doi nhan tests, Effort-vs-Result, SOT, Volume Profile (user decision 2026-09-10). NOT the same thing as the runner's mechanical WYCKOFF method -- see runner_methods.",
+      "pane": {"kind": "volume", "label": "Khối lượng"}
+    },
+    "ict": {
+      "label": "ICT", "markets": ["crypto", "cfd"], "agent": "structure-agent", "skill": "ict-skill",
+      "data_sources": ["ohlcv"], "max_points": 25, "lane": "ict", "owns_invalidation": true,
+      "note": "knowledge/04-06 carry no volume of any kind; volume is the only orthogonal axis against Wyckoff (SYSTEM-DESIGN.md §6.1).",
+      "pane": {"kind": "range_pct", "label": "Vị trí trong dealing range (Premium / Discount)"}
+    },
+    "footprint": {
+      "label": "Footprint", "markets": ["crypto"], "agent": "flow-agent", "skill": "footprint-skill",
+      "data_sources": ["coinglass_footprint"], "max_points": 25, "lane": "footprint", "owns_invalidation": false,
+      "note": "No commodities source: CoinGlass is crypto-derivatives only (SYSTEM-DESIGN.md §12 item 3).",
+      "pane": {"kind": "unavailable", "label": "Delta / CVD"}
+    },
+    "heatmap": {
+      "label": "Heatmap", "markets": ["crypto"], "agent": "liquidity-agent", "skill": "heatmap-skill",
+      "data_sources": ["coinglass_heatmap"], "max_points": 25, "lane": "heatmap", "owns_invalidation": false,
+      "note": "Same CoinGlass limit. No ingested knowledge/ source either (SYSTEM-DESIGN.md §12 item 1).",
+      "pane": {"kind": "unavailable", "label": "Cụm thanh lý (liquidation clusters)"}
+    }
+  },
+  "_pane_note": "The second chart pane under the price chart, one declared slot per dimension (docs/specs/2026-09-12-chart-lightweight-charts-design.md follow-up, 2026-09-12: replacing an ICT pane apology with a real reading and making the slot declarable). `kind` is one of: `volume` (Wyckoff's rolling-mean volume read, unchanged), `range_pct` (ICT's per-bar position within the dealing range, 0-100%, EQ marked at 50 -- knowledge/04 §2.18-2.19, R13), `unavailable` (footprint/heatmap: no live CoinGlass source yet, so the pane states that honestly instead of standing empty). `label` is the pane's own display name. scripts/build-artifact.py reads this into PARAMS.panes (the only source; there is no second lane->pane-kind list); scripts/chart.js renders each kind with its own function. A 5th dimension needs only a `pane` entry here plus one render branch in chart.js -- scripts/tests/test_methods.py fails the build if a dimension has no `pane` or an unknown `kind`.",
+
+  "runner_methods": {
+    "WYCKOFF":       { "requires": ["wyckoff"],       "runnable": true,  "scan": "wyckoff", "entry": "market" },
+    "WYCKOFF-BOOK":  { "requires": ["wyckoff"],       "runnable": true,  "scan": "wyckoff", "entry": "market" },
+    "ICT":           { "requires": ["ict"],           "runnable": true,  "scan": "ict",     "entry": "limit"  },
+    "COMBINED":      { "requires": ["wyckoff","ict"], "runnable": true,  "scan": "ict",     "entry": "limit"  },
+    "COMBINED-BOOK": { "requires": ["wyckoff","ict"], "runnable": false, "scan": "wyckoff", "entry": "market" },
+    "PARTIAL":       { "requires": ["wyckoff","ict"], "runnable": false, "scan": "ict",     "entry": "limit"  }
+  },
+  "_runner_note": "requires[] is the dimension gate, NOT a claim that the runner reproduces that dimension's full read. The runner's WYCKOFF/WYCKOFF-BOOK are mechanical rules (scripts/wyckoff_rules.py: CHoCH gate, TR from SC/AR, Spring vs Shakeout, VP veto); the wyckoff DIMENSION is the skill's discretionary read. Homonyms. runnable=false means backtest-only (scripts/backtest-methods.py:528); scan picks which causal scanner in strategy-runner.py produces the setups.",
+
+  "modes": {
+    "SOLO":     { "minimum": 1, "threshold": 85,
+                  "note": "Added 2026-09-12, user's explicit decision, changing a rule inherited from the master spec: a single engaged dimension has no cross-confirmation to lean on, so the score bar is raised above NORMAL's -- equal to STRICT's 85 -- rather than lowering the minimum without compensating. Reachability: raw_pct for one engaged dimension is (points / 25) x 100 (SYSTEM-DESIGN.md section 6.2 item 2), so 85 needs 21.25/25 -- attainable at e.g. 22/25 (a near-flawless single-dimension read across all of that dimension's evidence buckets) without requiring literal 25/25, the same style of headroom that makes STRICT's 85 reachable at 3 dimensions (worked example in section 6.2). MUST be applied only via a preset's own declared `mode` field (below) -- never derived from how many dimensions happened to be engaged at analysis time. See SYSTEM-DESIGN.md section 6.2 'SOLO mode' for the full rule and the preset-not-runtime safeguard this closes." },
+    "NORMAL":   { "minimum": 2, "threshold": 70, "note": "Unchanged from the master spec (SYSTEM-DESIGN.md section 6.1)." },
+    "ENHANCED": { "minimum": 3, "threshold": 80, "note": "Unchanged from the master spec (SYSTEM-DESIGN.md section 6.1)." },
+    "STRICT":   { "minimum": 3, "threshold": 85, "note": "Unchanged from the master spec (SYSTEM-DESIGN.md section 6.1); also requires zero unresolved high-impact contradictions, enforced in the DecisionAgent procedure, not this table." }
+  },
+  "_modes_note": "The ONLY source for methodology-mode minimum/threshold pairs (SYSTEM-DESIGN.md section 6.2); scripts/methods.py reads this instead of a hand-kept constant. Every preset below MUST name one of these modes in its own `mode` field, and that field is the SOLE way a run's mode may be SOLO -- see the mode-lock / preset-not-runtime rule in SYSTEM-DESIGN.md section 6.2.",
+
+  "presets": [
+    { "id": "wyckoff",               "label": "Wyckoff",                   "dimensions": ["wyckoff"],                               "tier": "trade", "mode": "SOLO" },
+    { "id": "ict",                   "label": "ICT",                       "dimensions": ["ict"],                                   "tier": "trade", "mode": "SOLO" },
+    { "id": "wyckoff+ict",           "label": "Wyckoff + ICT",             "dimensions": ["wyckoff", "ict"],                        "tier": "trade", "mode": "NORMAL" },
+    { "id": "wyckoff+footprint",     "label": "Wyckoff + Footprint",       "dimensions": ["wyckoff", "footprint"],                  "tier": "trade", "mode": "NORMAL" },
+    { "id": "wyckoff+ict+footprint", "label": "Wyckoff + ICT + Footprint", "dimensions": ["wyckoff", "ict", "footprint"],           "tier": "trade", "mode": "NORMAL" },
+    { "id": "full",                  "label": "Đầy đủ 4 chiều",            "dimensions": ["wyckoff", "ict", "footprint", "heatmap"], "tier": "trade", "mode": "NORMAL" }
+  ],
+  "_preset_note": "`mode` is the methodology mode this preset resolves to when /analyze is not given an explicit MODE argument, and (for SOLO specifically) the ONLY legal mode for that preset -- SOLO may never be requested for a preset naming more than one dimension (SYSTEM-DESIGN.md section 6.2). `tier` is a display grouping only (trade = can produce a live TRADE verdict at all; nothing is tagged research any more now that SOLO makes the single-dimension presets tradeable -- 2026-09-12, user's explicit decision). Preset dimension sets MUST stay pairwise distinct or profile_of stops being a function -- scripts/methods.py raises on load if they collide.",
+
+  "history": [
+    { "date": "2026-09-12", "change": "initial registry: 4 dimensions, 6 runner methods, 6 presets",
+      "reason": "extracted from automation.py MARKET_DIMENSIONS, build-artifact.py LANES, strategy-runner.py METHODS and rank-setups.py RUNNABLE, which had drifted into 2-3 hand-kept copies",
+      "approved_by": "user (in session)" },
+    { "date": "2026-09-12", "change": "added a `modes` table (NORMAL/ENHANCED/STRICT unchanged; new SOLO mode: minimum 1, threshold 85) and a `mode` field on every preset; retagged `wyckoff` and `ict` from tier:research to tier:trade",
+      "reason": "wyckoff and ict are the only single-dimension presets and were structurally unable to ever pass /analyze's NORMAL minimum of 2 (SYSTEM-DESIGN.md section 6.1), making them permanently research-only; the user wants them usable for real entries. SOLO raises the score bar to 85 (vs NORMAL's 70) to compensate for having no cross-confirming dimension, and is gated to presets that themselves name exactly one dimension -- never derived from a multi-dimension preset degrading to one engaged dimension at runtime (e.g. CoinGlass down), which must keep failing NO TRADE on count exactly as before. This changes a scoring-mode rule inherited from the master spec (SYSTEM-DESIGN.md section 6.1/6.2 previously said minimums are 'unchanged from the master spec').",
+      "approved_by": "user (explicit decision, in session, 2026-09-12)" },
+    { "date": "2026-09-12", "change": "added a `pane` field (kind + label) to every dimension, declaring what the chart's second pane under the price chart shows for that dimension",
+      "reason": "the ICT pane was empty with an implementation-note apology explaining that volume does not belong to ICT and the pane was left blank so the chart would keep its size across method switches; the user asked for it removed and replaced with a real ICT reading (dealing-range position, EQ at 0.5) instead of an unexplained empty box, and for the slot to be declarable so footprint/heatmap can fill it once they have a live source rather than silently going empty again.",
+      "approved_by": "user (explicit decision, in session, 2026-09-12)" }
+  ]
+}

@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["style", "updated", "mode", "headline", "symbols"],
   "properties": {
-    "style": {"enum": ["scalping", "daytrade", "1h", "4h", "swing", "gold-scalp", "gold", "gold-1h", "gold-4h", "gold-swing"]},
+    "style": {"enum": ["scalping", "day", "swing", "cfd-scalping", "cfd-day", "cfd-swing"], "description": "The six derived style names: three horizons (scripts/automation.py HORIZON_TF -- scalping 15m, day 1h, swing 4h) x two markets, crypto bare and cfd prefixed. Never authored here; this enum mirrors automation.STYLE.values()."},
     "updated": {"type": "string", "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\dZ$"},
     "source": {"type": "string", "description": "one line: which snapshot/brief this analysis was made from"},
     "mode": {"enum": ["NORMAL", "ENHANCED", "STRICT"]},
@@ -44,7 +44,7 @@
           "timeline": {"type": "array", "items": {"type": "object", "required": ["time", "event"], "properties": {"time": {"type": "string"}, "event": {"type": "string", "description": "neutral description of what price did"}, "wyckoff": {"type": "string"}, "ict": {"type": "string"}}}},
           "context": {
             "type": "object",
-            "description": "The higher-timeframe overview chart (e.g. 4H×180 for daytrade). Numbers must come from that style's own facts (scripts/local-eval-brief.py 4h) or its candles.",
+            "description": "The higher-timeframe overview chart (e.g. 4H×180 for scalping, whose bias rung is 4h). Numbers must come from that style's own facts (scripts/local-eval-brief.py swing) or its candles.",
             "properties": {
               "wyckoff": {"type": "object", "properties": {"trading_range": {"$ref": "#/properties/symbols/additionalProperties/properties/wyckoff/properties/trading_range"}, "phases": {"$ref": "#/properties/symbols/additionalProperties/properties/wyckoff/properties/phases"}, "events": {"$ref": "#/properties/symbols/additionalProperties/properties/wyckoff/properties/events"}, "text_html": {"type": "string"}}},
               "ict": {"type": "object", "properties": {"text_html": {"type": "string"}}}

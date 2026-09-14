@@ -3,7 +3,8 @@
 layers 1/2/3 each split per method then synthesised, one method = one vocabulary, trader-grade UI).
 
 Usage: build-artifact.py <style> --out FILE [--snapshot-dir DIR] [--narrative PATH] [--check-only] [--allow-impure]
-  style: scalping | daytrade | 1h | 4h | swing | gold | gold-1h | gold-4h | gold-swing
+  style: scalping | day | swing | cfd-scalping | cfd-day | cfd-swing   (three horizons x two markets;
+         the names are derived in scripts/automation.py from HORIZON_TF -- crypto bare, cfd prefixed)
 
 Inputs (all read-only here; each has exactly one writer elsewhere):
   data/live/market-data|mt5-bridge/ohlcv.<SYM>.<tf>.json   working window AND the context (HTF) window   (launchd scanner / MT5 EA)
@@ -28,9 +29,18 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import method_purity as mp  # noqa: E402
 import artifact_theme as theme  # noqa: E402
+import instruments as I  # noqa: E402
 
-CRYPTO = [("BTCUSDT", "btc", "BTC/USDT", "int"), ("ETHUSDT", "eth", "ETH/USDT", "2"), ("SOLUSDT", "sol", "SOL/USDT", "2")]
-GOLD = [("XAUUSD", "xau", "XAU/USD", "2")]
+# (short id for CSS/HTML ids, display name, price-format kind: "int" or "2" decimals) -- presentation-only;
+# the symbol SET itself comes from instruments.py (single source of truth, SYSTEM-DESIGN.md §1), and the
+# metadata itself now lives in the optional "display" block of instruments.json, never hand-kept here.
+def _meta(sym):
+    d = I.display(sym)
+    return (sym, d["id"], d["label"], "int" if d["price_decimals"] == 0 else "2")
+
+
+CRYPTO = [_meta(sym) for sym in I.analysis("crypto")]
+GOLD = [_meta("XAUUSD")]
 MT5 = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
 TF_MIN = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30, "1H": 60, "2H": 120, "4H": 240, "1D": 1440, "1W": 10080}
 # Per-timeframe window spec (bars, axis label, human horizon). Bar counts are project parameters (no source gives them;
@@ -42,6 +52,7 @@ TIER_NAME = {"bias": "Bias", "structure": "Cấu trúc", "entry": "Vào lệnh"}
 TIER_ORDER = ("bias", "structure", "entry")
 import importlib.util as _iu
 _as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py")); _auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
+_ms = _iu.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py")); _methods = _iu.module_from_spec(_ms); _ms.loader.exec_module(_methods)
 
 
 def _style(tf, syms, name, kz):
@@ -51,16 +62,12 @@ def _style(tf, syms, name, kz):
 
 # The three tiers of every style come from ONE table: scripts/automation.py TIERS (docs/architecture/timeframe-mapping.md).
 STYLES = {
-    "scalping":   _style("1m",  CRYPTO, "Crypto Scalping", False),
-    "daytrade":   _style("15m", CRYPTO, "Crypto Day", True),
-    "1h":         _style("1H",  CRYPTO, "Crypto 1H", True),
-    "4h":         _style("4H",  CRYPTO, "Crypto 4H", False),
-    "swing":      _style("1D",  CRYPTO, "Crypto Swing", False),
-    "gold-scalp": _style("5m",  GOLD,   "CFD Scalping", True),
-    "gold":       _style("15m", GOLD,   "CFD Day", True),
-    "gold-1h":    _style("1H",  GOLD,   "CFD 1H", True),
-    "gold-4h":    _style("4H",  GOLD,   "CFD 4H", False),
-    "gold-swing": _style("1D",  GOLD,   "CFD Swing", False),
+    "scalping":     _style("15m", CRYPTO, "Crypto Scalping", True),
+    "day":          _style("1H",  CRYPTO, "Crypto Day", True),
+    "swing":        _style("4H",  CRYPTO, "Crypto Swing", False),
+    "cfd-scalping": _style("15m", GOLD,   "CFD Scalping", True),
+    "cfd-day":      _style("1H",  GOLD,   "CFD Day", True),
+    "cfd-swing":    _style("4H",  GOLD,   "CFD Swing", False),
 }
 for _st, _S in STYLES.items():
     _S["tiers"] = {}
@@ -73,7 +80,15 @@ for _st, _S in STYLES.items():
             _S["tiers"][_name] = None
 VERDICT_CLASS = [("SETUP", "setup"), ("THEO DÕI LONG", "long"), ("THEO DÕI SHORT", "short"), ("PHÁ", "warn"), ("CHỜ", "wait")]
 import htf_context as htf  # noqa: E402
-LANES = [("wyckoff", "Wyckoff"), ("ict", "ICT"), ("footprint", "Footprint"), ("heatmap", "Heatmap")]
+LANES = [(d, v["label"]) for d, v in _methods.DIMENSIONS.items()]   # source: docs/architecture/methods.json
+# Chart-rendering fact scripts/chart.js needs but methods.json does not own (which lanes have a shape-drawing
+# engine on the price chart at all). Kept here, injected into __PARAMS__, so chart.js has exactly one place
+# to read it instead of hand-keeping its own copy (Task 10b item 4).
+OVERLAY_LANES = tuple(d for d, _ in LANES if d in ("wyckoff", "ict"))   # only these have shape-drawing engines
+# The second pane (under the price chart) per dimension: docs/architecture/methods.json `pane` (kind + label)
+# is THE source -- not a second hand-kept lane list. chart.js renders by kind (volume | range_pct |
+# unavailable); a 5th dimension needs only a registry entry here plus one render branch there.
+PANES = {d: _methods.DIMENSIONS[d]["pane"] for d, _ in LANES}
 
 
 # ----------------------------------------------------------------------------------------------- helpers
@@ -264,7 +279,11 @@ def lane_status(engaged, reason):
 
 def matrix(sym_key, kind, l1, l2, l3, dims):
     """The read matrix: rows = layers, columns = methods engaged + synthesis."""
-    cols = ["wyckoff", "ict"] + [m for m in ("footprint", "heatmap") if dims[m]["engaged"]]
+    cols = [c for c, _ in LANES if dims.get(c, {}).get("engaged")]
+    if not cols:
+        # No lane engaged for this market/config: an empty-columns matrix is a worse signal than none at all
+        # (silently implies "nothing to see" rather than "nothing is turned on") -- say so explicitly instead.
+        return '<div class="matrix cols-0"><p class="muted">Không có lớp đọc nào đang bật cho mã này — kiểm tra dimension trong /automation.</p></div>'
     head = '<div class="mx-head mx-corner">Lớp đọc</div>' + "".join(f'<div class="mx-head lane-{c}"><span class="lane-dot"></span>{dict(LANES)[c]}</div>' for c in cols) + '<div class="mx-head mx-synth">Tổng hợp</div>'
 
     def row(title, sub, cells, synth, cls=""):
@@ -322,16 +341,29 @@ def matrix(sym_key, kind, l1, l2, l3, dims):
         body += row("Toàn diện", f"phân tích đầy đủ · {l3.get('_updated', '—')}", cells, synth)
     else:
         body += row("Toàn diện", "phân tích đầy đủ", {}, '<p class="muted">Chưa có phân tích đầy đủ theo định dạng mới (data/live/narrative/&lt;style&gt;.json).</p>')
-    notes = [f'<b>{dict(LANES)[m]}</b>: {esc(dims[m]["reason"])}' for m in ("footprint", "heatmap") if not dims[m]["engaged"]]
+    notes = [f'<b>{dict(LANES)[m]}</b>: {esc(dims[m]["reason"])}' for m, _ in LANES if not dims[m]["engaged"]]
     foot = f'<div class="mx-foot">{" · ".join(notes)}</div>' if notes else ""
     return f'<div class="matrix cols-{len(cols)}">{body}</div>{foot}'
 
 
-def timeline(rows):
+def timeline(rows, dims):
+    """`dims` gates the Wyckoff/ICT columns the same way matrix() does (Task 10) -- a disengaged method's column
+    is dropped and the reason stated, not silently rendered anyway. This table arrived with the timeframe-ladder
+    work (716b32a) after the Task 10 matrix()-only sweep, so it never got that treatment; ladder() had the same gap."""
     if not rows:
         return ""
-    trs = "".join(f"<tr><td>{esc(r.get('time', ''))}</td><td>{r.get('event', '')}</td><td class=\"lane-wyckoff\">{r.get('wyckoff', '')}</td><td class=\"lane-ict\">{r.get('ict', '')}</td></tr>" for r in rows)
-    return f'<details class="timeline"><summary>Dòng sự kiện của phân tích đầy đủ <span class="muted">({len(rows)} mốc · Wyckoff và ICT ở hai cột riêng)</span></summary><div class="table-wrap"><table class="evidence"><thead><tr><th>Thời gian (UTC)</th><th>Sự kiện</th><th class="lane-wyckoff">Wyckoff</th><th class="lane-ict">ICT</th></tr></thead><tbody>{trs}</tbody></table></div></details>'
+    cols = [m for m, _ in LANES if m in ("wyckoff", "ict") and dims.get(m, {}).get("engaged")]
+    if not cols:
+        return ""
+    head_cells = "".join(f'<th class="lane-{m}">{dict(LANES)[m]}</th>' for m in cols)
+    trs = "".join("<tr><td>{}</td><td>{}</td>{}</tr>".format(
+        esc(r.get('time', '')), r.get('event', ''),
+        "".join(f'<td class="lane-{m}">{r.get(m, "")}</td>' for m in cols)) for r in rows)
+    lbl = " và ".join(dict(LANES)[m] for m in cols) + (" ở cột riêng" if len(cols) == 1 else " ở hai cột riêng")
+    notes = [f'<b>{dict(LANES)[m]}</b>: {esc(dims[m]["reason"])}' for m in ("wyckoff", "ict") if not dims.get(m, {}).get("engaged")]
+    foot = f'<div class="ld-foot">{" · ".join(notes)}</div>' if notes else ""
+    return (f'<details class="timeline"><summary>Dòng sự kiện của phân tích đầy đủ <span class="muted">({len(rows)} mốc · {lbl})</span></summary>'
+            f'<div class="table-wrap"><table class="evidence"><thead><tr><th>Thời gian (UTC)</th><th>Sự kiện</th>{head_cells}</tr></thead><tbody>{trs}</tbody></table></div>{foot}</details>')
 
 
 GLOSSARY = {
@@ -359,6 +391,15 @@ GLOSSARY = {
 }
 
 
+def lane_buttons(engaged):
+    """Topbar lane toggle buttons. `engaged` is {lane: bool} -- the real dims state (Task 10b item 3; before
+    this every lane except wyckoff/ict was hardcoded 'off' regardless of whether it was actually on)."""
+    return "".join(
+        f'<button class="lane-btn lane-{k}{"" if engaged.get(k) else " off"}" data-lane="{k}" '
+        f'onclick="setLane(\'{k}\')" title="phím {i + 1}"><span class="lane-dot"></span>{n}</button>'
+        for i, (k, n) in enumerate(LANES))
+
+
 def glossary():
     out = ""
     for key, name in LANES:
@@ -379,12 +420,18 @@ BIAS_CLS = {"long": "long", "short": "short", "neutral": "wait", "unknown": "wai
 BIAS_VI = {"long": "LONG", "short": "SHORT", "neutral": "TRUNG LẬP", "unknown": "CHƯA RÕ"}
 
 
-def ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name):
+def ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name, dims):
     """Three rows, top-down: Bias -> Cấu trúc -> Vào lệnh. Each row answers ONE question per method (Wyckoff: structure +
     phase + TR; ICT: dealing-range position + last MSS) and ends in one conclusion chip. Wording for a missing rung is
-    printed, never skipped (docs/architecture/timeframe-mapping.md)."""
+    printed, never skipped (docs/architecture/timeframe-mapping.md). `dims` gates the method columns the same way
+    matrix() does (Task 10): a disengaged method's column is dropped and the reason stated, never silently rendered
+    anyway. ladder() arrived with the timeframe-ladder work (716b32a) after the Task 10 matrix()-only sweep, so it
+    never got that treatment until now."""
     tfmin = lambda tf: TF_MIN.get(tf, 0)
     ratio = lambda hi, lo: (f"×{tfmin(hi) / tfmin(lo):g}" if tfmin(hi) and tfmin(lo) else "")
+    cols = [m for m, _ in LANES if m in ("wyckoff", "ict") and dims.get(m, {}).get("engaged")]
+    if not cols:
+        return '<div class="ladder cols-0"><p class="muted">Không có lớp đọc nào đang bật cho mã này — kiểm tra dimension trong /automation.</p></div>'
 
     def wy_cell(w):
         if not w or not (w.get("structure") or w.get("phase")):
@@ -411,22 +458,29 @@ def ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name):
         t = S["tiers"].get(name); c = tier_ctx.get(name)
         below = S["tiers"]["structure"]["tf"] if (name == "bias" and S["tiers"].get("structure")) else S["tf"]
         if not t:
-            rows.append((name, "—", "", '<span class="muted">không lấy khung chậm hơn (khung tháng)</span>', '<span class="muted">—</span>', '<span class="chip chip-wait">—</span>', False))
+            cells = {"wyckoff": '<span class="muted">không lấy khung chậm hơn (khung tháng)</span>', "ict": '<span class="muted">—</span>'}
+            rows.append((name, "—", "", cells, '<span class="chip chip-wait">—</span>', False))
             continue
         head = f'{t["tf"]} <span class="ld-ratio">{ratio(t["tf"], below)}</span>'
         if not t["style"]:
-            rows.append((name, head, "chỉ chart, chưa quét", '<span class="muted">không có đọc — chỉ có chart</span>', '<span class="muted">không có số liệu</span>', '<span class="chip chip-wait">—</span>', False))
+            cells = {"wyckoff": '<span class="muted">không có đọc — chỉ có chart</span>', "ict": '<span class="muted">không có số liệu</span>'}
+            rows.append((name, head, "chỉ chart, chưa quét", cells, '<span class="chip chip-wait">—</span>', False))
             continue
         chipv = f'<span class="chip chip-{BIAS_CLS.get(c["bias"], "wait")} chip-lg" title="{esc(c.get("basis", ""))}">{BIAS_VI.get(c["bias"], "?")}</span>' if c else '<span class="chip chip-wait">chưa quét</span>'
-        rows.append((name, head, f'cập nhật {hhmm(c.get("last_time")) if c else "—"}Z', wy_cell(c and c.get("wyckoff")), ict_cell(c), chipv, name == gate_name))
+        cells = {"wyckoff": wy_cell(c and c.get("wyckoff")), "ict": ict_cell(c)}
+        rows.append((name, head, f'cập nhật {hhmm(c.get("last_time")) if c else "—"}Z', cells, chipv, name == gate_name))
     wy = (n3 or {}).get("wyckoff") or {}
-    rows.append(("entry", S["tf"], f'cập nhật {hhmm(l1["ts"]) if l1 else "—"}Z', wy_cell({**wy, "updated": (n3 or {}).get("_updated_iso")} if wy else None), ict_cell(l1 and l1.get("facts")), chip(cur_verdict, "chip-lg"), False))
-    body = '<div class="ld-head ld-corner">Tầng</div><div class="ld-head lane-wyckoff"><span class="lane-dot"></span>Wyckoff</div><div class="ld-head lane-ict"><span class="lane-dot"></span>ICT</div><div class="ld-head">Kết luận</div>'
-    for name, head, sub, wc, ic, ch, is_gate in rows:
+    entry_cells = {"wyckoff": wy_cell({**wy, "updated": (n3 or {}).get("_updated_iso")} if wy else None), "ict": ict_cell(l1 and l1.get("facts"))}
+    rows.append(("entry", S["tf"], f'cập nhật {hhmm(l1["ts"]) if l1 else "—"}Z', entry_cells, chip(cur_verdict, "chip-lg"), False))
+    body = '<div class="ld-head ld-corner">Tầng</div>' + "".join(f'<div class="ld-head lane-{m}"><span class="lane-dot"></span>{dict(LANES)[m]}</div>' for m in cols) + '<div class="ld-head">Kết luận</div>'
+    for name, head, sub, cells, ch, is_gate in rows:
         g = " gate" if is_gate else ""
         body += (f'<div class="ld-tier{g}"><div class="ld-name">{TIER_NAME[name]}</div><div class="ld-tf">{head}</div><div class="ld-sub">{esc(sub)}</div></div>'
-                 f'<div class="ld-cell lane-wyckoff{g}">{wc}</div><div class="ld-cell lane-ict{g}">{ic}</div><div class="ld-cell ld-verdict{g}">{ch}' + ('<div class="ld-sub">tầng quyết định verdict</div>' if is_gate else '') + '</div>')
-    return f'<div class="ladder">{body}</div>'
+                 + "".join(f'<div class="ld-cell lane-{m}{g}">{cells.get(m, "")}</div>' for m in cols)
+                 + f'<div class="ld-cell ld-verdict{g}">{ch}' + ('<div class="ld-sub">tầng quyết định verdict</div>' if is_gate else '') + '</div>')
+    notes = [f'<b>{dict(LANES)[m]}</b>: {esc(dims[m]["reason"])}' for m in ("wyckoff", "ict") if not dims.get(m, {}).get("engaged")]
+    foot = f'<div class="ld-foot">{" · ".join(notes)}</div>' if notes else ""
+    return f'<div class="ladder cols-{len(cols)}">{body}</div>{foot}'
 
 
 # ----------------------------------------------------------------------------------------------- CSS / JS
@@ -489,7 +543,8 @@ section.symbol{background:var(--surface);border:1px solid var(--line);border-rad
 .sym-verdict .lbl{font-family:var(--mono);font-size:11px;color:var(--faint)}
 
 /* timeframe ladder: three tiers, top-down, one question per method per tier */
-.ladder{display:grid;grid-template-columns:150px minmax(0,1fr) minmax(0,1fr) 150px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.ladder{display:grid;grid-template-columns:150px repeat(var(--n),minmax(0,1fr)) 150px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.ladder.cols-1{--n:1} .ladder.cols-2{--n:2}
 .ld-head{padding:8px 14px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:var(--surface-3);border-bottom:1px solid var(--line);border-left:1px solid var(--line)}
 .ld-head.lane-wyckoff,.ld-head.lane-ict{box-shadow:inset 0 -2px 0 var(--lane)} .ld-corner{border-left:0;color:var(--faint)}
 .ld-tier{padding:10px 14px;border-top:1px solid var(--line);background:var(--surface-2)}
@@ -534,6 +589,7 @@ section.symbol{background:var(--surface);border:1px solid var(--line);border-rad
 .tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;padding:6px 9px;font-family:var(--mono);font-size:11px;color:var(--ink);box-shadow:var(--shadow);display:none;z-index:5;white-space:nowrap;line-height:1.5}
 .tip .t{color:var(--muted)} .tip .u{color:var(--up)} .tip .d{color:var(--down)}
 .lane-status{padding:22px 16px;font-size:13px;color:var(--muted);display:flex;gap:12px;align-items:center}
+.lane-status[hidden],.legend[hidden]{display:none}
 .lane-status b{color:var(--ink-2)}
 .legend{display:flex;gap:16px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--muted);flex-wrap:wrap;padding:0 4px}
 .legend > span{display:inline-flex;align-items:center;gap:6px}
@@ -547,7 +603,7 @@ section.symbol{background:var(--surface);border:1px solid var(--line);border-rad
 
 /* read matrix */
 .matrix{display:grid;grid-template-columns:128px repeat(var(--n),minmax(0,1fr)) minmax(0,1.15fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
-.matrix.cols-2{--n:2} .matrix.cols-3{--n:3} .matrix.cols-4{--n:4}
+.matrix.cols-1{--n:1} .matrix.cols-2{--n:2} .matrix.cols-3{--n:3} .matrix.cols-4{--n:4}
 .mx-head{padding:9px 14px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:var(--surface-3);border-bottom:1px solid var(--line);border-left:1px solid var(--line)}
 .mx-head.lane-wyckoff,.mx-head.lane-ict,.mx-head.lane-footprint,.mx-head.lane-heatmap{box-shadow:inset 0 -2px 0 var(--lane)}
 .mx-corner{border-left:0;color:var(--faint)}
@@ -569,7 +625,7 @@ body[data-lane="wyckoff"] .mx-cell.lane-wyckoff,body[data-lane="ict"] .mx-cell.l
 .badge{font-family:var(--mono);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:5px;background:var(--lane-soft,var(--surface-3));color:var(--lane,var(--ink-2))}
 .kv{display:grid;grid-template-columns:auto auto;gap:2px 10px;font-family:var(--mono);font-size:11.5px;color:var(--muted);margin:0 0 8px!important}
 .kv b{color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}
-.mx-foot{font-family:var(--mono);font-size:11px;color:var(--muted);padding:6px 4px 0}
+.mx-foot,.ld-foot{font-family:var(--mono);font-size:11px;color:var(--muted);padding:6px 4px 0}
 
 details.timeline{border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 details.timeline summary{cursor:pointer;padding:10px 14px;font-weight:700;font-size:13px}
@@ -630,14 +686,18 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
     params = (read_json(f"{ROOT}/docs/architecture/analysis-params.json", {}) or {}).get("project_defined", {})
     vol_p = params.get("volume", {})
     P = dict(lookback=params.get("lookback_bars", 20), high=vol_p.get("high_min_ratio", 1.5), spike=vol_p.get("spike_min_ratio", 2.5))
+    # lane facts chart.js reads instead of hand-keeping its own copy (Task 10b item 4)
+    P.update(laneOrder=[m for m, _ in LANES], laneLabels=dict(LANES),
+             overlayLanes=list(OVERLAY_LANES), panes=PANES)
     cfg = read_json(f"{ROOT}/docs/architecture/automation-config.json", {}) or {}
-    market = "cfd" if style.startswith("gold") else "crypto"
+    market = _auto.market_of_style(style)
     dim_flags = ((cfg.get("markets") or {}).get(market) or {}).get("dimensions") or {}
     mode = (narrative or {}).get("mode") or "NORMAL"
 
     purity = {}
     data_js, sections, status_chips, rows_store = {}, [], [], {}
     src_notes = []
+    lane_engaged = {m: False for m, _ in LANES}   # page-wide topbar state: on if engaged for ANY symbol on this page
     for sym, key, disp, kind in S["syms"]:
         rows, upd, src = candles(sym, S["tf"], S["n"], snap)
         note = f"{sym} {S['tf']}: {src or '?'} · cập nhật {upd or '?'}"
@@ -661,21 +721,35 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
         if n3:
             n3["_updated"] = when((narrative or {}).get("updated")); n3["_updated_iso"] = (narrative or {}).get("updated")
         dims = {}
-        for m in ("footprint", "heatmap"):
+        for m, _label in LANES:
             flag = dim_flags.get(m)
+            coinglass = "coinglass_footprint" in _methods.DIMENSIONS[m]["data_sources"] \
+                or "coinglass_heatmap" in _methods.DIMENSIONS[m]["data_sources"]
             has = bool((n3 or {}).get(m, {}).get("text_html")) or bool((l2 or {}).get(m))
-            avail = ((n3 or {}).get(m) or {}).get("status") == "available"
-            if market == "cfd":
+            # wyckoff/ict read the candle file the page is already drawing, so "available" is not a CoinGlass
+            # question for them -- it's simply "do we have candles for this timeframe" (footprint/heatmap keep
+            # the exact status check they always had).
+            avail = (((n3 or {}).get(m) or {}).get("status") == "available") if coinglass else bool(rows)
+            if market not in _methods.DIMENSIONS[m]["markets"]:
                 reason = "không có nguồn CoinGlass cho hàng hoá (SYSTEM-DESIGN §12)"
             elif flag is False:
                 reason = "tắt trong /automation"
             elif not avail:
-                reason = f"không có nguồn CoinGlass live — không vẽ, không chấm điểm (chế độ {mode}: Wyckoff + ICT)"
+                reason = (f"không có nguồn CoinGlass live — không vẽ, không chấm điểm (chế độ {mode}: Wyckoff + ICT)" if coinglass
+                          else "không có nến cho khung này")
             else:
                 reason = ""
-            dims[m] = {"engaged": bool(avail and has and flag is not False), "reason": reason or "đang dùng"}
-        # purity: layer 2 blocks, layer 3 texts, chart labels, timeline cells
+            engaged = bool(avail and has and flag is not False) if coinglass else bool(avail and flag is not False)
+            dims[m] = {"engaged": engaged, "reason": reason or "đang dùng"}
+            lane_engaged[m] = lane_engaged[m] or engaged
+        # purity: layer 1 cells, layer 2 blocks, layer 3 texts, chart labels, timeline cells.
+        # Layer 1 was excluded on the assumption that scanner-written text is "pure by construction" -- an
+        # assumption, not a check, and the only layer nothing verified (audit 2026-09-13).
         blocks = mp.narrative_blocks(n3)
+        if l1:
+            for m in ("wyckoff", "ict"):
+                if l1.get(m):
+                    blocks[m] += [l1[m]]
         if l2 and not l2["legacy"]:
             for m, v in mp.model_blocks(l2).items():
                 blocks[m] += v
@@ -691,7 +765,10 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
         # Wyckoff overlay per tier: the tier style's own full analysis (one read per candle series, two pages never disagree);
         # the gate tier falls back to this style's narrative.context when that style has no page yet
         gate_style, gate_name = _auto.gate_style(style)
-        tier_ctx = {tn: htf.load_tier(style, tn, sym) for tn in ("bias", "structure")}
+        # The bias the ladder shows must be read by the SAME methods whose columns the page draws -- `dims` is the
+        # page's own engaged set (it also accounts for availability, which the config flags alone do not).
+        bias_methods = tuple(m for m in ("wyckoff", "ict") if dims.get(m, {}).get("engaged"))
+        tier_ctx = {tn: htf.load_tier(style, tn, sym, methods=bias_methods) for tn in ("bias", "structure")}
         tier_wy = {}
         for tname in tier_rows:
             t = S["tiers"][tname]; twy = {}
@@ -707,7 +784,8 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                 tiers_js.append(dict(key=tname, tf=t["tf"], kz=(t["tf"] in ("15m", "1H")), tfMin=TF_MIN.get(t["tf"], 0), wy=tier_wy[tname], levels=[], compact=True, rows="__ROWS__" + key + tname))
         tiers_js.append(dict(key="entry", tf=S["tf"], kz=S["kz"], tfMin=TF_MIN.get(S["tf"], 0), wy=wy_js, levels=levels, compact=False, rows="__ROWS__" + key + "entry"))
         data_js[key] = dict(fmt=kind, tick=(sym in MT5), market=("metals" if sym in ("XAUUSD", "XAGUSD") else "oil" if sym in MT5 else "crypto"),
-                            dims={m: dims[m]["reason"] for m in dims}, tiers=tiers_js, plans=trade_plans(sym), invalidation=(n3 or {}).get("invalidation"))
+                            dims={m: dims[m]["reason"] for m, _ in LANES}, engaged=[m for m, _ in LANES if dims[m]["engaged"]],
+                            tiers=tiers_js, plans=trade_plans(sym), invalidation=(n3 or {}).get("invalidation"))
         rows_store[key] = {**{tn: rows_js(tier_rows[tn], S["tiers"][tn]["lbl"]) for tn in tier_rows}, "entry": rows_js(rows, S["lbl"])}
         # section html: header (one price, one verdict), the ladder (three tiers, both methods), three charts top-down
         lo, hi = min(r["low"] for r in rows), max(r["high"] for r in rows); last = rows[-1]["close"]
@@ -717,7 +795,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
         head = (f'<div class="sym-head"><div class="sym-name">{disp}</div><div class="sym-last">{fmtn(last, kind)}</div>'
                 f'<div class="sym-kv"><span>vị trí trong cửa sổ {S["tf"]} <b>{pct * 100:.0f}%</b></span><span>nến cuối <b>{when(rows[-1]["time"])}</b></span></div>'
                 f'<div class="sym-verdict"><span class="lbl">vào lệnh {S["tf"]}</span>{chip(cur_verdict, "chip-lg")}</div></div>')
-        ladder_html = ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name)
+        ladder_html = ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name, dims)
         charts_html = ""
         for tname in ("bias", "structure"):
             t = S["tiers"].get(tname)
@@ -732,7 +810,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
         charts_html += (f'<div class="chart-block" id="entry-{key}"><div class="chart-title"><span><b>Vào lệnh</b> · {S["horizon"]} · {label(rows[0]["time"], S["lbl"])} → {label(rows[-1]["time"], S["lbl"])}</span><span class="zoom"><span class="muted">lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–4 đổi phương pháp</span><button data-z="out" title="thu nhỏ">−</button><button data-z="in" title="phóng to">+</button><button data-z="reset" title="toàn bộ cửa sổ">⟲</button><button data-z="ruler" class="wide" title="thước R:R (phím R)">R:R</button><button data-z="replay" class="wide" title="bar replay (phím P)">▶</button></span></div>'
                         f'<div class="chart-wrap"><div class="chart" id="chart-entry-{key}"></div><div class="tip"></div></div><div class="mode-status" hidden></div><div class="lane-status" hidden></div></div>')
         legend = f'<div class="legend" id="legend-{key}"></div>'
-        sections.append(f'<section class="symbol" id="sec-{key}">{head}{ladder_html}<div class="charts">{charts_html}{legend}</div>{matrix(key, kind, l1, l2, n3, dims)}{timeline((n3 or {}).get("timeline"))}</section>')
+        sections.append(f'<section class="symbol" id="sec-{key}">{head}{ladder_html}<div class="charts">{charts_html}{legend}</div>{matrix(key, kind, l1, l2, n3, dims)}{timeline((n3 or {}).get("timeline"), dims)}</section>')
 
     if purity:
         print("PURITY VIOLATIONS (one method, one vocabulary):", file=sys.stderr)
@@ -765,7 +843,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                  + f'<div><div class="meta-l">Sự kiện chính (phân tích đầy đủ gần nhất)</div><div class="meta-v">{headline.get("text", "—")}</div><div class="meta-d">{headline.get("detail", "")}</div></div>'
                  + f'<div><div class="meta-l">Trạng thái (cục bộ)</div><div class="meta-v">{" ".join(status_chips)}</div><div class="meta-d">dữ liệu tới {hhmm(wl)} UTC</div></div>'
                  '</div>')
-    lane_btns = "".join(f'<button class="lane-btn lane-{k}{"" if k in ("wyckoff", "ict") else " off"}" data-lane="{k}" onclick="setLane(\'{k}\')" title="phím {i + 1}"><span class="lane-dot"></span>{n}</button>' for i, (k, n) in enumerate(LANES))
+    lane_btns = lane_buttons(lane_engaged)
     symnav = "".join(f'<a href="#sec-{key}">{disp.split("/")[0]}</a>' for _, key, disp, _ in S["syms"]) + '<a href="#sec-glossary">Thuật ngữ</a>'
     top = (f'<div class="topbar"><div class="topbar-in"><div class="brand"><div class="brand-title">{esc(S["name"])}</div><div class="brand-sub">{S["horizon"]} · dữ liệu tới {hhmm(wl)} UTC</div></div>'
            f'<nav class="symnav">{symnav}</nav><div class="lanes" role="group" aria-label="Phương pháp">{lane_btns}</div></div></div>')

@@ -1,3 +1,5 @@
+> **Superseded 2026-09-13.** The ICT figures here were produced by the legacy in-file rules, replaced by the live scanner (`docs/plans/2026-09-13-unify-backtest-with-live-rules.md`). Wyckoff / COMBINED / PARTIAL figures are unaffected.
+
 # Ranh giới phiên Á — đo hành vi thanh khoản của đỉnh/đáy phiên — 2026-09-12
 
 _`scripts/asia-session-eval.py` trên nến 15m tại `data/history/`, 365 ngày cuối, chỉ ngày thường. Định nghĩa các chỉ số ở docstring của script. Điểm = trung bình(một phía, đảo chiều|quét) − 0.5 × tỉ lệ range phiên / range cả ngày._
@@ -53,4 +55,3 @@ _`scripts/asia-session-eval.py` trên nến 15m tại `data/history/`, 365 ngày
 | sg_08_16 | 833 | 97% | 64% | 33% | 34% | 48% | 0.250 |
 
 **Cửa sổ điểm cao nhất:** `ny_20_00` (0.319); hiện tại `tokyo_00_06` = 0.204.
-

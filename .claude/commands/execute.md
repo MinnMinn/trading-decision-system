@@ -9,7 +9,7 @@ argument-hint: <trade id, must already exist from /analyze or /entry with a TRAD
 
 ## Procedure
 
-1. Read `trades/<id>.md`. Refuse if: verdict wasn't `TRADE`, `rehearsal_mode: true` (mock-data trades cannot be executed, live or manual), `direction: SHORT` (unsupported on spot — say so, don't silently reinterpret as something else), instrument isn't `BTCUSDT`/`ETHUSDT`/`SOLUSDT` (no testnet connector exists for commodities), or it's already `status: OPEN`/`CLOSED`.
+1. Read `trades/<id>.md`. Refuse if: verdict wasn't `TRADE`, `rehearsal_mode: true` (mock-data trades cannot be executed, live or manual), `direction: SHORT` (unsupported on spot — say so, don't silently reinterpret as something else), instrument is not on the `execution.crypto` list of `docs/architecture/instruments.json` (read the file — do not trust a remembered list; no testnet connector exists for commodities), or it's already `status: OPEN`/`CLOSED`.
 2. Re-run **risk-agent**'s hard checks one final time against current data (not the possibly-stale numbers from when `/analyze` first ran) — if anything now fails, refuse and say why, even if it originally passed.
 3. Compute the exact order:
    - `scripts/binance-testnet-order.sh round-qty <SYMBOL> <position_size>` — floor RiskSkill's position size to the exchange's lot-size step. Never round up.

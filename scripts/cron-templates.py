@@ -65,7 +65,7 @@ def enabled(meta, cfg):
     if not cfg.get("enabled", True):
         return False, "automation master switch is OFF"
     layer = meta.get("layer", "local_read")
-    if not cfg.get("layers", {}).get(layer, True):
+    if layer != "none" and not cfg.get("layers", {}).get(layer, True):
         return False, f"layers.{layer} is off"
     m = meta.get("market")
     mk = cfg.get("markets", {}).get(m, {}) if m else {}
@@ -78,7 +78,14 @@ def enabled(meta, cfg):
 
 
 def render(meta, body, scratchpad):
-    prompt = body.replace("{{SCRATCHPAD}}", scratchpad).replace("{{ROOT}}", ROOT)
+    """A cron session receives ONLY this rendered string -- the front matter never reaches it. So anything the
+    body refers to must be substituted in here. `{{ARTIFACT}}` carries the template's own `artifact:` value:
+    without it, method-switch.md asked a session to call the Artifact tool with "this template's own artifact
+    URL" that appeared nowhere in its prompt (found 2026-09-13 while debugging the panel's
+    "bộ áp dụng không phản hồi" banner)."""
+    prompt = (body.replace("{{SCRATCHPAD}}", scratchpad)
+                  .replace("{{ROOT}}", ROOT)
+                  .replace("{{ARTIFACT}}", str(meta.get("artifact", "PENDING_CREATE_ON_FIRST_RUN"))))
     return TAG.format(name=meta["name"]) + prompt
 
 

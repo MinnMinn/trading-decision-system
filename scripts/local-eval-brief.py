@@ -11,13 +11,14 @@ Usage: local-eval-brief.py <style> [--bars 40] [--symbols BTCUSDT,ETHUSDT,SOLUSD
 import argparse, json, os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # style -> (timeframe code as scripts/fetch-binance-klines.sh spells it, bars in the window).
-# gold* = XAUUSD via the MT5 bridge (the EA exports 200 bars per timeframe, InpBarsToExport).
-# The 1h/4h window sizes (240 / 180) are PROJECT PARAMETERS -- no source prescribes them; they are ~10 days of
-# hourly and ~30 days of 4-hourly bars, chosen to match the swing window's horizon. On the MT5 bridge a 240-bar
-# 1H request simply yields the 200 bars the EA exports until InpBarsToExport is raised.
-TF = {"scalping": ("1m", 180), "daytrade": ("15m", 288), "1h": ("1H", 240), "4h": ("4H", 180),
-      "swing": ("1D", 120),
-      "gold-scalp": ("5m", 288), "gold": ("15m", 288), "gold-1h": ("1H", 240), "gold-4h": ("4H", 180), "gold-swing": ("1D", 120)}
+# The `cfd-` prefixed styles are XAUUSD via the MT5 bridge (the EA exports 200 bars per timeframe,
+# InpBarsToExport); the bare names are crypto. Six names since 2026-09-13: three horizons x two markets, derived
+# in scripts/automation.py (HORIZON_TF / STYLE) -- this table only adds the WINDOW each one reads.
+# The 1H/4H window sizes (240 / 180) are PROJECT PARAMETERS -- no source prescribes them; they are ~10 days of
+# hourly and ~30 days of 4-hourly bars. On the MT5 bridge a 240-bar 1H request simply yields the 200 bars the EA
+# exports until InpBarsToExport is raised.
+TF = {"scalping": ("15m", 288), "day": ("1H", 240), "swing": ("4H", 180),
+      "cfd-scalping": ("15m", 288), "cfd-day": ("1H", 240), "cfd-swing": ("4H", 180)}
 MT5_SYMBOLS = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
 CITES = """- Trading Range: WA p71–72 · knowledge/07 §2.7 · WMT p023–026 · knowledge/08 §2.4 · Pha A–E (phases): knowledge/07 §2.7–2.10
 - Spring/Shakeout (sự kiện): WA p80 · knowledge/07 §2.7.3 · Spring loại 1/2/3 (theo khối lượng): WMT p036–049 · knowledge/08 §2.6
@@ -58,6 +59,7 @@ def main():
     # Missing file = unconfigured = behave as before; present file is authoritative and can only stop this read.
     # The (market, timeframe) -> style mapping lives in scripts/automation.py so the vocabulary cannot drift;
     # if that module is unavailable we fail OPEN, exactly as a missing config file does.
+    _auto = None
     try:
         import importlib.util
         _s = importlib.util.spec_from_file_location("automation", f"{ROOT}/scripts/automation.py")
@@ -71,8 +73,14 @@ def main():
         print(f"# /automation đang tắt ({_why}) — đọc THỦ CÔNG theo yêu cầu người dùng; không có tick nền nào chạy.")
     tf, n = TF[a.style]
     if a.symbols is None:
-        a.symbols = "XAUUSD" if a.style.startswith("gold") else "BTCUSDT,ETHUSDT,SOLUSDT"
-    # Freeze the scanner outputs for THIS read: the background scanner rewrites facts.json every minute (scalping),
+        # ONE definition of which market a flat style name belongs to: automation.market_of_style -- not a second
+        # prefix test here, which is how `gold` came to mean the market in one file and the instrument in another.
+        # The `startswith` is reached ONLY when automation.py itself would not import, the same unconfigured path
+        # the gate above fails open on; it is the fallback for an unreachable source, not a second source.
+        _cfd = _auto.market_of_style(a.style) == "cfd" if _auto else a.style.startswith("cfd-")
+        a.symbols = "XAUUSD" if _cfd else "BTCUSDT,ETHUSDT,SOLUSDT"
+    # Freeze the scanner outputs for THIS read: the background scanner rewrites facts.json on its own
+    # cadence (scalping is 15m since 2026-09-13 -- scan-loop.sh fires it at :01/:16/:31/:46, not every minute),
     # so the model must be judged against the snapshot it was given, not against whatever is newest at check time.
     import shutil, time
     snap_dir = os.path.join(a.snapshot_dir, f"local-eval-{a.style}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}")
@@ -104,20 +112,29 @@ def main():
    - m-ict: chỉ kiến thức và thuật ngữ ICT (dealing range, EQ, premium/discount, BSL/SSL, sweep vs MSS, displacement, FVG, OB, killzone…). CẤM mọi từ Wyckoff VÀ CẤM nhắc khối lượng/volume/KL (ICT không có khái niệm khối lượng — knowledge/10 §4.1). Mốc neo có tên Wyckoff (SC, AR…) chỉ được gọi bằng giá.
    - m-synth: tổng hợp — nơi DUY NHẤT được đặt hai phương pháp cạnh nhau: luật khử trùng lặp (knowledge/10 §4.3: mốc Wyckoff trùng mốc ICT = một quan sát), kết luận, entry/stop/target/R (nếu có), điều kiện vô hiệu và chủ sở hữu vô hiệu (Wyckoff hay ICT, knowledge/10 §4.4).
    Máy kiểm tra (scripts/method_purity.py) chặn xuất bản nếu một khối dùng sai từ vựng.
-8. GIẢM KHUNG (bắt buộc, knowledge/07 §2.7 "Giảm khung của tích lũy", WA p93–96; knowledge/10 §4.2): đọc khung lớn trước, vào lệnh ở khung nhỏ THEO HƯỚNG cấu trúc khung lớn. Mục "BỐI CẢNH" bên dưới in số liệu và bias khung lớn do code tính. Khối m-synth PHẢI mở đầu bằng câu "Bối cảnh <khung lớn>: …" nêu cấu trúc/pha khung lớn và bias. Verdict THEO DÕI đi ngược bias phải ghi rõ "ngược bối cảnh". KHÔNG được kết luận SETUP TIỀM NĂNG ngược bias. Khung lớn pha B chỉ cho bias khi giá đang ở biên TR khung lớn theo hướng cấu trúc (tích lũy: 1/3 dưới, nơi CO gom hàng và khung nhỏ in Spring[C]/LPS[C] cục bộ — WA p93, p201; phân phối: 1/3 trên); giữa vùng hoặc biên đối diện thì bias trung lập ("nguồn cung/cầu đang khá cân bằng … chưa cho thấy sự xuất hiện của CO", WA p95) và tối đa là THEO DÕI. Pha A / chưa xác lập: trung lập. scripts/check-model-prose.py kiểm tra cả ba điều này.
+8. THANG KHUNG — GIẢM KHUNG (bắt buộc, knowledge/07 §2.7 "Giảm khung của tích lũy", WA p93–96; knowledge/10 §4.2; docs/architecture/timeframe-mapping.md): mỗi style có ba tầng, đọc từ trên xuống — Bias (khung chậm nhất) → Cấu trúc (khung giữa, ≥ ×4 khung vào lệnh) → Vào lệnh (khung của style này). Mục "THANG KHUNG" bên dưới in số liệu do code tính cho tầng Bias và tầng Cấu trúc, và ghi tầng nào QUYẾT ĐỊNH bias cho verdict. Khối m-synth PHẢI mở đầu bằng câu "<Tên tầng> <khung>: …" (ví dụ "Bias 4h: …") nêu cấu trúc/pha của tầng quyết định và bias; câu thứ hai nói tầng Cấu trúc có cùng hướng hay không. Verdict THEO DÕI đi ngược bias phải ghi rõ "ngược bối cảnh". KHÔNG được kết luận SETUP TIỀM NĂNG ngược bias. Không bao giờ tạo bias từ khung vào lệnh. Khung lớn pha B chỉ cho bias khi giá đang ở biên TR khung lớn theo hướng cấu trúc (tích lũy: 1/3 dưới, nơi CO gom hàng và khung nhỏ in Spring[C]/LPS[C] cục bộ — WA p93, p201; phân phối: 1/3 trên); giữa vùng hoặc biên đối diện thì bias trung lập ("nguồn cung/cầu đang khá cân bằng … chưa cho thấy sự xuất hiện của CO", WA p95) và tối đa là THEO DÕI. Pha A / chưa xác lập: trung lập. scripts/check-model-prose.py kiểm tra cả ba điều này.
 7. Sau khi ghi, chạy ĐÚNG lệnh này (so với snapshot của lần đọc này, không so với facts mới hơn):
    python3 scripts/check-model-prose.py <style> --facts <SNAPSHOT>/facts.json
    và sửa cho tới khi nó in `RESULT: OK`. Không chạy lại brief để "đuổi" dữ liệu mới hơn.
 
 ## Bản đồ trích dẫn
 """ + CITES)
-    print("\n## BỐI CẢNH khung lớn (code tính; luật giảm khung — knowledge/07 §2.7, WA p93–96)")
     import importlib.util as _iu
     _hs = _iu.spec_from_file_location("htf_context", f"{ROOT}/scripts/htf_context.py"); _htf = _iu.module_from_spec(_hs); _hs.loader.exec_module(_htf)
+    _engaged = _htf.engaged_methods(a.style)
+    # Which method blocks THIS run owes. Mục 6 lists the shape of all four; /automation decides which are required,
+    # and scripts/check-model-prose.py checks exactly this set. Demanding m-wyckoff in an ICT-only run forced the
+    # model to write Wyckoff prose the run does not read (audit 2026-09-13).
+    print(f"\n## KHỐI BẮT BUỘC CHO LẦN CHẠY NÀY (/automation): "
+          + " + ".join(f"m-{m}" for m in _engaged + ("synth",))
+          + (f"  — KHÔNG viết khối m-{', m-'.join(m for m in ('wyckoff', 'ict') if m not in _engaged)}: "
+             "dimension đang tắt, khối đó sẽ bị check-model-prose.py từ chối."
+             if set(("wyckoff", "ict")) - set(_engaged) else ""))
+    print("\n## THANG KHUNG (code tính; luật giảm khung — knowledge/07 §2.7, WA p93–96; docs/architecture/timeframe-mapping.md)")
+    print(f"Chỉ in bản đọc của lớp đang bật: {', '.join(_engaged) or '(không có lớp nào)'}.")
     for sym in syms:
-        d = facts["symbols"][sym]; f = lambda v: fmt(sym, v)
-        ctx = d.get("context") if "context" in d else _htf.load_context(a.style, sym)
-        print(f"\n### {sym}"); print("\n".join(_htf.brief_lines(ctx, f)))
+        f = lambda v: fmt(sym, v)
+        print(f"\n## {sym}"); print("\n".join(_htf.ladder_lines(a.style, sym, f, methods=_engaged)))
     print("\n## FACTS (scanner, không được thay đổi)")
     for sym in syms:
         d = facts["symbols"][sym]; f = lambda v: fmt(sym, v)

@@ -12,7 +12,10 @@ WHAT `on` / `off` MEAN (user decision 2026-09-10):
           pilot + scanner launchd agents booted out AND their plists removed from ~/Library/LaunchAgents (so a
           reboot does NOT resurrect them), keep-awake killed.
   demo / real -> set execution.environment to that name, apply the preset (both markets, every instrument that has
-          data on disk, all dimensions each market has, EVERY timeframe ON: scalping 1m/5m, day 15m, 1h/4h, swing 1D), then `on`. `real` refuses (exit 2) only while config/env.real still has placeholder secrets.
+          data on disk, EVERY timeframe ON: scalping 15m, day 1h, swing 4h); dimensions and the chosen
+          method preset are left exactly as they are (spec docs/specs/2026-09-12-method-switch-design.md §4.1 --
+          before this, demo/real turned every dimension back on and silently erased the user's preset), then `on`.
+          `real` refuses (exit 2) only while config/env.real still has placeholder secrets.
 
 ENVIRONMENT: execution.environment ("demo" | "real") selects config/env.<name> (template config/env.example),
 loaded by scripts/trading-env.sh (bash) / scripts/trading_env.py (python). It is set by `demo` / `real` or by
@@ -21,8 +24,9 @@ environment on policy grounds. Hard rules that stay in every environment: no For
 PILOT_RISK_PCT <= 1% (clamped by the loaders).
 
 v3 shape (schema_version 3): per-MARKET config (crypto | cfd) with instruments, Confluence dimensions (§6.2) and
-timeframes; (market, timeframe) maps to the chart-style vocabulary (STYLE below). `services` records what `on`
-installed so `off` can remove exactly that.
+timeframes; (market, timeframe) maps to the chart-style vocabulary (STYLE below), which is DERIVED from the three
+authored horizons (HORIZONS / HORIZON_TF: scalping 15m, day 1h, swing 4h) -- crypto keeps the bare horizon word,
+cfd takes a `cfd-` prefix. `services` records what `on` installed so `off` can remove exactly that.
 
 Subcommands
   status [--json]                     full effective configuration + warnings (safe any time, works with no file)
@@ -31,15 +35,30 @@ Subcommands
   on  [--who W] [--reason R]          bring everything up in the CURRENT environment
   off [--who W] [--reason R]          stop everything (persists across reboot)
   market <crypto|cfd> <on|off>
-  timeframe <1m|5m|15m|1h|4h|1D> <on|off> [--market crypto|cfd]   (5m = cfd scalping only)
+  timeframe <15m|1h|4h> <on|off> [--market crypto|cfd]   one scanned set, both markets (scalping|day|swing)
   dimension <wyckoff|ict|footprint|heatmap> <on|off> [--market crypto|cfd]
+  method <preset> [--market crypto|cfd]   apply a named preset from docs/architecture/methods.json as a set of the
+                                      dimension flags; the preset is only a NAME for that set, nothing extra is
+                                      stored. Presets: wyckoff | ict | wyckoff+ict | wyckoff+footprint |
+                                      wyckoff+ict+footprint | full. Refuses (2) a preset whose dimensions the
+                                      target market has no source for; with no --market it applies only to the
+                                      markets that can hold it and prints which it skipped.
   instrument <SYMBOL> <on|off>        allowlist only; Forex refused; market inferred from the symbol
+  instrument set <SYM,SYM,...> --market <crypto|cfd>   declarative batch: REPLACE that market's whole list in ONE
+                                      write and ONE history row. All-or-nothing -- any Forex pair, any off-allowlist
+                                      symbol or any duplicate refuses (2) and leaves the config untouched. An empty
+                                      list is legal and means "no NEW entries in this market"; open positions and
+                                      resting orders are still managed.
   layer <scanner|local_read|pilot> <on|off>
   pilot <start|stop|status|adopt> [--market spot|futures] [--no-launchd]
   pilot profile <legacy|top5>         which rule set the pilot loop runs (top5 = strategy-runner.py: selected setups, both venues)
   on|demo [setup top <N> | setup horizons]   default (no spec) = `setup horizons`: one setup per horizon (scalping/day/swing) per market,
                                       ranked on the last 12 months; `setup top N` = N crypto + N CFD; both set the profile to top5
   allows <scanner|local_read|pilot> [style]     exit 0 if permitted, 2 if not (for shell gates)
+  allows master                       exit 0 only if the config exists AND `enabled` is true. Fails CLOSED on a
+                                      missing or corrupt file, unlike the three layer forms above, which treat
+                                      "unconfigured" as permitted -- this is the one gate an unattended cron
+                                      trusts to permit a write, so "no policy" must not read as "allowed".
   history [-n N]
 
 Exit codes: 0 applied/no-op, 1 usage error, 2 REFUSED (Forex, off-allowlist symbol, impossible market/timeframe/
@@ -51,56 +70,129 @@ Test-only environment overrides (never set these in normal use):
                                        write and do NOT create it (a real STOP file kills a human's running loop).
   AUTOMATION_PILOT_PGREP_PATTERN=...   pattern used to detect already-running pilot loops.
 """
-import argparse, datetime, json, os, shutil, subprocess, sys
+import argparse, datetime, fcntl, json, os, re, shutil, subprocess, sys
 import importlib.util
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
 SCHEMA_VERSION = 3
 ENV_NAMES = ["demo", "real"]
-PILOT_PROFILES = ["legacy", "top5"]   # execution.pilot_profile -- which rule set scripts/pilot-loop.sh runs (user decision 2026-09-11)
 LAUNCH_AGENTS = os.path.expanduser("~/Library/LaunchAgents")
 SCANNER_LABEL = "com.tyme.trading.scanner"
-PILOT_LABEL = {"spot": "com.tyme.trading.pilot", "futures": "com.tyme.trading.pilot.futures"}
+# One venue since 2026-09-13 (PILOT_MARKETS below); the spot label belonged to the deleted legacy engine.
+PILOT_LABEL = {"futures": "com.tyme.trading.pilot.futures"}
 PLIST_SRC = {"scanner": os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.scanner.plist"),
-             "pilot": os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.pilot.plist")}
+             "pilot": os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.pilot.futures.plist")}
 
 _tspec = importlib.util.spec_from_file_location("trading_env", os.path.join(ROOT, "scripts", "trading_env.py"))
 trading_env = importlib.util.module_from_spec(_tspec); _tspec.loader.exec_module(trading_env)
 
 MARKETS = ["crypto", "cfd"]
-MARKET_INSTRUMENTS = {"crypto": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
-                      "cfd":    ["XAUUSD", "XAGUSD", "USOIL", "UKOIL"]}
-# Footprint/Heatmap have NO commodities source (CoinGlass is crypto-derivatives only) -- SYSTEM-DESIGN.md §12 item 3.
-MARKET_DIMENSIONS = {"crypto": ["wyckoff", "ict", "footprint", "heatmap"], "cfd": ["wyckoff", "ict"]}
-# No 1m for cfd (user decision 2026-09-11: CFD scalping runs on M5 -- gold spread makes M1 noise); the EA exports
-# 1W/1D/4H/1H/15m/5m (integrations/mt5/ExportOHLCV.mq5). 5m exists for cfd only; crypto scalping stays on 1m.
-MARKET_TIMEFRAMES = {"crypto": ["1m", "15m", "1h", "4h", "1D"], "cfd": ["5m", "15m", "1h", "4h", "1D"]}
-DIMENSIONS = ["wyckoff", "ict", "footprint", "heatmap"]                       # SYSTEM-DESIGN.md §6.2
-TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D"]
+# Instrument allowlist: THE single source is docs/architecture/instruments.json, read through scripts/instruments.py.
+# Never hard-code a symbol list here again -- scripts/tests/test_instruments_sync.py fails the build on drift.
+# ANALYSIS != EXECUTION: this list is what the scanner and /analyze may touch; the pilot and the order connectors
+# use instruments.execution(), a subset, so a watch-only symbol can never reach a venue.
+_ispec = importlib.util.spec_from_file_location("instruments", os.path.join(ROOT, "scripts", "instruments.py"))
+instruments = importlib.util.module_from_spec(_ispec); _ispec.loader.exec_module(instruments)
+MARKET_INSTRUMENTS = {m: instruments.analysis(m) for m in instruments.MARKETS}
+_mspec = importlib.util.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py"))
+methods = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(methods)  # import methods as a sibling script, not a package
+# Which dimensions each market can have AT ALL -- the shape, from docs/architecture/methods.json.
+# Footprint/Heatmap have NO commodities source (CoinGlass is crypto-derivatives only) -- SYSTEM-DESIGN.md §12 item 3,
+# which is now expressed by those dimensions not listing "cfd" in their markets[].
+MARKET_DIMENSIONS = {m: methods.dimensions(m) for m in MARKETS}
+# One scanned set for both markets (user decision 2026-09-13). 1m and 5m were the two scalping entry windows and
+# 1D was the swing entry; all three leave the scanned set when the horizons become 15m/1h/4h. 1D and 1W stay in
+# PAGE_RUNGS below as context-only rungs, which is what keeps swing a full ladder. The MT5 EA
+# (integrations/mt5/ExportOHLCV.mq5) exports 1W/1D/4H/1H/15m/5m, so every scanned cfd rung has a source.
+MARKET_TIMEFRAMES = {"crypto": ["15m", "1h", "4h"], "cfd": ["15m", "1h", "4h"]}
+DIMENSIONS = list(methods.ALL_DIMENSIONS)                                    # SYSTEM-DESIGN.md §6.2
+TIMEFRAMES = ["15m", "1h", "4h"]
 LAYERS = ["scanner", "local_read", "pilot"]
 ALLOWED_INSTRUMENTS = MARKET_INSTRUMENTS["crypto"] + MARKET_INSTRUMENTS["cfd"]
 COMMODITIES = set(MARKET_INSTRUMENTS["cfd"])
 FX_CODES = {"USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "SEK", "NOK",
             "SGD", "HKD", "MXN", "ZAR", "TRY", "CNH", "PLN", "DKK"}
 HISTORY_MAX = 200
+HISTORY_ARCHIVE = os.path.join(ROOT, "data", "live", "history-archive.automation.jsonl")
+_CTRL = re.compile(r"[\x00-\x1f\x7f]")
 
-# (market, timeframe) -> chart style. THE canonical mapping: scan-loop.sh and local-eval-brief.py both read it
-# from here so the vocabulary cannot drift. Never rename an existing style -- artifacts and data/live paths use them.
-STYLE = {("crypto", "1m"): "scalping", ("crypto", "15m"): "daytrade", ("crypto", "1h"): "1h",
-         ("crypto", "4h"): "4h", ("crypto", "1D"): "swing",
-         ("cfd", "5m"): "gold-scalp", ("cfd", "15m"): "gold", ("cfd", "1h"): "gold-1h", ("cfd", "4h"): "gold-4h",
-         ("cfd", "1D"): "gold-swing"}
+# ONE authored style vocabulary (user decision 2026-09-13): three horizons, one timeframe each, shared by both
+# markets. The flat (market, timeframe) -> name table below is DERIVED from it, not authored a second time -- it
+# exists because scan-loop.sh, model-read.sh, build-artifact.py, artifacts.json and local-eval-brief.py key off a
+# single flat name and carry no market field. Crypto keeps the bare horizon word; cfd takes a `cfd-` prefix.
+# This replaces ten hand-written labels -- five per market, the cfd half named after the INSTRUMENT rather than the
+# market -- which disagreed with rank-setups.HORIZONS about what `scalping` and `swing` meant (1m vs 15m, 1D vs 4H).
+# The retired names are spelled out once, in scripts/tests/test_one_system.py OneStyleVocabulary, so that no live
+# source keeps a token a grep is meant to prove gone.
+HORIZONS = ["scalping", "day", "swing"]
+HORIZON_TF = {"scalping": "15m", "day": "1h", "swing": "4h"}
+TF_HORIZON = {tf: hz for hz, tf in HORIZON_TF.items()}
+STYLE_PREFIX = {"crypto": "", "cfd": "cfd-"}
+STYLE = {(m, HORIZON_TF[h]): STYLE_PREFIX[m] + h for m in MARKETS for h in HORIZONS}
 STYLE_MARKET_TF = {v: k for k, v in STYLE.items()}
-# style -> the style whose WORKING window is this style's CONTEXT window (the "giảm khung" pair, knowledge/07 §2.7,
-# WA p93–96). None = the context is a timeframe no style scans (1W). Read by scripts/htf_context.py, build-artifact.py,
-# check-narrative.py and the pilot -- one mapping, never restate it elsewhere.
-CONTEXT_STYLE = {"scalping": "daytrade", "daytrade": "4h", "1h": "swing", "4h": "swing", "swing": None,
-                 "gold-scalp": "gold", "gold": "gold-4h", "gold-1h": "gold-swing", "gold-4h": "gold-swing", "gold-swing": None}
+# How many bars the live scanner reads per timeframe, and how many count as "recent" for event detection.
+# THE one table: scripts/scan-loop.sh reads it (it used to hardcode the numbers). scripts/live_rules.py (Task 2,
+# not yet created) will reproduce the live window from it, so a backtest sees exactly the window the scanner saw.
+SCAN_WINDOW = {
+    "1m":  {"bars": 360, "recent": 4},
+    "5m":  {"bars": 576, "recent": 4},
+    "15m": {"bars": 576, "recent": 2},
+    "1H":  {"bars": 480, "recent": 2},
+    "4H":  {"bars": 360, "recent": 2},
+    "1D":  {"bars": 240, "recent": 1},
+}
+# ---- Timeframe ladder: ONE rule, ONE table (docs/architecture/timeframe-mapping.md §3, §5). ----------------------------
+# Three tiers per style: Vào lệnh (E, the style's own window) -> Cấu trúc (S) -> Bias (B). Adjacent tiers are the next
+# available rung at least MIN_TIER_RATIO× slower ("rule of four", DailyFX/IG; Elder's factor of five; the TTrades pairing
+# table W→H4, D→H1, H4→M15, M15→M1 is this ladder with the middle rung skipped). The pilot and the backtest derive their
+# structure filter from the same function over the rungs THEY have (next_rung), so no second table exists.
+TF_MINUTES = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "1H": 60, "2h": 120, "2H": 120, "4h": 240, "4H": 240,
+              "1D": 1440, "1W": 10080}
+MIN_TIER_RATIO = 4
+
+
+def next_rung(tf, available):
+    """The slowest-nearest timeframe in `available` that is >= MIN_TIER_RATIO x `tf`; None when there is none."""
+    m = TF_MINUTES[tf]
+    cands = sorted((TF_MINUTES[t], t) for t in available if TF_MINUTES[t] >= MIN_TIER_RATIO * m)
+    return cands[0][1] if cands else None
+
+
+def ladder(tf, available):
+    """(structure_tf, bias_tf) for an entry timeframe over the rungs available in this context."""
+    s = next_rung(tf, available)
+    return s, (next_rung(s, available) if s else None)
+
+
+# Rungs the pages can draw: every scanned timeframe per market plus 1D and 1W, which are fetched as CONTEXT for the
+# slower horizons and never scanned. Dropping 1m/5m here cannot change any ladder -- next_rung only ever looks
+# upward from the entry timeframe -- and keeping 1D/1W is what leaves `swing` (4h) a full structure+bias ladder.
+PAGE_RUNGS = {"crypto": ["15m", "1h", "4h", "1D", "1W"], "cfd": ["15m", "1h", "4h", "1D", "1W"]}
+# style -> {"structure": tier, "bias": tier}; tier = {"tf": ..., "style": style-or-None} (None style = chart only, no read).
+TIERS = {}
+for (_mkt, _tf), _style in STYLE.items():
+    _s, _b = ladder(_tf, PAGE_RUNGS[_mkt])
+    TIERS[_style] = {k: ({"tf": t, "style": STYLE.get((_mkt, t))} if t else None) for k, t in (("structure", _s), ("bias", _b))}
+
+
+def gate_style(style):
+    """The tier whose read GATES the working-window verdict (giảm khung, WA p93–96): the bias tier when a scanned style
+    exists for it, else the structure tier. Returns (style, tier_name) or (None, None)."""
+    for name in ("bias", "structure"):
+        t = TIERS[style].get(name)
+        if t and t["style"]:
+            return t["style"], name
+    return None, None
+
+
+# Backwards-compatible alias: style -> gate style (read by htf_context.py, check-narrative.py, the pilot).
+CONTEXT_STYLE = {st: gate_style(st)[0] for st in TIERS}
 # Where each market's OHLCV lands; the 15m file is the "is this instrument actually wired up?" probe.
 DATA_DIR = {"crypto": "market-data", "cfd": "mt5-bridge"}
 
-PILOT_MARKETS = ["spot", "futures"]
+# One engine, one venue (user decision 2026-09-13). The second entry ran the deleted legacy engine.
+PILOT_MARKETS = ["futures"]
 # Anchored: match the bash process that IS the loop ("bash scripts/pilot-loop.sh" from a terminal, or
 # "/bin/bash /abs/path/scripts/pilot-loop.sh" from launchd) -- not any shell whose command text merely
 # mentions the file (a verification one-liner containing this string once produced a phantom PID).
@@ -112,7 +204,14 @@ def dryrun():
 
 
 def pilot_dir(market):
-    return os.path.join(ROOT, "data", "live", "pilot" if market == "spot" else "pilot-futures")
+    """State/log/STOP directory for a pilot market. One venue since 2026-09-13, so one directory.
+
+    The `"pilot" if market == "spot"` branch is gone: `data/live/pilot` belonged to the deleted spot engine and
+    is not in PILOT_STOP, so anything that resolved to it got a kill switch `/automation off` could not write.
+    Unknown markets now raise instead of silently landing there."""
+    if market not in PILOT_MARKETS:
+        raise KeyError(f"unknown pilot market {market!r}; known: {', '.join(PILOT_MARKETS)}")
+    return os.path.join(ROOT, "data", "live", "pilot-futures")
 
 
 def stop_path(market):
@@ -145,6 +244,13 @@ def market_of(sym):
     return None
 
 
+def market_of_style(style):
+    """Which market's dimension flags a chart style obeys. `cfd-` prefixed styles are the CFD market; everything
+    else is crypto. One definition — build-artifact.py and htf_context.py both read it here rather than
+    re-deriving it. (Before 2026-09-13 the prefix was `gold`, which named the instrument, not the market.)"""
+    return "cfd" if (style or "").startswith("cfd-") else "crypto"
+
+
 def _market_default(m):
     return {"enabled": True, "instruments": list(MARKET_INSTRUMENTS[m]),
             "dimensions": {d: True for d in MARKET_DIMENSIONS[m]},
@@ -159,12 +265,9 @@ DEFAULTS = {
     "enabled": True,
     "execution": {
         "environment": "demo",
-        "pilot_profile": "top5",
         "_note": "demo = Binance TESTNET via config/env.demo; real = Binance MAINNET (real money) via "
                  "config/env.real. Switch by hand here or with `/automation demo|real`. The connectors and the "
-                 "pilot read this on every call; an environment file with placeholder secrets refuses to execute. "
-                 "pilot_profile: legacy = scripts/demo-pilot.py (15m sweep/MSS/FVG rules); top5 = scripts/strategy-runner.py "
-                 "(ICT 30m, COMBINED 30m, ICT 1H with limit entries + breakeven; futures only). Set with `/automation pilot profile`.",
+                 "pilot read this on every call; an environment file with placeholder secrets refuses to execute.",
     },
     "markets": {m: _market_default(m) for m in MARKETS},
     "layers": {l: True for l in LAYERS},
@@ -223,17 +326,30 @@ def migrate_v2(old):
     return cfg
 
 
-def load():
-    """(config, exists, migrated). A missing file means UNCONFIGURED: the defaults are what every reader assumes,
-    so a clean checkout behaves exactly as it did before this switch existed. A v1/v2 file is migrated IN MEMORY
-    here; main() persists the migration once, with a `migrate` history row."""
+def clean(s, limit=300):
+    """Audit strings may now carry values influenced from outside (the panel applier). Strip control
+    characters and ANSI so a history row can never forge a second row or steer a terminal, and cap the
+    length so one row cannot crowd the ring. CFG-05."""
+    if s is None:
+        return None
+    return _CTRL.sub(" ", str(s)).strip()[:limit]
+
+
+def load(require_readable=True):
+    """(config, exists, migrated). A MISSING file means UNCONFIGURED: the defaults are what every reader
+    assumes, so a clean checkout behaves exactly as it did before this switch existed. An UNREADABLE file is
+    different -- it is a corrupt state, and replacing it with permissive defaults would silently turn every
+    dimension and every layer back on. CFG-02: callers that intend to write pass require_readable=True (the
+    default) and we exit 2 rather than return defaults."""
     if not os.path.exists(CONFIG):
         return json.loads(json.dumps(DEFAULTS)), False, False
     try:
         raw = json.load(open(CONFIG, encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as e:
-        print(f"! {CONFIG} is unreadable ({e}); showing built-in defaults, refusing to overwrite blindly.",
+        print(f"REFUSED: {CONFIG} is unreadable ({e}); refusing to overwrite it. Fix or delete the file.",
               file=sys.stderr)
+        if require_readable:
+            raise SystemExit(2)
         return json.loads(json.dumps(DEFAULTS)), False, False
     ver = int(raw.get("schema_version", 1))
     if ver <= 1:
@@ -244,23 +360,42 @@ def load():
 
 
 def record(cfg, a, action, result):
-    cfg["history"].append({"ts": now(), "actor": actor(a), "action": action,
-                           "detail": getattr(a, "reason", None), "result": result})
-    cfg["history"] = cfg["history"][-HISTORY_MAX:]
+    cfg["history"].append({"ts": now(), "actor": clean(actor(a), 80), "action": clean(action),
+                           "detail": clean(getattr(a, "reason", None)), "result": result})
+    if len(cfg["history"]) > HISTORY_MAX:
+        evicted, cfg["history"] = cfg["history"][:-HISTORY_MAX], cfg["history"][-HISTORY_MAX:]
+        os.makedirs(os.path.dirname(HISTORY_ARCHIVE), exist_ok=True)
+        with open(HISTORY_ARCHIVE, "a", encoding="utf-8") as f:      # CFG-07: the ring is not a shredder
+            for row in evicted:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def save(cfg):
+    """CFG-01: atomic and locked. Two writers exist now (a terminal and the applier cron); a truncate-in-place
+    write loses one update outright and a crash mid-write leaves a file strategy-runner.py's automation_gate()
+    reads as 'unreadable' -- i.e. a pilot outage."""
     cfg["last_updated"] = now()
-    with open(CONFIG, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2, ensure_ascii=False)
-        f.write("\n")
+    os.makedirs(os.path.dirname(CONFIG), exist_ok=True)
+    lock = CONFIG + ".lock"
+    with open(lock, "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            tmp = CONFIG + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, CONFIG)
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
 
 
 # ---------- readers used by scan-loop.sh / local-eval-brief.py ----------
 def enabled_styles(cfg=None):
     """The chart styles the scanner and the local read are permitted to run, in STYLE order."""
     if cfg is None:
-        cfg, _, _ = load()
+        cfg, _, _ = load(require_readable=False)
     out = []
     for (m, tf), style in STYLE.items():
         mk = cfg.get("markets", {}).get(m, {})
@@ -271,7 +406,7 @@ def enabled_styles(cfg=None):
 
 def enabled_instruments(cfg=None, market=None):
     if cfg is None:
-        cfg, _, _ = load()
+        cfg, _, _ = load(require_readable=False)
     out = []
     for m in ([market] if market else MARKETS):
         mk = cfg.get("markets", {}).get(m, {})
@@ -283,7 +418,7 @@ def enabled_instruments(cfg=None, market=None):
 def allows(layer, style=None):
     """(ok, reason). True if `layer` may act and, when given, `style`'s (market, timeframe) is on.
     Unconfigured => allowed (no policy, no behaviour change). This can only ever STOP something."""
-    cfg, exists, _ = load()
+    cfg, exists, _ = load(require_readable=False)
     if not exists:
         return True, None
     if not cfg.get("enabled", True):
@@ -313,26 +448,16 @@ def alive(pid):
         return False
 
 
-def _market_from_env(pid):
-    try:
-        out = subprocess.run(["ps", "eww", str(pid)], capture_output=True, text=True, timeout=10).stdout
-    except Exception:
-        return None
-    if "PILOT_MARKET=futures" in out:
-        return "futures"
-    if "PILOT_MARKET=spot" in out:
-        return "spot"
-    return None
+def _pilot_market():
+    """The market a running scripts/pilot-loop.sh is on. One venue since 2026-09-13, so there is one answer.
 
-
-def _market_from_logs():
-    """Fallback when the process env carries no PILOT_MARKET: whichever loop.log was written most recently."""
-    best, best_mt = None, -1.0
-    for m in PILOT_MARKETS:
-        p = log_path(m)
-        if os.path.exists(p) and os.path.getmtime(p) > best_mt:
-            best, best_mt = m, os.path.getmtime(p)
-    return best or "spot"
+    Replaces _market_from_env() + _market_from_logs(). Both became unreachable-as-designed the moment
+    pilot-loop.sh stopped taking PILOT_MARKET: _market_from_env() grepped a running process's environment for
+    `PILOT_MARKET=`, which nothing sets any more, so it always returned None; _market_from_logs() then guessed
+    from whichever loop.log was newest and fell back to the literal "spot" -- a market this tool can no longer
+    stop, which would have mislabelled a live futures loop as unmanageable.
+    """
+    return PILOT_MARKETS[0]
 
 
 def running_pilots():
@@ -345,7 +470,7 @@ def running_pilots():
     except Exception:
         return []
     pids = [int(x) for x in out.split() if x.strip().isdigit() and int(x) not in own]
-    return [(p, _market_from_env(p) or _market_from_logs()) for p in pids]
+    return [(p, _pilot_market()) for p in pids]
 
 
 def write_stop(reason_prefix="  "):
@@ -364,6 +489,14 @@ def write_stop(reason_prefix="  "):
 
 
 # ---------- status ----------
+def _read_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
 def warnings(cfg, exists):
     w = []
     if not exists:
@@ -384,16 +517,42 @@ def warnings(cfg, exists):
         if not mk["enabled"]:
             continue
         live = [d for d in MARKET_DIMENSIONS[m] if mk["dimensions"].get(d, True)]
-        if len(live) < 2:
-            w.append(f"{m}: only {len(live)} dimension(s) enabled -- below the NORMAL minimum of 2 "
-                     f"(SYSTEM-DESIGN.md §6.2), so no live TRADE verdict can pass for {m} instruments.")
+        # The minimum is per MODE, not a flat 2. A single-dimension preset runs in SOLO (minimum 1, threshold 85
+        # instead of NORMAL's 70) since 2026-09-12 -- so one enabled dimension is a valid trading configuration
+        # when it came from a declared single-dimension preset, and warning about it is a false alarm.
+        # methods.mode_of() is the only thing allowed to answer this: it reads the preset's own declared mode and
+        # falls back to NORMAL for a 'custom' flag set, which keeps SOLO from being reachable by hand-toggling
+        # dimensions rather than by choosing a preset (SYSTEM-DESIGN.md §6.2, preset-not-runtime safeguard).
+        prof = methods.profile_of(mk["dimensions"])
+        mode = methods.mode_of(prof)
+        minimum = methods.MODES[mode]["minimum"]
+        if len(live) < minimum:
+            w.append(f"{m}: preset '{prof}' runs in {mode} mode, which needs at least {minimum} engaged "
+                     f"dimension(s), but only {len(live)} is enabled -- no live TRADE verdict can pass for "
+                     f"{m} instruments (SYSTEM-DESIGN.md §6.2).")
+        # Switching a dimension off orphans any trade whose STOP that dimension owns. The narrative stays on disk
+        # claiming an owner this configuration no longer reads, and check-narrative.py refuses it -- so say which
+        # files need a fresh full analysis at switch time, not only when the checker next runs.
+        off_owners = [d for d in methods.invalidation_owners() if d in MARKET_DIMENSIONS[m] and not mk["dimensions"].get(d, True)]
+        if off_owners:
+            orphans = []
+            for st in sorted(s for s in TIERS if market_of_style(s) == m):
+                n = _read_json(os.path.join(ROOT, "data", "live", "narrative", f"{st}.json"))
+                for sym, d in ((n or {}).get("symbols") or {}).items():
+                    if ((d or {}).get("invalidation") or {}).get("owner") in off_owners:
+                        orphans.append(f"{st}/{sym}")
+            if orphans:
+                w.append(f"{m}: {', '.join(off_owners)} is off but {len(orphans)} narrative(s) still name it as "
+                         f"invalidation.owner -- the stop is owned by a read this configuration does not make. "
+                         f"Re-run the full analysis for: {', '.join(orphans)}.")
+
         if m == "crypto" and (mk["dimensions"].get("footprint") or mk["dimensions"].get("heatmap")):
             w.append("Footprint/Heatmap depend on CoinGlass -- check coinglass_* source state via /status; a MOCK "
                      "source can rehearse but can never satisfy the Independent-Confluence Check (data-sources.md).")
         if m == "cfd" and mk["instruments"]:
             w.append("CFD instruments are structurally capped at NORMAL mode (Wyckoff + ICT only; §12 item 3) and "
-                     "have no 1m data -- the MT5 EA exports 1W/1D/4H/1H/15m/5m for one charted symbol at a time "
-                     "(§12 item 6).")
+                     "the MT5 EA exports one charted symbol at a time -- 1W/1D/4H/1H/15m/5m, which covers the "
+                     "scanned 15m/1h/4h plus the 1D/1W context charts (§12 item 6).")
             missing = [s for s in mk["instruments"] if not os.path.exists(
                 os.path.join(ROOT, "data", "live", DATA_DIR["cfd"], f"ohlcv.{s}.15m.json"))]
             if missing:
@@ -405,7 +564,7 @@ def warnings(cfg, exists):
     pp = cfg.get("pilot_process")
     if pp and pp.get("pid") and alive(pp["pid"]) and not pp.get("stopped_at"):
         w.append(f"Pilot loop RUNNING: pid {pp['pid']} ({pp.get('market')}) since {pp.get('started_at')} -- "
-                 f"kill switch {rel(stop_path(pp.get('market', 'spot')))}.")
+                 f"kill switch {rel(stop_path(pp.get('market') or PILOT_MARKETS[0]))}.")
     managed = bool(pp and pp.get("launchd_label") and _agent_loaded(pp["launchd_label"]))
     unrecorded = [(p, m) for p, m in running_pilots()
                   if not (pp and pp.get("pid") == p) and not (managed and m == pp.get("market"))]
@@ -426,9 +585,8 @@ def show(cfg, exists, as_json=False, brief=False):
     onoff = lambda b: "ON " if b else "off"
     envname = cfg["execution"].get("environment", "demo")
     print(f"AUTOMATION: {'ON' if cfg['enabled'] else 'OFF'}   "
-          f"environment: {envname.upper()} ({'TESTNET' if envname == 'demo' else 'REAL MONEY'})   "
-          f"pilot profile: {cfg['execution'].get('pilot_profile', 'legacy')}"
-          + (f" (setup {cfg['execution']['setup_spec']})" if cfg['execution'].get('setup_spec') else ""))
+          f"environment: {envname.upper()} ({'TESTNET' if envname == 'demo' else 'REAL MONEY'})"
+          + (f"   (setup {cfg['execution']['setup_spec']})" if cfg['execution'].get('setup_spec') else ""))
     if brief:
         svc = cfg.get("services") or {}
         print(f"  scanner: {'installed' if svc.get('scanner_agent') else 'not installed'}; "
@@ -455,6 +613,13 @@ def show(cfg, exists, as_json=False, brief=False):
                                                         for d in MARKET_DIMENSIONS[m]))
         print("               timeframes: " + "  ".join(f"{onoff(mk['timeframes'].get(t, True))} {t}"
                                                         for t in MARKET_TIMEFRAMES[m]))
+        prof = methods.profile_of(mk["dimensions"])
+        mode = methods.mode_of(prof)
+        minimum, threshold = methods.MODES[mode]["minimum"], methods.MODES[mode]["threshold"]
+        live = [d for d in MARKET_DIMENSIONS[m] if mk["dimensions"].get(d, True)]
+        print(f"               method:     {prof}  [{mode}: min {minimum} dimension(s), score {threshold}]"
+              + ("" if prof != "custom" else f"  (set from the terminal: {', '.join(live) or 'none'})")
+              + ("" if len(live) >= minimum else f"   [only {len(live)} enabled -- no live TRADE verdict can pass]"))
         print("               styles on:  " + (", ".join(styles) or "(none)"))
     pp = cfg.get("pilot_process")
     if pp:
@@ -466,8 +631,8 @@ def show(cfg, exists, as_json=False, brief=False):
     else:
         print("  pilot proc:  none recorded")
     for h in cfg["history"][-3:]:
-        print(f"  last change: {h['ts']} {h['actor']} {h['action']} -> {h['result']}"
-              + (f" ({h['detail']})" if h.get("detail") else ""))
+        print(f"  last change: {clean(h.get('ts'))} {clean(h.get('actor'))} {clean(h.get('action'))} -> "
+              f"{clean(h.get('result'))}" + (f" ({clean(h.get('detail'))})" if h.get("detail") else ""))
     for w in warnings(cfg, exists):
         print("  ! " + w)
 
@@ -506,8 +671,6 @@ def _install_agent(label, src, env_overrides=None):
             txt = head + marker + v + "</string>" + rest
         else:
             txt = txt.replace("<key>PATH</key>", f"<key>{k}</key><string>{v}</string>\n    <key>PATH</key>", 1)
-    if env_overrides and "PILOT_MARKET" in env_overrides and env_overrides["PILOT_MARKET"] == "futures":
-        txt = txt.replace("data/live/pilot/launchd", "data/live/pilot-futures/launchd")
     if dryrun():
         return True, f"DRY RUN: would install {dst} and bootstrap gui/{_uid()}/{label}"
     with open(dst, "w", encoding="utf-8") as f:
@@ -605,7 +768,7 @@ def bring_up(cfg, a):
     fresh, mnote = mt5_freshness(cfg)
     notes.append(("+ " if fresh else "! ") + mnote)
     if cfg["layers"]["pilot"] and cfg["markets"]["crypto"]["enabled"]:
-        wanted = [m.strip() for m in (env.get("PILOT_MARKETS", "spot")).split(",") if m.strip() in PILOT_MARKETS]
+        wanted = [m.strip() for m in (env.get("PILOT_MARKETS", PILOT_MARKETS[0])).split(",") if m.strip() in PILOT_MARKETS]
         # A loop started outside launchd (a terminal, nohup) trades the same account. Never install a managed
         # loop next to it: that would double-trade. The user stops it first (touch its STOP file) or adopts it.
         unmanaged = [(p, m) for p, m in running_pilots()
@@ -622,8 +785,10 @@ def bring_up(cfg, a):
                              + "). Stop it first (touch data/live/pilot*/STOP, wait one tick) or `pilot adopt` it, "
                                "then run `/automation on` again -- installing a second loop would double-trade.")
                 continue
-            keys = ("BINANCE_SPOT_API_KEY", "BINANCE_SPOT_SECRET_KEY") if m == "spot" \
-                else ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY")
+            # One venue, one key pair. The branch here used to pick the SPOT keys for the deleted market; with
+            # one venue it was unreachable, and picking those keys for a futures order path would sign against
+            # the wrong API.
+            keys = ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY")
             ok, missing, cnote = trading_env.completeness(envname, keys)
             if not ok:
                 notes.append(f"! pilot [{m}] NOT started: environment '{envname}' incomplete ({cnote})")
@@ -632,7 +797,7 @@ def bring_up(cfg, a):
             if os.path.exists(sp) and not dryrun():
                 os.remove(sp)
                 notes.append(f"+ removed kill switch {rel(sp)} (on = re-arm)")
-            ok, note = _install_agent(PILOT_LABEL[m], PLIST_SRC["pilot"], {"PILOT_MARKET": m, "PILOT_END": "never"})
+            ok, note = _install_agent(PILOT_LABEL[m], PLIST_SRC["pilot"], {"PILOT_END": "never"})
             notes.append(("+ " if ok else "! ") + f"pilot [{m}] {note}")
             if ok and not dryrun() and PILOT_LABEL[m] not in cfg["services"]["pilot_agents"]:
                 cfg["services"]["pilot_agents"].append(PILOT_LABEL[m])
@@ -710,7 +875,7 @@ def session_cron_block(on):
 # ---------- mutating subcommands ----------
 def apply_setup_spec(cfg, a):
     """`setup top N` (user decision 2026-09-11): rank the last 365 days with scripts/rank-setups.py, write docs/architecture/pilot-top5.json
-    with N crypto + N CFD setups, set execution.pilot_profile = top5. Returns (rc, lines). `setup` absent -> no change."""
+    with N crypto + N CFD setups. Returns (rc, lines). `setup` absent -> no change."""
     spec = [x.lower() for x in (getattr(a, "setup", None) or [])]
     sel = os.path.join(ROOT, "docs", "architecture", "pilot-top5.json"); out = os.path.join(ROOT, "docs", "backtests", "top-setups-latest.md")
     cfd_syms = ",".join(cfg["markets"]["cfd"]["instruments"] or ["XAUUSD"]); crypto_syms = ",".join(cfg["markets"]["crypto"]["instruments"] or MARKET_INSTRUMENTS["crypto"])
@@ -718,7 +883,7 @@ def apply_setup_spec(cfg, a):
         # user decision 2026-09-11 (night): plain `on`/`demo` runs scalping + day + swing for crypto AND CFD -- one setup per horizon per
         # market, ranked on the last 12 months -- unless a `setup top N` selection is in force (execution.setup_spec starts with "top").
         if (cfg["execution"].get("setup_spec") or "").startswith("top") and os.path.exists(sel):
-            return 0, [f"pilot profile {cfg['execution'].get('pilot_profile')} keeps the selection `{cfg['execution']['setup_spec']}` ({rel(sel)}); `on setup horizons` re-selects per horizon"]
+            return 0, [f"keeps the selection `{cfg['execution']['setup_spec']}` ({rel(sel)}); `on setup horizons` re-selects per horizon"]
         spec = ["setup", "horizons"]
     if spec == ["setup", "horizons"]:
         r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "rank-setups.py"), "--horizons", "--window", "1y", "--select", sel, "--out", out,
@@ -729,12 +894,12 @@ def apply_setup_spec(cfg, a):
             setups = json.load(open(sel, encoding="utf-8"))["setups"]
         except Exception as e:
             return 2, [f"selection file unreadable after ranking: {e}"]
-        cfg["execution"]["pilot_profile"] = "top5"; cfg["execution"]["setup_spec"] = "horizons (1y)"
+        cfg["execution"]["setup_spec"] = "horizons (1y)"
         record(cfg, a, "setup horizons", "applied")
-        lines = [f"SETUP HORIZONS: {len(setups)} setups (scalping / day / swing per market, ranked on the last 12 months) -> {rel(sel)} (table {rel(out)}); pilot profile = top5"]
+        lines = [f"SETUP HORIZONS: {len(setups)} setups (scalping / day / swing per market, ranked on the last 12 months) -> {rel(sel)} (table {rel(out)})"]
         for st in setups:
             b = st.get("backtest", {})
-            lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['horizon']} {st['tf']} {st['method']} target={st.get('ict_target')} htf={st.get('htf')} exec={st['execution']} | 1y: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
+            lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['horizon']} {st['tf']} {st['method']} htf={st.get('htf')} exec={st['execution']} | 1y: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
                          + ("  [BACKTEST ÂM]" if st.get("negative_backtest") else ""))
         for m in ("crypto", "cfd"):
             missing = [h for h in ("scalping", "day", "swing") if not any(st["market"] == m and st["horizon"] == h for st in setups)]
@@ -752,12 +917,12 @@ def apply_setup_spec(cfg, a):
         setups = json.load(open(sel, encoding="utf-8"))["setups"]
     except Exception as e:
         return 2, [f"selection file unreadable after ranking: {e}"]
-    cfg["execution"]["pilot_profile"] = "top5"; cfg["execution"]["setup_spec"] = f"top {n} (1y)"
+    cfg["execution"]["setup_spec"] = f"top {n} (1y)"
     record(cfg, a, f"setup top {n}", "applied")
-    lines = [f"SETUP TOP {n}: {len(setups)} setups selected on the last 12 months -> {rel(sel)} (table {rel(out)}); pilot profile = top5"]
+    lines = [f"SETUP TOP {n}: {len(setups)} setups selected on the last 12 months -> {rel(sel)} (table {rel(out)})"]
     for st in setups:
         b = st.get("backtest", {})
-        lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['tf']} {st['method']} target={st.get('ict_target')} htf={st.get('htf')} exec={st['execution']} | 1y: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
+        lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['tf']} {st['method']} htf={st.get('htf')} exec={st['execution']} | 1y: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
                      + ("  [BACKTEST ÂM]" if st.get("negative_backtest") else ""))
     missing = [m for m in ("crypto", "cfd") if not any(st["market"] == m for st in setups)]
     if missing:
@@ -766,7 +931,7 @@ def apply_setup_spec(cfg, a):
 
 
 def cmd_master(a):
-    cfg, exists, _ = load()
+    cfg, exists, _ = load(require_readable=True)
     want = a.cmd == "on"
     if want:
         rc, lines = apply_setup_spec(cfg, a)
@@ -790,12 +955,13 @@ def cmd_master(a):
 
 
 def cmd_env(a):
-    cfg, exists, _ = load()
+    cfg, exists, _ = load(require_readable=False)
     envname = cfg["execution"].get("environment", "demo")
-    ok, missing, note = trading_env.completeness(envname)
-    print(f"environment: {envname}  file: config/env.{envname}  spot secrets: {note}")
-    okf, missf, notef = trading_env.completeness(envname, ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY"))
-    print(f"  futures secrets: {notef}")
+    # One venue, one key pair to report. This printed two lines -- trading_env.completeness()'s default (the SPOT
+    # keys) and then the futures keys -- which for a futures-only system meant the first line reported the
+    # completeness of credentials nothing uses, directly above the ones that matter.
+    ok, missing, note = trading_env.completeness(envname, ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY"))
+    print(f"environment: {envname}  file: config/env.{envname}  futures secrets: {note}")
     print("  switch: `/automation demo|real`, or edit execution.environment in " + rel(CONFIG))
     return 0
 
@@ -820,24 +986,27 @@ def apply_preset(cfg, a, envname):
                 skipped_msgs.append(f"{sym} skipped: no {'MT5 export' if m == 'cfd' else 'Binance data'} on disk "
                                     f"({rel(probe)})")
         mk["instruments"] = keep
-        mk["dimensions"] = {d: True for d in MARKET_DIMENSIONS[m]}
-        for t in MARKET_TIMEFRAMES[m]:          # every timeframe of the market: scalping (1m/5m), day (15m), 1h/4h, swing (1D) -- user decision 2026-09-11
+        # The method preset is the user's choice and survives an environment switch (spec §4.1). Before this,
+        # demo/real turned every dimension back on and silently erased it.
+        prof = methods.profile_of(mk["dimensions"])
+        enabled_msgs.append(f"{m}: method preset kept as {prof}")
+        for t in MARKET_TIMEFRAMES[m]:          # every timeframe of the market: scalping (15m), day (1h), swing (4h) -- user decision 2026-09-13
             mk["timeframes"][t] = True
         on_tfs = [t for t in MARKET_TIMEFRAMES[m] if mk["timeframes"].get(t, True)]
-        enabled_msgs.append(f"{m}: instruments {', '.join(keep) or '(none)'}; dimensions "
-                            f"{', '.join(MARKET_DIMENSIONS[m])}; timeframes ON {', '.join(on_tfs)} "
+        enabled_msgs.append(f"{m}: instruments {', '.join(keep) or '(none)'}; timeframes ON {', '.join(on_tfs)} "
                             f"-> styles {', '.join(STYLE[(m, t)] for t in on_tfs)}")
         if not keep:
             skipped_msgs.append(f"{m}: no instrument has data on disk, so every {m} style will no-op")
     skipped_msgs.append("cfd dimensions footprint/heatmap do not exist -- no CoinGlass source for commodities "
                         "(SYSTEM-DESIGN.md §12 item 3)")
-    skipped_msgs.append("cfd timeframe 1m does not exist -- CFD scalping runs on 5m (gold-scalp), the EA exports 1W/1D/4H/1H/15m/5m")
+    skipped_msgs.append("scanned timeframes are 15m/1h/4h for both markets (scalping/day/swing) -- 1m, 5m and 1D "
+                        "left the scanned set on 2026-09-13; 1D and 1W are still fetched as context charts")
     return enabled_msgs, skipped_msgs
 
 
 def cmd_preset(a):
     envname = a.cmd
-    cfg, exists, _ = load()
+    cfg, exists, _ = load(require_readable=True)
     if envname == "real":
         ok, missing, note = trading_env.completeness("real")
         if not ok:
@@ -872,7 +1041,7 @@ def cmd_preset(a):
 
 
 def cmd_market(a):
-    cfg, _, _ = load()
+    cfg, _, _ = load(require_readable=True)
     want = a.value == "on"
     mk = cfg["markets"][a.name]
     result = "no-op" if mk["enabled"] == want else "applied"
@@ -884,15 +1053,18 @@ def cmd_market(a):
 
 
 def cmd_timeframe(a):
-    cfg, _, _ = load()
+    cfg, _, _ = load(require_readable=True)
     targets = [a.market] if a.market else [m for m in MARKETS if a.name in MARKET_TIMEFRAMES[m]]
     bad = [m for m in targets if a.name not in MARKET_TIMEFRAMES[m]]
     if bad:
         record(cfg, a, f"timeframe {a.name}={a.value} --market {','.join(bad)}", "refused")
         save(cfg)
-        print(f"REFUSED: timeframe {a.name} does not exist for market '{bad[0]}'. "
-              f"integrations/mt5/ExportOHLCV.mq5 exports 1W/1D/4H/1H/15m/5m -- there is no 1m CFD data to scan (CFD scalping = 5m), so "
-              f"no CFD scalping style exists (SYSTEM-DESIGN.md §12 item 6). "
+        # Both markets scan the same three horizons since 2026-09-13, so argparse's `choices` already rejects
+        # everything this branch would catch. It stays because MARKET_TIMEFRAMES is per-market BY SHAPE: the day a
+        # market loses a rung, this refuses instead of writing a flag nothing reads.
+        print(f"REFUSED: timeframe {a.name} does not exist for market '{bad[0]}'. The scanned set is one horizon "
+              f"per timeframe (automation.HORIZON_TF: scalping 15m, day 1h, swing 4h); 1D and 1W are context "
+              f"charts only and are not switchable here. "
               f"{bad[0]} timeframes: {', '.join(MARKET_TIMEFRAMES[bad[0]])}.", file=sys.stderr)
         show(cfg, True)
         return 2
@@ -910,8 +1082,47 @@ def cmd_timeframe(a):
     return 0
 
 
+def cmd_method(a):
+    """Apply a named preset = a set of the four dimension flags. The preset is only a NAME for that set
+    (spec §3); nothing new is stored, and scripts/methods.py derives the label back from the flags."""
+    cfg, _, _ = load(require_readable=True)
+    p = methods.preset(a.preset)
+    if p is None:                                   # argparse choices should have caught this; belt and braces
+        record(cfg, a, f"method {a.preset}", "refused"); save(cfg)
+        print(f"REFUSED: unknown preset '{a.preset}'. Known: "
+              f"{', '.join(x['id'] for x in methods.PRESETS)}", file=sys.stderr)
+        return 2
+    targets = [a.market] if a.market else [m for m in MARKETS if p in methods.presets_for(m)]
+    bad = [m for m in ([a.market] if a.market else []) if p not in methods.presets_for(m)]
+    if bad:
+        missing = sorted(set(p["dimensions"]) - set(methods.dimensions(bad[0])))
+        record(cfg, a, f"method {a.preset} --market {','.join(bad)}", "refused")
+        save(cfg)
+        print(f"REFUSED: preset '{a.preset}' needs {', '.join(missing)}, which market '{bad[0]}' has no source "
+              f"for (CoinGlass is crypto-derivatives only, SYSTEM-DESIGN.md §12 item 3).", file=sys.stderr)
+        show(cfg, True)
+        return 2
+    skipped = [] if a.market else [m for m in MARKETS if m not in targets]
+    if skipped:
+        print(f"NOTE: preset '{a.preset}' was not applied to {', '.join(skipped)} (no CoinGlass source there); "
+              f"applied only to {', '.join(targets)}. Pass --market to target one market explicitly.",
+              file=sys.stderr)
+    want = methods.flags_for(a.preset)
+    changed = []
+    for m in targets:
+        flags = {d: want[d] for d in MARKET_DIMENSIONS[m]}
+        if cfg["markets"][m]["dimensions"] != flags:
+            changed.append(m)
+        cfg["markets"][m]["dimensions"] = flags          # CFG-10: this block and nothing else
+    record(cfg, a, f"method {a.preset} --market {','.join(targets)}",
+           "applied" if changed else "no-op")
+    save(cfg)
+    show(cfg, True)
+    return 0
+
+
 def cmd_dimension(a):
-    cfg, _, _ = load()
+    cfg, _, _ = load(require_readable=True)
     targets = [a.market] if a.market else [m for m in MARKETS if a.name in MARKET_DIMENSIONS[m]]
     bad = [m for m in targets if a.name not in MARKET_DIMENSIONS[m]]
     if bad:
@@ -937,7 +1148,7 @@ def cmd_dimension(a):
 
 
 def cmd_layer(a):
-    cfg, _, _ = load()
+    cfg, _, _ = load(require_readable=True)
     want = a.value == "on"
     result = "no-op" if cfg["layers"][a.name] == want else "applied"
     cfg["layers"][a.name] = want
@@ -952,7 +1163,7 @@ def cmd_layer(a):
 
 def cmd_instrument(a):
     sym = a.symbol.upper()
-    cfg, _, _ = load()
+    cfg, _, _ = load(require_readable=True)
     if sym[:3] in FX_CODES and sym[3:6] in FX_CODES:
         record(cfg, a, f"instrument {sym}={a.value}", "refused")
         save(cfg)
@@ -982,7 +1193,59 @@ def cmd_instrument(a):
     return 0
 
 
+def cmd_instrument_set(a):
+    """Declarative batch: `instrument set BTCUSDT,ETHUSDT --market crypto` replaces the whole list in ONE
+    write and ONE history row (CFG-11). The single-symbol form stays for terminal use; this one exists
+    because the panel sends a full desired set and nine symbols must not cost nine rows of a 200-row ring.
+
+    Validation is re-done here, independently of whoever called (CFG-12): a future caller may not be the
+    applier cron. Nothing is normalised -- a value either is the canonical allowlist spelling or is refused."""
+    m = a.market
+    raw = [s for s in (a.symbols or "").split(",") if s != ""]
+    universe = MARKET_INSTRUMENTS[m]
+    problems = []
+    for sym in raw:
+        if sym[:3] in FX_CODES and sym[3:6] in FX_CODES:
+            problems.append(f"{sym}: Forex is prohibited outright (SYSTEM-DESIGN.md §1)")
+        elif sym not in universe:
+            problems.append(f"{sym}: not on the {m} allowlist ({', '.join(universe)})")
+    if len(set(raw)) != len(raw):
+        problems.append(f"duplicate symbols in {','.join(raw)}")
+
+    cfg, _, _ = load()
+    if problems:                                        # CFG-11: all-or-nothing, config untouched
+        record(cfg, a, f"instrument set {','.join(raw) or '(none)'} --market {m}", "refused")
+        save(cfg)
+        print("REFUSED: " + "; ".join(problems), file=sys.stderr)
+        show(cfg, True)
+        return 2
+
+    want = [s for s in universe if s in set(raw)]       # CFG-13: canonical order
+    if cfg["markets"][m]["instruments"] == want:
+        print(f"no-op: {m} instruments already {', '.join(want) or '(none)'}")
+        return 0                                        # CFG-13: a true no-op records nothing
+    cfg["markets"][m]["instruments"] = want
+    record(cfg, a, f"instrument set {','.join(want) or '(none)'} --market {m}", "applied")
+    save(cfg)
+    for sym in want:
+        probe = os.path.join(ROOT, "data", "live", DATA_DIR[m], f"ohlcv.{sym}.15m.json")
+        if not os.path.exists(probe):
+            print(f"  NOTE: no data on disk for {sym} yet ({rel(probe)}). The flag is set; the source is not wired.")
+    if not want:
+        print(f"  NOTE: {m} has no instruments selected -- no NEW entries will be opened there. Positions and "
+              f"pending orders already open are still managed (strategy-runner.py:766-767).")
+    show(cfg, True)
+    return 0
+
+
 def cmd_allows(a):
+    if a.layer == "master":
+        # CFG-03: this form must fail closed. `allows()` treats "config does not exist" as unconfigured =>
+        # allowed, which is right for scanner/local_read/pilot (pure read paths, no behaviour change on a
+        # clean checkout) but wrong for the one gate an unattended cron trusts to permit a write: a missing
+        # or corrupt config must read as "not permitted", not as "no policy".
+        cfg, exists, _ = load(require_readable=False)
+        return 0 if (exists and cfg.get("enabled", True)) else 2
     ok, reason = allows(a.layer, getattr(a, "style", None))
     if not ok:
         print(reason)
@@ -1003,19 +1266,24 @@ def pilot_start(a, cfg=None, embedded=False):
     never 'fixes' a blocker for you (it will not remove a STOP file, will not enable a layer)."""
     own = cfg is None
     if own:
-        cfg, _, _ = load()
-    market = getattr(a, "market", None) or "spot"
+        cfg, _, _ = load(require_readable=True)
+    # Default to the one venue there is, read from the registry rather than written out again. This used to
+    # fall back to the literal "spot"; when PILOT_MARKETS narrowed to futures and PILOT_LABEL lost its spot key
+    # (2026-09-13) that turned the plain `pilot start` into an uncaught KeyError at PILOT_LABEL[market].
+    market = getattr(a, "market", None) or PILOT_MARKETS[0]
     action = f"pilot start --market {market}"
     if not cfg["enabled"]:
         return 2, "master switch is OFF -- run `/automation demo` (or `on`) first. Nothing was started."
     if not cfg["layers"]["pilot"]:
         return 2, "layers.pilot is off -- `/automation layer pilot on` first. Nothing was started."
     if not cfg["markets"]["crypto"]["enabled"]:
-        return 2, ("markets.crypto is off and the pilot only trades BTCUSDT/ETHUSDT/SOLUSDT -- "
+        return 2, ("markets.crypto is off and the pilot only trades the crypto `execution` list "
+                   f"({', '.join(instruments.execution('crypto'))}) -- "
                    "`/automation market crypto on` first. Nothing was started.")
     envname = cfg["execution"].get("environment", "demo")
-    keys = ("BINANCE_SPOT_API_KEY", "BINANCE_SPOT_SECRET_KEY") if market == "spot" \
-        else ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY")
+    # One venue, one key pair. The branch here used to pick the deleted market's keys; picking those for a
+    # futures order path would sign against the wrong API.
+    keys = ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY")
     ok, missing, cnote = trading_env.completeness(envname, keys)
     if not ok:
         return 2, (f"environment '{envname}' is incomplete ({cnote}). Fill config/env.{envname} first. "
@@ -1041,7 +1309,7 @@ def pilot_start(a, cfg=None, embedded=False):
     lp = log_path(market)
     use_launchd = not getattr(a, "no_launchd", False) and not dryrun() and shutil.which("launchctl")
     if use_launchd:
-        ok, note = _install_agent(PILOT_LABEL[market], PLIST_SRC["pilot"], {"PILOT_MARKET": market, "PILOT_END": "never"})
+        ok, note = _install_agent(PILOT_LABEL[market], PLIST_SRC["pilot"], {"PILOT_END": "never"})
         if not ok:
             return 2, note + " Nothing was started."
         cfg.setdefault("services", {"scanner_agent": False, "pilot_agents": [], "keepawake_pid": None})
@@ -1077,40 +1345,18 @@ def pilot_start(a, cfg=None, embedded=False):
 
 
 def cmd_pilot(a):
-    cfg, exists, _ = load()
-    market = a.market or (cfg.get("pilot_process") or {}).get("market") or "spot"
-
-    if a.action == "profile":
-        name = getattr(a, "profile", None)
-        if name not in PILOT_PROFILES:
-            return _refuse(cfg, a, f"pilot profile {name}", f"unknown profile {name!r}; choose one of {', '.join(PILOT_PROFILES)}.")
-        prev = cfg["execution"].get("pilot_profile", "legacy")
-        cfg["execution"]["pilot_profile"] = name
-        record(cfg, a, f"pilot profile {name}", "applied" if name != prev else "no-op")
-        save(cfg)
-        running = [(p, m) for p, m in running_pilots()]
-        print(f"  pilot profile: {prev} -> {name}")
-        if name == "top5":
-            sel = os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")
-            print("  top5 = scripts/strategy-runner.py on the futures loop: crypto setups on Binance futures TESTNET, CFD setups on the MT5 DEMO "
-                  "account through integrations/mt5/OrderBridge.mq5 (attach it to a chart). The spot loop idles while top5 is selected; "
-                  "the loop reads the profile every tick. State: data/live/pilot-futures/top5-state.json.")
-            try:
-                for st in json.load(open(sel, encoding="utf-8"))["setups"]:
-                    b = st.get("backtest", {})
-                    print(f"    {st.get('rank', '-')}. {st['id']}: {st['market']} {st['tf']} {st['method']} target={st.get('ict_target')} htf={st.get('htf')} "
-                          f"exec={st['execution']} | backtest {b.get('ann_pct')}%/yr, DD -{b.get('max_dd_pct')}%, quarters+ {b.get('q_pos_pct')}%, years+ {b.get('years_pos')}")
-            except Exception as e:
-                print(f"  ! selection file {rel(sel)} unreadable ({e}) -- the runner will refuse to tick")
-        if running:
-            print("  running loops: " + ", ".join(f"pid {p} ({m})" for p, m in running) + " -- they pick the new profile up on their next tick.")
-        show(cfg, True, brief=True)
-        return 0
+    # Mixed read/write: action in {profile, start, stop, adopt} mutates and calls save(); action == "status"
+    # (the fallthrough) only reads. Classified as a write path (require_readable=True) because a single load()
+    # serves the whole dispatch -- relaxing it here would let a corrupt config's DEFAULTS silently reach the
+    # mutating branches (CFG-02). Cost: `pilot status` on a corrupt config now also exits 2 instead of showing
+    # defaults; acceptable because `status`/`env`/`allows`/`history` remain the documented always-safe readers.
+    cfg, exists, _ = load(require_readable=True)
+    market = a.market or (cfg.get("pilot_process") or {}).get("market") or PILOT_MARKETS[0]
 
     if a.action == "start":
         rc, note = pilot_start(a, cfg)
         if rc != 0:
-            return _refuse(cfg, a, f"pilot start --market {a.market or 'spot'}", note)
+            return _refuse(cfg, a, f"pilot start --market {a.market or PILOT_MARKETS[0]}", note)
         save(cfg)
         print("  " + note.replace("\n", "\n  "))
         show(cfg, True)
@@ -1145,7 +1391,7 @@ def cmd_pilot(a):
             return _refuse(cfg, a, "pilot adopt",
                            "more than one pilot loop is running (" +
                            ", ".join(f"pid {p} ({m})" for p, m in found) +
-                           ") -- name one with --market spot|futures.")
+                           ") -- name one with --market futures.")
         pid, mkt = found[0]
         cfg["pilot_process"] = {"pid": pid, "market": a.market or mkt, "started_at": now(),
                                 "started_by": "human (adopted)", "log": rel(log_path(a.market or mkt))}
@@ -1194,13 +1440,13 @@ def cmd_demo(a):
 
 
 def cmd_history(a):
-    cfg, exists, _ = load()
+    cfg, exists, _ = load(require_readable=False)
     if not cfg["history"]:
         print("(no history yet)" if exists else "(no config file yet -- nothing has been changed)")
         return 0
     for h in cfg["history"][-a.n:]:
-        print(f"{h['ts']}  {h['actor']:<16} {h['action']:<40} {h['result']}"
-              + (f"  ({h['detail']})" if h.get("detail") else ""))
+        print(f"{clean(h.get('ts'))}  {clean(h.get('actor')) or '':<16} {clean(h.get('action')) or '':<40} "
+              f"{clean(h.get('result'))}" + (f"  ({clean(h.get('detail'))})" if h.get("detail") else ""))
     return 0
 
 
@@ -1224,7 +1470,8 @@ def main():
 
     st = sub.add_parser("status"); st.add_argument("--json", action="store_true")
     sub.add_parser("env")
-    al = sub.add_parser("allows"); al.add_argument("layer", choices=LAYERS); al.add_argument("style", nargs="?", default=None)
+    al = sub.add_parser("allows"); al.add_argument("layer", choices=LAYERS + ["master"])
+    al.add_argument("style", nargs="?", default=None)
     p = audited(sub.add_parser("demo")); p.add_argument("setup", nargs="*", default=[]); p = audited(sub.add_parser("real")); p.add_argument("setup", nargs="*", default=[])
     p = audited(sub.add_parser("on")); p.add_argument("setup", nargs="*", default=[], help="optional: `setup top N` = rank the last 12 months, select N crypto + N CFD setups, switch the pilot profile to top5, then bring everything up")
     audited(sub.add_parser("off"))
@@ -1236,12 +1483,21 @@ def main():
     p = audited(sub.add_parser("dimension"))
     p.add_argument("name", choices=DIMENSIONS); p.add_argument("value", choices=["on", "off"])
     p.add_argument("--market", choices=MARKETS, default=None)
-    p = audited(sub.add_parser("instrument")); p.add_argument("symbol"); p.add_argument("value", choices=["on", "off"])
+    p = audited(sub.add_parser("method"))
+    p.add_argument("preset", choices=[x["id"] for x in methods.PRESETS])
+    p.add_argument("--market", choices=MARKETS, default=None)
+    p = audited(sub.add_parser("instrument"))
+    p.add_argument("symbol", help="a SYMBOL, or the literal word 'set'")
+    p.add_argument("value", help="on|off for a single symbol; the comma-separated list when symbol is 'set'")
+    p.add_argument("--market", choices=MARKETS)
     p = audited(sub.add_parser("layer"))
     p.add_argument("name", choices=LAYERS); p.add_argument("value", choices=["on", "off"])
     p = audited(sub.add_parser("pilot"))
-    p.add_argument("action", choices=["start", "stop", "status", "adopt", "profile"])
-    p.add_argument("profile", nargs="?", default=None, help="for `pilot profile`: legacy | top5")
+    # `profile` was removed with the second engine (2026-09-13): one engine means a profile can only select
+    # "the engine" or "nothing", and layers.pilot already expresses the second. Dropped from `choices` as well
+    # as from the handler -- leaving it accepted made `pilot profile top5` exit 0 and print the status block,
+    # so a user who typed it would believe they had changed something.
+    p.add_argument("action", choices=["start", "stop", "status", "adopt"])
     p.add_argument("--market", choices=PILOT_MARKETS, default=None)
     p.add_argument("--no-launchd", action="store_true", help="start detached from this shell instead of as a launchd agent")
     h = sub.add_parser("history"); h.add_argument("-n", type=int, default=20)
@@ -1251,8 +1507,12 @@ def main():
         a.cmd = "status"; a.json = False       # no args = status, per .claude/commands/automation.md
 
     # v1/v2 -> v3 migration, once, in place, with an audit row. Done here (not in load()) so that a reader such as
-    # scan-loop.sh never writes this file as a side effect of gating a pass.
-    cfg, exists, migrated = load()
+    # scan-loop.sh never writes this file as a side effect of gating a pass. require_readable=False: this is a
+    # pre-dispatch probe shared by every subcommand including read-only ones (status/env/allows/history), so it
+    # must never exit 2 on a corrupt file -- migrated can only be True for a file that parsed (v1/v2), so this
+    # relaxation never weakens CFG-02 for the actual migration write below. Write subcommands re-load with their
+    # own require_readable=True call and refuse independently.
+    cfg, exists, migrated = load(require_readable=False)
     if migrated and exists and a.cmd not in ("allows",):
         record(cfg, a, f"migrate schema_version -> {SCHEMA_VERSION}", "applied")
         save(cfg)
@@ -1260,7 +1520,7 @@ def main():
               f"(execution.account -> execution.environment, services added); recorded in history[].")
 
     if a.cmd == "status":
-        cfg, exists, _ = load(); show(cfg, exists, a.json); return 0
+        cfg, exists, _ = load(require_readable=False); show(cfg, exists, a.json); return 0
     if a.cmd == "env":
         return cmd_env(a)
     if a.cmd == "allows":
@@ -1275,9 +1535,20 @@ def main():
         return cmd_timeframe(a)
     if a.cmd == "dimension":
         return cmd_dimension(a)
+    if a.cmd == "method":
+        return cmd_method(a)
     if a.cmd == "layer":
         return cmd_layer(a)
     if a.cmd == "instrument":
+        if a.symbol == "set":
+            if not a.market:
+                print("usage: instrument set <SYM,SYM,...> --market <crypto|cfd>", file=sys.stderr)
+                return 1
+            a.symbols = a.value
+            return cmd_instrument_set(a)
+        if a.value not in ("on", "off"):
+            print(f"usage: instrument <SYMBOL> on|off  (got value={a.value!r})", file=sys.stderr)
+            return 1
         return cmd_instrument(a)
     if a.cmd == "pilot":
         return cmd_pilot(a)

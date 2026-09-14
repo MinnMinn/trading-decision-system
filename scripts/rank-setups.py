@@ -11,11 +11,11 @@ several targets or fee assumptions. All four rule families are eligible: ICT and
 MARKET on the close of the entry bar (Spring reclaim / Test / BU), exactly as the backtest.
 
 The selection file (single writer: this script) is read by scripts/strategy-runner.py and shown by `/automation pilot profile top5`.
-CFD setups get execution "mt5" (demo account through integrations/mt5/OrderBridge.mq5 + scripts/mt5-order-bridge.py) and only timeframes the MT5 EA
-exports or the runner can aggregate (1H, 2H, 4H, 1D). Every number here is a code proxy over research history — for CFD that is
+CFD setups get execution "mt5" (demo account through integrations/mt5/OrderBridge.mq5 + scripts/mt5-order-bridge.py) and only the three
+live timeframes the MT5 EA exports or the runner can aggregate (CFD_TFS: 15m, 1H, 4H). Every number here is a code proxy over research history — for CFD that is
 Yahoo Finance futures data (scripts/fetch-history-cfd.py), not the CFD quotes the pilot will trade on.
 """
-import argparse, datetime, glob, json, os
+import argparse, datetime, glob, importlib.util, json, os
 FLAG_KEYS = ("ict_disp", "ict_pd", "std_origin", "flags_decided")   # per-setup ICT switches decided by scripts/ict-flags-1y.py; carried over on rewrite
 
 
@@ -32,10 +32,17 @@ def carry_flags(selection, path):
     return selection
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RUNNABLE = {"ICT", "COMBINED", "WYCKOFF", "WYCKOFF-BOOK"}   # all four are executed by scripts/strategy-runner.py (Wyckoff = market entries at the bar close)
-CFD_TFS = {"5m", "15m", "30m", "1H", "2H", "4H", "1D"}
+_mspec = importlib.util.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py"))
+mreg = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(mreg)
+RUNNABLE = mreg.runnable()   # executed by scripts/strategy-runner.py; source: docs/architecture/methods.json
+# The three live rungs only (user decision 2026-09-13). Was a seven-rung superset that also named the retired
+# five- and thirty-minute rungs, the two-hour rung and the daily -- harmless while it was a superset of the live
+# set, which is exactly why it would have rotted unnoticed.
+CFD_TFS = {"15m", "1H", "4H"}
 # user decision 2026-09-11 (evening): one setup per HORIZON per market -- scalping / day / swing -- even where the backtest edge is weak.
-HORIZONS = {"scalping": {"5m", "15m"}, "day": {"30m", "1H", "2H"}, "swing": {"4H", "1D"}}
+# One timeframe per horizon (user decision 2026-09-13), matching automation.HORIZON_TF. Was a SET per horizon,
+# which could select a setup at a rung the scanner does not run -- a selection nothing could execute.
+HORIZONS = {"scalping": "15m", "day": "1H", "swing": "4H"}
 HORIZON_MIN_TRADES = {"scalping": 60, "day": 60, "swing": 12}
 CFG_DESC = {"A": dict(fee=0.0005, mgmt="none", htf=False), "B": dict(fee=0.0002, mgmt="be", htf=False), "C": dict(fee=0.0002, mgmt="be", htf=True)}
 
@@ -50,9 +57,44 @@ def load_rows(paths, market):
     return rows
 
 
+MIN_WINDOW_DAYS = 90   # 3 months: below this a row has no evidence either way, so it is not rankable (see solvent())
+
+
+def solvent(r, window=None):
+    """Is this row allowed to be selected at all? User decision 2026-09-13, replacing the 2026-09-11 rule that
+    filled every (horizon, method) slot with the best available candidate even when that candidate lost money.
+
+    Three conditions, all required:
+      1. At least MIN_WINDOW_DAYS of measured history. Profitable over 71 days is not evidence -- that was the
+         CFD case (2026-07-02 -> 2026-09-11) where every rule was being judged on ten weeks.
+      2. Did not blow the account up.
+      3. Actually made money. "Did not blow up" is a much lower bar than "made money": the row that forced this
+         change, CFD 1H WYCKOFF, ended its ranking window at $988 from $10,000.
+
+    Measured as `ann > 0`, not `final > START`: `ann` is already on every row (so this module needs no dependency
+    on backtest-methods just to learn the account size), it is the same field main_horizons() already uses for the
+    `negative_backtest` flag, and it is strictly monotonic in `final` -- ann = ((final/START)**(365/days) - 1),
+    so ann > 0 and final > START are the same condition.
+
+    Why here rather than in main_horizons(): every caller of rank() -- the top-N mode and the horizons mode --
+    picks rules that will place real orders. A rule that loses money should not be selectable from either.
+    """
+    m = r["w1y"] if window == "1y" else r
+    start = r["w1y"]["since"] if window == "1y" and r.get("w1y", {}).get("since") else r["first"]
+    try:
+        days = (datetime.date.fromisoformat(r["last"][:10]) - datetime.date.fromisoformat(max(start, r["first"])[:10])).days
+    except (ValueError, KeyError, TypeError):
+        return False                      # unparseable dates: no evidence, fail closed
+    return days >= MIN_WINDOW_DAYS and m.get("ruin") is None and m.get("ann", 0) > 0
+
+
 def rank(rows, min_trades, window=None):
     """window=None: whole history (consistency first). window='1y': the row's last-365-day metrics -- not blown up, then share of
-    positive quarters in that year, then the year's return, then its worst quarter (user decision 2026-09-11: 'hiệu quả nhất trong 1 năm')."""
+    positive quarters in that year, then the year's return, then its worst quarter (user decision 2026-09-11: 'hiệu quả nhất trong 1 năm').
+
+    Rows that fail solvent() are dropped before sorting, so an empty return means "nothing here earned selection",
+    and every caller already renders that as an empty slot rather than a fallback."""
+    rows = [r for r in rows if solvent(r, window)]
     if window == "1y":
         ok = [r for r in rows if r.get("w1y") and r["w1y"]["n"] >= min_trades]
         ok.sort(key=lambda r: (r["w1y"]["ruin"] is None, r["w1y"]["q_pos"], r["w1y"]["ann"], r["w1y"]["q_worst"]), reverse=True)
@@ -117,8 +159,12 @@ def main():
         L.append("")
         for i, r in enumerate(top, 1):
             cfg = CFG_DESC[r["cfg"]]
+            # ict_target is NOT stamped here (2026-09-13): its only reader, backtest-methods.py's legacy ICT
+            # target-model switch, was deleted -- the live ICT path takes its target from ict_scan.setup_candidate
+            # and never consults it. Stamping an explicit null would still tell a reader "a target model concept
+            # applies to ICT setups", which is no longer true; dropping the key is the honest schema.
             selection["setups"].append(dict(id=f"{market}-{r['method'].lower()}-{r['tf'].lower()}-{r['target']}-{r['cfg'].lower()}", rank=i, market=market, symbols=syms, tf=r["tf"], method=r["method"],
-                                            ict_target=r["target"] if r["method"] == "ICT" else None, htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
+                                            htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
                                             execution="futures" if market == "crypto" else "mt5",
                                             backtest=dict(n=r["n"], ann_pct=round(r["ann"], 1), max_dd_pct=round(r["dd"], 1), q_pos_pct=round(r["q_pos"]), years_pos=f"{r['y_pos']}/{r['y_n']}", period=f"{r['first']}→{r['last']}", source=r["file"])))
     md = "\n".join(L) + "\n"; print(md)
@@ -146,8 +192,9 @@ def main_window_1y(a, today):
         L.append("")
         for i, r in enumerate(top, 1):
             cfg = CFG_DESC[r["cfg"]]; w = r["w1y"]
+            # ict_target dropped (see the top-level rank() call above for why).
             selection["setups"].append(dict(id=f"{market}-{r['method'].lower()}-{r['tf'].lower()}-{r['target']}-{r['cfg'].lower()}", rank=i, market=market, symbols=syms, tf=r["tf"], method=r["method"],
-                                            ict_target=r["target"] if r["method"] == "ICT" else None, htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
+                                            htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
                                             execution="futures" if market == "crypto" else "mt5", negative_backtest=bool(w["ann"] < 0),
                                             backtest=dict(window="1y", n=w["n"], ann_pct=round(w["ann"], 1), max_dd_pct=round(w["dd"], 1), q_pos_pct=round(w["q_pos"]), since=w["since"],
                                                           full_n=r["n"], full_ann_pct=round(r["ann"], 1), full_q_pos_pct=round(r["q_pos"]), years_pos=f"{r['y_pos']}/{r['y_n']}", source=r["file"])))
@@ -161,23 +208,27 @@ def main_window_1y(a, today):
 
 def main_horizons(a, today):
     L = [f"# Setup theo khung — scalping / day / swing — mỗi thị trường — {today}", "",
-         "_`scripts/rank-setups.py --horizons`. Quyết định người dùng 2026-09-11: mỗi thị trường chạy đủ 3 khung, kể cả khi lợi thế backtest yếu hoặc âm. Trong mỗi khung, luật tốt nhất theo cùng tiêu chí (không cháy → quý dương → năm dương → quý tệ nhất). Dòng âm được in nghiêng; scalping 5m/15m bị phí và trượt giá ăn nhiều nhất._", ""]
-    selection = dict(generated=today, mode="horizons", note="Written by scripts/rank-setups.py --horizons. One setup per horizon per market (user decision 2026-09-11). Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.", setups=[])
+         "_`scripts/rank-setups.py --horizons`. Quyết định người dùng 2026-09-11 (mở rộng 2026-09-13): mỗi thị trường chạy đủ 3 khung cho MỖI luật chạy được (RUNNABLE — WYCKOFF, WYCKOFF-BOOK, ICT, COMBINED). Sửa 2026-09-13 (quyết định người dùng): một ô CHỈ được lấp bởi luật có ≥ 3 tháng dữ liệu, không cháy, VÀ có lãi — không ai qua thì **bỏ trống ô**, không lấp bằng đứa đỡ tệ nhất. Trước đó ô được lấp kể cả khi mọi ứng viên đều lỗ, và lần xếp hạng 2026-09-13 đã chọn một luật CFD kết thúc ở $988 trên vốn $10.000. Lý do: `strategy-runner.py`'s `allowed_methods()` chỉ cho phép các luật mà method-switch preset đang bật; chọn theo (khung, luật) thay vì chỉ theo khung đảm bảo mọi preset (dù chỉ bật một luật, ví dụ ICT-only) vẫn có đủ 3 khung, thay vì chỉ có khung mà luật đó tình cờ thắng khi so giữa các luật. Trong mỗi (khung, luật), cấu hình/target tốt nhất theo cùng tiêu chí (không cháy → quý dương → năm dương → quý tệ nhất) — dòng âm được in nghiêng. Sửa tiếp 2026-09-13: mỗi khung chỉ ứng với MỘT timeframe — scalping 15m, day 1H, swing 4H — đúng như `automation.HORIZON_TF`; trước đó mỗi khung là một TẬP timeframe (kể cả 5m/30m/2H/1D) mà scanner không còn quét, nên có thể chọn ra setup không gì chạy được. Trong đó scalping 15m bị phí và trượt giá ăn nhiều nhất. Một khung có thể không đủ lệnh cho MỘT luật cụ thể dù các luật khác ở cùng khung có đủ — dòng đó vẫn được in để việc thiếu setup luôn hiện rõ, không âm thầm giảm số lượng._", ""]
+    selection = dict(generated=today, mode="horizons", note="Written by scripts/rank-setups.py --horizons. One setup per (horizon, method) per market -- every RUNNABLE method gets its own scalping/day/swing setups so any method-switch preset (strategy-runner.py allowed_methods()) still covers all 3 horizons (user decision 2026-09-11, extended 2026-09-13 for the per-method split). Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.", setups=[])
+    methods_order = sorted(RUNNABLE)   # deterministic order; RUNNABLE comes from the registry (scripts/methods.py runnable()), never hardcoded here
     for market, paths, syms in (("crypto", a.crypto, a.crypto_symbols.split(",")), ("cfd", a.cfd, a.cfd_symbols.split(","))):
         rows = load_rows(sorted(paths), market)
         L += [f"## {market.upper()}", "", "| Khung | TF | Luật | Target | Cấu hình | Lệnh | Vốn cuối ($10k) | %/năm | Sụt giảm | Quý dương | Quý tệ nhất | Ổn định | Năm dương (từng năm %) |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
-        for hz, tfs in HORIZONS.items():
+        for hz, tf in HORIZONS.items():
             mn = HORIZON_MIN_TRADES[hz] if a.window != "1y" else {"scalping": 20, "day": 15, "swing": 6}[hz]
-            ranked = [r for r in rank([r for r in rows if r["tf"] in tfs], mn, a.window if a.window == "1y" else None) if r["method"] in RUNNABLE and (market == "crypto" or r["tf"] in CFD_TFS)]
-            if not ranked:
-                L.append(f"| {hz} | — | — | — | — | — | không đủ dữ liệu / lệnh | | | | | | |"); continue
-            r = ranked[0]; w = r["w1y"] if a.window == "1y" else r; row = fmt(r, a.window if a.window == "1y" else None).replace("| ", "| " + hz + " | ", 1)
-            L.append(row if w["ann"] >= 0 else row.replace(f"| {hz} |", f"| *{hz}* |", 1))
-            cfg = CFG_DESC[r["cfg"]]
-            selection["setups"].append(dict(id=f"{market}-{hz}-{r['method'].lower()}-{r['tf'].lower()}-{r['target']}-{r['cfg'].lower()}", horizon=hz, rank=len(selection["setups"]) + 1, market=market, symbols=syms, tf=r["tf"], method=r["method"],
-                                            ict_target=r["target"] if r["method"] == "ICT" else None, htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
-                                            execution="futures" if market == "crypto" else "mt5", negative_backtest=bool(w["ann"] < 0),
-                                            backtest=dict(window=a.window, n=w["n"], ann_pct=round(w["ann"], 1), max_dd_pct=round(w["dd"], 1), q_pos_pct=round(w["q_pos"]), full_n=r["n"], full_ann_pct=round(r["ann"], 1), years_pos=f"{r['y_pos']}/{r['y_n']}", period=f"{r['first']}→{r['last']}", source=r["file"])))
+            for method in methods_order:
+                candidates = [r for r in rows if r["tf"] == tf and r["method"] == method and (market == "crypto" or r["tf"] in CFD_TFS)]
+                ranked = rank(candidates, mn, a.window if a.window == "1y" else None)
+                if not ranked:
+                    L.append(f"| {hz} | — | {method} | — | — | — | không đủ dữ liệu / lệnh | | | | | | |"); continue
+                r = ranked[0]; w = r["w1y"] if a.window == "1y" else r; row = fmt(r, a.window if a.window == "1y" else None).replace("| ", "| " + hz + " | ", 1)
+                L.append(row if w["ann"] >= 0 else row.replace(f"| {hz} |", f"| *{hz}* |", 1))
+                cfg = CFG_DESC[r["cfg"]]
+                # ict_target dropped (see the top-level rank() call above for why).
+                selection["setups"].append(dict(id=f"{market}-{hz}-{r['method'].lower()}-{r['tf'].lower()}-{r['target']}-{r['cfg'].lower()}", horizon=hz, rank=len(selection["setups"]) + 1, market=market, symbols=syms, tf=r["tf"], method=r["method"],
+                                                htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=cfg["fee"],
+                                                execution="futures" if market == "crypto" else "mt5", negative_backtest=bool(w["ann"] < 0),
+                                                backtest=dict(window=a.window, n=w["n"], ann_pct=round(w["ann"], 1), max_dd_pct=round(w["dd"], 1), q_pos_pct=round(w["q_pos"]), full_n=r["n"], full_ann_pct=round(r["ann"], 1), years_pos=f"{r['y_pos']}/{r['y_n']}", period=f"{r['first']}→{r['last']}", source=r["file"])))
         L.append("")
     if a.window == "1y":
         L[0] = L[0].replace("— mỗi thị trường —", "— mỗi thị trường — xếp trên 12 tháng gần nhất —"); selection["mode"] = "horizons-1y"

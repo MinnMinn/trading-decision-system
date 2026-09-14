@@ -1,3 +1,5 @@
+> **Superseded 2026-09-13.** The ICT figures here were produced by the legacy in-file rules, replaced by the live scanner (`docs/plans/2026-09-13-unify-backtest-with-live-rules.md`). Wyckoff / COMBINED / PARTIAL figures are unaffected.
+
 # Vì sao Wyckoff hoặc ICT dùng riêng thua nhiều — chẩn đoán và thử khắc phục (2026-09-11)
 
 > **Cảnh báo (cùng ngày, muộn hơn):** các số ICT/Kết hợp trong file này được đo TRƯỚC khi vá lỗi nhìn-trước của FVG và luật vào Kết hợp (xem `2026-09-11-stability-by-timeframe.md`, mục Cách đọc). Phần chẩn đoán Wyckoff (phí, vùng proxy, Test, target) vẫn đúng; các cột ICT/Kết hợp và lưới khắc phục thì lạc quan quá mức.

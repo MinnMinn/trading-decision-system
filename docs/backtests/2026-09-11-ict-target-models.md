@@ -1,3 +1,5 @@
+> **Superseded 2026-09-13.** The ICT figures here were produced by the legacy in-file rules, replaced by the live scanner (`docs/plans/2026-09-13-unify-backtest-with-live-rules.md`). Wyckoff / COMBINED / PARTIAL figures are unaffected.
+
 # Target ICT theo deck — chiếu std-dev, ERL kế tiếp, IRL — 2026-09-11 (lựa chọn 3 của người dùng)
 
 Luật vào ICT giữ nguyên (sweep pivot → MSS đóng thân → FVG hoàn thành trước MSS → limit tại mép FVG, nhân quả). Chỉ đổi cách đặt target

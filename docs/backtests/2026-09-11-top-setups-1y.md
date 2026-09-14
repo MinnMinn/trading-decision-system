@@ -1,3 +1,5 @@
+> **Superseded 2026-09-13.** The ICT figures here were produced by the legacy in-file rules, replaced by the live scanner (`docs/plans/2026-09-13-unify-backtest-with-live-rules.md`). Wyckoff / COMBINED / PARTIAL figures are unaffected.
+
 # Top 5 setup mỗi thị trường — hiệu quả 12 tháng gần nhất — 2026-09-11
 
 _`scripts/rank-setups.py --window 1y` (được `/automation on setup top N` gọi). Xếp theo cửa sổ 365 ngày cuối của mỗi dòng: không cháy → tỉ lệ quý dương trong năm → lợi nhuận năm → quý tệ nhất; mỗi (khung, luật) giữ một target và cấu hình. Cột cuối là toàn bộ lịch sử để đối chiếu. Cả long lẫn short; số là proxy code trên lịch sử nghiên cứu (CFD = futures Yahoo)._
@@ -21,4 +23,3 @@ _`scripts/rank-setups.py --window 1y` (được `/automation on setup top N` g�
 | 4H | WYCKOFF | border | C | 46 | $9,855 | -1.5% | −11.4% | 40% | -3.5% | 106 · +5.7%/năm · 60% quý dương · 2/3 năm |
 | 1H | ICT | std25 | B | 19 | $10,957 | +9.6% | −6.5% | 20% | -4.3% | 61 · +7.9%/năm · 50% quý dương · 2/3 năm |
 | 2H | WYCKOFF | border | B | 111 | $8,319 | -16.8% | −18.8% | 20% | -10.6% | 264 · -14.7%/năm · 40% quý dương · 0/3 năm |
-

@@ -112,6 +112,22 @@ function volStats(rows, P){
   for(let i=0;i<n;i++){ const a=Math.max(0,i-lb), k=i-a; if(k<3)continue; let s=0; for(let j=a;j<i;j++)s+=rows[j][5]; avg[i]=s/k; ratio[i]=avg[i]?rows[i][5]/avg[i]:null; }
   return {avg,ratio};
 }
+
+// ICT second-pane read (pane.kind 'range_pct', docs/architecture/methods.json): per-bar position within the
+// dealing range ict.lo..ict.hi (the scanner's authoritative bounds -- same lo/hi ict.pct already uses for the
+// latest bar, k04 §2.18-2.19). Normalising every bar's close within those bounds is arithmetic on an already
+// -computed range, not a new judgement; EQ (0.5 of the range, R13) sits at 50. No volume input -- the ICT
+// corpus has none (knowledge/10-integrated-method.md §4.1).
+function rangePctSeries(rows, ict){
+  const lo=ict.lo, hi=ict.hi, span=(hi-lo)||1;
+  return rows.map(r=>({time:unix(r[6]), value:Math.max(0,Math.min(100,(r[4]-lo)/span*100))}));
+}
+// EQ marker for the range_pct pane's own axis: a short value, like the price pane's own EQ tag ('EQ '+fmt(ict.eq)
+// in ictShapes below) -- never the pane registry's full descriptive label (methods.json pane.label, a whole
+// sentence for the legend/pane-note, not the axis). Concatenating that sentence onto an axis label widened every
+// chart's right-hand gutter (regression from the 27568e7 ICT-pane-replacement commit; scripts/tests/
+// test_build_artifact.py RangePaneAxisLabelIsCompact pins this).
+const rangePctEqShape = () => ({kind:'hseg', i1:null, i2:null, price:50, stroke:'faint', sw:1, dash:[4,3], label:'EQ 50%', labelAt:'axis'});
 const idxOf=(rows,iso)=>{ if(!iso)return -1; let best=-1; for(let i=0;i<rows.length;i++){ if(rows[i][6]<=iso)best=i; else break; } return best>=0&&rows[best][6]===iso?best:(best>=0&&rows[best][6].slice(0,13)===iso.slice(0,13)?best:-1); };
 const spanOf=(rows,iso)=>{ if(!iso)return -1; for(let i=0;i<rows.length;i++){ if(rows[i][6]>=iso)return i; } return rows.length; };
 
@@ -204,12 +220,11 @@ const rulerShapes = (entry, stop, i1, i2, fmt) => {
   return S;
 };
 
-const api = {ictAnalyze, volStats, idxOf, spanOf, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, rulerShapes, unix};
+const api = {ictAnalyze, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, rulerShapes, unix};
 if(!root || typeof document==='undefined') return api;   // node: pure API only
 
 // =============================================================================================== browser: rendering
 const LWC = root.LightweightCharts;
-const LANES = ['wyckoff','ict','footprint','heatmap'];
 const fmtOf = k => k==='int' ? (v=>Math.round(v).toLocaleString('en-US')) : (v=>v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
 const TOKENS = {up:'--up',down:'--down',ink:'--ink',ink2:'--ink-2',muted:'--muted',faint:'--faint',line:'--line',lineStrong:'--line-strong',surface:'--surface',surface2:'--surface-2',surface3:'--surface-3',accent:'--accent',w:'--w',i:'--i',warn:'--warn',upSoft:'--up-soft',downSoft:'--down-soft'};
 function colors(){ const cs=getComputedStyle(document.documentElement), C={}; for(const k in TOKENS) C[k]=cs.getPropertyValue(TOKENS[k]).trim()||'#888'; C.mono=cs.getPropertyValue('--mono').trim()||'monospace'; return C; }
@@ -296,16 +311,21 @@ function makeChart(block, d, t, P, C){
   const rows=t.rows, fmt=fmtOf(d.fmt), N=rows.length;
   const chart=LWC.createChart(el, chartOptions(C,fmt));
   const candles=chart.addSeries(LWC.CandlestickSeries,{upColor:C.surface2, downColor:C.down, borderVisible:true, borderUpColor:C.up, borderDownColor:C.down, wickUpColor:C.up, wickDownColor:C.down, priceLineVisible:true, priceLineColor:withAlpha(C.ink,0.5), lastValueVisible:true});
-  const vol=chart.addSeries(LWC.HistogramSeries,{priceScaleId:'vol', priceFormat:{type:'custom', formatter:v=>v.toLocaleString('en-US',{maximumFractionDigits:v>=100?0:2}), minMove:0.01}, lastValueVisible:false, priceLineVisible:false},1);
-  const avg=chart.addSeries(LWC.LineSeries,{priceScaleId:'vol', color:withAlpha(C.ink2,0.8), lineWidth:1, lastValueVisible:false, priceLineVisible:false, crosshairMarkerVisible:false},1);
-  const pane1=chart.panes()[1]; pane1.setHeight(VOL_H); pane1.priceScale('vol').applyOptions({scaleMargins:{top:0.15,bottom:0}});
-  const ann=new Annotations(C), annVol=new Annotations(C), note=new PaneNote(C); candles.attachPrimitive(ann); vol.attachPrimitive(annVol); pane1.attachPrimitive(note);
+  // Second pane (under the price chart): ONE pane, its content keyed by the active lane's registered pane.kind
+  // (docs/architecture/methods.json `pane`, injected as P.panes). All series share the pane's price scale so
+  // the pane's height never jumps when the lane switches; only the active kind's series carries data.
+  const vol=chart.addSeries(LWC.HistogramSeries,{priceScaleId:'pane1', priceFormat:{type:'custom', formatter:v=>v.toLocaleString('en-US',{maximumFractionDigits:v>=100?0:2}), minMove:0.01}, lastValueVisible:false, priceLineVisible:false},1);
+  const avg=chart.addSeries(LWC.LineSeries,{priceScaleId:'pane1', color:withAlpha(C.ink2,0.8), lineWidth:1, lastValueVisible:false, priceLineVisible:false, crosshairMarkerVisible:false},1);
+  const range=chart.addSeries(LWC.LineSeries,{priceScaleId:'pane1', color:withAlpha(C.i,0.9), lineWidth:1.4, lastValueVisible:false, priceLineVisible:false, crosshairMarkerVisible:false, priceFormat:{type:'custom', formatter:v=>Math.round(v)+'%', minMove:1}},1);
+  const pane1=chart.panes()[1]; pane1.setHeight(VOL_H); pane1.priceScale('pane1').applyOptions({scaleMargins:{top:0.15,bottom:0}});
+  const ann=new Annotations(C), annVol=new Annotations(C), annRange=new Annotations(C), note=new PaneNote(C);
+  candles.attachPrimitive(ann); vol.attachPrimitive(annVol); range.attachPrimitive(annRange); pane1.attachPrimitive(note);
   candles.setData(rows.map(r=>({time:unix(r[6]), open:r[1], high:r[2], low:r[3], close:r[4]})));
   chart.timeScale().fitContent();
   // engines run ONCE on the tier window (§2): overlays never depend on the zoom
   const cfg={kz:t.kz, tfMin:t.tfMin, market:d.market};
   const full={ict:ictAnalyze(rows,cfg,P), vs:volStats(rows,P)};
-  const h={block, chart, candles, vol, avg, ann, annVol, note, rows, fmt, cfg, full, d, t, C, lane:'wyckoff', cursor:null, ruler:null, tip, el, wrap};
+  const h={block, chart, candles, vol, avg, range, ann, annVol, annRange, note, rows, fmt, cfg, full, d, t, C, lane:'wyckoff', cursor:null, ruler:null, tip, el, wrap};
   // tooltip fed by the library's crosshair (OHLC, %, volume vs mean, % of dealing range)
   chart.subscribeCrosshairMove(p=>{ if(!p.point||p.logical==null){ tip.style.display='none'; return; } const i=Math.round(p.logical); if(i<0||i>=N){ tip.style.display='none'; return; }
     if(!h.view){ tip.style.display='none'; return; } const c=rows[i], up=c[4]>=c[1], vs=h.view.vs, ict=h.view.ict, ratio=vs.ratio[i];
@@ -339,15 +359,24 @@ function applyLane(h, lane, P){
   if(h.ruler&&h.ruler.entry!=null&&h.ruler.stop!=null) S=S.concat(rulerShapes(h.ruler.entry,h.ruler.stop,h.ruler.i1,h.ruler.i2,fmt));
   else if(h.ruler&&h.ruler.entry!=null) S=S.concat([{kind:'hseg',i1:h.ruler.i1-0.5,i2:h.ruler.i1+0.5,price:h.ruler.entry,stroke:'ink',sw:1.5,label:'vào '+fmt(h.ruler.entry),labelAt:'axis'}]);
   h.ann.set(S);
-  const showVol=lane==='wyckoff'; h.vol.applyOptions({visible:showVol}); h.avg.applyOptions({visible:showVol});
+  // Second pane: the active lane's own registered pane.kind (P.panes, docs/architecture/methods.json) decides
+  // what fills it -- ONE declared slot per dimension, not a hardcoded lane check (Task: ICT pane replacement).
+  const pane=(P.panes||{})[lane]||{kind:'unavailable',label:''};
+  const showVol=pane.kind==='volume', showRange=pane.kind==='range_pct';
+  h.vol.applyOptions({visible:showVol}); h.avg.applyOptions({visible:showVol}); h.range.applyOptions({visible:showRange});
   if(showVol){ const vs=h.view.vs, P_=P||{}, n=rowsV.length;
     h.vol.setData(rowsV.map((c,i)=>{ const r=vs.ratio[i], up=c[4]>=c[1]; const hi=r!=null&&r>=P_.high; return {time:unix(c[6]), value:c[5], color:withAlpha(hi?C.w:(up?C.up:C.down), hi?(r>=P_.spike?1:0.85):0.42)}; }));
     h.avg.setData(rowsV.map((c,i)=>vs.avg[i]==null?{time:unix(c[6])}:{time:unix(c[6]),value:vs.avg[i]}));
     const L=[]; if(!compact){ const spikes=rowsV.map((c,i)=>({i,r:vs.ratio[i]})).filter(o=>o.r!=null&&o.r>=P_.spike).sort((a,b)=>b.r-a.r), gapN=Math.ceil(n/40), labeled=[];
       spikes.forEach(o=>{ if(labeled.some(j=>Math.abs(j-o.i)<gapN))return; labeled.push(o.i); L.push({kind:'label',i:o.i,price:rowsV[o.i][5],text:o.r.toFixed(1)+'×',color:'w',anchor:'middle',dx:0,dy:-7}); });
       L.push({kind:'label',i:null,price:vs.avg.filter(v=>v!=null).slice(-1)[0]||0,text:'TB '+(P_.lookback||20)+' nến',color:'faint',anchor:'end',dx:-4,dy:-7}); }
-    h.annVol.set(L); h.note.set(''); }
-  else { h.vol.setData([]); h.avg.setData([]); h.annVol.set([]); h.note.set('khối lượng không thuộc ICT — pane để trống để chart giữ nguyên kích thước khi đổi phương pháp'); }
+    h.annVol.set(L); h.range.setData([]); h.annRange.set([]); h.note.set(''); }
+  else if(showRange){ h.vol.setData([]); h.avg.setData([]); h.annVol.set([]);
+    h.range.setData(rangePctSeries(rowsV, h.view.ict));
+    h.annRange.set([rangePctEqShape()]);
+    h.note.set(''); }
+  else { h.vol.setData([]); h.avg.setData([]); h.annVol.set([]); h.range.setData([]); h.annRange.set([]);
+    h.note.set((pane.label?pane.label+' — ':'')+'chưa có nguồn live, không vẽ (SYSTEM-DESIGN §12)'); }
 }
 function candlesData(h){ const rows=h.cursor==null?h.rows:h.rows.slice(0,h.cursor+1); if(h._n===rows.length) return; h._n=rows.length; h.candles.setData(rows.map(r=>({time:unix(r[6]), open:r[1], high:r[2], low:r[3], close:r[4]}))); }
 
@@ -369,19 +398,24 @@ function init(DATA, P){
     d.tiers.forEach(t=>{ const block=document.getElementById(`${t.key}-${key}`); if(!block||!block.querySelector('.chart'))return; if(t.compact&&entry) t.window={from:entry.rows[0][6]};
       const h=makeChart(block,d,t,P,C); h.key=key; charts.push(h); block.addEventListener('pointerenter',()=>{ focus=h; }); }); }
   function render(){ document.body.dataset.lane=lane; document.querySelectorAll('.lane-btn').forEach(b=>b.classList.toggle('active',b.dataset.lane===lane));
-    const drawn=lane==='wyckoff'||lane==='ict';
-    for(const key in DATA){ const d=DATA[key];
+    // "drawn" = this lane has a chart overlay engine (P.overlayLanes, a chart.js-owned rendering fact) AND is
+    // actually engaged for this symbol (d.engaged, from the builder's per-market/per-symbol dims -- Task 10b
+    // item 4). Both facts are injected so this is never a hand-kept lane list here.
+    const overlayLanes=P.overlayLanes, laneLabels=P.laneLabels||{};
+    const drawnFor={}; for(const key in DATA) drawnFor[key]=overlayLanes.includes(lane)&&((DATA[key].engaged||[]).includes(lane));
+    for(const key in DATA){ const d=DATA[key], drawn=drawnFor[key];
       d.tiers.forEach(t=>{ const block=document.getElementById(`${t.key}-${key}`); if(!block)return; const wrap=block.querySelector('.chart-wrap'), st=block.querySelector('.lane-status'); if(!wrap)return;
-        wrap.hidden=!drawn; st.hidden=drawn; if(!drawn){ st.innerHTML=`<span class="lane-dot"></span><span><b>${lane==='footprint'?'Footprint':'Heatmap'}</b> — ${d.dims[lane]}</span>`; } });
+        wrap.hidden=!drawn; st.hidden=drawn; if(!drawn){ st.innerHTML=`<span class="lane-dot"></span><span><b>${laneLabels[lane]||lane}</b> — ${(d.dims||{})[lane]||''}</span>`; } });
       const leg=document.getElementById(`legend-${key}`); if(leg){ leg.hidden=!drawn; if(drawn){ leg.innerHTML = lane==='wyckoff'
         ? `<span><i class="sw up"></i>nến đóng tăng</span><span><i class="sw down"></i>nến đóng giảm</span><span><i class="sw vol"></i>khối lượng${d.tick?' (tick, MT5)':''}</span><span><i class="sw volhi"></i>KL ≥ ${P.high}× TB ${P.lookback} nến (≥ ${P.spike}× ghi số)</span><span><i class="sw tr"></i>biên vùng giao dịch (AR / SC)</span><span><i class="sw ph"></i>pha A–E</span><span>● sự kiện Wyckoff do phân tích đầy đủ đặt</span>${d.plans&&d.plans.length?'<span><i class="sw plan"></i>kế hoạch lệnh từ trades/ (hộp đỏ = rủi ro, xanh = lời)</span>':''}`
-        : `<span><i class="sw fvgb"></i>FVG tăng</span><span><i class="sw fvgs"></i>FVG giảm (nét chấm = CE 0.5)</span><span><i class="sw ob"></i>OB: đường open + 0.5 mean threshold (mờ = đã chạm open)</span><span><i class="sw liq"></i>BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)</span><span><i class="sw lvl"></i>PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)</span><span><i class="sw eq"></i>EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới</span><span><i class="sw cisd"></i>CISD (● = nến đóng qua)</span>${d.kz?'<span><i class="sw kz"></i>killzone LDN / NY AM / NY PM theo session-model (½ = trọng số giảm)</span>':'<span>killzone: không vẽ ở khung này</span>'}<span>MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement</span><span>OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực</span><span class="muted">ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)</span>`; } } }
-    if(drawn) charts.forEach(h=>applyLane(h,lane,P)); }
-  function retheme(){ C=colors(); charts.forEach(h=>{ h.C=C; h.chart.applyOptions(chartOptions(C,h.fmt)); h.candles.applyOptions({upColor:C.surface2, downColor:C.down, borderUpColor:C.up, borderDownColor:C.down, wickUpColor:C.up, wickDownColor:C.down, priceLineColor:withAlpha(C.ink,0.5)}); h.avg.applyOptions({color:withAlpha(C.ink2,0.8)}); h.ann.setColors(C); h.annVol.setColors(C); h.note.setColors(C); }); render(); }
+        : `<span><i class="sw fvgb"></i>FVG tăng</span><span><i class="sw fvgs"></i>FVG giảm (nét chấm = CE 0.5)</span><span><i class="sw ob"></i>OB: đường open + 0.5 mean threshold (mờ = đã chạm open)</span><span><i class="sw liq"></i>BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)</span><span><i class="sw lvl"></i>PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)</span><span><i class="sw eq"></i>EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới</span><span><i class="sw cisd"></i>CISD (● = nến đóng qua)</span>${d.kz?'<span><i class="sw kz"></i>killzone LDN / NY AM / NY PM theo session-model (½ = trọng số giảm)</span>':'<span>killzone: không vẽ ở khung này</span>'}<span>MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement</span><span>OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực</span><span>pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên), EQ = 50%</span><span class="muted">ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)</span>`; } } }
+    charts.forEach(h=>{ if(drawnFor[h.key]) applyLane(h,lane,P); }); }
+  function retheme(){ C=colors(); charts.forEach(h=>{ h.C=C; h.chart.applyOptions(chartOptions(C,h.fmt)); h.candles.applyOptions({upColor:C.surface2, downColor:C.down, borderUpColor:C.up, borderDownColor:C.down, wickUpColor:C.up, wickDownColor:C.down, priceLineColor:withAlpha(C.ink,0.5)}); h.avg.applyOptions({color:withAlpha(C.ink2,0.8)}); h.range.applyOptions({color:withAlpha(C.i,0.9)}); h.ann.setColors(C); h.annVol.setColors(C); h.annRange.setColors(C); h.note.setColors(C); }); render(); }
   new MutationObserver(retheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
   if(root.matchMedia){ const mq=root.matchMedia('(prefers-color-scheme: dark)'); (mq.addEventListener?mq.addEventListener('change',retheme):mq.addListener(retheme)); }
   root.setLane=l=>{ lane=l; render(); };
-  document.addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return; const k={'1':'wyckoff','2':'ict','3':'footprint','4':'heatmap'}[e.key]; if(k){ root.setLane(k); return; }
+  document.addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+    const numIdx='1234'.indexOf(e.key), k=numIdx>=0?P.laneOrder[numIdx]:undefined; if(k){ root.setLane(k); return; }
     const h=focus||charts[charts.length-1]; if(!h)return;
     if(e.key==='End'){ h.chart.timeScale().scrollToRealTime(); e.preventDefault(); }
     else if(e.key==='r'||e.key==='R'){ toggleRuler(h); }

@@ -1,12 +1,11 @@
 {
   "schema_version": 3,
   "_comment": "Written by scripts/automation.py (/automation). execution.environment may ALSO be edited by hand to switch between config/env.demo and config/env.real; `/automation demo|real` writes it too. The schema at docs/architecture/schemas/automation-config.schema.json is the contract.",
-  "enabled": false,
+  "enabled": true,
   "execution": {
     "environment": "demo",
-    "pilot_profile": "top5",
     "_note": "demo = Binance TESTNET via config/env.demo; real = Binance MAINNET (real money) via config/env.real. Switch by hand here or with `/automation demo|real`. The connectors and the pilot read this on every call; an environment file with placeholder secrets refuses to execute.",
-    "setup_spec": "top 5 (1y)"
+    "setup_spec": "horizons (1y)"
   },
   "markets": {
     "crypto": {
@@ -14,60 +13,63 @@
       "instruments": [
         "BTCUSDT",
         "ETHUSDT",
-        "SOLUSDT"
+        "SOLUSDT",
+        "ASTERUSDT",
+        "VIRTUALUSDT",
+        "SUIUSDT",
+        "TAOUSDT",
+        "RENDERUSDT",
+        "ONDOUSDT"
       ],
       "dimensions": {
-        "wyckoff": true,
+        "wyckoff": false,
         "ict": true,
-        "footprint": true,
-        "heatmap": true
+        "footprint": false,
+        "heatmap": false
       },
       "timeframes": {
-        "1m": true,
         "15m": true,
         "1h": true,
-        "4h": true,
-        "1D": false
+        "4h": true
       }
     },
     "cfd": {
-      "enabled": true,
+      "enabled": false,
       "instruments": [
-        "XAUUSD"
+        "XAUUSD",
+        "XAGUSD"
       ],
       "dimensions": {
-        "wyckoff": true,
+        "wyckoff": false,
         "ict": true
       },
       "timeframes": {
-        "5m": true,
         "15m": true,
         "1h": true,
-        "4h": true,
-        "1D": false
+        "4h": true
       }
     }
   },
   "layers": {
     "scanner": true,
     "local_read": true,
-    "pilot": true
+    "pilot": false
   },
   "services": {
-    "scanner_agent": false,
+    "scanner_agent": true,
     "pilot_agents": [],
-    "keepawake_pid": null
+    "keepawake_pid": 90087
   },
   "pilot_process": {
     "pid": 0,
     "market": "futures",
-    "started_at": "2026-09-11T15:13:19Z",
-    "started_by": "claude:session_01Ad4FsYEdbjnsEwD3nbLtxC",
+    "started_at": "2026-09-12T16:56:45Z",
+    "started_by": "claude:session_0184oipxid1hGXC1GLF59nVb",
     "log": "data/live/pilot-futures/loop.log",
     "launchd_label": "com.tyme.trading.pilot.futures",
-    "stopped_at": "2026-09-11T19:54:59Z"
+    "stopped_at": "2026-09-12T18:25:54Z"
   },
-  "last_updated": "2026-09-11T19:54:59Z",
+  "last_updated": "2026-09-13T09:26:54Z",
   "history": [
     {
       "ts": "2026-09-10T10:06:03Z",
@@ -683,6 +685,349 @@
       "actor": "claude:session_01Ad4FsYEdbjnsEwD3nbLtxC",
       "action": "off",
       "detail": "/automation off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T02:25:45Z",
+      "actor": "claude:session_01Hm345W4pmHsiarbxvEpaQ4",
+      "action": "market crypto=on",
+      "detail": "on market crypto",
+      "result": "no-op"
+    },
+    {
+      "ts": "2026-09-12T02:27:42Z",
+      "actor": "claude:session_01Hm345W4pmHsiarbxvEpaQ4",
+      "action": "market cfd=off",
+      "detail": "on market crypto: disable cfd so only crypto comes up",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T02:27:48Z",
+      "actor": "claude:session_01Hm345W4pmHsiarbxvEpaQ4",
+      "action": "on",
+      "detail": "on market crypto: bring up crypto-only automation",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T04:06:02Z",
+      "actor": "claude:session_01Hm345W4pmHsiarbxvEpaQ4",
+      "action": "setup horizons",
+      "detail": "on setup horizons",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T04:06:02Z",
+      "actor": "claude:session_01Hm345W4pmHsiarbxvEpaQ4",
+      "action": "on",
+      "detail": "on setup horizons",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T05:55:06Z",
+      "actor": "claude:session_01Hm345W4pmHsiarbxvEpaQ4",
+      "action": "off",
+      "detail": "user ran /automation off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T06:07:20Z",
+      "actor": "claude:session_016sCvZrJ9sgJjCAsHHA7t9N",
+      "action": "market crypto=on",
+      "detail": "on market crypto",
+      "result": "no-op"
+    },
+    {
+      "ts": "2026-09-12T06:07:48Z",
+      "actor": "claude:session_016sCvZrJ9sgJjCAsHHA7t9N",
+      "action": "setup horizons",
+      "detail": "on market crypto",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T06:07:48Z",
+      "actor": "claude:session_016sCvZrJ9sgJjCAsHHA7t9N",
+      "action": "on",
+      "detail": "on market crypto",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T07:11:38Z",
+      "actor": "claude:session_016sCvZrJ9sgJjCAsHHA7t9N",
+      "action": "off",
+      "detail": "off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T07:16:21Z",
+      "actor": "claude:session_011mXUrsx57V3LL1ubjqhahS",
+      "action": "market crypto=on",
+      "detail": "on market crypto",
+      "result": "no-op"
+    },
+    {
+      "ts": "2026-09-12T07:16:25Z",
+      "actor": "claude:session_011mXUrsx57V3LL1ubjqhahS",
+      "action": "setup horizons",
+      "detail": "on market crypto",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T07:16:25Z",
+      "actor": "claude:session_011mXUrsx57V3LL1ubjqhahS",
+      "action": "on",
+      "detail": "on market crypto",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T07:35:27Z",
+      "actor": "claude:session_011mXUrsx57V3LL1ubjqhahS",
+      "action": "instrument ASTERUSDT=on",
+      "detail": "user asked to watch ASTER",
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-12T07:46:25Z",
+      "actor": "tungnguyen",
+      "action": "instrument ASTERUSDT=on (market crypto)",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T07:46:25Z",
+      "actor": "tungnguyen",
+      "action": "instrument VIRTUALUSDT=on (market crypto)",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T07:46:25Z",
+      "actor": "tungnguyen",
+      "action": "instrument SUIUSDT=on (market crypto)",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T07:46:25Z",
+      "actor": "tungnguyen",
+      "action": "instrument TAOUSDT=on (market crypto)",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T07:46:25Z",
+      "actor": "tungnguyen",
+      "action": "instrument RENDERUSDT=on (market crypto)",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T07:46:25Z",
+      "actor": "tungnguyen",
+      "action": "instrument ONDOUSDT=on (market crypto)",
+      "detail": null,
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T07:53:01Z",
+      "actor": "tungnguyen",
+      "action": "instrument DOGEUSDT=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-12T07:53:01Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-12T08:17:25Z",
+      "actor": "claude:session_011mXUrsx57V3LL1ubjqhahS",
+      "action": "pilot start --market futures",
+      "detail": "pilot start --market futures",
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-12T08:27:36Z",
+      "actor": "claude:session_01TmYaw8mrfuDPM3da4irjTH",
+      "action": "market crypto=on",
+      "detail": "on market crypto",
+      "result": "no-op"
+    },
+    {
+      "ts": "2026-09-12T08:34:47Z",
+      "actor": "claude:session_01TmYaw8mrfuDPM3da4irjTH",
+      "action": "market crypto=on",
+      "detail": "on market crypto",
+      "result": "no-op"
+    },
+    {
+      "ts": "2026-09-12T08:36:50Z",
+      "actor": "claude:session_01TmYaw8mrfuDPM3da4irjTH",
+      "action": "setup horizons",
+      "detail": "artifacts not auto-updating; re-arm session crons in this open session",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T08:36:50Z",
+      "actor": "claude:session_01TmYaw8mrfuDPM3da4irjTH",
+      "action": "on",
+      "detail": "artifacts not auto-updating; re-arm session crons in this open session",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T08:53:51Z",
+      "actor": "claude:session_01TmYaw8mrfuDPM3da4irjTH",
+      "action": "off",
+      "detail": "off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T08:55:10Z",
+      "actor": "claude:session_01QrY1pViUh6YEQfYUAzGpXK",
+      "action": "setup horizons",
+      "detail": "/automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T08:55:10Z",
+      "actor": "claude:session_01QrY1pViUh6YEQfYUAzGpXK",
+      "action": "on",
+      "detail": "/automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T10:08:26Z",
+      "actor": "claude:session_01QrY1pViUh6YEQfYUAzGpXK",
+      "action": "off",
+      "detail": "/automation off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T15:45:36Z",
+      "actor": "claude:session_01GnHJ2YYvJdEj9wKhe3Nxkp",
+      "action": "setup horizons",
+      "detail": "user ran /automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T15:45:36Z",
+      "actor": "claude:session_01GnHJ2YYvJdEj9wKhe3Nxkp",
+      "action": "on",
+      "detail": "user ran /automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T15:55:25Z",
+      "actor": "artifact-panel",
+      "action": "method ict --market crypto",
+      "detail": "method panel",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T15:55:29Z",
+      "actor": "artifact-panel",
+      "action": "instrument set BTCUSDT,ETHUSDT,SOLUSDT --market crypto",
+      "detail": "method panel",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T15:55:30Z",
+      "actor": "artifact-panel",
+      "action": "method ict --market cfd",
+      "detail": "method panel",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T15:55:33Z",
+      "actor": "artifact-panel",
+      "action": "instrument set XAGUSD --market cfd",
+      "detail": "method panel",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T16:25:23Z",
+      "actor": "artifact-panel",
+      "action": "method ict --market crypto",
+      "detail": "method panel",
+      "result": "no-op"
+    },
+    {
+      "ts": "2026-09-12T16:25:25Z",
+      "actor": "artifact-panel",
+      "action": "instrument set BTCUSDT,ETHUSDT,SOLUSDT,ASTERUSDT,VIRTUALUSDT,SUIUSDT,TAOUSDT,RENDERUSDT,ONDOUSDT --market crypto",
+      "detail": "method panel",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T16:25:30Z",
+      "actor": "artifact-panel",
+      "action": "method ict --market cfd",
+      "detail": "method panel",
+      "result": "no-op"
+    },
+    {
+      "ts": "2026-09-12T16:25:31Z",
+      "actor": "artifact-panel",
+      "action": "instrument set XAUUSD,XAGUSD --market cfd",
+      "detail": "method panel",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T16:42:32Z",
+      "actor": "claude:session_01GnHJ2YYvJdEj9wKhe3Nxkp",
+      "action": "off",
+      "detail": "user ran /automation off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T16:56:45Z",
+      "actor": "claude:session_0184oipxid1hGXC1GLF59nVb",
+      "action": "setup horizons",
+      "detail": "user ran /automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T16:56:45Z",
+      "actor": "claude:session_0184oipxid1hGXC1GLF59nVb",
+      "action": "on",
+      "detail": "user ran /automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T18:25:54Z",
+      "actor": "user (via Claude)",
+      "action": "pilot stop",
+      "detail": "futures connector cannot place protective stops: Binance -4120, STOP_MARKET moved to the Algo Order API",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-12T19:00:07Z",
+      "actor": "claude:session_0184oipxid1hGXC1GLF59nVb",
+      "action": "off",
+      "detail": "user requested /automation off",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-13T04:58:52Z",
+      "actor": "user (via Claude)",
+      "action": "layer pilot=off",
+      "detail": "pause the top5 pilot while the backtest is unified with the live rules; nothing deleted, re-enable with: automation.py layer pilot on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-13T09:26:54Z",
+      "actor": "user (via Claude)",
+      "action": "setup horizons",
+      "detail": "re-enable analysis only: scanner + local_read; layers.pilot stays off pending Security re-review and re-rank after the backtest/live-rules unification",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-13T09:26:54Z",
+      "actor": "user (via Claude)",
+      "action": "on",
+      "detail": "re-enable analysis only: scanner + local_read; layers.pilot stays off pending Security re-review and re-rank after the backtest/live-rules unification",
       "result": "applied"
     }
   ]

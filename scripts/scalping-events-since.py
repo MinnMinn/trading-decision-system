@@ -3,7 +3,9 @@
 
 Prints ONE line: either  NONE  (no scalping event in data/live/events.jsonl newer than the last local read)
 or a short Vietnamese summary of the new events, deduplicated by (symbol, kind, level) -- the scanner re-emits
-the same MSS every minute as its window slides, so raw line counts overstate what actually happened.
+the same MSS on every pass as its window slides, so raw line counts overstate what actually happened.
+(Written when scalping meant 1m and a pass ran every minute; scalping is 15m since 2026-09-13, so the
+re-emission is per 15m pass -- rarer, but the double-count it corrects for is the same.)
 
 "Last local read" = the oldest mtime among data/live/prelim/scalping.<SYM>.model.html (missing file = never read).
 Usage: scalping-events-since.py [--min-events N]      exit 0 always; the caller reads the first line.
