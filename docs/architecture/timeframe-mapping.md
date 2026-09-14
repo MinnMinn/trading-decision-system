@@ -1,6 +1,7 @@
 # Chọn khung thời gian: bối cảnh → cấu trúc → vào lệnh
 
-Last updated: 2026-09-12. Câu hỏi gốc của người dùng: *"cửa sổ chính M15 nhưng bối cảnh H4 có hợp lý không?"* — và yêu cầu
+Last updated: 2026-09-13 (§5 rewritten for the three-horizon ladder; §4 frozen as the 2026-09-12 audit record).
+Câu hỏi gốc của người dùng: *"cửa sổ chính M15 nhưng bối cảnh H4 có hợp lý không?"* — và yêu cầu
 rà soát mọi lựa chọn khung thời gian trong repo hiện chỉ là phỏng đoán, đối chiếu nguồn, thay nếu cần.
 
 Tài liệu này là **nguồn duy nhất** cho quy tắc ghép khung. `scripts/automation.py` `CONTEXT_STYLE` và
@@ -25,8 +26,9 @@ nguồn ba tầng (Elder, ICT top-down, chính trang TTrades) đều đặt **m�
 
 Kết luận: **M15/H4 đúng nếu hiểu H4 là *cấu trúc* và M15 là *vào lệnh* (cặp TTrades, 2 tầng). Nếu muốn nhìn chart
 đúng theo mô hình 3 tầng thì thiếu H1 ở giữa, và H4 là tầng bias chứ không phải tầng ngay trên M15.** Người dùng không
-sai về cảm giác, chỉ sai về nguyên nhân: vấn đề không phải "H4 quá xa M15", mà là repo đang có hai bảng ghép khung
-mâu thuẫn nhau (mục 4, dòng A).
+sai về cảm giác, chỉ sai về nguyên nhân: vấn đề không phải "H4 quá xa M15", mà là (tại 2026-09-12) repo đang có hai
+bảng ghép khung mâu thuẫn nhau (mục 4, dòng A). **Đã xử lý 2026-09-13** — một hàm sinh ra cả hai; thang đang chạy ở
+mục 5, và M15 → H1 (cấu trúc) → H4 (bias) đúng là thang ba tầng mà mục này nói còn thiếu.
 
 ## 2. Nguồn đã đối chiếu
 
@@ -75,36 +77,60 @@ hướng với `B` và tìm vùng; `E` chỉ để canh điểm vào, **không t
 
 ## 4. Rà soát: cái gì trong repo là phỏng đoán
 
+> **Bản ghi của ngày 2026-09-12 — giữ nguyên câu chữ, không cập nhật theo code.** Cột "Hiện trạng" mô tả repo
+> *tại ngày đó*. Ngày **2026-09-13** hệ thống gom về một engine (`scripts/strategy-runner.py`) và ba horizon
+> (`scalping` 15m / `day` 1h / `swing` 4h, `automation.HORIZON_TF`); mọi tên style cũ (`daytrade`, `gold`,
+> `gold-scalp`, `gold-1h`, `gold-4h`, `gold-swing`) và **engine pilot cũ** (script thứ hai, đã xoá) **không còn tồn tại**. Bảng ba tầng
+> đang chạy là §5, không phải bảng này. Các ô bị ảnh hưởng có ghi chú ngày ngay trong ô.
+
 | # | Mục | Hiện trạng | Nguồn nói gì | Kết luận | Hành động |
 |---|---|---|---|---|---|
-| A | **Hai bảng ghép khung khác nhau** | `CONTEXT_STYLE` (automation.py:98): 1m→15m, 15m→**4h**, 1h→1D, 4h→1D, gold 5m→**15m**, 15m→4h. `HTF_OF` (strategy-runner.py:59): 5m→30m, 15m→**1H**, 30m→2H, 1H→4H, 2H→1D, 4H→1D | S1 ghép 15m với H4 (cặp, bỏ tầng); S7/S8/S9 đặt H1 ngay trên M15 (liền kề). Cả hai đều có nguồn, nhưng là **hai tầng khác nhau**: `HTF_OF` là tầng Structure, `CONTEXT_STYLE` là tầng Bias | Không phải sai, mà là **không đặt tên tầng**. SYSTEM-DESIGN §15.2 nói "one mapping, never restate it elsewhere" — đã bị vi phạm | Đặt tên: `HTF_OF` = structure (S), `CONTEXT_STYLE` = bias (B). Pilot đang lọc bằng S (biên ⅓ của khung 1H cho 15m), pages/demo-pilot lọc bằng B (phase Wyckoff 4H). Ghi rõ trong cả hai file; hoặc gộp về một bảng ba cột. **Đề xuất, chưa sửa code** — đây là luật giao dịch, đi qua `/improve`. |
-| B | gold-scalp **5m → 15m** làm bối cảnh (`CONTEXT_STYLE`, §15.1) | tỉ lệ 3× | S9: ≥4×; S7: ×5; S1: H1→M5; S5: M30→m5 | **Phỏng đoán, trái mọi nguồn.** Crypto 1m→15m (15×) thì đúng S1, nhưng gold 5m→15m thì không | Thay bằng 5m→`gold-1h` (S1) hoặc 5m→30m (S5) — `gold-1h` đã có style và dữ liệu MT5; 30m thì chưa export. Ưu tiên `gold-1h`. |
+| A | **Hai bảng ghép khung khác nhau** *(bản ghi 2026-09-12; đã xử lý — xem cuối ô)* | Hai bảng gõ tay, không trùng nhau. `CONTEXT_STYLE` (tại 2026-09-12): 1m→15m, 15m→**4h**, 1h→1D, 4h→1D, gold 5m→**15m**, 15m→4h. `HTF_OF` (tại 2026-09-12): 5m→30m, 15m→**1H**, 30m→2H, 1H→4H, 2H→1D, 4H→1D | S1 ghép 15m với H4 (cặp, bỏ tầng); S7/S8/S9 đặt H1 ngay trên M15 (liền kề). Cả hai đều có nguồn, nhưng là **hai tầng khác nhau**: `HTF_OF` là tầng Structure, `CONTEXT_STYLE` là tầng Bias | Không phải sai, mà là **không đặt tên tầng**. SYSTEM-DESIGN §15.2 nói "one mapping, never restate it elsewhere" — đã bị vi phạm | **Đã xử lý, không còn hai bảng.** Cả hai giờ là dẫn xuất của cùng một hàm `next_rung`: `CONTEXT_STYLE` = `gate_style` trên `TIERS` (`automation.py:190` (`CONTEXT_STYLE = {st: gate_style(st)[0]`)) và `HTF_OF` = `next_rung` trên rung của runner (`strategy-runner.py:73` (`HTF_OF = {tf: _auto.next_rung(`)). Tên tầng đã đặt: `HTF_OF` = structure (S), `CONTEXT_STYLE` = tầng gate (bias nếu rung đó có style được quét, nếu không thì structure). Engine pilot cũ nhắc trong ô này đã bị xoá 2026-09-13; các tên style cũ được liệt kê một lần duy nhất ở `scripts/tests/test_one_system.py`. |
+| B | gold-scalp **5m → 15m** làm bối cảnh (`CONTEXT_STYLE`, §15.1) *(bản ghi 2026-09-12)* | tỉ lệ 3× | S9: ≥4×; S7: ×5; S1: H1→M5; S5: M30→m5 | **Phỏng đoán, trái mọi nguồn.** Crypto 1m→15m (15×) thì đúng S1, nhưng gold 5m→15m thì không | **Hết hiệu lực 2026-09-13:** `5m` rời tập khung được quét, style `gold-scalp` không còn tồn tại; CFD scalping là `cfd-scalping` 15m → 1h → 4h (§5), mọi bước đều ≥ ×4. |
 | C | **4h → 1D** làm bối cảnh (cả hai bảng) | 6× | S1: W→H4 (cặp bỏ tầng); S7 long-range: W/D/H4 → D là structure, W là bias của H4 | Đúng ở tầng Structure, **sai tên** ở tầng Bias (bias của H4 là W, và repo đã fetch 1W cho swing) | Nếu giữ tên "bối cảnh = bias" thì 4h→1W; nếu gọi là structure thì giữ 1D. Theo dòng A. |
-| D | §15.1: "**M30 adds nothing between M15 and H1**" | M30 bị loại khỏi thang CFD; crypto cũng không có style 30m | S1: M30→M3 là một cặp chuẩn; S2: M30 là đơn vị intraday bias; S5: mọi ví dụ giảm/tăng khung của WA đều lấy M30 làm trục; backtest của chính repo (`docs/backtests/2026-09-11-stability-by-timeframe.md` dòng 9): ICT 30m +10.2%/năm, 5/5 năm dương, tốt nhất bảng; mọi dòng 15m ≤ +0.2% | **Phỏng đoán, bị chính dữ liệu repo bác bỏ** | Bỏ câu này khỏi §15.1. Cân nhắc thêm style 30m (crypto và CFD) như cửa sổ "day"; `rank-setups.py` đã xếp 30m vào horizon *day*, còn pages thì không có 30m → lệch giữa pilot và chart. |
+| D | §15.1: "**M30 adds nothing between M15 and H1**" | M30 bị loại khỏi thang CFD; crypto cũng không có style 30m | S1: M30→M3 là một cặp chuẩn; S2: M30 là đơn vị intraday bias; S5: mọi ví dụ giảm/tăng khung của WA đều lấy M30 làm trục; backtest của chính repo (`docs/backtests/2026-09-11-stability-by-timeframe.md` dòng 9): ICT 30m +10.2%/năm, 5/5 năm dương, tốt nhất bảng; mọi dòng 15m ≤ +0.2% | **Phỏng đoán, bị chính dữ liệu repo bác bỏ** | Bỏ câu này khỏi §15.1. **Kết cục 2026-09-13:** người dùng chọn một khung duy nhất cho mỗi horizon — `day` là **1h**, không phải 30m; `rank-setups.HORIZONS` giờ đơn trị và khớp `automation.HORIZON_TF` (`rank-setups.py:45` (`HORIZONS = {"scalping": "15m"`)), nên pilot và chart không còn lệch nhau. Style 30m không được thêm. |
 | E | §15.1: "**M1 is rejected for gold: the spread swallows a 1-minute bar**" | không có dữ liệu 1m XAUUSD trong repo để kiểm | Không nguồn nào trong repo bàn spread/khung; S3 cho phép M1 entry (impatient) | **Chưa kiểm chứng.** Có thể đúng nhưng chưa đo | Giữ như quyết định người dùng, nhưng ghi "chưa đo". Cách đo: export 1m XAUUSD 1 tuần, so `median(high-low)` với spread của tài khoản demo. |
 | F | Cửa sổ nến 288 / 240 / 180 / 120 / 104 (`scan-loop.sh`) | 288×5m = 24h; 288×15m = 3 ngày; 240×1H = 10 ngày; 180×4H = 30 ngày; 120×1D = 4 tháng; 104×1W = 2 năm | Không nguồn nào cho số nến. S2 chỉ cần PDH/PDL, PWH/PWL, PMH/PML → cửa sổ tối thiểu phải chứa **ngày/tuần/tháng trước** | Tham số dự án, **không phải luật**; đủ điều kiện S2 (15m×288 = 3 ngày chứa PDH/PDL; 4H×180 chứa PWH/PWL và PMH/PML) | Ghi nhãn "project parameter" như `analysis-params.json` `project_defined`. Không cần đổi. |
 | G | `min_timeframe_minutes = 15` cho điểm killzone (`analysis-params.json`) | "1m chart carries no timing information" | `knowledge/05` §6 item 10: deck Silver Bullet vẽ **chart NASDAQ 1 phút** trong cửa sổ 1 giờ; S3 chấp nhận M1 entry | **Phỏng đoán, ngược deck.** Killzone là cửa sổ giờ, áp lên nến 1m vẫn có nghĩa | Đã được ghi là project-defined nên không sai quy trình; nhưng cơ sở ("no timing information") nên đổi thành lý do thật (nếu có: nhiễu/phí) hoặc hạ xuống 5m. Qua `/improve`. |
-| H | `HTF_FILTER` demo-pilot.py: mọi setup 15m dùng bias Wyckoff của **4H** (`load_context("daytrade")`) | 15m→4H | S1 H4→M15; S5 WA p95–96 | Có nguồn (cặp TTrades / giảm khung WA). Nhưng demo-pilot chỉ chạy 15m nên cố định "daytrade" là ổn; `strategy-runner` chạy 5m…1D và dùng `HTF_OF` ⅓-biên | Không đổi. Ghi rõ đây là tầng Bias (dòng A). |
+| H | `HTF_FILTER` của engine pilot cũ: mọi setup 15m dùng bias Wyckoff của **4H** (`load_context("daytrade")`) *(bản ghi 2026-09-12)* | 15m→4H | S1 H4→M15; S5 WA p95–96 | Có nguồn (cặp TTrades / giảm khung WA). Engine cũ chỉ chạy 15m nên cố định "daytrade" là ổn; `strategy-runner` chạy 5m…1D và dùng `HTF_OF` ⅓-biên | **Hết hiệu lực 2026-09-13:** engine cũ đã bị xoá và style `daytrade` không còn tồn tại. Còn một engine, `scripts/strategy-runner.py`, lọc bằng `HTF_OF` (tầng Structure) trên rung của chính nó. |
 | I | `BOUNDARY_FRACTION = ⅓` (htf_context.py, backtest-methods.py) | "ở biên" = ⅓ ngoài của TR khung cao | WA p150/p166 dùng ⅓ cho phép thử ST, không cho vùng vào lệnh — file đã tự ghi "project adaptation" | Đã gắn nhãn đúng | Không đổi. |
-| J | Horizon của pilot: scalping {5m,15m}, day {30m,1H,2H}, swing {4H,1D} (`rank-setups.py:38`) | nhãn | S7: day-trader trung gian M10 (H1 dài / M2 ngắn), swing trung gian D (W/H1); S3: M15 vs M1 theo tính cách | Nhãn dự án, không có nguồn quy định ranh giới; không mâu thuẫn nguồn nào | Ghi nhãn "project parameter". Không đổi. |
+| J | Horizon của pilot: scalping {5m,15m}, day {30m,1H,2H}, swing {4H,1D} *(bản ghi 2026-09-12, nhiều khung mỗi horizon)* | nhãn | S7: day-trader trung gian M10 (H1 dài / M2 ngắn), swing trung gian D (W/H1); S3: M15 vs M1 theo tính cách | Nhãn dự án, không có nguồn quy định ranh giới; không mâu thuẫn nguồn nào | **Đổi 2026-09-13:** mỗi horizon còn **một** khung — scalping 15m, day 1H, swing 4H (`rank-setups.py:45` (`HORIZONS = {"scalping": "15m"`)), khớp `automation.HORIZON_TF` (khác nhau chỉ ở cách viết hoa `1h`/`1H`). Vẫn là nhãn dự án. |
 
 Chú ý dòng D và G: đây là hai chỗ mà câu chữ trong SYSTEM-DESIGN/analysis-params **phủ định dữ liệu hoặc deck của
 chính repo**, nên là ưu tiên sửa trước dòng B.
 
-## 5. Bảng ba tầng đang chạy (từ 2026-09-12, code sinh ra — `scripts/automation.py` TIERS)
+## 5. Bảng ba tầng đang chạy (cập nhật 2026-09-13, code sinh ra — `scripts/automation.py` TIERS)
 
 Quy tắc trong code: tầng liền kề = **rung có sẵn gần nhất chậm hơn ≥ ×4** (`next_rung`, `MIN_TIER_RATIO = 4`). Cùng một hàm
-sinh ra bảng cho trang (rung = khung được quét + 1W) và cho pilot/backtest (rung của runner: 5m…1D) — hàm này tái tạo
+sinh ra bảng cho trang (rung = khung được quét + 1D/1W) và cho pilot/backtest (rung của runner: 5m…1D) — hàm này tái tạo
 đúng `HTF_OF` cũ (5m→30m, 15m→1H, 30m→2H, 1H→4H, 2H→1D, 4H→1D), kiểm bằng `scripts/tests/test_timeframe_ladder.py`.
 
-| Style (Vào lệnh) | Cấu trúc S | Bias B | Tầng quyết định verdict | Nguồn |
+**Ba horizon, một khung vào lệnh mỗi horizon** (quyết định người dùng 2026-09-13, `automation.HORIZON_TF` ở
+`automation.py:129` (`HORIZON_TF = {"scalping": "15m"`)): `scalping` 15m · `day` 1h · `swing` 4h. Tên style phẳng
+(crypto giữ nguyên chữ horizon, cfd thêm tiền tố `cfd-`) được **suy ra** từ bảng đó ở `automation.py:132`
+(`STYLE = {(m, HORIZON_TF[h])`) — đừng chép lại danh sách sáu tên ở đâu nữa, đọc `automation.HORIZON_TF`.
+
+Bảng dưới đây được **in ra từ code**, không gõ tay:
+
+```bash
+python3 -c "import importlib.util as u; s=u.spec_from_file_location('a','scripts/automation.py'); a=u.module_from_spec(s); s.loader.exec_module(a); [print(st, a.STYLE_MARKET_TF[st][1], t) for st,t in a.TIERS.items()]"
+```
+
+| Style (Vào lệnh E) | Cấu trúc S | Bias B | Tầng quyết định verdict (`gate_style`) | Nguồn |
 |---|---|---|---|---|
-| scalping 1m | 15m (daytrade) ×15 | 1H ×4 | Bias | Elder ví dụ scalping 1m/15m/1H (S7); TTrades M15→M1 (S1) |
-| daytrade / gold 15m | 1H ×4 | 4H ×4 | Bias | Elder intraday, ICT top-down, TTrades H4→M15 (S1, S7, S8) |
-| gold-scalp 5m | 1H (gold-1h) ×12 | 4H ×4 | Bias | 15m chỉ ×3 nên bị loại (S9); TTrades H1→M5 (S1) |
-| 1h / gold-1h | 4H ×4 | 1D ×6 | Bias | TTrades D→H1; Elder mid-range D/H4/H1 |
-| 4h / gold-4h | 1D ×6 | 1W ×7 (chỉ chart, chưa quét) | Cấu trúc | TTrades W→H4; Elder long-range W/D/H4 |
-| swing / gold-swing 1D | 1W ×7 (chỉ chart) | — (không lấy khung tháng) | không có | Elder W/D |
+| `scalping` 15m | 1h (`day`) ×4 | 4h (`swing`) ×4 | Bias (`swing`) | Elder intraday, ICT top-down, TTrades H4→M15 (S1, S7, S8) |
+| `day` 1h | 4h (`swing`) ×4 | 1D ×6 — **chỉ chart, không quét** | Cấu trúc (`swing`) | TTrades D→H1; Elder mid-range D/H4/H1 |
+| `swing` 4h | 1D ×6 — **chỉ chart, không quét** | 1W ×7 — **chỉ chart, không quét** | — (không rung nào ở trên có style được quét) | TTrades W→H4; Elder long-range W/D/H4 |
+| `cfd-scalping` 15m | 1h (`cfd-day`) ×4 | 4h (`cfd-swing`) ×4 | Bias (`cfd-swing`) | như `scalping` |
+| `cfd-day` 1h | 4h (`cfd-swing`) ×4 | 1D ×6 — **chỉ chart, không quét** | Cấu trúc (`cfd-swing`) | như `day` |
+| `cfd-swing` 4h | 1D ×6 — **chỉ chart, không quét** | 1W ×7 — **chỉ chart, không quét** | — | như `swing` |
+
+**`1D` và `1W` là rung bối cảnh: được lấy về nhưng không bao giờ được quét.** Tập khung được quét là
+`["15m", "1h", "4h"]` cho **cả hai** market (`automation.py:108` (`MARKET_TIMEFRAMES = {"crypto"`)); `1m`, `5m` và
+`1D` đã rời tập đó ngày 2026-09-13. Hai rung `1D`/`1W` vẫn nằm trong `PAGE_RUNGS` (`automation.py:171`
+(`PAGE_RUNGS = {"crypto"`)) và được `scan-loop.sh:110` (`1D + 1W = CONTEXT charts only`) fetch ở lần quét 4h — đó
+chính là điều giữ cho `swing` (4h) còn đủ một thang cấu trúc + bias. `automation.py timeframe 1D on` giờ là lỗi
+cú pháp, nên nếu lần fetch bối cảnh đó mất thì không gì làm tươi lại được hai chart ấy.
 
 Trang: mỗi mã có khối **Thang khung** ba dòng (Bias → Cấu trúc → Vào lệnh), mỗi dòng một ô Wyckoff (cấu trúc · pha · TR),
 một ô ICT (vị trí dealing range · MSS gần nhất), một ô kết luận; tầng quyết định được tô. Dưới đó là ba chart cùng thứ tự,
