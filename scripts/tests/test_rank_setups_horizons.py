@@ -64,10 +64,10 @@ class SelectionCoversEveryMethodPerHorizon(unittest.TestCase):
             RS.load_rows = orig_load_rows
 
     def test_two_methods_same_horizon_both_survive(self):
-        # Both methods qualify at 5m (scalping) with plenty of trades -- old code (ranked[0] across all
-        # methods) would keep only the higher-ranked one and drop the other entirely.
-        rows = {"crypto": [_row("5m", self.method_a, n=300, ann=20.0),
-                            _row("5m", self.method_b, n=300, ann=5.0)],
+        # Both methods qualify at 15m (scalping -- the horizon's one live timeframe) with plenty of trades --
+        # old code (ranked[0] across all methods) would keep only the higher-ranked one and drop the other.
+        rows = {"crypto": [_row("15m", self.method_a, n=300, ann=20.0),
+                            _row("15m", self.method_b, n=300, ann=5.0)],
                 "cfd": []}
         setups = self._run(rows)
         methods_at_scalping = {s["method"] for s in setups if s["market"] == "crypto" and s["horizon"] == "scalping"}
@@ -75,17 +75,26 @@ class SelectionCoversEveryMethodPerHorizon(unittest.TestCase):
                           "both methods must get their own scalping setup, not just the top-ranked one")
 
     def test_setup_ids_unique(self):
-        rows = {"crypto": [_row("5m", self.method_a), _row("5m", self.method_b),
-                            _row("30m", self.method_a), _row("4H", self.method_b)],
+        rows = {"crypto": [_row("15m", self.method_a), _row("15m", self.method_b),
+                            _row("1H", self.method_a), _row("4H", self.method_b)],
                 "cfd": []}
         setups = self._run(rows)
         ids = [s["id"] for s in setups]
         self.assertEqual(len(ids), len(set(ids)), f"duplicate setup ids: {ids}")
 
+    def test_a_retired_timeframe_is_never_selectable(self):
+        """`HORIZONS[hz]` is ONE timeframe string since 2026-09-13, so the candidate filter must be `==`. Under
+        the old set-per-horizon -- or under `in` against the string, where `"5m" in "15m"` is also True -- a row
+        at a rung the scanner does not scan would be selected, and nothing could execute the selection."""
+        for retired in ("5m", "30m", "2H", "1D"):
+            rows = {"crypto": [_row(retired, self.method_a, n=300, ann=20.0)], "cfd": []}
+            self.assertEqual(self._run(rows), [],
+                             f"a row at the retired {retired} rung produced a setup")
+
     def test_missing_method_at_one_horizon_does_not_drop_others(self):
         """method_a has no qualifying row at swing; method_b does. Both horizons' rows for method_b
         (scalping/day/swing) must still appear, and the swing/method_a gap must not remove swing/method_b."""
-        rows = {"crypto": [_row("5m", self.method_a, n=300), _row("5m", self.method_b, n=300),
+        rows = {"crypto": [_row("15m", self.method_a, n=300), _row("15m", self.method_b, n=300),
                             _row("4H", self.method_b, n=300)],  # method_a has nothing at 4H (swing)
                 "cfd": []}
         setups = self._run(rows)
@@ -126,7 +135,10 @@ class PresetCoverageOfRealSelection(unittest.TestCase):
             for hz in {"scalping", "day", "swing"} - covered:
                 qualifying = [r for r in rows
                               if r.get("method") in allowed
-                              and r.get("tf") in RS.HORIZONS[hz]
+                              # `==`, never `in`: RS.HORIZONS[hz] is one timeframe STRING since 2026-09-13, so
+                              # `in` is a SUBSTRING test -- it passes vacuously ("15m" in "15m") and, worse,
+                              # accepts the retired five-minute rung ("5m" in "15m" is also True).
+                              and r.get("tf") == RS.HORIZONS[hz]
                               and (r.get("w1y") or {}).get("n", 0) >= min_1y[hz]
                               and RS.solvent(r, "1y")]
                 if qualifying:

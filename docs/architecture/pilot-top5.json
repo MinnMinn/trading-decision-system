@@ -1,5 +1,5 @@
 {
- "generated": "2026-09-13",
+ "generated": "2026-09-14",
  "mode": "horizons-1y",
  "note": "Written by scripts/rank-setups.py --horizons. One setup per (horizon, method) per market -- every RUNNABLE method gets its own scalping/day/swing setups so any method-switch preset (strategy-runner.py allowed_methods()) still covers all 3 horizons (user decision 2026-09-11, extended 2026-09-13 for the per-method split). Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.",
  "setups": [
@@ -30,7 +30,7 @@
     "full_ann_pct": 17.8,
     "years_pos": "2/4",
     "period": "2023-09-13→2026-09-11",
-    "source": "../../../../private/tmp/claude-502/-Users-tungnguyen-TYME-Trading/e0c69841-76bd-4353-b9bc-c1ba01a72521/scratchpad/stab/crypto-live.json"
+    "source": "data/history/stability/crypto-live.json"
    }
   },
   {
@@ -60,7 +60,7 @@
     "full_ann_pct": 36.9,
     "years_pos": "4/4",
     "period": "2023-09-13→2026-09-11",
-    "source": "../../../../private/tmp/claude-502/-Users-tungnguyen-TYME-Trading/e0c69841-76bd-4353-b9bc-c1ba01a72521/scratchpad/stab/crypto-live.json"
+    "source": "data/history/stability/crypto-live.json"
    }
   },
   {
@@ -90,7 +90,7 @@
     "full_ann_pct": 2.4,
     "years_pos": "3/4",
     "period": "2023-09-13→2026-09-11",
-    "source": "../../../../private/tmp/claude-502/-Users-tungnguyen-TYME-Trading/e0c69841-76bd-4353-b9bc-c1ba01a72521/scratchpad/stab/crypto-live.json"
+    "source": "data/history/stability/crypto-live.json"
    }
   },
   {
@@ -120,7 +120,7 @@
     "full_ann_pct": -3.4,
     "years_pos": "1/5",
     "period": "2022-09-13→2026-09-11",
-    "source": "../../../../private/tmp/claude-502/-Users-tungnguyen-TYME-Trading/e0c69841-76bd-4353-b9bc-c1ba01a72521/scratchpad/stab/crypto-live.json"
+    "source": "data/history/stability/crypto-live.json"
    }
   },
   {
@@ -150,7 +150,7 @@
     "full_ann_pct": -12.1,
     "years_pos": "1/5",
     "period": "2022-09-05→2026-09-11",
-    "source": "../../../../private/tmp/claude-502/-Users-tungnguyen-TYME-Trading/e0c69841-76bd-4353-b9bc-c1ba01a72521/scratchpad/stab/crypto-live.json"
+    "source": "data/history/stability/crypto-live.json"
    }
   },
   {
@@ -181,7 +181,7 @@
     "full_ann_pct": -22.2,
     "years_pos": "2/3",
     "period": "2024-04-19→2026-09-11",
-    "source": "../../../../private/tmp/claude-502/-Users-tungnguyen-TYME-Trading/e0c69841-76bd-4353-b9bc-c1ba01a72521/scratchpad/stab/cfd-live.json"
+    "source": "data/history/stability/cfd-live.json"
    }
   }
  ]

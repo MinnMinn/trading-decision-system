@@ -11,8 +11,8 @@ several targets or fee assumptions. All four rule families are eligible: ICT and
 MARKET on the close of the entry bar (Spring reclaim / Test / BU), exactly as the backtest.
 
 The selection file (single writer: this script) is read by scripts/strategy-runner.py and shown by `/automation pilot profile top5`.
-CFD setups get execution "mt5" (demo account through integrations/mt5/OrderBridge.mq5 + scripts/mt5-order-bridge.py) and only timeframes the MT5 EA
-exports or the runner can aggregate (1H, 2H, 4H, 1D). Every number here is a code proxy over research history — for CFD that is
+CFD setups get execution "mt5" (demo account through integrations/mt5/OrderBridge.mq5 + scripts/mt5-order-bridge.py) and only the three
+live timeframes the MT5 EA exports or the runner can aggregate (CFD_TFS: 15m, 1H, 4H). Every number here is a code proxy over research history — for CFD that is
 Yahoo Finance futures data (scripts/fetch-history-cfd.py), not the CFD quotes the pilot will trade on.
 """
 import argparse, datetime, glob, importlib.util, json, os
@@ -35,9 +35,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _mspec = importlib.util.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py"))
 mreg = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(mreg)
 RUNNABLE = mreg.runnable()   # executed by scripts/strategy-runner.py; source: docs/architecture/methods.json
-CFD_TFS = {"5m", "15m", "30m", "1H", "2H", "4H", "1D"}
+# The three live rungs only (user decision 2026-09-13). Was a seven-rung superset that also named the retired
+# five- and thirty-minute rungs, the two-hour rung and the daily -- harmless while it was a superset of the live
+# set, which is exactly why it would have rotted unnoticed.
+CFD_TFS = {"15m", "1H", "4H"}
 # user decision 2026-09-11 (evening): one setup per HORIZON per market -- scalping / day / swing -- even where the backtest edge is weak.
-HORIZONS = {"scalping": {"5m", "15m"}, "day": {"30m", "1H", "2H"}, "swing": {"4H", "1D"}}
+# One timeframe per horizon (user decision 2026-09-13), matching automation.HORIZON_TF. Was a SET per horizon,
+# which could select a setup at a rung the scanner does not run -- a selection nothing could execute.
+HORIZONS = {"scalping": "15m", "day": "1H", "swing": "4H"}
 HORIZON_MIN_TRADES = {"scalping": 60, "day": 60, "swing": 12}
 CFG_DESC = {"A": dict(fee=0.0005, mgmt="none", htf=False), "B": dict(fee=0.0002, mgmt="be", htf=False), "C": dict(fee=0.0002, mgmt="be", htf=True)}
 
@@ -203,16 +208,16 @@ def main_window_1y(a, today):
 
 def main_horizons(a, today):
     L = [f"# Setup theo khung — scalping / day / swing — mỗi thị trường — {today}", "",
-         "_`scripts/rank-setups.py --horizons`. Quyết định người dùng 2026-09-11 (mở rộng 2026-09-13): mỗi thị trường chạy đủ 3 khung cho MỖI luật chạy được (RUNNABLE — WYCKOFF, WYCKOFF-BOOK, ICT, COMBINED). Sửa 2026-09-13 (quyết định người dùng): một ô CHỈ được lấp bởi luật có ≥ 3 tháng dữ liệu, không cháy, VÀ có lãi — không ai qua thì **bỏ trống ô**, không lấp bằng đứa đỡ tệ nhất. Trước đó ô được lấp kể cả khi mọi ứng viên đều lỗ, và lần xếp hạng 2026-09-13 đã chọn một luật CFD kết thúc ở $988 trên vốn $10.000. Lý do: `strategy-runner.py`'s `allowed_methods()` chỉ cho phép các luật mà method-switch preset đang bật; chọn theo (khung, luật) thay vì chỉ theo khung đảm bảo mọi preset (dù chỉ bật một luật, ví dụ ICT-only) vẫn có đủ 3 khung, thay vì chỉ có khung mà luật đó tình cờ thắng khi so giữa các luật. Trong mỗi (khung, luật), cấu hình/target tốt nhất theo cùng tiêu chí (không cháy → quý dương → năm dương → quý tệ nhất) — dòng âm được in nghiêng; scalping 5m/15m bị phí và trượt giá ăn nhiều nhất. Một khung có thể không đủ lệnh cho MỘT luật cụ thể dù các luật khác ở cùng khung có đủ — dòng đó vẫn được in để việc thiếu setup luôn hiện rõ, không âm thầm giảm số lượng._", ""]
+         "_`scripts/rank-setups.py --horizons`. Quyết định người dùng 2026-09-11 (mở rộng 2026-09-13): mỗi thị trường chạy đủ 3 khung cho MỖI luật chạy được (RUNNABLE — WYCKOFF, WYCKOFF-BOOK, ICT, COMBINED). Sửa 2026-09-13 (quyết định người dùng): một ô CHỈ được lấp bởi luật có ≥ 3 tháng dữ liệu, không cháy, VÀ có lãi — không ai qua thì **bỏ trống ô**, không lấp bằng đứa đỡ tệ nhất. Trước đó ô được lấp kể cả khi mọi ứng viên đều lỗ, và lần xếp hạng 2026-09-13 đã chọn một luật CFD kết thúc ở $988 trên vốn $10.000. Lý do: `strategy-runner.py`'s `allowed_methods()` chỉ cho phép các luật mà method-switch preset đang bật; chọn theo (khung, luật) thay vì chỉ theo khung đảm bảo mọi preset (dù chỉ bật một luật, ví dụ ICT-only) vẫn có đủ 3 khung, thay vì chỉ có khung mà luật đó tình cờ thắng khi so giữa các luật. Trong mỗi (khung, luật), cấu hình/target tốt nhất theo cùng tiêu chí (không cháy → quý dương → năm dương → quý tệ nhất) — dòng âm được in nghiêng. Sửa tiếp 2026-09-13: mỗi khung chỉ ứng với MỘT timeframe — scalping 15m, day 1H, swing 4H — đúng như `automation.HORIZON_TF`; trước đó mỗi khung là một TẬP timeframe (kể cả 5m/30m/2H/1D) mà scanner không còn quét, nên có thể chọn ra setup không gì chạy được. Trong đó scalping 15m bị phí và trượt giá ăn nhiều nhất. Một khung có thể không đủ lệnh cho MỘT luật cụ thể dù các luật khác ở cùng khung có đủ — dòng đó vẫn được in để việc thiếu setup luôn hiện rõ, không âm thầm giảm số lượng._", ""]
     selection = dict(generated=today, mode="horizons", note="Written by scripts/rank-setups.py --horizons. One setup per (horizon, method) per market -- every RUNNABLE method gets its own scalping/day/swing setups so any method-switch preset (strategy-runner.py allowed_methods()) still covers all 3 horizons (user decision 2026-09-11, extended 2026-09-13 for the per-method split). Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.", setups=[])
     methods_order = sorted(RUNNABLE)   # deterministic order; RUNNABLE comes from the registry (scripts/methods.py runnable()), never hardcoded here
     for market, paths, syms in (("crypto", a.crypto, a.crypto_symbols.split(",")), ("cfd", a.cfd, a.cfd_symbols.split(","))):
         rows = load_rows(sorted(paths), market)
         L += [f"## {market.upper()}", "", "| Khung | TF | Luật | Target | Cấu hình | Lệnh | Vốn cuối ($10k) | %/năm | Sụt giảm | Quý dương | Quý tệ nhất | Ổn định | Năm dương (từng năm %) |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
-        for hz, tfs in HORIZONS.items():
+        for hz, tf in HORIZONS.items():
             mn = HORIZON_MIN_TRADES[hz] if a.window != "1y" else {"scalping": 20, "day": 15, "swing": 6}[hz]
             for method in methods_order:
-                candidates = [r for r in rows if r["tf"] in tfs and r["method"] == method and (market == "crypto" or r["tf"] in CFD_TFS)]
+                candidates = [r for r in rows if r["tf"] == tf and r["method"] == method and (market == "crypto" or r["tf"] in CFD_TFS)]
                 ranked = rank(candidates, mn, a.window if a.window == "1y" else None)
                 if not ranked:
                     L.append(f"| {hz} | — | {method} | — | — | — | không đủ dữ liệu / lệnh | | | | | | |"); continue

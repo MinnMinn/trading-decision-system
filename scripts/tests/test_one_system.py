@@ -284,3 +284,29 @@ class FlatStyleConsumersFollowTheVocabulary(unittest.TestCase):
                   encoding="utf-8") as f:
             enum = json.load(f)["properties"]["style"]["enum"]
         self.assertEqual(sorted(enum), sorted(self.auto.STYLE.values()))
+
+
+class RankSetupsAgreesWithTheOneVocabulary(unittest.TestCase):
+    """rank-setups.HORIZONS held timeframe SETS that ranged over timeframes the scanner no longer runs -- the
+    scalping set also named the retired five-minute rung, day also named 30m/2H, swing also named 1D. It writes
+    pilot-top5.json, which selects what the live engine trades, so a horizon that can select a 30m setup the
+    scanner never scans is a selection nothing can execute."""
+
+    def setUp(self):
+        import importlib
+        self.auto = importlib.import_module("automation")
+        self.rank = load_script("rank-setups.py")
+
+    def test_one_timeframe_per_horizon(self):
+        self.assertEqual(self.rank.HORIZONS, {"scalping": "15m", "day": "1H", "swing": "4H"})
+
+    def test_it_agrees_with_automation_case_insensitively(self):
+        """rank-setups spells timeframes 1H/4H, automation spells them 1h/4h -- same rungs, different case. The
+        spelling difference is load-bearing: rank-setups' strings index the backtest row data."""
+        self.assertEqual({h: tf.lower() for h, tf in self.rank.HORIZONS.items()},
+                         {h: tf.lower() for h, tf in self.auto.HORIZON_TF.items()})
+
+    def test_the_cfd_timeframe_table_holds_only_live_rungs(self):
+        """CFD_TFS was a SECOND stale timeframe table, read at three sites -- two of them the non-horizons modes,
+        so it does not disappear with the horizons loop. A superset is harmless today and rots unnoticed."""
+        self.assertEqual(self.rank.CFD_TFS, {"15m", "1H", "4H"})

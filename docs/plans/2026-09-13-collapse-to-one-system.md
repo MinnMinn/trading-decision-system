@@ -232,6 +232,12 @@ git commit -m "one-system: delete the legacy engine and the pilot-profile switch
 
 ### Task 2: Collapse the style vocabulary to three horizons (REWRITTEN 2026-09-13)
 
+**Executed 2026-09-13 as ONE commit (`385f034`), not two.** `scripts/build-artifact.py` resolves
+`_auto.TIERS[style]` at MODULE IMPORT time, so the moment 2a rekeys `TIERS` the whole of
+`build-artifact.py` raises `KeyError: 'daytrade'` — which `check-narrative.py` imports, which
+`test_method_purity.py` imports, so pytest aborted during COLLECTION and ran zero tests. A 2a-only commit
+is therefore a broken commit. The 2a/2b split below is kept as the reading order; the commit is single.
+
 **Why this section was rewritten.** The first version of Task 2 scoped itself by line number
 (`automation.py:105,119-123,162-164,...`) and listed five files. A symbol-scoped survey found the style names are a
 **flat namespace** that six other consumers use as their only key — they have no `market` field, so the first
@@ -762,9 +768,25 @@ git commit -m "one-system: the flat style consumers follow the one vocabulary"
 
 ### Task 3: Make the horizon→timeframe mapping single-valued in rank-setups
 
+**Symbols to change** (not line numbers — the same symbol survey that rewrote Task 2 found two sites this
+task's first draft missed): `HORIZONS`, `CFD_TFS`, and the membership tests that read them.
+
 **Files:**
-- Modify: `scripts/rank-setups.py:40,212`
+- Modify: `scripts/rank-setups.py` — `HORIZONS` (single-valued), `CFD_TFS`, and the table note naming `5m`
 - Modify: `scripts/tests/test_rank_setups_horizons.py`
+
+Two extra items, both of the failure classes this plan has already been bitten by:
+
+- `CFD_TFS = {"5m", "15m", "30m", "1H", "2H", "4H", "1D"}` is a SECOND stale timeframe table naming four
+  retired rungs. It is read at three sites, two of them the non-horizons modes, so it does not disappear
+  with the horizons loop. Shrink it to `{"15m", "1H", "4H"}`. Behaviour does not change today (it is
+  currently a superset of the live set) — which is precisely why it would have rotted unnoticed.
+- `test_rank_setups_horizons.py` tests `r.get("tf") in RS.HORIZONS[hz]`. Once `HORIZONS[hz]` is a STRING
+  that becomes a substring test: `"15m" in "15m"` is True, so the test keeps passing while asserting
+  nothing — and `"5m" in "15m"` is ALSO True, so it would accept a retired timeframe. Make it `==`. This
+  is the fourth vacuous-pass in this plan; watch it fail against the old value before trusting it.
+- The Vietnamese note under the ranking table says "scalping 5m/15m bị phí và trượt giá ăn nhiều nhất".
+  `5m` is retired; scalping is 15m only. Reword.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -837,6 +859,20 @@ Run: `python3 scripts/rank-setups.py --horizons --window 1y`
 Expected: writes `docs/architecture/pilot-top5.json`; the printed table lists exactly one timeframe per horizon.
 
 If the file's `setups` list changes membership, say so in the commit message — it is a change to what the pilot would trade, not a refactor.
+
+**Executed 2026-09-14.** Two corrections to this step, from the source rather than the plan:
+
+- That command does **not** write the selection. `--select` defaults to `None` and `main_horizons()` only
+  writes under `if a.select:`, so the bare command prints the table and writes nothing. The write path is
+  `--select docs/architecture/pilot-top5.json`, which is how `automation.py` invokes it. Both were run: the
+  bare command for the printed table, the `--select` form to re-rank the stored selection.
+- `setups` membership did **not** change: the same six ids in the same ranks, and every `backtest` number
+  byte-identical. Only `generated` (2026-09-13 → 2026-09-14) and `source` moved. The `source` move is the
+  find worth recording — the committed file cited a per-session scratchpad temp path
+  (`../../../../private/tmp/claude-502/.../scratchpad/stab/crypto-live.json`) that no longer exists, so the
+  stored selection was not reproducible from anything on disk. Re-ranking off the repo's own
+  `data/history/stability/{crypto,cfd}-live.json` replaces it with a reachable path, which is what "the
+  stored selection is reproducible from the current code" asks for.
 
 - [ ] **Step 6: Commit**
 
@@ -917,6 +953,9 @@ git commit -m "one-system: delete the before/after evidence docs"
 
 **Files:**
 - Modify: `docs/architecture/SYSTEM-DESIGN.md`, `docs/GETTING-STARTED.md`, `docs/architecture/timeframe-mapping.md`, `docs/security/2026-09-11-top5-pilot.md`, `docs/plans/2026-09-13-unify-backtest-with-live-rules.md`
+- Modify: `docs/architecture/data-sources.md`, `docs/architecture/mt5-bridge.md` — the residue check after the
+  Task 2 commit found retired style names in these two as well, and they appear in NO other task's file list.
+  They are the last two places a reader can still find `gold-scalp` / `daytrade` described as live.
 
 - [ ] **Step 1: Find every stale claim**
 
