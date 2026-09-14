@@ -310,3 +310,36 @@ class RankSetupsAgreesWithTheOneVocabulary(unittest.TestCase):
         """CFD_TFS was a SECOND stale timeframe table, read at three sites -- two of them the non-horizons modes,
         so it does not disappear with the horizons loop. A superset is harmless today and rots unnoticed."""
         self.assertEqual(self.rank.CFD_TFS, {"15m", "1H", "4H"})
+
+
+class NoBeforeAfterDocs(unittest.TestCase):
+    """These compared the legacy arrangement to the live one. The legacy arrangement is deleted, so they
+    describe a system that cannot be run -- and a reader cannot tell which file is the current state. Git
+    history keeps them if the comparison is ever needed again."""
+
+    SUPERSEDED = ("2026-09-13-legacy-full-run.md", "2026-09-13-live-full-run.md",
+                  "2026-09-13-live-rules-vs-legacy.md", "2026-09-13-stability-cfd-live.md",
+                  "2026-09-13-stability-crypto-live.md", "2026-09-13-top-setups-live.md")
+
+    def test_they_are_deleted(self):
+        for fn in self.SUPERSEDED:
+            self.assertFalse(os.path.exists(os.path.join(ROOT, "docs", "backtests", fn)), f"{fn} still present")
+
+    # Dated records, not live citations -- the same three directories test_doc_citations.py skips. The plan
+    # itself lives in docs/plans/ and names all six files in SUPERSEDED and in its own `git rm`, so without this
+    # the test could never pass.
+    HISTORICAL = ("docs/plans", "docs/audits", "docs/prompts")
+
+    def test_nothing_links_to_them(self):
+        """A dead evidence link is worse than no link: it reads as a citation."""
+        for dirpath, _, files in os.walk(os.path.join(ROOT, "docs")):
+            rel_dir = os.path.relpath(dirpath, ROOT)
+            if rel_dir.startswith(self.HISTORICAL):
+                continue
+            for fn in files:
+                if not fn.endswith(".md"):
+                    continue
+                p = os.path.join(dirpath, fn)
+                src = open(p, encoding="utf-8").read()
+                for dead in self.SUPERSEDED:
+                    self.assertNotIn(dead, src, f"{os.path.relpath(p, ROOT)} links to deleted {dead}")

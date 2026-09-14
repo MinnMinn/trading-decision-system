@@ -888,6 +888,22 @@ git commit -m "one-system: one timeframe per horizon in the setup ranking"
 **Files:**
 - Delete: six files under `docs/backtests/`
 - Modify: `scripts/tests/test_one_system.py`
+- Modify: **19 further docs** under `docs/backtests/` — see the inbound-link survey below
+
+**Corrected 2026-09-13 by an inbound-link survey.** The `Files:` list above originally read "six deleted, one
+test modified". Five of the six deleted docs have ZERO inbound links, but
+`docs/backtests/2026-09-13-live-rules-vs-legacy.md` is cited by **19 non-plan docs** — nearly every
+`docs/backtests/2026-09-11-*.md` carries the same one-line superseded header ending `; see
+docs/backtests/2026-09-13-live-rules-vs-legacy.md.` Each of those 19 needs that trailing clause dropped while the
+rest of the header stays: the header's job is "the ICT figures here are superseded", and the plan reference that
+explains WHY (`docs/plans/2026-09-13-unify-backtest-with-live-rules.md`) survives the deletion. Do NOT repoint the
+clause at `2026-09-13-scalping-15m-per-pair-rr2-rr3.md` — that document measures R:R floors per pair, not
+legacy-vs-live, so it would be a false citation, which is worse than no citation.
+
+**And the link test as first written could never pass.** It walks ALL of `docs/`, which includes this plan — and
+this plan names all six filenames in its own `SUPERSEDED` tuple and its own `git rm` command. It must skip
+`docs/plans/`, `docs/audits/` and `docs/prompts/`, exactly as `scripts/tests/test_doc_citations.py` already does:
+a plan is a dated record of a decision, not a live citation. The Step 1 code below has been corrected accordingly.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -907,9 +923,17 @@ class NoBeforeAfterDocs(unittest.TestCase):
         for fn in self.SUPERSEDED:
             self.assertFalse(os.path.exists(os.path.join(ROOT, "docs", "backtests", fn)), f"{fn} still present")
 
+    # Dated records, not live citations -- the same three directories test_doc_citations.py skips. This plan
+    # itself lives in docs/plans/ and names all six files in SUPERSEDED and in its own `git rm`, so without this
+    # the test could never pass.
+    HISTORICAL = ("docs/plans", "docs/audits", "docs/prompts")
+
     def test_nothing_links_to_them(self):
         """A dead evidence link is worse than no link: it reads as a citation."""
         for dirpath, _, files in os.walk(os.path.join(ROOT, "docs")):
+            rel_dir = os.path.relpath(dirpath, ROOT)
+            if rel_dir.startswith(self.HISTORICAL):
+                continue
             for fn in files:
                 if not fn.endswith(".md"):
                     continue
