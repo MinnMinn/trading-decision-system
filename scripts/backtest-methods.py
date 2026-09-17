@@ -55,8 +55,16 @@ P = {"5m": dict(R=60, K=18, T=20, H=120, sob=8), "15m": dict(R=48, K=16, T=16, H
      "2H": dict(R=36, K=10, T=10, H=48, sob=3), "4H": dict(R=30, K=8, T=8, H=30, sob=3), "1D": dict(R=20, K=6, T=6, H=20, sob=2)}  # sob = bars a Spring may stay outside the TR (wyckoff_rules R6)
 VOL = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"]["volume"]
 STOP_BUFFER_PCT = 0.0005
-RISK = 0.03          # per-trade risk of equity. MUST equal strategy-runner.RISK_CEILING (test_min_rr_and_risk.py)
-                     # -- otherwise this report measures a different account than the one that trades.
+import trading_env as _te
+RISK = _te.MAX_RISK_PCT   # per-trade risk of equity. It MUST equal strategy-runner.RISK_CEILING or this report
+                     # measures a different account than the one that trades -- so it is now READ from the same
+                     # place the runner reads it (docs/architecture/risk-config.json via trading_env), not kept
+                     # as a third copy of the number. It was the literal 0.03 until 2026-09-17; the ceiling moved
+                     # to 1 % and a literal here would have left the report quietly modelling a 3 % account.
+                     # Note for anyone re-reading docs/backtests/2026-09-13-rr-floor-and-risk.md: those figures
+                     # were produced at 0.03. Under fixed-fractional sizing the R-multiples are unchanged, so the
+                     # 3R floor conclusion carries over; the % return and % drawdown columns scale with RISK and
+                     # must be re-run, not rescaled by eye.
 START = 10000.0      # account size in $ (user decision 2026-09-11: $10,000 for readability)
 RUIN_FRAC = 0.10     # the account is declared BLOWN (cháy) when equity <= 10 % of START; trading stops there and the report says so
 OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see the note there

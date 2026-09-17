@@ -69,7 +69,7 @@
     "launchd_label": "com.tyme.trading.pilot.futures",
     "stopped_at": "2026-09-12T18:25:54Z"
   },
-  "last_updated": "2026-09-13T09:26:54Z",
+  "last_updated": "2026-09-17T13:18:48Z",
   "history": [
     {
       "ts": "2026-09-10T10:06:03Z",
@@ -1029,6 +1029,97 @@
       "action": "on",
       "detail": "re-enable analysis only: scanner + local_read; layers.pilot stays off pending Security re-review and re-rank after the backtest/live-rules unification",
       "result": "applied"
+    },
+    {
+      "ts": "2026-09-17T13:17:51Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:17:51Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:17:51Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:17:53Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:17:53Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:17:53Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:18:22Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:18:45Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:18:45Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:18:46Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:18:48Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:18:48Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:18:48Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
     }
   ]
 }

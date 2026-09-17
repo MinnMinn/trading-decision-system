@@ -113,7 +113,11 @@
       }
     },
     "risk_pct": {
-      "type": "number"
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "Fraction of equity risked on this trade (0.01 = 1%), capped by docs/architecture/risk-config.json max_risk_pct. NULL means the source did not record it -- only reachable for an ingested pilot log line that carried no risk_pct field. Nullable since 2026-09-17: scripts/journal.py used to substitute 0.005 there, writing a risk nobody took into the file the Edge Log, Mistake DB and every expectancy statistic read back. A visible null can be excluded from a risk-weighted breakdown; a fabricated 0.5% silently joins the sample as fact. Readers MUST skip nulls rather than coerce them to a default -- that coercion is the bug this type change exists to prevent."
     },
     "position_size": {
       "type": [

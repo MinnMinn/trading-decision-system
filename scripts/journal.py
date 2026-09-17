@@ -120,6 +120,29 @@ def next_seq(date, instrument):
 
 
 # ---------- sync-pilot ----------
+def _risk_pct(entry_rec):
+    """The risk fraction the pilot ACTUALLY sized with, or None.
+
+    Never a default. This used to be `float(e.get("risk_pct", 0.005))`, so a log line without the field was
+    written to trades/ as a 0.5 % trade -- a number nobody risked, in the file the learning system and every
+    expectancy statistic read back. A fabricated input is worse than a missing one: `None` is visibly absent
+    and can be excluded from a per-risk breakdown, whereas 0.005 silently joins the sample as fact."""
+    v = entry_rec.get("risk_pct")
+    if v is None:
+        return None
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    return v if 0 < v <= 1 else None
+
+
+def _risk_pct_label(v):
+    """Prose for the Decision Output block. The old text said "0.5% vốn" unconditionally while risk_pct was
+    whatever the runner used (PILOT_RISK_PCT, clamped to risk-config.json max_risk_pct)."""
+    return f"{v * 100:g}% vốn" if v is not None else "tỉ lệ rủi ro không có trong log của pilot"
+
+
 def sync_pilot(market):
     log_path = PILOT[market]
     if not os.path.exists(log_path):
@@ -153,7 +176,7 @@ def sync_pilot(market):
                                 f"Pilot rules: {'SSL' if side=='LONG' else 'BSL'} sweep → MSS → FVG ({'discount' if side=='LONG' else 'premium'})",
                   "direction": side, "methodology_mode": "NORMAL", "market_regime": "UNCLEAR", "rehearsal_mode": False,
                   "confluence_score": None, "dimensions_used": ["wyckoff", "ict"], "entry": entry, "stop_loss": stop, "targets": [tp],
-                  "risk_pct": float(e.get("risk_pct", 0.005)), "position_size": float(e["qty"]), "status": "OPEN",
+                  "risk_pct": _risk_pct(e), "position_size": float(e["qty"]), "status": "OPEN",
                   "market": e.get("market", mk), "source": src, "timeframe": e.get("tf", "15m"), "session": session_of(opened),
                   "leverage": e.get("leverage", 1), "planned_rr": planned_rr, "confidence": None, "followed_plan": True,
                   "tags": ["pilot", market, side.lower()] + ([strat, "top5", "htf_pass" if e.get("htf_pass") else "htf_fail"] + (["mt5"] if market == "cfd-mt5" else []) if strat else []),
@@ -166,7 +189,7 @@ def sync_pilot(market):
                               f"volume nến quét/MSS ≥ 1.5× trung bình (Effort-vs-Result). Entry {entry} · stop {stop} · TP {tp} · rủi ro {risk_usd} USDT."))}
             body = ("\n## Decision Output (at plan time)\n\n"
                     f"Nguồn: pilot ({mk}), luật cố định trong `scripts/strategy-runner.py`; không có Confluence Score vì không chạy DecisionAgent.\n\n"
-                    f"- Setup: {fm['setup_type']}\n- Entry {entry} · Stop {stop} · TP {tp} · R kế hoạch {planned_rr}\n- Rủi ro {risk_usd} USDT (0.5% vốn) · size {e['qty']}\n"
+                    f"- Setup: {fm['setup_type']}\n- Entry {entry} · Stop {stop} · TP {tp} · R kế hoạch {planned_rr}\n- Rủi ro {risk_usd} USDT ({_risk_pct_label(fm['risk_pct'])}) · size {e['qty']}\n"
                     f"- Lệnh sàn: entry {e.get('entry_order')} · TP {e.get('tp_order')} · SL {e.get('stop_order')}\n\n"
                     "## Post-Trade Review (filled in at close time, master spec section 26)\n"
                     "- Original Thesis: (xem `thesis`)\n- Evidence:\n- Conditions:\n- Execution:\n- Outcome:\n- Root Cause:\n")

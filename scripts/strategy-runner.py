@@ -25,7 +25,7 @@ Rules = the backtest, function for function (scripts/backtest-methods.py, import
   trade. Management = STOP_MARKET + TAKE_PROFIT_MARKET closePosition (futures) or the position's own SL/TP (MT5); breakeven at +1R
   on a CLOSED candle when the setup says mgmt=be (WMT p272); time stop after H bars. The higher-timeframe boundary filter
   (bt.htf_allows on HTF_OF[tf]) is logged as htf_pass for every signal; orders obey it only for setups with htf=true.
-Risk: PILOT_RISK_PCT of equity per trade (env file, clamped <= RISK_CEILING = 3 %), halved after 2 consecutive
+Risk: PILOT_RISK_PCT of equity per trade (env file, clamped <= RISK_CEILING = trading_env.MAX_RISK_PCT, 1 %), halved after 2 consecutive
 losses; every entry must plan >= MIN_RR (3R, analysis-params.json) or it is refused; futures notional <= 25 % of
 equity x leverage 3, ISOLATED; MT5 lots from the bridge's contract data, capped by the EA's InpMaxLots. One position or resting
 order per symbol, MAX_OPEN per venue (= that venue's symbol count, i.e. a full book), MAX_TRADES_PER_DAY per symbol.
@@ -77,7 +77,7 @@ NOTIONAL_CAP_PCT = 0.25
 # Full book (user decision 2026-09-12): one concurrent position per tradeable symbol, so the per-symbol rule
 # ("one position or resting order per symbol") becomes the only binding cap. Derived from the EXECUTION list
 # (docs/architecture/instruments.json) so adding a symbol raises the book by exactly one slot -- no second edit.
-# RISK NOTE: max simultaneous risk = len(symbols) x PILOT_RISK_PCT -- at the 3 % ceiling that is 27 %, though
+# RISK NOTE: max simultaneous risk = len(symbols) x PILOT_RISK_PCT -- at the 1 % ceiling that is 9 %, though
 # the measured peak over the last year was 6.1 % (the R:R floor thins the book). Crypto is near-perfectly correlated in a dump,
 # so a full book is closer to ONE leveraged beta bet than to nine independent ones; EQUITY_HALT_FRAC is what bounds
 # the damage. Dial it back by lowering PILOT_RISK_PCT in config/env.<env>, not by editing this line.
@@ -96,14 +96,21 @@ try:
     _env = trading_env.load_env(resolve_secrets=False); ENV_ERROR = None
 except trading_env.EnvIncomplete as e:
     _env, ENV_ERROR = {}, str(e)
-# Per-trade risk ceiling. Raised from 1 % to 3 % by explicit user decision, 2026-09-13, TOGETHER WITH the
-# planned-R:R floor (MIN_RR below) -- the two are one decision and neither is safe without the other. Measured on
-# the last year of ICT 15m setups across the nine crypto instruments: with the 3R floor, 3 % risk returned +180 %
-# with a 29 % drawdown and never tripped EQUITY_HALT_FRAC. 5 % was REJECTED, not merely disfavoured: its equity
-# curve crossed -15 % from start on 2025-10-12, which halts this runner permanently (line ~963) -- the backtest
-# does not model that halt, so its +366 % for 5 % is unreachable here. Do not raise this to 0.05 without also
-# deciding what happens to EQUITY_HALT_FRAC; that is a separate decision and it has not been made.
-# Evidence: docs/backtests/2026-09-13-rr-floor-and-risk.md.
+# Per-trade risk ceiling. 1 % since 2026-09-17, by explicit user decision, UNIFYING the two ceilings this repo
+# had been carrying: 3 % on this path (trading_env's literal) and 1 % everywhere the manual /execute path looks
+# (risk-config.json, risk-skill, risk-agent, and the SessionStart hook). Both are now the same number and it has
+# one reader, trading_env.MAX_RISK_PCT, sourced from docs/architecture/risk-config.json.
+#
+# The 3R planned-R:R floor below is UNCHANGED by that, and the reason is worth stating rather than assuming:
+# under fixed-fractional sizing, expectancy in R is scale-free in the risk fraction, so every R-multiple in the
+# 2026-09-13 evidence still holds -- lowering 3 % -> 1 % divides the absolute drawdown by three and leaves the
+# floor's justification intact. What that evidence measured, on the last year of ICT 15m setups across the nine
+# crypto instruments: with the 3R floor, 3 % risk returned +180 % with a 29 % drawdown and never tripped
+# EQUITY_HALT_FRAC; at 1 % the same trades are the same sequence of R-multiples on a third of the stake.
+# 5 % was REJECTED, not merely disfavoured: its equity curve crossed -15 % from start on 2025-10-12, which halts
+# this runner permanently (line ~963) -- the backtest does not model that halt, so its +366 % is unreachable
+# here. Do not raise the ceiling without also deciding what happens to EQUITY_HALT_FRAC; that is a separate
+# decision and it has not been made. Evidence: docs/backtests/2026-09-13-rr-floor-and-risk.md.
 RISK_CEILING = trading_env.MAX_RISK_PCT   # one source, see scripts/trading_env.py
 try:
     RISK_PCT = min(RISK_CEILING, max(0.0, float(_env.get("PILOT_RISK_PCT", 0.005))))

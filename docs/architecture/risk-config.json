@@ -9,5 +9,6 @@
     "throttled_risk_pct": 0.00375,
     "reset_condition": "one subsequent WIN, or explicit logged override via /risk"
   },
-  "last_updated": "2026-09-09"
+  "last_updated": "2026-09-17",
+  "_max_risk_note": "max_risk_pct is THE per-trade risk ceiling for every order path, manual and automated. One authored value, one validated reader: scripts/trading_env.py MAX_RISK_PCT (via _read_max_risk_pct, which refuses rather than guessing). Its readers are strategy-runner.RISK_CEILING, scripts/trading-env.sh (PILOT_RISK_PCT clamp), scripts/session-safety-rules.sh (the SessionStart reminder) and RiskSkill/RiskAgent -- none of them may restate the number. Unified at 0.01 on 2026-09-17 by user decision: until then this file said 0.01 while trading_env.py said 0.03, so the automated pilot sized at three times what the manual /execute path enforced and the session hook announced 3%. Express it as a FRACTION (0.01 = 1%); the reader rejects anything outside (0, 1], so a `3` typed for '3%' refuses instead of risking 300% of equity."
 }

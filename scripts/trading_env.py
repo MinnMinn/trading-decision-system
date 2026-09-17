@@ -9,8 +9,9 @@ active environment = docs/architecture/automation-config.json -> execution.envir
 TRADING_ENV environment variable. File = config/env.<name> (template config/env.example).
 Secret values "keychain:<service>[@<account>]" are resolved via scripts/get-secret.sh (macOS Keychain).
 Values are returned in a dict and never printed by this module.
-PILOT_RISK_PCT is clamped to <= MAX_RISK_PCT whatever the file says. That constant is the SINGLE source of the
-per-trade risk ceiling -- strategy-runner.RISK_CEILING reads it from here rather than keeping its own copy.
+PILOT_RISK_PCT is clamped to <= MAX_RISK_PCT whatever the file says. MAX_RISK_PCT is read once, here, from
+docs/architecture/risk-config.json -- strategy-runner.RISK_CEILING and scripts/trading-env.sh both read it from
+this module rather than keeping a copy of the number.
 """
 import json, os, subprocess
 
@@ -20,15 +21,46 @@ GET_SECRET = os.path.join(ROOT, "scripts", "get-secret.sh")
 ENV_NAMES = ("demo", "real")
 PLACEHOLDER = "__FILL_ME__"
 SECRET_SUFFIXES = ("_KEY", "_SECRET_KEY", "_PASSWORD")
-# Per-trade risk ceiling, raised 1 % -> 3 % by explicit user decision 2026-09-13, together with the planned-R:R
-# floor (analysis-params.json ict.min_rr = 3R) -- the two are one decision and neither is safe alone. This is the
-# ONLY definition: the clamp exists in two layers (here on the file value, again in strategy-runner) but the
-# NUMBER must not. On 2026-09-13 the runner's copy was raised and this one was left at 0.01, so config/env's 0.03
-# was silently cut back to 1 % while the runner reported a ceiling it could never reach.
-# Evidence: docs/backtests/2026-09-13-rr-floor-and-risk.md.
-MAX_RISK_PCT = 0.03
 REQUIRED_URLS = ("BINANCE_SPOT_BASE_URL", "BINANCE_FUTURES_BASE_URL")
 ANALYSIS_PARAMS = os.path.join(ROOT, "docs", "architecture", "analysis-params.json")
+RISK_CONFIG = os.path.join(ROOT, "docs", "architecture", "risk-config.json")
+
+
+def _read_max_risk_pct(path=None):
+    """The per-trade risk ceiling, validated. Raises on anything it cannot trust.
+
+    Unified at 1 % by user decision 2026-09-17. Until then this module held the literal 0.03 while
+    risk-config.json, risk-skill/SKILL.md and risk-agent.md all said 0.01 -- so the automated pilot path sized
+    at three times the ceiling the manual /execute path enforced, and the SessionStart hook announced 3 % to
+    every session. Two paths, two numbers, no reader in common: the fourth instance of that shape in this repo
+    (the planned-R:R floor, the ceiling in trading-env.sh, style-keyed runtime state). The fix is the same one
+    min_rr() already uses -- the number is authored in JSON, exactly one reader validates it, and an unreadable
+    value refuses rather than guessing.
+
+    RAISES rather than returning None, unlike min_rr(). MAX_RISK_PCT is consumed as a module constant, so a
+    None would reach `min(v, None)` as a TypeError deep inside a sizing call, and the shell twin
+    (scripts/trading-env.sh) would print the string "None", sail past its own `-z` guard and export an empty
+    PILOT_RISK_PCT. Raising here makes both callers fail closed: the Python importer stops, and the shell's
+    `python3 -c` exits nonzero with empty stdout, which is exactly what its guard already checks for.
+
+    Rejects bool, non-numbers, NaN, <= 0, and > 1 -- a risk FRACTION above 1.0 would mean over 100 % of equity
+    per trade and is far more likely to be `3` typed for "3 %" than a real instruction."""
+    try:
+        v = json.load(open(path or RISK_CONFIG, encoding="utf-8"))["max_risk_pct"]
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        raise RuntimeError(f"cannot read max_risk_pct from {path or RISK_CONFIG} ({e}) -- refusing to assume a "
+                           f"per-trade risk ceiling. A guessed ceiling is a position size nobody decided.") from e
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or not (0 < v <= 1):
+        raise RuntimeError(f"max_risk_pct in {path or RISK_CONFIG} is {v!r}, not a fraction in (0, 1] -- refusing. "
+                           f"Express the ceiling as a FRACTION of equity, never as a percentage number.")
+    return float(v)
+
+
+# The ONE per-trade risk ceiling. The clamp exists in two layers (here on the file value, again in
+# strategy-runner) but the NUMBER must not: strategy-runner.RISK_CEILING and scripts/trading-env.sh both read
+# it from here. Authored in docs/architecture/risk-config.json; twin of min_rr() below.
+# Evidence for the floor it is paired with: docs/backtests/2026-09-13-rr-floor-and-risk.md.
+MAX_RISK_PCT = _read_max_risk_pct()
 
 
 def min_rr(path=None):

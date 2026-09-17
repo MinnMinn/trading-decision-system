@@ -235,7 +235,21 @@ class FlatStyleConsumersFollowTheVocabulary(unittest.TestCase):
         self.assertIn("97773ba6", self.artifacts["cfd-scalping"]["url"])
 
     def test_styles_with_no_page_yet_are_pending_not_wrong(self):
-        for style in ("day", "swing", "cfd-day", "cfd-swing"):
+        """`day` and `swing` were published on 2026-09-17 and have real URLs now, so this can no longer name a
+        fixed PENDING list. What still has to hold is the invariant the list was standing in for: every url is
+        either the PENDING sentinel or a real artifact URL -- never an empty string, a placeholder, or the
+        `PENDING_CREATE_ON_FIRST_RUN` token, which belongs to scripts/cron-templates.py and would match neither
+        branch of the publish tick's `if url == "PENDING"` test."""
+        for style, entry in self.artifacts.items():
+            url = entry.get("url")
+            with self.subTest(style=style):
+                self.assertTrue(url == "PENDING" or url.startswith("https://claude.ai/code/artifact/"),
+                                f"{style} url is {url!r}; the registry's convention is PENDING or a real https URL")
+
+    def test_the_two_cfd_styles_still_have_no_page(self):
+        """markets.cfd.enabled is false and the MT5 export only covers XAUUSD/XAGUSD, so these two have nothing
+        to publish yet. Kept as a specific assertion so a stray publish to them is a visible diff."""
+        for style in ("cfd-day", "cfd-swing"):
             self.assertEqual(self.artifacts[style]["url"], "PENDING",
                              f"{style} has no page yet; the registry's own convention is PENDING")
 

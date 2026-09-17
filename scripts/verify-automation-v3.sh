@@ -47,16 +47,26 @@ echo "== 4 exit codes (all under DRY RUN -- nothing installed, no STOP written)"
 [ "$(t badcmd)" = 1 ] && ok "badcmd=1" || bad "badcmd"
 [ "$(t instrument EURUSD on)" = 2 ] && ok "EURUSD refused=2" || bad "EURUSD"
 [ "$(t dimension footprint on --market cfd)" = 2 ] && ok "footprint@cfd=2" || bad "footprint@cfd"
-[ "$(t timeframe 1m on --market cfd)" = 2 ] && ok "1m@cfd=2" || bad "1m@cfd"
+# 1m left the timeframe vocabulary on 2026-09-13 (three horizons: 15m/1h/4h), so argparse now rejects it as a
+# USAGE error (exit 1) before any policy check runs -- it is no longer a refusable choice. This asserted =2 and
+# had been FAILing ever since; the safety property it guards (you cannot switch 1m on) still holds, just with
+# a different exit code. Policy refusals are covered by the footprint@cfd row above, which is still =2.
+[ "$(t timeframe 1m on --market cfd)" != 0 ] && ok "retired 1m timeframe rejected (usage error)" || bad "1m@cfd accepted"
 python3 $A account demo >/dev/null 2>&1; [ $? = 1 ] && ok "account subcmd removed" || bad "account subcmd still exists"
 [ "$(t allows scanner)" = 0 ] && ok "allows scanner=0 (automation on)" || bad "allows scanner"
 if grep -q "__FILL_ME__" config/env.real; then [ "$(t real)" = 2 ] && ok "real refused while env.real incomplete=2" || bad "real should refuse until env.real is filled"; else echo "  (env.real is filled -- skipping the refusal test; DO NOT run 'real' from this script)"; fi
 
 echo "== 5 dry-run on/off (no launchd, no STOP, no caffeinate)"
+STOP_BEFORE="$(ls data/live/pilot*/STOP 2>/dev/null | wc -l | tr -d " ")"
 cp docs/architecture/automation-config.json /tmp/automation-config.bak
 [ "$(t on --who verify --reason dry-run)" = 0 ] && ok "on (dry run)=0" || bad "on"
 [ "$(t off --who verify --reason dry-run)" = 0 ] && ok "off (dry run)=0" || bad "off"
-ls data/live/pilot*/STOP >/dev/null 2>&1 && bad "STOP file written during dry run" || ok "no STOP file written"
+# Snapshot first: a STOP file is the kill switch, so it is PRESENT whenever the pilot is safely halted --
+# `/automation off` writes one. Testing bare existence meant this row FAILed in the safest possible state,
+# and a check that cries wolf on every clean run is a check the operator learns to skip. What the dry run
+# must not do is CREATE one, so compare the count before and after.
+[ "$STOP_BEFORE" = "$(ls data/live/pilot*/STOP 2>/dev/null | wc -l | tr -d " ")" ] \
+  && ok "dry run created no STOP file (had $STOP_BEFORE)" || bad "dry run created a STOP file"
 ls ~/Library/LaunchAgents/com.tyme.trading.pilot*.plist >/dev/null 2>&1 && echo "  (note: pilot plists present in ~/Library/LaunchAgents -- pre-existing or a real 'on')" || ok "no pilot plist installed by dry run"
 cp /tmp/automation-config.bak docs/architecture/automation-config.json && ok "config restored" || bad "config restore"
 

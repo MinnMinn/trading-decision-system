@@ -1,6 +1,10 @@
 """The planned-R:R floor and the per-trade risk ceiling.
 
 User decision 2026-09-13: every entry must plan at least 3R, and the per-trade risk ceiling rises from 1 % to 3 %.
+User decision 2026-09-17: the ceiling returns to 1 % and, more importantly, becomes ONE number with ONE reader --
+docs/architecture/risk-config.json max_risk_pct, read through trading_env.MAX_RISK_PCT. The 3R floor is unchanged:
+under fixed-fractional sizing expectancy in R is scale-free in the risk fraction, so the 2026-09-13 evidence still
+supports the floor; only the absolute % return/drawdown columns scale, and those must be re-run rather than rescaled.
 
 Why these two belong in one test file: they are one decision. Measured over the last year on the nine crypto
 instruments (215 ICT 15m setups, fee 0.05 %/side), the R:R floor is what makes the higher risk survivable --
@@ -73,8 +77,11 @@ class RiskCeiling(unittest.TestCase):
     def setUp(self):
         self.sr = _load("strategy-runner.py", "sr")
 
-    def test_ceiling_is_three_percent(self):
-        self.assertEqual(self.sr.RISK_CEILING, 0.03)
+    def test_ceiling_is_one_percent(self):
+        """Unified at 1 % on 2026-09-17. Before that this asserted 0.03 and passed, while risk-config.json,
+        risk-skill/SKILL.md, risk-agent.md, automation.py's own docstring and verify-automation-v3.sh:36 all
+        said 1 % -- the test pinned the wrong half of a two-number split."""
+        self.assertEqual(self.sr.RISK_CEILING, 0.01)
 
     def test_risk_pct_is_still_clamped_to_the_ceiling(self):
         """Raising the ceiling must not remove the clamp -- a typo in config/env (0.3 for 3 %) would otherwise
@@ -92,13 +99,40 @@ class RiskCeiling(unittest.TestCase):
         te = importlib.import_module("trading_env")
         self.assertEqual(self.sr.RISK_CEILING, te.MAX_RISK_PCT)
 
-    def test_a_three_percent_env_value_survives_the_clamp(self):
+    def test_the_ceiling_is_actually_reachable(self):
         """The end-to-end assertion the first version of this file was missing: `RISK_PCT <= RISK_CEILING` passes
-        trivially when RISK_PCT is 0.01 and the ceiling is 0.03. Assert that the ceiling is actually REACHABLE."""
+        trivially if the ceiling is unreachable. A config/env value AT the ceiling must survive the clamp."""
         import importlib
         te = importlib.import_module("trading_env")
-        clamped = min(0.03, te.MAX_RISK_PCT)
-        self.assertEqual(clamped, 0.03, "a config/env value of 0.03 is still being cut below 3 %")
+        self.assertEqual(min(te.MAX_RISK_PCT, te.MAX_RISK_PCT), te.MAX_RISK_PCT)
+        self.assertEqual(min(0.03, te.MAX_RISK_PCT), te.MAX_RISK_PCT,
+                         "a config/env value above the ceiling must be clamped DOWN to it, not through it")
+
+    def test_the_ceiling_has_no_second_literal_anywhere_in_code(self):
+        """The whole point of the 2026-09-17 unification. srcscan strips comments and docstrings, so the prose
+        explaining the fix may quote the numbers it bans."""
+        for rel in ("scripts/trading_env.py", "scripts/strategy-runner.py", "scripts/backtest-methods.py",
+                    "scripts/trading-env.sh", "scripts/session-safety-rules.sh"):
+            code = code_text(rel)
+            for lit in ("0.03", "0.01"):
+                self.assertNotIn(lit, code, f"{rel} carries its own copy of the risk ceiling ({lit}); it must "
+                                            f"read docs/architecture/risk-config.json via trading_env.MAX_RISK_PCT")
+
+    def test_an_unreadable_ceiling_refuses_instead_of_defaulting(self):
+        """min_rr() returns None and callers refuse; MAX_RISK_PCT is consumed as a module constant, so it raises
+        instead -- a None would surface as a TypeError inside a sizing call, and the shell twin would print the
+        string "None", pass its own -z guard and export an empty PILOT_RISK_PCT."""
+        import importlib, json as _json, tempfile
+        te = importlib.import_module("trading_env")
+        for bad in ({}, {"max_risk_pct": 0}, {"max_risk_pct": -0.01}, {"max_risk_pct": 3},
+                    {"max_risk_pct": "1%"}, {"max_risk_pct": True}):
+            with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
+                _json.dump(bad, fh); bad_path = fh.name
+            with self.subTest(bad=bad), self.assertRaises(RuntimeError):
+                te._read_max_risk_pct(bad_path)
+            os.unlink(bad_path)
+        with self.assertRaises(RuntimeError):
+            te._read_max_risk_pct(os.path.join(ROOT, "no", "such", "file.json"))
 
     def test_equity_halt_is_untouched(self):
         """The -15 % halt is what makes 3 % survivable (it is why 5 % was rejected). Raising the risk without it
