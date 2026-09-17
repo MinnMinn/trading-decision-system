@@ -90,7 +90,7 @@
     "launchd_label": "com.tyme.trading.pilot.futures",
     "stopped_at": "2026-09-12T18:25:54Z"
   },
-  "last_updated": "2026-09-17T13:53:49Z",
+  "last_updated": "2026-09-17T14:11:34Z",
   "history": [
     {
       "ts": "2026-09-10T10:06:03Z",
@@ -1211,6 +1211,27 @@
       "action": "method ict --market forex",
       "detail": null,
       "result": "applied"
+    },
+    {
+      "ts": "2026-09-17T14:11:34Z",
+      "actor": "tungnguyen",
+      "action": "instrument NOTAREALSYM=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T14:11:34Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T14:11:34Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
     }
   ]
 }
