@@ -29,12 +29,21 @@ class TestSingleSource(unittest.TestCase):
             self.assertTrue(set(I.backtested(m)) <= set(I.execution(m)),
                             f"backtested.{m} escapes execution.{m}")
 
-    def test_no_forex_anywhere(self):
-        """SYSTEM-DESIGN.md §1: Forex is prohibited outright and can never appear in the allowlist."""
-        fx = {"USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "SGD", "HKD"}
+    def test_every_analysable_symbol_has_a_market(self):
+        """Replaces test_no_forex_anywhere, deleted 2026-09-17 when the user lifted the Forex prohibition.
+
+        That test asserted no six-letter currency pair could appear in the allowlist. It was also quietly
+        arbitrary: XAUUSD and XAGUSD passed only because "XAU"/"XAG" were missing from its own hard-coded
+        currency set, not because gold is structurally different from EURUSD in this system.
+
+        The invariant that actually protects anything survives and is asserted here instead: every symbol on an
+        analysis list resolves to exactly one market, so no symbol can be allowlisted into a market the rest of
+        the system cannot route (market_of returns None -> automation.py refuses, DATA_DIR has no entry, no style
+        exists). That is the check the FX test was standing in front of."""
         for sym in I.analysis():
-            if re.fullmatch(r"[A-Z]{6}", sym):
-                self.assertFalse(sym[:3] in fx and sym[3:] in fx, f"{sym} is a Forex pair")
+            m = I.market_of(sym)
+            self.assertIsNotNone(m, f"{sym} is on an analysis list but market_of() cannot place it")
+            self.assertIn(sym, I.analysis(m), f"{sym} resolves to {m} but is not on that market's list")
 
     def test_derived_schema_enums_in_sync(self):
         """scripts/sync-instruments.py --check must pass; if it fails, run it with --write."""

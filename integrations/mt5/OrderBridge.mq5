@@ -29,7 +29,7 @@
 
 input int    InpPollMs        = 1000;                          // poll interval for command files
 input long   InpMagic         = 20260911;                      // magic number on every order
-input string InpAllowedSymbols = "XAUUSD,XAGUSD,USOIL,UKOIL"; // allowlist (hard rule: no Forex)
+input string InpAllowedSymbols = "XAUUSD,XAGUSD,USOIL,UKOIL"; // allowlist -- must mirror execution.<market> in docs/architecture/instruments.json
 input double InpMaxLots       = 1.0;                           // hard cap per order
 input bool   InpDemoOnly      = true;                          // refuse anything but a demo account
 

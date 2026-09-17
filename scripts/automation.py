@@ -20,7 +20,7 @@ WHAT `on` / `off` MEAN (user decision 2026-09-10):
 ENVIRONMENT: execution.environment ("demo" | "real") selects config/env.<name> (template config/env.example),
 loaded by scripts/trading-env.sh (bash) / scripts/trading_env.py (python). It is set by `demo` / `real` or by
 hand in the config file; the order connectors and the pilot read it on every call. Nothing here refuses an
-environment on policy grounds. Hard rules that stay in every environment: no Forex, instrument allowlist,
+environment on policy grounds. Hard rules that stay in every environment: the instrument allowlist,
 PILOT_RISK_PCT <= 1% (clamped by the loaders).
 
 v3 shape (schema_version 3): per-MARKET config (crypto | cfd) with instruments, Confluence dimensions (§6.2) and
@@ -43,9 +43,9 @@ Subcommands
                                       wyckoff+ict+footprint | full. Refuses (2) a preset whose dimensions the
                                       target market has no source for; with no --market it applies only to the
                                       markets that can hold it and prints which it skipped.
-  instrument <SYMBOL> <on|off>        allowlist only; Forex refused; market inferred from the symbol
+  instrument <SYMBOL> <on|off>        allowlist only; market inferred from the symbol
   instrument set <SYM,SYM,...> --market <crypto|cfd>   declarative batch: REPLACE that market's whole list in ONE
-                                      write and ONE history row. All-or-nothing -- any Forex pair, any off-allowlist
+                                      write and ONE history row. All-or-nothing -- any off-allowlist
                                       symbol or any duplicate refuses (2) and leaves the config untouched. An empty
                                       list is legal and means "no NEW entries in this market"; open positions and
                                       resting orders are still managed.
@@ -61,7 +61,7 @@ Subcommands
                                       trusts to permit a write, so "no policy" must not read as "allowed".
   history [-n N]
 
-Exit codes: 0 applied/no-op, 1 usage error, 2 REFUSED (Forex, off-allowlist symbol, impossible market/timeframe/
+Exit codes: 0 applied/no-op, 1 usage error, 2 REFUSED (off-allowlist symbol, impossible market/timeframe/
 dimension pair, incomplete environment file, or a pilot start blocked by a running duplicate / STOP file).
 
 Test-only environment overrides (never set these in normal use):
@@ -111,8 +111,12 @@ TIMEFRAMES = ["15m", "1h", "4h"]
 LAYERS = ["scanner", "local_read", "pilot"]
 ALLOWED_INSTRUMENTS = MARKET_INSTRUMENTS["crypto"] + MARKET_INSTRUMENTS["cfd"]
 COMMODITIES = set(MARKET_INSTRUMENTS["cfd"])
-FX_CODES = {"USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "SEK", "NOK",
-            "SGD", "HKD", "MXN", "ZAR", "TRY", "CNH", "PLN", "DKK"}
+# FX_CODES and the two currency-pair refusals it fed were deleted 2026-09-17 (user decision: the Forex
+# prohibition is lifted). They were never the gate -- docs/security/2026-09-12-method-panel.md:489-491 recorded
+# that the pair test was redundant with the allowlist check, existing "to give the *right message*" while the
+# allowlist gave "the *right answer*". With the prohibition gone the message was the only thing it did, and it
+# was wrong. A currency pair is now refused, or not, on exactly the same ground as every other symbol: whether
+# docs/architecture/instruments.json lists it.
 HISTORY_MAX = 200
 HISTORY_ARCHIVE = os.path.join(ROOT, "data", "live", "history-archive.automation.jsonl")
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
@@ -1164,13 +1168,6 @@ def cmd_layer(a):
 def cmd_instrument(a):
     sym = a.symbol.upper()
     cfg, _, _ = load(require_readable=True)
-    if sym[:3] in FX_CODES and sym[3:6] in FX_CODES:
-        record(cfg, a, f"instrument {sym}={a.value}", "refused")
-        save(cfg)
-        print(f"REFUSED: {sym} is a Forex pair. Forex is prohibited outright by this system's hard rules "
-              f"(SYSTEM-DESIGN.md §1) -- not a preference, not overridable here.", file=sys.stderr)
-        show(cfg, True)
-        return 2
     m = market_of(sym)
     if m is None:
         record(cfg, a, f"instrument {sym}={a.value}", "refused")
@@ -1205,9 +1202,7 @@ def cmd_instrument_set(a):
     universe = MARKET_INSTRUMENTS[m]
     problems = []
     for sym in raw:
-        if sym[:3] in FX_CODES and sym[3:6] in FX_CODES:
-            problems.append(f"{sym}: Forex is prohibited outright (SYSTEM-DESIGN.md §1)")
-        elif sym not in universe:
+        if sym not in universe:
             problems.append(f"{sym}: not on the {m} allowlist ({', '.join(universe)})")
     if len(set(raw)) != len(raw):
         problems.append(f"duplicate symbols in {','.join(raw)}")
@@ -1453,7 +1448,7 @@ def cmd_history(a):
 def main():
     class _P(argparse.ArgumentParser):
         """Usage errors must exit 1, not argparse's default 2 -- 2 is reserved here for REFUSED
-        (mainnet / Forex / impossible market pair / blocked pilot start), and a caller has to be able to tell a
+        (mainnet / off-allowlist symbol / impossible market pair / blocked pilot start), and a caller has to be able to tell a
         typo from a safety refusal."""
         def error(self, message):
             self.print_usage(sys.stderr)

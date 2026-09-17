@@ -23,7 +23,7 @@ if [ -z "$RISK_LINE" ]; then
   RISK_LINE="the per-trade risk ceiling is UNREADABLE (docs/architecture/risk-config.json max_risk_pct) -- every order path refuses until it is fixed"
 fi
 
-TEXT="TRADING SYSTEM HARD SAFETY RULES: capital preservation first; NEVER trade Forex; \
+TEXT="TRADING SYSTEM HARD SAFETY RULES: capital preservation first; \
 analysis allowlist = ${ANALYSIS} and nothing else; \
 EXECUTION (pilot, /execute) is narrower still -- crypto orders only on ${EXEC_CRYPTO}; \
 ${RISK_LINE}. The allowlist has ONE source: docs/architecture/instruments.json (never hard-code a \

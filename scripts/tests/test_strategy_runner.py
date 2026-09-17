@@ -353,7 +353,9 @@ class Mt5BridgeProtocol(unittest.TestCase):
             out = json.loads(subprocess.run(["python3", sp, "check"], capture_output=True, text=True, env=env).stdout); self.assertTrue(out["demo"]); self.assertIn("XAUUSD", out["symbols"])
             out = json.loads(subprocess.run(["python3", sp, "limit", "XAUUSD", "buy", "0.05", "2400.00", "2390.00", "2425.00", "t5-test"], capture_output=True, text=True, env=env).stdout)
             self.assertTrue(out["ok"]); self.assertEqual(out["ticket"], 4242)
-            r = subprocess.run(["python3", sp, "limit", "EURUSD", "buy", "0.05", "1", "0.9", "1.1"], capture_output=True, text=True, env=env); self.assertEqual(r.returncode, 2)
+            # Off-allowlist probe. Was EURUSD; that is about to become a real allowlisted symbol (2026-09-17
+            # Forex decision), and this assertion is about the bridge's allowlist, never about currency pairs.
+            r = subprocess.run(["python3", sp, "limit", "NOTAREALSYM", "buy", "0.05", "1", "0.9", "1.1"], capture_output=True, text=True, env=env); self.assertEqual(r.returncode, 2)
         finally:
             stop.set(); th.join(timeout=1)
 

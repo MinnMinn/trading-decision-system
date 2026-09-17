@@ -72,8 +72,8 @@ to `data/live/mt5-bridge/`); **since 2026-09-13 the CFD side runs the same three
 else** — the launchd loop scans `cfd-scalping` (15m) at :01/:16/:31/:46, `cfd-day` (1H) at :02 every hour and
 `cfd-swing` (4H) at :03 of every 4th hour (`scan-loop.sh:106-110` (`run_style 15m scalping`)), emitting events to
 `data/live/events.jsonl` like the crypto styles. The style names are derived from one authored table,
-`automation.HORIZON_TF` (`automation.py:129` (`HORIZON_TF = {"scalping": "15m"`)) — read that, do not re-list them
-here. Bar counts per timeframe come from `automation.SCAN_WINDOW` (`automation.py:137` (`SCAN_WINDOW = {`)). Which
+`automation.HORIZON_TF` (`automation.py:133` (`HORIZON_TF = {"scalping": "15m"`)) — read that, do not re-list them
+here. Bar counts per timeframe come from `automation.SCAN_WINDOW` (`automation.py:141` (`SCAN_WINDOW = {`)). Which
 of the three actually run is gated per timeframe by `/automation` (`markets.cfd.timeframes`, keys `15m`/`1h`/`4h`),
 and the symbols come from `markets.cfd.instruments` — a symbol with no bridge file on disk is skipped rather than
 aborting the style (`scan-loop.sh:84` (`if [ -s "data/live/mt5-bridge/ohlcv.`)). There is no CFD 1m style: the EA

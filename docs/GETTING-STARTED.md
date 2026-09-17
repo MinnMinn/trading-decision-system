@@ -16,7 +16,6 @@ Một hệ thống ra quyết định giao dịch chạy trong Claude Code, gồ
 
 **Luật cứng, không có ngoại lệ ở bất kỳ môi trường nào:**
 
-- Không bao giờ giao dịch Forex.
 - Chỉ các mã trong `docs/architecture/instruments.json` — **một nguồn duy nhất**, đừng chép danh sách đi đâu khác. File có hai danh sách: `analysis` (được quét và phân tích) và `execution` (được đặt lệnh, luôn là tập con). Mã chỉ nằm trong `analysis` = **chỉ theo dõi**, không bao giờ vào pilot hay `/execute`. Thêm/bớt mã: sửa file đó rồi chạy `python3 scripts/sync-instruments.py --write`.
 - Rủi ro tối đa **1% vốn mỗi lệnh**. Loader tự kẹp xuống 1% nếu file cấu hình ghi cao hơn.
 

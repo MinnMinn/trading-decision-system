@@ -45,7 +45,9 @@ echo "== 4 exit codes (all under DRY RUN -- nothing installed, no STOP written)"
 [ "$(t status)" = 0 ] && ok "status=0" || bad "status"
 [ "$(t env)" = 0 ] && ok "env=0" || bad "env"
 [ "$(t badcmd)" = 1 ] && ok "badcmd=1" || bad "badcmd"
-[ "$(t instrument EURUSD on)" = 2 ] && ok "EURUSD refused=2" || bad "EURUSD"
+# Was "EURUSD refused=2" as a Forex check; the prohibition was lifted 2026-09-17, so this now probes the
+# gate that survives it -- a symbol absent from docs/architecture/instruments.json.
+[ "$(t instrument NOTAREALSYM on)" = 2 ] && ok "off-allowlist symbol refused=2" || bad "off-allowlist symbol"
 [ "$(t dimension footprint on --market cfd)" = 2 ] && ok "footprint@cfd=2" || bad "footprint@cfd"
 # 1m left the timeframe vocabulary on 2026-09-13 (three horizons: 15m/1h/4h), so argparse now rejects it as a
 # USAGE error (exit 1) before any policy check runs -- it is no longer a refusable choice. This asserted =2 and

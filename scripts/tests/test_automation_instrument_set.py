@@ -45,12 +45,17 @@ class InstrumentSet(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertEqual(len(self.cfg()["history"]), n, "a no-op recorded a history row")
 
-    def test_forex_anywhere_in_the_batch_refuses_the_whole_batch(self):
-        """CFG-11 + CFG-12: all-or-nothing, and Forex is refused by the script regardless of caller."""
+    def test_a_symbol_from_another_market_refuses_the_whole_batch(self):
+        """CFG-11 + CFG-12: all-or-nothing, re-validated by the script regardless of caller.
+
+        Was test_forex_anywhere_in_the_batch_refuses_the_whole_batch until 2026-09-17, asserting the word
+        "Forex" appeared in the refusal. The prohibition is lifted, so the probe is now a symbol that is real
+        and allowlisted but belongs to a DIFFERENT market -- which exercises the same all-or-nothing path while
+        testing something that cannot be deleted by a policy change."""
         before = self.cfg()["markets"]["crypto"]["instruments"]
-        r = self.run_auto("instrument", "set", "BTCUSDT,EURUSD", "--market", "crypto")
+        r = self.run_auto("instrument", "set", "BTCUSDT,XAUUSD", "--market", "crypto")
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
-        self.assertIn("Forex", r.stdout + r.stderr)
+        self.assertIn("XAUUSD", r.stdout + r.stderr)
         self.assertEqual(self.cfg()["markets"]["crypto"]["instruments"], before, "partial batch applied")
 
     def test_off_allowlist_symbol_refuses_the_whole_batch(self):

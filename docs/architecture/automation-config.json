@@ -69,7 +69,7 @@
     "launchd_label": "com.tyme.trading.pilot.futures",
     "stopped_at": "2026-09-12T18:25:54Z"
   },
-  "last_updated": "2026-09-17T13:18:48Z",
+  "last_updated": "2026-09-17T13:30:18Z",
   "history": [
     {
       "ts": "2026-09-10T10:06:03Z",
@@ -1116,6 +1116,41 @@
     },
     {
       "ts": "2026-09-17T13:18:48Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:21:49Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:29:14Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:30:18Z",
+      "actor": "tungnguyen",
+      "action": "instrument NOTAREALSYM=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:30:18Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:30:18Z",
       "actor": "tungnguyen",
       "action": "real",
       "detail": null,
