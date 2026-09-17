@@ -4,13 +4,13 @@
 
   "dimensions": {
     "wyckoff": {
-      "label": "Wyckoff", "reads": "giá + khối lượng", "markets": ["crypto", "cfd"], "agent": "structure-agent", "skill": "wyckoff-skill",
+      "label": "Wyckoff", "reads": "giá + khối lượng", "markets": ["crypto", "cfd", "forex"], "agent": "structure-agent", "skill": "wyckoff-skill",
       "data_sources": ["ohlcv"], "max_points": 25, "lane": "wyckoff", "owns_invalidation": true,
       "note": "Phase A-E vocabulary, doi nhan tests, Effort-vs-Result, SOT, Volume Profile (user decision 2026-09-10). NOT the same thing as the runner's mechanical WYCKOFF method -- see runner_methods.",
       "pane": {"kind": "volume", "label": "Khối lượng"}
     },
     "ict": {
-      "label": "ICT", "reads": "cấu trúc giá", "markets": ["crypto", "cfd"], "agent": "structure-agent", "skill": "ict-skill",
+      "label": "ICT", "reads": "cấu trúc giá", "markets": ["crypto", "cfd", "forex"], "agent": "structure-agent", "skill": "ict-skill",
       "data_sources": ["ohlcv"], "max_points": 25, "lane": "ict", "owns_invalidation": true,
       "note": "knowledge/04-06 carry no volume of any kind; volume is the only orthogonal axis against Wyckoff (SYSTEM-DESIGN.md §6.1).",
       "pane": {"kind": "range_pct", "label": "Vị trí trong dealing range (Premium / Discount)"}

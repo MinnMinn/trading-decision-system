@@ -87,14 +87,17 @@ PLIST_SRC = {"scanner": os.path.join(ROOT, "integrations", "launchd", "com.tyme.
 _tspec = importlib.util.spec_from_file_location("trading_env", os.path.join(ROOT, "scripts", "trading_env.py"))
 trading_env = importlib.util.module_from_spec(_tspec); _tspec.loader.exec_module(trading_env)
 
-MARKETS = ["crypto", "cfd"]
 # Instrument allowlist: THE single source is docs/architecture/instruments.json, read through scripts/instruments.py.
 # Never hard-code a symbol list here again -- scripts/tests/test_instruments_sync.py fails the build on drift.
 # ANALYSIS != EXECUTION: this list is what the scanner and /analyze may touch; the pilot and the order connectors
 # use instruments.execution(), a subset, so a watch-only symbol can never reach a venue.
 _ispec = importlib.util.spec_from_file_location("instruments", os.path.join(ROOT, "scripts", "instruments.py"))
 instruments = importlib.util.module_from_spec(_ispec); _ispec.loader.exec_module(instruments)
-MARKET_INSTRUMENTS = {m: instruments.analysis(m) for m in instruments.MARKETS}
+# The market vocabulary itself is the registry's too. This module kept its own ["crypto", "cfd"] literal
+# directly above the import that could have told it -- so adding a market meant editing both, and disagreeing
+# between them would have produced a market with instruments and no config node (or the reverse).
+MARKETS = list(instruments.MARKETS)
+MARKET_INSTRUMENTS = {m: instruments.analysis(m) for m in MARKETS}
 _mspec = importlib.util.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py"))
 methods = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(methods)  # import methods as a sibling script, not a package
 # Which dimensions each market can have AT ALL -- the shape, from docs/architecture/methods.json.
@@ -105,12 +108,18 @@ MARKET_DIMENSIONS = {m: methods.dimensions(m) for m in MARKETS}
 # 1D was the swing entry; all three leave the scanned set when the horizons become 15m/1h/4h. 1D and 1W stay in
 # PAGE_RUNGS below as context-only rungs, which is what keeps swing a full ladder. The MT5 EA
 # (integrations/mt5/ExportOHLCV.mq5) exports 1W/1D/4H/1H/15m/5m, so every scanned cfd rung has a source.
-MARKET_TIMEFRAMES = {"crypto": ["15m", "1h", "4h"], "cfd": ["15m", "1h", "4h"]}
+# One authored list, mapped over every market -- it was written out once per market, so the "one scanned set"
+# the comment above promises was actually N copies that could drift. The per-market SHAPE is deliberate and
+# stays (see cmd_timeframe: the day a market has a different rung, this table is where it is expressed).
+_SCANNED_TF = ["15m", "1h", "4h"]
+MARKET_TIMEFRAMES = {m: list(_SCANNED_TF) for m in MARKETS}
 DIMENSIONS = list(methods.ALL_DIMENSIONS)                                    # SYSTEM-DESIGN.md §6.2
 TIMEFRAMES = ["15m", "1h", "4h"]
 LAYERS = ["scanner", "local_read", "pilot"]
-ALLOWED_INSTRUMENTS = MARKET_INSTRUMENTS["crypto"] + MARKET_INSTRUMENTS["cfd"]
-COMMODITIES = set(MARKET_INSTRUMENTS["cfd"])
+# Every allowlisted symbol, summed over MARKETS -- it named the two markets by hand, which silently excluded
+# any third one from the refusal message that is supposed to list what IS allowed.
+ALLOWED_INSTRUMENTS = instruments.analysis()
+# (COMMODITIES = set(MARKET_INSTRUMENTS["cfd"]) lived here and was read by nothing -- deleted 2026-09-17.)
 # FX_CODES and the two currency-pair refusals it fed were deleted 2026-09-17 (user decision: the Forex
 # prohibition is lifted). They were never the gate -- docs/security/2026-09-12-method-panel.md:489-491 recorded
 # that the pair test was redundant with the allowlist check, existing "to give the *right message*" while the
@@ -132,7 +141,11 @@ _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 HORIZONS = ["scalping", "day", "swing"]
 HORIZON_TF = {"scalping": "15m", "day": "1h", "swing": "4h"}
 TF_HORIZON = {tf: hz for hz, tf in HORIZON_TF.items()}
-STYLE_PREFIX = {"crypto": "", "cfd": "cfd-"}
+# Crypto keeps the bare horizon word; every other market takes a prefix. forex -> fx-scalping/fx-day/fx-swing.
+STYLE_PREFIX = {"crypto": "", "cfd": "cfd-", "forex": "fx-"}
+if set(STYLE_PREFIX) != set(MARKETS):
+    raise KeyError(f"STYLE_PREFIX covers {sorted(STYLE_PREFIX)} but MARKETS is {sorted(MARKETS)} -- a market\n"
+                   f"with no style prefix would silently collide with crypto's bare horizon names.")
 STYLE = {(m, HORIZON_TF[h]): STYLE_PREFIX[m] + h for m in MARKETS for h in HORIZONS}
 STYLE_MARKET_TF = {v: k for k, v in STYLE.items()}
 # How many bars the live scanner reads per timeframe, and how many count as "recent" for event detection.
@@ -172,7 +185,7 @@ def ladder(tf, available):
 # Rungs the pages can draw: every scanned timeframe per market plus 1D and 1W, which are fetched as CONTEXT for the
 # slower horizons and never scanned. Dropping 1m/5m here cannot change any ladder -- next_rung only ever looks
 # upward from the entry timeframe -- and keeping 1D/1W is what leaves `swing` (4h) a full structure+bias ladder.
-PAGE_RUNGS = {"crypto": ["15m", "1h", "4h", "1D", "1W"], "cfd": ["15m", "1h", "4h", "1D", "1W"]}
+PAGE_RUNGS = {m: _SCANNED_TF + ["1D", "1W"] for m in MARKETS}
 # style -> {"structure": tier, "bias": tier}; tier = {"tf": ..., "style": style-or-None} (None style = chart only, no read).
 TIERS = {}
 for (_mkt, _tf), _style in STYLE.items():
@@ -251,14 +264,32 @@ def market_of(sym):
 
 
 def market_of_style(style):
-    """Which market's dimension flags a chart style obeys. `cfd-` prefixed styles are the CFD market; everything
-    else is crypto. One definition — build-artifact.py and htf_context.py both read it here rather than
-    re-deriving it. (Before 2026-09-13 the prefix was `gold`, which named the instrument, not the market.)"""
-    return "cfd" if (style or "").startswith("cfd-") else "crypto"
+    """Which market's dimension flags a chart style obeys. One definition — build-artifact.py and htf_context.py
+    both read it here rather than re-deriving it. (Before 2026-09-13 the prefix was `gold`, which named the
+    instrument, not the market.)
+
+    Answered by LOOKUP in the derived STYLE table, not by testing for a prefix. It used to read
+    `"cfd" if style.startswith("cfd-") else "crypto"`, which is not a two-market simplification but a wrong
+    answer for any third market: every fx- style would have quietly obeyed CRYPTO's dimension flags -- picking up
+    footprint and heatmap, which have no forex source at all -- and nothing would have failed.
+
+    An unrecognised non-empty style RAISES. Defaulting it to crypto is precisely the failure above."""
+    if not style:
+        return "crypto"
+    hit = STYLE_MARKET_TF.get(style)
+    if hit is None:
+        raise KeyError(f"unknown style {style!r}; known: {', '.join(sorted(STYLE_MARKET_TF))}")
+    return hit[0]
 
 
 def _market_default(m):
-    return {"enabled": True, "instruments": list(MARKET_INSTRUMENTS[m]),
+    """The shape a market takes in a config that does not mention it.
+
+    `enabled` is the market's REGISTERED default (instruments.json markets.<m>.default_enabled), not a blanket
+    True. A market whose feed has no data -- forex today: the MT5 EA exports only symbols with an attached
+    chart, and no FX chart is attached -- must not arrive enabled, because enabling it sets a flag over an
+    empty directory and every downstream reader then reports a market that cannot produce a single candle."""
+    return {"enabled": instruments.default_enabled(m), "instruments": list(MARKET_INSTRUMENTS[m]),
             "dimensions": {d: True for d in MARKET_DIMENSIONS[m]},
             "timeframes": {t: True for t in MARKET_TIMEFRAMES[m]}}
 

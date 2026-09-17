@@ -11,16 +11,22 @@ Usage: local-eval-brief.py <style> [--bars 40] [--symbols BTCUSDT,ETHUSDT,SOLUSD
 import argparse, json, os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import importlib.util as _iu  # noqa: E402
 import instruments as I  # noqa: E402
+_as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py"))
+_auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
 # style -> (timeframe code as scripts/fetch-binance-klines.sh spells it, bars in the window).
 # The `cfd-` prefixed styles are XAUUSD via the MT5 bridge (the EA exports 200 bars per timeframe,
-# InpBarsToExport); the bare names are crypto. Six names since 2026-09-13: three horizons x two markets, derived
+# InpBarsToExport); the bare names are crypto. Nine names: three horizons x three markets (forex added 2026-09-17), derived
 # in scripts/automation.py (HORIZON_TF / STYLE) -- this table only adds the WINDOW each one reads.
 # The 1H/4H window sizes (240 / 180) are PROJECT PARAMETERS -- no source prescribes them; they are ~10 days of
 # hourly and ~30 days of 4-hourly bars. On the MT5 bridge a 240-bar 1H request simply yields the 200 bars the EA
 # exports until InpBarsToExport is raised.
-TF = {"scalping": ("15m", 288), "day": ("1H", 240), "swing": ("4H", 180),
-      "cfd-scalping": ("15m", 288), "cfd-day": ("1H", 240), "cfd-swing": ("4H", 180)}
+# Authored per HORIZON, then mapped over every market -- it was written out once per style, so the "six names,
+# three horizons x two markets" the comment above describes was six rows that could disagree with each other.
+_HZ_WINDOW = {"scalping": ("15m", 288), "day": ("1H", 240), "swing": ("4H", 180)}
+TF = {_auto.STYLE[(_m, _auto.HORIZON_TF[_h])]: _w
+      for _m in _auto.MARKETS for _h, _w in _HZ_WINDOW.items()}
 # Feed directory comes from instruments.py (I.data_dir), keyed by market -- was a hard-coded symbol set.
 CITES = """- Trading Range: WA p71–72 · knowledge/07 §2.7 · WMT p023–026 · knowledge/08 §2.4 · Pha A–E (phases): knowledge/07 §2.7–2.10
 - Spring/Shakeout (sự kiện): WA p80 · knowledge/07 §2.7.3 · Spring loại 1/2/3 (theo khối lượng): WMT p036–049 · knowledge/08 §2.6

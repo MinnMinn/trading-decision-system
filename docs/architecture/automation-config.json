@@ -48,6 +48,27 @@
         "1h": true,
         "4h": true
       }
+    },
+    "forex": {
+      "enabled": false,
+      "instruments": [
+        "EURUSD",
+        "GBPUSD",
+        "USDJPY",
+        "AUDUSD",
+        "USDCAD",
+        "USDCHF",
+        "NZDUSD"
+      ],
+      "dimensions": {
+        "wyckoff": false,
+        "ict": true
+      },
+      "timeframes": {
+        "15m": true,
+        "1h": true,
+        "4h": true
+      }
     }
   },
   "layers": {
@@ -69,7 +90,7 @@
     "launchd_label": "com.tyme.trading.pilot.futures",
     "stopped_at": "2026-09-12T18:25:54Z"
   },
-  "last_updated": "2026-09-17T13:30:18Z",
+  "last_updated": "2026-09-17T13:53:49Z",
   "history": [
     {
       "ts": "2026-09-10T10:06:03Z",
@@ -1155,6 +1176,41 @@
       "action": "real",
       "detail": null,
       "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:53:14Z",
+      "actor": "tungnguyen",
+      "action": "instrument EURUSD=on (market forex)",
+      "detail": null,
+      "result": "no-op"
+    },
+    {
+      "ts": "2026-09-17T13:53:26Z",
+      "actor": "tungnguyen",
+      "action": "instrument NOTAREALSYM=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:53:26Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:53:27Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-17T13:53:49Z",
+      "actor": "tungnguyen",
+      "action": "method ict --market forex",
+      "detail": null,
+      "result": "applied"
     }
   ]
 }

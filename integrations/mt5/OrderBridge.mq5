@@ -29,7 +29,7 @@
 
 input int    InpPollMs        = 1000;                          // poll interval for command files
 input long   InpMagic         = 20260911;                      // magic number on every order
-input string InpAllowedSymbols = "XAUUSD,XAGUSD,USOIL,UKOIL"; // allowlist -- must mirror execution.<market> in docs/architecture/instruments.json
+input string InpAllowedSymbols = "XAUUSD,XAGUSD,USOIL,UKOIL,EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD"; // allowlist -- must mirror the MT5-fed execution lists in docs/architecture/instruments.json (cfd + forex). COMPILED INPUT: editing this source changes nothing until the EA is recompiled and re-attached in MetaTrader.
 input double InpMaxLots       = 1.0;                           // hard cap per order
 input bool   InpDemoOnly      = true;                          // refuse anything but a demo account
 

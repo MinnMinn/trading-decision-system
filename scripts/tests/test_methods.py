@@ -37,7 +37,9 @@ class Registry(unittest.TestCase):
         self.assertEqual(ids, ["wyckoff", "ict", "wyckoff+ict"])
 
     def test_markets_order_is_a_declared_contract(self):
-        self.assertEqual(M.markets(), ["crypto", "cfd"])
+        # forex appended 2026-09-17. Order is a contract because the config, the schema and the status display
+        # all render markets in it; it follows docs/architecture/instruments.json -> markets.
+        self.assertEqual(M.markets(), ["crypto", "cfd", "forex"])
 
     def test_every_preset_resolves_to_exactly_one_mode(self):
         """Added with SOLO (2026-09-12): every registry preset must carry a mode that exists in M.MODES."""

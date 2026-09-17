@@ -121,8 +121,11 @@ class LegacyEngineIsGone(unittest.TestCase):
 
 HORIZONS = ("scalping", "day", "swing")
 HORIZON_TF = {"scalping": "15m", "day": "1h", "swing": "4h"}
-STYLES = {("crypto", "15m"): "scalping", ("crypto", "1h"): "day", ("crypto", "4h"): "swing",
-          ("cfd", "15m"): "cfd-scalping", ("cfd", "1h"): "cfd-day", ("cfd", "4h"): "cfd-swing"}
+# The expected (market, tf) -> name table, spelled out from the two things this test is willing to assume:
+# the three horizons above and one prefix per market. It used to list six entries, so a new market's styles
+# were simply unasserted -- the table has to grow with MARKETS or it stops being a check.
+PREFIX = {"crypto": "", "cfd": "cfd-", "forex": "fx-"}
+STYLES = {(m, HORIZON_TF[h]): PREFIX[m] + h for m in PREFIX for h in HORIZONS}
 # No skip list. An earlier draft of these scans carried a PENDING_FLAT_CONSUMERS tuple while the six flat-name
 # consumers were still being renamed; it is deliberately gone rather than left empty, because a skip list that
 # outlives its reason is exactly the second, drifting source this whole change exists to remove.
@@ -146,11 +149,12 @@ class OneStyleVocabulary(unittest.TestCase):
         self.assertEqual(self.auto.HORIZON_TF, HORIZON_TF)
 
     def test_style_is_derived_from_the_horizon_table(self):
-        """Six flat names, three horizons, two markets -- and each name's horizon half must map back through
-        HORIZON_TF to the timeframe its own key carries. A hand-edited STYLE entry fails here."""
+        """One flat name per (market, horizon) -- and each name's horizon half must map back through HORIZON_TF
+        to the timeframe its own key carries. A hand-edited STYLE entry fails here."""
         self.assertEqual(self.auto.STYLE, STYLES)
+        self.assertEqual(sorted(PREFIX), sorted(self.auto.MARKETS), "this test knows a different market set")
         for (m, tf), style in self.auto.STYLE.items():
-            hz = style[4:] if style.startswith("cfd-") else style
+            hz = style[len(PREFIX[m]):]
             self.assertIn(hz, HORIZONS, f"{style} is not one of the three horizons")
             self.assertEqual(HORIZON_TF[hz], tf, f"{style} claims {tf}, HORIZON_TF says {HORIZON_TF[hz]}")
             self.assertEqual(self.auto.market_of_style(style), m, f"market_of_style({style}) != {m}")
@@ -270,10 +274,17 @@ class FlatStyleConsumersFollowTheVocabulary(unittest.TestCase):
             self.assertIn(style, live, f"integrations/headless/{fn} names a retired style")
 
     def test_scan_loop_default_styles_are_the_live_ones(self):
+        """The fallback list is the styles of the DEFAULT-ENABLED markets, not of every market.
+
+        AUTO_STYLES fails OPEN -- an unreadable config means "run as before" -- so this default is what gets
+        scanned when /automation cannot be read. A market registered with default_enabled:false (forex: no MT5
+        chart attached, so no candle file exists) must therefore be absent from it: a fallback is the one place
+        that must never widen the scan on its own."""
         src = open(os.path.join(ROOT, "scripts", "scan-loop.sh"), encoding="utf-8").read()
         m = re.search(r'AUTO_STYLES="\$\{AUTO_STYLES:-([^}"]*)\}"', src)
         self.assertIsNotNone(m, "AUTO_STYLES default not found")
-        self.assertEqual(sorted(m.group(1).split(",")), sorted(self.auto.STYLE.values()))
+        want = [s for (mk, _tf), s in self.auto.STYLE.items() if self.auto.instruments.default_enabled(mk)]
+        self.assertEqual(sorted(m.group(1).split(",")), sorted(want))
 
     def test_narrative_schema_enumerates_the_six(self):
         with open(os.path.join(ROOT, "docs", "architecture", "schemas", "narrative.schema.json"),

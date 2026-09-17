@@ -21,11 +21,15 @@ class Ladder(unittest.TestCase):
                          {"5m": "30m", "15m": "1H", "30m": "2H", "1H": "4H", "2H": "1D", "4H": "1D", "1D": None})
 
     def test_page_tiers(self):
-        """Six styles since 2026-09-13 (three horizons x two markets), and the two markets now share one rung set,
-        so the same horizon gets the same ladder in both -- the prefix routes the market, not the geometry."""
-        t = {k: (v["structure"] and v["structure"]["tf"], v["bias"] and v["bias"]["tf"]) for k, v in self.a.TIERS.items()}
-        self.assertEqual(t, {"scalping": ("1h", "4h"), "day": ("4h", "1D"), "swing": ("1D", "1W"),
-                             "cfd-scalping": ("1h", "4h"), "cfd-day": ("4h", "1D"), "cfd-swing": ("1D", "1W")})
+        """Every market shares one rung set, so the same HORIZON gets the same ladder everywhere -- the prefix
+        routes the market, not the geometry. Asserted per horizon over MARKETS rather than as a flat list of
+        style names, so a new market cannot pass by being absent (it was a six-entry literal, which is how a
+        third market's ladder would have gone unchecked)."""
+        want = {"scalping": ("1h", "4h"), "day": ("4h", "1D"), "swing": ("1D", "1W")}
+        got = {k: (v["structure"] and v["structure"]["tf"], v["bias"] and v["bias"]["tf"]) for k, v in self.a.TIERS.items()}
+        self.assertEqual(sorted(got), sorted(self.a.STYLE.values()), "TIERS and STYLE disagree about the styles")
+        for (m, tf), style in self.a.STYLE.items():
+            self.assertEqual(got[style], want[self.a.TF_HORIZON[tf]], f"{style} ladder differs from {tf}'s")
 
     def test_gate_is_bias_when_scanned_else_structure(self):
         self.assertEqual(self.a.gate_style("scalping"), ("swing", "bias"))

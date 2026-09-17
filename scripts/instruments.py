@@ -5,7 +5,9 @@ allowlist (SYSTEM-DESIGN.md §1). Import this; never hard-code a symbol list any
     I.analysis("crypto")    -> ['BTCUSDT', ...]   # scannable / analysable
     I.execution("crypto")   -> ['BTCUSDT', ...]   # orderable (always a subset of analysis)
     I.backtested("crypto")  -> ['BTCUSDT', ...]   # actually validated by the pilot backtest (subset of execution)
-    I.ALL_ANALYSIS          -> every allowlisted symbol, crypto + cfd
+    I.ALL_ANALYSIS          -> every allowlisted symbol, every market
+    I.MARKETS               -> the registered markets, in order -- derived from the file's `markets` object
+    I.data_dir(sym) / I.is_tick_volume(sym) / I.default_enabled(market)   -> that market's feed facts
 
 Loading enforces two invariants:
   - every execution list is a subset of its analysis list -- a violation raises at import time rather than
@@ -20,12 +22,35 @@ import json, os
 
 PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                     "docs", "architecture", "instruments.json")
-MARKETS = ["crypto", "cfd"]
+
+
+def _read():
+    with open(PATH, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+_DATA = _read()
+
+# The market vocabulary is DATA, not a literal. It was `["crypto", "cfd"]` here and again in automation.py, with
+# each market's feed facts copied into eight further files -- so "add a market" meant ten edits and any two of
+# them could disagree. The keys of instruments.json -> markets are now the definition, and the per-market
+# sections must match them exactly (checked below), which makes a half-registered market impossible.
+MARKET_META = {k: v for k, v in (_DATA.get("markets") or {}).items() if not k.startswith("_")}
+if not MARKET_META:
+    raise ValueError(f"{PATH}: no markets registered. The `markets` object defines which markets exist; "
+                     f"without it every reader would have to guess, and guessing is how a symbol reaches a "
+                     f"venue nobody vetted.")
+MARKETS = list(MARKET_META)
 
 
 def _load():
-    with open(PATH, encoding="utf-8") as fh:
-        d = json.load(fh)
+    d = _DATA
+    for section in ("analysis", "execution"):
+        if set(d.get(section) or {}) != set(MARKETS):
+            raise ValueError(f"{PATH}: {section} covers {sorted(d.get(section) or {})} but the market registry "
+                             f"is {sorted(MARKETS)}. Every registered market needs a list in every section -- a "
+                             f"market with no analysis list resolves no symbols, and a list with no registered "
+                             f"market has no feed, no style and no config node.")
     for m in MARKETS:
         a, e = d["analysis"][m], d["execution"][m]
         extra = [s for s in e if s not in a]
@@ -39,13 +64,16 @@ def _load():
     return d
 
 
-_DATA = _load()
+_load()
 ANALYSIS = {m: list(_DATA["analysis"][m]) for m in MARKETS}
 EXECUTION = {m: list(_DATA["execution"][m]) for m in MARKETS}
 BACKTESTED = {m: list((_DATA.get("backtested") or {}).get(m, [])) for m in MARKETS}
-ALL_ANALYSIS = ANALYSIS["crypto"] + ANALYSIS["cfd"]
-ALL_EXECUTION = EXECUTION["crypto"] + EXECUTION["cfd"]
-ALL_BACKTESTED = BACKTESTED["crypto"] + BACKTESTED["cfd"]
+# Summed over MARKETS, not over a hand-written pair of market names: naming them here meant a new market was
+# silently absent from every "all symbols" reader (the allowlist message, the safety hook) while being present
+# in the per-market ones -- a half-registered market is worse than an unregistered one.
+ALL_ANALYSIS = [s for m in MARKETS for s in ANALYSIS[m]]
+ALL_EXECUTION = [s for m in MARKETS for s in EXECUTION[m]]
+ALL_BACKTESTED = [s for m in MARKETS for s in BACKTESTED[m]]
 
 
 def analysis(market=None):
@@ -81,22 +109,32 @@ def market_of(symbol):
 # symbols, so the duplication was an open invariant violation, not merely untidy.
 #
 # Keyed by MARKET, not by symbol: the directory and the volume semantics are properties of the FEED, so a new
-# symbol in an existing market needs no edit here at all.
-DATA_DIR = {"crypto": "market-data", "cfd": "mt5-bridge"}
+# symbol in an existing market needs no edit here at all -- and they are read from the registry, so a new
+# MARKET needs no edit here either.
+DATA_DIR = {m: MARKET_META[m]["data_dir"] for m in MARKETS}
 
 # Markets whose feed reports TICK COUNT where a volume field is expected. Not a permission statement -- the
-# Forex prohibition was lifted 2026-09-17 -- but a data-quality one, and the reason
+# blanket Forex prohibition was lifted 2026-09-17 -- but a data-quality one, and the reason
 # analysis-params.json carries tick_volume_credit_multiplier: a tick count must never be scored as traded
 # volume (knowledge/08 §7, the source's own warning).
-TICK_VOLUME_MARKETS = ("cfd",)
+TICK_VOLUME_MARKETS = tuple(m for m in MARKETS if MARKET_META[m]["tick_volume"])
 
-if set(DATA_DIR) != set(MARKETS):
-    raise ValueError(f"scripts/instruments.py: DATA_DIR covers {sorted(DATA_DIR)} but MARKETS is "
-                     f"{sorted(MARKETS)}. Every market needs exactly one live data directory -- a market "
-                     f"without one makes every reader guess, and a directory without a market is dead wiring.")
-if not set(TICK_VOLUME_MARKETS) <= set(MARKETS):
-    raise ValueError(f"scripts/instruments.py: TICK_VOLUME_MARKETS names markets that do not exist: "
-                     f"{sorted(set(TICK_VOLUME_MARKETS) - set(MARKETS))}.")
+for _m, _meta in MARKET_META.items():
+    _missing = [k for k in ("data_dir", "tick_volume", "default_enabled") if k not in _meta]
+    if _missing:
+        raise ValueError(f"{PATH}: markets.{_m} is missing {_missing}. Every registered market must state where "
+                         f"its candles land, whether its volume field is a tick count, and whether it is on by "
+                         f"default -- none of the three has a safe guess.")
+    if not isinstance(_meta["tick_volume"], bool) or not isinstance(_meta["default_enabled"], bool):
+        raise ValueError(f"{PATH}: markets.{_m} tick_volume and default_enabled must be booleans.")
+
+
+def default_enabled(market):
+    """Whether a market is ON for a config that does not mention it (scripts/automation.py _market_default).
+
+    forex ships False: the MT5 EA only exports symbols with an attached chart, and no FX chart is attached, so
+    enabling it would set a flag over an empty directory."""
+    return bool(MARKET_META[market]["default_enabled"])
 
 
 def _market_or_raise(symbol):

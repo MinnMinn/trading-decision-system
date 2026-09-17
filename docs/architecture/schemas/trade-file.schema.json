@@ -38,7 +38,14 @@
         "XAUUSD",
         "XAGUSD",
         "USOIL",
-        "UKOIL"
+        "UKOIL",
+        "EURUSD",
+        "GBPUSD",
+        "USDJPY",
+        "AUDUSD",
+        "USDCAD",
+        "USDCHF",
+        "NZDUSD"
       ]
     },
     "date_opened": {

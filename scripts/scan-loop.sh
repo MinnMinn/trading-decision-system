@@ -35,6 +35,9 @@ except Exception:
 GATE
 )"
 AUTO_SCANNER="${AUTO_SCANNER:-1}"
+# Fallback only -- the real list comes from /automation (enabled_styles) a few lines above. It fails OPEN
+# to "run as before" if the config is unreadable, so it deliberately does NOT include fx-*: a market whose
+# feed has no attached chart must not be scanned by a FALLBACK. scripts/tests/test_one_system.py pins this.
 AUTO_STYLES="${AUTO_STYLES:-scalping,day,swing,cfd-scalping,cfd-day,cfd-swing}"
 # Fallback when the config is unreadable (UNCONFIGURED): the full ANALYSIS allowlist from the single source.
 source "$ROOT/scripts/instruments.sh" 2>/dev/null || true

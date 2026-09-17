@@ -311,7 +311,7 @@ về `instruments.execution(market)` **giao với** `markets.<m>.instruments`, v
 (PANEL-09). Mỗi chip mang nhãn trạng thái, lấy từ hàm dò sẵn có chứ không từ danh sách chép tay:
 
 - *chưa có dữ liệu* — không có file `ohlcv.<SYM>.15m.json` trong `data/live/<DATA_DIR[m]>/`; dùng đúng phép dò của
-  `automation.py:729-746` (`def mt5_freshness(`) và của `automation.py:1168` (`def cmd_instrument(`). Hôm nay USOIL/UKOIL rơi vào đây;
+  `automation.py:762-746` (`def mt5_freshness(`) và của `automation.py:1201` (`def cmd_instrument(`). Hôm nay USOIL/UKOIL rơi vào đây;
   XAUUSD và XAGUSD đều đã có export tươi.
 - *không đặt lệnh được* — có trong `analysis` nhưng ngoài `execution`, nên tick chỉ mở rộng phạm vi phân tích chứ
   không cho pilot đặt lệnh (CFG-15). Hôm nay `analysis == execution` ở cả hai market nên chưa cặp nào rơi vào đây.

@@ -17,7 +17,10 @@
 // analysis-params.json project_defined.ict (the decks define concepts, not numbers). Candle times are UTC ISO strings;
 // sessions convert to the exchange-local zone per date (docs/architecture/session-model.md §1) so they follow DST.
 const SESSIONS = [{key:'asia',name:'ASIA',tz:'America/New_York',a:20,b:24},{key:'london',name:'LDN',tz:'Europe/London',a:8,b:11},{key:'ny_am',name:'NY AM',tz:'America/New_York',a:8.5,b:11},{key:'ny_pm',name:'NY PM',tz:'America/New_York',a:13.5,b:16}];
-const KZ_WEIGHT = {crypto:{london:'reduced',ny_am:'reduced',ny_pm:'none'}, metals:{london:'full',ny_am:'full',ny_pm:'full'}, oil:{london:'reduced',ny_am:'full',ny_pm:'full'}};
+// Keyed by instruments.json display.asset_class (I.display(sym)['asset_class']), which defaults to the market.
+// forex: the London and NY killzones are FX concepts to begin with (docs/architecture/session-model.md cites
+// forexop for exactly this), so both carry full weight; the NY afternoon is the weaker of the three.
+const KZ_WEIGHT = {crypto:{london:'reduced',ny_am:'reduced',ny_pm:'none'}, metals:{london:'full',ny_am:'full',ny_pm:'full'}, oil:{london:'reduced',ny_am:'full',ny_pm:'full'}, forex:{london:'full',ny_am:'full',ny_pm:'reduced'}};
 const utcDate = iso => new Date(/Z$/.test(iso)?iso:iso+'Z');
 const unix = iso => Math.floor(utcDate(iso).getTime()/1000);
 const localHour = (iso,tz) => { const parts=new Intl.DateTimeFormat('en-GB',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(utcDate(iso)); let h=0,m=0; parts.forEach(q=>{ if(q.type==='hour')h=(+q.value)%24; if(q.type==='minute')m=+q.value; }); return h+m/60; };

@@ -64,14 +64,28 @@ def _style(tf, syms, name, kz):
 
 
 # The three tiers of every style come from ONE table: scripts/automation.py TIERS (docs/architecture/timeframe-mapping.md).
-STYLES = {
-    "scalping":     _style("15m", CRYPTO, "Crypto Scalping", True),
-    "day":          _style("1H",  CRYPTO, "Crypto Day", True),
-    "swing":        _style("4H",  CRYPTO, "Crypto Swing", False),
-    "cfd-scalping": _style("15m", GOLD,   "CFD Scalping", True),
-    "cfd-day":      _style("1H",  GOLD,   "CFD Day", True),
-    "cfd-swing":    _style("4H",  GOLD,   "CFD Swing", False),
-}
+#
+# The style names themselves are derived from automation.STYLE rather than listed here. They were listed -- six
+# rows -- which is why adding a market meant editing this table, artifacts.json, local-eval-brief.py and
+# scan-loop.sh by hand and hoping all four agreed. Now only the per-market symbol set and human label are
+# authored, and both are validated against the registry below.
+MARKET_LABEL = {"crypto": "Crypto", "cfd": "CFD", "forex": "Forex"}
+# Which symbols a market's pages DRAW. Not the same question as which symbols are allowlisted: the MT5 EA
+# exports only symbols with an attached chart, so cfd draws XAUUSD alone even though four are analysable.
+# forex lists all seven majors -- none has a chart attached yet, so every fx- style is addressable and will
+# refuse to build with "no data" until one is. That refusal is the honest state, not a bug to paper over.
+STYLE_SYMS = {"crypto": CRYPTO, "cfd": GOLD, "forex": [_meta(s) for s in I.analysis("forex")]}
+if set(MARKET_LABEL) != set(_auto.MARKETS) or set(STYLE_SYMS) != set(_auto.MARKETS):
+    raise KeyError(f"build-artifact: markets are {sorted(_auto.MARKETS)} but this file knows labels for "
+                   f"{sorted(MARKET_LABEL)} and symbols for {sorted(STYLE_SYMS)} -- a market with neither "
+                   f"would silently have no page at all.")
+STYLES = {}
+for _m in _auto.MARKETS:
+    for _h in _auto.HORIZONS:
+        _atf = _auto.HORIZON_TF[_h]
+        _ftf = TF_LABEL[_atf]
+        STYLES[_auto.STYLE[(_m, _atf)]] = _style(_ftf, STYLE_SYMS[_m], f"{MARKET_LABEL[_m]} {_h.capitalize()}",
+                                                 _ftf != "4H")
 for _st, _S in STYLES.items():
     _S["tiers"] = {}
     for _name in ("bias", "structure"):
@@ -140,6 +154,21 @@ def chip(text, extra=""):
 
 def candles(sym, tf, n, snap=None):
     src = f"{ROOT}/data/live/{I.data_dir(sym)}/ohlcv.{sym}.{tf}.json"
+    if not os.path.exists(src):
+        # A missing candle file is a MISSING SOURCE, not a crash. It raised FileNotFoundError with a traceback,
+        # which reads like a broken script; it is usually one of two ordinary states, and the operator needs to
+        # be told which. On the MT5 bridge the EA only exports a symbol that has a chart attached, so every
+        # forex style is in exactly this position until a chart is opened per pair.
+        how = ("the MT5 EA (integrations/mt5/ExportOHLCV.mq5) only exports a symbol that has a CHART ATTACHED "
+               "in MetaTrader -- open one for this symbol, keep the terminal running, then rebuild"
+               if I.data_dir(sym) == "mt5-bridge" else
+               "the launchd scanner (scripts/scan-loop.sh) writes these -- check /automation status")
+        # Exit 1, deliberately NOT 2: exit 2 means one thing in this script -- a method-purity violation --
+        # and the publish tick reads it that way. A missing source is a different fact and must not wear
+        # the same code.
+        sys.exit(f"no data for {sym} {tf}: {os.path.relpath(src, ROOT)} does not exist.\n"
+                 f"  {how}.\n"
+                 f"  Nothing is wrong with the page: a chart drawn from no candles would be a fabrication.")
     d = json.load(open(src, encoding="utf-8"))
     if snap:
         os.makedirs(snap, exist_ok=True)

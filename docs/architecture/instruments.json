@@ -1,6 +1,28 @@
 {
   "_comment": "THE single source of truth for the instrument allowlist (SYSTEM-DESIGN.md §1). Nothing else in this repo may hard-code a symbol list: scripts/instruments.py (Python) and scripts/instruments.sh (bash/jq) are the two readers, and scripts/tests/test_instruments_sync.py fails the build if any file drifts from this one. Adding or removing a symbol = edit THIS file, run `python3 scripts/sync-instruments.py --write`, done.",
   "_policy": "analysis != execution. A symbol on the analysis list is scannable and analysable (scanner, /analyze, /bias, /entry). Only a symbol on the execution list can ever have an order placed on it (pilot, /execute, the Binance connectors). Every execution list MUST be a subset of its analysis list -- scripts/instruments.py enforces this on load and raises on violation, and every backtested list must be a subset of its execution list. This file is the ONLY gate on what may be analysed or traded: the separate blanket Forex prohibition was lifted 2026-09-17 by user decision, so a currency pair is permitted exactly when it is listed here and refused otherwise, like every other symbol.",
+  "markets": {
+    "_comment": "THE market registry. The keys here ARE the set of markets the system knows -- scripts/instruments.py derives MARKETS from them, and every per-market section below (analysis, execution, backtested) must carry exactly the same keys or loading raises. Adding a market is a data edit here plus a style prefix in scripts/automation.py; it used to be a literal [\"crypto\", \"cfd\"] in instruments.py AND another in automation.py, with the feed facts copied into eight more files.",
+    "crypto": {
+      "feed": "Binance public REST (scripts/fetch-binance-klines.sh, via the launchd scanner)",
+      "data_dir": "market-data",
+      "tick_volume": false,
+      "default_enabled": true
+    },
+    "cfd": {
+      "feed": "MT5 file bridge (integrations/mt5/ExportOHLCV.mq5 -> data/live/mt5-bridge)",
+      "data_dir": "mt5-bridge",
+      "tick_volume": true,
+      "default_enabled": true
+    },
+    "forex": {
+      "feed": "MT5 file bridge -- the same EA as cfd, one attached chart per symbol",
+      "data_dir": "mt5-bridge",
+      "tick_volume": true,
+      "default_enabled": false,
+      "_default_enabled_why": "No FX chart is attached in MetaTrader yet, so the EA exports no pair and there is no data/live/mt5-bridge/ohlcv.<PAIR>.15m.json. Enabling the market would set a flag and not a source: the scanner would skip every fx- style and no page could build. Flip this to true only after attaching a chart per pair (and recompiling OrderBridge.mq5 if you intend to trade them)."
+    }
+  },
   "analysis": {
     "crypto": [
       "BTCUSDT",
@@ -18,6 +40,15 @@
       "XAGUSD",
       "USOIL",
       "UKOIL"
+    ],
+    "forex": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "AUDUSD",
+      "USDCAD",
+      "USDCHF",
+      "NZDUSD"
     ]
   },
   "display": {
@@ -34,7 +65,14 @@
     "XAUUSD":    { "id": "xau", "label": "XAU/USD", "asset_class": "metals" },
     "XAGUSD":    { "label": "XAG/USD", "asset_class": "metals" },
     "USOIL":     { "label": "USOIL", "asset_class": "oil" },
-    "UKOIL":     { "label": "UKOIL", "asset_class": "oil" }
+    "UKOIL":     { "label": "UKOIL", "asset_class": "oil" },
+    "EURUSD":    { "label": "EUR/USD", "price_decimals": 5 },
+    "GBPUSD":    { "label": "GBP/USD", "price_decimals": 5 },
+    "USDJPY":    { "label": "USD/JPY", "price_decimals": 3 },
+    "AUDUSD":    { "label": "AUD/USD", "price_decimals": 5 },
+    "USDCAD":    { "label": "USD/CAD", "price_decimals": 5 },
+    "USDCHF":    { "label": "USD/CHF", "price_decimals": 5 },
+    "NZDUSD":    { "label": "NZD/USD", "price_decimals": 5 }
   },
   "execution": {
     "crypto": [
@@ -53,14 +91,31 @@
       "XAGUSD",
       "USOIL",
       "UKOIL"
+    ],
+    "forex": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "AUDUSD",
+      "USDCAD",
+      "USDCHF",
+      "NZDUSD"
     ]
   },
   "backtested": {
     "_comment": "Symbols the pilot rule set was actually validated on. Anything on an execution list but absent here is an EXPERIMENT, not a measured edge -- docs/architecture/pilot-top5.json -> backtest.source. Keep this in step with that file when the backtest is re-run. scripts/instruments.py enforces backtested.<m> subset execution.<m> on load (cannot claim validation for a symbol that cannot be traded). A symbol absent from its market's list here -- or the whole field missing -- is treated as NOT backtested by every reader (fail loud, not fail silent: this is a warning field, and silence on a warning is the dangerous direction).",
     "crypto": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
-    "cfd": ["XAUUSD"]
+    "cfd": ["XAUUSD"],
+    "_forex_note": "EMPTY ON PURPOSE. No FX backtest exists -- docs/architecture/pilot-top5.json contains no forex setup, so rank-setups.py can never select one and the pilot can never trade a pair. Do not populate this list to make a dashboard look complete; it is the field that tells the truth about what was measured.",
+    "forex": []
   },
   "history": [
+    {
+      "date": "2026-09-17",
+      "change": "NEW MARKET forex: analysis.forex = execution.forex = EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD (the 7 majors); backtested.forex = [] deliberately",
+      "reason": "explicit user approval -- the blanket Forex prohibition was lifted and the answer to \"analysis only, or execution too?\" was \"Th\u00eam c\u1ea3 majors lu\u00f4n\" (add the majors to both). Fed by the same MT5 bridge as cfd. THREE CAVEATS ON RECORD: (1) there is no FX DATA yet -- integrations/mt5/ExportOHLCV.mq5 only exports symbols with an attached chart, today XAUUSD and XAGUSD, so until a chart is attached per pair in MetaTrader no forex page can build and markets.forex.enabled ships false; (2) there is no FX BACKTEST -- backtested.forex is empty and pilot-top5.json holds no forex setup, so the pilot cannot select a pair even with execution permission; (3) the MT5 EA's own InpAllowedSymbols is a COMPILED input -- the source now lists the majors, but the user must recompile and re-attach OrderBridge.mq5 before any FX order can leave the bridge. FX tick volume is not traded volume (knowledge/08 \u00a77), so Wyckoff credit is reduced there exactly as it is for cfd.",
+      "approved_by": "user (in session)"
+    },
     {
       "date": "2026-09-12",
       "change": "analysis.crypto += ASTERUSDT, VIRTUALUSDT, SUIUSDT, TAOUSDT, RENDERUSDT, ONDOUSDT",
