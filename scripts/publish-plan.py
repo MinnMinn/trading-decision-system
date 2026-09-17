@@ -25,10 +25,32 @@ def allowed(style):
     return subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "automation.py"), "allows", "local_read", style], capture_output=True).returncode == 0
 
 
+# A page has TWO kinds of input and this function only knew about one of them.
+#
+# The data inputs are per-style (the model read, the narrative, the scanner facts). The BUILDER is shared: the
+# page's prose, its glossary, its citations and its chrome all come from build-artifact.py, chart.js and
+# artifact_theme.py. On 2026-09-17 the knowledge/ citation rewrite changed the glossary text rendered into
+# every page, and this function reported nothing due -- so `swing` and `cfd-scalping` stayed published with
+# citations pointing at files that no longer existed, with nothing failing anywhere.
+#
+# The page is the builder's output. If the builder changed, the page is stale, whether or not new candles
+# arrived. The cost is one republish per style after a builder change, which is the correct cost.
+BUILDER = ("build-artifact.py", "chart.js", "artifact_theme.py", "method_purity.py")
+
+
+def builder_mtime():
+    ts = [os.path.getmtime(os.path.join(ROOT, "scripts", f)) for f in BUILDER
+          if os.path.exists(os.path.join(ROOT, "scripts", f))]
+    return max(ts) if ts else None
+
+
 def inputs_mtime(style):
     paths = glob.glob(f"{ROOT}/data/live/prelim/{style}.*.model.html") + [f"{ROOT}/data/live/narrative/{style}.json", f"{ROOT}/data/live/prelim/{style}.facts.json"]
     ts = [os.path.getmtime(p) for p in paths if os.path.exists(p)]
-    return max(ts) if ts else None
+    if not ts:
+        return None          # no data at all -> nothing to publish, builder age is irrelevant
+    b = builder_mtime()
+    return max(ts + ([b] if b else []))
 
 
 def marker(style):
