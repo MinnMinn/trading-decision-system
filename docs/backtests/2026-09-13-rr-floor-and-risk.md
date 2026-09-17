@@ -1,5 +1,11 @@
 # Sàn R:R kế hoạch + trần rủi ro mỗi lệnh — 2026-09-13
 
+> **Knowledge-path note (added 2026-09-17).** The `knowledge/` citations below use the FLAT numbered
+> layout (`knowledge/07-wyckoff-advance.md`, or the `kNN` short codes) that was retired on 2026-09-17 in
+> favour of one folder per methodology. They are left exactly as written: this document is a dated record,
+> and re-pointing its citations would change what it says it checked. `knowledge/INDEX.md` carries the
+> old→new map.
+
 _Bằng chứng cho quyết định của người dùng ngày 2026-09-13: mọi lệnh phải có R:R kế hoạch ≥ 3, và trần rủi ro mỗi
 lệnh nâng từ 1 % lên 3 %. Hai thay đổi này là **một** quyết định — không cái nào an toàn nếu thiếu cái kia._
 

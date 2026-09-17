@@ -41,7 +41,7 @@
       "properties": {
         "wyckoff": {
           "$ref": "#/definitions/dimensionScore",
-          "description": "Wyckoff dimension. OWNS Volume Profile (VAH/VAL/LVN/VPOC) per user decision 2026-09-10 (knowledge/10 section 7 decision 1, option B), matching where knowledge/08 section 5 Step 4 places it in the author's own method. The VAL/VAH-into-LVN abandon rule is a thesis invalidation, not a score input."
+          "description": "Wyckoff dimension. OWNS Volume Profile (VAH/VAL/LVN/VPOC) per user decision 2026-09-10 (knowledge/integrated/method.md section 7 decision 1, option B), matching where knowledge/wyckoff/modern-tools.md section 5 Step 4 places it in the author's own method. The VAL/VAH-into-LVN abandon rule is a thesis invalidation, not a score input."
         },
         "ict": {
           "$ref": "#/definitions/dimensionScore"
@@ -59,7 +59,7 @@
         "footprint",
         "heatmap"
       ],
-      "description": "Per-dimension scores. Wyckoff and ICT are NOT independent by default: knowledge/04-06 contain no volume, so the two dimensions largely read the same price geometry (knowledge/09, knowledge/10 section 4.1). Before both score one location or one structural break, StructureAgent must print both derived prices and state whether they differ by more than analysis-params.json project_defined.same_level_tolerance_atr."
+      "description": "Per-dimension scores. Wyckoff and ICT are NOT independent by default: `knowledge/ict/core-a.md`–`knowledge/ict/models.md` contain no volume, so the two dimensions largely read the same price geometry (knowledge/integrated/wyckoff-ict-mapping.md, knowledge/integrated/method.md section 4.1). Before both score one location or one structural break, StructureAgent must print both derived prices and state whether they differ by more than analysis-params.json project_defined.same_level_tolerance_atr."
     },
     "contradictions": {
       "type": "array",
@@ -88,7 +88,7 @@
               "wyckoff_ict_same_level",
               "other"
             ],
-            "description": "shakeout_vs_displacement = the unresolved Wyckoff-vs-ICT case at knowledge/10 section 4.5. wyckoff_ict_same_level = the two dimensions were reading one phenomenon at one price (knowledge/10 section 4.3); raise it rather than scoring both."
+            "description": "shakeout_vs_displacement = the unresolved Wyckoff-vs-ICT case at knowledge/integrated/method.md section 4.5. wyckoff_ict_same_level = the two dimensions were reading one phenomenon at one price (knowledge/integrated/method.md section 4.3); raise it rather than scoring both."
           }
         }
       }
@@ -156,7 +156,7 @@
           "items": {
             "type": "string"
           },
-          "description": "citations, e.g. knowledge/08-wyckoff-and-modern-tools.md#spring-type-2"
+          "description": "citations, e.g. knowledge/wyckoff/modern-tools.md#spring-type-2"
         }
       }
     }

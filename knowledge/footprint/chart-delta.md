@@ -1,4 +1,6 @@
-# 03 — Footprint Chart, Delta, and Footprint + Wyckoff (Stockmap.vn series, docs 6–8)
+# Footprint Chart, Delta, and Footprint + Wyckoff (Stockmap.vn series, docs 6–8)
+
+> Previously `03-footprint-chart-delta-wyckoff.md`. See `knowledge/INDEX.md` for the old→new map.
 
 Synthesis of three Vietnamese-language slide decks from www.stockmap.vn ("cho thị trường chứng khoán Việt Nam" — for the Vietnamese stock market). All quotations below are translated from Vietnamese by the reader; page numbers refer to the PDF page index (1-based). Chart examples in the decks are VN30 index futures (VN30F2307 / VN30F2309, 1m and 5m) and HOSE/HNX stocks (MWG, FPT, HUT, STB, 1h). Nothing below is invented; where the source is silent or ambiguous this is stated explicitly in Section 6.
 

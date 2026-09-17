@@ -10,13 +10,13 @@ Definitions — the book's where it has one, otherwise a PROJECT PARAMETER (name
       R: 15m 48 · 4H 30 · 1D 20 — PROJECT PARAMETER. The book draws the TR from AR high / SC-ST low (WA p71–72); without a
       full Wyckoff read per bar we use the rolling range low as the support line.
   * Spring candidate at bar i            = low pierces support and price closes back above it within 0–2 bars
-      (Spring: same bar; Shakeout: close back inside within 2 bars — WA p80, p83, knowledge/07 §2.7.3). Cluster guard: 5 bars.
+      (Spring: same bar; Shakeout: close back inside within 2 bars — WA p80, p83, knowledge/wyckoff/advance.md §2.7.3). Cluster guard: 5 bars.
   * Spring volume type                   = ratio to the mean volume of the previous 20 bars: <0.7 type 1, 0.7–1.5 type 2, >1.5 type 3
-      (thresholds: analysis-params.json project_defined.volume; typing: knowledge/08 §2.6).
-  * ICT confirmation within K bars       = first close above the last 3-bar pivot high before the Spring (MSS, knowledge/04 §2.17)
-      AND a bullish FVG (candle1.high < candle3.low, knowledge/04 §2.21) in the leg from the Spring to the MSS+2.
+      (thresholds: analysis-params.json project_defined.volume; typing: knowledge/wyckoff/modern-tools.md §2.6).
+  * ICT confirmation within K bars       = first close above the last 3-bar pivot high before the Spring (MSS, knowledge/ict/core-a.md §2.17)
+      AND a bullish FVG (candle1.high < candle3.low, knowledge/ict/core-a.md §2.21) in the leg from the Spring to the MSS+2.
       K: 15m 16 · 4H 8 · 1D 6 — PROJECT PARAMETER (≈ 4 h / 32 h / 6 days).
-  * Stop                                 = Spring low − 0.05% of price (below the Spring low: knowledge/08 §5 Step 4; buffer = pilot's).
+  * Stop                                 = Spring low − 0.05% of price (below the Spring low: knowledge/wyckoff/modern-tools.md §5 Step 4; buffer = pilot's).
   * Target                               = range high = max high of the previous R bars (Phase D "giá sẽ di chuyển ít nhất đến biên trên TR", WA p83–84).
   * Early entry (Wyckoff)                = close of the reclaim bar.   Late entry (ICT) = close of the MSS bar (only when confirmed).
   * Outcome                              = walk forward H bars (15m 96 · 4H 30 · 1D 20 — PROJECT PARAMETER): stop hit → −1R; target hit → +R_planned;
@@ -162,7 +162,7 @@ def main():
             continue
         conf = [e for e in ev if e["confirmed"]]; unconf = [e for e in ev if not e["confirmed"]]
         lines.append(f"| {tf} | {len(ev)} | {len(conf)} | {len(conf) / len(ev) * 100:.0f}% | {fmt_stats(stats([e['early']['R'] for e in ev]))} | {fmt_stats(stats([e['early']['R'] for e in conf]))} | {fmt_stats(stats([e['early']['R'] for e in unconf]))} | {fmt_stats(stats([e['late']['R'] for e in conf]))} | {fmt_stats(stats([e['partial_R'] for e in ev]))} |")
-    lines += ["", "## Theo loại khối lượng của Spring (knowledge/08 §2.6: loại 1 thấp < 0.7×, loại 2 trung bình, loại 3 cao > 1.5×)", "", "| Khung | Loại | Spring | Xác nhận | Vào sớm |", "|---|---|---|---|---|"]
+    lines += ["", "## Theo loại khối lượng của Spring (knowledge/wyckoff/modern-tools.md §2.6: loại 1 thấp < 0.7×, loại 2 trung bình, loại 3 cao > 1.5×)", "", "| Khung | Loại | Spring | Xác nhận | Vào sớm |", "|---|---|---|---|---|"]
     for tf in a.tf.split(","):
         for t in (1, 2, 3):
             ev = [e for m in results if m["tf"] == tf for e in m["events"] if e["vol_type"] == t]
@@ -170,7 +170,7 @@ def main():
                 lines.append(f"| {tf} | {t} | {len(ev)} | {len([e for e in ev if e['confirmed']])} | {fmt_stats(stats([e['early']['R'] for e in ev]))} |")
     lines += ["", "## Caveats (đọc trước khi dùng)", "",
               "- Spring ứng viên ở đây là *proxy bằng code* (đáy xuyên hỗ trợ rolling rồi đóng lại), không phải Spring đã qua cổng CHoCH và đối nhãn của một phân tích đầy đủ. Số Spring thật sẽ ít hơn và tỉ lệ có thể khác.",
-              "- Mục tiêu = biên trên vùng (WA p83–84) và stop dưới đáy Spring (knowledge/08 §5 bước 4) là theo sách; R, K, H và ngưỡng khối lượng là tham số dự án.",
+              "- Mục tiêu = biên trên vùng (WA p83–84) và stop dưới đáy Spring (knowledge/wyckoff/modern-tools.md §5 bước 4) là theo sách; R, K, H và ngưỡng khối lượng là tham số dự án.",
               "- Không tính phí/spread/trượt giá; nến có cả stop lẫn target tính là thua. XAUUSD chỉ có 300 nến từ MT5 và khối lượng là tick.",
               "- Mẫu nhỏ ở 4H/1D. Dùng để so sánh *tương đối* (sớm vs sau vs một phần, có xác nhận vs không), không phải kỳ vọng tuyệt đối.",
               "", f"_Nguồn: {', '.join(sorted(set(m['source'] for m in results)))}_"]

@@ -1,3 +1,9 @@
+> **Knowledge-path note (added 2026-09-17).** The `knowledge/` citations below use the FLAT numbered
+> layout (`knowledge/07-wyckoff-advance.md`, or the `kNN` short codes) that was retired on 2026-09-17 in
+> favour of one folder per methodology. They are left exactly as written: this document is a dated record,
+> and re-pointing its citations would change what it says it checked. `knowledge/INDEX.md` carries the
+> old→new map.
+
 > **Superseded 2026-09-13.** The ICT figures here were produced by the legacy in-file rules, replaced by the live scanner (`docs/plans/2026-09-13-unify-backtest-with-live-rules.md`). Wyckoff / COMBINED / PARTIAL figures are unaffected.
 
 # Spring → ICT confirmation & early/late entry outcomes — measured 2026-09-11

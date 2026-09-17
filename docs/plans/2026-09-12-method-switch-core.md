@@ -1,5 +1,11 @@
 # Method switch — core (registry, CLI, runner, analysis layer) Implementation Plan
 
+> **Knowledge-path note (added 2026-09-17).** The `knowledge/` citations below use the FLAT numbered
+> layout (`knowledge/07-wyckoff-advance.md`, or the `kNN` short codes) that was retired on 2026-09-17 in
+> favour of one folder per methodology. They are left exactly as written: this document is a dated record,
+> and re-pointing its citations would change what it says it checked. `knowledge/INDEX.md` carries the
+> old→new map.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Một preset có tên, và một danh sách cặp, điều khiển cả tầng phân tích lẫn tầng pilot — đổi được từ terminal, có test, chưa có trang điều khiển.

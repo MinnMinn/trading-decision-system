@@ -1,5 +1,11 @@
 # Audit: `knowledge/06-ttrades-models.md` vs the five slide decks
 
+> **Knowledge-path note (added 2026-09-17).** The `knowledge/` citations below use the FLAT numbered
+> layout (`knowledge/07-wyckoff-advance.md`, or the `kNN` short codes) that was retired on 2026-09-17 in
+> favour of one folder per methodology. They are left exactly as written: this document is a dated record,
+> and re-pointing its citations would change what it says it checked. `knowledge/INDEX.md` carries the
+> old→new map.
+
 Scope: `Sons_Model.pdf` (6 pp), `Sons_Model_HTF.pdf` (9 pp), `TTrades Reversal Sequence (TTRS).pdf` (18 pp), `Timeframe Alignement TTrades.pdf` (7 pp), `Unicorn_Model.pdf` (7 pp). Every page was viewed as a 70 dpi PNG; five pages (TFA p3, TTRS p6, p10, p17, Sons p5) were additionally re-rendered at 200 dpi and cropped to settle candle-level questions (`scratchpad/zoom/`). Page numbers below are physical; printed slide number in parentheses.
 
 Finding types: MISSING = deck content absent from the file; WRONG = file contradicts the page; UNSOURCED = file asserts deck content no page shows; AMBIGUOUS = diagram admits more than one reading and the file picked one silently. Severity: high = would change a trading rule / level / number; low = cosmetic or wording.

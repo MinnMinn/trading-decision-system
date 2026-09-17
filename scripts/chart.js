@@ -12,7 +12,7 @@
 
 // =============================================================================================== pure: engines
 // ICT engine: price-only, computed from OHLC at render time. No volume input (the ICT corpus has none).
-// Rules per knowledge/04-ttrades-core-A.md, 05-ttrades-core-B.md, 06-ttrades-models.md, page-checked against the PDFs on
+// Rules per knowledge/ict/core-a.md, knowledge/ict/core-b.md, knowledge/ict/models.md, page-checked against the PDFs on
 // 2026-09-12 (docs/audits/2026-09-12-ict-pdf-recheck.md). Numeric thresholds are PROJECT PARAMETERS from
 // analysis-params.json project_defined.ict (the decks define concepts, not numbers). Candle times are UTC ISO strings;
 // sessions convert to the exchange-local zone per date (docs/architecture/session-model.md §1) so they follow DST.
@@ -36,12 +36,12 @@ function ictAnalyze(rows, cfg, P){
   const firstAfter=(start,pred)=>{ for(let q=start;q<n;q++) if(pred(q)) return q; return -1; };
   const sh=[], sl=[];
   for(let i=PIV;i<n-PIV;i++){ let isH=true,isL=true; for(let j=i-PIV;j<=i+PIV;j++){ if(j===i)continue; if(H(j)>H(i))isH=false; if(L(j)<L(i))isL=false; } if(isH)sh.push(i); if(isL)sl.push(i); }
-  // FVG: wick-based three-candle gap (k04 §2.21); CE = 0.5 of the gap, entry price and hold/fail line (k04 §2.23, §2.26); drawn until first mitigation
+  // FVG: wick-based three-candle gap (knowledge/ict/core-a.md §2.21); CE = 0.5 of the gap, entry price and hold/fail line (knowledge/ict/core-a.md §2.23, §2.26); drawn until first mitigation
   let fvgs=[];
   for(let i=1;i<n-1;i++){ let f=null; if(H(i-1)<L(i+1)) f={type:'bull',i,lo:H(i-1),hi:L(i+1)}; else if(L(i-1)>H(i+1)) f={type:'bear',i,lo:H(i+1),hi:L(i-1)}; if(!f)continue;
     f.size=f.hi-f.lo; f.ce=(f.hi+f.lo)/2; f.end=n-1; f.mitigated=false; for(let j=i+2;j<n;j++){ if((f.type==='bull'&&L(j)<=f.hi)||(f.type==='bear'&&H(j)>=f.lo)){f.end=j;f.mitigated=true;break;} } fvgs.push(f); }
   fvgs=fvgs.filter(f=>f.size>=FVGMIN*medRange).sort((a,b)=>b.size-a.size).slice(0,10).sort((a,b)=>a.i-b.i);
-  // liquidity pools (k04 §2.6-2.7): relatively-equal swing pairs, the nearest single old high / old low, window extremes as ERL
+  // liquidity pools (knowledge/ict/core-a.md §2.6-2.7): relatively-equal swing pairs, the nearest single old high / old low, window extremes as ERL
   const tol=((wlo+whi)/2)*EQTOL, liq=[];
   const sweptAt=(kind,level,last)=>firstAfter(last+1, j=>kind==='H'?(H(j)>level&&C(j)<level):(L(j)<level&&C(j)>level));
   const addPool=(kind,idxs,level)=>{ const first=Math.min(...idxs), last=Math.max(...idxs); const swept=sweptAt(kind==='BSL'||kind==='OLD-H'?'H':'L',level,last); liq.push({kind,level,from:first,to:swept>=0?swept:n-1,swept}); };
@@ -53,12 +53,12 @@ function ictAnalyze(rows, cfg, P){
   if(oldH!==undefined){ addPool('OLD-H',[oldH],H(oldH)); pools.push(liq[liq.length-1]); } if(oldL!==undefined){ addPool('OLD-L',[oldL],L(oldL)); pools.push(liq[liq.length-1]); }
   const hiIdx=rows.findIndex(r=>r[2]===whi), loIdx=rows.findIndex(r=>r[3]===wlo);
   pools.push({kind:'ERL-high',level:whi,from:hiIdx,to:n-1,swept:-1}); pools.push({kind:'ERL-low',level:wlo,from:loIdx,to:n-1,swept:-1});
-  // dealing range = nearest unswept BSL above / SSL below the last close (k04 §2.18 "where buyside and sellside liquidity is resting"); fallback = window extremes, reported as such
+  // dealing range = nearest unswept BSL above / SSL below the last close (knowledge/ict/core-a.md §2.18 "where buyside and sellside liquidity is resting"); fallback = window extremes, reported as such
   const above=pools.filter(p=>p.swept<0&&(p.kind==='BSL'||p.kind==='OLD-H')&&p.level>lastC).map(p=>p.level), below=pools.filter(p=>p.swept<0&&(p.kind==='SSL'||p.kind==='OLD-L')&&p.level<lastC).map(p=>p.level);
   const hi=above.length?Math.min(...above):whi, lo=below.length?Math.max(...below):wlo, eq=(lo+hi)/2, drSource=(above.length&&below.length)?'pools':(above.length||below.length)?'mixed':'window';
-  // MSS = body close beyond the swing preceding the raid (k04 §2.17, k05 §2.2) + displacement test (k04 §2.16; thresholds are project parameters);
-  // OB = last opposing-close candle before the leg: OPEN line + 0.5 mean threshold, mitigated when price trades back to the open (k05 §2.5);
-  // CISD = open of the first candle of the final opposing-colour run into the extreme, confirmed by a close through it (k05 §2.3, k06 §2.3)
+  // MSS = body close beyond the swing preceding the raid (knowledge/ict/core-a.md §2.17, knowledge/ict/core-b.md §2.2) + displacement test (knowledge/ict/core-a.md §2.16; thresholds are project parameters);
+  // OB = last opposing-close candle before the leg: OPEN line + 0.5 mean threshold, mitigated when price trades back to the open (knowledge/ict/core-b.md §2.5);
+  // CISD = open of the first candle of the final opposing-colour run into the extreme, confirmed by a close through it (knowledge/ict/core-b.md §2.3, knowledge/ict/models.md §2.3)
   const isDisp=j=>{ const rg=H(j)-L(j); return rg>0 && Math.abs(C(j)-O(j))>=DISP.body_min_ratio*rg && rg>=DISP.range_min_median_ratio*medRange; };
   const runStart=(e,down)=>{ let k=e; if(down?C(k)>=O(k):C(k)<=O(k)) k--; let r=k; while(r>=0&&(down?C(r)<O(r):C(r)>O(r))) r--; return r+1<=k?r+1:null; };
   const mss=[], obs=[], cisd=[]; const piv=[...sh.map(i=>({i,t:'H'})),...sl.map(i=>({i,t:'L'}))].sort((a,b)=>a.i-b.i);
@@ -79,9 +79,9 @@ function ictAnalyze(rows, cfg, P){
         bias=0; break; }
     } }
   obs.forEach(o=>{ o.end=n-1; o.mitigated=false; for(let j=o.until+1;j<n;j++){ if((o.type==='bull'&&L(j)<=o.open)||(o.type==='bear'&&H(j)>=o.open)){o.end=j;o.mitigated=true;break;} } });
-  // OTE on the impulse after the latest MSS (k04 §2.20: 1 at the origin, 0 at the terminus, band 0.62-0.79) and std-dev projections of the
-  // manipulation leg (k05 §2.12; k06 §2.1.5: 1 at the sweep extreme, 0 at the high/low that made the highest high / lowest low before it),
-  // only while the thesis is alive: no later close back beyond the swept extreme (k04 §3.6 R25)
+  // OTE on the impulse after the latest MSS (knowledge/ict/core-a.md §2.20: 1 at the origin, 0 at the terminus, band 0.62-0.79) and std-dev projections of the
+  // manipulation leg (knowledge/ict/core-b.md §2.12; knowledge/ict/models.md §2.1.5: 1 at the sweep extreme, 0 at the high/low that made the highest high / lowest low before it),
+  // only while the thesis is alive: no later close back beyond the swept extreme (knowledge/ict/core-a.md §3.6 R25)
   let ote=null, std=null; const m=mss[mss.length-1];
   if(m){ const dead=firstAfter(m.i+1, q=>m.type==='bull'?C(q)<m.ext:C(q)>m.ext)>=0;
     if(!dead){ let tI=m.i; for(let q=m.i;q<n;q++){ if(m.type==='bull'?H(q)>H(tI):L(q)<L(tI))tI=q; }
@@ -89,14 +89,14 @@ function ictAnalyze(rows, cfg, P){
       if(tI>m.i&&leg>0) ote={from:tI,type:m.type,levels:[0.62,0.705,0.79].map(r=>({r,price:m.type==='bull'?term-r*leg:term+r*leg}))};
       const mleg=Math.abs(m.origin-m.ext); if(mleg>0) std={from:m.i,type:m.type,levels:[2,2.5,4].map(k=>({k,price:m.type==='bull'?m.origin+k*mleg:m.origin-k*mleg}))}; } }
   // sessions (PROJECT-DEFINED, session-model.md §2-4): killzone shading only for windows with a non-zero weight for this market, weekdays only;
-  // Asia / London session highs & lows as liquidity levels (k04 §2.9; boundaries are the project's, the decks give none — k04 §6 item 9)
+  // Asia / London session highs & lows as liquidity levels (knowledge/ict/core-a.md §2.9; boundaries are the project's, the decks give none — knowledge/ict/core-a.md §6 item 9)
   const kz=[], sess=[]; const spans={};
   if(tfMin>0&&tfMin<=240){ SESSIONS.forEach(z=>{ let start=-1; const out=[]; for(let i=0;i<=n;i++){ let inZ=false; if(i<n){ const d=utcDate(T(i)).getUTCDay(), h=localHour(T(i),z.tz); inZ=d!==0&&d!==6&&h>=z.a&&h<z.b; } if(inZ&&start<0)start=i; if((!inZ||i===n)&&start>=0){out.push({from:start,to:i-1});start=-1;} } spans[z.key]=out; });
     if(cfg.kz){ ['london','ny_am','ny_pm'].forEach(k=>{ const w=(KZ_WEIGHT[mkt]||KZ_WEIGHT.crypto)[k]; if(w==='none')return; const z=SESSIONS.find(q=>q.key===k); (spans[k]||[]).forEach(sp=>kz.push({name:z.name,weight:w,from:sp.from,to:sp.to})); }); }
     if(tfMin<=60){ ['asia','london'].forEach(k=>{ const z=SESSIONS.find(q=>q.key===k); (spans[k]||[]).slice(-3).forEach(sp=>{ let h=-Infinity,l=Infinity; for(let i=sp.from;i<=sp.to;i++){ h=Math.max(h,H(i)); l=Math.min(l,L(i)); }
         const swH=sweptAt('H',h,sp.to), thH=firstAfter(sp.to+1,q=>C(q)>h), swL=sweptAt('L',l,sp.to), thL=firstAfter(sp.to+1,q=>C(q)<l);
         sess.push({name:z.name+' H',level:h,from:sp.from,to:swH>=0?swH:(thH>=0?thH:n-1),swept:swH,through:thH}); sess.push({name:z.name+' L',level:l,from:sp.from,to:swL>=0?swL:(thL>=0?thL:n-1),swept:swL,through:thL}); }); }); } }
-  // previous-period levels (k04 §2.8, §2.12): PDH/PDL (day = UTC calendar day — project assumption, the decks use the platform's daily bar),
+  // previous-period levels (knowledge/ict/core-a.md §2.8, §2.12): PDH/PDL (day = UTC calendar day — project assumption, the decks use the platform's daily bar),
   // PWH/PWL (week from Monday 00Z), PMH/PML. Wick through + close back = failure to displace (×); body close through = the level was the draw (✓)
   const levels=[]; const periods=[]; if(tfMin>0&&tfMin<=240) periods.push(['PD',iso=>iso.slice(0,10),3]); if(tfMin>=60&&tfMin<=1440) periods.push(['PW',weekKey,2]); if(tfMin>=240) periods.push(['PM',iso=>iso.slice(0,7),2]);
   periods.forEach(([tag,keyOf,keep])=>{ const keys=[], idx={}; for(let i=0;i<n;i++){ const k=keyOf(T(i)); if(!(k in idx)){idx[k]={from:i,to:i,h:H(i),l:L(i)};keys.push(k);} else { const o=idx[k]; o.to=i; o.h=Math.max(o.h,H(i)); o.l=Math.min(o.l,L(i)); } }
@@ -118,9 +118,9 @@ function volStats(rows, P){
 
 // ICT second-pane read (pane.kind 'range_pct', docs/architecture/methods.json): per-bar position within the
 // dealing range ict.lo..ict.hi (the scanner's authoritative bounds -- same lo/hi ict.pct already uses for the
-// latest bar, k04 §2.18-2.19). Normalising every bar's close within those bounds is arithmetic on an already
+// latest bar, knowledge/ict/core-a.md §2.18-2.19). Normalising every bar's close within those bounds is arithmetic on an already
 // -computed range, not a new judgement; EQ (0.5 of the range, R13) sits at 50. No volume input -- the ICT
-// corpus has none (knowledge/10-integrated-method.md §4.1).
+// corpus has none (knowledge/integrated/method.md §4.1).
 function rangePctSeries(rows, ict){
   const lo=ict.lo, hi=ict.hi, span=(hi-lo)||1;
   return rows.map(r=>({time:unix(r[6]), value:Math.max(0,Math.min(100,(r[4]-lo)/span*100))}));

@@ -46,7 +46,7 @@ Same as the crypto contract: `now − last_updated > 1.5× the timeframe's own b
 
 Most CFD/commodity brokers report `real_volume = 0` to MT5 — there is no consolidated tape the way Binance has one. The EA falls back to `tick_volume` (count of price changes, not actual size traded) and flags this explicitly in each output file's `_volume_caveat` field.
 
-**This is the exact same limitation the ingested Wyckoff book itself warns about** (`knowledge/08-wyckoff-and-modern-tools.md` §7 and §3.2 — the book flags Forex's tick-based Delta as not real traded volume and therefore unreliable for Footprint/Delta analysis, WMT p131–p132; paraphrased, not a verbatim quote). `wyckoff-skill` and `ict-skill` should weight Effort-vs-Result evidence sourced from `mt5_bridge_live` data lower than the same evidence sourced from Binance's real trade volume, and say so explicitly in their output rather than treating the two as equivalent.
+**This is the exact same limitation the ingested Wyckoff book itself warns about** (`knowledge/wyckoff/modern-tools.md` §7 and §3.2 — the book flags Forex's tick-based Delta as not real traded volume and therefore unreliable for Footprint/Delta analysis, WMT p131–p132; paraphrased, not a verbatim quote). `wyckoff-skill` and `ict-skill` should weight Effort-vs-Result evidence sourced from `mt5_bridge_live` data lower than the same evidence sourced from Binance's real trade volume, and say so explicitly in their output rather than treating the two as equivalent.
 
 ## What this does — and doesn't — unlock
 

@@ -71,7 +71,7 @@ class Panes(unittest.TestCase):
         self.assertEqual(M.DIMENSIONS["wyckoff"]["pane"]["kind"], "volume")
 
     def test_ict_pane_is_range_pct_not_volume(self):
-        """ICT carries no volume concept (knowledge/10-integrated-method.md §4.1) -- its pane must never be
+        """ICT carries no volume concept (knowledge/integrated/method.md §4.1) -- its pane must never be
         the volume kind."""
         self.assertEqual(M.DIMENSIONS["ict"]["pane"]["kind"], "range_pct")
 

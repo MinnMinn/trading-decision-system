@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Higher-timeframe (HTF) context for one chart style — the "giảm khung" (drop-down) rule made code.
 
-Book basis (the only source of the rule): knowledge/07-wyckoff-advance.md §2.7 "Giảm khung của tích lũy" (WA p93–96) —
+Book basis (the only source of the rule): knowledge/wyckoff/advance.md §2.7 "Giảm khung của tích lũy" (WA p93–96) —
 read the structure and phase on the higher timeframe first, then look for the entry (Spring[C] / LPS[C] / break) on the
 lower timeframe *in the direction of the higher-timeframe structure*. In higher-timeframe Phase B the only place to
 trade is the Trading Range boundary in the structure's direction (accumulation: the support third where "CO sẽ tiếp
 tục tích lũy khi giá tiệm cận vùng hỗ trợ", WA p201, and the m5 "Local accumulation as Spring" of WA p93 forms);
 mid-range Phase B is "nguồn cung/cầu đang khá cân bằng … chưa cho thấy sự xuất hiện của CO" — no trade (WA p95).
-knowledge/10 §4.2 places regime / Trading Range / phase on the higher timeframe as step 1 of the reading order.
+knowledge/integrated/method.md §4.2 places regime / Trading Range / phase on the higher timeframe as step 1 of the reading order.
 
 Three tiers per style (docs/architecture/timeframe-mapping.md; scripts/automation.py TIERS is the one table):
   Vào lệnh (E) = the style's own window · Cấu trúc (S) = next rung >= 4x · Bias (B) = next rung >= 4x above S.
@@ -69,7 +69,7 @@ def _read(path):
 
 
 # Zone parameter: "at the boundary" = within the outer third of the higher-timeframe Trading Range. The third is the
-# book's own ST-within-one-third-of-the-TR yardstick (WA p150, p166 — knowledge/07 §2.11; analysis-params.json
+# book's own ST-within-one-third-of-the-TR yardstick (WA p150, p166 — knowledge/wyckoff/advance.md §2.11; analysis-params.json
 # sourced.st_within_third_of_tr); using it as the entry-zone width is this project's adaptation, not a printed rule.
 BOUNDARY_FRACTION = 1.0 / 3.0
 
@@ -79,7 +79,7 @@ DRAW_LABELS = {"1D": ("PDH", "PDL"), "1W": ("PWH", "PWL")}
 
 def _draw_labels(tf):
     """What ICT calls the previous candle's extremes on THIS tier's timeframe: the previous candle of a daily chart
-    IS the previous day (knowledge/04 §2.12 PDH/PDL), of a weekly the previous week, of an intraday chart the
+    IS the previous day (knowledge/ict/core-a.md §2.12 PDH/PDL), of a weekly the previous week, of an intraday chart the
     previous candle (§2.11 PCH/PCL on H4/H1/M30/M15). One computation, named for the rung it is read on."""
     return DRAW_LABELS.get((tf or "").upper(), ("PCH", "PCL"))
 
@@ -88,8 +88,8 @@ def ict_bias(facts):
     """ICT's own directional bias — this dimension has one, and it is not a phase story (.claude/skills/ict-skill/SKILL.md §1):
        - the DRAW ON LIQUIDITY: a body close *through* the previous candle's high/low means that level was the draw,
          expect continuation; a wick through with the body failing to close beyond is **failure to displace**, so the
-         opposite level becomes the new draw (knowledge/04 §2.11, §2.12, §2.14, §3.2 R5–R8);
-       - STRUCTURAL FALSIFICATION: the last confirmed MSS on this timeframe, by body close (knowledge/05 §2.2).
+         opposite level becomes the new draw (knowledge/ict/core-a.md §2.11, §2.12, §2.14, §3.2 R5–R8);
+       - STRUCTURAL FALSIFICATION: the last confirmed MSS on this timeframe, by body close (knowledge/ict/core-b.md §2.2).
        Draw and MSS disagreeing is a contradiction to state, not to resolve quietly — it returns neutral.
        The basis text must stay pure ICT vocabulary (method_purity.RULES["ict"]): it is rendered on the page and fed
        to the model brief, so a Wyckoff word here would leak the method switch straight back in."""
@@ -98,14 +98,14 @@ def ict_bias(facts):
     draw, draw_why = None, None
     hi_s, lo_s = pc.get("pch_state"), pc.get("pcl_state")
     if hi_s == "closed_through":
-        draw, draw_why = "long", f"{hi_lbl} {pc.get('pch')} — thân nến đã đóng qua, mốc này là draw; kỳ vọng tiếp diễn tăng (knowledge/04 §2.14, §3.2 R5–R8)"
+        draw, draw_why = "long", f"{hi_lbl} {pc.get('pch')} — thân nến đã đóng qua, mốc này là draw; kỳ vọng tiếp diễn tăng (knowledge/ict/core-a.md §2.14, §3.2 R5–R8)"
     elif hi_s == "swept":
-        draw, draw_why = "short", f"{hi_lbl} {pc.get('pch')} — râu xuyên qua nhưng thân đóng lại (failure to displace); draw đảo về {lo_lbl} {pc.get('pcl')} (knowledge/04 §2.14, §3.2 R5–R8)"
+        draw, draw_why = "short", f"{hi_lbl} {pc.get('pch')} — râu xuyên qua nhưng thân đóng lại (failure to displace); draw đảo về {lo_lbl} {pc.get('pcl')} (knowledge/ict/core-a.md §2.14, §3.2 R5–R8)"
     lo_dir, lo_why = None, None
     if lo_s == "closed_through":
-        lo_dir, lo_why = "short", f"{lo_lbl} {pc.get('pcl')} — thân nến đã đóng qua, mốc này là draw; kỳ vọng tiếp diễn giảm (knowledge/04 §2.14, §3.2 R5–R8)"
+        lo_dir, lo_why = "short", f"{lo_lbl} {pc.get('pcl')} — thân nến đã đóng qua, mốc này là draw; kỳ vọng tiếp diễn giảm (knowledge/ict/core-a.md §2.14, §3.2 R5–R8)"
     elif lo_s == "swept":
-        lo_dir, lo_why = "long", f"{lo_lbl} {pc.get('pcl')} — râu xuyên qua nhưng thân đóng lại (failure to displace); draw đảo về {hi_lbl} {pc.get('pch')} (knowledge/04 §2.14, §3.2 R5–R8)"
+        lo_dir, lo_why = "long", f"{lo_lbl} {pc.get('pcl')} — râu xuyên qua nhưng thân đóng lại (failure to displace); draw đảo về {hi_lbl} {pc.get('pch')} (knowledge/ict/core-a.md §2.14, §3.2 R5–R8)"
     if draw and lo_dir and draw != lo_dir:
         return "neutral", f"mâu thuẫn trong ICT: {draw_why}; đồng thời {lo_why} — nêu mâu thuẫn, không tự giải quyết"
     if lo_dir and not draw:
@@ -113,7 +113,7 @@ def ict_bias(facts):
 
     m = (facts or {}).get("last_mss") or None
     mss_dir = ("long" if m.get("type") == "bull" else "short") if m else None
-    mss_why = f"MSS gần nhất: {'tăng' if mss_dir == 'long' else 'giảm'}, thân đóng vượt swing {m.get('level')} (knowledge/05 §2.2)" if m else None
+    mss_why = f"MSS gần nhất: {'tăng' if mss_dir == 'long' else 'giảm'}, thân đóng vượt swing {m.get('level')} (knowledge/ict/core-b.md §2.2)" if m else None
 
     if draw and mss_dir:
         if draw == mss_dir:
@@ -127,7 +127,7 @@ def ict_bias(facts):
 
 
 def wyckoff_bias(wyckoff, facts):
-    """Directional bias the higher timeframe allows, per the book (knowledge/07 §2.7 "Giảm khung" WA p93–96, §3.4 CO plan WA p201–203):
+    """Directional bias the higher timeframe allows, per the book (knowledge/wyckoff/advance.md §2.7 "Giảm khung" WA p93–96, §3.4 CO plan WA p201–203):
        - accumulation / re-accumulation in Phase C, D or E -> long; distribution / re-distribution in C, D, E -> short;
        - Phase B: the lower timeframe may only trade the higher-timeframe *boundary* in the direction of the structure —
          accumulation with price in the lower third of the TR (SC/ST support, where "CO sẽ tiếp tục tích lũy khi giá tiệm
@@ -141,20 +141,20 @@ def wyckoff_bias(wyckoff, facts):
         st = (wyckoff.get("structure") or "").lower(); ph = (wyckoff.get("phase") or "").upper()[:1]
         is_acc = any(k in st for k in LONG_STRUCT); is_dist = any(k in st for k in SHORT_STRUCT)
         if not ph or ph == "A" or not (is_acc or is_dist):
-            return "neutral", f"khung lớn pha {ph or '?'} ({st or 'chưa xác lập'}) — hành động dừng / cấu trúc chưa xác lập, chưa giao dịch theo hướng (knowledge/07 §2.7.1, WA p95–96)"
+            return "neutral", f"khung lớn pha {ph or '?'} ({st or 'chưa xác lập'}) — hành động dừng / cấu trúc chưa xác lập, chưa giao dịch theo hướng (knowledge/wyckoff/advance.md §2.7.1, WA p95–96)"
         if ph in ("C", "D", "E"):
             if is_acc:
-                return "long", f"khung lớn {st} pha {ph} — tìm Spring[C]/LPS[C]/phá vỡ theo hướng tăng ở khung nhỏ (WA p93–96, knowledge/07 §2.7)"
-            return "short", f"khung lớn {st} pha {ph} — tìm UTAD/LPSY/phá vỡ theo hướng giảm ở khung nhỏ (WA p116–119, knowledge/07 §2.8)"
+                return "long", f"khung lớn {st} pha {ph} — tìm Spring[C]/LPS[C]/phá vỡ theo hướng tăng ở khung nhỏ (WA p93–96, knowledge/wyckoff/advance.md §2.7)"
+            return "short", f"khung lớn {st} pha {ph} — tìm UTAD/LPSY/phá vỡ theo hướng giảm ở khung nhỏ (WA p116–119, knowledge/wyckoff/advance.md §2.8)"
         # Phase B: boundary rule
         tr = (wyckoff.get("trading_range") or {}); hi, lo = tr.get("high"), tr.get("low"); last = (facts or {}).get("last")
         if hi is None or lo is None or last is None or hi <= lo:
             return "neutral", f"khung lớn {st} pha B nhưng chưa có biên Trading Range (AR / SC-ST) trong bản đọc khung lớn — không xác định được giá đang ở biên nào; chưa giao dịch (WA p95–96)"
         pos = (last - lo) / (hi - lo)
         if is_acc and pos <= BOUNDARY_FRACTION:
-            return "long", f"khung lớn {st} pha B, giá ở {pos * 100:.0f}% TR — sát biên dưới (SC/ST), nơi CO gom hàng và khung nhỏ có thể in Spring[C]/LPS[C] cục bộ (WA p93, p201; knowledge/07 §2.7, §3.4)"
+            return "long", f"khung lớn {st} pha B, giá ở {pos * 100:.0f}% TR — sát biên dưới (SC/ST), nơi CO gom hàng và khung nhỏ có thể in Spring[C]/LPS[C] cục bộ (WA p93, p201; knowledge/wyckoff/advance.md §2.7, §3.4)"
         if is_dist and pos >= 1 - BOUNDARY_FRACTION:
-            return "short", f"khung lớn {st} pha B, giá ở {pos * 100:.0f}% TR — sát biên trên (BC/UT), nơi CO xả hàng và khung nhỏ có thể in UTAD/LPSY cục bộ (WA p116–119, p206; knowledge/07 §2.8, §3.4)"
+            return "short", f"khung lớn {st} pha B, giá ở {pos * 100:.0f}% TR — sát biên trên (BC/UT), nơi CO xả hàng và khung nhỏ có thể in UTAD/LPSY cục bộ (WA p116–119, p206; knowledge/wyckoff/advance.md §2.8, §3.4)"
         side_note = "biên trên — CO bán ở đây, không phải cơ hội cho công chúng" if is_acc and pos >= 1 - BOUNDARY_FRACTION else ("biên dưới — CO mua ở đây trong phân phối" if is_dist and pos <= BOUNDARY_FRACTION else "giữa vùng")
         return "neutral", f"khung lớn {st} pha B, giá ở {pos * 100:.0f}% TR ({side_note}) — cung/cầu cân bằng, chưa có CO xuất hiện, chưa giao dịch (WA p95–96, p201–203)"
     an = (facts or {}).get("anchors") or {}
@@ -268,12 +268,12 @@ def check_verdict(verdict, side, ctx, text):
     plain = re.sub(r"<[^>]+>", " ", text or "").lower()
     tier = TIER_NAME.get(ctx.get("tier") or "bias", "Bias")
     if "bối cảnh" not in plain and "bias" not in plain and "cấu trúc" not in plain:
-        out.append(f"khối tổng hợp phải mở đầu bằng câu '{tier} {ctx['tf']}: …' nêu cấu trúc/pha của tầng đó và bias (luật giảm khung, knowledge/07 §2.7, WA p93–96)")
+        out.append(f"khối tổng hợp phải mở đầu bằng câu '{tier} {ctx['tf']}: …' nêu cấu trúc/pha của tầng đó và bias (luật giảm khung, knowledge/wyckoff/advance.md §2.7, WA p93–96)")
     direction = DIRECTION.get(verdict) or (side if verdict == "SETUP TIỀM NĂNG" else None)
     bias = ctx.get("bias")
     if direction and bias in ("long", "short") and direction != bias:
         if verdict == "SETUP TIỀM NĂNG":
-            out.append(f"SETUP TIỀM NĂNG {direction.upper()} ngược bối cảnh khung {ctx['tf']} ({bias}) — sách chỉ vào lệnh theo hướng cấu trúc khung lớn (WA p93–96, knowledge/07 §2.7): hạ xuống THEO DÕI hoặc CHỜ")
+            out.append(f"SETUP TIỀM NĂNG {direction.upper()} ngược bối cảnh khung {ctx['tf']} ({bias}) — sách chỉ vào lệnh theo hướng cấu trúc khung lớn (WA p93–96, knowledge/wyckoff/advance.md §2.7): hạ xuống THEO DÕI hoặc CHỜ")
         elif "ngược bối cảnh" not in plain:
             out.append(f"verdict {verdict} đi ngược bối cảnh khung {ctx['tf']} ({bias}) mà khối tổng hợp không ghi rõ 'ngược bối cảnh'")
     if verdict == "SETUP TIỀM NĂNG" and bias == "neutral":

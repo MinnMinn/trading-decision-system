@@ -67,6 +67,102 @@ def citations():
                     yield rel, script, int(part), (anchor.strip() or None) if n == 0 else None
 
 
+# ----------------------------------------------------------------- knowledge/ citations (second family)
+#
+# The family above covers `scripts/<file>.py:<line>` cited FROM docs/. That left the larger half of this
+# repo's citations completely unchecked: ~980 references into knowledge/ across 53 live files, in four
+# incompatible spellings (full path, a bare two-digit number, a two-digit range, and a one-letter-plus-number
+# shorthand whose expansion table existed in exactly one place -- the mapping file's own header). Nothing read a
+# knowledge file at runtime, so every one of those was prose, a docstring, a JSON `cite` string or a live
+# prompt body -- which is precisely why breaking one broke nothing visible and stayed broken.
+#
+# It was not hypothetical: knowledge/ict/models.md cited a sibling under a filename that has never existed, in
+# five separate places, and it survived until this test was written.
+#
+# These tests walk the whole tree, not just docs/, because the heaviest consumers are a skill file, three
+# scripts and a JSON parameter file.
+KNOWN_ROOTS = ("docs", ".claude", "scripts", "integrations", "knowledge")
+KNOWN_FILES = ("README.md",)
+KNOWLEDGE_EXT = (".md", ".py", ".sh", ".json", ".js", ".mq5", ".txt")
+
+# A knowledge citation is a path to a real file, optionally followed by a section marker the test ignores.
+K_CITE = re.compile(r"knowledge/((?:\.[\w.-]+/)?[\w.-]+(?:/[\w.-]+)*\.md)")
+# The two retired spellings. They must not come back: a bare number stops resolving the moment a file is
+# renamed, and a shorthand pushes the reader to a table in another file to decode a reference.
+K_BARE = re.compile(r"knowledge/0\d(?![\w.-]*\.md)")
+K_SHORTHAND = re.compile(r"\bk0\d\b")
+
+
+def _live_files():
+    for r in KNOWN_ROOTS:
+        for dirpath, dirs, files in os.walk(os.path.join(ROOT, r)):
+            dirs[:] = [d for d in dirs if d != ".git"]
+            for fn in sorted(files):
+                if not fn.endswith(KNOWLEDGE_EXT):
+                    continue
+                rel = os.path.relpath(os.path.join(dirpath, fn), ROOT)
+                if not rel.startswith(HISTORICAL):
+                    yield rel
+    for fn in KNOWN_FILES:
+        if os.path.exists(os.path.join(ROOT, fn)):
+            yield fn
+
+
+def knowledge_citations():
+    for rel in _live_files():
+        src = open(os.path.join(ROOT, rel), encoding="utf-8", errors="replace").read()
+        for target in K_CITE.findall(src):
+            yield rel, target
+
+
+class KnowledgeCitationsResolve(unittest.TestCase):
+    def test_every_knowledge_path_cited_anywhere_live_exists(self):
+        bad = sorted({(doc, t) for doc, t in knowledge_citations()
+                      if not os.path.exists(os.path.join(ROOT, "knowledge", t))})
+        self.assertEqual(bad, [], "citations point at knowledge files that do not exist:\n  "
+                                  + "\n  ".join(f"{d} -> knowledge/{t}" for d, t in bad))
+
+    def test_the_retired_spellings_are_gone_from_live_files(self):
+        """The bare-number and short-code spellings were both retired on 2026-09-17 (user decision: rewrite
+        every reference with a full path). The two regexes above are the only place either form may appear in
+        the live tree. Historical docs keep theirs -- see HISTORICAL above."""
+        bad = []
+        for rel in _live_files():
+            # knowledge/INDEX.md is the one exemption, and it is the reason the exemption is safe: it IS the
+            # old->new decode table. Audit documents under docs/audits/ and old commit messages still carry the
+            # retired forms, so exactly one live file has to keep them resolvable by hand. Banning them there
+            # would delete the map instead of the territory.
+            if rel == os.path.join("knowledge", "INDEX.md"):
+                continue
+            src = open(os.path.join(ROOT, rel), encoding="utf-8", errors="replace").read()
+            for n, line in enumerate(src.splitlines(), 1):
+                if K_BARE.search(line):
+                    bad.append(f"{rel}:{n} uses a bare knowledge/0N number")
+                if K_SHORTHAND.search(line):
+                    bad.append(f"{rel}:{n} uses the retired k0N shorthand")
+        self.assertEqual(bad, [], f"{len(bad)} retired knowledge reference(s):\n  " + "\n  ".join(bad[:40]))
+
+    def test_the_checker_actually_finds_knowledge_citations(self):
+        """Same vacuity guard as the scripts family: a regex that matches nothing passes everything."""
+        found = list(knowledge_citations())
+        self.assertGreater(len(found), 200, f"only {len(found)} knowledge citations found; the regex is wrong")
+
+    def test_every_knowledge_file_is_reachable_from_the_index(self):
+        """An unindexed file is an invisible one: the flat layout had no index at all, which is how a
+        five-place citation of a non-existent filename survived."""
+        index = os.path.join(ROOT, "knowledge", "INDEX.md")
+        self.assertTrue(os.path.exists(index), "knowledge/INDEX.md is missing")
+        src = open(index, encoding="utf-8").read()
+        unlisted = []
+        for dirpath, dirs, files in os.walk(os.path.join(ROOT, "knowledge")):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for fn in files:
+                rel = os.path.relpath(os.path.join(dirpath, fn), os.path.join(ROOT, "knowledge"))
+                if fn.endswith(".md") and rel != "INDEX.md" and rel not in src:
+                    unlisted.append(rel)
+        self.assertEqual(sorted(unlisted), [], f"knowledge files absent from INDEX.md: {sorted(unlisted)}")
+
+
 class DocCitationsResolve(unittest.TestCase):
     def test_every_cited_script_exists(self):
         missing = sorted({(doc, s) for doc, s, _, _ in citations()

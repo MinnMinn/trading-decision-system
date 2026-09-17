@@ -19,7 +19,7 @@ class PurityTests(unittest.TestCase):
 
     def test_wyckoff_block_pure(self):
         txt = ("Cao trào bán (SC) 76,676 trên khối lượng 7.88x, Automatic Rally (AR) 77,425; Phase B đang xây nguyên nhân, "
-               "Nỗ lực–Kết quả hài hoà.<span class=\"cite\">[knowledge/07 §2.7; FVG cited only in source name]</span>")
+               "Nỗ lực–Kết quả hài hoà.<span class=\"cite\">[knowledge/wyckoff/advance.md §2.7; FVG cited only in source name]</span>")
         self.assertEqual(mp.violations(txt, "wyckoff"), [])
 
     def test_ict_block_rejects_wyckoff_and_volume(self):

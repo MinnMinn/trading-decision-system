@@ -308,7 +308,7 @@ Trading Range, illustrated with real Vietnamese-stock and crypto charts.
 Everything above is drawn only from what is visibly printed or drawn on
 pages `041.jpg`–`080.jpg` of `/Users/tungnguyen/TYME/Trading/.cache/wyckoff-pages/`.
 No content is inferred from classical Wyckoff-method literature, from the
-`06-ttrades-models.md` sibling file, or from any other outside source. Where
+`knowledge/ict/models.md` sibling file, or from any other outside source. Where
 the source book's own wording is imprecise or contains an apparent
 copy/paste artifact (e.g. the `p048` sentence that names "RDNT/USDT" inside
 the CHZ/USDT example), that anomaly is reproduced and flagged rather than

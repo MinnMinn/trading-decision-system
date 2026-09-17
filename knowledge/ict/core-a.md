@@ -2,7 +2,7 @@
 
 Synthesis of 11 TTrades_edu slide-deck PDFs (folder `docs/TTrades PDFs/`). These decks are mostly annotated chart diagrams with short prose captions. Where a statement below is **quoted prose** from a slide it is marked `[text]`; where it is **read from the diagram** it is marked `[diagram]`. Nothing below is added from outside the PDFs except the clearly labelled **Adaptation notes** for crypto (BTC/ETH/SOL, 24/7) and commodity CFDs (Gold/Silver/Oil), and explicit "NOT in source" flags.
 
-Citation format: `File p<physical PDF page> (printed <n>)`. Physical page 1 is the cover, page 2 is the table of contents, and the last page is always "Resources" (links only, no content). Sibling file: `05-ttrades-core-B.md` (decks 16–24 + the four undated decks).
+Citation format: `File p<physical PDF page> (printed <n>)`. Physical page 1 is the cover, page 2 is the table of contents, and the last page is always "Resources" (links only, no content). Sibling file: `knowledge/ict/core-b.md` (decks 16–24 + the four undated decks).
 
 ---
 

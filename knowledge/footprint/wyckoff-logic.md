@@ -1,4 +1,6 @@
-# Knowledge Synthesis 01 — Wyckoff Logic, Market Structure / Auction Theory, Wyckoff Distribution + Absorption of Supply
+# Wyckoff Logic, Market Structure / Auction Theory, Wyckoff Distribution + Absorption of Supply
+
+> Previously `01-footprint-wyckoff-logic-structure-absorption.md`. See `knowledge/INDEX.md` for the old→new map.
 
 Source publisher: StockMap (www.stockmap.vn) — slide decks "for the Vietnamese stock market". All three decks are in **Vietnamese** (with English Wyckoff/SMC abbreviations); everything below is translated to English. Slide text is sparse; a large share of the content lives in chart annotations, which were read page-by-page and are captured here. Nothing below is added from outside these three PDFs. Where the source is silent, the note says so.
 

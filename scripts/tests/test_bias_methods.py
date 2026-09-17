@@ -6,8 +6,8 @@ tier fell to "unknown" instead of falling back to ICT). ICT has its own directio
 
   - the draw on liquidity: a body close THROUGH the previous candle's high/low means that level was the draw,
     expect continuation; a wick through with the body failing to close beyond is FAILURE TO DISPLACE, so the
-    opposite level becomes the new draw (knowledge/04 §2.11 PCH/PCL, §2.12 PDH/PDL, §2.14, §3.2 R5-R8);
-  - structural falsification: the last confirmed MSS on that timeframe, by body close (knowledge/05 §2.2).
+    opposite level becomes the new draw (knowledge/ict/core-a.md §2.11 PCH/PCL, §2.12 PDH/PDL, §2.14, §3.2 R5-R8);
+  - structural falsification: the last confirmed MSS on that timeframe, by body close (knowledge/ict/core-b.md §2.2).
 
 Per-tier mapping (user decision): each tier reads the previous candle OF ITS OWN TIMEFRAME — which on a 1D tier
 is the previous day (PDH/PDL) and on an intraday tier is the previous candle (PCH/PCL).

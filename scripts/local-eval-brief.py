@@ -28,21 +28,21 @@ _HZ_WINDOW = {"scalping": ("15m", 288), "day": ("1H", 240), "swing": ("4H", 180)
 TF = {_auto.STYLE[(_m, _auto.HORIZON_TF[_h])]: _w
       for _m in _auto.MARKETS for _h, _w in _HZ_WINDOW.items()}
 # Feed directory comes from instruments.py (I.data_dir), keyed by market -- was a hard-coded symbol set.
-CITES = """- Trading Range: WA p71–72 · knowledge/07 §2.7 · WMT p023–026 · knowledge/08 §2.4 · Pha A–E (phases): knowledge/07 §2.7–2.10
-- Spring/Shakeout (sự kiện): WA p80 · knowledge/07 §2.7.3 · Spring loại 1/2/3 (theo khối lượng): WMT p036–049 · knowledge/08 §2.6
-- UT/UTAD: WA p8, knowledge/07 §2.8 · Upthrust loại 1/2/3: WMT p050–064 · knowledge/08 §2.7
-- Nỗ lực–Kết quả (hài hoà/phân kỳ): WA p33–39 · knowledge/07 §2.2 · WMT p019–022, p149–154 · knowledge/08 §2.3, §4.1
-- PS/SC/AR/ST/UA/SOS/LPS/BU: knowledge/07 §2.7 (tích lũy) · PSY/BCLX/UT/UTAD/SOW/LPSY: knowledge/07 §2.8 (phân phối)
-- CHoBEV/CHoCH (cổng bắt buộc trước khi gán nhãn pha): WA p67–71 · knowledge/07 §2.6
-- Đối nhãn (kiểm tra gán nhãn sai): WA p150–184 · knowledge/07 §2.11 · Kế hoạch CO theo pha: knowledge/07 §3.4
-- Tape Reading chỉ cần biên độ + khối lượng (không cần Delta): WA p221–243 · knowledge/07 §4.1 · SOT: WA p277–292 · knowledge/07 §4.6
-- Killzones: docs/TTrades PDFs/1. Killzones.pdf tr.1–2 · knowledge/04 §2.1 — hai bộ giờ EST, không có luật cho crypto/CFD; hệ thống dùng docs/architecture/session-model.md (london 08:00–11:00 Europe/London, ny_am 08:30–11:00 và ny_pm 13:30–16:00 America/New_York, đổi sang UTC theo ngày — tham số dự án, nói rõ); không tính điểm dưới 15m và cuối tuần
-- Liquidity: docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7
-- Grab vs MSS: docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17
-- Premium/Discount: docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19 · OTE: docs/TTrades PDFs/9. OTE.pdf tr.1–7 · knowledge/04 §2.20
-- FVG: docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24
-- Displacement/MSS: docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2
-- Order Block: docs/TTrades PDFs/17. Orderblocks.pdf tr.1–6 · knowledge/05 §2.5 · IRL/ERL: docs/TTrades PDFs/IRL-ERL.pdf tr.1–8 · knowledge/05 §2.13
+CITES = """- Trading Range: WA p71–72 · knowledge/wyckoff/advance.md §2.7 · WMT p023–026 · knowledge/wyckoff/modern-tools.md §2.4 · Pha A–E (phases): knowledge/wyckoff/advance.md §2.7–2.10
+- Spring/Shakeout (sự kiện): WA p80 · knowledge/wyckoff/advance.md §2.7.3 · Spring loại 1/2/3 (theo khối lượng): WMT p036–049 · knowledge/wyckoff/modern-tools.md §2.6
+- UT/UTAD: WA p8, knowledge/wyckoff/advance.md §2.8 · Upthrust loại 1/2/3: WMT p050–064 · knowledge/wyckoff/modern-tools.md §2.7
+- Nỗ lực–Kết quả (hài hoà/phân kỳ): WA p33–39 · knowledge/wyckoff/advance.md §2.2 · WMT p019–022, p149–154 · knowledge/wyckoff/modern-tools.md §2.3, §4.1
+- PS/SC/AR/ST/UA/SOS/LPS/BU: knowledge/wyckoff/advance.md §2.7 (tích lũy) · PSY/BCLX/UT/UTAD/SOW/LPSY: knowledge/wyckoff/advance.md §2.8 (phân phối)
+- CHoBEV/CHoCH (cổng bắt buộc trước khi gán nhãn pha): WA p67–71 · knowledge/wyckoff/advance.md §2.6
+- Đối nhãn (kiểm tra gán nhãn sai): WA p150–184 · knowledge/wyckoff/advance.md §2.11 · Kế hoạch CO theo pha: knowledge/wyckoff/advance.md §3.4
+- Tape Reading chỉ cần biên độ + khối lượng (không cần Delta): WA p221–243 · knowledge/wyckoff/advance.md §4.1 · SOT: WA p277–292 · knowledge/wyckoff/advance.md §4.6
+- Killzones: docs/TTrades PDFs/1. Killzones.pdf tr.1–2 · knowledge/ict/core-a.md §2.1 — hai bộ giờ EST, không có luật cho crypto/CFD; hệ thống dùng docs/architecture/session-model.md (london 08:00–11:00 Europe/London, ny_am 08:30–11:00 và ny_pm 13:30–16:00 America/New_York, đổi sang UTC theo ngày — tham số dự án, nói rõ); không tính điểm dưới 15m và cuối tuần
+- Liquidity: docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/ict/core-a.md §2.6–2.7
+- Grab vs MSS: docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/ict/core-a.md §2.14, §2.17
+- Premium/Discount: docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/ict/core-a.md §2.18–2.19 · OTE: docs/TTrades PDFs/9. OTE.pdf tr.1–7 · knowledge/ict/core-a.md §2.20
+- FVG: docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/ict/core-a.md §2.21–2.24
+- Displacement/MSS: docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/ict/core-b.md §2.1–2.2
+- Order Block: docs/TTrades PDFs/17. Orderblocks.pdf tr.1–6 · knowledge/ict/core-b.md §2.5 · IRL/ERL: docs/TTrades PDFs/IRL-ERL.pdf tr.1–8 · knowledge/ict/core-b.md §2.13
 - Số do hệ thống tính: [tính toán của hệ thống — không phải trích dẫn tài liệu] · không có nguồn: [chưa có nguồn trong docs/]"""
 
 
@@ -117,10 +117,10 @@ def main():
    <div class="m-synth"><p>…<span class="cite">…</span></p>…</div>
    (HH:MM = giờ của nến cuối trong FACTS của mã đó; VERDICT = một trong bốn kết luận ở mục 4; m-footprint / m-heatmap chỉ thêm khi CoinGlass AVAILABLE.)
    - m-wyckoff: chỉ kiến thức và thuật ngữ Wyckoff (giá + khối lượng: SC/AR/ST/Spring/SOS/LPS, pha A–E, Nỗ lực–Kết quả, hấp thụ, CHoCH…). CẤM mọi từ ICT: FVG, MSS, order block, BSL/SSL/ERL, premium/discount, EQ, killzone, displacement, thanh khoản/liquidity/sweep.
-   - m-ict: chỉ kiến thức và thuật ngữ ICT (dealing range, EQ, premium/discount, BSL/SSL, sweep vs MSS, displacement, FVG, OB, killzone…). CẤM mọi từ Wyckoff VÀ CẤM nhắc khối lượng/volume/KL (ICT không có khái niệm khối lượng — knowledge/10 §4.1). Mốc neo có tên Wyckoff (SC, AR…) chỉ được gọi bằng giá.
-   - m-synth: tổng hợp — nơi DUY NHẤT được đặt hai phương pháp cạnh nhau: luật khử trùng lặp (knowledge/10 §4.3: mốc Wyckoff trùng mốc ICT = một quan sát), kết luận, entry/stop/target/R (nếu có), điều kiện vô hiệu và chủ sở hữu vô hiệu (Wyckoff hay ICT, knowledge/10 §4.4).
+   - m-ict: chỉ kiến thức và thuật ngữ ICT (dealing range, EQ, premium/discount, BSL/SSL, sweep vs MSS, displacement, FVG, OB, killzone…). CẤM mọi từ Wyckoff VÀ CẤM nhắc khối lượng/volume/KL (ICT không có khái niệm khối lượng — knowledge/integrated/method.md §4.1). Mốc neo có tên Wyckoff (SC, AR…) chỉ được gọi bằng giá.
+   - m-synth: tổng hợp — nơi DUY NHẤT được đặt hai phương pháp cạnh nhau: luật khử trùng lặp (knowledge/integrated/method.md §4.3: mốc Wyckoff trùng mốc ICT = một quan sát), kết luận, entry/stop/target/R (nếu có), điều kiện vô hiệu và chủ sở hữu vô hiệu (Wyckoff hay ICT, knowledge/integrated/method.md §4.4).
    Máy kiểm tra (scripts/method_purity.py) chặn xuất bản nếu một khối dùng sai từ vựng.
-8. THANG KHUNG — GIẢM KHUNG (bắt buộc, knowledge/07 §2.7 "Giảm khung của tích lũy", WA p93–96; knowledge/10 §4.2; docs/architecture/timeframe-mapping.md): mỗi style có ba tầng, đọc từ trên xuống — Bias (khung chậm nhất) → Cấu trúc (khung giữa, ≥ ×4 khung vào lệnh) → Vào lệnh (khung của style này). Mục "THANG KHUNG" bên dưới in số liệu do code tính cho tầng Bias và tầng Cấu trúc, và ghi tầng nào QUYẾT ĐỊNH bias cho verdict. Khối m-synth PHẢI mở đầu bằng câu "<Tên tầng> <khung>: …" (ví dụ "Bias 4h: …") nêu cấu trúc/pha của tầng quyết định và bias; câu thứ hai nói tầng Cấu trúc có cùng hướng hay không. Verdict THEO DÕI đi ngược bias phải ghi rõ "ngược bối cảnh". KHÔNG được kết luận SETUP TIỀM NĂNG ngược bias. Không bao giờ tạo bias từ khung vào lệnh. Khung lớn pha B chỉ cho bias khi giá đang ở biên TR khung lớn theo hướng cấu trúc (tích lũy: 1/3 dưới, nơi CO gom hàng và khung nhỏ in Spring[C]/LPS[C] cục bộ — WA p93, p201; phân phối: 1/3 trên); giữa vùng hoặc biên đối diện thì bias trung lập ("nguồn cung/cầu đang khá cân bằng … chưa cho thấy sự xuất hiện của CO", WA p95) và tối đa là THEO DÕI. Pha A / chưa xác lập: trung lập. scripts/check-model-prose.py kiểm tra cả ba điều này.
+8. THANG KHUNG — GIẢM KHUNG (bắt buộc, knowledge/wyckoff/advance.md §2.7 "Giảm khung của tích lũy", WA p93–96; knowledge/integrated/method.md §4.2; docs/architecture/timeframe-mapping.md): mỗi style có ba tầng, đọc từ trên xuống — Bias (khung chậm nhất) → Cấu trúc (khung giữa, ≥ ×4 khung vào lệnh) → Vào lệnh (khung của style này). Mục "THANG KHUNG" bên dưới in số liệu do code tính cho tầng Bias và tầng Cấu trúc, và ghi tầng nào QUYẾT ĐỊNH bias cho verdict. Khối m-synth PHẢI mở đầu bằng câu "<Tên tầng> <khung>: …" (ví dụ "Bias 4h: …") nêu cấu trúc/pha của tầng quyết định và bias; câu thứ hai nói tầng Cấu trúc có cùng hướng hay không. Verdict THEO DÕI đi ngược bias phải ghi rõ "ngược bối cảnh". KHÔNG được kết luận SETUP TIỀM NĂNG ngược bias. Không bao giờ tạo bias từ khung vào lệnh. Khung lớn pha B chỉ cho bias khi giá đang ở biên TR khung lớn theo hướng cấu trúc (tích lũy: 1/3 dưới, nơi CO gom hàng và khung nhỏ in Spring[C]/LPS[C] cục bộ — WA p93, p201; phân phối: 1/3 trên); giữa vùng hoặc biên đối diện thì bias trung lập ("nguồn cung/cầu đang khá cân bằng … chưa cho thấy sự xuất hiện của CO", WA p95) và tối đa là THEO DÕI. Pha A / chưa xác lập: trung lập. scripts/check-model-prose.py kiểm tra cả ba điều này.
 7. Sau khi ghi, chạy ĐÚNG lệnh này (so với snapshot của lần đọc này, không so với facts mới hơn):
    python3 scripts/check-model-prose.py <style> --facts <SNAPSHOT>/facts.json
    và sửa cho tới khi nó in `RESULT: OK`. Không chạy lại brief để "đuổi" dữ liệu mới hơn.
@@ -138,7 +138,7 @@ def main():
           + (f"  — KHÔNG viết khối m-{', m-'.join(m for m in ('wyckoff', 'ict') if m not in _engaged)}: "
              "dimension đang tắt, khối đó sẽ bị check-model-prose.py từ chối."
              if set(("wyckoff", "ict")) - set(_engaged) else ""))
-    print("\n## THANG KHUNG (code tính; luật giảm khung — knowledge/07 §2.7, WA p93–96; docs/architecture/timeframe-mapping.md)")
+    print("\n## THANG KHUNG (code tính; luật giảm khung — knowledge/wyckoff/advance.md §2.7, WA p93–96; docs/architecture/timeframe-mapping.md)")
     print(f"Chỉ in bản đọc của lớp đang bật: {', '.join(_engaged) or '(không có lớp nào)'}.")
     for sym in syms:
         f = lambda v: fmt(sym, v)

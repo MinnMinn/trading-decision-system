@@ -38,7 +38,7 @@ class MinRRSource(unittest.TestCase):
         self.assertEqual(v, 3.0, "the R:R floor lives in analysis-params.json and nowhere else")
 
     def test_basis_records_that_this_is_a_user_override_of_the_sourced_2R(self):
-        """knowledge/06 §3.1 rule 23 says 2R. 3R is stricter than the source, so the basis must say whose call it
+        """knowledge/ict/models.md §3.1 rule 23 says 2R. 3R is stricter than the source, so the basis must say whose call it
         is -- otherwise a later reader 'corrects' it back to 2.0 to match the citation."""
         basis = json.load(open(PARAMS, encoding="utf-8"))["project_defined"]["ict"]["min_rr"]["_basis"]
         self.assertIn("2R", basis)

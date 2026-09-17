@@ -6,7 +6,7 @@ Citation format:
 - `Model11 p<n>` — physical PDF page; in this file the printed page number **equals** the physical page (p1–2 = index, p3 = Overview).
 - Slide decks: `File p<physical> (<printed>)`. Physical p1 = cover, p2 = contents, printed labels start at 1 on physical p3, last page = Resources (links only).
 
-Sibling file: `05-ttrades-core-B.md` covers CISD / OB / Breaker / MSS / SMT / PO3 / Std-Dev / IRL-ERL from the 13 concept decks. This file does not restate those definitions except where the model documents redefine or specialise them.
+Sibling file: `knowledge/ict/core-b.md` covers CISD / OB / Breaker / MSS / SMT / PO3 / Std-Dev / IRL-ERL from the 13 concept decks. This file does not restate those definitions except where the model documents redefine or specialise them.
 
 ---
 

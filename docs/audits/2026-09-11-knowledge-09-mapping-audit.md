@@ -1,5 +1,11 @@
 # Audit of `knowledge/09-wyckoff-ict-mapping.md` (216 lines)
 
+> **Knowledge-path note (added 2026-09-17).** The `knowledge/` citations below use the FLAT numbered
+> layout (`knowledge/07-wyckoff-advance.md`, or the `kNN` short codes) that was retired on 2026-09-17 in
+> favour of one folder per methodology. They are left exactly as written: this document is a dated record,
+> and re-pointing its citations would change what it says it checked. `knowledge/INDEX.md` carries the
+> old→new map.
+
 Verification date: 2026-09-11. Every evidence line below comes from an actual `grep`/`sed` read of the cited file in this repo. Nothing is cited from memory.
 
 Legend: **CORRECT** = citation resolves and says what 09 claims. **STALE** = true when written, superseded by the k07 rebuild (2026-09-10) or by the downstream decisions recorded in `knowledge/10 §7`. **WRONG** = does not match the source as written. **UNVERIFIABLE** = no source reachable.

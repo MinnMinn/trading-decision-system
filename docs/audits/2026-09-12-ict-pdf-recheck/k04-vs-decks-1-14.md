@@ -1,5 +1,11 @@
 # Audit of knowledge/04-ttrades-core-A.md against source deck page images
 
+> **Knowledge-path note (added 2026-09-17).** The `knowledge/` citations below use the FLAT numbered
+> layout (`knowledge/07-wyckoff-advance.md`, or the `kNN` short codes) that was retired on 2026-09-17 in
+> favour of one folder per methodology. They are left exactly as written: this document is a dated record,
+> and re-pointing its citations would change what it says it checked. `knowledge/INDEX.md` carries the
+> old→new map.
+
 Method: read knowledge/04-ttrades-core-A.md in full (809 lines), then viewed every one of the 100
 physical page PNGs (70 dpi) across the 11 decks and compared each page's diagram/text content
 against the corresponding claims in the knowledge file. Citations below use the knowledge file's

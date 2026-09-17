@@ -116,7 +116,7 @@ DATA_DIR = {m: MARKET_META[m]["data_dir"] for m in MARKETS}
 # Markets whose feed reports TICK COUNT where a volume field is expected. Not a permission statement -- the
 # blanket Forex prohibition was lifted 2026-09-17 -- but a data-quality one, and the reason
 # analysis-params.json carries tick_volume_credit_multiplier: a tick count must never be scored as traded
-# volume (knowledge/08 §7, the source's own warning).
+# volume (knowledge/wyckoff/modern-tools.md §7, the source's own warning).
 TICK_VOLUME_MARKETS = tuple(m for m in MARKETS if MARKET_META[m]["tick_volume"])
 
 for _m, _meta in MARKET_META.items():

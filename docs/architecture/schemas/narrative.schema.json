@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Layer-3 narrative (đánh giá toàn diện) for one chart style — data/live/narrative/<style>.json",
-  "description": "Wyckoff phase grammar is enforced by scripts/check-narrative.py: phases contiguous from A (A, A-B, A-B-C, …) in chronological order; event labels start with a Wyckoff event name (PS/SC/AR/ST/UA/Spring/Shakeout/Test/LPS/SOS/BU · PSY/BC/UT/UTAD/SOW/LPSY) and sit in their own phase; Phase A needs SC/BC, Phase C needs a test event (Spring/Shakeout/Test/LPS[C]/UTAD), Phase D needs SOS/LPS/BU (SOW/LPSY); SOS/SOW on volume < 1.0× is refused (WA p83–84 — that is UA/UT). Written ONLY by the daily full analysis (Sonnet). Rendered by scripts/build-artifact.py; validated by scripts/check-narrative.py (numbers from facts/candles, method purity via scripts/method_purity.py, consistency with data/live/anchors.<style>.json). Every per-method text uses only that method's vocabulary; Wyckoff-vs-ICT de-duplication (knowledge/10 §4.3) is stated ONLY in synthesis_html. Events and phases are addressed by candle time, never by index. Write atomically (temp file + rename).",
+  "description": "Wyckoff phase grammar is enforced by scripts/check-narrative.py: phases contiguous from A (A, A-B, A-B-C, …) in chronological order; event labels start with a Wyckoff event name (PS/SC/AR/ST/UA/Spring/Shakeout/Test/LPS/SOS/BU · PSY/BC/UT/UTAD/SOW/LPSY) and sit in their own phase; Phase A needs SC/BC, Phase C needs a test event (Spring/Shakeout/Test/LPS[C]/UTAD), Phase D needs SOS/LPS/BU (SOW/LPSY); SOS/SOW on volume < 1.0× is refused (WA p83–84 — that is UA/UT). Written ONLY by the daily full analysis (Sonnet). Rendered by scripts/build-artifact.py; validated by scripts/check-narrative.py (numbers from facts/candles, method purity via scripts/method_purity.py, consistency with data/live/anchors.<style>.json). Every per-method text uses only that method's vocabulary; Wyckoff-vs-ICT de-duplication (knowledge/integrated/method.md §4.3) is stated ONLY in synthesis_html. Events and phases are addressed by candle time, never by index. Write atomically (temp file + rename).",
   "type": "object",
   "required": ["style", "updated", "mode", "headline", "symbols"],
   "properties": {
@@ -36,7 +36,7 @@
             "type": "object", "required": ["text_html"],
             "properties": {
               "levels": {"type": "array", "items": {"type": "object", "required": ["price", "label"], "properties": {"price": {"type": "number"}, "label": {"type": "string", "description": "ICT vocabulary only"}, "time": {"type": "string"}}}},
-              "text_html": {"type": "string", "description": "ICT read in ICT vocabulary only — no Wyckoff event names, no volume (knowledge/10 §4.1)"}
+              "text_html": {"type": "string", "description": "ICT read in ICT vocabulary only — no Wyckoff event names, no volume (knowledge/integrated/method.md §4.1)"}
             }
           },
           "footprint": {"type": "object", "properties": {"status": {"enum": ["available", "unavailable", "off"]}, "text_html": {"type": "string", "description": "Wyckoff vocabulary allowed as foundation; no ICT vocabulary"}}},

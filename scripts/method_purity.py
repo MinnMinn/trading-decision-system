@@ -4,8 +4,8 @@
 Rule: a block of analysis that belongs to ONE method may only use that method's knowledge and terminology.
   wyckoff   -> no ICT vocabulary (FVG, MSS, order block, BSL/SSL, premium/discount, killzone, liquidity ...)
   ict       -> no Wyckoff vocabulary (SC/AR/ST/Spring/SOS/LPS, phases A-E, CHoCH, Effort-vs-Result, absorption ...)
-               and NO volume at all: the ICT corpus has no volume concept (knowledge/10-integrated-method.md section 4.1);
-               the only exception is ICT's own "volume imbalance" (a body gap, knowledge/04 section 2.22).
+               and NO volume at all: the ICT corpus has no volume concept (knowledge/integrated/method.md section 4.1);
+               the only exception is ICT's own "volume imbalance" (a body gap, knowledge/ict/core-a.md section 2.22).
   footprint -> Wyckoff vocabulary allowed (user: "Footprint co the lay 100% kien thuc cua Wyckoff lam nen tang"),
                ICT vocabulary forbidden.
   heatmap   -> no Wyckoff vocabulary, no ICT structural vocabulary; liquidity words are the heatmap's own.
@@ -48,7 +48,7 @@ WYCKOFF_TERMS_HEATMAP = [t for t in WYCKOFF_TERMS if t not in (r"khối lượng
 
 # exceptions: phrases that contain a forbidden term but belong to the block's own method
 EXCEPT = {
-    "ict": [r"volume[ -]imbalance", r"\bVI\b"],          # knowledge/04 section 2.22: an ICT body gap, not volume
+    "ict": [r"volume[ -]imbalance", r"\bVI\b"],          # knowledge/ict/core-a.md section 2.22: an ICT body gap, not volume
     "heatmap": [r"liquidation", r"thanh lý"],
 }
 

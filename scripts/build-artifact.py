@@ -47,7 +47,7 @@ GOLD = [_meta("XAUUSD")]
 MT5 = {s for s in I.analysis() if I.is_tick_volume(s)}
 TF_MIN = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30, "1H": 60, "2H": 120, "4H": 240, "1D": 1440, "1W": 10080}
 # Per-timeframe window spec (bars, axis label, human horizon). Bar counts are project parameters (no source gives them;
-# they only need to hold the previous day/week/month for the PDH/PWH/PMH reads, knowledge/04 §2.8).
+# they only need to hold the previous day/week/month for the PDH/PWH/PMH reads, knowledge/ict/core-a.md §2.8).
 TF_SPEC = {"1m": (360, "%H:%M", "6 giờ"), "5m": (576, "%m-%d %H:%M", "48 giờ"), "15m": (576, "%m-%d %H:%M", "6 ngày"),
            "1H": (480, "%m-%d %H:%M", "20 ngày"), "4H": (360, "%m-%d %H:%M", "60 ngày"), "1D": (240, "%m-%d", "8 tháng"), "1W": (208, "%y-%m-%d", "4 năm")}
 TF_LABEL = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "1H", "4h": "4H", "1D": "1D", "1W": "1W"}   # automation spelling -> file spelling
@@ -399,25 +399,25 @@ def timeline(rows, dims):
 
 
 GLOSSARY = {
-    "wyckoff": [("PS · SC · AR · ST", "Preliminary Support, Selling Climax (Cao trào bán), Automatic Rally, Secondary Test — bốn sự kiện Pha A của tích lũy; TR dựng từ đỉnh AR và đáy SC/ST (knowledge/07 §2.7)."),
-                ("Spring / Shakeout / Test", "Pha C: cú xuyên xuống dưới TR rồi đóng lại bên trong; loại 1/2/3 theo khối lượng (knowledge/08 §2.6); Test là nhịp kiểm tra lại trên khối lượng thấp hơn."),
+    "wyckoff": [("PS · SC · AR · ST", "Preliminary Support, Selling Climax (Cao trào bán), Automatic Rally, Secondary Test — bốn sự kiện Pha A của tích lũy; TR dựng từ đỉnh AR và đáy SC/ST (knowledge/wyckoff/advance.md §2.7)."),
+                ("Spring / Shakeout / Test", "Pha C: cú xuyên xuống dưới TR rồi đóng lại bên trong; loại 1/2/3 theo khối lượng (knowledge/wyckoff/modern-tools.md §2.6); Test là nhịp kiểm tra lại trên khối lượng thấp hơn."),
                 ("SOS · LPS · BU", "Pha D: Sign of Strength (dấu hiệu sức mạnh), Last Point of Support (điểm hỗ trợ cuối), Back-Up (kiểm tra lại vùng phá vỡ)."),
-                ("PSY · BC · UT · UTAD · SOW · LPSY", "Các sự kiện phân phối tương ứng; UT/UTAD chỉ dùng trong phân phối, UA chỉ trong tích lũy (WA p8, knowledge/07 §1.3)."),
-                ("CHoBEV / CHoCH", "Ba CHoBEV tạo một CHoCH — cổng bắt buộc trước khi gán nhãn pha (knowledge/07 §2.6)."),
-                ("Nỗ lực – Kết quả", "So biên độ nến với khối lượng: hài hoà = tiếp diễn, phân kỳ = cạn kiệt/hấp thụ (knowledge/07 §2.2, §4.1)."),
-                ("Pha A–E", "Dừng xu hướng → xây nguyên nhân → kiểm tra → dấu hiệu → hiệu ứng; nhãn pha luôn kèm đối nhãn (knowledge/07 §2.11).")],
-    "ict": [("BSL / SSL · ERL / IRL", "Buy-side / sell-side liquidity tại đỉnh/đáy bằng nhau; external vs internal range liquidity (knowledge/04 §2.6–2.7, knowledge/05 §2.13)."),
-            ("Sweep vs MSS", "Quét thanh khoản = xuyên qua rồi đóng lại; Market Structure Shift = nến đóng cửa phá swing ngược chiều sau displacement (knowledge/04 §2.14, §2.17)."),
-            ("Displacement · FVG", "Nến đẩy mạnh để lại Fair Value Gap (nến 1 và nến 3 không chồng nhau); FVG được vẽ tới khi lấp (knowledge/04 §2.16, §2.21)."),
-            ("Order Block", "Nến ngược chiều cuối cùng trước displacement; đường OB = giá mở của nến đó, mean threshold = 0.5 thân; stop chặt = đáy thân (close), stop rộng = đáy cú quét (knowledge/05 §2.5, xác minh lại PDF 2026-09-12)."),
-            ("CISD", "Change in State of Delivery: nến đóng qua giá mở của nến đầu tiên trong chuỗi nến ngược màu cuối cùng chạy vào mức; sớm hơn MSS (knowledge/05 §2.3, knowledge/06 §2.3)."),
-            ("Dealing range · EQ · premium / discount", "Range = cặp BSL↔SSL chưa quét gần nhất (nơi thanh khoản đang nằm); EQ = 50%; mua ở discount, bán ở premium; khi không có cặp thì dùng biên cửa sổ và ghi rõ (knowledge/04 §2.18–2.19)."),
-            ("PDH/PDL · PWH/PWL · phiên Á/London", "Đỉnh/đáy ngày, tuần trước và phiên là mức thanh khoản; râu xuyên rồi đóng lại = failure to displace (đóng khung đảo chiều), thân đóng qua = mức là draw (knowledge/04 §2.8–2.9, §2.12, §2.14). Ranh giới ngày (00Z) và phiên (session-model.md) là giả định dự án."),
-            ("OTE · STD", "OTE: fib 1 tại gốc nhịp, 0 tại đỉnh/đáy nhịp, vùng vào 0.62–0.79, nhấn 0.705 (knowledge/04 §2.20). Std: 1 tại cực trị cú quét, 0 tại đỉnh/đáy tạo highest high/lowest low trước đó; −2/−2.5 vùng chốt, −4 mở rộng tối đa (knowledge/05 §2.12, knowledge/06 §2.1.5)."),
-            ("Killzone", "Hai bộ giờ EST trong deck, không có luật cho crypto/CFD (knowledge/04 §2.1, §6). Trang vẽ theo docs/architecture/session-model.md: LDN 08–11 Europe/London, NY AM 08:30–11, NY PM 13:30–16 America/New_York, đổi UTC theo ngày; trọng số theo thị trường; không vẽ cuối tuần — tham số dự án.")],
-    "footprint": [("POC · Imbalance · Stacked Imbalance", "Mức khối lượng lớn nhất trong nến; chênh lệch chéo bid/ask ≥ tỉ lệ theo công cụ (knowledge/08 §3.2)."),
-                  ("Hấp thụ → Cạn kiệt → Phát triển", "Chuỗi đọc tại nến neo Spring/Upthrust (knowledge/08 §5 bước 5)."),
-                  ("Delta / Cumulative Delta", "Phân kỳ mạnh/vừa/yếu/ẩn tại vị trí Spring hoặc UTAD (knowledge/08 §3.3).")],
+                ("PSY · BC · UT · UTAD · SOW · LPSY", "Các sự kiện phân phối tương ứng; UT/UTAD chỉ dùng trong phân phối, UA chỉ trong tích lũy (WA p8, knowledge/wyckoff/advance.md §1.3)."),
+                ("CHoBEV / CHoCH", "Ba CHoBEV tạo một CHoCH — cổng bắt buộc trước khi gán nhãn pha (knowledge/wyckoff/advance.md §2.6)."),
+                ("Nỗ lực – Kết quả", "So biên độ nến với khối lượng: hài hoà = tiếp diễn, phân kỳ = cạn kiệt/hấp thụ (knowledge/wyckoff/advance.md §2.2, §4.1)."),
+                ("Pha A–E", "Dừng xu hướng → xây nguyên nhân → kiểm tra → dấu hiệu → hiệu ứng; nhãn pha luôn kèm đối nhãn (knowledge/wyckoff/advance.md §2.11).")],
+    "ict": [("BSL / SSL · ERL / IRL", "Buy-side / sell-side liquidity tại đỉnh/đáy bằng nhau; external vs internal range liquidity (knowledge/ict/core-a.md §2.6–2.7, knowledge/ict/core-b.md §2.13)."),
+            ("Sweep vs MSS", "Quét thanh khoản = xuyên qua rồi đóng lại; Market Structure Shift = nến đóng cửa phá swing ngược chiều sau displacement (knowledge/ict/core-a.md §2.14, §2.17)."),
+            ("Displacement · FVG", "Nến đẩy mạnh để lại Fair Value Gap (nến 1 và nến 3 không chồng nhau); FVG được vẽ tới khi lấp (knowledge/ict/core-a.md §2.16, §2.21)."),
+            ("Order Block", "Nến ngược chiều cuối cùng trước displacement; đường OB = giá mở của nến đó, mean threshold = 0.5 thân; stop chặt = đáy thân (close), stop rộng = đáy cú quét (knowledge/ict/core-b.md §2.5, xác minh lại PDF 2026-09-12)."),
+            ("CISD", "Change in State of Delivery: nến đóng qua giá mở của nến đầu tiên trong chuỗi nến ngược màu cuối cùng chạy vào mức; sớm hơn MSS (knowledge/ict/core-b.md §2.3, knowledge/ict/models.md §2.3)."),
+            ("Dealing range · EQ · premium / discount", "Range = cặp BSL↔SSL chưa quét gần nhất (nơi thanh khoản đang nằm); EQ = 50%; mua ở discount, bán ở premium; khi không có cặp thì dùng biên cửa sổ và ghi rõ (knowledge/ict/core-a.md §2.18–2.19)."),
+            ("PDH/PDL · PWH/PWL · phiên Á/London", "Đỉnh/đáy ngày, tuần trước và phiên là mức thanh khoản; râu xuyên rồi đóng lại = failure to displace (đóng khung đảo chiều), thân đóng qua = mức là draw (knowledge/ict/core-a.md §2.8–2.9, §2.12, §2.14). Ranh giới ngày (00Z) và phiên (session-model.md) là giả định dự án."),
+            ("OTE · STD", "OTE: fib 1 tại gốc nhịp, 0 tại đỉnh/đáy nhịp, vùng vào 0.62–0.79, nhấn 0.705 (knowledge/ict/core-a.md §2.20). Std: 1 tại cực trị cú quét, 0 tại đỉnh/đáy tạo highest high/lowest low trước đó; −2/−2.5 vùng chốt, −4 mở rộng tối đa (knowledge/ict/core-b.md §2.12, knowledge/ict/models.md §2.1.5)."),
+            ("Killzone", "Hai bộ giờ EST trong deck, không có luật cho crypto/CFD (knowledge/ict/core-a.md §2.1, §6). Trang vẽ theo docs/architecture/session-model.md: LDN 08–11 Europe/London, NY AM 08:30–11, NY PM 13:30–16 America/New_York, đổi UTC theo ngày; trọng số theo thị trường; không vẽ cuối tuần — tham số dự án.")],
+    "footprint": [("POC · Imbalance · Stacked Imbalance", "Mức khối lượng lớn nhất trong nến; chênh lệch chéo bid/ask ≥ tỉ lệ theo công cụ (knowledge/wyckoff/modern-tools.md §3.2)."),
+                  ("Hấp thụ → Cạn kiệt → Phát triển", "Chuỗi đọc tại nến neo Spring/Upthrust (knowledge/wyckoff/modern-tools.md §5 bước 5)."),
+                  ("Delta / Cumulative Delta", "Phân kỳ mạnh/vừa/yếu/ẩn tại vị trí Spring hoặc UTAD (knowledge/wyckoff/modern-tools.md §3.3).")],
     "heatmap": [("Cụm thanh lý", "Vùng giá tập trung lệnh thanh lý — mục tiêu hoặc điểm quét (master spec)."),
                 ("Tường orderbook", "Thanh khoản nằm chờ tập trung; trùng cụm thanh lý thì tính là một quan sát.")],
 }

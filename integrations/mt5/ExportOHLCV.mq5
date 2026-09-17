@@ -106,7 +106,7 @@ void ExportOne(ENUM_TIMEFRAMES tf, string timeframeLabel)
       // CAVEAT (flag this to the reading Skill): most CFD/commodity brokers report 0 for
       // real_volume. tick_volume (number of price changes, not real traded size) is used
       // here instead -- this is the same "not real volume" limitation the Wyckoff book
-      // itself warns about for Forex-style tick-based Delta proxies (knowledge/08 section 7,
+      // itself warns about for Forex-style tick-based Delta proxies (knowledge/wyckoff/modern-tools.md section 7,
       // WMT p131-p132). Effort-vs-Result reads off this field are weaker evidence than genuine
       // traded volume and should be scored accordingly, not treated as equivalent to
       // Binance's real trade volume.

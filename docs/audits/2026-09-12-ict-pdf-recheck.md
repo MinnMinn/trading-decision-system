@@ -1,5 +1,11 @@
 # Rà soát lại 30 PDF TTrades/ICT ↔ knowledge/04–06 ↔ ict-skill ↔ code — 2026-09-12
 
+> **Knowledge-path note (added 2026-09-17).** The `knowledge/` citations below use the FLAT numbered
+> layout (`knowledge/07-wyckoff-advance.md`, or the `kNN` short codes) that was retired on 2026-09-17 in
+> favour of one folder per methodology. They are left exactly as written: this document is a dated record,
+> and re-pointing its citations would change what it says it checked. `knowledge/INDEX.md` carries the
+> old→new map.
+
 Bổ sung cho `2026-09-11-ict-entry-checklist-audit.md` (bản đó đối chiếu code với knowledge nhưng **không mở PDF**).
 Bản này mở toàn bộ 30 PDF trong `docs/TTrades PDFs/` (391 trang vật lý), đọc lớp text (`pdftotext -layout`) và xem
 từng trang hình (PNG 70 dpi; 12 trang được vẽ lại 110–200 dpi để quyết định các câu hỏi về hình học nến).

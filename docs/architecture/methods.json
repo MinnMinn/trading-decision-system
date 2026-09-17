@@ -12,7 +12,7 @@
     "ict": {
       "label": "ICT", "reads": "cấu trúc giá", "markets": ["crypto", "cfd", "forex"], "agent": "structure-agent", "skill": "ict-skill",
       "data_sources": ["ohlcv"], "max_points": 25, "lane": "ict", "owns_invalidation": true,
-      "note": "knowledge/04-06 carry no volume of any kind; volume is the only orthogonal axis against Wyckoff (SYSTEM-DESIGN.md §6.1).",
+      "note": "`knowledge/ict/core-a.md`–`knowledge/ict/models.md` carry no volume of any kind; volume is the only orthogonal axis against Wyckoff (SYSTEM-DESIGN.md §6.1).",
       "pane": {"kind": "range_pct", "label": "Vị trí trong dealing range (Premium / Discount)"}
     },
     "footprint": {
@@ -28,7 +28,7 @@
       "pane": {"kind": "unavailable", "label": "Cụm thanh lý (liquidation clusters)"}
     }
   },
-  "_pane_note": "The second chart pane under the price chart, one declared slot per dimension (docs/specs/2026-09-12-chart-lightweight-charts-design.md follow-up, 2026-09-12: replacing an ICT pane apology with a real reading and making the slot declarable). `kind` is one of: `volume` (Wyckoff's rolling-mean volume read, unchanged), `range_pct` (ICT's per-bar position within the dealing range, 0-100%, EQ marked at 50 -- knowledge/04 §2.18-2.19, R13), `unavailable` (footprint/heatmap: no live CoinGlass source yet, so the pane states that honestly instead of standing empty). `label` is the pane's own display name. scripts/build-artifact.py reads this into PARAMS.panes (the only source; there is no second lane->pane-kind list); scripts/chart.js renders each kind with its own function. A 5th dimension needs only a `pane` entry here plus one render branch in chart.js -- scripts/tests/test_methods.py fails the build if a dimension has no `pane` or an unknown `kind`.",
+  "_pane_note": "The second chart pane under the price chart, one declared slot per dimension (docs/specs/2026-09-12-chart-lightweight-charts-design.md follow-up, 2026-09-12: replacing an ICT pane apology with a real reading and making the slot declarable). `kind` is one of: `volume` (Wyckoff's rolling-mean volume read, unchanged), `range_pct` (ICT's per-bar position within the dealing range, 0-100%, EQ marked at 50 -- knowledge/ict/core-a.md §2.18-2.19, R13), `unavailable` (footprint/heatmap: no live CoinGlass source yet, so the pane states that honestly instead of standing empty). `label` is the pane's own display name. scripts/build-artifact.py reads this into PARAMS.panes (the only source; there is no second lane->pane-kind list); scripts/chart.js renders each kind with its own function. A 5th dimension needs only a `pane` entry here plus one render branch in chart.js -- scripts/tests/test_methods.py fails the build if a dimension has no `pane` or an unknown `kind`.",
 
   "runner_methods": {
     "WYCKOFF":       { "requires": ["wyckoff"],       "runnable": true,  "scan": "wyckoff", "entry": "market" },

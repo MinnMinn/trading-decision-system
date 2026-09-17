@@ -21,7 +21,7 @@ Storage design: `docs/architecture/SYSTEM-DESIGN.md` §8. Format: `trades/README
 ### Updating on close (from `/review`)
 1. Read the existing trade file, don't create a new one.
 2. Fill `date_closed`, `status: CLOSED`, `result`, `r_multiple`, `mfe`, `mae`, `exit_reason`, `root_cause`, `is_mistake` (true if `root_cause` is anything other than `n/a_win_as_planned` AND the trade was a loss or a mismanaged win), `lessons`.
-3. **Fill `outcome_side` on every logged contradiction** — `wyckoff_was_right`, `ict_was_right`, `neither`, or `unknown`. This is the field that eventually settles the unresolved Shakeout-versus-displacement case (`knowledge/10-integrated-method.md` §7 decision 3); leaving it null keeps that question open indefinitely.
+3. **Fill `outcome_side` on every logged contradiction** — `wyckoff_was_right`, `ict_was_right`, `neither`, or `unknown`. This is the field that eventually settles the unresolved Shakeout-versus-displacement case (`knowledge/integrated/method.md` §7 decision 3); leaving it null keeps that question open indefinitely.
 4. Append the Post-Trade Review section to the body per `trades/README.md`'s template.
 5. Regenerate `trades/index.jsonl`.
 

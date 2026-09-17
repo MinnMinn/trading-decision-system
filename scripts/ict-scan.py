@@ -21,12 +21,12 @@ Usage: ict-scan.py --tf 1m --n 180 --style scalping [--symbols BTCUSDT,ETHUSDT,S
 Prints JSON {symbol: {...}} to stdout; writes Vietnamese HTML snippets to data/live/prelim/<style>.<SYM>.html;
 exit code 0 = no NEW events since the state file, 3 = new events (caller may trigger a local/full read + alert).
 Sources cited in the snippets: docs/TTrades PDFs (3. Liquidity, 8. Discount__Premium, 11. MSS_vs_Liquidity_Grab,
-12. Fair_Value_Gaps, 18. Market_Structure_Shift, IRL-ERL), WA/knowledge/07 (Phase A-E, Spring/Shakeout, SOS/LPS, SOT),
-                WMT/knowledge/08 (Effort-vs-Result, Spring loai 1/2/3);
+12. Fair_Value_Gaps, 18. Market_Structure_Shift, IRL-ERL), WA/knowledge/wyckoff/advance.md (Phase A-E, Spring/Shakeout, SOS/LPS, SOT),
+                WMT/knowledge/wyckoff/modern-tools.md (Effort-vs-Result, Spring loai 1/2/3);
 thresholds (equal-level tolerance, pivot width, FVG minimum size, displacement body/range ratios, 1.5x volume) are this
 system's own parameters read from docs/architecture/analysis-params.json (project_defined.ict / .volume), and say so.
-Dealing range = nearest unswept BSL above / SSL below the last close (knowledge/04 §2.18), window extremes as fallback.
-MSS carries a displacement flag (knowledge/04 §2.16); a setup candidate requires it. 2026-09-12 (docs/audits/2026-09-12-ict-pdf-recheck.md).
+Dealing range = nearest unswept BSL above / SSL below the last close (knowledge/ict/core-a.md §2.18), window extremes as fallback.
+MSS carries a displacement flag (knowledge/ict/core-a.md §2.16); a setup candidate requires it. 2026-09-12 (docs/audits/2026-09-12-ict-pdf-recheck.md).
 """
 import argparse, json, os, sys, datetime
 
@@ -35,17 +35,17 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import instruments as I  # noqa: E402
 
 CITE = {
-    "liq": "docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7",
-    "grab": "docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17",
-    "pd": "docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19",
-    "fvg": "docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24",
-    "mss": "docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2",
-    "erl": "docs/TTrades PDFs/IRL-ERL.pdf tr.1–8 · knowledge/05 §2.13",
-    "evr": "WA p33–39 · knowledge/07 §2.2 · WMT p019–022, p149–154 · knowledge/08 §2.3, §4.1",
-    "spring": "WA p80 · knowledge/07 §2.7.3 (sự kiện) · WMT p036–049 · knowledge/08 §2.6 (loại 1/2/3)",
-    "sos": "WA p84–86 · knowledge/07 §2.7 (SOS/LPS/BU) · knowledge/08 §6",
-    "phase": "WA p71–123 · knowledge/07 §2.7–2.8 (Phase A–E) · đối nhãn: knowledge/07 §2.11",
-    "sot": "WA p277–292 · knowledge/07 §4.6",
+    "liq": "docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/ict/core-a.md §2.6–2.7",
+    "grab": "docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/ict/core-a.md §2.14, §2.17",
+    "pd": "docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/ict/core-a.md §2.18–2.19",
+    "fvg": "docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/ict/core-a.md §2.21–2.24",
+    "mss": "docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/ict/core-b.md §2.1–2.2",
+    "erl": "docs/TTrades PDFs/IRL-ERL.pdf tr.1–8 · knowledge/ict/core-b.md §2.13",
+    "evr": "WA p33–39 · knowledge/wyckoff/advance.md §2.2 · WMT p019–022, p149–154 · knowledge/wyckoff/modern-tools.md §2.3, §4.1",
+    "spring": "WA p80 · knowledge/wyckoff/advance.md §2.7.3 (sự kiện) · WMT p036–049 · knowledge/wyckoff/modern-tools.md §2.6 (loại 1/2/3)",
+    "sos": "WA p84–86 · knowledge/wyckoff/advance.md §2.7 (SOS/LPS/BU) · knowledge/wyckoff/modern-tools.md §6",
+    "phase": "WA p71–123 · knowledge/wyckoff/advance.md §2.7–2.8 (Phase A–E) · đối nhãn: knowledge/wyckoff/advance.md §2.11",
+    "sot": "WA p277–292 · knowledge/wyckoff/advance.md §4.6",
     "sys": "[tính toán của hệ thống — không phải trích dẫn tài liệu]",
 }
 
@@ -134,9 +134,9 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
             if abs(L[sl[a]] - L[sl[b]]) <= tol and sl[b] - sl[a] >= 4: add("SSL", [sl[a], sl[b]], min(L[sl[a]], L[sl[b]])); break
     hi_i, lo_i = H.index(hi), L.index(lo)
 
-    # MSS = body close beyond the swing preceding the raid (knowledge/04 §2.17, knowledge/05 §2.2). displacement = full-bodied
-    # candle (knowledge/04 §2.16) read with the project ratios in analysis-params.json; ext/origin = the manipulation leg
-    # (knowledge/06 §2.1.5); cisd = open of the first candle of the final opposing-colour run into the extreme (knowledge/05 §2.3)
+    # MSS = body close beyond the swing preceding the raid (knowledge/ict/core-a.md §2.17, knowledge/ict/core-b.md §2.2). displacement = full-bodied
+    # candle (knowledge/ict/core-a.md §2.16) read with the project ratios in analysis-params.json; ext/origin = the manipulation leg
+    # (knowledge/ict/models.md §2.1.5); cisd = open of the first candle of the final opposing-colour run into the extreme (knowledge/ict/core-b.md §2.3)
     def is_disp(j):
         rg = H[j] - L[j]
         return rg > 0 and abs(C[j] - O[j]) >= DISP["body_min_ratio"] * rg and rg >= DISP["range_min_median_ratio"] * med
@@ -172,14 +172,14 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
                             "vol_mult": round(V[j] / avgv, 2) if avgv else None}); bias = 0; break
 
     last = C[-1]
-    # dealing range = nearest unswept BSL above / SSL below the last close (knowledge/04 §2.18); fallback = window extremes, reported as such
+    # dealing range = nearest unswept BSL above / SSL below the last close (knowledge/ict/core-a.md §2.18); fallback = window extremes, reported as such
     wlo, whi = lo, hi
     above = [p["level"] for p in pools if p["swept"] < 0 and p["kind"] == "BSL" and p["level"] > last]
     below = [p["level"] for p in pools if p["swept"] < 0 and p["kind"] == "SSL" and p["level"] < last]
     hi = min(above) if above else whi; lo = max(below) if below else wlo; eq = (lo + hi) / 2
     dr_source = "pools" if (above and below) else ("mixed" if (above or below) else "window")
     pct = (last - lo) / (hi - lo) if hi > lo else 0.5
-    # previous UTC-day high/low (knowledge/04 §2.12; day boundary 00Z is a project assumption) when the window spans more than one day
+    # previous UTC-day high/low (knowledge/ict/core-a.md §2.12; day boundary 00Z is a project assumption) when the window spans more than one day
     days = {}
     for i in range(n):
         d = T[i][:10]; o = days.setdefault(d, {"h": H[i], "l": L[i], "i": i})
@@ -191,7 +191,7 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
         prev_day = {"date": dkeys[-2], "pdh": pd_["h"], "pdl": pd_["l"],
                     "pdh_state": "closed_through" if any(C[q] > pd_["h"] for q in range(cur, n)) else ("swept" if any(H[q] > pd_["h"] for q in range(cur, n)) else "intact"),
                     "pdl_state": "closed_through" if any(C[q] < pd_["l"] for q in range(cur, n)) else ("swept" if any(L[q] < pd_["l"] for q in range(cur, n)) else "intact")}
-    # previous candle of THIS timeframe — ICT's own bias unit (knowledge/04 §2.11 PCH/PCL on H4/H1/M30/M15;
+    # previous candle of THIS timeframe — ICT's own bias unit (knowledge/ict/core-a.md §2.11 PCH/PCL on H4/H1/M30/M15;
     # on a 1D/1W rung the previous candle IS the previous day/week, §2.12 PDH/PDL). Same three states as prev_day:
     # a body close beyond = that level was the draw; a wick beyond with the body closing back = failure to
     # displace (§2.14, §3.2 R5–R8). htf_context.ict_bias() reads this; it must reach facts.json to be usable.
@@ -284,17 +284,17 @@ def setup_candidate(a, c, lookback):
     elif s["kind"] == "BSL" and m["type"] == "bear": side = "short"
     else: return None
     O = [x["open"] for x in c]; Cc = [x["close"] for x in c]
-    pd_ok = (a["pct"] < 0.5) if side == "long" else (a["pct"] > 0.5)   # longs in discount, shorts in premium (knowledge/04 §3.4 R13)
+    pd_ok = (a["pct"] < 0.5) if side == "long" else (a["pct"] > 0.5)   # longs in discount, shorts in premium (knowledge/ict/core-a.md §3.4 R13)
     base = {"side": side, "sweep": {"pool": s["kind"], "level": s["level"], "time": T[s["swept"]]},
             "mss": {"level": m["level"], "time": T[m["i"]], "vol_mult": m.get("vol_mult"), "displacement": m.get("disp"), "cisd": m.get("cisd")},
             "in_discount": a["pct"] < 0.5, "pd_ok": pd_ok, "dr_source": a["dr_source"]}
     if not m.get("disp"):
-        base.update({"complete": False, "missing": "displacement trên nến phá swing (thân nến nhỏ / biên độ nhỏ — chưa phải MSS theo knowledge/04 §2.16)"}); return base
+        base.update({"complete": False, "missing": "displacement trên nến phá swing (thân nến nhỏ / biên độ nhỏ — chưa phải MSS theo knowledge/ict/core-a.md §2.16)"}); return base
     fv = [f for f in a["fvgs_all"] if f["i"] > s["swept"] and f["type"] == ("bull" if side == "long" else "bear")]
     if not fv:
         base.update({"complete": False, "missing": "FVG cùng chiều sau cú quét"}); return base
     f = fv[-1]
-    # OB = last opposing-close candle before the MSS candle (knowledge/05 §2.5): open line, 0.5 mean threshold, body low/high
+    # OB = last opposing-close candle before the MSS candle (knowledge/ict/core-b.md §2.5): open line, 0.5 mean threshold, body low/high
     ob = None
     for q in range(m["i"] - 1, s["swept"] - 1, -1):
         if (Cc[q] < O[q]) if side == "long" else (Cc[q] > O[q]):
@@ -331,7 +331,7 @@ def facts_entry(a, stance, an, su, ctx):
             "stance": stance, "anchors": an, "setup": su, "last_mss": a["last_mss"], "nearest_fvg": a["nearest_fvg"],
             "prev_day": a["prev_day"], "prev_candle": a["prev_candle"],
             "unswept_pools": a["unswept"], "events_recent": a["events"],
-            "context": ctx}   # HTF context: giảm khung (knowledge/07 §2.7, WA p93–96)
+            "context": ctx}   # HTF context: giảm khung (knowledge/wyckoff/advance.md §2.7, WA p93–96)
 
 
 def fmt(sym, v):
@@ -366,7 +366,7 @@ def facts_table(sym, a, an, su):
             rows.append(("Entry (3 mô hình FVG)", f"IOFED {f(em['iofed'])} · CE {f(em['ce'])} · lấp đầy {f(em['fill'])}" + (f" · OB open {f(ob['open'])} / 0.5 MT {f(ob['mt'])}" if ob else "")))
             rows.append(("Stop (chủ sở hữu = cực trị cú quét)", " · ".join(f"{k} {f(v)}" for k, v in so.items() if v is not None)))
             st_ = su.get("std_targets"); st_s = f" · STD −2 {f(st_['-2'])} / −2.5 {f(st_['-2.5'])} / −4 {f(st_['-4'])}" if st_ else ""
-            rr_note = "" if su["rr_ok"] else (f" (< {su['min_rr']}R tối thiểu, knowledge/06 §3.1 luật 23)"
+            rr_note = "" if su["rr_ok"] else (f" (< {su['min_rr']}R tối thiểu, knowledge/ict/models.md §3.1 luật 23)"
                                               if su["min_rr"] is not None else " (không đọc được sàn R/R)")
             rows.append(("Entry / Stop / Target / R", f"{f(su['entry'])} / {f(su['stop'])} / {f(su['target'])} ({su['target_kind']}) / R = {su['R']}{rr_note}{st_s}"))
         else:
@@ -428,7 +428,7 @@ def prelim_html(sym, a, tf, style, an=None, su=None):
             if a["last_mss"] and a["last_mss"].get("disp"):
                 stance = "SETUP TIỀM NĂNG"; why = "quét thanh khoản rồi MSS có displacement cùng chiều — mô hình sweep→MSS; cần nhận định cục bộ (Sonnet) và kiểm tra Wyckoff/volume trước khi vào lệnh"
             else:
-                why = "quét thanh khoản rồi nến đóng qua swing cùng chiều nhưng thiếu displacement (thân/biên độ nhỏ) — chưa đủ là MSS theo knowledge/04 §2.16"
+                why = "quét thanh khoản rồi nến đóng qua swing cùng chiều nhưng thiếu displacement (thân/biên độ nhỏ) — chưa đủ là MSS theo knowledge/ict/core-a.md §2.16"
     ts = a["last_time"][11:16]
     html = (f"<div class=\"prelim-head\">Nhận định sơ bộ tự động · {tf} · dữ liệu tới {ts} UTC · "
             f"<strong>{stance}</strong></div>"

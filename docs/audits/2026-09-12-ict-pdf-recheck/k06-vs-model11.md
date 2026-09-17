@@ -1,5 +1,11 @@
 # Audit: knowledge/06-ttrades-models.md vs TTrades Model11.pdf (118 pages, diagram/chart focus)
 
+> **Knowledge-path note (added 2026-09-17).** The `knowledge/` citations below use the FLAT numbered
+> layout (`knowledge/07-wyckoff-advance.md`, or the `kNN` short codes) that was retired on 2026-09-17 in
+> favour of one folder per methodology. They are left exactly as written: this document is a dated record,
+> and re-pointing its citations would change what it says it checked. `knowledge/INDEX.md` carries the
+> old→new map.
+
 Scope: every physical page 1-118 of `docs/TTrades PDFs/TTrades Model11.pdf` was viewed via the rendered PNGs at
 `/private/tmp/claude-502/-Users-tungnguyen-TYME-Trading/1944841f-d671-4770-a5e9-372b39da04b2/scratchpad/png/TTrades_Model11/p-001.png` … `p-118.png`.
 The knowledge file `knowledge/06-ttrades-models.md` was read in full (664 lines). Prose (`[text]`) claims were treated as

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Which definition of the "Asian session" makes its high/low behave most like liquidity? Measured, not argued.
 Usage: asia-session-eval.py [--symbols BTCUSDT,ETHUSDT,SOLUSDT,XAUUSD] [--tf 15m] [--days 365] [--out docs/backtests/<file>.md]
-The ICT decks draw "Asian Session High/Low" as levels the later sessions sweep or reverse from (knowledge/04 §2.9) but never
-define the session's clock (knowledge/04 §6 item 9). Candidates (exchange-local clocks, converted per date, weekdays only):
+The ICT decks draw "Asian Session High/Low" as levels the later sessions sweep or reverse from (knowledge/ict/core-a.md §2.9) but never
+define the session's clock (knowledge/ict/core-a.md §6 item 9). Candidates (exchange-local clocks, converted per date, weekdays only):
   tokyo_00_06   00:00–06:00 Asia/Tokyo   (docs/architecture/session-model.md, current)
   ny_20_00      20:00–00:00 America/New_York (the decks' "Asia" killzone, 1. Killzones p3)
   utc_00_08     00:00–08:00 UTC           (exchange-day open to London pre-open)

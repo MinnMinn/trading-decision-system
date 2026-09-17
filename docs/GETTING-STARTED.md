@@ -214,7 +214,7 @@ Nguyên tắc (SYSTEM-DESIGN.md §14): **Haiku chỉ hiển thị, không bao gi
 | `docs/architecture/risk-config.json` | Vốn và giới hạn rủi ro cho phần phân tích |
 | `docs/architecture/analysis-params.json` | Ngưỡng số: khối có trích dẫn sách và khối tự định nghĩa |
 | `docs/architecture/session-model.md` | Phiên giao dịch và trọng số theo mã |
-| `knowledge/10-integrated-method.md` | Quy trình đọc thị trường hợp nhất, đọc trước khi sửa skill |
+| `knowledge/integrated/method.md` | Quy trình đọc thị trường hợp nhất, đọc trước khi sửa skill |
 | `scripts/automation.py` | Toàn bộ logic của `/automation` |
 | `scripts/strategy-runner.py` | Engine pilot duy nhất — luật đặt lệnh, trần rủi ro, sàn R:R |
 | `scripts/verify-automation-v3.sh` | Bài kiểm tra chấp nhận |

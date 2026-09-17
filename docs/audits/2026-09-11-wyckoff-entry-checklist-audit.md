@@ -1,5 +1,11 @@
 # Wyckoff entry-checklist audit — books vs. implementation
 
+> **Knowledge-path note (added 2026-09-17).** The `knowledge/` citations below use the FLAT numbered
+> layout (`knowledge/07-wyckoff-advance.md`, or the `kNN` short codes) that was retired on 2026-09-17 in
+> favour of one folder per methodology. They are left exactly as written: this document is a dated record,
+> and re-pointing its citations would change what it says it checked. `knowledge/INDEX.md` carries the
+> old→new map.
+
 Read-only audit, 2026-09-11. Scope: every entry-related checklist / precondition / threshold stated in
 `knowledge/07-wyckoff-advance.md` (WA) and `knowledge/08-wyckoff-and-modern-tools.md` (WMT), checked against
 what the system actually enforces.

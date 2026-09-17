@@ -6,33 +6,33 @@ Data: data/history/ohlcv.<SYM>.<TF>.json (scripts/fetch-history.py). Everything 
 
 METHODS (long = accumulation side; short = the distribution mirror with the same rules):
 
-  WYCKOFF  — knowledge/08 §2.6 (Bảng 2.1, WMT p049) + knowledge/07 §5.2 WA2-11 (WA p80) + knowledge/08 §5 Step 6 (WMT p271–273)
+  WYCKOFF  — knowledge/wyckoff/modern-tools.md §2.6 (Bảng 2.1, WMT p049) + knowledge/wyckoff/advance.md §5.2 WA2-11 (WA p80) + knowledge/wyckoff/modern-tools.md §5 Step 6 (WMT p271–273)
     Trading range  = rolling: support = min low of the previous R bars (excluding the last 6), resistance = max high of the previous R bars.
                      PROJECT PARAMETER: R (the book draws the TR from AR/SC/ST, WA p71–72; a per-bar full Wyckoff read is not codeable here).
     Spring         = low pierces support, close back above support within 0–2 bars (WA p80). Cluster guard 5 bars.
-    Volume type    = Spring-bar volume vs mean of previous 20 bars: <0.7× type 1, 0.7–1.5× type 2, >1.5× type 3 (analysis-params.json project_defined.volume; typing knowledge/08 §2.6).
+    Volume type    = Spring-bar volume vs mean of previous 20 bars: <0.7× type 1, 0.7–1.5× type 2, >1.5× type 3 (analysis-params.json project_defined.volume; typing knowledge/wyckoff/modern-tools.md §2.6).
     Entry rule     = type 1: at the close of the reclaim bar (WA p80 "Spring khối lượng thấp … mở một phần vị thế"; WMT p049 confirmation = close back above support).
                      type 2: at the first RETEST (WMT p049 "one or more retests"): within T bars a bar whose low is in [Spring low, support + ⅓·TR], volume < Spring-bar volume, closes in its upper half → entry at that close. No retest → no trade.
                      type 3: at the reclaim close only if the reclaim bar itself is high-volume (≥1.5×, WMT p049 "reversal on high volume"); otherwise wait for the retest as type 2.
     Stop           = below the Spring low (WMT p271) − 0.05% buffer.   Target = opposite border of the TR (WMT p273; WA p80 "at least the TR upper border").
     Volume is used; no ICT concept is used.
 
-  ICT      — knowledge/04 §2.17 (MSS by body close), §2.21 (FVG), knowledge/05 §2.2, §3.1; stop/target per .claude/skills/ict-skill "Invalidation"
+  ICT      — knowledge/ict/core-a.md §2.17 (MSS by body close), §2.21 (FVG), knowledge/ict/core-b.md §2.2, §3.1; stop/target per .claude/skills/ict-skill "Invalidation"
     Liquidity      = the last 3-bar pivot low (SSL) / pivot high (BSL) before the bar. No volume, no trading range, no phase.
     Sweep          = low pierces the pivot low. MSS = within K bars a body close above the last 3-bar pivot high formed before the sweep.
     FVG            = bullish gap (candle1.high < candle3.low) in the leg from the sweep to MSS+1.
     Entry rule     = price returns into the FVG within K bars after the MSS: entry at the FVG's near edge (candle3.low). No return → no trade (limit not filled).
-    Invalidation   = later body close below the swept low kills the read (knowledge/04 §3.6) — stop sits at the sweep low − buffer, so this is the stop.
+    Invalidation   = later body close below the swept low kills the read (knowledge/ict/core-a.md §3.6) — stop sits at the sweep low − buffer, so this is the stop.
     Target         = the next external liquidity = the highest high of the previous R bars (BSL). Same R as Wyckoff so the two are comparable.
-    Timing         = none (crypto has no sourced killzone rule: knowledge/04 §6; docs/architecture/session-model.md).
+    Timing         = none (crypto has no sourced killzone rule: knowledge/ict/core-a.md §6; docs/architecture/session-model.md).
     Deck-faithful switches (2026-09-12, off by default so the pilot's rule set does not change silently):
       --ict-disp      the MSS candle must be a displacement candle: body >= project_defined.ict.displacement.body_min_ratio of its range
-                      and range >= range_min_median_ratio x the median range of the previous R bars (knowledge/04 §2.16).
-      --ict-pd        longs only when the sweep bar closes in the discount half of the R-bar range, shorts in the premium half (knowledge/04 §3.4 R13).
+                      and range >= range_min_median_ratio x the median range of the previous R bars (knowledge/ict/core-a.md §2.16).
+      --ict-pd        longs only when the sweep bar closes in the discount half of the R-bar range, shorts in the premium half (knowledge/ict/core-a.md §3.4 R13).
       --std-origin    'pivot' = fib 0 at the last 3-bar pivot before the sweep (pre-2026-09-12); 'highest' = the highest high (long) /
                       lowest low (short) between that pivot and the sweep — Model11 p20 "the previous high which made the highest high".
 
-  COMBINED — SYSTEM-DESIGN §6 / knowledge/10 §4: Wyckoff owns context + the excursion, ICT owns the entry structure left behind
+  COMBINED — SYSTEM-DESIGN §6 / knowledge/integrated/method.md §4: Wyckoff owns context + the excursion, ICT owns the entry structure left behind
     Condition      = a Wyckoff Spring (any volume type, as above) AND the ICT MSS + FVG confirmation within K bars.
     Entry rule     = ICT entry (return into the FVG) — else at the MSS close if price never returns (market order once the checklist is satisfied, WMT p269).
     Stop/target    = one invalidation owner (ict-skill "Invalidation"): the Spring low; target the TR opposite border.
@@ -138,7 +138,7 @@ def vtype(ratio):
 
 
 def is_displacement(j, O, H, L, C, R=48):
-    """knowledge/04 §2.16 'aggressive move with full-bodied candles' read with the project ratios (analysis-params.json project_defined.ict)."""
+    """knowledge/ict/core-a.md §2.16 'aggressive move with full-bodied candles' read with the project ratios (analysis-params.json project_defined.ict)."""
     rg = H[j] - L[j]
     if rg <= 0:
         return False
@@ -566,8 +566,8 @@ def main():
     ap.add_argument("--st-min", type=float, default=None, help="book engine: require ST[A] at least this fraction of the TR above the SC (WA p75: 0.5 = supply thinned)")
     ap.add_argument("--no-phase-d", action="store_true", help="book engine: no BU/LPS Phase D entries")
     ap.add_argument("--combined-entry", default="limit", choices=["limit", "market", "hindsight"], help="COMBINED entry rule (see scan); default limit = causal")
-    ap.add_argument("--ict-disp", action="store_true", help="require a displacement candle for the MSS (knowledge/04 §2.16; project ratios)")
-    ap.add_argument("--ict-pd", action="store_true", help="ICT-only: longs from discount / shorts from premium of the R-bar range (knowledge/04 §3.4 R13)")
+    ap.add_argument("--ict-disp", action="store_true", help="require a displacement candle for the MSS (knowledge/ict/core-a.md §2.16; project ratios)")
+    ap.add_argument("--ict-pd", action="store_true", help="ICT-only: longs from discount / shorts from premium of the R-bar range (knowledge/ict/core-a.md §3.4 R13)")
     ap.add_argument("--std-origin", default="pivot", choices=["pivot", "highest"], help="std projection fib-0 anchor (see docstring)")
     ap.add_argument("--methods", default=None,
                     help="comma-separated bias-reading methods (wyckoff,ict) for the live ICT rules; "

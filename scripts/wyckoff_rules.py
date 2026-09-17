@@ -8,7 +8,7 @@ Accumulation is detected on the raw series; distribution is the same detector ru
 (WA p101: the distribution schematic is the mirror image), with the event names mapped back (SC→BC, AR→AR, ST→ST,
 Spring→UT/UTAD, SOS→SOW, BU/LPS→LPSY).
 
-Rules implemented (knowledge/07 = WA, knowledge/08 = WMT):
+Rules implemented (knowledge/wyckoff/advance.md = WA, knowledge/wyckoff/modern-tools.md = WMT):
   R1  CHoBEV / CHoCH gate (WA p67–68): a counter-trend reaction counts as a CHoBEV when its spread and its effort (volume)
       exceed those of the prior counter-trend reactions of the trend; three CHoBEV = CHoCH; only then may a TR be drawn.
   R2  Trading range from events (WA p69, p73): lower border = SC low (start of the first up-wave), upper border = AR high.
@@ -19,7 +19,7 @@ Rules implemented (knowledge/07 = WA, knowledge/08 = WMT):
   R5  Sloped structure → do not trade (WA p167, p170): skip when Phase-B swing lows drift by more than PARAMS.slope_max_tr of the TR.
   R6  Spring vs Shakeout (WA p80, p83): price must close back inside within PARAMS.spring_max_bars_outside bars and fewer than
       half the excursion bars may close below the border; otherwise it is a Shakeout (supply remains) → no direct entry (WA2-12).
-  R7  Spring/Upthrust volume type 1/2/3 (WMT p049, knowledge/08 §2.6–2.7) with the volume thresholds of analysis-params.json.
+  R7  Spring/Upthrust volume type 1/2/3 (WMT p049, knowledge/wyckoff/modern-tools.md §2.6–2.7) with the volume thresholds of analysis-params.json.
   R8  Test after the Spring (WA p80): a pullback holding above the Spring low, inside the lower third of the TR, on volume lower
       than the Spring bar, closing in its upper half. Type 2 needs it (WMT p049); type 1 may enter at the reclaim (WA p80, partial).
   R9  SOT into the border (WA p278–284): successive pushes into the low with shortening distance; ≥3 pushes = valid SOT; more than 4

@@ -1,5 +1,11 @@
 # Audit: knowledge/05-ttrades-core-B.md vs 13 TTrades PDF decks (diagram pages)
 
+> **Knowledge-path note (added 2026-09-17).** The `knowledge/` citations below use the FLAT numbered
+> layout (`knowledge/07-wyckoff-advance.md`, or the `kNN` short codes) that was retired on 2026-09-17 in
+> favour of one folder per methodology. They are left exactly as written: this document is a dated record,
+> and re-pointing its citations would change what it says it checked. `knowledge/INDEX.md` carries the
+> old→new map.
+
 Scope: verify every page image of the 13 decks against the corresponding claims in `knowledge/05-ttrades-core-B.md`. Text-layer claims were already verified per the task brief; this audit focuses on the diagram pages. All 126 physical pages across the 13 decks were viewed (13 parallel sub-audits, one per deck).
 
 ## Findings

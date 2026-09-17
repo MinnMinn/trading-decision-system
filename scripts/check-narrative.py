@@ -29,7 +29,7 @@ OWNERS = _M.invalidation_owners()      # docs/architecture/methods.json is the o
 CTX_STYLE = {k: v for k, v in htf.CONTEXT_STYLE.items() if v}
 ISO = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 
-# ---- Wyckoff phase grammar (knowledge/07 §2.7–2.8, WA p71–86 / p101–112). Encoded as hard rules because on
+# ---- Wyckoff phase grammar (knowledge/wyckoff/advance.md §2.7–2.8, WA p71–86 / p101–112). Encoded as hard rules because on
 # 2026-09-11 a full analysis labelled ETH "A → C → D": no Phase B, a Phase C without any test event, and an "SOS"
 # on 0.99× volume that the book would call UA. Vocabulary and phase membership are the book's; the volume floor for
 # SOS/SOW is the book's own definition ("mở rộng chênh lệch giá và tăng khối lượng", WA p83–84).
@@ -38,7 +38,7 @@ EVENT_VOCAB = {  # canonical event token -> allowed phases (accumulation / distr
     "PS": "A", "SC": "A", "AR": "AB", "ST": "AB", "UA": "B", "MSOW": "B", "MSOS": "B",
     "SPRING": "C", "SHAKEOUT": "C", "TEST": "CD", "LPS": "CD", "SOS": "DE", "BU": "D",
     "PSY": "A", "BC": "A", "BCLX": "A", "UT": "B", "UTAD": "C", "SOW": "DE", "LPSY": "CD",
-    "CHOBEV": "ABCDE", "CHOCH": "ABCDE",   # change-of-behaviour markers, WA p67–71 / knowledge/07 §2.6 — any phase
+    "CHOBEV": "ABCDE", "CHOCH": "ABCDE",   # change-of-behaviour markers, WA p67–71 / knowledge/wyckoff/advance.md §2.6 — any phase
 }
 EVENT_TOKEN = re.compile(r"^(PS|SC|AR|ST|UA|mSOW|mSOS|Spring|Shakeout|Test|LPS|SOS|BU|PSY|BC|BCLX|UT|UTAD|SOW|LPSY|CHoBEV|CHoCH)\b", re.I)
 KL_RE = re.compile(r"KL\s*([0-9]+(?:[.,][0-9]+)?)\s*[x×]", re.I)
@@ -52,13 +52,13 @@ def phase_grammar(sym, wy, bad):
     for ph in phases:
         m = re.match(r"\s*(?:pha|phase)?\s*([A-Ea-e])\b", str(ph.get("label", "")), re.I)
         if not m:
-            bad(pre + f"phase label {ph.get('label')!r} must start with the letter A–E (knowledge/07 §2.7)"); return
+            bad(pre + f"phase label {ph.get('label')!r} must start with the letter A–E (knowledge/wyckoff/advance.md §2.7)"); return
         letters.append(m.group(1).upper())
     if phases:
         want = PHASE_ORDER[:len(letters)]
         if "".join(letters) != want:
             bad(pre + f"phases are {'→'.join(letters)}; Wyckoff phases are contiguous from A ({'→'.join(want)}): Phase C tests the cause built in "
-                      f"Phase B and cannot exist without it (knowledge/07 §2.7.2–2.7.3, WA p77–80); Phase D needs a completed Phase C test (§2.7.4)")
+                      f"Phase B and cannot exist without it (knowledge/wyckoff/advance.md §2.7.2–2.7.3, WA p77–80); Phase D needs a completed Phase C test (§2.7.4)")
         for a, b in zip(phases, phases[1:]):
             if a.get("to") and a["to"] != b.get("from"):
                 bad(pre + f"phase {a.get('label')!r} ends at {a['to']} but the next phase starts at {b.get('from')} — phases must be contiguous in time")
@@ -77,21 +77,21 @@ def phase_grammar(sym, wy, bad):
     for e in wy.get("events") or []:
         lbl = str(e.get("label", "")); m = EVENT_TOKEN.match(lbl.strip())
         if not m:
-            bad(pre + f"event label {lbl!r} does not start with a Wyckoff event name (PS/SC/AR/ST/UA/Spring/Shakeout/Test/LPS/SOS/BU · PSY/BC/UT/UTAD/SOW/LPSY · CHoBEV/CHoCH — knowledge/07 §2.6–2.8)"); continue
+            bad(pre + f"event label {lbl!r} does not start with a Wyckoff event name (PS/SC/AR/ST/UA/Spring/Shakeout/Test/LPS/SOS/BU · PSY/BC/UT/UTAD/SOW/LPSY · CHoBEV/CHoCH — knowledge/wyckoff/advance.md §2.6–2.8)"); continue
         tok = m.group(1).upper(); L = phase_at(e.get("time", ""))
         seen.setdefault(L, set()).add(tok)
         if L and L not in EVENT_VOCAB.get(tok, PHASE_ORDER):
-            bad(pre + f"event {lbl!r} sits in Phase {L} but {tok} belongs to Phase {'/'.join(EVENT_VOCAB[tok])} (knowledge/07 §2.7–2.8)")
+            bad(pre + f"event {lbl!r} sits in Phase {L} but {tok} belongs to Phase {'/'.join(EVENT_VOCAB[tok])} (knowledge/wyckoff/advance.md §2.7–2.8)")
         km = KL_RE.search(lbl)
         if tok in ("SOS", "SOW") and km and float(km.group(1).replace(",", ".")) < 1.0:
-            bad(pre + f"event {lbl!r}: an {tok} is 'mở rộng chênh lệch giá và tăng khối lượng' (WA p83–84, knowledge/07 §2.7.4); on below-average "
+            bad(pre + f"event {lbl!r}: an {tok} is 'mở rộng chênh lệch giá và tăng khối lượng' (WA p83–84, knowledge/wyckoff/advance.md §2.7.4); on below-average "
                       f"volume a break above AR inside the range is UA (bull trap, WA p78/p88) — relabel, do not call it SOS")
     if "C" in letters and not (seen.get("C", set()) & {"SPRING", "SHAKEOUT", "TEST", "LPS", "UTAD"}):
-        bad(pre + "Phase C has no test event (Spring / Shakeout / Test / LPS[C] · UTAD) — Phase C is that test (knowledge/07 §2.7.3, WA p79–83)")
+        bad(pre + "Phase C has no test event (Spring / Shakeout / Test / LPS[C] · UTAD) — Phase C is that test (knowledge/wyckoff/advance.md §2.7.3, WA p79–83)")
     if "D" in letters and not (seen.get("D", set()) | seen.get("E", set())) & {"SOS", "SOW", "LPS", "LPSY", "BU"}:
-        bad(pre + "Phase D has no SOS/LPS/BU (or SOW/LPSY) event — Phase D is 'cầu áp đảo cung' shown by SOS then LPS (knowledge/07 §2.7.4)")
+        bad(pre + "Phase D has no SOS/LPS/BU (or SOW/LPSY) event — Phase D is 'cầu áp đảo cung' shown by SOS then LPS (knowledge/wyckoff/advance.md §2.7.4)")
     if "A" in letters and not (seen.get("A", set()) & {"SC", "BC", "BCLX"}):
-        bad(pre + "Phase A has no SC (or BC) event — Phase A is the stopping action SC→AR→ST (knowledge/07 §2.7.1)")
+        bad(pre + "Phase A has no SC (or BC) event — Phase A is the stopping action SC→AR→ST (knowledge/wyckoff/advance.md §2.7.1)")
 
 
 
@@ -162,7 +162,7 @@ def main():
         cw = ((d.get("context") or {}).get("wyckoff") or {})
         if cw.get("phases") or cw.get("events"):
             phase_grammar(sym + " (context)", cw, bad)
-        # giảm khung (knowledge/07 §2.7, WA p93–96): the context read is mandatory when a context window exists, and the
+        # giảm khung (knowledge/wyckoff/advance.md §2.7, WA p93–96): the context read is mandatory when a context window exists, and the
         # working-timeframe verdict must respect the higher-timeframe structure
         if ctx_style:
             # A context read is mandatory only for the methods /automation has ENGAGED. Requiring the Wyckoff one
@@ -172,7 +172,7 @@ def main():
             ci = (d.get("context") or {}).get("ict") or {}
             if "wyckoff" in engaged:
                 if not (cw.get("text_html") or "").strip() or 'class="cite"' not in cw.get("text_html", ""):
-                    bad(pre + "context.wyckoff.text_html missing or uncited — the higher-timeframe Wyckoff read is mandatory (giảm khung, knowledge/07 §2.7)")
+                    bad(pre + "context.wyckoff.text_html missing or uncited — the higher-timeframe Wyckoff read is mandatory (giảm khung, knowledge/wyckoff/advance.md §2.7)")
                 if not (cw.get("structure") or cw.get("phase")):
                     bad(pre + "context.wyckoff needs structure + phase (or structure 'chưa xác lập') so the bias can be derived")
                 if (cw.get("phase") or "").upper()[:1] == "B" and not ((cw.get("trading_range") or {}).get("high") and (cw.get("trading_range") or {}).get("low")):
