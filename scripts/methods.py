@@ -38,6 +38,12 @@ def _validate(d):
                               f"silently renders an empty pane again.")
         if pane["kind"] not in PANE_KINDS:
             raise ValueError(f"{PATH}: dimension '{name}' pane.kind {pane['kind']!r} is not one of {sorted(PANE_KINDS)}.")
+        if not (dim.get("reads") or "").strip():
+            raise ValueError(f"{PATH}: dimension '{name}' has no `reads` gloss -- the short Vietnamese phrase for "
+                             f"WHAT this dimension reads ('giá + khối lượng', 'cấu trúc giá'). The page lede names "
+                             f"each engaged dimension with it; without one, a 5th dimension would either render an "
+                             f"empty parenthesis or send someone back to hard-coding the pair in build-artifact.py, "
+                             f"which is the defect that shipped an ICT-only page claiming a Wyckoff read.")
         if not isinstance(dim.get("owns_invalidation"), bool):
             raise ValueError(f"{PATH}: dimension '{name}' has no boolean `owns_invalidation` -- every dimension "
                              f"must declare whether it may own a trade's stop, or narrative.schema.json's "

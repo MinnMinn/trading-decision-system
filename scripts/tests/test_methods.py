@@ -107,8 +107,8 @@ class Validation(unittest.TestCase):
     def _base(self):
         return {
             "dimensions": {
-                "wyckoff": {"markets": ["crypto"], "owns_invalidation": True, "pane": {"kind": "volume", "label": "Khối lượng"}},
-                "ict": {"markets": ["crypto"], "owns_invalidation": True, "pane": {"kind": "range_pct", "label": "Dealing range"}},
+                "wyckoff": {"markets": ["crypto"], "owns_invalidation": True, "reads": "giá + khối lượng", "pane": {"kind": "volume", "label": "Khối lượng"}},
+                "ict": {"markets": ["crypto"], "owns_invalidation": True, "reads": "cấu trúc giá", "pane": {"kind": "range_pct", "label": "Dealing range"}},
             },
             "presets": [{"id": "a", "dimensions": ["wyckoff"], "mode": "SOLO"}],
             "runner_methods": {"WYCKOFF": {"requires": ["wyckoff"]}},
@@ -142,6 +142,18 @@ class Validation(unittest.TestCase):
             M._validate(d)
         self.assertIn("ict", str(ctx.exception))
         self.assertIn("owns_invalidation", str(ctx.exception))
+
+    def test_dimension_missing_reads_gloss_raises(self):
+        """`reads` is the short phrase naming WHAT the dimension reads, quoted by the page lede for each engaged
+        method. Before it existed the lede hard-coded "Wyckoff (giá + khối lượng) và ICT (cấu trúc giá)", so an
+        ICT-only page claimed a Wyckoff read; a 5th dimension without a gloss would push someone straight back
+        to that literal."""
+        d = self._base()
+        del d["dimensions"]["ict"]["reads"]
+        with self.assertRaises(ValueError) as ctx:
+            M._validate(d)
+        self.assertIn("ict", str(ctx.exception))
+        self.assertIn("reads", str(ctx.exception))
 
     def test_duplicate_preset_dimension_sets_raise(self):
         d = self._base()

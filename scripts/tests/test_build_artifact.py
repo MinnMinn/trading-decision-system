@@ -402,5 +402,163 @@ class ChartJsReadsInjectedLaneFacts(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+class PageChromeNamesOnlyTheEngagedMethods(unittest.TestCase):
+    """The tables were gated method-by-method (matrix/ladder/timeline above); the page CHROME was not. The lede
+    said "đọc bằng Wyckoff (giá + khối lượng) và ICT (cấu trúc giá) riêng rẽ, rồi tổng hợp" as a plain string
+    literal on every page, while markets.crypto.dimensions had been {wyckoff:false, ict:true} — ICT only — since
+    2026-09-12. A reader was told two methods were cross-checked and synthesised when exactly one ran, and
+    "rồi tổng hợp" named a synthesis step that cannot exist with one method.
+
+    Three more strings had the same defect (the footer's "Chế độ …: Wyckoff + ICT", the unconditional
+    "Footprint lấy Wyckoff làm nền", and the dims reason text), the glossary printed all four methods'
+    terminology regardless, and the chart hint advertised "phím 1–4".
+
+    Nothing caught it because method_purity.py only inspects per-method ANALYSIS blocks
+    (method_purity.narrative_blocks / model_blocks) — page chrome is never submitted to the checker. Which is
+    the irony worth pinning: the old lede contains "khối lượng", so violations(lede, "ict") would have
+    rejected it outright had it ever been checked."""
+
+    ALL = ("wyckoff", "ict", "footprint", "heatmap")
+
+    def clause(self, *on):
+        ba = load("build-artifact.py")
+        return ba.method_clause({d: d in on for d in self.ALL})
+
+    def test_one_engaged_method_is_named_alone_with_no_synthesis_claim(self):
+        c = self.clause("ict")
+        self.assertIn("ICT", c)
+        self.assertIn("cấu trúc giá", c, "the dimension's own reading basis must still be stated")
+        self.assertNotIn("Wyckoff", c)
+        self.assertNotIn("khối lượng", c, "Wyckoff's reading basis must not appear in an ICT-only clause")
+        self.assertNotIn("riêng rẽ", c, "'separately' is meaningless with one method")
+        self.assertNotIn("tổng hợp", c, "there is no synthesis step with one method")
+
+    def test_wyckoff_only_is_the_mirror_case(self):
+        c = self.clause("wyckoff")
+        self.assertIn("Wyckoff", c)
+        self.assertIn("khối lượng", c)
+        self.assertNotIn("ICT", c)
+        self.assertNotIn("tổng hợp", c)
+
+    def test_two_engaged_methods_keep_the_separate_then_synthesise_wording(self):
+        c = self.clause("wyckoff", "ict")
+        self.assertIn("Wyckoff", c)
+        self.assertIn("ICT", c)
+        self.assertIn("riêng rẽ", c)
+        self.assertIn("tổng hợp", c)
+
+    def test_four_engaged_methods_name_all_four(self):
+        c = self.clause(*self.ALL)
+        for label in ("Wyckoff", "ICT", "Footprint", "Heatmap"):
+            self.assertIn(label, c)
+        self.assertIn("tổng hợp", c)
+
+    def test_no_engaged_method_says_so_instead_of_naming_one(self):
+        c = self.clause()
+        for label in ("Wyckoff", "ICT", "Footprint", "Heatmap"):
+            self.assertNotIn(label, c, "a page with no engaged lane must not name a method at all")
+        self.assertIn("/automation", c, "it must say where the switch is")
+
+    def test_the_clause_reads_its_glosses_from_the_registry_not_a_literal(self):
+        """methods.json is the single source for the Vietnamese reading-basis gloss, the same way `label` and
+        `pane` already are. A second copy in build-artifact.py is how the first defect happened."""
+        import json as _j
+        reg = _j.load(open(os.path.join(ROOT, "docs", "architecture", "methods.json"), encoding="utf-8"))
+        for d, v in reg["dimensions"].items():
+            self.assertIn("reads", v, f"dimension {d} has no `reads` gloss in methods.json")
+            self.assertIn(v["reads"], self.clause(d), f"{d}'s clause must quote its registry gloss verbatim")
+
+    def test_glossary_prints_only_engaged_lanes(self):
+        ba = load("build-artifact.py")
+        html = ba.glossary({d: d == "ict" for d in self.ALL})
+        self.assertIn("lane-ict", html)
+        for off in ("wyckoff", "footprint", "heatmap"):
+            self.assertNotIn(f"lane-{off}", html, f"{off} terminology must not print when the lane is disengaged")
+        self.assertNotIn("Cao trào bán", html, "a disengaged method's glossary entries must not render")
+
+    def test_glossary_with_nothing_engaged_renders_no_lane_block(self):
+        ba = load("build-artifact.py")
+        html = ba.glossary({d: False for d in self.ALL})
+        for d in self.ALL:
+            self.assertNotIn(f"lane-{d}", html)
+
+    def test_preset_label_names_the_configured_set(self):
+        """The footer's "Chế độ" line is about CONFIGURATION (what you asked for), so it reads the flags, not the
+        per-symbol engaged state — and it must go through methods.profile_of, which already exists for exactly
+        this. Note the flag convention: an ABSENT key means ON (build-artifact.py dims loop, `flag is not False`),
+        the opposite of profile_of's truthiness, so the normalisation is load-bearing."""
+        ba = load("build-artifact.py")
+        self.assertEqual(ba.preset_label({"wyckoff": False, "ict": True, "footprint": False, "heatmap": False}, "crypto"), "ICT")
+        self.assertEqual(ba.preset_label({"wyckoff": True, "ict": True, "footprint": False, "heatmap": False}, "crypto"), "Wyckoff + ICT")
+        self.assertEqual(ba.preset_label({}, "crypto"), "Đầy đủ 4 chiều", "absent keys mean ON, so {} is all four")
+        self.assertEqual(ba.preset_label({"wyckoff": False, "ict": True}, "cfd"), "ICT",
+                         "cfd has no footprint/heatmap at all, so their absent keys must not read as ON there")
+
+    def test_mode_is_paired_with_the_preset_it_belongs_to(self):
+        """The footer printed the NARRATIVE's recorded mode next to a hard-coded "Wyckoff + ICT". Once the config
+        went ICT-only that read "NORMAL: ICT", which contradicts itself -- NORMAL's minimum is 2 engaged
+        dimensions (methods.json modes). The mode must come from the same preset as the name, via
+        methods.mode_of, which is documented as the only function allowed to decide a run is SOLO."""
+        ba = load("build-artifact.py")
+        self.assertEqual(ba.preset_mode({"wyckoff": False, "ict": True, "footprint": False, "heatmap": False}, "crypto"), "SOLO")
+        self.assertEqual(ba.preset_mode({"wyckoff": True, "ict": True, "footprint": False, "heatmap": False}, "crypto"), "NORMAL")
+        self.assertEqual(ba.preset_mode({}, "crypto"), "NORMAL", "all four dimensions is the `full` preset, mode NORMAL")
+
+    def test_no_live_source_names_only_market_relevant_coinglass_dimensions(self):
+        ba = load("build-artifact.py")
+        off_all = ba.no_live_source({d: False for d in self.ALL}, "crypto")
+        self.assertIn("Footprint", off_all)
+        self.assertIn("Heatmap", off_all)
+        self.assertNotIn("Wyckoff", off_all, "Wyckoff reads candles, not CoinGlass")
+        self.assertEqual(ba.no_live_source({"footprint": True, "heatmap": True}, "crypto"), "",
+                         "nothing to report when both CoinGlass lanes are engaged")
+        self.assertEqual(ba.no_live_source({d: False for d in self.ALL}, "cfd"), "",
+                         "cfd has no footprint/heatmap dimension at all, so there is no missing source to report")
+
+    def test_no_hardcoded_method_pair_survives_in_code(self):
+        """srcscan strips comments and docstrings, so the explanation above may name the string it bans -- the
+        mistake this repo has now made four times (test_min_rr_and_risk.py, test_one_system.py)."""
+        import sys as _s
+        _s.path.insert(0, os.path.join(ROOT, "scripts", "tests"))
+        import srcscan
+        code = srcscan.code_text("scripts/build-artifact.py")
+        self.assertNotIn("Wyckoff + ICT", code, "the method pair must be derived from the engaged/configured set")
+        self.assertNotIn("giá + khối lượng", code, "the reading-basis gloss belongs to methods.json")
+        self.assertNotIn("phím 1–4", code, "the lane-key hint must count the lanes it actually renders")
+
+
+class IctOnlyPageMentionsWyckoffNowhereInItsChrome(unittest.TestCase):
+    """End-to-end version of the class above: build a real page with an ICT-only config and assert the rendered
+    HTML never names Wyckoff outside a lane button (the buttons deliberately keep all four, greyed, so the
+    reader can see what is switched off)."""
+
+    def test_built_page_lede_and_glossary_are_ict_only(self):
+        b = load("build-artifact.py")
+        real_read = b.read_json
+        cfg = {"markets": {"crypto": {"dimensions": {"wyckoff": False, "ict": True, "footprint": False, "heatmap": False}}}}
+
+        def fake_read(path, default=None):
+            if path.endswith("automation-config.json"):
+                return cfg
+            return real_read(path, default) if path.endswith("analysis-params.json") else default
+
+        b.read_json = fake_read
+        b.candles = lambda sym, tf, n, snap=None: (synth(n, step_min=b.TF_MIN.get(tf, 15)), "2026-09-12T00:00:00Z", "test-fixture")
+        tmp = tempfile.mkdtemp()
+        try:
+            out = os.path.join(tmp, "p.html")
+            b.build("scalping", out)
+            html = open(out, encoding="utf-8").read()
+            lede = html.split('<div class="lede">', 1)[1].split("</div>", 2)[0]
+            self.assertIn("ICT", lede)
+            self.assertNotIn("Wyckoff", lede, "ICT-only page must not claim a Wyckoff read in its lede")
+            self.assertNotIn("tổng hợp", lede, "ICT-only page must not claim a synthesis step")
+            self.assertIn("Bias → Cấu trúc → Vào lệnh", lede, "the tier ladder is method-independent and stays")
+            self.assertNotIn("Cao trào bán", html, "Wyckoff glossary entries must not render on an ICT-only page")
+            self.assertNotIn("Footprint lấy Wyckoff làm nền", html, "that rule only applies when Footprint is engaged")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()

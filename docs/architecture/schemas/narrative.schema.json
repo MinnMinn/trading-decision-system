@@ -8,7 +8,7 @@
     "style": {"enum": ["scalping", "day", "swing", "cfd-scalping", "cfd-day", "cfd-swing"], "description": "The six derived style names: three horizons (scripts/automation.py HORIZON_TF -- scalping 15m, day 1h, swing 4h) x two markets, crypto bare and cfd prefixed. Never authored here; this enum mirrors automation.STYLE.values()."},
     "updated": {"type": "string", "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\dZ$"},
     "source": {"type": "string", "description": "one line: which snapshot/brief this analysis was made from"},
-    "mode": {"enum": ["NORMAL", "ENHANCED", "STRICT"]},
+    "mode": {"enum": ["SOLO", "NORMAL", "ENHANCED", "STRICT"], "description": "The confluence mode this read was produced under (docs/architecture/methods.json -> modes). SOLO was missing here until 2026-09-17, which made the `wyckoff` and `ict` presets unrecordable: both declare mode SOLO (methods.json presets), so a genuine single-method run had to either lie NORMAL or fail validation. build-artifact.py does not derive page text from this field -- the lede and glossary read the engaged lanes -- but check-narrative.py validates it, so the enum had to admit the value the registry can produce."},
     "headline": {"type": "object", "required": ["text"], "properties": {"text": {"type": "string"}, "detail": {"type": "string"}}},
     "symbols": {
       "type": "object",

@@ -400,11 +400,75 @@ def lane_buttons(engaged):
         for i, (k, n) in enumerate(LANES))
 
 
-def glossary():
+def method_clause(engaged):
+    """The "đọc bằng <methods>" half of the page lede, built from the lanes actually engaged on this page.
+
+    One engaged method gets neither "riêng rẽ" nor "rồi tổng hợp": there is nothing to hold apart and no
+    synthesis step to perform. Until 2026-09-17 this whole clause was a plain string literal naming both
+    structural methods, so every ICT-only page -- which is what markets.crypto.dimensions has said since
+    2026-09-12 -- told its reader that two methods had been read separately and then synthesised. The glosses
+    come from methods.json `reads`; a second copy here is exactly how the first version went stale."""
+    on = [m for m, _ in LANES if engaged.get(m)]
+    if not on:
+        return "chưa bật lớp phương pháp nào trong /automation"
+    named = [f'{_methods.DIMENSIONS[m]["label"]} ({_methods.DIMENSIONS[m]["reads"]})' for m in on]
+    if len(named) == 1:
+        return f"đọc bằng {named[0]}"
+    return f"đọc bằng {', '.join(named[:-1])} và {named[-1]} riêng rẽ, rồi tổng hợp"
+
+
+def _configured_flags(dim_flags, market):
+    """The four booleans the config actually means for this market. Two conventions have to be reconciled:
+    build()'s dims loop treats an ABSENT flag as ON (`flag is not False`) whereas methods.profile_of reads
+    plain truthiness, so an absent key would silently invert; and a dimension the market cannot have at all
+    (no CoinGlass source outside crypto) is off regardless of what the flag says."""
+    have = set(_methods.dimensions(market))
+    return {d: (d in have and dim_flags.get(d) is not False) for d in _methods.ALL_DIMENSIONS}
+
+
+def preset_label(dim_flags, market):
+    """The CONFIGURED preset's name, for the footer's "Chế độ" line -- configuration, not per-symbol
+    availability. methods.profile_of already answers this."""
+    flags = _configured_flags(dim_flags, market)
+    p = _methods.preset(_methods.profile_of(flags))
+    if p:
+        return p["label"]
+    return " + ".join(_methods.DIMENSIONS[d]["label"] for d in _methods.ALL_DIMENSIONS if flags[d]) or "chưa bật lớp nào"
+
+
+def preset_mode(dim_flags, market):
+    """The mode the CONFIGURED preset resolves to, via methods.mode_of -- which that function's own docstring
+    calls the only place allowed to decide a run is SOLO, and a pure function of the preset id.
+
+    The footer used to pair the narrative's recorded `mode` with a hard-coded "Wyckoff + ICT", and once the
+    config went ICT-only it printed "NORMAL: ICT" -- self-contradictory, since NORMAL means a minimum of two
+    engaged dimensions (methods.json modes). Pairing the preset's name with the preset's own mode cannot
+    contradict itself; where the last full analysis ran under a different mode, build() says so separately
+    rather than overwriting one with the other."""
+    return _methods.mode_of(_methods.profile_of(_configured_flags(dim_flags, market)))
+
+
+def no_live_source(engaged, market):
+    """The dimensions this market CAN have, is not showing, and whose only feed is CoinGlass -- named, so the
+    footer reports the real gap. The previous footer asserted the same two names unconditionally, which would
+    have been wrong in both directions once CoinGlass is wired or a Footprint-only preset is selected."""
+    off = [_methods.DIMENSIONS[m]["label"] for m, _ in LANES
+           if market in _methods.DIMENSIONS[m]["markets"] and not engaged.get(m)
+           and any(s.startswith("coinglass_") for s in _methods.DIMENSIONS[m]["data_sources"])]
+    return " · ".join(off) + ": không có nguồn live" if off else ""
+
+
+def glossary(engaged):
+    """Terminology for the engaged lanes only. It used to walk all of LANES, so an ICT-only page shipped the
+    full Wyckoff, Footprint and Heatmap term lists -- vocabulary for three methods it had not read."""
     out = ""
     for key, name in LANES:
+        if not engaged.get(key):
+            continue
         items = "".join(f"<dt>{esc(t)}</dt><dd>{esc(d)}</dd>" for t, d in GLOSSARY[key])
         out += f'<div class="gl lane-{key}"><div class="gl-head"><span class="lane-dot"></span>{name}</div><dl>{items}</dl></div>'
+    if not out:
+        out = '<div class="gl"><div class="gl-head">—</div><dl><dd>Chưa bật lớp phương pháp nào trong /automation.</dd></dl></div>'
     return f'<section class="glossary" id="sec-glossary"><details><summary>Thuật ngữ theo phương pháp <span class="muted">(mở khi cần)</span></summary><div class="gl-grid">{out}</div></details></section>'
 
 
@@ -735,7 +799,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
             elif flag is False:
                 reason = "tắt trong /automation"
             elif not avail:
-                reason = (f"không có nguồn CoinGlass live — không vẽ, không chấm điểm (chế độ {mode}: Wyckoff + ICT)" if coinglass
+                reason = (f"không có nguồn CoinGlass live — không vẽ, không chấm điểm (chế độ {preset_mode(dim_flags, market)}: {preset_label(dim_flags, market)})" if coinglass
                           else "không có nến cho khung này")
             else:
                 reason = ""
@@ -807,7 +871,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
             trows = tier_rows[tname]
             charts_html += (f'<div class="chart-block" id="{tname}-{key}"><div class="chart-title"><span><b>{TIER_NAME[tname]}</b> · {t["horizon"]} · {label(trows[0]["time"], t["lbl"])} → {label(trows[-1]["time"], t["lbl"])}</span><span class="zoom"><span class="muted">vùng tô = cửa sổ vào lệnh</span><button data-z="out" title="thu nhỏ">−</button><button data-z="in" title="phóng to">+</button><button data-z="reset" title="toàn bộ cửa sổ">⟲</button></span></div>'
                             f'<div class="chart-wrap"><div class="chart" id="chart-{tname}-{key}"></div><div class="tip"></div></div><div class="mode-status" hidden></div><div class="lane-status" hidden></div></div>')
-        charts_html += (f'<div class="chart-block" id="entry-{key}"><div class="chart-title"><span><b>Vào lệnh</b> · {S["horizon"]} · {label(rows[0]["time"], S["lbl"])} → {label(rows[-1]["time"], S["lbl"])}</span><span class="zoom"><span class="muted">lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–4 đổi phương pháp</span><button data-z="out" title="thu nhỏ">−</button><button data-z="in" title="phóng to">+</button><button data-z="reset" title="toàn bộ cửa sổ">⟲</button><button data-z="ruler" class="wide" title="thước R:R (phím R)">R:R</button><button data-z="replay" class="wide" title="bar replay (phím P)">▶</button></span></div>'
+        charts_html += (f'<div class="chart-block" id="entry-{key}"><div class="chart-title"><span><b>Vào lệnh</b> · {S["horizon"]} · {label(rows[0]["time"], S["lbl"])} → {label(rows[-1]["time"], S["lbl"])}</span><span class="zoom"><span class="muted">lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–{len(LANES)} đổi phương pháp</span><button data-z="out" title="thu nhỏ">−</button><button data-z="in" title="phóng to">+</button><button data-z="reset" title="toàn bộ cửa sổ">⟲</button><button data-z="ruler" class="wide" title="thước R:R (phím R)">R:R</button><button data-z="replay" class="wide" title="bar replay (phím P)">▶</button></span></div>'
                         f'<div class="chart-wrap"><div class="chart" id="chart-entry-{key}"></div><div class="tip"></div></div><div class="mode-status" hidden></div><div class="lane-status" hidden></div></div>')
         legend = f'<div class="legend" id="legend-{key}"></div>'
         sections.append(f'<section class="symbol" id="sec-{key}">{head}{ladder_html}<div class="charts">{charts_html}{legend}</div>{matrix(key, kind, l1, l2, n3, dims)}{timeline((n3 or {}).get("timeline"), dims)}</section>')
@@ -843,18 +907,23 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                  + f'<div><div class="meta-l">Sự kiện chính (phân tích đầy đủ gần nhất)</div><div class="meta-v">{headline.get("text", "—")}</div><div class="meta-d">{headline.get("detail", "")}</div></div>'
                  + f'<div><div class="meta-l">Trạng thái (cục bộ)</div><div class="meta-v">{" ".join(status_chips)}</div><div class="meta-d">dữ liệu tới {hhmm(wl)} UTC</div></div>'
                  '</div>')
+    # The narrative records the mode its own run used; the footer names the mode the config means now.
+    # Where they disagree the config changed since the last full analysis -- say so, do not pick a winner.
+    _cfg_mode = preset_mode(dim_flags, market)
+    _mode_note = (f' <span class="muted">(phân tích đầy đủ gần nhất: {esc(mode)})</span>'
+                  if narrative and mode != _cfg_mode else '')
     lane_btns = lane_buttons(lane_engaged)
     symnav = "".join(f'<a href="#sec-{key}">{disp.split("/")[0]}</a>' for _, key, disp, _ in S["syms"]) + '<a href="#sec-glossary">Thuật ngữ</a>'
     top = (f'<div class="topbar"><div class="topbar-in"><div class="brand"><div class="brand-title">{esc(S["name"])}</div><div class="brand-sub">{S["horizon"]} · dữ liệu tới {hhmm(wl)} UTC</div></div>'
            f'<nav class="symnav">{symnav}</nav><div class="lanes" role="group" aria-label="Phương pháp">{lane_btns}</div></div></div>')
     lede = (f'<div class="lede"><div><p class="eyebrow">{"MT5 bridge (tick volume)" if market == "cfd" else "Binance public REST"} · {S["horizon"]} · phân tích, không phải tín hiệu</p><h1>{esc(S["name"])}</h1>'
-            '<p>Ba tầng khung cho mỗi mã — Bias → Cấu trúc → Vào lệnh — đọc bằng Wyckoff (giá + khối lượng) và ICT (cấu trúc giá) riêng rẽ, rồi tổng hợp.</p></div>'
+            f'<p>Ba tầng khung cho mỗi mã — Bias → Cấu trúc → Vào lệnh — {method_clause(lane_engaged)}.</p></div>'
             '<div class="disclaimer">KHÔNG PHẢI TÍN HIỆU GIAO DỊCH · chỉ nghiên cứu</div></div>')
     built = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     footer = (f'<footer><b>Nguồn dữ liệu</b>: {" · ".join(esc(x) for x in src_notes)}<br>'
               f'<b>Lớp 1</b> scanner {esc(facts.get("scanned_at", "—"))} · <b>Lớp 3</b> {esc((narrative or {}).get("updated", "chưa có"))} · <b>trang dựng</b> {built} bởi scripts/build-artifact.py ({style})<br>'
-              f'<b>Chế độ</b> {esc(mode)}: Wyckoff + ICT · Footprint/Heatmap: không có nguồn live · <b>Lớp đọc</b>: sơ bộ (máy quét), cục bộ (Sonnet, theo sự kiện), toàn diện (hàng ngày)<br>'
-              '<b>Luật</b>: số liệu từ code (SYSTEM-DESIGN §13); mỗi khối phương pháp qua scripts/method_purity.py; Footprint lấy Wyckoff làm nền. Scanner: pivot 3 nến, dung sai đỉnh/đáy bằng nhau 0,08%, FVG ≥ 0,6× biên độ trung vị; ngưỡng khối lượng: docs/architecture/analysis-params.json (tham số dự án, không phải trích dẫn sách).<br>'
+              f'<b>Chế độ</b> {esc(preset_mode(dim_flags, market))}: {esc(preset_label(dim_flags, market))}{_mode_note}{" · " + esc(_nls) if (_nls := no_live_source(lane_engaged, market)) else ""} · <b>Lớp đọc</b>: sơ bộ (máy quét), cục bộ (Sonnet, theo sự kiện), toàn diện (hàng ngày)<br>'
+              f'<b>Luật</b>: số liệu từ code (SYSTEM-DESIGN §13); mỗi khối phương pháp qua scripts/method_purity.py{"; Footprint lấy Wyckoff làm nền" if lane_engaged.get("footprint") else ""}. Scanner: pivot 3 nến, dung sai đỉnh/đáy bằng nhau 0,08%, FVG ≥ 0,6× biên độ trung vị; ngưỡng khối lượng: docs/architecture/analysis-params.json (tham số dự án, không phải trích dẫn sách).<br>'
               'Chart: TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. · <a href="https://www.tradingview.com/" rel="noopener">tradingview.com</a> · Apache-2.0 (scripts/vendor/NOTICE-lightweight-charts.txt)'
               '</footer>')
 
@@ -864,7 +933,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
             data_json = data_json.replace(f'"__ROWS__{key}{tn}"', js)
     page = ('<title>' + esc(S["name"]) + '</title>\n'
             + theme.FONTS + '\n'
-            + CSS.replace('__TOKENS__', theme.TOKENS) + top + '<div class="page">' + lede + meta_html + "".join(sections) + glossary() + footer + '</div>\n'
+            + CSS.replace('__TOKENS__', theme.TOKENS) + top + '<div class="page">' + lede + meta_html + "".join(sections) + glossary(lane_engaged) + footer + '</div>\n'
             + js_block(data_json, json.dumps(P)))
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
