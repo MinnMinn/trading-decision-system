@@ -41,7 +41,10 @@ def _meta(sym):
 
 CRYPTO = [_meta(sym) for sym in I.analysis("crypto")]
 GOLD = [_meta("XAUUSD")]
-MT5 = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
+# Feed semantics (which live directory, tick volume or traded volume, killzone weighting) come from
+# instruments.py -- keyed by market, so a new symbol in an existing market needs no edit here.
+# `MT5` is kept as a NAME because check-narrative.py:132 imports it from this module; it is now derived.
+MT5 = {s for s in I.analysis() if I.is_tick_volume(s)}
 TF_MIN = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30, "1H": 60, "2H": 120, "4H": 240, "1D": 1440, "1W": 10080}
 # Per-timeframe window spec (bars, axis label, human horizon). Bar counts are project parameters (no source gives them;
 # they only need to hold the previous day/week/month for the PDH/PWH/PMH reads, knowledge/04 §2.8).
@@ -136,7 +139,7 @@ def chip(text, extra=""):
 
 
 def candles(sym, tf, n, snap=None):
-    src = f"{ROOT}/data/live/{'mt5-bridge' if sym in MT5 else 'market-data'}/ohlcv.{sym}.{tf}.json"
+    src = f"{ROOT}/data/live/{I.data_dir(sym)}/ohlcv.{sym}.{tf}.json"
     d = json.load(open(src, encoding="utf-8"))
     if snap:
         os.makedirs(snap, exist_ok=True)
@@ -847,7 +850,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                 t = S["tiers"][tname]
                 tiers_js.append(dict(key=tname, tf=t["tf"], kz=(t["tf"] in ("15m", "1H")), tfMin=TF_MIN.get(t["tf"], 0), wy=tier_wy[tname], levels=[], compact=True, rows="__ROWS__" + key + tname))
         tiers_js.append(dict(key="entry", tf=S["tf"], kz=S["kz"], tfMin=TF_MIN.get(S["tf"], 0), wy=wy_js, levels=levels, compact=False, rows="__ROWS__" + key + "entry"))
-        data_js[key] = dict(fmt=kind, tick=(sym in MT5), market=("metals" if sym in ("XAUUSD", "XAGUSD") else "oil" if sym in MT5 else "crypto"),
+        data_js[key] = dict(fmt=kind, tick=I.is_tick_volume(sym), market=I.display(sym)["asset_class"],
                             dims={m: dims[m]["reason"] for m, _ in LANES}, engaged=[m for m, _ in LANES if dims[m]["engaged"]],
                             tiers=tiers_js, plans=trade_plans(sym), invalidation=(n3 or {}).get("invalidation"))
         rows_store[key] = {**{tn: rows_js(tier_rows[tn], S["tiers"][tn]["lbl"]) for tn in tier_rows}, "entry": rows_js(rows, S["lbl"])}

@@ -347,7 +347,12 @@ class Mt5BridgeProtocol(unittest.TestCase):
                 time.sleep(0.05)
         th = threading.Thread(target=fake_ea, daemon=True); th.start()
         env = dict(os.environ, MT5_BRIDGE_TIMEOUT="5")
-        script = open(os.path.join(ROOT, "scripts", "mt5-order-bridge.py")).read().replace('BRIDGE = os.path.join(ROOT, "data", "live", "mt5-bridge", "bridge")', f'BRIDGE = {bridge!r}')
+        # The script is copied to a temp dir, so its __file__-derived ROOT would point outside the repo -- pin
+        # ROOT before overriding BRIDGE, otherwise it can no longer import scripts/instruments.py for the
+        # allowlist it now derives instead of hard-coding.
+        script = (open(os.path.join(ROOT, "scripts", "mt5-order-bridge.py")).read()
+                  .replace('ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))', f'ROOT = {ROOT!r}')
+                  .replace('BRIDGE = os.path.join(ROOT, "data", "live", "mt5-bridge", "bridge")', f'BRIDGE = {bridge!r}'))
         sp = os.path.join(tmp, "bridge.py"); open(sp, "w").write(script)
         try:
             out = json.loads(subprocess.run(["python3", sp, "check"], capture_output=True, text=True, env=env).stdout); self.assertTrue(out["demo"]); self.assertIn("XAUUSD", out["symbols"])

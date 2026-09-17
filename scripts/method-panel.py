@@ -38,10 +38,10 @@ _DISCLOSURE = ("Chạm vào đây thay đổi cấu hình giao dịch đang ch�
                "-- nhật ký chỉ ghi actor \"artifact-panel\".")
 
 CONFIG_PATH = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
-# scripts/automation.py:169 -- DATA_DIR = {"crypto": "market-data", "cfd": "mt5-bridge"}. Kept as a local
-# constant rather than importing automation.py (build-artifact.py does that only where it needs automation.py's
-# TIERS table; this module needs nothing else from it, and automation.py is out of scope for Task B1).
-DATA_DIR = {"crypto": "market-data", "cfd": "mt5-bridge"}
+# The market -> live-directory map now has one author, scripts/instruments.py (I.DATA_DIR). The local copy
+# here was a deliberate choice at the time -- importing automation.py for one dict is worse -- but the copy
+# still had to be edited whenever a market was added, which is the cost the comment could not remove.
+DATA_DIR = I.DATA_DIR
 PILOT_STATE_PATH = os.path.join(ROOT, "data", "live", "pilot-futures", "top5-state.json")
 
 

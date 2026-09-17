@@ -13,6 +13,10 @@ Usage: fetch-history-cfd.py [XAUUSD XAGUSD USOIL UKOIL]
 import json, os, sys, time, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Symbol -> Yahoo ticker. This is a PROVIDER mapping, not an allowlist copy: the four keys happen to be the
+# cfd list today, but the values are Yahoo's own contract codes and only Yahoo can say what they are. A symbol
+# with no entry is refused below rather than guessed -- fetching the wrong contract would write plausible,
+# wrong history into the research store.
 MAP = {"XAUUSD": "GC=F", "XAGUSD": "SI=F", "USOIL": "CL=F", "UKOIL": "BZ=F"}
 UA = {"User-Agent": "Mozilla/5.0"}
 
@@ -54,6 +58,10 @@ def save(sym, tf, candles):
 
 def main():
     syms = sys.argv[1:] or list(MAP)
+    unmapped = [s for s in syms if s not in MAP]
+    if unmapped:
+        sys.exit(f"no Yahoo ticker known for {', '.join(unmapped)} -- add it to MAP in this file. "
+                 f"Refusing rather than guessing a contract code.")
     for sym in syms:
         c1h = yahoo(MAP[sym], "1h", "730d")
         save(sym, "1H", c1h); save(sym, "2H", aggregate(c1h, 2)); save(sym, "4H", aggregate(c1h, 4))

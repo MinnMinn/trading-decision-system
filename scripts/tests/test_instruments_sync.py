@@ -83,6 +83,38 @@ class TestSingleSource(unittest.TestCase):
                         offenders.append(f"{f}:{n}")
         self.assertEqual(offenders, [], f"hard-coded symbol list -- read it from instruments.py instead: {offenders}")
 
+    def test_no_script_hardcodes_the_mt5_symbol_set_or_the_feed_directories(self):
+        """The twin of the test above, for the set it never covered.
+
+        `MT5 = {"XAUUSD","XAGUSD","USOIL","UKOIL"}` lived in build-artifact.py, ict-scan.py, event-ledger.py,
+        measure-spring-ict.py and local-eval-brief.py (plus check-narrative.py via import), and
+        `{"crypto": "market-data", "cfd": "mt5-bridge"}` in automation.py and method-panel.py -- eight copies of
+        two facts, in a repo whose rule is that symbol lists have one source. The test above did not catch them
+        because it only looks for the crypto triple, and four of those eight files are on its exempt list.
+        Both facts are now properties of the MARKET (instruments.DATA_DIR / TICK_VOLUME_MARKETS), so adding a
+        symbol to an existing market requires no code edit at all.
+
+        instruments.py is the author and is exempt. fetch-history-cfd.py is exempt for a different reason: its
+        dict maps each symbol to a YAHOO contract code ("XAUUSD" -> "GC=F"), which is provider knowledge no
+        registry here can derive, and it refuses an unmapped symbol rather than guessing one.
+
+        Comments and docstrings are stripped, so explaining the removal (as several of those files now do) is
+        allowed; re-introducing the literal is not."""
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import srcscan
+        cfd = set(I.analysis("cfd"))
+        offenders = []
+        for f in sorted(os.listdir(os.path.join(ROOT, "scripts"))):
+            if not f.endswith(".py") or f in ("instruments.py", "fetch-history-cfd.py"):
+                continue
+            for n, line in srcscan.code_lines(os.path.join(ROOT, "scripts", f)):
+                syms = set(re.findall(r'"([A-Z0-9]{4,10})"', line)) | set(re.findall(r"'([A-Z0-9]{4,10})'", line))
+                if len(cfd & syms) >= 3:
+                    offenders.append(f"{f}:{n} re-lists the MT5 symbol set (use I.data_dir / I.is_tick_volume)")
+                if '"mt5-bridge"' in line and '"market-data"' in line:
+                    offenders.append(f"{f}:{n} re-lists the feed directories (use I.DATA_DIR)")
+        self.assertEqual(offenders, [], "market facts belong in instruments.py:\n  " + "\n  ".join(offenders))
+
 
 class DisplayMetadata(unittest.TestCase):
     def test_every_allowlisted_symbol_has_display_metadata(self):

@@ -1,6 +1,6 @@
 {
   "_comment": "THE single source of truth for the instrument allowlist (SYSTEM-DESIGN.md §1). Nothing else in this repo may hard-code a symbol list: scripts/instruments.py (Python) and scripts/instruments.sh (bash/jq) are the two readers, and scripts/tests/test_instruments_sync.py fails the build if any file drifts from this one. Adding or removing a symbol = edit THIS file, run `python3 scripts/sync-instruments.py --write`, done.",
-  "_policy": "analysis != execution. A symbol on the analysis list is scannable and analysable (scanner, /analyze, /bias, /entry). Only a symbol on the execution list can ever have an order placed on it (pilot, /execute, the Binance connectors). Every execution list MUST be a subset of its analysis list -- scripts/instruments.py enforces this on load and raises on violation. Forex is prohibited outright and can never appear here (SYSTEM-DESIGN.md §1).",
+  "_policy": "analysis != execution. A symbol on the analysis list is scannable and analysable (scanner, /analyze, /bias, /entry). Only a symbol on the execution list can ever have an order placed on it (pilot, /execute, the Binance connectors). Every execution list MUST be a subset of its analysis list -- scripts/instruments.py enforces this on load and raises on violation, and every backtested list must be a subset of its execution list. This file is the ONLY gate on what may be analysed or traded: the separate blanket Forex prohibition was lifted 2026-09-17 by user decision, so a currency pair is permitted exactly when it is listed here and refused otherwise, like every other symbol.",
   "analysis": {
     "crypto": [
       "BTCUSDT",
@@ -21,7 +21,7 @@
     ]
   },
   "display": {
-    "_comment": "OPTIONAL presentation metadata. A symbol with no entry gets id = lowercase symbol minus the USDT suffix, label = the symbol, price_decimals = 2. Override only when the default is wrong.",
+    "_comment": "OPTIONAL presentation metadata. A symbol with no entry gets id = lowercase symbol minus the USDT suffix, label = the symbol, price_decimals = 2, asset_class = its MARKET. Override only when the default is wrong. asset_class drives the killzone weighting in scripts/chart.js (KZ_WEIGHT): only a market holding more than one asset class needs it -- cfd holds both metals and oil, which weight the London/NY sessions differently.",
     "BTCUSDT":   { "label": "BTC/USDT", "price_decimals": 0 },
     "ETHUSDT":   { "label": "ETH/USDT" },
     "SOLUSDT":   { "label": "SOL/USDT" },
@@ -31,10 +31,10 @@
     "TAOUSDT":   { "label": "TAO/USDT" },
     "RENDERUSDT": { "label": "RENDER/USDT" },
     "ONDOUSDT":  { "label": "ONDO/USDT" },
-    "XAUUSD":    { "id": "xau", "label": "XAU/USD" },
-    "XAGUSD":    { "label": "XAG/USD" },
-    "USOIL":     { "label": "USOIL" },
-    "UKOIL":     { "label": "UKOIL" }
+    "XAUUSD":    { "id": "xau", "label": "XAU/USD", "asset_class": "metals" },
+    "XAGUSD":    { "label": "XAG/USD", "asset_class": "metals" },
+    "USOIL":     { "label": "USOIL", "asset_class": "oil" },
+    "UKOIL":     { "label": "UKOIL", "asset_class": "oil" }
   },
   "execution": {
     "crypto": [

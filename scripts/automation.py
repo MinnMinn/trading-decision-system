@@ -193,7 +193,9 @@ def gate_style(style):
 # Backwards-compatible alias: style -> gate style (read by htf_context.py, check-narrative.py, the pilot).
 CONTEXT_STYLE = {st: gate_style(st)[0] for st in TIERS}
 # Where each market's OHLCV lands; the 15m file is the "is this instrument actually wired up?" probe.
-DATA_DIR = {"crypto": "market-data", "cfd": "mt5-bridge"}
+# Authored once in instruments.py (it was copied here and in method-panel.py, and as a symbol set in five
+# more files) -- the directory is a property of the market's FEED, so it belongs beside the allowlist.
+DATA_DIR = instruments.DATA_DIR
 
 # One engine, one venue (user decision 2026-09-13). The second entry ran the deleted legacy engine.
 PILOT_MARKETS = ["futures"]

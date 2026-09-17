@@ -20,11 +20,12 @@ import argparse, datetime, glob, importlib.util, json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import instruments as I  # noqa: E402
 import htf_context as htf
 _spec = importlib.util.spec_from_file_location("bt", os.path.join(ROOT, "scripts", "backtest-methods.py")); bt = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(bt)
 LEDGER = os.path.join(ROOT, "data", "live", "events", "wyckoff-events.jsonl")
 LONG_TOKENS = ("SPRING", "SHAKEOUT"); SHORT_TOKENS = ("UT", "UTAD")
-MT5 = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
+# Feed directory comes from instruments.py (I.data_dir), keyed by market -- was a hard-coded symbol set.
 TF_SEC = {"5m": 300, "15m": 900, "30m": 1800, "1H": 3600, "2H": 7200, "4H": 14400, "1D": 86400}
 
 
@@ -87,7 +88,7 @@ def cmd_append(styles):
 
 
 def candles_for(sym, tf):
-    for base in ("history", "live/mt5-bridge" if sym in MT5 else "live/market-data"):
+    for base in ("history", f"live/{I.data_dir(sym)}"):
         p = f"{ROOT}/data/{base}/ohlcv.{sym}.{tf}.json"
         if os.path.exists(p):
             c = json.load(open(p))["candles"]

@@ -21,7 +21,17 @@ import json, os, re, sys, time, uuid
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BRIDGE = os.path.join(ROOT, "data", "live", "mt5-bridge", "bridge")
-ALLOWED = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import instruments as I  # noqa: E402
+
+# The EXECUTION allowlist for every market this bridge serves -- i.e. every market whose feed IS MetaTrader
+# (I.DATA_DIR == "mt5-bridge"). Derived, not listed: this was a hard-coded four-symbol set, which meant the
+# order path's allowlist and docs/architecture/instruments.json could disagree with nothing failing -- the
+# precise shape SYSTEM-DESIGN.md §1 forbids ("never hard-code a symbol list").
+# execution(), never analysis(): a watch-only symbol must not be orderable.
+# The EA has its own copy (integrations/mt5/OrderBridge.mq5 InpAllowedSymbols) because it is compiled and
+# cannot read this file; that one is a genuine second gate, and it must be kept in step by hand.
+ALLOWED = {s for m, d in I.DATA_DIR.items() if d == "mt5-bridge" for s in I.execution(m)}
 TIMEOUT = float(os.environ.get("MT5_BRIDGE_TIMEOUT", "10"))
 
 

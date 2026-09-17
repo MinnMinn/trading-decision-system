@@ -31,6 +31,8 @@ MSS carries a displacement flag (knowledge/04 §2.16); a setup candidate require
 import argparse, json, os, sys, datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import instruments as I  # noqa: E402
 
 CITE = {
     "liq": "docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7",
@@ -47,10 +49,11 @@ CITE = {
     "sys": "[tính toán của hệ thống — không phải trích dẫn tài liệu]",
 }
 
-SHORT = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "SOLUSDT": "SOL", "XAUUSD": "XAU", "XAGUSD": "XAG", "USOIL": "OIL", "UKOIL": "BRENT"}
+# (A SHORT symbol->abbreviation dict lived here and was never read by anything -- deleted 2026-09-17. Short
+#  labels belong in instruments.json display metadata if they are ever needed again.)
 
 
-MT5_SYMBOLS = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
+# Feed directory and tick-volume semantics come from instruments.py, keyed by market -- was a symbol set.
 
 
 _PD = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"]
@@ -72,7 +75,7 @@ MIN_RR = trading_env.min_rr()
 def load(sym, tf):
     """Crypto from the Binance connector (data/live/market-data); commodities from the MT5 file bridge
     (data/live/mt5-bridge, written by integrations/mt5/ExportOHLCV.mq5). Same candle shape either way."""
-    base = "mt5-bridge" if sym in MT5_SYMBOLS else "market-data"
+    base = I.data_dir(sym)
     with open(f"{ROOT}/data/live/{base}/ohlcv.{sym}.{tf}.json") as f:
         return json.load(f)["candles"]
 
@@ -336,7 +339,7 @@ def fmt(sym, v):
 
 
 def sessions_note(sym):
-    return " (killzone London/NY có ý nghĩa với vàng; phiên Á thường mỏng)" if sym in MT5_SYMBOLS else ""
+    return " (killzone London/NY có ý nghĩa với vàng; phiên Á thường mỏng)" if I.is_tick_volume(sym) else ""
 
 
 def facts_table(sym, a, an, su):

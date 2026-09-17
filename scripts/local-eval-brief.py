@@ -10,6 +10,8 @@ Usage: local-eval-brief.py <style> [--bars 40] [--symbols BTCUSDT,ETHUSDT,SOLUSD
 """
 import argparse, json, os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import instruments as I  # noqa: E402
 # style -> (timeframe code as scripts/fetch-binance-klines.sh spells it, bars in the window).
 # The `cfd-` prefixed styles are XAUUSD via the MT5 bridge (the EA exports 200 bars per timeframe,
 # InpBarsToExport); the bare names are crypto. Six names since 2026-09-13: three horizons x two markets, derived
@@ -19,7 +21,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # exports until InpBarsToExport is raised.
 TF = {"scalping": ("15m", 288), "day": ("1H", 240), "swing": ("4H", 180),
       "cfd-scalping": ("15m", 288), "cfd-day": ("1H", 240), "cfd-swing": ("4H", 180)}
-MT5_SYMBOLS = {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}
+# Feed directory comes from instruments.py (I.data_dir), keyed by market -- was a hard-coded symbol set.
 CITES = """- Trading Range: WA p71–72 · knowledge/07 §2.7 · WMT p023–026 · knowledge/08 §2.4 · Pha A–E (phases): knowledge/07 §2.7–2.10
 - Spring/Shakeout (sự kiện): WA p80 · knowledge/07 §2.7.3 · Spring loại 1/2/3 (theo khối lượng): WMT p036–049 · knowledge/08 §2.6
 - UT/UTAD: WA p8, knowledge/07 §2.8 · Upthrust loại 1/2/3: WMT p050–064 · knowledge/08 §2.7
@@ -44,7 +46,7 @@ def fmt(sym, v):
 
 
 def data_path(sym, tf):
-    base = "mt5-bridge" if sym in MT5_SYMBOLS else "market-data"
+    base = I.data_dir(sym)
     return f"{ROOT}/data/live/{base}/ohlcv.{sym}.{tf}.json"
 
 
