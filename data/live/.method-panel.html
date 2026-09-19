@@ -1,0 +1,605 @@
+<title>Công tắc phương pháp</title>
+<style>
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --surface-2: #e3e8ee; --border: #c7d0da;
+  --text: #1b2430; --text-dim: #5b6675;
+  --accent: #9a6b0f; --accent-ink: #2a1900; --accent-soft: #f3e6c8;
+  --good: #1f7a4c; --good-soft: #d9f0e3;
+  --locked: #8a94a1; --locked-soft: #e7eaee;
+  --nodata: #b8541b; --nodata-soft: #fbe6d8;
+  --unvalidated: #6d4aa8; --unvalidated-soft: #ece4f7;
+  --open: #1c6dd0; --open-soft: #dce9fb;
+  --danger: #b3261e; --danger-soft: #f8dcda;
+  --pending: #0f7b8a; --pending-soft: #d7eef1; --pending-ink: #04262b;
+  --focus: #1c6dd0;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161c; --surface: #1a2029; --surface-2: #222a35; --border: #313b48;
+    --text: #e7ecf2; --text-dim: #9aa7b5;
+    --accent: #e0aa4a; --accent-ink: #241a05; --accent-soft: #3a2e12;
+    --good: #4fd398; --good-soft: #123527;
+    --locked: #5b6675; --locked-soft: #232b35;
+    --nodata: #ef8f57; --nodata-soft: #3a2418;
+    --unvalidated: #b79bef; --unvalidated-soft: #2c2440;
+    --open: #6fa8ec; --open-soft: #172a42;
+    --danger: #ef6b62; --danger-soft: #3a1613;
+    --pending: #57c2d1; --pending-soft: #123239; --pending-ink: #dff6f9;
+    --focus: #6fa8ec;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161c; --surface: #1a2029; --surface-2: #222a35; --border: #313b48;
+  --text: #e7ecf2; --text-dim: #9aa7b5;
+  --accent: #e0aa4a; --accent-ink: #241a05; --accent-soft: #3a2e12;
+  --good: #4fd398; --good-soft: #123527;
+  --locked: #5b6675; --locked-soft: #232b35;
+  --nodata: #ef8f57; --nodata-soft: #3a2418;
+  --unvalidated: #b79bef; --unvalidated-soft: #2c2440;
+  --open: #6fa8ec; --open-soft: #172a42;
+  --danger: #ef6b62; --danger-soft: #3a1613;
+  --pending: #57c2d1; --pending-soft: #123239; --pending-ink: #dff6f9;
+  --focus: #6fa8ec;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); margin: 0; font-family: var(--font-ui); }
+.panel { max-width: 960px; margin: 0 auto; padding: 1rem 1rem 3rem; display: flex; flex-direction: column; gap: 1rem; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem; }
+.panel-head h1 { font-size: 1.15rem; margin: 0; text-wrap: balance; }
+.env-pill { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .04em; text-transform: uppercase;
+  padding: .28rem .6rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); }
+.env-pill[data-env="real"] { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+.markets { display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+@media (min-width: 720px) { .markets { grid-template-columns: 1fr 1fr; } }
+.market-col { display: flex; flex-direction: column; gap: .75rem; min-width: 0; }
+.market-col h2 { font-size: .95rem; margin: 0; display: flex; align-items: center; gap: .4rem; }
+.market-col h2 .ticker { font-family: var(--font-mono); color: var(--text-dim); font-size: .78rem; }
+.group-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--text-dim);
+  margin: .2rem 0 -.15rem; }
+.preset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: .55rem; }
+.preset-card { text-align: left; font-family: inherit; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px; padding: .65rem .7rem; min-height: 44px;
+  display: flex; flex-direction: column; gap: .35rem; cursor: pointer; }
+.preset-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.preset-card[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.preset-card[disabled] { cursor: not-allowed; opacity: .62; }
+.preset-card[data-tier="research"] { border-style: dashed; }
+.preset-head { display: flex; align-items: baseline; justify-content: space-between; gap: .4rem; }
+.preset-label { font-weight: 600; font-size: .88rem; }
+.tier-badge { font-size: .62rem; text-transform: uppercase; letter-spacing: .05em; padding: .1rem .4rem;
+  border-radius: 5px; white-space: nowrap; }
+.tier-badge[data-tier="trade"] { background: var(--good-soft); color: var(--good); }
+.tier-badge[data-tier="research"] { background: var(--unvalidated-soft); color: var(--unvalidated); }
+.preset-dims { font-family: var(--font-mono); font-size: .74rem; color: var(--text-dim); }
+.preset-note { font-size: .72rem; color: var(--text-dim); line-height: 1.35; }
+.preset-note code { font-family: var(--font-mono); font-size: .95em; }
+.preset-note.locked { color: var(--nodata); }
+.preset-note.research { color: var(--unvalidated); }
+.preset-note.solo { color: var(--unvalidated); font-weight: 600; }
+.preset-note.realgate { color: var(--danger); }
+.preset-mode { font-family: var(--font-mono); font-size: .68rem; color: var(--text-dim); }
+.preset-mode[data-mode="SOLO"] { color: var(--unvalidated); }
+.preset-methods { font-family: var(--font-mono); font-size: .68rem; color: var(--text-dim); }
+.custom-note { font-size: .78rem; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: .5rem .6rem; }
+.custom-note code { font-family: var(--font-mono); }
+.chip-grid { display: flex; flex-wrap: wrap; gap: .45rem; list-style: none; margin: 0; padding: 0; }
+.chip-item { margin: 0; }
+.chip { font-family: var(--font-mono); font-size: .78rem; min-height: 44px; padding: 0 .65rem;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  display: inline-flex; align-items: center; gap: .3rem; cursor: pointer; }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+.chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.badge { font-size: .62rem; padding: .05rem .3rem; border-radius: 4px; line-height: 1.5; }
+.badge-nodata { background: var(--nodata-soft); color: var(--nodata); }
+.badge-unvalidated { background: var(--unvalidated-soft); color: var(--unvalidated); }
+.badge-open { background: var(--open-soft); color: var(--open); }
+.badge-locked { background: var(--locked-soft); color: var(--locked); }
+.empty-note { font-size: .78rem; color: var(--text-dim); background: var(--surface-2); border: 1px dashed var(--border);
+  border-radius: 8px; padding: .5rem .6rem; }
+.disclosure { font-size: .74rem; color: var(--text-dim); margin: 0; }
+.db-banner { font-size: .78rem; padding: .5rem .7rem; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-dim); }
+.db-banner[data-kind="ready"] { color: var(--good); border-color: var(--good); background: var(--good-soft); }
+.db-banner[data-kind="readonly"] { color: var(--nodata); border-color: var(--nodata); background: var(--nodata-soft); }
+.heartbeat-banner { font-size: .78rem; padding: .5rem .7rem; border-radius: 8px; border: 1px solid var(--danger);
+  background: var(--danger-soft); color: var(--danger); }
+.request-status { font-size: .72rem; color: var(--text-dim); }
+.request-status[data-status="refused"] { color: var(--nodata); font-weight: 600; }
+.request-status[data-status="send-failed"] { color: var(--nodata); font-weight: 600; }
+.preset-card.is-desired { outline: 2px dashed var(--pending); outline-offset: 2px;
+  border-color: var(--pending); background: var(--pending-soft); }
+.preset-pending-note { font-size: .68rem; font-weight: 600; color: var(--pending); }
+.chip.is-desired { outline: 2px dashed var(--pending); outline-offset: 1px;
+  border-color: var(--pending); background: var(--pending-soft); color: var(--pending-ink); }
+.chip-pending-note { font-size: .62rem; font-weight: 600; }
+</style>
+<main class="panel"><div class="panel-head"><h1>Công tắc phương pháp</h1><span class="env-pill" data-env="demo">DEMO (testnet, tiền giả)</span></div><p class="disclosure">Chạm vào đây thay đổi cấu hình giao dịch đang chạy. Trang này KHÔNG THỂ ghi nhận ai đã chạm -- nhật ký chỉ ghi actor &quot;artifact-panel&quot;.</p><div class="db-banner" data-kind="connecting" role="status" aria-live="polite">Đang kết nối tới bộ nhớ điều khiển…</div><div class="heartbeat-banner" data-kind="unknown" role="alert" aria-live="assertive" hidden></div><div class="markets"><section class="market-col" data-market="crypto"><h2>Crypto <span class="ticker">BTCUSDT/ETHUSDT/SOLUSDT…</span></h2><div class="group-label">Đủ điều kiện vào lệnh</div><div class="preset-grid"><button type="button" class="preset-card" data-market="crypto" data-preset="wyckoff" data-tier="trade" aria-pressed="false"><div class="preset-head"><span class="preset-label">Wyckoff</span><span class="tier-badge" data-tier="trade">Trade</span></div><div class="preset-pending-note" hidden></div><div class="preset-dims">Wyckoff</div><div class="preset-methods">runner: WYCKOFF, WYCKOFF-BOOK</div><div class="preset-note">pilot chạy luật cơ học <code>scripts/wyckoff_rules.py</code> (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.</div><div class="preset-mode" data-mode="SOLO" data-mode-minimum="1" data-mode-threshold="85">chế độ SOLO · tối thiểu 1 dimension · ngưỡng điểm 85</div><div class="preset-note solo">Chạy SOLO — 1 dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥85 (thay vì 70 của NORMAL) mới ra được TRADE.</div></button><button type="button" class="preset-card" data-market="crypto" data-preset="ict" data-tier="trade" aria-pressed="false"><div class="preset-head"><span class="preset-label">ICT</span><span class="tier-badge" data-tier="trade">Trade</span></div><div class="preset-pending-note" hidden></div><div class="preset-dims">ICT</div><div class="preset-methods">runner: ICT</div><div class="preset-mode" data-mode="SOLO" data-mode-minimum="1" data-mode-threshold="85">chế độ SOLO · tối thiểu 1 dimension · ngưỡng điểm 85</div><div class="preset-note solo">Chạy SOLO — 1 dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥85 (thay vì 70 của NORMAL) mới ra được TRADE.</div></button><button type="button" class="preset-card" data-market="crypto" data-preset="wyckoff+ict" data-tier="trade" aria-pressed="false"><div class="preset-head"><span class="preset-label">Wyckoff + ICT</span><span class="tier-badge" data-tier="trade">Trade</span></div><div class="preset-pending-note" hidden></div><div class="preset-dims">Wyckoff + ICT</div><div class="preset-methods">runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK</div><div class="preset-note">pilot chạy luật cơ học <code>scripts/wyckoff_rules.py</code> (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.</div><div class="preset-mode" data-mode="NORMAL" data-mode-minimum="2" data-mode-threshold="70">chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70</div></button><button type="button" class="preset-card" data-market="crypto" data-preset="wyckoff+footprint" data-tier="trade" aria-pressed="false"><div class="preset-head"><span class="preset-label">Wyckoff + Footprint</span><span class="tier-badge" data-tier="trade">Trade</span></div><div class="preset-pending-note" hidden></div><div class="preset-dims">Wyckoff + Footprint</div><div class="preset-methods">runner: WYCKOFF, WYCKOFF-BOOK</div><div class="preset-note">pilot chạy luật cơ học <code>scripts/wyckoff_rules.py</code> (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.</div><div class="preset-mode" data-mode="NORMAL" data-mode-minimum="2" data-mode-threshold="70">chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70</div></button><button type="button" class="preset-card" data-market="crypto" data-preset="wyckoff+ict+footprint" data-tier="trade" aria-pressed="false"><div class="preset-head"><span class="preset-label">Wyckoff + ICT + Footprint</span><span class="tier-badge" data-tier="trade">Trade</span></div><div class="preset-pending-note" hidden></div><div class="preset-dims">Wyckoff + ICT + Footprint</div><div class="preset-methods">runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK</div><div class="preset-note">pilot chạy luật cơ học <code>scripts/wyckoff_rules.py</code> (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.</div><div class="preset-mode" data-mode="NORMAL" data-mode-minimum="2" data-mode-threshold="70">chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70</div></button><button type="button" class="preset-card" data-market="crypto" data-preset="full" data-tier="trade" aria-pressed="true"><div class="preset-head"><span class="preset-label">Đầy đủ 4 chiều</span><span class="tier-badge" data-tier="trade">Trade</span></div><div class="preset-pending-note" hidden></div><div class="preset-dims">Wyckoff + ICT + Footprint + Heatmap</div><div class="preset-methods">runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK</div><div class="preset-note">pilot chạy luật cơ học <code>scripts/wyckoff_rules.py</code> (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.</div><div class="preset-mode" data-mode="NORMAL" data-mode-minimum="2" data-mode-threshold="70">chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70</div></button></div><div class="group-label">Cặp theo dõi</div><ul class="chip-grid"><li class="chip-item" data-market="crypto" data-symbol="BTCUSDT" data-nodata="0" data-unvalidated="0" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="BTCUSDT" aria-pressed="true"><span class="chip-label">BTC/USDT</span><span class="chip-pending-note" hidden></span></button></li><li class="chip-item" data-market="crypto" data-symbol="ETHUSDT" data-nodata="0" data-unvalidated="0" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="ETHUSDT" aria-pressed="true"><span class="chip-label">ETH/USDT</span><span class="chip-pending-note" hidden></span></button></li><li class="chip-item" data-market="crypto" data-symbol="SOLUSDT" data-nodata="0" data-unvalidated="0" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="SOLUSDT" aria-pressed="true"><span class="chip-label">SOL/USDT</span><span class="chip-pending-note" hidden></span></button></li><li class="chip-item" data-market="crypto" data-symbol="ASTERUSDT" data-nodata="0" data-unvalidated="1" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="ASTERUSDT" aria-pressed="true"><span class="chip-label">ASTER/USDT</span><span class="chip-pending-note" hidden></span><span class="badge badge-unvalidated" title="Chưa kiểm định bằng backtest">chưa kiểm định</span></button></li><li class="chip-item" data-market="crypto" data-symbol="VIRTUALUSDT" data-nodata="0" data-unvalidated="1" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="VIRTUALUSDT" aria-pressed="true"><span class="chip-label">VIRTUAL/USDT</span><span class="chip-pending-note" hidden></span><span class="badge badge-unvalidated" title="Chưa kiểm định bằng backtest">chưa kiểm định</span></button></li><li class="chip-item" data-market="crypto" data-symbol="SUIUSDT" data-nodata="0" data-unvalidated="1" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="SUIUSDT" aria-pressed="true"><span class="chip-label">SUI/USDT</span><span class="chip-pending-note" hidden></span><span class="badge badge-unvalidated" title="Chưa kiểm định bằng backtest">chưa kiểm định</span></button></li><li class="chip-item" data-market="crypto" data-symbol="TAOUSDT" data-nodata="0" data-unvalidated="1" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="TAOUSDT" aria-pressed="true"><span class="chip-label">TAO/USDT</span><span class="chip-pending-note" hidden></span><span class="badge badge-unvalidated" title="Chưa kiểm định bằng backtest">chưa kiểm định</span></button></li><li class="chip-item" data-market="crypto" data-symbol="RENDERUSDT" data-nodata="0" data-unvalidated="1" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="RENDERUSDT" aria-pressed="true"><span class="chip-label">RENDER/USDT</span><span class="chip-pending-note" hidden></span><span class="badge badge-unvalidated" title="Chưa kiểm định bằng backtest">chưa kiểm định</span></button></li><li class="chip-item" data-market="crypto" data-symbol="ONDOUSDT" data-nodata="0" data-unvalidated="1" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="ONDOUSDT" aria-pressed="true"><span class="chip-label">ONDO/USDT</span><span class="chip-pending-note" hidden></span><span class="badge badge-unvalidated" title="Chưa kiểm định bằng backtest">chưa kiểm định</span></button></li></ul><div class="request-status" data-market="crypto" data-status="unsent" aria-live="polite">chưa gửi</div></section><section class="market-col" data-market="cfd"><h2>CFD <span class="ticker">XAUUSD/XAGUSD/USOIL…</span></h2><div class="group-label">Đủ điều kiện vào lệnh</div><div class="preset-grid"><button type="button" class="preset-card" data-market="cfd" data-preset="wyckoff" data-tier="trade" aria-pressed="false"><div class="preset-head"><span class="preset-label">Wyckoff</span><span class="tier-badge" data-tier="trade">Trade</span></div><div class="preset-pending-note" hidden></div><div class="preset-dims">Wyckoff</div><div class="preset-methods">runner: WYCKOFF, WYCKOFF-BOOK</div><div class="preset-note">pilot chạy luật cơ học <code>scripts/wyckoff_rules.py</code> (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.</div><div class="preset-mode" data-mode="SOLO" data-mode-minimum="1" data-mode-threshold="85">chế độ SOLO · tối thiểu 1 dimension · ngưỡng điểm 85</div><div class="preset-note solo">Chạy SOLO — 1 dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥85 (thay vì 70 của NORMAL) mới ra được TRADE.</div></button><button type="button" class="preset-card" data-market="cfd" data-preset="ict" data-tier="trade" aria-pressed="false"><div class="preset-head"><span class="preset-label">ICT</span><span class="tier-badge" data-tier="trade">Trade</span></div><div class="preset-pending-note" hidden></div><div class="preset-dims">ICT</div><div class="preset-methods">runner: ICT</div><div class="preset-mode" data-mode="SOLO" data-mode-minimum="1" data-mode-threshold="85">chế độ SOLO · tối thiểu 1 dimension · ngưỡng điểm 85</div><div class="preset-note solo">Chạy SOLO — 1 dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥85 (thay vì 70 của NORMAL) mới ra được TRADE.</div></button><button type="button" class="preset-card" data-market="cfd" data-preset="wyckoff+ict" data-tier="trade" aria-pressed="true"><div class="preset-head"><span class="preset-label">Wyckoff + ICT</span><span class="tier-badge" data-tier="trade">Trade</span></div><div class="preset-pending-note" hidden></div><div class="preset-dims">Wyckoff + ICT</div><div class="preset-methods">runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK</div><div class="preset-note">pilot chạy luật cơ học <code>scripts/wyckoff_rules.py</code> (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.</div><div class="preset-mode" data-mode="NORMAL" data-mode-minimum="2" data-mode-threshold="70">chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70</div></button><button type="button" class="preset-card" data-market="cfd" data-preset="wyckoff+footprint" data-tier="trade" aria-pressed="false" disabled aria-disabled="true"><div class="preset-head"><span class="preset-label">Wyckoff + Footprint</span><span class="tier-badge" data-tier="trade">Trade</span></div><div class="preset-pending-note" hidden></div><div class="preset-dims">Wyckoff + Footprint</div><div class="preset-note locked">Khoá ở CFD — CoinGlass là nguồn order-flow cho footprint/heatmap, chỉ có cho crypto-derivatives (SYSTEM-DESIGN.md §12 mục 3).</div><div class="preset-mode" data-mode="NORMAL" data-mode-minimum="2" data-mode-threshold="70">chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70</div></button><button type="button" class="preset-card" data-market="cfd" data-preset="wyckoff+ict+footprint" data-tier="trade" aria-pressed="false" disabled aria-disabled="true"><div class="preset-head"><span class="preset-label">Wyckoff + ICT + Footprint</span><span class="tier-badge" data-tier="trade">Trade</span></div><div class="preset-pending-note" hidden></div><div class="preset-dims">Wyckoff + ICT + Footprint</div><div class="preset-note locked">Khoá ở CFD — CoinGlass là nguồn order-flow cho footprint/heatmap, chỉ có cho crypto-derivatives (SYSTEM-DESIGN.md §12 mục 3).</div><div class="preset-mode" data-mode="NORMAL" data-mode-minimum="2" data-mode-threshold="70">chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70</div></button><button type="button" class="preset-card" data-market="cfd" data-preset="full" data-tier="trade" aria-pressed="false" disabled aria-disabled="true"><div class="preset-head"><span class="preset-label">Đầy đủ 4 chiều</span><span class="tier-badge" data-tier="trade">Trade</span></div><div class="preset-pending-note" hidden></div><div class="preset-dims">Wyckoff + ICT + Footprint + Heatmap</div><div class="preset-note locked">Khoá ở CFD — CoinGlass là nguồn order-flow cho footprint/heatmap, chỉ có cho crypto-derivatives (SYSTEM-DESIGN.md §12 mục 3).</div><div class="preset-mode" data-mode="NORMAL" data-mode-minimum="2" data-mode-threshold="70">chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70</div></button></div><div class="group-label">Cặp theo dõi</div><ul class="chip-grid"><li class="chip-item" data-market="cfd" data-symbol="XAUUSD" data-nodata="0" data-unvalidated="0" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="XAUUSD" aria-pressed="true"><span class="chip-label">XAU/USD</span><span class="chip-pending-note" hidden></span></button></li><li class="chip-item" data-market="cfd" data-symbol="XAGUSD" data-nodata="0" data-unvalidated="1" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="XAGUSD" aria-pressed="false"><span class="chip-label">XAG/USD</span><span class="chip-pending-note" hidden></span><span class="badge badge-unvalidated" title="Chưa kiểm định bằng backtest">chưa kiểm định</span></button></li><li class="chip-item" data-market="cfd" data-symbol="USOIL" data-nodata="1" data-unvalidated="1" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="USOIL" aria-pressed="false"><span class="chip-label">USOIL</span><span class="chip-pending-note" hidden></span><span class="badge badge-nodata" title="Chưa có dữ liệu nến trên đĩa">chưa có dữ liệu</span><span class="badge badge-unvalidated" title="Chưa kiểm định bằng backtest">chưa kiểm định</span></button></li><li class="chip-item" data-market="cfd" data-symbol="UKOIL" data-nodata="1" data-unvalidated="1" data-orderable="1" data-open="0"><button type="button" class="chip" data-symbol="UKOIL" aria-pressed="false"><span class="chip-label">UKOIL</span><span class="chip-pending-note" hidden></span><span class="badge badge-nodata" title="Chưa có dữ liệu nến trên đĩa">chưa có dữ liệu</span><span class="badge badge-unvalidated" title="Chưa kiểm định bằng backtest">chưa kiểm định</span></button></li></ul><div class="request-status" data-market="cfd" data-status="unsent" aria-live="polite">chưa gửi</div></section></div></main>
+<script>
+(function () {
+  "use strict";
+
+  var MARKETS = ["crypto", "cfd"];
+  var STALE_MS = 12 * 60 * 1000;
+  var DEBOUNCE_MS = 400;
+  var RETRY_DELAY_MS = 600;
+  // Literal per-market document paths (CRON-06/PANEL-06: touch only the known control documents --
+  // never build a path by concatenating a runtime value into it).
+  var APPLIED_DOC_PATH = { "crypto": "control/applied.crypto", "cfd": "control/applied.cfd" };
+  var REQUEST_DOC_PATH = { "crypto": "control/request.crypto", "cfd": "control/request.cfd" };
+  var HEARTBEAT_DOC_PATH = "control/heartbeat";
+
+  var db = null;
+  var dbReady = false;
+  var applied = {};          // market -> {preset, instruments, applied_at, requested_at} | null
+  var request = {};          // market -> {preset, instruments, requested_at} | null
+  // market -> {preset, instruments} | null -- a desired state the user tapped that is NOT YET APPLIED
+  // (not merely "not yet written"). Cleared only when the applied snapshot confirms it, the tied
+  // request resolves as a refusal, or the user taps something else (overwritten) -- see
+  // PENDING_RECONCILE_GUARD below. A successful write ack alone must never clear this: the tap must
+  // keep looking like something is in flight until the applier actually catches up or declines it.
+  var pendingDesired = {};
+  // market -> bool -- true right after a write attempt failed for a reason other than not_granted/revoked
+  // (which degrades the whole page to read-only some other way) or unavailable/resource_exhausted (which
+  // retries silently). Bug found in the browser sweep (2026-09-12): handleWriteError used to call
+  // setRequestStatus() directly with "gửi thất bại", then immediately call renderMarket(), whose own
+  // updateStatusLine() recomputed the line from applied/request/pending and overwrote the failure text in
+  // the SAME synchronous tick -- the user never saw it. updateStatusLine() now owns displaying this state
+  // (checked once, see below) so there is exactly one write to the status line per repaint, not two racing
+  // ones. Cleared by the next tap (onPresetClick/onChipClick) so a retry supersedes the stale note.
+  var sendFailed = {};
+  // Fixed Vietnamese copy for the in-card pending note (PENDING_RECONCILE follow-up) -- never db content.
+  var PENDING_NOTE_TEXT = "đang chờ áp dụng";
+  var writeTimer = {};
+  var heartbeatAt = null;    // Date | null
+
+  function qa(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+  function q(sel) { return document.querySelector(sel); }
+
+  function marketPresetCards(market) { return qa('.preset-card[data-market="' + market + '"]'); }
+  function marketChips(market) { return qa('.chip-item[data-market="' + market + '"] .chip'); }
+  function statusEl(market) { return q('.request-status[data-market="' + market + '"]'); }
+  function dbBanner() { return q(".db-banner"); }
+  function heartbeatBanner() { return q(".heartbeat-banner"); }
+
+  function setRequestStatus(market, status, text) {
+    var el = statusEl(market);
+    if (!el) return;
+    el.setAttribute("data-status", status);
+    el.textContent = text;
+  }
+
+  function setDbBanner(kind, text) {
+    var el = dbBanner();
+    if (!el) return;
+    el.setAttribute("data-kind", kind);
+    el.textContent = text;
+  }
+
+  function setControlsEnabled(enabled) {
+    MARKETS.forEach(function (market) {
+      marketPresetCards(market).forEach(function (card) {
+        if (card.getAttribute("aria-disabled") === "true") return; // CoinGlass lock stays locked regardless
+        card.disabled = !enabled;
+      });
+      marketChips(market).forEach(function (chip) { chip.disabled = !enabled; });
+    });
+  }
+
+  function isPlainObject(v) { return v !== null && typeof v === "object" && !Array.isArray(v); }
+
+  // PANEL-03: never trust shape or content. A field of the wrong type is simply dropped, never coerced.
+  function validDoc(data) {
+    if (!isPlainObject(data)) return null;
+    return {
+      preset: typeof data.preset === "string" ? data.preset : null,
+      instruments: Array.isArray(data.instruments)
+        ? data.instruments.filter(function (s) { return typeof s === "string"; })
+        : [],
+      requested_at: typeof data.requested_at === "string" ? data.requested_at : null,
+      applied_at: typeof data.applied_at === "string" ? data.applied_at : null,
+      // integrations/crons/method-switch.md step 8: written on every resolved tick (applied, no-op, or
+      // terminally refused) so the page can tell a refusal from a still-pending request. PANEL-03 still
+      // applies in full to these three -- see the REQUEST_OUTCOME_GUARD block below, which never puts
+      // any of them on the page except through the fixed Vietnamese copy table.
+      preset_result: typeof data.preset_result === "string" ? data.preset_result : null,
+      instruments_result: typeof data.instruments_result === "string" ? data.instruments_result : null,
+      error: typeof data.error === "string" ? data.error : null
+    };
+  }
+
+  function formatTs(raw) {
+    if (typeof raw !== "string") return "(không rõ)";
+    var d = new Date(raw);
+    return isNaN(d.getTime()) ? "(không rõ)" : d.toLocaleString("vi-VN");
+  }
+
+  // The build-time baked selection (what B1 rendered from automation-config.json), used only until the
+  // first live applied/request snapshot arrives -- read from the page's OWN rendered attributes, never from
+  // a db value, so this is always a trusted starting point.
+  function bakedState(market) {
+    var preset = null;
+    marketPresetCards(market).forEach(function (c) {
+      if (c.getAttribute("aria-pressed") === "true") preset = c.getAttribute("data-preset");
+    });
+    var instruments = [];
+    marketChips(market).forEach(function (c) {
+      if (c.getAttribute("aria-pressed") === "true") instruments.push(c.getAttribute("data-symbol"));
+    });
+    return { preset: preset, instruments: instruments };
+  }
+
+  // Captured ONCE, synchronously, right here at script-load time -- before boot()/any subscription can
+  // ever call renderMarket() and repaint the chips from a live (possibly null) applied snapshot. This is
+  // the ONLY correct read of "the build-time config the page was rendered with" (Defect 2): calling
+  // bakedState() later, from inside desiredBase(), would instead read whatever renderMarket() last
+  // painted -- and an applied doc reported as exists:false paints every chip aria-pressed="false", which
+  // silently turns a preset tap into an instruments:[] write even though nine symbols were baked in.
+  var INITIAL_BAKED = {};
+  MARKETS.forEach(function (market) { INITIAL_BAKED[market] = bakedState(market); });
+
+  function desiredBase(market) {
+    if (pendingDesired[market]) return pendingDesired[market];
+    if (applied[market]) return { preset: applied[market].preset, instruments: applied[market].instruments.slice() };
+    if (request[market]) return { preset: request[market].preset, instruments: request[market].instruments.slice() };
+    var baked = INITIAL_BAKED[market];
+    return { preset: baked.preset, instruments: baked.instruments.slice() };
+  }
+
+  // PENDING_RECONCILE_GUARD_START -- kept between these markers, same technique as the other guards in
+  // this file, so scripts/tests/test_method_panel.py can extract and execute this pure function under
+  // Node (concatenated with REQUEST_OUTCOME_GUARD, which it calls). Defect 1: a pending local edit is
+  // "desired but not yet applied", not "not yet written" -- it must survive a successful write ack and
+  // clear only once the applied snapshot confirms the exact preset/instruments the user asked for, or the
+  // tied request resolves as a refusal. A pending edit whose paired request has not itself resolved yet
+  // (still "pending" per resolveRequestOutcome) must keep showing as outstanding.
+  function pendingStillOutstanding(pending, doc, req) {
+    if (!pending) return false;
+    if (doc && doc.preset === pending.preset && sameInstrumentSet(doc.instruments, pending.instruments)) {
+      return false;
+    }
+    if (req && req.preset === pending.preset && sameInstrumentSet(req.instruments, pending.instruments)) {
+      if (resolveRequestOutcome(req, doc).status === "refused") return false;
+    }
+    return true;
+  }
+  // PENDING_RECONCILE_GUARD_END
+
+  function reconcilePending(market) {
+    if (!pendingStillOutstanding(pendingDesired[market], applied[market], request[market])) {
+      pendingDesired[market] = null;
+    }
+  }
+
+  // paintMarket() is the pure DOM repaint from the current in-memory state -- it never decides whether
+  // pendingDesired should still count as outstanding, only reconcilePending() does that. Split out (bug
+  // found in the browser sweep, 2026-09-12): a tap on the card that is ALREADY the applied preset/set of
+  // instruments used to produce a pending value that, by construction, already equals applied[market] --
+  // and the OLD renderMarket() ran reconcilePending() (which clears a pending edit once it matches applied,
+  // by design, for the case an applied snapshot arrives and CONFIRMS an in-flight edit) synchronously,
+  // in the same tick as the tap, before flushWrite's debounce timer ever fired. That cleared the
+  // just-created pendingDesired before scheduleWrite() could send it, so flushWrite() found nothing to
+  // write and the tap produced zero visible reaction and zero write -- a tap silently looking like nothing
+  // happened, the exact class of defect this file's own PENDING_RECONCILE_GUARD/Defect-1 fix exists to
+  // prevent (see the comment there), just triggered from the opposite direction (a local tap, not a write
+  // success). onPresetClick/onChipClick now paint immediately with paintMarket() (no reconcile -- nothing
+  // new has been learned yet), and only call the reconciling renderMarket() again from the paths that
+  // actually receive new information: a snapshot arriving, or a write settling.
+  function paintMarket(market) {
+    var doc = applied[market];
+    var pending = pendingDesired[market];
+    marketPresetCards(market).forEach(function (card) {
+      var pid = card.getAttribute("data-preset");
+      if (card.getAttribute("aria-disabled") !== "true") {
+        card.setAttribute("aria-pressed", (doc && doc.preset === pid) ? "true" : "false");
+      }
+      var isPendingHere = !!pending && pending.preset === pid;
+      card.classList.toggle("is-desired", isPendingHere);
+      var note = card.querySelector(".preset-pending-note");
+      if (note) { note.hidden = !isPendingHere; note.textContent = isPendingHere ? PENDING_NOTE_TEXT : ""; }
+    });
+    var appliedSymbols = doc ? doc.instruments : [];
+    marketChips(market).forEach(function (chip) {
+      var sym = chip.getAttribute("data-symbol");
+      chip.setAttribute("aria-pressed", appliedSymbols.indexOf(sym) !== -1 ? "true" : "false");
+      var isPendingHere = !!pending && pending.instruments.indexOf(sym) !== -1;
+      chip.classList.toggle("is-desired", isPendingHere);
+      var note = chip.querySelector(".chip-pending-note");
+      if (note) { note.hidden = !isPendingHere; note.textContent = isPendingHere ? PENDING_NOTE_TEXT : ""; }
+    });
+    updateStatusLine(market);
+  }
+
+  function renderMarket(market) {
+    reconcilePending(market);
+    paintMarket(market);
+  }
+
+  // REQUEST_OUTCOME_GUARD_START -- kept between these markers so scripts/tests/test_method_panel.py can
+  // extract and execute this pure function under Node, without a browser -- same technique as the
+  // PANEL-05 guard below. This is now the SOLE decision for "applied" vs "refused" vs "pending" -- there
+  // is no second boolean-only gate anywhere else in this script, so there is exactly one place that can
+  // ever answer "is this in force" and exactly one place a future change to add a clock read would show
+  // up (see the invariant test pinned to this function, not to a name).
+  //
+  // integrations/crons/method-switch.md steps 4 and 8: the applier advances applied.<market>.requested_at
+  // to the request's value on EVERY tick it resolves -- applied, no-op, OR terminally refused (a malformed
+  // request, an unknown/wrong-market preset, an off-allowlist instrument, or a stale/skewed requested_at)
+  // -- and only leaves it behind while a half is still transient ("error: retry"). A refusal leaves
+  // preset/instruments at whatever is ACTUALLY in force (unchanged), so a resolved requested_at with a
+  // preset/instruments mismatch is not still pending -- it is a request the applier finished and declined.
+  // Every comparison below is between two db-provided strings/arrays -- never the device clock.
+  function sameInstrumentSet(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    var sa = a.slice().sort(), sb = b.slice().sort();
+    for (var i = 0; i < sa.length; i++) { if (sa[i] !== sb[i]) return false; }
+    return true;
+  }
+
+  var REFUSAL_REASON_BY_CODE = {
+    "refused: unknown_or_wrong_market_preset":
+      "preset không hợp lệ cho thị trường này — chạm một preset khác trong danh sách",
+    "refused: invalid_instrument":
+      "có cặp không nằm trong danh sách cho phép — bỏ chọn cặp đó rồi thử lại",
+    "malformed_request":
+      "yêu cầu sai định dạng — chạm lại một preset và cặp theo dõi để gửi yêu cầu mới",
+    "stale_or_skewed_requested_at":
+      "yêu cầu đã quá cũ hoặc đồng hồ thiết bị lệch — chạm lại để gửi yêu cầu mới"
+  };
+  // PANEL-03: a code this table does not recognise renders as this fixed placeholder, never as itself.
+  var GENERIC_REFUSAL_REASON = "bị từ chối — chọn một preset hợp lệ hoặc sửa lại cặp theo dõi rồi thử lại";
+  var MAX_RESULT_CODE_LEN = 200;
+
+  function mapOrGeneric(code) {
+    if (typeof code !== "string" || !code) return GENERIC_REFUSAL_REASON;
+    // Capped before lookup so an unbounded string is never held or compared at full length, even
+    // internally -- no legitimate code from the registry above is anywhere near this long.
+    var capped = code.length > MAX_RESULT_CODE_LEN ? code.slice(0, MAX_RESULT_CODE_LEN) : code;
+    return REFUSAL_REASON_BY_CODE[capped] || GENERIC_REFUSAL_REASON;
+  }
+
+  function refusalReasonText(req, doc) {
+    if (typeof doc.error === "string" && doc.error) return mapOrGeneric(doc.error);
+    var reasons = [];
+    if (doc.preset !== req.preset) reasons.push(mapOrGeneric(doc.preset_result));
+    if (!sameInstrumentSet(doc.instruments, req.instruments)) reasons.push(mapOrGeneric(doc.instruments_result));
+    return reasons.length ? reasons.join(" · ") : GENERIC_REFUSAL_REASON;
+  }
+
+  function resolveRequestOutcome(req, doc) {
+    if (!req || !doc || doc.requested_at !== req.requested_at) return { status: "pending", reason: null };
+    if (typeof doc.error === "string" && doc.error) {
+      return { status: "refused", reason: refusalReasonText(req, doc) };
+    }
+    var presetOk = doc.preset === req.preset;
+    var instrumentsOk = sameInstrumentSet(doc.instruments, req.instruments);
+    if (presetOk && instrumentsOk) return { status: "applied", reason: null };
+    return { status: "refused", reason: refusalReasonText(req, doc) };
+  }
+  // REQUEST_OUTCOME_GUARD_END
+
+  function updateStatusLine(market) {
+    var req = request[market], doc = applied[market];
+    var pending = pendingDesired[market];
+    if (pending) {
+      // Distinguish "tapped, debounce/write still in flight" from "written, waiting on the applier" --
+      // both look "pending" on the card (is-desired), but the status line still tells the user whether
+      // the request has actually left the device yet.
+      var written = req && req.preset === pending.preset && sameInstrumentSet(req.instruments, pending.instruments);
+      setRequestStatus(market, written ? "waiting" : "unsent",
+        written ? "đang chờ áp dụng (≤ 5 phút)" : "chưa gửi");
+      return;
+    }
+    if (sendFailed[market]) {
+      setRequestStatus(market, "send-failed", "gửi thất bại — thử lại");
+      return;
+    }
+    if (!req) {
+      setRequestStatus(market, doc ? "applied" : "unsent",
+        doc ? "đã áp dụng lúc " + formatTs(doc.applied_at) : "chưa gửi");
+      return;
+    }
+    var outcome = resolveRequestOutcome(req, doc);
+    if (outcome.status === "applied") {
+      setRequestStatus(market, "applied", "đã áp dụng lúc " + formatTs(doc.applied_at));
+    } else if (outcome.status === "refused") {
+      setRequestStatus(market, "refused", "đã từ chối — " + outcome.reason);
+    } else {
+      setRequestStatus(market, "waiting", "đang chờ áp dụng (≤ 5 phút)");
+    }
+  }
+
+  // PANEL-05_GUARD_START -- kept between these markers so scripts/tests/test_method_panel.py can
+  // extract and execute this pure function under Node, without a browser, to exercise its two
+  // nonsense-input branches directly (real execution, not a source-text guess).
+  //
+  // There is no trustworthy server time anywhere in the db contract (db.d.ts has no serverTimestamp
+  // helper), and `requested_at` is written by whichever device tapped, then compared here against
+  // THIS viewer's own clock -- a different, independently-untrusted clock. Comparing device clock to
+  // the heartbeat's `at` would conflate "clocks are skewed" with "the cron has not ticked yet" (a
+  // perfectly healthy 4-minute-old heartbeat looks identical to a skewed one), so that comparison is
+  // deliberately NOT made. Instead: the elapsed time a pending request has been waiting can never be
+  // negative and, given the applier's own 60-minute staleness cap and 5-minute cadence
+  // (integrations/crons/method-switch.md steps 4 and the cron front matter), a request that is
+  // genuinely still pending resolves (applied or terminally refused) within roughly an hour when the
+  // two clocks agree. A number that is negative, or on the order of a day or more, is therefore not a
+  // plausible "still pending" duration under ANY matching-clock scenario -- it is evidence that this
+  // viewer's clock (or the requesting device's) cannot be trusted for this arithmetic, not a real
+  // wait time. IMPLAUSIBLE_PENDING_MS is set well above the applier's own ~65-minute worst-case
+  // resolution window (so an applier merely down for a couple of hours -- which the stale-heartbeat
+  // banner already reports on its own -- still shows a real, useful number here) and well below the
+  // "days or weeks" a genuinely broken clock produces.
+  var IMPLAUSIBLE_PENDING_MS = 24 * 60 * 60 * 1000; // one day
+
+  function classifyElapsedMs(elapsedMs) {
+    if (typeof elapsedMs !== "number" || isNaN(elapsedMs)) return "implausible";
+    if (elapsedMs < 0) return "implausible";                       // requested_at is in the future for this viewer
+    if (elapsedMs >= IMPLAUSIBLE_PENDING_MS) return "implausible";  // on the order of a day or more -- see above
+    return Math.round(elapsedMs / 60000);
+  }
+  // PANEL-05_GUARD_END
+
+  function pendingStatusAcrossMarkets() {
+    var anyPending = false, anyImplausible = false, maxMinutes = null;
+    MARKETS.forEach(function (market) {
+      // A refused request is resolved too: resolveRequestOutcome() returns "applied" or "refused"
+      // for anything the applier has settled, so a refusal is never miscounted as a request the
+      // applier is still stuck on -- only its "pending" outcome keeps this market in the sum below.
+      if (!request[market] || resolveRequestOutcome(request[market], applied[market]).status !== "pending") return;
+      anyPending = true;
+      var reqAt = Date.parse(request[market].requested_at);
+      var classified = isNaN(reqAt) ? "implausible" : classifyElapsedMs(Date.now() - reqAt);
+      if (classified === "implausible") { anyImplausible = true; return; }
+      if (maxMinutes === null || classified > maxMinutes) maxMinutes = classified;
+    });
+    return { anyPending: anyPending, implausible: anyImplausible, minutes: maxMinutes };
+  }
+
+  function renderHeartbeatBanner() {
+    var el = heartbeatBanner();
+    if (!el) return;
+    var age = heartbeatAt ? (Date.now() - heartbeatAt.getTime()) : Infinity;
+    if (age <= STALE_MS) { el.hidden = true; el.textContent = ""; return; }
+    // Property 1: the staleness warning fires unconditionally once the heartbeat is old/missing --
+    // an unclassifiable pending duration below only ever replaces the *number* in the line, never
+    // this visibility decision.
+    el.hidden = false;
+    var status = pendingStatusAcrossMarkets();
+    el.textContent = !status.anyPending
+      ? "không có tiến trình áp dụng — bộ áp dụng không phản hồi"
+      : (status.implausible || status.minutes === null)
+        ? "không có tiến trình áp dụng — đồng hồ thiết bị lệch, không tính được thời gian chờ"
+        : "không có tiến trình áp dụng — yêu cầu đang treo " + status.minutes + " phút";
+  }
+
+  function scheduleWrite(market) {
+    if (writeTimer[market]) clearTimeout(writeTimer[market]);
+    writeTimer[market] = setTimeout(function () { flushWrite(market, 1); }, DEBOUNCE_MS);
+  }
+
+  function flushWrite(market, attempt) {
+    if (!db || !dbReady) return;
+    var desired = pendingDesired[market];
+    if (!desired) return;
+    var doc = { preset: desired.preset, instruments: desired.instruments.slice(),
+                requested_at: new Date().toISOString() };
+    db.doc(REQUEST_DOC_PATH[market]).set(doc).then(function () {
+      // Defect 1: a successful write is only an ack that the request left the device -- it is not the
+      // applier's answer. The pending indicator (pendingDesired) must survive this and keep showing
+      // "waiting", not "unsent"/nothing; see reconcilePending()/pendingStillOutstanding(), which alone
+      // decide when a pending edit clears (applied match, or resolved refusal).
+      request[market] = doc;
+      renderMarket(market);
+    }).catch(function (err) { handleWriteError(market, err, attempt, desired); });
+  }
+
+  function handleWriteError(market, err, attempt, desired) {
+    var code = err && err.code;
+    if ((code === "unavailable" || code === "resource_exhausted") && attempt < 2) {
+      setTimeout(function () { flushWrite(market, attempt + 1); },
+        RETRY_DELAY_MS + Math.floor(Math.random() * RETRY_DELAY_MS));
+      return;
+    }
+    if (code === "not_granted" || code === "revoked") {
+      dbReady = false;
+      setControlsEnabled(false);
+      setDbBanner("readonly", "Chỉ xem — quyền ghi đã bị thu hồi.");
+    } else {
+      // Set the flag, not the status text directly -- updateStatusLine() (called via renderMarket() just
+      // below) is the single place that writes to the status line, so this can never be clobbered by that
+      // same repaint the way the old direct setRequestStatus() call was (see sendFailed's declaration).
+      sendFailed[market] = true;
+    }
+    // A failed write must never leave the card looking selected: drop the pending desired state and
+    // repaint from the last known applied snapshot.
+    if (pendingDesired[market] === desired) pendingDesired[market] = null;
+    renderMarket(market);
+  }
+
+  function onPresetClick(market, presetId) {
+    if (!dbReady) return;
+    sendFailed[market] = false; // a fresh tap supersedes any stale "gửi thất bại" note from a prior attempt
+    var base = desiredBase(market);
+    pendingDesired[market] = { preset: presetId, instruments: base.instruments.slice() };
+    paintMarket(market); // not renderMarket(): see paintMarket()'s comment -- nothing new to reconcile yet
+    scheduleWrite(market);
+  }
+
+  function onChipClick(market, symbol) {
+    if (!dbReady) return;
+    sendFailed[market] = false;
+    var base = desiredBase(market);
+    var instruments = base.instruments.slice();
+    var idx = instruments.indexOf(symbol);
+    if (idx === -1) { instruments.push(symbol); } else { instruments.splice(idx, 1); }
+    pendingDesired[market] = { preset: base.preset, instruments: instruments };
+    paintMarket(market);
+    scheduleWrite(market);
+  }
+
+  document.addEventListener("click", function (evt) {
+    var card = evt.target.closest ? evt.target.closest(".preset-card") : null;
+    if (card) {
+      if (!card.disabled) onPresetClick(card.getAttribute("data-market"), card.getAttribute("data-preset"));
+      return;
+    }
+    var chip = evt.target.closest ? evt.target.closest(".chip") : null;
+    if (chip && !chip.disabled) {
+      var li = chip.closest(".chip-item");
+      if (li) onChipClick(li.getAttribute("data-market"), chip.getAttribute("data-symbol"));
+    }
+  });
+
+  function subscribeMarket(market) {
+    db.doc(APPLIED_DOC_PATH[market]).onSnapshot(function (snap) {
+      applied[market] = snap.exists ? validDoc(snap.data()) : null;
+      renderMarket(market);
+      renderHeartbeatBanner();
+    }, function () { applied[market] = null; renderMarket(market); });
+
+    db.doc(REQUEST_DOC_PATH[market]).onSnapshot(function (snap) {
+      request[market] = snap.exists ? validDoc(snap.data()) : null;
+      renderMarket(market);
+      renderHeartbeatBanner();
+    }, function () { request[market] = null; renderMarket(market); });
+  }
+
+  function subscribeHeartbeat() {
+    db.doc(HEARTBEAT_DOC_PATH).onSnapshot(function (snap) {
+      var data = snap.exists ? snap.data() : null;
+      var at = (isPlainObject(data) && typeof data.at === "string") ? Date.parse(data.at) : NaN;
+      heartbeatAt = isNaN(at) ? null : new Date(at);
+      renderHeartbeatBanner();
+    }, function () { heartbeatAt = null; renderHeartbeatBanner(); });
+  }
+
+  function boot() {
+    setControlsEnabled(false); // inert until claude.use("db") settles, one way or the other
+    if (!window.claude || typeof window.claude.use !== "function") {
+      setDbBanner("readonly", "Chỉ xem — trình xem này không hỗ trợ bộ nhớ điều khiển.");
+      return;
+    }
+    window.claude.use("db").then(function (namespace) {
+      if (!namespace) {
+        db = null; dbReady = false;
+        setDbBanner("readonly",
+          "Chỉ xem — không có quyền ghi (chưa được cấp hoặc trình xem không hỗ trợ).");
+        return;
+      }
+      db = namespace; dbReady = true;
+      setDbBanner("ready", "Đã kết nối — chạm để thay đổi cấu hình đang chạy.");
+      setControlsEnabled(true);
+      MARKETS.forEach(subscribeMarket);
+      subscribeHeartbeat();
+    }).catch(function () {
+      db = null; dbReady = false;
+      setDbBanner("readonly", "Chỉ xem — không kết nối được bộ nhớ điều khiển.");
+    });
+  }
+
+  setInterval(renderHeartbeatBanner, 30000);
+  boot();
+})();
+</script>

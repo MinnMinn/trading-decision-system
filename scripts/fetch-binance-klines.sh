@@ -64,6 +64,11 @@ echo "$RAW" | jq \
     } ],
     last_updated: $now,
     _source: "binance_public_rest_live"
-  }' > "$OUT_FILE"
+  }' > "$OUT_FILE.tmp.$$"
+# ATOMIC publish. The cache under data/live/candles-cache is SHARED by every account's runner
+# (scripts/strategy-runner.py CANDLES), so a reader must never see a half-written file. `> "$OUT_FILE"`
+# truncates in place and a concurrent reader gets whatever bytes exist at that instant; mv within one
+# filesystem is a rename, which a reader either sees entirely or not at all.
+mv -f "$OUT_FILE.tmp.$$" "$OUT_FILE"
 
 echo "Wrote $(jq '.candles | length' "$OUT_FILE") candles to $OUT_FILE"

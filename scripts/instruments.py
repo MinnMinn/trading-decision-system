@@ -42,6 +42,21 @@ if not MARKET_META:
                      f"venue nobody vetted.")
 MARKETS = list(MARKET_META)
 
+# The feed facts every market must state, checked HERE rather than with the market-type checks further down,
+# because DATA_DIR / TICK_VOLUME_MARKETS / CONTINUOUS_MARKETS are derived a few lines below and a derivation
+# reaches a missing key first: the reader would get a bare `KeyError: 'continuous'` instead of a sentence
+# saying which market is incomplete and why guessing is not an option.
+for _m, _meta in MARKET_META.items():
+    _missing = [k for k in ("data_dir", "tick_volume", "continuous", "default_enabled") if k not in _meta]
+    if _missing:
+        raise ValueError(f"{PATH}: markets.{_m} is missing {_missing}. Every registered market must state where "
+                         f"its candles land, whether its volume field is a tick count, whether its tape runs "
+                         f"without scheduled closures, and whether it is on by default -- none of the four has "
+                         f"a safe guess.")
+    for _k in ("tick_volume", "continuous", "default_enabled"):
+        if not isinstance(_meta[_k], bool):
+            raise ValueError(f"{PATH}: markets.{_m}.{_k} must be a boolean.")
+
 
 def _load():
     d = _DATA
@@ -119,14 +134,66 @@ DATA_DIR = {m: MARKET_META[m]["data_dir"] for m in MARKETS}
 # volume (knowledge/wyckoff/modern-tools.md §7, the source's own warning).
 TICK_VOLUME_MARKETS = tuple(m for m in MARKETS if MARKET_META[m]["tick_volume"])
 
+# Markets whose tape runs without scheduled closures. This is what lets scripts/quality.py tell a HOLE from a
+# WEEKEND when it computes CLAUDE.md §20's PARTIAL state: a gap inside a 24/7 series is a fetch fault, the same
+# gap in a CFD series is Friday night. Keyed by market for the same reason as the two above -- it is a property
+# of when the VENUE trades, not of the symbol.
+CONTINUOUS_MARKETS = tuple(m for m in MARKETS if MARKET_META[m]["continuous"])
+
+# ---------------------------------------------------------------- canonical market model (CLAUDE.md §5)
+#
+# Two vocabularies that must not be conflated, which is the whole point of §5 ("Do not use provider-specific
+# market terminology as the canonical domain identity"):
+#   MARKET TYPE  -- what a contract IS: SPOT / FUTURES / PERPETUAL / CFD / OTHER.
+#   VENUE ALIAS  -- where it trades: `futures` / `spot` / `mt5` (docs/architecture/providers.json).
+# Binance calls its USDT-M product "futures"; the contract is a PERPETUAL. The venue alias keeps the
+# provider's word because that is what the state files and logs are tagged with; the market type does not.
+MARKET_TYPES = tuple(k for k in _DATA["market_types"] if not k.startswith("_"))
+
+_CANONICAL = {k: v for k, v in _DATA["canonical"].items() if not k.startswith("_")}
+
+
+def market_types(market):
+    """The canonical types this market can be traded as. Note this is a LIST: crypto is both SPOT (via
+    /execute) and PERPETUAL (via the futures pilot). Which one a given order is depends on the venue, so ask
+    providers.market_type_of(<provider>) when you have one -- a symbol alone cannot answer it."""
+    return list(MARKET_META[market]["market_types"])
+
+
+def canonical(symbol):
+    """Provider-independent identity for a provider-spelled symbol ('BTCUSDT' -> 'BTC/USDT').
+
+    Why this exists rather than reusing display(sym)["label"], which happens to hold the same string today:
+    a label is presentation and may be changed for readability; an identity may not. Keeping them in one
+    field would mean a page-styling edit silently re-identified an instrument.
+    """
+    return _CANONICAL[symbol]
+
+
 for _m, _meta in MARKET_META.items():
-    _missing = [k for k in ("data_dir", "tick_volume", "default_enabled") if k not in _meta]
-    if _missing:
-        raise ValueError(f"{PATH}: markets.{_m} is missing {_missing}. Every registered market must state where "
-                         f"its candles land, whether its volume field is a tick count, and whether it is on by "
-                         f"default -- none of the three has a safe guess.")
-    if not isinstance(_meta["tick_volume"], bool) or not isinstance(_meta["default_enabled"], bool):
-        raise ValueError(f"{PATH}: markets.{_m} tick_volume and default_enabled must be booleans.")
+    _types = _meta.get("market_types")
+    if not isinstance(_types, list) or not _types:
+        raise ValueError(f"{PATH}: markets.{_m} declares no `market_types`. Every market must say what kind of "
+                         f"contract it holds (CLAUDE.md §5); guessing SPOT for an instrument that is actually "
+                         f"a perpetual would misstate funding, expiry and leverage semantics at once.")
+    _unknown = [t for t in _types if t not in MARKET_TYPES]
+    if _unknown:
+        raise ValueError(f"{PATH}: markets.{_m} names market type(s) {_unknown}; the canonical vocabulary is "
+                         f"{list(MARKET_TYPES)}.")
+
+# Identity is only identity if it is total and unique. A symbol with no canonical id would silently fall back
+# to its provider spelling somewhere downstream (which is the thing §5 exists to stop), and two symbols
+# sharing one id would merge two instruments' history the first time anything grouped by it.
+for _m in MARKETS:
+    for _sym in ANALYSIS[_m]:
+        if _sym not in _CANONICAL:
+            raise ValueError(f"{PATH}: {_sym} is on the analysis list with no `canonical` id. Every tradeable "
+                             f"symbol needs a provider-independent identity (CLAUDE.md §5).")
+_dupes = {v: [k for k in _CANONICAL if _CANONICAL[k] == v] for v in set(_CANONICAL.values())}
+_dupes = {v: ks for v, ks in _dupes.items() if len(ks) > 1}
+if _dupes:
+    raise ValueError(f"{PATH}: canonical ids are not unique: {_dupes}. Two symbols sharing one identity would "
+                     f"merge two instruments wherever anything groups by it.")
 
 
 def default_enabled(market):
@@ -145,6 +212,18 @@ def _market_or_raise(symbol):
     return m
 
 
+# Per-instrument estate capacity (docs/architecture/instruments.json estate_capacity). ONE reader:
+# scripts/exposure.py _declared_capacity(). Empty is the normal state and means UNDECLARED, not unlimited --
+# nothing here reads order-book depth, so a capacity cannot be measured yet and exposure.py turns the unknown
+# into a refusal once the estate on that symbol grows past risk-config.json capacity_required_above_accounts.
+CAPACITY = dict((_DATA.get("estate_capacity") or {}).get("max_estate_notional_usd") or {})
+for _sym in CAPACITY:
+    if _sym not in ANALYSIS:
+        raise ValueError(f"docs/architecture/instruments.json: estate_capacity declares {_sym!r}, which is not "
+                         f"on the analysis allowlist. A capacity for an instrument nobody trades is a number "
+                         f"nobody checks.")
+
+
 def data_dir(symbol):
     """The data/live/<dir> a symbol's candles are written to, by market. Raises on an unknown symbol."""
     return DATA_DIR[_market_or_raise(symbol)]
@@ -156,6 +235,16 @@ def is_tick_volume(symbol):
     Raising is the fail-closed direction: returning False for something unrecognised would credit a tick feed
     with real traded volume, which is exactly the error the multiplier exists to prevent."""
     return _market_or_raise(symbol) in TICK_VOLUME_MARKETS
+
+
+def is_continuous(symbol):
+    """True when this symbol's tape has no scheduled closures, so a missing bar is a FAULT and not a weekend.
+
+    Raises on an unknown symbol, and that is again the fail-closed direction -- but note which way closed is
+    here: guessing True would report every session break as CLAUDE.md §20 PARTIAL and gate a market on
+    correct data, while guessing False would hide a real hole in a 24/7 feed. Neither guess is safe, so
+    quality.py asks and this refuses to answer for something it does not know."""
+    return _market_or_raise(symbol) in CONTINUOUS_MARKETS
 
 
 _DISPLAY = {k: v for k, v in (_DATA.get("display") or {}).items() if not k.startswith("_")}

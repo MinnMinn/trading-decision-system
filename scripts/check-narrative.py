@@ -80,6 +80,19 @@ def phase_grammar(sym, wy, bad):
             bad(pre + f"event label {lbl!r} does not start with a Wyckoff event name (PS/SC/AR/ST/UA/Spring/Shakeout/Test/LPS/SOS/BU · PSY/BC/UT/UTAD/SOW/LPSY · CHoBEV/CHoCH — knowledge/wyckoff/advance.md §2.6–2.8)"); continue
         tok = m.group(1).upper(); L = phase_at(e.get("time", ""))
         seen.setdefault(L, set()).add(tok)
+        # An event OUTSIDE every phase band was silently unchecked: phase_at returns None, so the vocabulary
+        # rule below never ran and the chart drew it anyway, as part of a structure it does not belong to.
+        # Found 2026-09-19 from a reader's comment on the BTC bias chart: SOS 2026-09-03, ST 2026-09-04 and
+        # UA 2026-09-09 were drawn alongside an SC of 2026-09-10 whose Phase A began that day -- three events
+        # from an EARLIER range, rendered as one sequence, so the picture read SOS→ST→UA→SC→Spring. Wyckoff
+        # does not run that way round: the SC opens the range that the ST retests and the SOS leaves
+        # (knowledge/wyckoff/advance.md §2.7.1-§2.7.4). Two events above the declared AR made it plainer
+        # still -- an ST retests the SC area, below the AR, by construction.
+        if phases and L is None:
+            bad(pre + f"event {lbl!r} at {e.get('time')} lies outside every phase band "
+                      f"(the first begins {phases[0].get('from')}) — it belongs to a different structure and "
+                      f"must not be drawn on this one (knowledge/wyckoff/advance.md §2.7)")
+            continue
         if L and L not in EVENT_VOCAB.get(tok, PHASE_ORDER):
             bad(pre + f"event {lbl!r} sits in Phase {L} but {tok} belongs to Phase {'/'.join(EVENT_VOCAB[tok])} (knowledge/wyckoff/advance.md §2.7–2.8)")
         km = KL_RE.search(lbl)
@@ -92,6 +105,17 @@ def phase_grammar(sym, wy, bad):
         bad(pre + "Phase D has no SOS/LPS/BU (or SOW/LPSY) event — Phase D is 'cầu áp đảo cung' shown by SOS then LPS (knowledge/wyckoff/advance.md §2.7.4)")
     if "A" in letters and not (seen.get("A", set()) & {"SC", "BC", "BCLX"}):
         bad(pre + "Phase A has no SC (or BC) event — Phase A is the stopping action SC→AR→ST (knowledge/wyckoff/advance.md §2.7.1)")
+    # The trading range and the phases must describe ONE structure. A range that starts before the structure
+    # does, or after it, is two reads stitched together -- which is how the foreign events above got in.
+    tr = wy.get("trading_range") or {}
+    if phases and tr.get("from") and tr["from"] < phases[0].get("from", ""):
+        # Only PREDATING is refused. A range stamped a bar or two AFTER Phase A opens is ordinary bookkeeping
+        # -- the range is not drawable until the AR completes the SC/AR pair -- and flagging that would be
+        # noise that gets ignored. A range that begins BEFORE its own stopping action cannot be the same
+        # structure, and is how foreign events get stitched into a read.
+        bad(pre + f"trading_range starts {tr['from']}, BEFORE Phase {letters[0]} at {phases[0].get('from')} — "
+                  f"a range cannot predate the stopping action it is drawn from "
+                  f"(knowledge/wyckoff/advance.md §2.7.1)")
 
 
 
@@ -165,23 +189,29 @@ def main():
         # giảm khung (knowledge/wyckoff/advance.md §2.7, WA p93–96): the context read is mandatory when a context window exists, and the
         # working-timeframe verdict must respect the higher-timeframe structure
         if ctx_style:
-            # A context read is mandatory only for the methods /automation has ENGAGED. Requiring the Wyckoff one
-            # unconditionally made an ICT-only narrative impossible to validate, which is the method switch leaking
-            # back in through the validator (user decision 2026-09-13).
-            engaged = htf.engaged_methods(style)
+            # A context read is mandatory for the methods still ANALYSED (CLAUDE.md §15), not only for the one
+            # the preset trades: the brief asks for both and the page shows both, so requiring only the traded
+            # one would let the displayed lane go unvalidated. The 2026-09-13 fix this replaces was right that
+            # an unconditional demand is wrong -- a dimension with no live source is still not required, which
+            # analysed_methods enforces. NOTE the deliberate asymmetry with the invalidation-owner check above:
+            # that one stays ENGAGED, because a lane that cannot vote must not set the stop.
+            analysed = htf.analysed_methods(style)
             ci = (d.get("context") or {}).get("ict") or {}
-            if "wyckoff" in engaged:
+            if "wyckoff" in analysed:
                 if not (cw.get("text_html") or "").strip() or 'class="cite"' not in cw.get("text_html", ""):
                     bad(pre + "context.wyckoff.text_html missing or uncited — the higher-timeframe Wyckoff read is mandatory (giảm khung, knowledge/wyckoff/advance.md §2.7)")
                 if not (cw.get("structure") or cw.get("phase")):
                     bad(pre + "context.wyckoff needs structure + phase (or structure 'chưa xác lập') so the bias can be derived")
                 if (cw.get("phase") or "").upper()[:1] == "B" and not ((cw.get("trading_range") or {}).get("high") and (cw.get("trading_range") or {}).get("low")):
                     bad(pre + "context.wyckoff is Phase B but has no trading_range {high, low} — the boundary rule (WA p93, p201) needs the higher-timeframe AR / SC-ST levels")
-            if "ict" in engaged and not (ci.get("text_html") or "").strip():
+            if "ict" in analysed and not (ci.get("text_html") or "").strip():
                 bad(pre + "context.ict.text_html missing — the higher-timeframe ICT read is mandatory")
             ctx_facts_sym = ((ctx_facts.get("symbols") or {}).get(sym) or {})
+            # ENGAGED, deliberately -- the bias this verdict is checked against must rest on the methods that
+            # may qualify a trade, never on the wider analysed set (§18). The two sets are named apart here so
+            # a future edit cannot swap one for the other by accident.
             bias, basis = htf.bias_of({"structure": cw.get("structure"), "phase": cw.get("phase"), "trading_range": cw.get("trading_range")},
-                                      ctx_facts_sym, methods=engaged)
+                                      ctx_facts_sym, methods=htf.engaged_methods(style))
             side = (su.get("side") or "").lower() or None
             for p_ in htf.check_verdict(d.get("verdict"), side, {"tf": htf.STYLE_TF.get(ctx_style, "?"), "bias": bias}, d.get("synthesis_html", "")):
                 bad(pre + p_)

@@ -123,7 +123,7 @@ def measure_one(r):
     if w and w["outcome"] == "timeout" and bars_avail < bt.P[tf]["H"]:
         w["outcome"] = "pending"
     PH = bt.all_pivots(H, "high"); PL = bt.all_pivots(L, "low")
-    ict = bt.find_ict(side, i, rec, H, L, C, bt.P[tf]["K"], len(c), PH, PL)
+    ict = bt.find_ict(side, i, rec, H, L, C, bt.P[tf]["K"], len(c), PH, PL, [x["open"] for x in c])
     return dict(r, side=side, entry=C[rec], stop=round(stop, 4), target=target, outcome=w["outcome"] if w else "no_entry",
                 R=round(w["R"], 2) if w else None, R_planned=round(w["R_planned"], 2) if w else None, bars_available=bars_avail,
                 ict_confirmed=bool(ict), ict_mss_time=(T[ict[0]] if ict else None), source=src)

@@ -1,0 +1,367 @@
+<title>CFD Swing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap">
+
+<style>
+:root{
+  --bg:#F3F5F8; --surface:#FFFFFF; --surface-2:#F7F9FB; --surface-3:#EDF1F5;
+  --line:#DCE2EA; --line-strong:#C5CED9;
+  --ink:#172029; --ink-2:#3D4955; --muted:#5F6B79; --faint:#6B7784;
+  --up:#1F8F5F; --down:#CF3F55; --up-soft:#D9F0E4; --down-soft:#F8DEE2;
+  --warn:#B5731C; --warn-soft:#FBEBD3;
+  --w:#B8801F; --w-soft:#F7EBD2; --i:#4C5BC7; --i-soft:#E3E6F9; --f:#1F8C85; --f-soft:#D8EFEC; --h:#7E4FB3; --h-soft:#EBE0F6;
+  --accent:#2F5FC9;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace; --sans:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --shadow:0 1px 2px rgba(23,32,41,.06),0 6px 20px rgba(23,32,41,.05);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0E1218; --surface:#151B23; --surface-2:#1B222C; --surface-3:#222B36;
+  --line:#28313D; --line-strong:#39465A;
+  --ink:#E7EBF0; --ink-2:#C2CAD5; --muted:#97A3B4; --faint:#8592A2;
+  --up:#3FBF7F; --down:#EF5C70; --up-soft:#173A2B; --down-soft:#3E1F27;
+  --warn:#E0A54A; --warn-soft:#3A2A12;
+  --w:#D79A2E; --w-soft:#33270F; --i:#7C8BE8; --i-soft:#222846; --f:#3BB8AF; --f-soft:#123634; --h:#B285E0; --h-soft:#2E2140;
+  --accent:#7FA4F5; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+}}
+:root[data-theme="dark"]{
+  --bg:#0E1218; --surface:#151B23; --surface-2:#1B222C; --surface-3:#222B36;
+  --line:#28313D; --line-strong:#39465A;
+  --ink:#E7EBF0; --ink-2:#C2CAD5; --muted:#97A3B4; --faint:#8592A2;
+  --up:#3FBF7F; --down:#EF5C70; --up-soft:#173A2B; --down-soft:#3E1F27;
+  --warn:#E0A54A; --warn-soft:#3A2A12;
+  --w:#D79A2E; --w-soft:#33270F; --i:#7C8BE8; --i-soft:#222846; --f:#3BB8AF; --f-soft:#123634; --h:#B285E0; --h-soft:#2E2140;
+  --accent:#7FA4F5; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} *{transition:none!important} }
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+b,strong{font-weight:700}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.lane-wyckoff{--lane:var(--w);--lane-soft:var(--w-soft)} .lane-ict{--lane:var(--i);--lane-soft:var(--i-soft)}
+.lane-footprint{--lane:var(--f);--lane-soft:var(--f-soft)} .lane-heatmap{--lane:var(--h);--lane-soft:var(--h-soft)}
+.lane-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--lane);margin-right:7px;vertical-align:1px}
+
+/* top bar */
+.topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.topbar-in{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.brand{display:flex;flex-direction:column;gap:1px;min-width:220px}
+.brand-title{font-weight:800;font-size:15px;letter-spacing:-.01em}
+.brand-sub{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.symnav{display:flex;gap:4px}
+.symnav a{font-family:var(--mono);font-size:12px;font-weight:700;text-decoration:none;color:var(--ink-2);padding:6px 10px;border-radius:6px;border:1px solid transparent}
+.symnav a:hover{background:var(--surface-2);border-color:var(--line)}
+.lanes{display:flex;gap:2px;margin-left:auto;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:3px}
+.lane-btn{font-family:var(--sans);font-weight:700;font-size:12.5px;padding:6px 12px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.lane-btn .lane-dot{margin:0}
+.lane-btn:hover{color:var(--ink)}
+.lane-btn.active{background:var(--surface);color:var(--ink);border-color:var(--line-strong);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.lane-btn:focus-visible,.symnav a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.lane-btn.off{opacity:.55}
+
+.page{max-width:1180px;margin:0 auto;padding:22px 20px 80px;display:flex;flex-direction:column;gap:22px}
+.lede{display:flex;justify-content:space-between;gap:24px;align-items:flex-end;flex-wrap:wrap}
+h1{font-size:clamp(22px,3vw,30px);font-weight:800;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.lede p{margin:6px 0 0;color:var(--ink-2);max-width:66ch}
+.disclaimer{font-family:var(--mono);font-size:11px;color:var(--warn);background:var(--warn-soft);padding:6px 10px;border-radius:6px;white-space:nowrap}
+
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.meta > div{padding:12px 16px;border-right:1px solid var(--line)}
+.meta > div:last-child{border-right:0}
+.meta-l{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+.meta-v{font-weight:700;font-size:13.5px}
+.meta-d{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:2px}
+.meta .chip{margin:0 0 0 4px}
+.meta .st{display:inline-flex;align-items:center;white-space:nowrap;margin:2px 10px 2px 0}
+
+section.symbol{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:18px 20px 20px;display:flex;flex-direction:column;gap:14px;scroll-margin-top:64px}
+.sym-head{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.sym-name{font-family:var(--mono);font-weight:800;font-size:20px;letter-spacing:-.01em}
+.sym-last{font-family:var(--mono);font-size:20px;font-variant-numeric:tabular-nums}
+.sym-kv{display:flex;gap:16px;font-family:var(--mono);font-size:12px;color:var(--muted);flex-wrap:wrap}
+.sym-kv b{color:var(--ink-2);font-weight:600}
+.sym-verdict{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sym-verdict .lbl{font-family:var(--mono);font-size:11px;color:var(--faint)}
+
+.chip{display:inline-flex;align-items:center;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+.chip-wait{background:var(--surface-3);color:var(--ink-2);border-color:var(--line-strong)}
+.chip-long{background:var(--up-soft);color:var(--up);border-color:var(--up)}
+.chip-short{background:var(--down-soft);color:var(--down);border-color:var(--down)}
+.chip-setup{background:var(--w-soft);color:var(--w);border-color:var(--w)}
+.chip-warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+.chip-lg{font-size:12.5px;padding:5px 12px}
+
+.charts{display:flex;flex-direction:column;gap:8px}
+.chart-block{border:1px solid var(--line);border-radius:8px;background:var(--surface-2);position:relative}
+.chart-title{display:flex;justify-content:space-between;align-items:center;padding:8px 12px 0;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.chart-title b{color:var(--ink-2);font-weight:600}
+.zoom{display:inline-flex;align-items:center;gap:4px} .zoom .muted{margin-right:6px}
+.zoom button{font-family:var(--mono);font-size:12px;font-weight:700;width:24px;height:22px;border-radius:5px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);cursor:pointer;line-height:1}
+.zoom button:hover{background:var(--surface-3)} .zoom button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+svg.chart{cursor:crosshair} svg.chart:active{cursor:grabbing}
+.chart-wrap{padding:4px 6px 4px;overflow-x:auto;position:relative}
+svg.chart{display:block;width:100%;height:auto;min-width:720px}
+.axis-label{font-family:var(--mono);font-size:9.5px;fill:var(--faint)}
+.flag-label{font-family:var(--mono);font-size:10px;font-weight:700;fill:var(--ink)}
+.flag-w{fill:var(--w)} .flag-i{fill:var(--i)}
+.range-label{font-family:var(--mono);font-size:9.5px;font-weight:700}
+.phase-label{font-family:var(--mono);font-size:10px;font-weight:800;fill:var(--w)}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;padding:6px 9px;font-family:var(--mono);font-size:11px;color:var(--ink);box-shadow:var(--shadow);display:none;z-index:5;white-space:nowrap;line-height:1.5}
+.tip .t{color:var(--muted)} .tip .u{color:var(--up)} .tip .d{color:var(--down)}
+.lane-status{padding:22px 16px;font-size:13px;color:var(--muted);display:flex;gap:12px;align-items:center}
+.lane-status b{color:var(--ink-2)}
+.legend{display:flex;gap:16px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--muted);flex-wrap:wrap;padding:0 4px}
+.legend > span{display:inline-flex;align-items:center;gap:6px}
+.sw{display:inline-block;width:14px;height:8px;border-radius:2px}
+.sw.up{border:2px solid var(--up);background:transparent;height:6px} .sw.down{background:var(--down)}
+.sw.vol{background:var(--muted);opacity:.5} .sw.volhi{background:var(--w)}
+.sw.tr{height:0;border-top:2px dashed var(--w)} .sw.ph{background:var(--w);opacity:.18;height:10px}
+.sw.fvgb{background:var(--up);opacity:.35} .sw.fvgs{background:var(--down);opacity:.35} .sw.ob{background:var(--i);opacity:.35}
+.sw.liq{height:0;border-top:2px dotted var(--i)} .sw.eq{height:0;border-top:2px dashed var(--i)} .sw.kz{background:var(--i);opacity:.12;height:10px}
+.sw.win{background:var(--accent);opacity:.14;height:10px}
+
+/* read matrix */
+.matrix{display:grid;grid-template-columns:128px repeat(var(--n),minmax(0,1fr)) minmax(0,1.15fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.matrix.cols-2{--n:2} .matrix.cols-3{--n:3} .matrix.cols-4{--n:4}
+.mx-head{padding:9px 14px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:var(--surface-3);border-bottom:1px solid var(--line);border-left:1px solid var(--line)}
+.mx-head.lane-wyckoff,.mx-head.lane-ict,.mx-head.lane-footprint,.mx-head.lane-heatmap{box-shadow:inset 0 -2px 0 var(--lane)}
+.mx-corner{border-left:0;color:var(--faint)}
+.mx-label{padding:12px 14px;border-top:1px solid var(--line);background:var(--surface-2)}
+.mx-title{font-weight:800;font-size:13px}
+.mx-sub{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+.mx-cell{padding:12px 14px;border-top:1px solid var(--line);border-left:1px solid var(--line);font-size:13px;min-width:0;transition:background .15s}
+.mx-cell-tag{display:none;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--lane,var(--faint));margin-bottom:6px}
+.mx-cell ul{margin:0;padding-left:16px;display:flex;flex-direction:column;gap:5px}
+.mx-cell p{margin:0 0 7px} .mx-cell p:last-child{margin-bottom:0}
+.mx-cell .cite,.mx-cell .cite *{font-family:var(--mono);font-size:10px;color:var(--faint)}
+.mx-cell .cite{display:inline;margin-left:4px;overflow-wrap:anywhere}
+.mx-synth{background:color-mix(in srgb,var(--surface-2) 60%,var(--surface))}
+body[data-lane="wyckoff"] .mx-cell.lane-wyckoff,body[data-lane="ict"] .mx-cell.lane-ict,body[data-lane="footprint"] .mx-cell.lane-footprint,body[data-lane="heatmap"] .mx-cell.lane-heatmap{background:color-mix(in srgb,var(--lane-soft) 45%,var(--surface))}
+.cell-verdict{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.inv{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.sub-h{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:8px 0 4px}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.badge{font-family:var(--mono);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:5px;background:var(--lane-soft,var(--surface-3));color:var(--lane,var(--ink-2))}
+.kv{display:grid;grid-template-columns:auto auto;gap:2px 10px;font-family:var(--mono);font-size:11.5px;color:var(--muted);margin:0 0 8px!important}
+.kv b{color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}
+.mx-foot{font-family:var(--mono);font-size:11px;color:var(--muted);padding:6px 4px 0}
+
+details.timeline{border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+details.timeline summary{cursor:pointer;padding:10px 14px;font-weight:700;font-size:13px}
+details.timeline[open] summary{border-bottom:1px solid var(--line)}
+.table-wrap{overflow-x:auto}
+table.evidence{width:100%;border-collapse:collapse;font-size:12.5px}
+table.evidence th,table.evidence td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+table.evidence th{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600;background:var(--surface-2)}
+table.evidence th.lane-wyckoff,table.evidence th.lane-ict{color:var(--lane)}
+table.evidence td:first-child{font-family:var(--mono);white-space:nowrap;color:var(--muted)}
+table.evidence td .cite{display:block;font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:3px;overflow-wrap:anywhere}
+
+.glossary h2{font-size:15px;margin:0 0 10px}
+.gl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.gl{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:12px 14px;border-top:3px solid var(--lane)}
+.gl-head{font-weight:800;font-size:13px;margin-bottom:6px}
+.gl dl{margin:0;font-size:12.5px} .gl dt{font-family:var(--mono);font-weight:700;font-size:11.5px;margin-top:8px} .gl dd{margin:2px 0 0;color:var(--ink-2)}
+
+footer{font-family:var(--mono);font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;line-height:1.7}
+footer b{color:var(--muted);font-weight:600}
+
+@media (max-width:900px){
+  .matrix{grid-template-columns:1fr}
+  .mx-head{display:none}
+  .mx-label{border-top:2px solid var(--line-strong)}
+  .mx-cell{border-left:0}
+  .mx-cell-tag{display:block}
+  .disclaimer{white-space:normal}
+  .lanes{margin-left:0}
+}
+</style>
+<div class="topbar"><div class="topbar-in"><div class="brand"><div class="brand-title">CFD Swing</div><div class="brand-sub">1D × 120 (4 tháng) · dữ liệu tới 21:00 UTC</div></div><nav class="symnav"><a href="#sec-xau">XAU</a><a href="#sec-glossary">Thuật ngữ</a></nav><div class="lanes" role="group" aria-label="Phương pháp"><button class="lane-btn lane-wyckoff" data-lane="wyckoff" onclick="setLane('wyckoff')" title="phím 1"><span class="lane-dot"></span>Wyckoff</button><button class="lane-btn lane-ict" data-lane="ict" onclick="setLane('ict')" title="phím 2"><span class="lane-dot"></span>ICT</button><button class="lane-btn lane-footprint off" data-lane="footprint" onclick="setLane('footprint')" title="phím 3"><span class="lane-dot"></span>Footprint</button><button class="lane-btn lane-heatmap off" data-lane="heatmap" onclick="setLane('heatmap')" title="phím 4"><span class="lane-dot"></span>Heatmap</button></div></div></div><div class="page"><div class="lede"><div><p class="eyebrow">MT5 bridge (tick volume) · 1D × 120 (4 tháng) · phân tích, không phải tín hiệu</p><h1>CFD Swing</h1><p>Mỗi phương pháp đọc bằng đúng ngôn ngữ của nó — Wyckoff (giá + khối lượng), ICT (cấu trúc giá), Footprint và Heatmap khi có dữ liệu — rồi mới tổng hợp. Ba lớp đọc: sơ bộ (máy quét), cục bộ (Sonnet, theo sự kiện), toàn diện (hàng ngày).</p></div><div class="disclaimer">KHÔNG PHẢI TÍN HIỆU GIAO DỊCH · chỉ nghiên cứu</div></div><div class="meta"><div><div class="meta-l">Cửa sổ chính</div><div class="meta-v">1D × 120 (4 tháng)</div><div class="meta-d">26/3 21:00Z – 10/9 21:00Z</div></div><div><div class="meta-l">Bối cảnh</div><div class="meta-v">1W × 104 (2 năm)</div><div class="meta-d">chart trên, vùng tô = cửa sổ chính</div></div><div><div class="meta-l">Chế độ</div><div class="meta-v">NORMAL</div><div class="meta-d">Wyckoff + ICT · Footprint/Heatmap: không có nguồn live</div></div><div><div class="meta-l">Sự kiện chính (phân tích đầy đủ gần nhất)</div><div class="meta-v">XAUUSD 1D: SOS 04/08 (KL 1,01x) đẩy giá lên 4.696,73 rồi điều chỉnh về 4.332,97 — chờ LPS[D] giữ trên 4.120,29</div><div class="meta-d">CHoCH xác nhận 29/06–01/07; TR 3.942,48–4.203,03; ST[A] 16/07 ở 1/3 dưới TR (đối nhãn); chưa có FVG/OTE hợp lệ theo ICT</div></div><div><div class="meta-l">Trạng thái (cục bộ)</div><div class="meta-v"><span class="st"><span class="mono">XAU</span><span class="chip chip-wait">CHỜ</span></span></div><div class="meta-d">dữ liệu tới 21:00 UTC</div></div></div><section class="symbol" id="sec-xau"><div class="sym-head"><div class="sym-name">XAU/USD</div><div class="sym-last">4,346.00</div><div class="sym-kv"><span>biên độ cửa sổ <b>3,942.48–4,889.64</b></span><span>vị trí <b>43%</b></span><span>nến cuối <b>10/9 21:00Z</b></span></div><div class="sym-verdict"><span class="lbl">cục bộ</span><span class="chip chip-wait chip-lg">CHỜ</span><span class="lbl">luật</span><span class="chip chip-warn">PHÁ TRÊN Lực đẩy tự động (AR) 05/07</span></div></div><div class="charts"><div class="chart-block" id="main-xau"><div class="chart-title"><span><b>Cửa sổ chính</b> · 1D × 120 (4 tháng) · 03-26 → 09-10</span><span class="zoom"><span class="muted">lăn chuột = zoom · kéo = dịch · phím 1–4 đổi phương pháp</span><button data-z="out" title="thu nhỏ">−</button><button data-z="in" title="phóng to">+</button><button data-z="reset" title="toàn bộ cửa sổ">⟲</button></span></div><div class="chart-wrap"><svg class="chart" id="chart-main-xau"></svg><div class="tip"></div></div><div class="lane-status" hidden></div></div><div class="legend" id="legend-xau"></div></div><div class="matrix cols-2"><div class="mx-head mx-corner">Lớp đọc</div><div class="mx-head lane-wyckoff"><span class="lane-dot"></span>Wyckoff</div><div class="mx-head lane-ict"><span class="lane-dot"></span>ICT</div><div class="mx-head mx-synth">Tổng hợp</div><div class="mx-label "><div class="mx-title">Sơ bộ</div><div class="mx-sub">scanner · dữ liệu tới 21:00Z</div></div><div class="mx-cell lane-wyckoff " data-col="wyckoff"><div class="mx-cell-tag">Wyckoff</div><ul><li><b>Cao trào bán (SC) 29/06</b> 3,942.48 (29/6 21:00Z): nến đóng trên (+9.69%)</li><li><b>Lực đẩy tự động (AR) 05/07</b> 4,203.03 (5/7 21:00Z): nến đóng trên (+2.89%) · nến đóng vượt đầu tiên 4/8 21:00Z @ 4,246.93 · cực trị sau đó 4,696.73 · nến đang hình thành hiện đang vượt</li><li><b>Thử nghiệm thứ cấp ST[A] 16/07, 1/3 dưới TR</b> 3,959.56 (16/7 21:00Z): nến đóng trên (+9.21%)</li><li>Không có nến khối lượng bất thường trong các nến gần đây (ngưỡng: tham số dự án).</li><li>Biểu đồ khối lượng và đường trung bình 20 nến nằm dưới chart Wyckoff; nến ≥ ngưỡng cao được tô đậm.</li></ul></div><div class="mx-cell lane-ict " data-col="ict"><div class="mx-cell-tag">ICT</div><ul><li>Giá 4,331.71 = <b>41%</b> dealing range cửa sổ (3,942.48–4,889.64), <b>discount</b>, EQ 4,416.06.</li><li><b>Đỉnh cấu trúc bị phá — MSS tăng 04/08</b> 4,120.29 (29/7 21:00Z): nến đóng trên (+4.95%) · nến đóng vượt đầu tiên 4/8 21:00Z @ 4,246.93 · cực trị sau đó 4,696.73 · nến đang hình thành hiện đang vượt</li><li><b>Pool thanh khoản SSL chưa quét</b> 3,958.96 (23/6 21:00Z): nến đóng trên (+9.23%)</li><li><b>Đỉnh trước điều chỉnh, vùng premium</b> 4,696.73 (24/8 21:00Z): nến đóng dưới (-7.93%)</li><li><b>Điểm cân bằng (EQ) của dải giao dịch cửa sổ</b> 4,416.06 (10/9 21:00Z): nến đóng dưới (-2.08%)</li><li>MSS gần nhất: <b>tăng</b>, đóng cửa vượt swing 4,120.29.</li><li>Không có FVG chưa lấp gần giá.</li><li>Pool chưa quét: SSL 3,958.96.</li><li>Không có chuỗi quét → MSS cùng chiều trong các nến gần đây.</li></ul></div><div class="mx-cell mx-synth " data-col="synth"><div class="mx-cell-tag">Tổng hợp</div><div class="cell-verdict"><span class="chip chip-warn">PHÁ TRÊN Lực đẩy tự động (AR) 05/07</span></div><ul><li>Verdict theo luật so với mốc neo của phân tích đầy đủ gần nhất: <b>PHÁ TRÊN Lực đẩy tự động (AR) 05/07 — xác nhận tiếp diễn tăng</b> (nến đóng 9/9 21:00Z = 4,324.32).</li><li>Stance scanner: <b>CHỜ</b> — quét theo luật cố định (pivot 3 nến, dung sai đỉnh/đáy bằng nhau 0,08%, FVG ≥ 0,6× biên độ trung vị; tham số dự án), không phải nhận định của mô hình.</li></ul></div><div class="mx-label "><div class="mx-title">Cục bộ</div><div class="mx-sub">Sonnet · dữ liệu tới 21:00Z</div></div><div class="mx-cell lane-wyckoff " data-col="wyckoff"><div class="mx-cell-tag">Wyckoff</div><p>Facts chưa gán nhãn vùng giao dịch hay chuỗi PS/SC/AR/ST nào quanh đợt tăng vừa qua, nên chưa đủ căn cứ khẳng định một pha tích lũy hoàn chỉnh trước khi giá vượt ngưỡng 4,120.29<span class="cite">[knowledge/07 §2.7]</span>.</p>
+<p>Phiên đóng cửa vượt ngưỡng 4,120.29 đi kèm khối lượng tick MT5 chỉ 1.01 lần trung bình — nỗ lực ở mức trung bình trong khi kết quả sau đó là một đợt tăng mạnh lên vùng đỉnh cao hơn nhiều, dấu hiệu nỗ lực-kết quả phân kỳ (kết quả vượt nỗ lực) mà chưa thấy xác nhận hấp thụ ngay tại điểm phá ngưỡng<span class="cite">[knowledge/07 §2.2]</span>.</p>
+<p>Giá hiện đã lùi về 4,332.97, vẫn cao hơn đáng kể ngưỡng phá vỡ 4,120.29 và ngưỡng 3,958.96 phía dưới, nhưng chưa có Spring, cú kiểm tra thứ cấp hay dấu hiệu sức mạnh mới nào được ghi nhận trong facts để xác nhận tay mạnh đang tích lũy trở lại tại vùng này<span class="cite">[knowledge/07 §2.7.3]</span>.</p>
+<p>Toàn bộ khối lượng dùng trong nhận định này là khối lượng tick (tick volume) lấy từ MT5, không phải khối lượng khớp lệnh thực, nên chỉ có giá trị so sánh tương đối giữa các phiên chứ không phản ánh dòng lệnh tuyệt đối<span class="cite">[knowledge/08 §2.3]</span>.</p></div><div class="mx-cell lane-ict " data-col="ict"><div class="mx-cell-tag">ICT</div><p>Cấu trúc tăng được xác nhận bằng một MSS tăng, đóng cửa vượt mốc 4,120.29 — một cú displacement rõ ràng, mở ra một dealing range mới phía trên<span class="cite">[knowledge/05 §2.1–2.2]</span>.</p>
+<p>Trong dealing range cửa sổ 3,942.48–4,889.64, EQ nằm tại 4,416.06; giá đóng cửa gần nhất 4,332.97 đang ở nửa discount của range, tương ứng khoảng 41% biên độ cửa sổ<span class="cite">[knowledge/04 §2.18–2.19]</span>.</p>
+<p>Facts ghi nhận một pool SSL chưa bị quét ở 3,958.96 — thanh khoản bán vẫn còn nằm dưới giá hiện tại và là mục tiêu tiềm năng nếu xuất hiện thêm một cú sweep giảm tiếp theo<span class="cite">[knowledge/04 §2.6–2.7]</span>.</p>
+<p>Chưa có FVG nào được ghi nhận quanh vùng giá hiện tại và cũng không có chuỗi quét thanh khoản rồi MSS cùng chiều để tạo một entry hợp lệ, nên chưa đủ điều kiện xác nhận một setup<span class="cite">[knowledge/04 §2.21–2.24]</span>.</p></div><div class="mx-cell mx-synth " data-col="synth"><div class="mx-cell-tag">Tổng hợp</div><div class="cell-verdict"><span class="chip chip-wait">CHỜ</span></div><p>Ngưỡng 4,120.29 mà Wyckoff mô tả là điểm phá vỡ kèm khối lượng tick 1.01 lần trung bình và ICT mô tả là MSS tăng chính là cùng một sự kiện giá — chỉ tính là một quan sát cấu trúc duy nhất, không phải hai xác nhận độc lập<span class="cite">[knowledge/10 §4.3]</span>.</p>
+<p>Giá hiện tại 4,332.97 nằm ở nửa discount của dealing range 3,942.48–4,889.64 (dưới EQ 4,416.06), đồng thời vẫn cao hơn ngưỡng phá vỡ Wyckoff/MSS 4,120.29 và ngưỡng 3,958.96 phía dưới — đây đọc như một nhịp điều chỉnh trong xu hướng tăng, chưa được xác nhận lại bằng Spring hay bằng một chuỗi quét thanh khoản rồi MSS cùng chiều nào<span class="cite">[knowledge/04 §2.18–2.19]</span>.</p>
+<p>Facts không có setup hoàn chỉnh (không có FVG hợp lệ, không có chuỗi quét→MSS, setup rỗng) và stance của scanner là CHỜ, nên kết luận ở đây là CHỜ, không nêu entry/stop/target/R<span class="cite">[knowledge/10 §4.4]</span>.</p>
+<p>Điều kiện vô hiệu cho quan điểm theo dõi tăng: nếu giá đóng cửa xuyên xuống dưới 4,120.29 — mốc mà Wyckoff xem là ngưỡng phá vỡ đã đóng vai trò hỗ trợ và ICT xem là MSS tăng vừa xác lập — quyền sở hữu điều kiện vô hiệu thuộc về ICT, vì đây thuần là mốc cấu trúc giá (MSS) và facts chưa có sự kiện Wyckoff nào được xác nhận tại đúng mốc đó<span class="cite">[knowledge/10 §4.4]</span>.</p></div><div class="mx-label "><div class="mx-title">Toàn diện</div><div class="mx-sub">phân tích đầy đủ · 11/9 01:15Z</div></div><div class="mx-cell lane-wyckoff " data-col="wyckoff"><div class="mx-cell-tag">Wyckoff</div><div class="badges"><span class="badge">tích lũy</span><span class="badge">Pha D</span><span class="badge">TRANSITIONAL</span></div><p class="kv"><span>AR 05/07 (biên trên TR)</span><b>4,203.03</b><span>SC 29/06 (biên dưới TR)</span><b>3,942.48</b></p><p>Từ đỉnh cửa sổ 4.889,64 (16/04) giá giảm liên tục gần 2 tháng rưỡi. Ba phản ứng tăng chống lại xu hướng giảm với biên độ và khối lượng ngày càng mở rộng — nến 10/06 (biên độ 4.023,74–4.219,93, KL 1,5x), nhịp 24–25/06 (KL 1,23x rồi 1,1x) và nến 01/07 (biên độ 3.998,58–4.144,07, KL 1,16x) — đáp ứng đủ ba lần thay đổi hành vi để ghi nhận một thay đổi đặc tính (CHoCH) từ giảm sang đi ngang. Khối lượng trên khung 1D là khối lượng tick chứ không phải khối lượng khớp lệnh thực nên độ tin cậy của các nỗ lực nói trên bị hạ thấp so với khối lượng thực.<span class="cite">WA p67–71 · knowledge/07 §2.6</span></p><p>Biên dưới vùng giao dịch được xác lập bởi đáy cao trào bán 3.942,48 (29/06, KL 1,1x), sau một cú giảm khối lượng lớn tới 3.958,96 (23/06, KL 1,39x) đóng vai trò hỗ trợ sơ bộ. Biên trên là đỉnh lực đẩy tự động 4.203,03 (05/07). Vùng giao dịch 3.942,48–4.203,03 hình thành sau CHoCH.<span class="cite">WA p71–72 · knowledge/07 §2.7</span></p><p>Thử nghiệm thứ cấp ST[A] tại 3.959,56 (16/07, KL 1,22x) hoàn tất Phase A — nằm trong 1/3 dưới của vùng giao dịch mà chưa phá hỗ trợ 3.942,48, dấu hiệu cho thấy nguồn cung có thể chưa cạn hoàn toàn, làm giảm độ tin cậy của kịch bản tích lũy thuần túy dù cấu trúc chưa bị phá.<span class="cite">WA p150–153 · knowledge/07 §2.11.1</span></p><p>Phase B xây dựng nguyên nhân trong biên độ, không có thử nghiệm mới nào phá hai biên. Phase C mở ra bằng một Test tại 3.964,89 (19/07, KL 1,2x) mà không có Spring — giá không xuyên xuống dưới đáy 3.942,48, phù hợp dạng Phase C không Spring khi nguồn cung tại chỗ đã tương đối cạn.<span class="cite">WA p80 · knowledge/07 §2.7.3</span></p><p>Nến 04/08 đóng cửa 4.246,93 tạo SOS, vượt qua cả đỉnh cục bộ 4.120,29 (29/07) lẫn biên trên vùng giao dịch 4.203,03 trong cùng một nến, với khối lượng chỉ 1,01x — kết quả giá rất lớn trên nỗ lực trung bình, một phân kỳ Nỗ lực–Kết quả cần được xác nhận thêm chứ chưa phải một dấu hiệu sức mạnh kinh điển với khối lượng gia tăng.<span class="cite">WA p33–39 · knowledge/07 §2.2</span></p><p>Sau khi tăng lên đỉnh 4.696,73 (24/08), giá điều chỉnh về 4.324,32 (nến hoàn tất gần nhất, 09/09, KL 0,93x); đây là vùng cần xác nhận có phải điểm hỗ trợ cuối cùng của Phase D hay một thất bại duy trì cấu trúc, còn nến 10/09 vẫn đang hình thành với khối lượng rất thấp (0,06x) nên chưa thể dùng để kết luận.<span class="cite">WA p83–85 · knowledge/07 §2.7.4</span></p></div><div class="mx-cell lane-ict " data-col="ict"><div class="mx-cell-tag">ICT</div><p class="kv"><span>MSS tăng — đóng nến trên đỉnh cấu trúc trước đó</span><b>4,120.29</b><span>Pool SSL chưa quét</span><b>3,958.96</b><span>Đỉnh vùng premium trước điều chỉnh</span><b>4,696.73</b><span>Điểm cân bằng (EQ) của dải giao dịch</span><b>4,416.06</b></p><p>Dải giao dịch (dealing range) của cửa sổ 120 nến chạy từ 3.942,48 đến 4.889,64, với điểm cân bằng (EQ) tại 4.416,06. Giá hiện tại quanh 4.332,97 nằm dưới EQ, tương đương khoảng 41% biên độ cửa sổ tính từ đáy — vùng discount của dải giao dịch.<span class="cite">docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19</span></p><p>Đợt tăng đóng nến trên đỉnh cấu trúc trước đó tại 4.120,29 xác nhận một sự dịch chuyển cấu trúc thị trường (MSS) tăng; đây vẫn là điểm dịch chuyển cấu trúc gần nhất chưa bị phủ định.<span class="cite">docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2</span></p><p>Một pool thanh khoản bên bán (SSL) tại 3.958,96 vẫn chưa bị quét kể từ khi hình thành, nằm ngay dưới đáy dải giao dịch hiện tại và là mục tiêu thanh khoản gần nhất về phía dưới nếu giá quay lại vùng đó.<span class="cite">docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7</span></p><p>Đỉnh 4.696,73 hình thành trước nhịp điều chỉnh hiện tại nằm trong vùng premium của dải giao dịch; hiện chưa có khoảng trống giá trị (FVG) hợp lệ nào được xác định gần vùng giá hiện tại để làm điểm vào tối ưu (OTE), nên vị trí vào lệnh theo ICT chưa rõ ràng.<span class="cite">docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24</span></p><p>Khung thời gian phân tích là 1D nên khái niệm killzone (London 06–09Z, NY AM 11–14Z) không áp dụng cho nhịp độ vào lệnh ở đây.<span class="cite">docs/TTrades PDFs/1. Killzones.pdf tr.1–2 · knowledge/04 §2.1</span></p></div><div class="mx-cell mx-synth " data-col="synth"><div class="mx-cell-tag">Tổng hợp</div><div class="cell-verdict"><span class="chip chip-wait">CHỜ</span> <span class="inv">vô hiệu: đóng cửa ngày dưới 4.120,29 phủ định SOS/Phase D, cấu trúc quay lại vùng giao dịch 29/06–29/07 4,120.29 · chủ sở hữu <b>wyckoff</b></span></div><div class="sub-h">Nhìn lại</div><p>Đây là lần chạy phân tích đầy đủ đầu tiên cho gold-swing (1D×120); chưa có phân tích trước đó để so sánh mức đã giải quyết. Bộ neo Wyckoff/ICT được thiết lập lần đầu từ cấu trúc 29/06 đến hiện tại.</p><div class="sub-h">Hiện tại</div><p>Sự kiện SOS Wyckoff (đóng cửa 4.246,93 ngày 04/08, vượt đỉnh Phase B 4.120,29) và sự dịch chuyển cấu trúc MSS tăng của ICT cùng mô tả một sự kiện giá duy nhất — theo quy tắc khử trùng lặp, đây được tính là một quan sát chứ không phải hai xác nhận độc lập.<span class="cite">knowledge/10 §4.3</span></p><p>Đáy cao trào bán Wyckoff 3.942,48 (29/06) và pool thanh khoản SSL 3.958,96 (23/06) của ICT nằm gần nhau nhưng là hai mức giá khác nhau về mặt số học nên không gộp thành một mốc; cả hai đều nằm dưới vùng giá hiện tại và chưa từng bị đóng cửa xuyên qua kể từ khi hình thành.</p><p>Chủ sở hữu điều kiện vô hiệu được chọn là Wyckoff: đóng cửa ngày dưới 4.120,29 phủ định SOS/Phase D và đưa cấu trúc quay lại vùng giao dịch 29/06–29/07; mức vô hiệu chặt hơn theo ICT không được dùng để tránh sizing hai lần trên cùng một thiết lập.<span class="cite">knowledge/10 §4.4</span></p><p>Kết luận CHỜ: khối lượng xác nhận nến 04/08 chỉ ở mức trung bình (1,01x, và là khối lượng tick chứ không phải khối lượng thực), thử nghiệm thứ cấp 16/07 nằm ở 1/3 dưới vùng giao dịch theo dấu hiệu đối nhãn thứ nhất, và hiện chưa có FVG/OTE hợp lệ nào gần vùng giá hiện tại để xác định điểm vào — chưa đủ điều kiện để nêu SETUP TIỀM NĂNG hay xác nhận Phase D/E đã hoàn tất.</p></div></div><div class="mx-foot"><b>Footprint</b>: không có nguồn CoinGlass cho hàng hoá (SYSTEM-DESIGN §12) · <b>Heatmap</b>: không có nguồn CoinGlass cho hàng hoá (SYSTEM-DESIGN §12)</div><details class="timeline"><summary>Dòng sự kiện của phân tích đầy đủ <span class="muted">(11 mốc · Wyckoff và ICT ở hai cột riêng)</span></summary><div class="table-wrap"><table class="evidence"><thead><tr><th>Thời gian (UTC)</th><th>Sự kiện</th><th class="lane-wyckoff">Wyckoff</th><th class="lane-ict">ICT</th></tr></thead><tbody><tr><td>2026-06-23T21:00:00Z</td><td>Giảm mạnh, chạm 3.958,96 (KL 1,39x)</td><td class="lane-wyckoff">PS/SC — cao trào bán tiềm năng</td><td class="lane-ict">Tạo pool thanh khoản SSL 3.958,96</td></tr><tr><td>2026-06-29T21:00:00Z</td><td>Đáy cửa sổ 3.942,48</td><td class="lane-wyckoff">SC xác nhận, biên dưới TR</td><td class="lane-ict">Đáy dải giao dịch hiện tại</td></tr><tr><td>2026-07-05T21:00:00Z</td><td>Bật lên đỉnh 4.203,03</td><td class="lane-wyckoff">AR — biên trên TR</td><td class="lane-ict">Đỉnh dải giao dịch tạm thời</td></tr><tr><td>2026-07-16T21:00:00Z</td><td>Test xuống 3.959,56, KL 1,22x</td><td class="lane-wyckoff">ST[A] ở 1/3 dưới TR</td><td class="lane-ict">Test lại vùng SSL, chưa quét</td></tr><tr><td>2026-07-19T21:00:00Z</td><td>Test xuống 3.964,89, KL 1,2x</td><td class="lane-wyckoff">Test Phase C, không Spring</td><td class="lane-ict">Test lại gần SSL, chưa quét</td></tr><tr><td>2026-07-29T21:00:00Z</td><td>Đỉnh cục bộ 4.120,29</td><td class="lane-wyckoff">Đỉnh trước SOS</td><td class="lane-ict">Đỉnh cấu trúc trước MSS</td></tr><tr><td>2026-08-04T21:00:00Z</td><td>Đóng cửa 4.246,93, vượt cả TR, KL 1,01x</td><td class="lane-wyckoff">SOS, phá biên trên TR 4.203,03</td><td class="lane-ict">MSS tăng, đóng trên 4.120,29</td></tr><tr><td>2026-08-24T21:00:00Z</td><td>Đỉnh sau breakout 4.696,73</td><td class="lane-wyckoff">Đỉnh markup Phase D</td><td class="lane-ict">Đỉnh vùng premium, trước điều chỉnh</td></tr><tr><td>2026-08-27T21:00:00Z</td><td>Giảm về đóng cửa 4.458,28</td><td class="lane-wyckoff">Bắt đầu nhịp điều chỉnh</td><td class="lane-ict">Hồi về giữa dải giao dịch</td></tr><tr><td>2026-09-06T21:00:00Z</td><td>Đóng cửa 4.406,13, dưới 4.416,06</td><td class="lane-wyckoff">Vùng LPS[D] tiềm năng</td><td class="lane-ict">Chuyển sang vùng discount</td></tr><tr><td>2026-09-10T21:00:00Z</td><td>4.332,97 (nến đang hình thành, KL 0,06x)</td><td class="lane-wyckoff">Chờ xác nhận LPS[D], chưa dùng nến đang hình thành để kết luận</td><td class="lane-ict">Test lại gần MSS 4.120,29, nến chưa đóng</td></tr></tbody></table></div></details></section><section class="glossary" id="sec-glossary"><h2>Thuật ngữ theo phương pháp</h2><div class="gl-grid"><div class="gl lane-wyckoff"><div class="gl-head"><span class="lane-dot"></span>Wyckoff</div><dl><dt>PS · SC · AR · ST</dt><dd>Preliminary Support, Selling Climax (Cao trào bán), Automatic Rally, Secondary Test — bốn sự kiện Pha A của tích lũy; TR dựng từ đỉnh AR và đáy SC/ST (knowledge/07 §2.7).</dd><dt>Spring / Shakeout / Test</dt><dd>Pha C: cú xuyên xuống dưới TR rồi đóng lại bên trong; loại 1/2/3 theo khối lượng (knowledge/08 §2.6); Test là nhịp kiểm tra lại trên khối lượng thấp hơn.</dd><dt>SOS · LPS · BU</dt><dd>Pha D: Sign of Strength (dấu hiệu sức mạnh), Last Point of Support (điểm hỗ trợ cuối), Back-Up (kiểm tra lại vùng phá vỡ).</dd><dt>PSY · BC · UT · UTAD · SOW · LPSY</dt><dd>Các sự kiện phân phối tương ứng; UT/UTAD chỉ dùng trong phân phối, UA chỉ trong tích lũy (WA p8, knowledge/07 §1.3).</dd><dt>CHoBEV / CHoCH</dt><dd>Ba CHoBEV tạo một CHoCH — cổng bắt buộc trước khi gán nhãn pha (knowledge/07 §2.6).</dd><dt>Nỗ lực – Kết quả</dt><dd>So biên độ nến với khối lượng: hài hoà = tiếp diễn, phân kỳ = cạn kiệt/hấp thụ (knowledge/07 §2.2, §4.1).</dd><dt>Pha A–E</dt><dd>Dừng xu hướng → xây nguyên nhân → kiểm tra → dấu hiệu → hiệu ứng; nhãn pha luôn kèm đối nhãn (knowledge/07 §2.11).</dd></dl></div><div class="gl lane-ict"><div class="gl-head"><span class="lane-dot"></span>ICT</div><dl><dt>BSL / SSL · ERL / IRL</dt><dd>Buy-side / sell-side liquidity tại đỉnh/đáy bằng nhau; external vs internal range liquidity (knowledge/04 §2.6–2.7, knowledge/05 §2.13).</dd><dt>Sweep vs MSS</dt><dd>Quét thanh khoản = xuyên qua rồi đóng lại; Market Structure Shift = nến đóng cửa phá swing ngược chiều sau displacement (knowledge/04 §2.14, §2.17).</dd><dt>Displacement · FVG</dt><dd>Nến đẩy mạnh để lại Fair Value Gap (nến 1 và nến 3 không chồng nhau); FVG được vẽ tới khi lấp (knowledge/04 §2.16, §2.21).</dd><dt>Order Block</dt><dd>Nến ngược chiều cuối cùng trước displacement tạo MSS; mờ đi khi đã mitigated (knowledge/05 §2.5).</dd><dt>Dealing range · EQ · premium / discount</dt><dd>Range giữa hai swing; EQ = 50%; mua ở discount, bán ở premium (knowledge/04 §2.18–2.19).</dd><dt>Killzone</dt><dd>London 06–09Z, NY AM 11–14Z (UTC-4, tháng 9); chỉ vẽ trên khung 15m/1H (knowledge/04 §2.1).</dd></dl></div><div class="gl lane-footprint"><div class="gl-head"><span class="lane-dot"></span>Footprint</div><dl><dt>POC · Imbalance · Stacked Imbalance</dt><dd>Mức khối lượng lớn nhất trong nến; chênh lệch chéo bid/ask ≥ tỉ lệ theo công cụ (knowledge/08 §3.2).</dd><dt>Hấp thụ → Cạn kiệt → Phát triển</dt><dd>Chuỗi đọc tại nến neo Spring/Upthrust (knowledge/08 §5 bước 5).</dd><dt>Delta / Cumulative Delta</dt><dd>Phân kỳ mạnh/vừa/yếu/ẩn tại vị trí Spring hoặc UTAD (knowledge/08 §3.3).</dd></dl></div><div class="gl lane-heatmap"><div class="gl-head"><span class="lane-dot"></span>Heatmap</div><dl><dt>Cụm thanh lý</dt><dd>Vùng giá tập trung lệnh thanh lý — mục tiêu hoặc điểm quét (master spec).</dd><dt>Tường orderbook</dt><dd>Thanh khoản nằm chờ tập trung; trùng cụm thanh lý thì tính là một quan sát.</dd></dl></div></div></section><footer><b>Nguồn dữ liệu</b>: XAUUSD 1D: mt5_bridge_live · cập nhật 2026-09-11T10:37:29Z<br><b>Lớp 1</b> scanner 2026-09-11T01:31:53Z · <b>Lớp 3</b> 2026-09-11T01:15:00Z · <b>trang dựng</b> 2026-09-11T10:37:40Z bởi scripts/build-artifact.py (gold-swing)<br><b>Luật</b>: số liệu từ code (SYSTEM-DESIGN §13); mỗi khối phương pháp qua scripts/method_purity.py; Footprint lấy Wyckoff làm nền. Tham số khối lượng: docs/architecture/analysis-params.json (tham số dự án, không phải trích dẫn sách).</footer></div>
+
+<script>
+(function(){
+  const DATA = {"xau": {"fmt": "2", "kz": false, "ctxKz": false, "tick": true, "wy": {"tr": {"high": 4203.03, "low": 3942.48, "high_label": "AR 05/07 (biên trên TR)", "low_label": "SC 29/06 (biên dưới TR)", "from": "2026-06-29T21:00:00Z"}, "events": [{"time": "2026-06-23T21:00:00Z", "label": "PS tại 3.958,96, KL 1,39x", "up": false}, {"time": "2026-06-29T21:00:00Z", "label": "SC đáy 3.942,48, KL 1,1x", "up": false}, {"time": "2026-07-05T21:00:00Z", "label": "AR đỉnh 4.203,03", "up": true}, {"time": "2026-07-16T21:00:00Z", "label": "ST[A] 3.959,56 (1/3 dưới TR)", "up": false}, {"time": "2026-07-19T21:00:00Z", "label": "Test 3.964,89, không Spring", "up": false}, {"time": "2026-08-04T21:00:00Z", "label": "SOS đóng 4.246,93, KL 1,01x", "up": true}, {"time": "2026-09-09T21:00:00Z", "label": "LPS[D]? đóng 4.324,32, KL 0,93x", "up": false}], "phases": [{"from": "2026-06-23T21:00:00Z", "to": "2026-07-17T21:00:00Z", "label": "Phase A – dừng xu hướng giảm (PS/SC/AR/ST)"}, {"from": "2026-07-17T21:00:00Z", "to": "2026-07-19T21:00:00Z", "label": "Phase B – xây dựng nguyên nhân"}, {"from": "2026-07-19T21:00:00Z", "to": "2026-08-04T21:00:00Z", "label": "Phase C – Test 19/07, không Spring"}, {"from": "2026-08-04T21:00:00Z", "to": "2026-09-10T21:00:00Z", "label": "Phase D – SOS 04/08, chờ LPS[D]"}]}, "ctxWy": {"tr": null, "events": [], "phases": []}, "levels": [{"price": 3942.48, "time": "2026-06-29T21:00:00Z", "method": "wyckoff", "short": "SC 29/06"}, {"price": 4203.03, "time": "2026-07-05T21:00:00Z", "method": "wyckoff", "short": "AR 05/07"}, {"price": 3959.56, "time": "2026-07-16T21:00:00Z", "method": "wyckoff", "short": "ST[A] 16/07"}, {"price": 4120.29, "time": "2026-07-29T21:00:00Z", "method": "ict", "short": "MSS 04/08"}, {"price": 3958.96, "time": "2026-06-23T21:00:00Z", "method": "ict", "short": "SSL 23/06"}, {"price": 4696.73, "time": "2026-08-24T21:00:00Z", "method": "ict", "short": "Đỉnh 24/08"}, {"price": 4416.06, "time": "2026-09-10T21:00:00Z", "method": "ict", "short": "EQ dải giá"}], "dims": {"footprint": "không có nguồn CoinGlass cho hàng hoá (SYSTEM-DESIGN §12)", "heatmap": "không có nguồn CoinGlass cho hàng hoá (SYSTEM-DESIGN §12)"}, "rows": [["03-26",4383.99,4555.26,4375.38,4493.19,441461,"2026-03-26T21:00:00Z"],["03-29",4471.23,4580.6,4419.53,4513.61,487785,"2026-03-29T21:00:00Z"],["03-30",4510.33,4685.67,4482.59,4682.65,512101,"2026-03-30T21:00:00Z"],["03-31",4667.56,4793.08,4661.63,4766.16,441439,"2026-03-31T21:00:00Z"],["04-01",4757.32,4800.45,4553.84,4671.97,510297,"2026-04-01T21:00:00Z"],["04-05",4649.61,4706.61,4600.76,4655.41,380891,"2026-04-05T21:00:00Z"],["04-06",4648.45,4718.64,4607.28,4700.71,459761,"2026-04-06T21:00:00Z"],["04-07",4705.71,4857.71,4699.67,4730.63,529366,"2026-04-07T21:00:00Z"],["04-08",4719.09,4801.22,4698.62,4768.85,397391,"2026-04-08T21:00:00Z"],["04-09",4766.53,4795.03,4730.68,4759.74,367208,"2026-04-09T21:00:00Z"],["04-12",4723.61,4750.12,4585.32,4741.16,418647,"2026-04-12T21:00:00Z"],["04-13",4740.46,4846.31,4740.46,4844.9,417482,"2026-04-13T21:00:00Z"],["04-14",4841.09,4871.42,4786.33,4795.81,438573,"2026-04-14T21:00:00Z"],["04-15",4790.26,4838.38,4773.15,4793.67,394091,"2026-04-15T21:00:00Z"],["04-16",4788.73,4889.64,4767.59,4854.44,392451,"2026-04-16T21:00:00Z"],["04-19",4770.66,4827.61,4736.93,4814.3,416169,"2026-04-19T21:00:00Z"],["04-20",4820.29,4833.24,4668.29,4679.43,460732,"2026-04-20T21:00:00Z"],["04-21",4718.65,4772.35,4715.58,4740.12,362094,"2026-04-21T21:00:00Z"],["04-22",4739.42,4753.62,4664.33,4696.13,470051,"2026-04-22T21:00:00Z"],["04-23",4694.05,4740.29,4657.74,4716.45,423601,"2026-04-23T21:00:00Z"],["04-26",4698.27,4730.11,4667.22,4680.86,374816,"2026-04-26T21:00:00Z"],["04-27",4681.69,4701.24,4554.83,4595.67,430759,"2026-04-27T21:00:00Z"],["04-28",4596.54,4610.25,4510.02,4546.81,433964,"2026-04-28T21:00:00Z"],["04-29",4543.54,4646.89,4539.04,4616.92,505347,"2026-04-29T21:00:00Z"],["04-30",4621.94,4660.16,4560.1,4610.82,337393,"2026-04-30T21:00:00Z"],["05-03",4627.14,4629.4,4500.98,4517.81,438762,"2026-05-03T21:00:00Z"],["05-04",4523.49,4586.78,4513.6,4554.74,330201,"2026-05-04T21:00:00Z"],["05-05",4556.42,4722.87,4546.14,4692.51,418556,"2026-05-05T21:00:00Z"],["05-06",4690.61,4764.81,4677.09,4703.08,453968,"2026-05-06T21:00:00Z"],["05-07",4684.91,4749.51,4678.29,4724.01,416245,"2026-05-07T21:00:00Z"],["05-10",4693.11,4748.62,4648.14,4733.57,405250,"2026-05-10T21:00:00Z"],["05-11",4735.66,4773.42,4638.32,4715.71,453816,"2026-05-11T21:00:00Z"],["05-12",4715.35,4727.01,4669.45,4688.21,418054,"2026-05-12T21:00:00Z"],["05-13",4689.14,4718.76,4653.03,4654.23,402125,"2026-05-13T21:00:00Z"],["05-14",4651.88,4665.28,4511.76,4545.86,544853,"2026-05-14T21:00:00Z"],["05-17",4538.84,4584.27,4480.3,4558.43,530111,"2026-05-17T21:00:00Z"],["05-18",4566.4,4589.24,4464.68,4483.47,437913,"2026-05-18T21:00:00Z"],["05-19",4482.5,4553.07,4453.52,4545.74,450567,"2026-05-19T21:00:00Z"],["05-20",4539.88,4570.94,4488.69,4543.11,457835,"2026-05-20T21:00:00Z"],["05-21",4539.63,4545.69,4491.82,4508.22,384136,"2026-05-21T21:00:00Z"],["05-24",4526.16,4580.03,4507.36,4569.39,257740,"2026-05-24T21:00:00Z"],["05-25",4570.32,4580.5,4482.41,4509.0,360069,"2026-05-25T21:00:00Z"],["05-26",4504.27,4538.08,4401.52,4450.95,358564,"2026-05-26T21:00:00Z"],["05-27",4453.3,4516.54,4366.52,4497.96,393175,"2026-05-27T21:00:00Z"],["05-28",4492.98,4595.18,4488.5,4545.6,379373,"2026-05-28T21:00:00Z"],["05-31",4535.56,4546.06,4447.68,4481.19,344483,"2026-05-31T21:00:00Z"],["06-01",4475.12,4541.46,4462.94,4488.09,314952,"2026-06-01T21:00:00Z"],["06-02",4480.04,4496.76,4426.29,4443.94,381932,"2026-06-02T21:00:00Z"],["06-03",4431.66,4515.39,4424.02,4480.79,370580,"2026-06-03T21:00:00Z"],["06-04",4472.06,4481.51,4313.84,4318.52,477288,"2026-06-04T21:00:00Z"],["06-07",4326.33,4353.38,4268.51,4326.66,504297,"2026-06-07T21:00:00Z"],["06-08",4327.96,4363.5,4236.55,4258.72,499118,"2026-06-08T21:00:00Z"],["06-09",4247.1,4257.36,4081.61,4082.72,634225,"2026-06-09T21:00:00Z"],["06-10",4067.76,4219.93,4023.74,4208.87,661129,"2026-06-10T21:00:00Z"],["06-11",4207.64,4246.34,4170.16,4210.73,512434,"2026-06-11T21:00:00Z"],["06-14",4262.55,4369.4,4231.18,4320.83,414433,"2026-06-14T21:00:00Z"],["06-15",4305.42,4354.95,4302.82,4334.07,411411,"2026-06-15T21:00:00Z"],["06-16",4327.69,4382.48,4219.14,4235.86,441888,"2026-06-16T21:00:00Z"],["06-17",4252.88,4329.91,4201.27,4216.88,483985,"2026-06-17T21:00:00Z"],["06-18",4203.06,4212.7,4121.68,4152.52,315622,"2026-06-18T21:00:00Z"],["06-21",4138.9,4220.91,4133.63,4190.59,480961,"2026-06-21T21:00:00Z"],["06-22",4189.24,4198.57,4090.83,4111.75,479139,"2026-06-22T21:00:00Z"],["06-23",4109.55,4115.07,3958.96,3988.07,610858,"2026-06-23T21:00:00Z"],["06-24",4001.11,4044.22,3963.03,4026.81,541838,"2026-06-24T21:00:00Z"],["06-25",3989.99,4096.03,3982.99,4071.69,482586,"2026-06-25T21:00:00Z"],["06-28",4082.28,4085.55,4000.3,4015.94,561209,"2026-06-28T21:00:00Z"],["06-29",4013.93,4063.48,3942.48,4016.16,485399,"2026-06-29T21:00:00Z"],["06-30",3997.53,4115.79,3959.93,4038.77,456798,"2026-06-30T21:00:00Z"],["07-01",3998.58,4144.07,3998.58,4121.33,510684,"2026-07-01T21:00:00Z"],["07-02",4091.17,4195.42,4091.17,4171.97,274170,"2026-07-02T21:00:00Z"],["07-05",4171.97,4203.03,4128.44,4163.79,419290,"2026-07-05T21:00:00Z"],["07-06",4162.13,4180.51,4092.19,4114.25,415046,"2026-07-06T21:00:00Z"],["07-07",4094.64,4133.98,4021.54,4079.71,680096,"2026-07-07T21:00:00Z"],["07-08",4074.17,4138.1,4054.08,4122.32,504523,"2026-07-08T21:00:00Z"],["07-09",4120.93,4134.76,4072.72,4108.45,382244,"2026-07-09T21:00:00Z"],["07-12",4095.58,4103.13,3986.37,4001.97,545468,"2026-07-12T21:00:00Z"],["07-13",3977.51,4102.56,3971.22,4055.57,528626,"2026-07-13T21:00:00Z"],["07-14",4019.79,4081.45,4017.25,4056.88,515698,"2026-07-14T21:00:00Z"],["07-15",4050.87,4065.25,3969.1,3979.87,457669,"2026-07-15T21:00:00Z"],["07-16",3973.91,4023.72,3959.56,4015.15,536777,"2026-07-16T21:00:00Z"],["07-19",4000.49,4040.66,3964.89,4006.79,526473,"2026-07-19T21:00:00Z"],["07-20",4004.66,4087.14,3999.7,4084.4,367449,"2026-07-20T21:00:00Z"],["07-21",4076.59,4166.0,4076.55,4131.84,477949,"2026-07-21T21:00:00Z"],["07-22",4123.93,4141.03,4040.11,4049.66,582944,"2026-07-22T21:00:00Z"],["07-23",4032.03,4082.04,4021.82,4053.67,358915,"2026-07-23T21:00:00Z"],["07-26",4088.39,4116.23,4009.11,4083.37,526349,"2026-07-26T21:00:00Z"],["07-27",4063.21,4081.42,4011.51,4026.38,476616,"2026-07-27T21:00:00Z"],["07-28",4022.84,4116.2,3995.92,4044.59,512591,"2026-07-28T21:00:00Z"],["07-29",4027.47,4120.29,4016.39,4111.96,650946,"2026-07-29T21:00:00Z"],["07-30",4078.18,4111.67,4020.94,4050.77,384567,"2026-07-30T21:00:00Z"],["08-02",4074.21,4079.24,4019.0,4051.83,448022,"2026-08-02T21:00:00Z"],["08-03",4017.16,4106.35,4017.16,4078.54,389608,"2026-08-03T21:00:00Z"],["08-04",4065.5,4267.72,4054.09,4246.93,442434,"2026-08-04T21:00:00Z"],["08-05",4244.09,4304.08,4223.33,4248.72,512000,"2026-08-05T21:00:00Z"],["08-06",4220.77,4371.74,4220.77,4343.88,411745,"2026-08-06T21:00:00Z"],["08-09",4336.25,4395.18,4307.72,4388.19,338344,"2026-08-09T21:00:00Z"],["08-10",4382.37,4435.21,4352.16,4370.61,279972,"2026-08-10T21:00:00Z"],["08-11",4367.51,4441.09,4355.96,4413.76,436309,"2026-08-11T21:00:00Z"],["08-12",4403.56,4449.63,4343.58,4350.1,530493,"2026-08-12T21:00:00Z"],["08-13",4340.87,4396.87,4310.73,4376.0,461876,"2026-08-13T21:00:00Z"],["08-16",4375.27,4428.83,4276.43,4419.68,462006,"2026-08-16T21:00:00Z"],["08-17",4406.6,4436.15,4338.24,4345.5,465835,"2026-08-17T21:00:00Z"],["08-18",4316.78,4512.06,4314.8,4511.08,542903,"2026-08-18T21:00:00Z"],["08-19",4489.31,4540.91,4450.54,4528.48,570631,"2026-08-19T21:00:00Z"],["08-20",4508.3,4632.14,4508.3,4617.03,374739,"2026-08-20T21:00:00Z"],["08-23",4608.1,4680.9,4594.42,4651.47,443289,"2026-08-23T21:00:00Z"],["08-24",4648.89,4696.73,4601.08,4666.92,421912,"2026-08-24T21:00:00Z"],["08-25",4652.17,4673.54,4582.95,4594.31,363307,"2026-08-25T21:00:00Z"],["08-26",4593.63,4642.96,4565.03,4609.17,419684,"2026-08-26T21:00:00Z"],["08-27",4597.75,4631.13,4445.27,4458.28,450376,"2026-08-27T21:00:00Z"],["08-30",4428.39,4472.11,4386.38,4453.63,417028,"2026-08-30T21:00:00Z"],["08-31",4421.34,4461.33,4322.4,4327.01,469124,"2026-08-31T21:00:00Z"],["09-01",4320.26,4397.55,4282.4,4391.18,447582,"2026-09-01T21:00:00Z"],["09-02",4374.0,4510.76,4352.78,4475.08,365669,"2026-09-02T21:00:00Z"],["09-03",4474.1,4490.67,4365.34,4434.66,375186,"2026-09-03T21:00:00Z"],["09-06",4417.0,4434.92,4381.03,4406.13,226539,"2026-09-06T21:00:00Z"],["09-07",4403.84,4442.89,4356.74,4359.38,359841,"2026-09-07T21:00:00Z"],["09-08",4352.19,4434.07,4340.63,4399.15,315091,"2026-09-08T21:00:00Z"],["09-09",4401.6,4434.62,4313.68,4324.32,408793,"2026-09-09T21:00:00Z"],["09-10",4311.47,4361.01,4285.91,4346.0,180932,"2026-09-10T21:00:00Z"]], "ctx": null}};
+  const P = {"lookback": 20, "high": 1.5, "spike": 2.5};
+  const LANES = ['wyckoff','ict','footprint','heatmap'];
+  let lane = 'wyckoff';
+  const fmtOf = k => k==='int' ? (v=>Math.round(v).toLocaleString('en-US')) : (v=>v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
+
+  // ---------- ICT engine: price-only, computed from OHLC at render time. No volume input (the ICT corpus has none).
+  // Rules per knowledge/04-ttrades-core-A.md and 05-ttrades-core-B.md: 3-bar pivots; FVG = candle1.high < candle3.low
+  // (bull) / candle1.low > candle3.high (bear), drawn until first mitigation; BSL/SSL = equal pivots, ERL = window
+  // extremes, marked swept when traded through and closed back; MSS = first close beyond the last swing after a
+  // lower low / higher high; OB = last opposite-close candle before the displacement leg; dealing range = window
+  // low..high with EQ at 50%; killzones London 06-09Z / NY AM 11-14Z (Sept, UTC-4) only on intraday minute/hour bars.
+  function ictAnalyze(rows, useKz){
+    const n=rows.length, O=i=>rows[i][1], H=i=>rows[i][2], L=i=>rows[i][3], C=i=>rows[i][4];
+    const lo=Math.min(...rows.map(r=>r[3])), hi=Math.max(...rows.map(r=>r[2])), eq=(lo+hi)/2;
+    const sizes=rows.map(r=>r[2]-r[3]).sort((a,b)=>a-b), medRange=sizes[Math.floor(n/2)]||0;
+    const sh=[], sl=[];
+    for(let i=3;i<n-3;i++){ let isH=true,isL=true; for(let j=i-3;j<=i+3;j++){ if(j===i)continue; if(H(j)>H(i))isH=false; if(L(j)<L(i))isL=false; } if(isH)sh.push(i); if(isL)sl.push(i); }
+    let fvgs=[];
+    for(let i=1;i<n-1;i++){ let f=null; if(H(i-1)<L(i+1)) f={type:'bull',i,lo:H(i-1),hi:L(i+1)}; else if(L(i-1)>H(i+1)) f={type:'bear',i,lo:H(i+1),hi:L(i-1)}; if(!f)continue;
+      f.size=f.hi-f.lo; f.end=n-1; f.mitigated=false; for(let j=i+2;j<n;j++){ if((f.type==='bull'&&L(j)<=f.hi)||(f.type==='bear'&&H(j)>=f.lo)){f.end=j;f.mitigated=true;break;} } fvgs.push(f); }
+    fvgs=fvgs.filter(f=>f.size>=0.6*medRange).sort((a,b)=>b.size-a.size).slice(0,10).sort((a,b)=>a.i-b.i);
+    const tol=eq*0.0008, liq=[];
+    const addPool=(kind,idxs,level)=>{ const first=Math.min(...idxs), last=Math.max(...idxs); let swept=-1;
+      for(let j=last+1;j<n;j++){ if(kind==='BSL'&&H(j)>level&&C(j)<level){swept=j;break;} if(kind==='SSL'&&L(j)<level&&C(j)>level){swept=j;break;} }
+      liq.push({kind,level,from:first,to:swept>=0?swept:n-1,swept}); };
+    for(let a=0;a<sh.length;a++){ for(let b=a+1;b<sh.length;b++){ if(Math.abs(H(sh[a])-H(sh[b]))<=tol&&sh[b]-sh[a]>=4){ addPool('BSL',[sh[a],sh[b]],Math.max(H(sh[a]),H(sh[b]))); break; } } }
+    for(let a=0;a<sl.length;a++){ for(let b=a+1;b<sl.length;b++){ if(Math.abs(L(sl[a])-L(sl[b]))<=tol&&sl[b]-sl[a]>=4){ addPool('SSL',[sl[a],sl[b]],Math.min(L(sl[a]),L(sl[b]))); break; } } }
+    const seen=[], pools=[]; for(const p of liq.sort((a,b)=>a.from-b.from)){ if(!seen.some(s=>s.kind===p.kind&&Math.abs(s.level-p.level)<=tol)){seen.push(p);pools.push(p);} }
+    const hiIdx=rows.findIndex(r=>r[2]===hi), loIdx=rows.findIndex(r=>r[3]===lo);
+    pools.push({kind:'ERL-high',level:hi,from:hiIdx,to:n-1,swept:-1}); pools.push({kind:'ERL-low',level:lo,from:loIdx,to:n-1,swept:-1});
+    const mss=[], obs=[]; const piv=[...sh.map(i=>({i,t:'H'})),...sl.map(i=>({i,t:'L'}))].sort((a,b)=>a.i-b.i);
+    let lastH=null,lastL=null,bias=0;
+    for(let k=0;k<piv.length;k++){ const p=piv[k];
+      if(p.t==='H'){ if(lastH!==null&&H(p.i)>H(lastH))bias=+1; lastH=p.i; } else { if(lastL!==null&&L(p.i)<L(lastL))bias=-1; lastL=p.i; }
+      const next=k+1<piv.length?piv[k+1].i:n;
+      for(let j=p.i+1;j<next;j++){
+        if(bias===-1&&lastH!==null&&C(j)>H(lastH)){ mss.push({type:'bull',i:j,level:H(lastH)}); for(let q=j-1;q>=Math.max(0,lastL??0);q--){ if(C(q)<O(q)){obs.push({type:'bull',i:q,lo:L(q),hi:Math.max(O(q),C(q)),until:j});break;} } bias=0; break; }
+        if(bias===+1&&lastL!==null&&C(j)<L(lastL)){ mss.push({type:'bear',i:j,level:L(lastL)}); for(let q=j-1;q>=Math.max(0,lastH??0);q--){ if(C(q)>O(q)){obs.push({type:'bear',i:q,lo:Math.min(O(q),C(q)),hi:H(q),until:j});break;} } bias=0; break; }
+      } }
+    obs.forEach(o=>{ o.end=n-1; for(let j=o.until+1;j<n;j++){ if(L(j)<=o.hi&&H(j)>=o.lo){o.end=j;break;} } });
+    const kz=[]; if(useKz){ const timeOf=iso=>(+iso.slice(11,13))+(+iso.slice(14,16))/60;
+      [{name:'LDN',a:6,b:9},{name:'NY AM',a:11,b:14}].forEach(z=>{ let start=-1; for(let i=0;i<=n;i++){ const t=i<n?timeOf(rows[i][6]):null; const inZ=t!==null&&t>=z.a&&t<z.b; if(inZ&&start<0)start=i; if((!inZ||i===n)&&start>=0){kz.push({name:z.name,from:start,to:i-1});start=-1;} } }); }
+    const swept=pools.filter(p=>p.swept>=0).sort((a,b)=>b.swept-a.swept).slice(0,4);
+    const keptPools=pools.filter(p=>p.swept<0).concat(swept).sort((a,b)=>a.from-b.from);
+    const keptMss=mss.slice(-4), keptObs=obs.filter(o=>keptMss.some(m=>m.i===o.until));
+    return {lo,hi,eq,pct:(C(n-1)-lo)/(hi-lo),fvgs:fvgs.slice(-8),pools:keptPools,mss:keptMss,obs:keptObs,kz};
+  }
+
+  // ---------- Wyckoff volume read: rolling mean of the previous P.lookback completed bars (project parameter).
+  function volStats(rows){
+    const n=rows.length, avg=new Array(n).fill(null), ratio=new Array(n).fill(null);
+    for(let i=0;i<n;i++){ const a=Math.max(0,i-P.lookback), k=i-a; if(k<3)continue; let s=0; for(let j=a;j<i;j++)s+=rows[j][5]; avg[i]=s/k; ratio[i]=avg[i]?rows[i][5]/avg[i]:null; }
+    return {avg,ratio};
+  }
+  const idxOf=(rows,iso)=>{ if(!iso)return -1; let best=-1; for(let i=0;i<rows.length;i++){ if(rows[i][6]<=iso)best=i; else break; } return best>=0&&rows[best][6]===iso?best:(best>=0&&rows[best][6].slice(0,13)===iso.slice(0,13)?best:-1); };
+  const spanOf=(rows,iso)=>{ if(!iso)return -1; for(let i=0;i<rows.length;i++){ if(rows[i][6]>=iso)return i; } return rows.length; };
+
+  const VIEW={};   // per-chart visible slice [a,b) — zoom/pan state survives lane switches
+  function drawChart(svg, full, cfg){
+    const st = VIEW[svg.id] || (VIEW[svg.id]={a:0,b:full.length});
+    const rows = full.slice(st.a, st.b);
+    // fixed geometry in every lane and for both charts: the volume pane is always reserved so the page does not jump
+    const W=1200, padL=70, padR=128, padT=30, padB=22, volH=76, gap=10, priceH=290, H=padT+priceH+gap+volH+padB;
+    svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+    const plotW=W-padL-padR, n=rows.length;
+    const lo=Math.min(...rows.map(c=>c[3])), hi=Math.max(...rows.map(c=>c[2])), pad=(hi-lo)*0.07;
+    const yMin=lo-pad, yMax=hi+pad;
+    const x=i=>padL+(i+0.5)*(plotW/n), y=v=>padT+priceH*(1-(v-yMin)/(yMax-yMin));
+    const step=plotW/n, bw=Math.max(1.4,Math.min(7,step*0.62));
+    const fmt=cfg.fmt;
+    const ict = lane==='ict' ? ictAnalyze(rows, cfg.kz) : null;
+    let s='';
+    // context window shading (the working window inside the overview)
+    if(cfg.window){ const a=spanOf(rows,cfg.window.from); if(a<n){ s+=`<rect x="${x(a)-step/2}" y="${padT}" width="${(n-a)*step}" height="${priceH}" fill="var(--accent)" opacity="0.10"/>`; s+=`<text class="axis-label" x="${x(a)-step/2+4}" y="${padT+11}" fill="var(--accent)">cửa sổ chính →</text>`; } }
+    if(ict){ ict.kz.forEach(z=>{ s+=`<rect x="${x(z.from)-step/2}" y="${padT}" width="${(z.to-z.from+1)*step}" height="${priceH}" fill="var(--i)" opacity="0.08"/>`; if(!cfg.compact) s+=`<text class="axis-label" x="${x(z.from)-step/2+3}" y="${padT+10}">${z.name}</text>`; });
+      s+=`<rect x="${padL}" y="${y(ict.hi)}" width="${plotW}" height="${Math.max(0,y(ict.eq)-y(ict.hi))}" fill="var(--down)" opacity="0.04"/>`;
+      s+=`<rect x="${padL}" y="${y(ict.eq)}" width="${plotW}" height="${Math.max(0,y(ict.lo)-y(ict.eq))}" fill="var(--up)" opacity="0.04"/>`; }
+    // Wyckoff phase bands (from the full analysis; addressed by time)
+    if(lane==='wyckoff' && cfg.wy && cfg.wy.phases){ let lastLx=-1e9, row=0; cfg.wy.phases.forEach(ph=>{ const a=spanOf(rows,ph.from), b=ph.to?spanOf(rows,ph.to):n; if(a>=n||b<=0)return; const x1=x(Math.max(0,a))-step/2, x2=x(Math.min(n,b)-1)+step/2;
+      s+=`<rect x="${x1}" y="${padT}" width="${Math.max(2,x2-x1)}" height="${priceH}" fill="var(--w)" opacity="0.07"/>`; s+=`<line x1="${x1}" y1="${padT}" x2="${x1}" y2="${padT+priceH}" stroke="var(--w)" stroke-width="1" stroke-dasharray="2,4" opacity=".6"/>`;
+      const lbl=String(ph.label||'').replace(/^(pha|phase)\s*/i,'').slice(0,2); if(!lbl) return; row = (x1-lastLx<18) ? row+1 : 0; lastLx=x1;
+      s+=`<text class="phase-label" x="${x1+4}" y="${padT+12+row*12}">${lbl}</text>`; }); }
+    for(let t=0;t<=4;t++){ const v=yMin+(yMax-yMin)*(t/4), yy=y(v); s+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="var(--line)" stroke-width="1"/>`; s+=`<text class="axis-label" x="${padL-8}" y="${yy+3}" text-anchor="end">${fmt(v)}</text>`; }
+    if(ict){ ict.fvgs.forEach(f=>{ const col=f.type==='bull'?'var(--up)':'var(--down)', x1=x(f.i)-step/2, x2=x(f.end)+step/2; s+=`<rect x="${x1}" y="${y(f.hi)}" width="${Math.max(2,x2-x1)}" height="${Math.max(1,y(f.lo)-y(f.hi))}" fill="${col}" opacity="${f.mitigated?0.14:0.28}" stroke="${col}" stroke-width="0.6"/>`; });
+      ict.obs.forEach(o=>{ const x1=x(o.i)-step/2, x2=x(o.end)+step/2; s+=`<rect x="${x1}" y="${y(o.hi)}" width="${Math.max(2,x2-x1)}" height="${Math.max(1,y(o.lo)-y(o.hi))}" fill="var(--i)" opacity="0.2" stroke="var(--i)" stroke-width="1"/>`; s+=`<text class="flag-label flag-i" x="${x1+3}" y="${y(o.hi)-3}">${o.type==='bull'?'+OB':'-OB'}</text>`; }); }
+    rows.forEach((c,i)=>{ const [t,o,h,l,cl]=c, up=cl>=o, cx=x(i), col=up?'var(--up)':'var(--down)';
+      s+=`<line x1="${cx}" y1="${y(h)}" x2="${cx}" y2="${y(l)}" stroke="${col}" stroke-width="1"/>`;
+      const top=y(Math.max(o,cl)), bot=y(Math.min(o,cl)), bh=Math.max(1,bot-top);
+      s+= up ? `<rect x="${cx-bw/2}" y="${top}" width="${bw}" height="${bh}" fill="var(--surface-2)" stroke="${col}" stroke-width="1.1"/>` : `<rect x="${cx-bw/2}" y="${top}" width="${bw}" height="${bh}" fill="${col}"/>`; });
+    const every=Math.max(1,Math.ceil(n/(cfg.compact?7:9)));
+    rows.forEach((c,i)=>{ if(i%every===0) s+=`<text class="axis-label" x="${x(i)}" y="${H-7}" text-anchor="middle">${c[0]}</text>`; });
+    // named levels (anchors) for this lane
+    (cfg.levels||[]).filter(L=>L.method===lane||L.method==='neutral').forEach(L=>{ if(L.price<yMin||L.price>yMax)return; const a=Math.max(0,spanOf(rows,L.time)); const col=L.method==='neutral'?'var(--muted)':'var(--lane)';
+      s+=`<line x1="${x(a)-step/2}" y1="${y(L.price)}" x2="${W-padR}" y2="${y(L.price)}" stroke="${col}" stroke-width="1.2" stroke-dasharray="6,4"/>`; s+=`<text class="range-label" x="${W-padR+4}" y="${y(L.price)+3}" fill="${col}">${L.short} ${fmt(L.price)}</text>`; });
+    if(lane==='wyckoff'){
+      const wy=cfg.wy||{};
+      if(wy.tr){ const a=Math.max(0,spanOf(rows,wy.tr.from)); const x1=x(a)-step*0.4, x2=W-padR;
+        [[wy.tr.high,wy.tr.high_label||'AR'],[wy.tr.low,wy.tr.low_label||'SC']].forEach(([v,lb])=>{ if(v==null||v<yMin||v>yMax)return; s+=`<line x1="${x1}" y1="${y(v)}" x2="${x2}" y2="${y(v)}" stroke="var(--w)" stroke-width="1.6" stroke-dasharray="5,3"/>`; s+=`<text class="range-label" x="${x2+4}" y="${y(v)+3}" fill="var(--w)">${lb} ${fmt(v)}</text>`; }); }
+      // event flags: stagger labels that would collide (same side, overlapping x extents) by pushing them outward
+      const placed=[]; const evs=(wy.events||[]).map(f=>({f,i:idxOf(rows,f.time)})).filter(o=>o.i>=0).sort((a,b)=>a.i-b.i);
+      evs.forEach(({f,i})=>{ const c=rows[i], cx=x(i), ay=f.up?y(c[2]):y(c[3]); const lbl=cfg.compact?f.label.split(' · ')[0]:f.label; const w=lbl.length*5.8;
+        let lvl=0; for(;;){ const fy=ay+(f.up?-10-lvl*12:15+lvl*12); const clash=placed.some(p=>p.up===!!f.up && Math.abs(p.y-fy)<11 && (cx-w/2)<p.x2 && (cx+w/2)>p.x1); if(!clash||lvl>=4){ placed.push({up:!!f.up,y:fy,x1:cx-w/2,x2:cx+w/2});
+          s+=`<circle cx="${cx}" cy="${ay}" r="3" fill="var(--w)" stroke="var(--surface-2)" stroke-width="1.5"/>`; if(lvl>0) s+=`<line x1="${cx}" y1="${ay}" x2="${cx}" y2="${fy+(f.up?3:-9)}" stroke="var(--w)" stroke-width="0.8" opacity=".7"/>`;
+          const ax = cx+w/2>W-padR ? W-padR-2 : (cx-w/2<padL ? padL+2 : cx); const anchor = ax!==cx ? (ax>cx?'end':'start') : 'middle';
+          s+=`<text class="flag-label" x="${ax}" y="${fy}" text-anchor="${anchor}">${lbl}</text>`; break; } lvl++; } });
+      // now marker
+      const li=n-1; s+=`<circle cx="${x(li)}" cy="${y(rows[li][4])}" r="3" fill="var(--ink)" stroke="var(--surface-2)" stroke-width="1.5"/>`;
+      // volume pane
+      const vsFull=volStats(full), vs={avg:vsFull.avg.slice(st.a,st.b), ratio:vsFull.ratio.slice(st.a,st.b)}, vTop=padT+priceH+gap, vMax=Math.max(...rows.map(r=>r[5]))||1, vy=v=>vTop+volH*(1-v/vMax);
+      s+=`<line x1="${padL}" y1="${vTop+volH}" x2="${W-padR}" y2="${vTop+volH}" stroke="var(--line)"/>`;
+      rows.forEach((c,i)=>{ const r=vs.ratio[i], up=c[4]>=c[1]; const col = r!=null&&r>=P.high ? 'var(--w)' : (up?'var(--up)':'var(--down)'); const op = r!=null&&r>=P.high ? (r>=P.spike?1:0.85) : 0.42;
+        s+=`<rect x="${x(i)-bw/2}" y="${vy(c[5])}" width="${bw}" height="${Math.max(0.5,vTop+volH-vy(c[5]))}" fill="${col}" opacity="${op}"/>`; });
+      if(!cfg.compact){ const spikes=rows.map((c,i)=>({i,r:vs.ratio[i]})).filter(o=>o.r!=null&&o.r>=P.spike).sort((a,b)=>b.r-a.r), gapN=Math.ceil(n/40), labeled=[];
+        spikes.forEach(o=>{ if(labeled.some(j=>Math.abs(j-o.i)<gapN))return; labeled.push(o.i); s+=`<text class="axis-label" x="${x(o.i)}" y="${vy(rows[o.i][5])-3}" text-anchor="middle" fill="var(--w)">${o.r.toFixed(1)}×</text>`; }); }
+      let path='', started=false; rows.forEach((c,i)=>{ if(vs.avg[i]==null)return; path+=(started?'L':'M')+x(i).toFixed(1)+','+vy(vs.avg[i]).toFixed(1); started=true; });
+      if(path) s+=`<path d="${path}" fill="none" stroke="var(--ink-2)" stroke-width="1.2" opacity=".8"/>`;
+      s+=`<text class="axis-label" x="${padL-8}" y="${vTop+9}" text-anchor="end">KL</text>`; s+=`<text class="axis-label" x="${padL-8}" y="${vTop+volH}" text-anchor="end">0</text>`;
+      if(!cfg.compact) s+=`<text class="axis-label" x="${W-padR+4}" y="${vTop+10}">TB ${P.lookback} nến</text>`;
+    } else if(ict){
+      const vTop=padT+priceH+gap; s+=`<line x1="${padL}" y1="${vTop+volH}" x2="${W-padR}" y2="${vTop+volH}" stroke="var(--line)"/>`; s+=`<text class="axis-label" x="${padL}" y="${vTop+volH/2+3}">khối lượng không thuộc ICT — pane để trống để chart giữ nguyên kích thước khi đổi phương pháp</text>`;
+      const xr=W-padR; s+=`<line x1="${padL}" y1="${y(ict.eq)}" x2="${xr}" y2="${y(ict.eq)}" stroke="var(--i)" stroke-width="1.4" stroke-dasharray="6,4"/>`;
+      s+=`<text class="range-label" x="${xr+4}" y="${y(ict.eq)+3}" fill="var(--i)">EQ ${fmt(ict.eq)}</text>`; s+=`<text class="axis-label" x="${xr+4}" y="${y(ict.hi)+10}">premium</text>`; s+=`<text class="axis-label" x="${xr+4}" y="${y(ict.lo)-4}">discount</text>`;
+      ict.pools.forEach(p=>{ const isHigh=p.kind==='BSL'||p.kind==='ERL-high', col=isHigh?'var(--down)':'var(--up)', x1=x(p.from), x2=x(p.to);
+        s+=`<line x1="${x1}" y1="${y(p.level)}" x2="${x2}" y2="${y(p.level)}" stroke="${col}" stroke-width="1.2" stroke-dasharray="2,3"/>`; if(!cfg.compact) s+=`<text class="axis-label" x="${x1}" y="${y(p.level)+(isHigh?-4:10)}" fill="${col}">${p.kind==='ERL-high'?'ERL (BSL)':p.kind==='ERL-low'?'ERL (SSL)':p.kind}</text>`;
+        if(p.swept>=0){ s+=`<path d="M${x(p.swept)-4},${y(p.level)-4} l8,8 M${x(p.swept)+4},${y(p.level)-4} l-8,8" stroke="${col}" stroke-width="1.8"/>`; } });
+      ict.mss.forEach(m=>{ const cx=x(m.i), col=m.type==='bull'?'var(--up)':'var(--down)'; s+=`<line x1="${cx}" y1="${y(m.level)}" x2="${cx}" y2="${y(rows[m.i][4])}" stroke="${col}" stroke-width="2"/>`; if(!cfg.compact) s+=`<text class="flag-label" x="${cx}" y="${m.type==='bull'?y(rows[m.i][4])-6:y(rows[m.i][4])+14}" text-anchor="middle" fill="${col}">MSS${m.type==='bull'?'↑':'↓'}</text>`; });
+      if(!cfg.compact) ict.fvgs.filter(f=>!f.mitigated).sort((a,b)=>b.size-a.size).slice(0,2).forEach(f=>{ s+=`<text class="axis-label" x="${x(f.i)+step}" y="${(y(f.hi)+y(f.lo))/2+3}" fill="${f.type==='bull'?'var(--up)':'var(--down)'}">FVG</text>`; });
+      const li=n-1; s+=`<circle cx="${x(li)}" cy="${y(rows[li][4])}" r="3" fill="var(--ink)" stroke="var(--surface-2)" stroke-width="1.5"/>`; s+=`<text class="flag-label" x="${x(li)-6}" y="${y(rows[li][4])-10}" text-anchor="end">now ${(ict.pct*100).toFixed(0)}%</text>`;
+    }
+    s+=`<line id="${svg.id}-xh" x1="0" y1="${padT}" x2="0" y2="${padT+priceH+gap+volH}" stroke="var(--ink)" stroke-width="1" opacity="0" stroke-dasharray="3,3"/>`;
+    svg.innerHTML=s;
+    // hover: crosshair + tooltip (index from pointer x in viewBox units)
+    const wrap=svg.parentElement, tip=wrap.querySelector('.tip'), xh=svg.querySelector('#'+svg.id+'-xh'), vsF=volStats(full), vs={ratio:vsF.ratio.slice(st.a,st.b)};
+    svg.onmousemove=e=>{ const r=svg.getBoundingClientRect(), vx=(e.clientX-r.left)/r.width*W; let i=Math.floor((vx-padL)/step); if(i<0||i>=n){tip.style.display='none';xh.setAttribute('opacity','0');return;}
+      const c=rows[i], up=c[4]>=c[1], ratio=vs.ratio[i]; xh.setAttribute('x1',x(i)); xh.setAttribute('x2',x(i)); xh.setAttribute('opacity','0.5');
+      let t=`<div class="t">${c[6].slice(5,16).replace('T',' ')}Z</div><div>O ${fmt(c[1])} · H ${fmt(c[2])} · L ${fmt(c[3])}</div><div class="${up?'u':'d'}">C ${fmt(c[4])} (${((c[4]-c[1])/c[1]*100).toFixed(2)}%)</div>`;
+      if(lane==='wyckoff') t+=`<div>KL ${c[5].toLocaleString('en-US',{maximumFractionDigits:2})}${ratio!=null?` · ${ratio.toFixed(2)}× TB`:''}</div>`;
+      if(ict) t+=`<div class="t">${((c[4]-ict.lo)/(ict.hi-ict.lo)*100).toFixed(0)}% dealing range</div>`;
+      tip.innerHTML=t; tip.style.display='block'; const px=e.clientX-r.left; tip.style.left=(px>r.width*0.65?px-tip.offsetWidth-14:px+14)+'px'; tip.style.top=(e.clientY-r.top+12)+'px'; };
+    svg.onmouseleave=()=>{ tip.style.display='none'; xh.setAttribute('opacity','0'); if(drag){drag=null;} };
+    // zoom (wheel, buttons) and pan (drag) on the visible slice; min 30 bars
+    const N=full.length, setView=(a,b)=>{ a=Math.max(0,Math.round(a)); b=Math.min(N,Math.round(b)); if(b-a<30){ const c=(a+b)/2; a=Math.max(0,Math.round(c-15)); b=Math.min(N,a+30); a=b-30; } st.a=a; st.b=b; drawChart(svg, full, cfg); };
+    svg.onwheel=e=>{ e.preventDefault(); const r=svg.getBoundingClientRect(), vx=(e.clientX-r.left)/r.width*W, i=st.a+Math.max(0,Math.min(n-1,Math.floor((vx-padL)/step))); const f=e.deltaY<0?1/1.25:1.25; setView(i-(i-st.a)*f, i+(st.b-i)*f); };
+    let drag=null; svg.onmousedown=e=>{ drag={x:e.clientX,a:st.a,b:st.b}; e.preventDefault(); };
+    svg.onmouseup=()=>{ drag=null; };
+    const prevMove=svg.onmousemove; svg.onmousemove=e=>{ if(drag){ const r=svg.getBoundingClientRect(), dx=(e.clientX-drag.x)/r.width*W, di=Math.round(-dx/step); let a=drag.a+di, b=drag.b+di; if(a<0){b-=a;a=0;} if(b>N){a-=b-N;b=N;} if(a!==st.a){ st.a=a; st.b=b; drawChart(svg, full, cfg); } return; } prevMove(e); };
+    const ctl=wrap.parentElement.querySelector('.zoom'); if(ctl && !ctl.dataset.wired){ ctl.dataset.wired='1';
+      ctl.querySelector('[data-z="in"]').onclick=()=>{ const c=(st.a+st.b)/2, h=(st.b-st.a)/2/1.25; setView(c-h,c+h); };
+      ctl.querySelector('[data-z="out"]').onclick=()=>{ const c=(st.a+st.b)/2, h=(st.b-st.a)/2*1.25; setView(c-h,c+h); };
+      ctl.querySelector('[data-z="reset"]').onclick=()=>setView(0,N); }
+  }
+
+  function render(){
+    document.body.dataset.lane=lane;
+    document.querySelectorAll('.lane-btn').forEach(b=>b.classList.toggle('active',b.dataset.lane===lane));
+    for(const key in DATA){ const d=DATA[key];
+      const drawn = lane==='wyckoff'||lane==='ict';
+      ['ctx','main'].forEach(which=>{ const rows=which==='ctx'?d.ctx:d.rows; if(!rows)return; const block=document.getElementById(`${which}-${key}`); const wrap=block.querySelector('.chart-wrap'), st=block.querySelector('.lane-status'), svg=block.querySelector('svg');
+        wrap.hidden=!drawn; st.hidden=drawn; if(!drawn){ st.innerHTML=`<span class="lane-dot"></span><span><b>${lane==='footprint'?'Footprint':'Heatmap'}</b> — ${d.dims[lane]}</span>`; return; }
+        const wy = which==='ctx' ? (d.ctxWy||{}) : (d.wy||{});
+        drawChart(svg, rows, {fmt:fmtOf(d.fmt), compact:which==='ctx', kz:which==='ctx'?d.ctxKz:d.kz, wy, levels:which==='ctx'?[]:d.levels, window:which==='ctx'?{from:d.rows[0][6]}:null}); });
+      const leg=document.getElementById(`legend-${key}`); leg.hidden=!drawn; if(drawn){ leg.innerHTML = lane==='wyckoff'
+        ? `<span><i class="sw up"></i>nến đóng tăng</span><span><i class="sw down"></i>nến đóng giảm</span><span><i class="sw vol"></i>khối lượng${d.tick?' (tick, MT5)':''}</span><span><i class="sw volhi"></i>KL ≥ ${P.high}× TB ${P.lookback} nến (≥ ${P.spike}× ghi số)</span><span><i class="sw tr"></i>biên vùng giao dịch (AR / SC)</span><span><i class="sw ph"></i>pha A–E</span><span>● sự kiện Wyckoff do phân tích đầy đủ đặt</span>`
+        : `<span><i class="sw fvgb"></i>FVG tăng</span><span><i class="sw fvgs"></i>FVG giảm</span><span><i class="sw ob"></i>order block (mờ = đã mitigated)</span><span><i class="sw liq"></i>BSL / SSL / ERL (× = đã quét)</span><span><i class="sw eq"></i>EQ · premium trên / discount dưới</span>${d.kz?'<span><i class="sw kz"></i>killzone LDN / NY AM</span>':'<span>killzone: không vẽ ở khung này</span>'}<span>MSS↑/↓ tại nến đóng cửa phá swing</span>`; }
+    }
+  }
+  window.setLane=l=>{ lane=l; render(); };
+  document.addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT')return; const k={'1':'wyckoff','2':'ict','3':'footprint','4':'heatmap'}[e.key]; if(k) setLane(k); });
+  render();
+})();
+</script>

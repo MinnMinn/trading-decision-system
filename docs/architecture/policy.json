@@ -1,0 +1,707 @@
+{
+  "_source": "CLAUDE.md §56-§62, the policy sections. Every list below is the spec's own, parsed back out of CLAUDE.md by scripts/tests/test_policy.py, so a new bullet in any of them fails the build.",
+  "_reader": "scripts/policy.py is the ONE reader.",
+  "_why_this_exists": "§56-§61 read as process advice and were recorded as POLICY -- the ledger's word for 'true by intention'. Intentions are not checkable, and the four sections that ARE checkable had never been checked: §56's phase order (does a later phase's artifact exist without the earlier one's?), §57's nine speculative things (are any of them actually in the tree?), §58's `Avoid` list (five of nine are already pinned by a test that nobody had collected), and above all §60, which is 35 questions with 35 answers that the suite already knows. Turning §60 into resolvable citations makes the self-review a command instead of a promise -- `python3 scripts/policy.py --review`.",
+  "_answer_is_not_the_check": "Each §60 item declares the answer §60 requires AND the test that produces it. The answer alone would be a claim; the citation is resolved against a real test function, and a citation that stops resolving fails here rather than being noticed during the next incident.",
+  "phases": [
+    {
+      "phase": "Phase 0",
+      "deliverables": [
+        "repository audit",
+        "architecture review",
+        "ADR",
+        "P0/P1 invariants",
+        "domain boundaries"
+      ],
+      "artifacts": [
+        "docs/adr/",
+        "docs/architecture/SYSTEM-DESIGN.md",
+        "docs/architecture/SPEC-COMPLIANCE.md"
+      ]
+    },
+    {
+      "phase": "Phase 1",
+      "deliverables": [
+        "canonical market model",
+        "provider abstraction",
+        "capability registry",
+        "normalized data",
+        "provenance"
+      ],
+      "artifacts": [
+        "docs/architecture/instruments.json",
+        "docs/architecture/providers.json",
+        "scripts/normalized.py"
+      ]
+    },
+    {
+      "phase": "Phase 2",
+      "deliverables": [
+        "derived analytics",
+        "evidence",
+        "methodology framework",
+        "setup framework",
+        "expectation framework"
+      ],
+      "artifacts": [
+        "scripts/evidence.py",
+        "scripts/methods.py",
+        "scripts/expectation.py",
+        "scripts/footprint.py"
+      ]
+    },
+    {
+      "phase": "Phase 3",
+      "deliverables": [
+        "Trading System",
+        "required-analysis dependency model",
+        "Decision Engine",
+        "risk",
+        "account profile",
+        "event risk"
+      ],
+      "artifacts": [
+        "docs/architecture/trading-systems.json",
+        "docs/architecture/decision-order.json",
+        "docs/architecture/risk-config.json",
+        "docs/architecture/account-profiles.json",
+        "docs/architecture/event-calendar.json"
+      ]
+    },
+    {
+      "phase": "Phase 4",
+      "deliverables": [
+        "backtesting",
+        "dataset snapshots",
+        "PIT validation",
+        "performance metrics"
+      ],
+      "artifacts": [
+        "scripts/backtest-methods.py",
+        "scripts/snapshot.py",
+        "scripts/pit.py",
+        "docs/architecture/performance-metrics.json"
+      ]
+    },
+    {
+      "phase": "Phase 5",
+      "deliverables": [
+        "OOS",
+        "walk-forward",
+        "robustness",
+        "experiment registry",
+        "reproducibility"
+      ],
+      "artifacts": [
+        "docs/architecture/validation.json",
+        "docs/architecture/experiments.json",
+        "docs/architecture/research-ledger.json",
+        "docs/architecture/versioning.json"
+      ]
+    },
+    {
+      "phase": "Phase 6",
+      "deliverables": [
+        "failure learning",
+        "failure clustering",
+        "candidate generation",
+        "validation workflow"
+      ],
+      "artifacts": [
+        "docs/architecture/outcomes.json",
+        "scripts/outcomes.py"
+      ]
+    },
+    {
+      "phase": "Phase 7",
+      "deliverables": [
+        "execution router",
+        "testnet execution",
+        "realtime safety"
+      ],
+      "artifacts": [
+        "scripts/binance-futures-testnet-order.sh",
+        "docs/architecture/feed-health.json",
+        "docs/architecture/execution-safety.json"
+      ]
+    },
+    {
+      "phase": "Phase 8",
+      "deliverables": [
+        "UI/UX refinement",
+        "performance optimization",
+        "operational hardening"
+      ],
+      "artifacts": [
+        "docs/architecture/ui-fields.json",
+        "docs/architecture/latency-model.json"
+      ]
+    }
+  ],
+  "not_speculative": [
+    {
+      "thing": "providers",
+      "_why": "A provider is speculative when it is declared and nothing reads it. providers.json refuses an adapter that does not exist on disk, so a declared provider is a real one.",
+      "checked_by": "scripts/tests/test_providers.py::test_every_declared_adapter_exists_on_disk"
+    },
+    {
+      "thing": "services",
+      "markers": [
+        "Procfile",
+        "docker-compose.yml",
+        "docker-compose.yaml"
+      ]
+    },
+    {
+      "thing": "microservices",
+      "markers": [
+        "Dockerfile",
+        "helm",
+        "k8s",
+        "kubernetes"
+      ]
+    },
+    {
+      "thing": "queues",
+      "markers": [
+        "celery",
+        "kombu",
+        "rq.Queue",
+        "kafka",
+        "pika",
+        "rabbitmq"
+      ]
+    },
+    {
+      "thing": "distributed systems",
+      "markers": [
+        "zookeeper",
+        "etcd",
+        "consul",
+        "raft"
+      ]
+    },
+    {
+      "thing": "cloud infrastructure",
+      "markers": [
+        "terraform",
+        "cloudformation",
+        "serverless.yml",
+        "boto3",
+        "google.cloud"
+      ]
+    },
+    {
+      "thing": "abstractions",
+      "_why": "Not scannable: an abstraction is unnecessary only relative to what uses it. The repo's shape is the evidence -- one registry, one reader, one drift test per section (ADR 0001) -- and rules/single-source-of-truth.md is the standing check.",
+      "checked_by": null
+    },
+    {
+      "thing": "AI agents",
+      "_why": "Agents exist under .claude/agents but are INVOKED by a human through a slash command; §40 forbids an LLM in the hot path and the live path runs without one.",
+      "checked_by": "scripts/tests/test_latency.py::test_every_research_workload_claude_md_40_names_is_declared_with_how_it_is_isolated"
+    },
+    {
+      "thing": "databases",
+      "markers": [
+        "sqlite3",
+        "psycopg",
+        "pymongo",
+        "sqlalchemy",
+        "redis"
+      ]
+    }
+  ],
+  "coding_rules": {
+    "prefer": [
+      {
+        "rule": "explicit contracts",
+        "checked_by": "scripts/tests/test_trading_system.py::test_roles_are_claude_mds_four_names_in_its_order"
+      },
+      {
+        "rule": "clear domain boundaries",
+        "checked_by": "scripts/tests/test_providers.py::test_the_four_roles_are_answered_independently"
+      },
+      {
+        "rule": "deterministic behavior",
+        "checked_by": "scripts/tests/test_snapshot.py::test_different_inputs_do_not_share_an_id"
+      },
+      {
+        "rule": "cohesive components",
+        "checked_by": null
+      },
+      {
+        "rule": "constructor injection where applicable",
+        "checked_by": null
+      },
+      {
+        "rule": "testable logic",
+        "checked_by": "scripts/tests/test_validation.py::test_all_twelve_validation_methods_are_declared"
+      },
+      {
+        "rule": "explicit error handling",
+        "checked_by": "scripts/tests/test_quality.py::test_the_vocabulary_is_the_specs_own"
+      },
+      {
+        "rule": "meaningful names",
+        "checked_by": null
+      },
+      {
+        "rule": "small focused classes",
+        "checked_by": null
+      },
+      {
+        "rule": "immutable research records where appropriate",
+        "checked_by": "scripts/tests/test_experiment.py::test_a_sealed_record_raises_on_mutation"
+      }
+    ],
+    "avoid": [
+      {
+        "rule": "god classes",
+        "checked_by": null
+      },
+      {
+        "rule": "hidden global state",
+        "checked_by": null
+      },
+      {
+        "rule": "provider-specific leakage",
+        "checked_by": "scripts/tests/test_providers.py::test_no_script_outside_the_reader_hardcodes_an_external_connector"
+      },
+      {
+        "rule": "magic fallback",
+        "checked_by": "scripts/tests/test_execution_router.py::test_an_unknown_symbol_refuses_instead_of_defaulting_to_a_venue"
+      },
+      {
+        "rule": "silent provider switching",
+        "checked_by": "scripts/tests/test_execution_router.py::test_a_manual_confirmation_venue_is_never_offered_to_the_unattended_pilot"
+      },
+      {
+        "rule": "unnecessary abstraction",
+        "checked_by": null
+      },
+      {
+        "rule": "hidden side effects",
+        "checked_by": "scripts/tests/test_outcomes.py::test_the_only_writes_in_this_module_are_none"
+      },
+      {
+        "rule": "implicit configuration",
+        "checked_by": "scripts/tests/test_trading_system.py::test_every_dependency_declares_kind_producer_baseline_and_reason"
+      },
+      {
+        "rule": "duplicated domain rules",
+        "checked_by": "scripts/tests/test_min_rr_and_risk.py::test_there_is_exactly_one_ceiling"
+      }
+    ],
+    "_unchecked_is_a_value": "A rule with `checked_by: null` is a CONVENTION, not an enforced invariant, and saying so is the point -- 'meaningful names' has no test and pretending otherwise would make the other eight worth less."
+  },
+  "change_safety": {
+    "checklist": [
+      "1. Identify consumers.",
+      "2. Identify providers.",
+      "3. Identify persistence impact.",
+      "4. Identify API impact.",
+      "5. Identify UI impact.",
+      "6. Identify test impact.",
+      "7. Identify backtest impact.",
+      "8. Identify research-semantics impact.",
+      "9. Identify migration requirements.",
+      "10. Identify versioning impact."
+    ],
+    "version_significant": [
+      "required analysis",
+      "methodology",
+      "setup",
+      "risk",
+      "news",
+      "account constraints",
+      "data interpretation",
+      "decision ordering"
+    ],
+    "significance_reader": "scripts/versioning.py::is_significant",
+    "_the_sentence_with_teeth": "'Never make a local implementation change that silently changes historical research semantics.' The word is SILENTLY: such changes are allowed and must be recorded with what they invalidate.",
+    "recorded_changes": [
+      {
+        "date": "2026-09-19",
+        "what": "§48: pilot setups are selected by PROP-PASS under a declared account, not by positive quarters",
+        "semantics": "`scripts/rank-setups.py --rank-by prop-pass --account-rows <market>-<account>.json` ranks: survived the account's own rules -> prop_pass_probability -> account_failure_probability -> max drawdown -> expectancy. The old key (share of positive quarters) was account-blind and selected two CFD rules that BOTH broke an FTMO-style challenge while rules that passed sat in the same file. A prop_pass estimate flagged `low_confidence` is ranked at the LOWER end of its nested-bootstrap spread, so a 14-trade 66% cannot outrank a 51-trade 60%. A market whose account declares no initial_balance/profit_target cannot be passed and falls back to consistency -- recorded in the report and in `pilot-top5.json.rank_notes`, never silently.",
+        "invalidates": "The pilot selection itself. docs/architecture/pilot-top5.json went from 6 setups (4 of them WYCKOFF/COMBINED, both removed the same day) to 3, all on the two book-faithful engines. Any pilot record written against the previous selection is a record of different rules.",
+        "kind": "setup"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§39: the account probability metrics are estimated over the FULL trade population",
+        "semantics": "`stability-report.py --account` stops the simulated run at the first breach, so the trades it returns are 'the ones before it broke' -- 5 to 16 on the crypto profile. Bootstrapping those resamples a sequence already conditioned on ending in failure. risk_of_ruin, account_failure_probability and prop_pass_probability are now estimated over the untruncated population with the account's rules applied to each resampled path; `failed_by` and the new `n_until_account_failure` keep the single real path's verdict. Separately, the `spread` on a low-confidence estimate is now a NESTED bootstrap (it resamples the observed trades), which is what makes it measure sample uncertainty rather than RNG noise.",
+        "invalidates": "Every account-conditioned stability file written earlier on 2026-09-19 (their `n` was the truncated path and their probabilities were estimated on it). All four in data/history/stability/ were regenerated afterwards.",
+        "kind": "data interpretation"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§13/§14: Upthrust volume typing now uses the book's OWN table, not the Spring table mirrored",
+        "semantics": "knowledge/wyckoff/modern-tools.md:55-72 carries TWO tables. Bảng 2.1 (WMT p049, Spring) runs low->type1 / moderate->type2 / high->type3. Bảng 2.2 (WMT p064, Upthrust) runs increases-at-the-touch->type1 / very high (UTAD)->type2 / strong-but-below-type2->type3, and the book has NO low-volume Upthrust. vtype() ran the Spring ladder on both sides, so every SHORT was typed wrongly: a below-average bar became 'type 1' and was handed the immediate at-the-reclaim entry, while a genuine UTAD (the highest-volume bar) was labelled type 3. Shorts below upthrust_min_ratio are now refused -- the book has no type to admit them under.",
+        "invalidates": "Every backtest, stability table and ranking that included SHORT Wyckoff/COMBINED/PARTIAL trades before this date. Long (Spring) results are unchanged.",
+        "kind": "methodology"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§13/§14: an ICT setup with no framed target is refused instead of aiming at the scan-window edge",
+        "semantics": "knowledge/ict/core-b.md §2.13 defines ERL as a swing high/low. ict-scan.setup_candidate fell back to window_hi/window_lo -- the edge of the lookback -- and LABELLED it '(ERL)'. Because the target sets R, the min_rr 3.0 floor and the position size, a setup's planned R moved whenever automation.SCAN_WINDOW changed, with no change in the market. Order is now: nearest unswept opposite pool, else the -2 sigma projection (models.md 2.1.5 makes the standard-deviation projection the primary objective), else no setup.",
+        "invalidates": "Measured over XAUUSD/BTCUSDT/ETHUSDT point-in-time samples, 0 of 113 setups used the window fallback, so the practical effect is expected to be nil -- but it is a decision-semantics change and any result that DID use the fallback is not comparable.",
+        "kind": "methodology"
+      },
+      {
+        "date": "2026-09-18",
+        "what": "§37: the planned-R:R floor moved to NET of fees",
+        "semantics": "A setup that passed a 3R gross floor may fail it net, so entry eligibility itself changed.",
+        "invalidates": "Every backtest and ranking produced before this date; they are not comparable with later runs.",
+        "kind": "risk"
+      },
+      {
+        "date": "2026-09-17",
+        "what": "§34: the per-trade risk ceiling unified at 1%",
+        "semantics": "The pilot path had been sizing at 3% while every manual path enforced 1%.",
+        "invalidates": "Position sizes in pilot records written before this date.",
+        "kind": "risk"
+      },
+      {
+        "date": "2026-09-18",
+        "what": "§33: MAX_OPEN became the account's max_positions rule, derived across every market routed to the venue",
+        "semantics": "The cap was len(CFD)=4 and is now 11, because forex routes to the same MT5 account.",
+        "invalidates": "Nothing yet: forex is default_enabled=false, so no FX signal is generated.",
+        "kind": "account constraints"
+      },
+      {
+        "date": "2026-09-18",
+        "what": "§23.1: MT5 CFD history REPLACED the Yahoo front-month futures proxy (import-mt5-history.py --write)",
+        "semantics": "CFD backtests read the instrument the pilot actually trades instead of a different instrument. Gold history now starts 2004 (was 2024) and 15m starts 2018 (was 2026-07), so both the sample and the market changed.",
+        "invalidates": "DONE 2026-09-18. Every CFD backtest, stability table and ranking produced before this date measured a futures contract and is not comparable with anything after it. Regenerated the same day: data/history/stability/cfd-live.json and the pilot selection. The replaced Yahoo series are NOT recoverable from git (data/history/ is ignored) -- they were copied to the session scratchpad before the write. NOT replaced, because the MT5 export has no such bar: XAUUSD 2H/30m/5m and XAGUSD 2H remain the futures proxy, so any run spanning them mixes two providers for one instrument -- now a §38 FLAGGED finding (backtest-methods.provider_mix()) rather than a silent row.",
+        "kind": "required analysis"
+      },
+      {
+        "date": "2026-09-18",
+        "what": "§34/§37: a CFD setup's assumed fee became the CFD venue's fee (was the Binance maker schedule)",
+        "semantics": "rank-setups.py kept its own copy of stability-report.py's CONFIGS table, and that copy priced every config from the crypto cost book -- so a CFD config-B or config-C setup was ranked at 0.0002/side, a Binance maker fee the MT5 account does not pay, instead of the 0.0005/side it does. Net R, expectancy and every solvency verdict downstream of them were computed at the wrong cost for CFD only. The duplicate table is gone: rank-setups now reads stability-report's CONFIGS and resolves the fee per (config, market) through config_fee(), so live and research price the same trade the same way.",
+        "invalidates": "DONE 2026-09-18. Every CFD ranking, selection and R-multiple produced before this date is wrong in the optimistic direction (costs understated 2.5x per side on configs B and C); crypto rows are unaffected. Regenerated the same day: data/history/stability/cfd-live.json, data/history/stability/crypto-live.json (schema), docs/backtests/2026-09-18-ranking-mt5.md and docs/architecture/pilot-top5.json. scripts/tests/test_risk_model.py::LiveAndResearchPriceTheSameTradeTheSameWay fails the build if a selected setup's assumed fee is ever again undeclared for its venue.",
+        "kind": "risk"
+      },
+      {
+        "date": "2026-09-18",
+        "what": "§33/§37: the backtest gained account rules; 'loss' is no longer only a blown account",
+        "semantics": "simulate() had one loss condition -- RUIN_FRAC, equity at 10% of the start -- which is the PERSONAL notion of ruin applied to every account. It now takes an optional account profile and checks that account's rules (daily loss, total and trailing drawdown, consistency, custom failure conditions) BEFORE RUIN_FRAC, halting the run where the account would actually have been cut. Rules an account declares that a backtest cannot evaluate (e.g. consecutive_errors: a backtest submits no orders) are reported in rules_not_applicable rather than silently passed. With no profile supplied the old behaviour is unchanged, and the §39 money metrics say 'no account profile supplied' instead of implying a personal account.",
+        "invalidates": "DONE 2026-09-18. Nothing previously computed becomes wrong -- the default path is byte-identical -- but no run before this date can be read as a prop-account result: they all measured survival to a 90% loss. Two prop templates ship for research (ftmo-challenge-phase1, the5ers-high-stakes-step1) in an environment account_profile.for_venue() refuses, so they can never become the account an order is sized against. Demonstrated on real data: the same sixty trades finish at +48% personally and are dead on trade ten under a 10% peak-drawdown rule.",
+        "kind": "account constraints"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§13/§14/§35: runner methods WYCKOFF, COMBINED and PARTIAL removed (docs/architecture/methods.json runner_methods: 6 -> 3)",
+        "semantics": "docs/audits/2026-09-19-knowledge-fidelity.md finding 6: WYCKOFF's trading range was min(low)/max(high) over a rolling R-bar lookback, with no SC, no AR, no CHoCH and no Phase A/B -- the books (knowledge/wyckoff/advance.md:280,283,302, WA p68-72) permit a trading range only AFTER three CHoBEV confirm a CHoCH, bordered by the SC/ST low and the AR high (advance.md:331, WA p79-80 defines Spring as a Phase C event inside an established range). The proxy could therefore fire a 'Spring' mid-trend with no accumulation structure behind it at all. COMBINED (the same proxy range, entered on an ICT FVG/MSS confirmation) and PARTIAL (half risk at the WYCKOFF entry, half at the COMBINED entry) depended entirely on that same range and are removed with it. WYCKOFF-BOOK (scripts/wyckoff_rules.py: downtrend -> SC -> 3xCHoBEV -> CHoCH -> AR -> ST -> >=2 swing Phase B -> Spring/Shakeout typed against the book's own tables -> Test -> optional Phase D) already implements the books and is unchanged; it and ICT are now the only runnable methods, COMBINED-BOOK remains runnable=false. Deleted rather than left dead: the scan()/setups()/setups_wyckoff() code paths that detected the proxy range are removed from scripts/backtest-methods.py and scripts/strategy-runner.py, not merely made unreachable.",
+        "invalidates": "Every backtest, stability table and ranking that includes a WYCKOFF, COMBINED or PARTIAL row -- most of data/history/stability/*.json, docs/backtests/*, and docs/architecture/pilot-top5.json (4 of its 6 selected setups name WYCKOFF or COMBINED as of this change). Historical files are left as-is (out of scope for this removal per the dispatching task); docs/architecture/pilot-top5.json in particular now names a method that no longer exists in the registry and must be regenerated by scripts/rank-setups.py from a fresh stability run before the pilot next reads it -- it was deliberately NOT edited or regenerated here. Measured under FTMO-style account rules (data/history/stability/cfd-ftmo-challenge-phase1.json): the removed WYCKOFF failed 9/9 rows (expectancy -1.85R..-0.14R) where WYCKOFF-BOOK passed 3/9 including the best row measured (4H cfg C: +1.10R, 2.8% max drawdown) and ICT passed 9/9.",
+        "kind": "methodology"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§14/§36: ICT liquidity pools now include the deck's FIRST type, Old Highs & Lows (scripts/ict-scan.py pools()); every pool declares type 'old' | 'equal'",
+        "semantics": "docs/audits/2026-09-19-knowledge-fidelity.md finding 10. knowledge/ict/core-a.md §2.7 enumerates two types of liquidity -- \"Old Highs & Lows are previous highs and lows\" (Old High -> BSL, Old Low -> SSL) and \"Equal Highs & Lows\" -- and the scanner built only the second. A lone prior swing high could therefore never be buyside liquidity: never swept, never a target, never an edge of the dealing range. This changes three decision inputs at once: which sweeps exist (so which setup_candidate is found), the target of an ICT setup (nearest unswept pool) and therefore its planned R against the 3R floor, and the dealing range that R13's premium/discount gate is measured in. Equal pairs are added before the old-highs pass so the stronger named reading keeps the row when both describe the same price.",
+        "invalidates": "Every ICT row in data/history/stability/*.json and every ICT setup in docs/architecture/pilot-top5.json measured before this date. Regenerated the same day. Measured effect on dr_source: 'mixed' (one edge was the scan-window edge) on 52% of point-in-time samples before, 'pools' on every sample tested after (BTCUSDT/ETHUSDT/XAUUSD 15m, BTCUSDT 4H).",
+        "kind": "setup"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§14: the Wyckoff đối nhãn signs are computed and recorded -- st_sign (Dấu hiệu 1) and phase_b_sign / phase_b_tests (Dấu hiệu 2) on every wyckoff_rules record and on every backtest trade; --st-gate / --phase-b-gate / --sloped-gate exist to MEASURE whether gating on them helps, and all three stay OFF by default",
+        "semantics": "docs/audits/2026-09-19-knowledge-fidelity.md finding 9. knowledge/wyckoff/advance.md WA p150 divides the trading range into THREE parts; the code used a half and the R3 docstring asserted 'ST above 50% = supply thinned', a number the book never gives. That threshold is the part that was WRONG and it is fixed: the signs now use 1/3 and 2/3. What is NOT changed is any decision: both signs are recorded and neither vetoes by default. Dấu hiệu 1 and the sloped gate were each defaulted ON in this change and each reverted the same day. The book presents the four dấu hiệu as 'những thử nghiệm trong các Phase' -- tests for judging a structure while it is forming -- and closes with 'trong diễn biến thực tế của thị trường, chúng ta không thể thực sự biết đó là tích lũy hay phân phối' (WA p167); it teaches the four sloped variants with their entries across WA p167-181 and states that slope has no standard (WA p170) while slope_max_tr=0.35 is ours. A veto the source does not state is a project rule, and a project rule wearing the book's authority is what this audit exists to remove. Whether gating helps is a §41 hypothesis with a measurable answer; the flags are how it gets measured. Measured cost of defaulting them on, BTCUSDT: Dấu hiệu 1 takes 4H WYCKOFF-BOOK 11 -> 9 and COMBINED-BOOK 1 -> 0, and 15m (20 000 bars) 6 -> 5; the sloped gate takes 15m 23 -> 5 (-78 %). The signs are named supports/contradicts rather than upper/lower because detect_distributions runs the same detector on inverted prices. All three gates were also added to scripts/strategy-runner.py setups_wyckoff() reading the same bt.OPTS -- before this only the backtest had them, so a non-default run would have selected on a population the runner does not take (§37).",
+        "invalidates": "Nothing in the Wyckoff population: with every gate off, WYCKOFF-BOOK and COMBINED-BOOK detect exactly what they detected before, plus two recorded signs. Trade records gain st_sign / phase_b_sign / volume_kind fields.",
+        "kind": "setup"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§7/§20: wyckoff_rules records carry volume_kind ('traded' | 'tick'), passed from instruments.is_tick_volume(symbol) by both engines and carried onto backtest trade records",
+        "semantics": "docs/audits/2026-09-19-knowledge-fidelity.md finding 8. Every volume rule in the engine -- CHoBEV effort, Spring/Upthrust typing, the Test's 'lower volume than the Spring', the Volume Profile, the SOS's 'volume >= average' -- assumes traded volume, and knowledge/wyckoff/modern-tools.md §7 records the book's own statement that tick-based data is not real volume (WMT p131-132) and that real-volume availability is a hard requirement of the method (WMT p131-133). The MT5 CFD feed reports tick count. This is a provenance change, not a rule change: the engine does not refuse a tick feed, but no surface can any longer present a tick-derived volume type as if the book's table had been fed traded size.",
+        "invalidates": "Nothing re-measured: no gate changed. Prior CFD volume-typed rows remain numerically valid as measurements of the tick feed, and are now labelled as such.",
+        "kind": "data interpretation"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§14/§35: --ict-pd, --std-origin and --ict-disp removed from scripts/backtest-methods.py; scripts/ict-flags-1y.py deleted; find_ict()'s displacement check made mandatory (O is now a required argument)",
+        "semantics": "docs/audits/2026-09-19-knowledge-fidelity.md finding 11. All three named real deck rules and none of the three could change an ICT setup. R13 (longs in discount, shorts in premium, knowledge/ict/core-a.md:207) is computed as pd_ok in scripts/ict-scan.py:287 and refused unconditionally by ict_setups_live(). The STDEV fib-0 anchor is fixed by the deck (knowledge/ict/models.md §2.1.5, Model11 p20 \"the previous high which made the highest high\") and ict-scan.py already computes exactly that. Displacement is not a switch either: R10 calls a full-bodied close beyond structure an MSS and R11 calls the same break without displacement a liquidity grab, the opposite read -- and find_ict defaulted O=None, which silently disabled the check for every caller that omitted it (scripts/event-ledger.py did). scripts/ict-flags-1y.py ran 8 combinations of these three switches over 365 days per ICT setup and wrote the winner into pilot-top5.json as a decision; it measured noise and is deleted rather than kept.",
+        "invalidates": "docs/backtests/2026-09-12-ict-flags-1y.md is superseded: its comparison had no effect to measure. No stability row changes from the flag removal itself (the flags were never read); the mandatory displacement check does change COMBINED-BOOK and scripts/event-ledger.py, whose ICT confirmation ran without it.",
+        "kind": "setup"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§33: account identity separated from venue -- account_profile.for_account(id) and owner_of(prof) added, the import-time ban on two profiles sharing a (venue, environment) lifted, docs/architecture/mandates.json + scripts/mandates.py added (the account<->setup table), and scripts/exposure.py added (aggregate risk across accounts, capped per owner)",
+        "semantics": "docs/plans/2026-09-19-multi-account.md. The platform was one-account-shaped by design: account_profile.for_venue() resolves by (venue, environment) and REFUSED anything but exactly one match, and _validate raised at import on two profiles sharing that pair -- so several accounts on one broker was a rejected configuration, not an unimplemented one. Correct for one account; wrong for the stated business, which is customers renting a methodology and handing over their own account (user 2026-09-19), where one account runs several setups and one setup serves many accounts. The invariant the ban protected (an order path must never GUESS whose rules apply) moved into the resolvers: for_account names the account, and for_venue still refuses whenever the venue does not identify exactly one profile. mandates.json holds the many-to-many relation and PINS the setup's rule_version at attach time, because rank-setups.py rewrites pilot-top5.json in place and a customer must keep running the rules they agreed to; mandates.drift() reports divergence and never resolves it. exposure.py caps how many accounts OF ONE OWNER may hold the same (symbol, side): a fraction-of-summed-equity ceiling is invariant in the number of accounts and therefore cannot bound the hazard that grows with N, which is simultaneous breach of every account's own daily-loss limit. The house-wide count is reported, never refused on -- one customer must not lose a signal because another took it first.",
+        "invalidates": "No historical research result: nothing here changes detection, sizing or any gate on the existing single-account path. exposure.py is NOT yet wired into scripts/strategy-runner.py (that is Pha 1/2 of the plan: it needs --account and per-account state first), so no live order consults it today. The account profile's own effective_risk_pct still does not reach size()/mt5_lots(), which remains the open defect the plan's Pha 2 fixes.",
+        "kind": "account constraints"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§33/§51: the four obligations a rented-methodology business carries -- strategy-runner.py --account <id> with per-account state/logs/candles/kill switch, order attribution (account + mandate + setup_version + account-seeded client_id), a declared fair dispatch order (scripts/dispatch_order.py), and an estate capacity gate per instrument (scripts/exposure.py + instruments.json estate_capacity)",
+        "semantics": "docs/plans/2026-09-19-multi-account.md §0.3, after the user stated the business: customers rent a methodology, hand over their own account, and we attach account to setup. (1) ATTRIBUTION -- plan_of() now carries `mandate` alongside the `setup_version` it already had, log() stamps `account` on every record, and client_id() seeds the digest with the account. Without that seed two accounts taking the same signal mint the SAME newClientOrderId, the venue rejects the second as a duplicate, and one customer silently loses the trade while the rejection looks like a venue fault. (2) ISOLATION -- bind_account() moves state, logs, candle cache and STOP under data/live/accounts/<id>/, and halted() reads a two-tier kill switch (estate-wide GLOBAL_STOP plus this account's own). Before this, STOP was one file for every account so one customer's drawdown halted everybody, and top5-state.json was one file written with a bare open(...,'w') so two processes would have overwritten each other's positions. Passing no --account restores the house's paths exactly. (3) ORDERING -- when one setup serves many accounts they cannot all be first; the order was whichever runner ticked first, which is biased the same way every time and unauditable. It is now sha256(signal_id||account_id): uniform, deterministic (a queue position is recomputable from the trade record months later) and stateless (N processes agree without a central dispatcher). The stagger is declared in execution-safety.json dispatch.stagger_ms and is REAL latency, stated as such. (4) CAPACITY -- N accounts sending the same order into one book move the price against themselves. Nothing here reads order-book depth, so capacity CANNOT be measured: a symbol may declare max_estate_notional_usd in instruments.json and then it is a hard ceiling; where it does not, every grant carries capacity: UNDECLARED, and above risk-config.json capacity_required_above_accounts the unknown gates the decision instead of being reported (§20: UNKNOWN must never silently become benign).",
+        "invalidates": "No historical research result. Default behaviour is unchanged for the house's own pilot: --account absent resolves every path exactly as before, mandate_of() returns None with an empty mandate table, and the dispatch order and capacity gate are not yet called from the tick (wiring them is Pha 2/5b of the plan). client_id() DOES change shape for any future --account run; in house mode the seed is prefixed '-' so existing ids are stable in form but NOT in value -- no open order predates this change, and a resting order is keyed by the id the venue already has.",
+        "kind": "account constraints"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§37/§38: the ICT backtest no longer books a trade whose FVG limit was already through by the bar the setup became detectable, and fills it from the detection bar rather than from the MSS bar (scripts/backtest-methods.py ict_setups_live)",
+        "semantics": "The backtest assumed the limit had been resting since the MSS bar (fvg_fill scanned from mss_i + 1). Nobody could have done that: the setup is not detectable until bar `i`, the bar whose close first makes it complete, pd_ok and bias-agreeing, and `i` is often mss_i + 1 or later. scripts/strategy-runner.py ict_live_setups already refused those correctly -- 'already triggered on an earlier bar ... not a NEW order to place' -- so the two engines were measuring different systems, which is exactly what CLAUDE.md §37 forbids and what §38 calls an unrealistic execution assumption. The backtest now asks the runner's own two questions in the runner's own order: first, would the runner have refused this as already triggered (fvg_fill over mss_i+1 .. i)? then, where does it fill (from i+1, because the order does not exist until bar i closes)? Found by repairing the replay parity harness, which had been handing the ICT scanner a 300-bar window against a 576-bar live scan window and therefore comparing zero runner placements against whatever the backtest found -- a check that could only pass vacuously.",
+        "invalidates": "EVERY ICT number ever produced by this repository. Measured over the last 30 000 15m bars: BTCUSDT 19 -> 6 trades, ETHUSDT 17 -> 1, SOLUSDT 11 -> 0; 85 % of the crypto ICT population was unreachable live, and on SOLUSDT all of it was. docs/architecture/pilot-top5.json's two ICT setups (crypto scalping n=64 at 76.3 % prop-pass, cfd scalping n=74 at 72.5 %) were selected on that population and must be regenerated before the pilot reads them again. WYCKOFF-BOOK is unaffected: it enters at the bar close, not on a resting limit.",
+        "kind": "setup"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§51/§58: scripts/get-secret.sh replaced by scripts/get_secret.py -- one secret reader that answers on macOS (Keychain), Windows (Credential Manager) and Linux (libsecret); trading_env.py and trading-env.sh both point at it and invoke it through the interpreter rather than a shebang",
+        "semantics": "docs/plans/2026-09-20-windows-migration.md. The platform moves to Windows, where `security find-generic-password` does not exist and `#!` lines are not honoured, so the old reader would have failed in the one place a failure is worst: resolving an API key. The reference syntax CLAUDE.md declares -- keychain:<service>[@<account>] -- is deliberately unchanged, so no env file, registry or caller moves; only what answers the question changes. Rules kept and now tested: the secret reaches stdout and nowhere else (never logged, never in an exception message), an absent OR EMPTY value exits non-zero rather than returning an empty string (an empty API key does not fail, it sends an unauthenticated request, which reads as a venue problem rather than a configuration one), and there is no fallback between stores -- if this platform's store does not have it, that is the answer.",
+        "invalidates": "Nothing measured. No behaviour change on macOS: the same Keychain entry resolves through the same `security` call. scripts/get-secret.sh is superseded; the operator must load the same secrets into Windows Credential Manager before the first run there, and that is step 4 of the migration plan.",
+        "kind": "data interpretation"
+      },
+      {
+        "date": "2026-09-19",
+        "what": "§13/§14/§17: the ICT target is the standard-deviation projection (-2σ of the manipulation leg) first, the dealing range's opposite edge when no leg exists, and NEVER the nearest unswept pool (scripts/ict-scan.py setup_candidate, the one seam both engines read); the nearest pool is recorded as `objective`",
+        "semantics": "Second knowledge-fidelity correction to the target in one day, and the two are linked. The morning's audit (finding 4) removed the scan-window edge as a target and kept 'nearest unswept pool first, projection as fallback'. That inverts the deck: knowledge/ict/models.md §2.1.5 says outright that 'the main focus for identifying targets is using standard deviation projections', with the -2/-2.5 zone first; liquidity levels are what core-a.md §2.8 calls a DRAW, a place price is pulled toward, not the target; and core-a.md R13's own diagram draws the target at the opposite range extreme. The inversion was survivable while the only pools were equal highs/lows. Finding 10's fix the same morning -- adding Old Highs & Lows, the deck's first liquidity type, correct for sweeps and the dealing range -- made 'nearest unswept pool' almost always the very next swing, and planned R collapsed. Measured on the reachable 15m population (5 symbols x 60 000 bars, 20 trades): nearest-pool targets gave a median planned R of 0.55, 85% wins, +0.64R per trade and ONE trade over the 3R floor; the deck's -2σ target on the SAME entries gave a median 2.91, 50% wins, +0.95R per trade, +19.1R net against +12.9R, and NINE over the floor. The user's 3R floor (analysis-params.json, stricter than the deck's 2R by decision) had been refusing 100% of reachable ICT trades on BTCUSDT and XAUUSD not because the entries were poor -- 85% won -- but because the target rule put the target closer than the stop. Found while answering the user's question of whether the poor results meant a system error, a filtering gap, or a bad method: this is a system error.",
+        "invalidates": "Every ICT stability row and the selection regenerated earlier on 2026-09-19 (which had collapsed to one CFD Wyckoff row at n=5 after the fill-window correction). Regenerated again the same day. n=20 remains far too small to conclude anything about the method; what this change settles is only that the earlier emptiness was manufactured by the target rule, not by the method or by the fill correction.",
+        "kind": "setup"
+      }
+    ]
+  },
+  "self_review": [
+    {
+      "group": "Architecture",
+      "question": "Is provider independence preserved?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_execution_router.py::test_the_shared_decision_layer_names_no_exchange"
+    },
+    {
+      "group": "Architecture",
+      "question": "Is Data Source still separate from Execution Venue?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_providers.py::test_crypto_market_data_and_crypto_execution_are_different_providers"
+    },
+    {
+      "group": "Domain",
+      "question": "Are Market, Instrument, Session, Methodology, Setup, Trading System and Account Profile separate?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_trading_system.py::test_market_and_timeframe_are_derived_not_declared",
+      "_why": "A Trading System DERIVES its market and timeframe from the instrument allowlist and the style rather than declaring its own copy, so the seven concepts cannot drift into one another; each has one source."
+    },
+    {
+      "group": "Research",
+      "question": "Is PIT preserved?",
+      "must_be": "YES",
+      "answered_by": "invariant:PIT"
+    },
+    {
+      "group": "Research",
+      "question": "Is there any look-ahead?",
+      "must_be": "NO",
+      "answered_by": "scripts/tests/test_backtesting.py::test_a_decision_that_only_exists_because_of_the_future_is_caught"
+    },
+    {
+      "group": "Research",
+      "question": "Is OOS exposure tracked?",
+      "must_be": "YES",
+      "answered_by": "invariant:OOS exposure"
+    },
+    {
+      "group": "Research",
+      "question": "Are experiments reproducible?",
+      "must_be": "YES",
+      "answered_by": "invariant:experiment reproducibility"
+    },
+    {
+      "group": "Data",
+      "question": "Is provenance preserved?",
+      "must_be": "YES",
+      "answered_by": "invariant:provenance"
+    },
+    {
+      "group": "Data",
+      "question": "Are quality states explicit?",
+      "must_be": "YES",
+      "answered_by": "invariant:data quality"
+    },
+    {
+      "group": "Data",
+      "question": "Are capabilities truthful?",
+      "must_be": "YES",
+      "answered_by": "invariant:provider capability registry"
+    },
+    {
+      "group": "Methodology",
+      "question": "Is methodology separate from setup?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_trading_system.py::test_every_dependency_declares_kind_producer_baseline_and_reason",
+      "_why": "`methodology` and `setup` are different dependency KINDS in the registry, each with its own producer -- the separation is structural, not a naming convention."
+    },
+    {
+      "group": "Methodology",
+      "question": "Are methodology-specific expectations preserved?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_expectation.py::test_paths_are_returned_grouped_never_merged"
+    },
+    {
+      "group": "Methodology",
+      "question": "Are expectations immutable?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_expectation.py::test_the_original_cannot_be_edited_at_all"
+    },
+    {
+      "group": "Methodology",
+      "question": "Is analysis scope separate from active trading selection?",
+      "must_be": "YES",
+      "answered_by": "invariant:confluence"
+    },
+    {
+      "group": "Decision",
+      "question": "Are required dependencies explicit?",
+      "must_be": "YES",
+      "answered_by": "invariant:required-analysis gating"
+    },
+    {
+      "group": "Decision",
+      "question": "Does the Decision Engine wait for all required dependencies?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_trading_system.py::test_a_missing_required_input_blocks_entry"
+    },
+    {
+      "group": "Decision",
+      "question": "Can optional analysis accidentally block?",
+      "must_be": "NO",
+      "answered_by": "invariant:optional-analysis non-blocking"
+    },
+    {
+      "group": "Decision",
+      "question": "Can required analysis accidentally be bypassed?",
+      "must_be": "NO",
+      "answered_by": "scripts/tests/test_trading_system.py::test_there_is_no_runtime_reclassification"
+    },
+    {
+      "group": "Decision",
+      "question": "Can latency optimization change decision semantics?",
+      "must_be": "NO",
+      "answered_by": "scripts/tests/test_latency.py::test_the_trace_is_written_even_when_the_tick_raises"
+    },
+    {
+      "group": "Risk",
+      "question": "Are account rules preserved?",
+      "must_be": "YES",
+      "answered_by": "invariant:account constraints"
+    },
+    {
+      "group": "Risk",
+      "question": "Is risk validated?",
+      "must_be": "YES",
+      "answered_by": "invariant:risk"
+    },
+    {
+      "group": "News",
+      "question": "Is Event Risk separate from methodology?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_confluence.py::test_a_news_dimension_is_refused"
+    },
+    {
+      "group": "News",
+      "question": "Is scheduled vs actual release handled correctly?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_event_risk.py::test_after_the_event_the_actual_time_is_preferred"
+    },
+    {
+      "group": "News",
+      "question": "Is PIT preserved?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_event_risk.py::test_an_actual_time_learned_later_cannot_move_an_earlier_window"
+    },
+    {
+      "group": "News",
+      "question": "Are revisions handled?",
+      "must_be": "YES",
+      "answered_by": "invariant:news revisions"
+    },
+    {
+      "group": "Execution",
+      "question": "Is real-money execution protected?",
+      "must_be": "YES",
+      "answered_by": "invariant:execution safety"
+    },
+    {
+      "group": "Execution",
+      "question": "Is execution provider isolated?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_execution_router.py::test_venue_comes_from_the_registry_not_from_a_symbol_set"
+    },
+    {
+      "group": "Learning",
+      "question": "Can AI modify production silently?",
+      "must_be": "NO",
+      "answered_by": "scripts/tests/test_outcomes.py::test_no_actor_other_than_human_may_decide_even_to_reject"
+    },
+    {
+      "group": "Learning",
+      "question": "Are candidates traceable?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_versioning.py::test_a_rejected_candidates_number_stays_spent"
+    },
+    {
+      "group": "Learning",
+      "question": "Are failures distinguished from NO TRADE / BLOCKED ENTRY?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_outcomes.py::test_no_trade_and_blocked_entry_are_neither_failures_nor_successes"
+    },
+    {
+      "group": "Performance",
+      "question": "Is the hot path isolated?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_latency.py::test_every_research_workload_claude_md_40_names_is_declared_with_how_it_is_isolated"
+    },
+    {
+      "group": "Performance",
+      "question": "Are p50/p95/p99/max measured?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_latency.py::test_all_four_statistics_are_produced"
+    },
+    {
+      "group": "UI",
+      "question": "Does the UI distinguish active trading configuration from available analysis?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_ui_contract.py::test_required_and_optional_are_rendered_with_different_classes"
+    },
+    {
+      "group": "UI",
+      "question": "Are blocking reasons visible?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_ui_contract.py::test_the_crypto_chart_page_renders_all_twenty_two"
+    },
+    {
+      "group": "UI",
+      "question": "Are expected paths methodology-specific?",
+      "must_be": "YES",
+      "answered_by": "scripts/tests/test_expectation.py::test_no_function_here_concatenates_two_methodologies_paths"
+    }
+  ],
+  "final_report": [
+    "What changed",
+    "Why it changed",
+    "Architecture impact",
+    "Domain impact",
+    "Provider impact",
+    "Research-integrity impact",
+    "Required-analysis behavior",
+    "Optional-analysis behavior",
+    "Risk impact",
+    "News/Event Risk impact",
+    "Execution impact",
+    "Tests added/updated",
+    "Validation performed",
+    "Known risks",
+    "Open questions",
+    "Next action"
+  ],
+  "non_negotiable": {
+    "_spec": "CLAUDE.md §62. REQUIRED ANALYSIS != ALL ANALYSIS.",
+    "enforced_by": [
+      "scripts/tests/test_trading_system.py::test_there_is_no_runtime_reclassification",
+      "scripts/tests/test_trading_system.py::test_missing_context_resolves_required_never_optional",
+      "scripts/tests/test_trading_system.py::test_a_baseline_role_of_required_refuses_to_load"
+    ],
+    "_note": "Same three guards §55's critical invariant cites. §62 restates §55's last sentence as the platform's final rule, so they are one invariant with one set of guards, not two lists."
+  }
+}

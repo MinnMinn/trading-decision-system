@@ -5,7 +5,7 @@
 #   file               = config/env.<environment>      (template: config/env.example)
 #   override           = TRADING_ENV=demo|real in the caller's environment wins over the config file
 #
-# Secret values of the form  keychain:<service>[@<account>]  are resolved through scripts/get-secret.sh
+# Secret values of the form  keychain:<service>[@<account>]  are resolved through scripts/get_secret.py
 # (macOS Keychain) at load time. Values are exported to the environment only -- never printed, never argv.
 # A required secret that is empty or still "__FILL_ME__" makes this loader fail (exit 2) BEFORE any caller
 # can place an order. That is a correctness check ("environment incomplete"), not a policy block.
@@ -39,7 +39,10 @@ _te_resolve() {   # $1 = raw value -> prints resolved value (Keychain-backed if 
     keychain:*)
       local ref="${1#keychain:}" svc acct
       svc="${ref%@*}"; acct="${ref#*@}"; [ "$acct" = "$ref" ] && acct=""
-      if [ -n "$acct" ]; then "$_TE_DIR/get-secret.sh" "$svc" "$acct"; else "$_TE_DIR/get-secret.sh" "$svc"; fi ;;
+      # One reader for both languages (scripts/get_secret.py). It replaced get-secret.sh so the same
+      # keychain:<service>[@<account>] reference resolves on macOS, Windows and Linux -- see
+      # docs/plans/2026-09-20-windows-migration.md §2.
+      if [ -n "$acct" ]; then python3 "$_TE_DIR/get_secret.py" "$svc" "$acct"; else python3 "$_TE_DIR/get_secret.py" "$svc"; fi ;;
     *) printf '%s' "$1" ;;
   esac
 }

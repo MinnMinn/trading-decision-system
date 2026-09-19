@@ -1,0 +1,43 @@
+{
+  "_source": "CLAUDE.md §52 REALTIME DATA. The ten requirements below are §52's own list, in §52's order and wording. scripts/tests/test_feed_health.py parses them back out of CLAUDE.md.",
+  "_reader": "scripts/feed_health.py is the ONE reader and the ONE tracker.",
+  "_transport": "§52 says 'Realtime WebSocket handling must support ...' and this repo has no WebSocket: crypto is Binance REST polling (scripts/fetch-binance-klines.sh) and CFD is an MT5 file export. Four of the ten are therefore genuinely about a connection this repo does not open. They are declared `not_applicable` WITH THE REASON rather than omitted -- an omitted requirement is one nobody can tell was considered, and the day a socket is opened this file is the list of what it must then do.",
+  "_the_sentence_that_survives_any_transport": "§52: 'Do not trade from silently stale state.' The word is SILENTLY. A polling feed goes stale in ways a socket does not -- the file stops being written, the same bytes come back for an hour, a closed bar is quietly revised -- and none of those raise anything. Six of the ten requirements are about exactly that and all six apply here.",
+  "requirements": [
+    {"id": "connection_lifecycle", "spec_name": "connection lifecycle", "applies": false,
+     "_why": "There is no persistent connection. Each poll is an independent request that either returns or does not; `scripts/strategy-runner.py fetch_candles` raises on a non-zero exit, which is the whole lifecycle a request has.",
+     "becomes_applicable_when": "a WebSocket or streaming subscription is opened"},
+    {"id": "heartbeat", "spec_name": "heartbeat", "applies": false,
+     "_why": "A heartbeat detects a silent connection. A poll cannot be silently open -- it returns or it errors. The equivalent question for a poll is 'is the feed still ADVANCING', which is `stale_detection` below and does apply.",
+     "becomes_applicable_when": "a WebSocket or streaming subscription is opened"},
+    {"id": "reconnect", "spec_name": "reconnect", "applies": false,
+     "_why": "Nothing to reconnect: the next tick issues a new request.",
+     "becomes_applicable_when": "a WebSocket or streaming subscription is opened"},
+    {"id": "exponential_backoff", "spec_name": "exponential backoff", "applies": false,
+     "_why": "The loop's cadence is the timeframe (scripts/pilot-loop.sh reads --tick-seconds), not a retry schedule. A failed fetch is not retried inside a tick; the pair simply has no candles and gets WAIT (§62's shape).",
+     "becomes_applicable_when": "a WebSocket or streaming subscription is opened, or a tick retries inside itself"},
+    {"id": "duplicate_detection", "spec_name": "duplicate detection", "applies": true,
+     "implemented_by": "scripts/quality.py `_structural_fault` (a repeated timestamp WITHIN a series) + scripts/feed_health.py `observe()` (an IDENTICAL poll -- the series did not advance)",
+     "_two_kinds": "A duplicate bar inside one response and an entire response that repeats are different failures with the same name. §20 caught the first; nothing caught the second, and the second is what a stalled MT5 export looks like."},
+    {"id": "gap_detection", "spec_name": "gap detection", "applies": true,
+     "implemented_by": "scripts/quality.py `_first_hole` (a hole WITHIN a series, on markets declaring `continuous`) + scripts/feed_health.py `observe()` (a gap BETWEEN polls: bars missing between the last poll's newest bar and this one's oldest)"},
+    {"id": "sequence_validation", "spec_name": "sequence validation", "applies": true,
+     "implemented_by": "scripts/quality.py `_structural_fault` (non-monotonic bar times) + scripts/feed_health.py `observe()` (a poll whose newest bar is OLDER than the last poll's -- the feed went backwards)"},
+    {"id": "stale_detection", "spec_name": "stale detection", "applies": true,
+     "implemented_by": "scripts/quality.py `assess()` -> STALE, gated live by scripts/strategy-runner.py `_require_quality(allow=('FRESH',))`; scripts/feed_health.py adds the poll-to-poll view (how many consecutive polls returned nothing new)"},
+    {"id": "provider_health", "spec_name": "provider health", "applies": true,
+     "implemented_by": "scripts/feed_health.py `health()` -- per (provider, symbol, timeframe), derived from the observations above"},
+    {"id": "recovery", "spec_name": "recovery", "applies": true,
+     "implemented_by": "scripts/feed_health.py `observe()` -- a feed that advances again returns to HEALTHY, and the recovery is recorded rather than silently erasing the incident"}
+  ],
+  "states": {
+    "HEALTHY": "the feed advanced, in order, with no revision",
+    "STALLED": "consecutive polls returned nothing new -- the file stopped being written, or the endpoint is serving a cached response",
+    "GAPPED": "bars are missing between one poll and the next",
+    "REGRESSED": "this poll's newest bar is older than the last poll's, or its bar count fell",
+    "REVISED": "a bar that had already closed came back with different values -- §8's provider correction, arriving live",
+    "UNKNOWN": "no prior observation to compare against. NOT healthy: the first poll after a restart knows nothing, and treating that as health is how a restart launders a stalled feed."
+  },
+  "_revision_is_the_interesting_one": "A revised closed bar is a §8 point-in-time event happening in real time: the decision that read the old value was made on information the provider has since withdrawn. §52 asks for duplicate and sequence checks; it does not name revision, but a feed that rewrites history is unreliable in exactly the sense §52's 'detect when realtime state becomes unreliable' means, and nothing else in the repo would notice.",
+  "_gating": "§52: 'Realtime data quality must feed into the same data-quality and required-analysis rules used by the Decision Engine.' So feed_health does NOT invent an action: it maps its state onto a §20 quality state, and §20's existing gate decides what that does to an entry. One gate, one vocabulary."
+}

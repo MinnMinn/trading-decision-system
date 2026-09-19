@@ -1,0 +1,2 @@
+mt5 positions: []
+mt5 equity: 99955.5

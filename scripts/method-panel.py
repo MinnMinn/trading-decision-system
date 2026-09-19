@@ -17,12 +17,24 @@ Inputs (all read-only; each has exactly one writer elsewhere):
 Task B1 only: this module has no `db` capability and does not publish. It renders a static HTML fragment
 (no <!doctype>/<html>/<head> -- the Artifact tool supplies those) from the registry and a config dict.
 """
-import argparse, json, os, sys
+import argparse, datetime, json, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import methods as M    # noqa: E402
 import instruments as I  # noqa: E402
+# CLAUDE.md §50: which of the 22 fields this page owes is docs/architecture/ui-fields.json, read through
+# scripts/ui_contract.py. The panel is the ACTIVE TRADING CONFIGURATION surface, so it owes the fields that
+# describe what is selected -- market, instruments, the active preset, what is available, where orders go.
+import ui_contract as UI  # noqa: E402
+import providers as P  # noqa: E402
+import i18n  # noqa: E402
+
+# Same contract as the other two published pages: strings come from docs/architecture/i18n.json and every
+# fragment is rendered once per locale into `lang`-tagged siblings. One thing is specific to THIS page: the
+# language choice is per-viewer presentation and goes to localStorage only -- never to a db row. Those rows are
+# the control plane that drives /automation (docs/security/2026-09-12-method-panel.md PANEL-01), and a
+# presentation preference has no business in them.
 
 # PANEL-01/PANEL-08 (docs/security/2026-09-12-method-panel.md): the bare {"db": {}} default lets every
 # viewer of an org-internal artifact WRITE the shared control docs, and the `user` capability is not on this
@@ -34,8 +46,7 @@ CAPABILITIES = {"db": {"rules": [{"path": "", "read": "owner", "write": "owner"}
 
 # PANEL-02: printed once, visibly, near the top of the rendered page -- a tap changes live trading
 # configuration and the panel structurally cannot record who tapped (no `user` capability on this account).
-_DISCLOSURE = ("Chạm vào đây thay đổi cấu hình giao dịch đang chạy. Trang này KHÔNG THỂ ghi nhận ai đã chạm "
-               "-- nhật ký chỉ ghi actor \"artifact-panel\".")
+_DISCLOSURE_KEY = "panel.disclosure"
 
 CONFIG_PATH = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
 # The market -> live-directory map now has one author, scripts/instruments.py (I.DATA_DIR). The local copy
@@ -156,9 +167,11 @@ def esc(s):
 # The Artifact tool scans only the first 8KB for a <title> and falls back to the filename without one --
 # which would name this page ".method-panel.html" in the browser tab and the gallery. Keep it short and
 # distinctive: it is how the page is picked out of a list of artifacts, not a description of it.
-TITLE = "Công tắc phương pháp"
+TITLE = "Trading Control Center"   # artifact-identity: stable across redeploys (renamed from "Công tắc phương pháp" 2026-09-18, user decision; CLAUDE.md §50 area name)
 
-_STYLE = """<title>Công tắc phương pháp</title>
+_STYLE = """<meta charset="utf-8">
+<title>Trading Control Center</title>   <!-- artifact-identity: stable across redeploys -->
+__I18N_JS__
 <style>
 :root {
   --bg: #eef1f5; --surface: #ffffff; --surface-2: #e3e8ee; --border: #c7d0da;
@@ -214,6 +227,7 @@ body { background: var(--bg); color: var(--text); margin: 0; font-family: var(--
 .markets { display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
 @media (min-width: 720px) { .markets { grid-template-columns: 1fr 1fr; } }
 .market-col { display: flex; flex-direction: column; gap: .75rem; min-width: 0; }
+.col-meta { font-size: .74rem; color: var(--text-dim); font-family: var(--font-mono); }
 .market-col h2 { font-size: .95rem; margin: 0; display: flex; align-items: center; gap: .4rem; }
 .market-col h2 .ticker { font-family: var(--font-mono); color: var(--text-dim); font-size: .78rem; }
 .group-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--text-dim);
@@ -275,42 +289,40 @@ body { background: var(--bg); color: var(--text); margin: 0; font-family: var(--
 .chip.is-desired { outline: 2px dashed var(--pending); outline-offset: 1px;
   border-color: var(--pending); background: var(--pending-soft); color: var(--pending-ink); }
 .chip-pending-note { font-size: .62rem; font-weight: 600; }
+__I18N_CSS__
 </style>"""
 
-_TIER_LABEL = {"trade": "Đủ điều kiện vào lệnh", "research": "Chỉ nghiên cứu"}
+_TIER_KEY = {"trade": "panel.tier.trade", "research": "panel.tier.research"}
 # SOLO (docs/architecture/methods.json, added 2026-09-12): the two single-dimension presets no longer sit in
 # a permanent "research" tier -- they can produce a live TRADE verdict, at a higher score bar than NORMAL,
 # because a single methodology has no cross-confirming dimension to lean on (SYSTEM-DESIGN.md §6.2). The
 # thresholds are interpolated from M.MODES, never hard-coded here, so this string cannot drift from the
 # registry the way the old _RESEARCH_NOTE's "tối thiểu 2 dimension" line eventually did.
-def _solo_note():
+def _solo_note(lang):
     solo, normal = M.MODES["SOLO"], M.MODES["NORMAL"]
-    return (f"Chạy SOLO — {solo['minimum']} dimension, không có dimension nào khác xác nhận chéo, nên cần "
-            f"điểm ≥{solo['threshold']} (thay vì {normal['threshold']} của NORMAL) mới ra được TRADE.")
-# The mechanical WYCKOFF/WYCKOFF-BOOK runner methods this line is about -- printing it on a card whose
-# permitted set contains neither claims machinery that never engaged (the exact opposite of what the
-# line exists to prevent: implying the pilot verifies the wyckoff DIMENSION).
-_WYCKOFF_RUNNER_METHODS = {"WYCKOFF", "WYCKOFF-BOOK"}
+    return i18n.t("panel.solo_note", lang, minimum=solo["minimum"], solo=solo["threshold"], normal=normal["threshold"])
+# The mechanical WYCKOFF-BOOK runner method this line is about -- printing it on a card whose permitted set
+# does not contain it claims machinery that never engaged (the exact opposite of what the line exists to
+# prevent: implying the pilot verifies the wyckoff DIMENSION). The "WYCKOFF" mechanical proxy this set used to
+# also name was removed 2026-09-19 (docs/audits/2026-09-19-knowledge-fidelity.md finding 6); WYCKOFF-BOOK is
+# now the only mechanical Wyckoff runner method.
+_WYCKOFF_RUNNER_METHODS = {"WYCKOFF-BOOK"}
 # Written as (prefix, code, suffix) rather than one string with Markdown backticks -- esc()  only
 # HTML-escapes, it does not render Markdown, so backticks inserted as plain text show up literally on
 # the page. The filename/lineref is wrapped in a real <code> element instead; see _code_note() below.
-_WYCKOFF_HONESTY_PARTS = ("pilot chạy luật cơ học ", "scripts/wyckoff_rules.py",
-                           " (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc "
-                           "Wyckoff đầy đủ của skill.")
-_REAL_GATE_NOTE_PARTS = ("pilot không chạy ở REAL (", "strategy-runner.py:167",
-                          ") — chỉ nửa phân tích của preset còn hiệu lực.")
-_COINGLASS_NOTE = ("Khoá ở CFD — CoinGlass là nguồn order-flow cho footprint/heatmap, "
-                    "chỉ có cho crypto-derivatives (SYSTEM-DESIGN.md §12 mục 3).")
-_EMPTY_NOTE = ("không cặp nào được chọn — không mở lệnh mới ở thị trường này; "
-               "vị thế và lệnh chờ đang mở vẫn được quản lý.")
+_WYCKOFF_HONESTY_PARTS = ("panel.wyckoff_honesty.before", "scripts/wyckoff_rules.py", "panel.wyckoff_honesty.after")
+_REAL_GATE_NOTE_PARTS = ("panel.real_gate.before", "strategy-runner.py:167", "panel.real_gate.after")
+_COINGLASS_NOTE_KEY = "panel.coinglass_note"
+_EMPTY_NOTE_KEY = "panel.empty_note"
 
 
 def _code_note(parts):
-    """prefix/code/suffix -> one escaped string with the middle piece wrapped in <code>, never with
-    literal Markdown backticks. `parts` are fixed Python literals this module owns, not db content --
-    esc() is still applied to each piece individually as defense in depth."""
-    prefix, code, suffix = parts
-    return f'{esc(prefix)}<code>{esc(code)}</code>{esc(suffix)}'
+    """(prefix key, code, suffix key) -> one escaped fragment per locale, the middle piece wrapped in a real
+    <code> element and never in literal Markdown backticks (esc() only HTML-escapes; a backtick inserted as
+    text shows up on the page). The code fragment is a file path, identical in every language. `parts` are
+    fixed literals this module owns, not db content -- esc() is still applied per piece as defense in depth."""
+    prefix_key, code, suffix_key = parts
+    return i18n.dual(lambda l: f'{esc(i18n.t(prefix_key, l))}<code>{esc(code)}</code>{esc(i18n.t(suffix_key, l))}')
 
 
 def _preset_card(market, preset, selected_id, environment):
@@ -324,25 +336,28 @@ def _preset_card(market, preset, selected_id, environment):
         attrs += ["disabled", 'aria-disabled="true"']
     parts = [f'<button type="button" class="preset-card" {" ".join(attrs)}>']
     parts.append('<div class="preset-head">'
-                 f'<span class="preset-label">{esc(preset["label"])}</span>'
-                 f'<span class="tier-badge" data-tier="{tier}">{"Trade" if tier == "trade" else "Research"}</span>'
+                 f'<span class="preset-label">{i18n.dual(lambda l: esc(M.preset_text(preset, "label", l)))}</span>'
+                 f'<span class="tier-badge" data-tier="{tier}">{i18n.tx(_TIER_KEY[tier])}</span>'
                  '</div>')
-    # Filled in by JS only, from the fixed Vietnamese constant in _SCRIPT -- never from db content.
-    # Empty/hidden until a pending local edit targets this card; see renderMarket()/PENDING_NOTE_TEXT.
+    # Filled in by JS only, from the message catalog injected into _SCRIPT -- never from db content.
+    # Empty/hidden until a pending local edit targets this card; see renderMarket()/pendingNoteText().
     parts.append('<div class="preset-pending-note" hidden></div>')
     parts.append(f'<div class="preset-dims">{esc(dims_label)}</div>')
     if locked:
-        parts.append(f'<div class="preset-note locked">{esc(_COINGLASS_NOTE)}</div>')
+        parts.append(f'<div class="preset-note locked">{i18n.tx(_COINGLASS_NOTE_KEY)}</div>')
     elif environment == "real":
         parts.append(f'<div class="preset-note realgate">{_code_note(_REAL_GATE_NOTE_PARTS)}</div>')
     else:
         permitted = M.runner_methods(M.flags_for(pid))
-        # PANEL-style honesty: never overstate what the pilot can fire. COMBINED-BOOK/PARTIAL are
-        # runnable: false in methods.json (backtest-only, scripts/backtest-methods.py:528) --
+        # PANEL-style honesty: never overstate what the pilot can fire. COMBINED-BOOK is
+        # runnable: false in methods.json (backtest-only, scripts/backtest-methods.py) --
         # strategy-runner.py's own METHODS is methods.runnable(), so a card must intersect with it too.
         runnable_methods = sorted(permitted & M.runnable())
-        parts.append(f'<div class="preset-methods">runner: '
-                     f'{esc(", ".join(runnable_methods) or "(không có)")}</div>')
+        methods_txt = ", ".join(runnable_methods)
+        # "runner" is the component name (scripts/strategy-runner.py), a machine identifier, so it reads the
+        # same in every language -- like the method names beside it. The methods list is machine values too.
+        parts.append('<div class="preset-methods">runner: '
+                     + (esc(methods_txt) if methods_txt else i18n.tx("panel.methods_none")) + '</div>')
         # Only claim the mechanical Wyckoff rule engine ran where it actually can.
         if permitted & _WYCKOFF_RUNNER_METHODS:
             parts.append(f'<div class="preset-note">{_code_note(_WYCKOFF_HONESTY_PARTS)}</div>')
@@ -354,10 +369,11 @@ def _preset_card(market, preset, selected_id, environment):
     mode_info = M.MODES[mode]
     parts.append(f'<div class="preset-mode" data-mode="{esc(mode)}" '
                  f'data-mode-minimum="{mode_info["minimum"]}" data-mode-threshold="{mode_info["threshold"]}">'
-                 f'chế độ {esc(mode)} · tối thiểu {mode_info["minimum"]} dimension · '
-                 f'ngưỡng điểm {mode_info["threshold"]}</div>')
+                 + i18n.dual(lambda l: i18n.t("panel.mode_line", l, mode=esc(mode),
+                                               minimum=mode_info["minimum"], threshold=mode_info["threshold"]))
+                 + '</div>')
     if not locked and mode == "SOLO":
-        parts.append(f'<div class="preset-note solo">{esc(_solo_note())}</div>')
+        parts.append('<div class="preset-note solo">' + i18n.dual(lambda l: esc(_solo_note(l))) + '</div>')
     parts.append("</button>")
     return "".join(parts)
 
@@ -372,18 +388,18 @@ def _symbol_chip(market, fact):
     label = I.display(sym)["label"]
     badges = []
     if not fact["data_present"]:
-        badges.append('<span class="badge badge-nodata" title="Chưa có dữ liệu nến trên đĩa">chưa có dữ liệu</span>')
+        badges.append(f'<span class="badge badge-nodata" {i18n.attr("title", "panel.badge.nodata_title")}>{i18n.tx("panel.badge.nodata")}</span>')
     if not fact["backtested"]:
-        badges.append('<span class="badge badge-unvalidated" title="Chưa kiểm định bằng backtest">chưa kiểm định</span>')
+        badges.append(f'<span class="badge badge-unvalidated" {i18n.attr("title", "panel.badge.unvalidated_title")}>{i18n.tx("panel.badge.unvalidated")}</span>')
     if not fact["orderable"]:
-        badges.append('<span class="badge badge-locked" title="Chỉ phân tích, không đặt lệnh được">không đặt lệnh</span>')
+        badges.append(f'<span class="badge badge-locked" {i18n.attr("title", "panel.badge.locked_title")}>{i18n.tx("panel.badge.locked")}</span>')
     if fact["open_position"]:
-        badges.append('<span class="badge badge-open" title="Đang có lệnh mở">đang mở</span>')
+        badges.append(f'<span class="badge badge-open" {i18n.attr("title", "panel.badge.open_title")}>{i18n.tx("panel.badge.open")}</span>')
     pressed = "true" if fact["selected"] else "false"
     return (f'<li class="chip-item" {" ".join(li_attrs)}>'
             f'<button type="button" class="chip" data-symbol="{esc(sym)}" aria-pressed="{pressed}">'
             f'<span class="chip-label">{esc(label)}</span>'
-            # Filled in by JS only, from the fixed Vietnamese constant in _SCRIPT -- never from db content.
+            # Filled in by JS only, from the message catalog injected into _SCRIPT -- never from db content.
             '<span class="chip-pending-note" hidden></span>'
             f'{"".join(badges)}</button></li>')
 
@@ -411,31 +427,50 @@ def _market_column(market, config, data_present, backtested, open_positions, env
     custom_note = ""
     if selected_id == "custom":
         bool_line = ", ".join(f"{d}={flags[d]}" for d in M.ALL_DIMENSIONS if d in M.dimensions(market))
-        custom_note = ('<div class="custom-note">Preset hiện tại: <code>custom</code> — '
-                        f'{esc(bool_line)}. đặt từ terminal — chạm một preset để ghi đè.</div>')
+        custom_note = ('<div class="custom-note">'
+                       + i18n.dual(lambda l: i18n.t("panel.custom_note", l, flags=esc(bool_line))) + '</div>')
 
-    empty_note = f'<div class="empty-note">{esc(_EMPTY_NOTE)}</div>' if not selected_syms else ""
+    empty_note = f'<div class="empty-note">{i18n.tx(_EMPTY_NOTE_KEY)}</div>' if not selected_syms else ""
 
     # No preset is tier:research any more since the 2026-09-12 SOLO addition (docs/architecture/methods.json)
     # made every single-dimension preset tradeable -- but this stays data-driven (checks research_cards, not
     # a hard-coded "there are none today") so a future research-tier preset would bring the group back without
     # a code change here. A heading with an empty grid under it is a rendering bug, not a harmless empty group.
-    research_group = (f'<div class="group-label">{_TIER_LABEL["research"]}</div>'
+    research_group = (f'<div class="group-label">{i18n.tx(_TIER_KEY["research"])}</div>'
                        f'<div class="preset-grid">{research_cards}</div>') if research_cards else ""
 
     market_label = "Crypto" if market == "crypto" else "CFD"
     ticker_hint = "/".join(I.analysis(market)[:3]) + ("…" if len(I.analysis(market)) > 3 else "")
+    # §4/§50: where an order on this market would actually go. The panel decides what is SELECTED; it never
+    # said where the selection executes, which is the other half of the sentence. Read from the provider
+    # registry's single unattended execution provider -- the same call the order path makes.
+    try:
+        venue_html = i18n.dual(lambda l: i18n.t("panel.venue", l, venue=esc(P.unattended_venue_for(market))))
+    except ValueError:
+        venue_html = i18n.tx("panel.venue_none")
+    # `profile_of` answers "custom" for a flag set no preset names -- which is a real state of the config, not
+    # an absence, and the custom note below spells out the four booleans. Printing the word is the honest
+    # answer; reaching for a preset record that does not exist is how this line crashed the first time.
+    _p = M.preset(selected_id)
+    active_html = i18n.dual(lambda l: i18n.t(
+        "panel.active_preset", l,
+        preset=esc(M.preset_text(_p, "label", l) if _p else selected_id)))
+    dims_html = i18n.dual(lambda l: i18n.t("panel.dims_available", l,
+                                           dims=esc(" · ".join(M.dimensions(market)))))
     return (
         f'<section class="market-col" data-market="{market}">'
-        f'<h2>{market_label} <span class="ticker">{esc(ticker_hint)}</span></h2>'
+        f'<h2><span{UI.attr("market")}>{market_label}</span> <span class="ticker">{esc(ticker_hint)}</span></h2>'
+        f'<div class="col-meta"{UI.attr("active-methodology")}>{active_html}</div>'
+        f'<div class="col-meta"{UI.attr("execution-venue")}>{venue_html}</div>'
+        f'<div class="col-meta"{UI.attr("available-methodologies")}>{dims_html}</div>'
         f'{custom_note}'
-        f'<div class="group-label">{_TIER_LABEL["trade"]}</div>'
+        f'<div class="group-label">{i18n.tx(_TIER_KEY["trade"])}</div>'
         f'<div class="preset-grid">{trade_cards}</div>'
         f'{research_group}'
-        f'<div class="group-label">Cặp theo dõi</div>'
+        f'<div class="group-label">{i18n.tx("panel.watched_pairs")}</div>'
         f'{empty_note}'
-        f'<ul class="chip-grid">{chips}</ul>'
-        f'<div class="request-status" data-market="{market}" data-status="unsent" aria-live="polite">chưa gửi</div>'
+        f'<ul class="chip-grid"{UI.attr("instrument")}>{chips}</ul>'
+        f'<div class="request-status" data-market="{market}" data-status="unsent" aria-live="polite">{i18n.tx("panel.status.unsent")}</div>'
         f'</section>'
     )
 
@@ -465,7 +500,29 @@ def _market_column(market, config, data_present, backtested, open_positions, env
 #  - Every value read from `db` is compared as a plain string/array against what the page itself already
 #    rendered from the registry (PANEL-03): no db string is ever used to build a CSS selector, an attribute,
 #    or markup -- only `===` comparisons and `textContent` assignments.
+def _i18n_boot():
+    """The catalog slice and locale records this page's script resolves at runtime. Emitted BEFORE _SCRIPT so
+    L() has them the moment the script runs."""
+    # Only the keys the SCRIPT resolves at runtime -- not every panel.* message. Shipping the rest would put
+    # server-rendered copy into the page a second time, where a test looking for "did this section render"
+    # would find it in the catalog instead of the markup.
+    return ("<script>window.__PANEL_I18N__=" + json.dumps(
+        i18n.js_catalog("panel.status.", "panel.refusal.", "panel.stall.", "panel.db.", "panel.unknown_time"),
+        ensure_ascii=False)
+            + ";window.__PANEL_LOCALES__=" + json.dumps(i18n.js_locales(), ensure_ascii=False)
+            + ";window.__PANEL_DFLT__=" + json.dumps(i18n.DEFAULT) + ";</script>")
+
+
 _SCRIPT = """<script>
+  // Runtime strings for this page. The catalog and locale records are injected by render() below; L() resolves
+  // one in whatever language the reader has chosen, and re-resolves when they change it.
+  var I18N = window.__PANEL_I18N__ || {}, LOCALES = window.__PANEL_LOCALES__ || {}, DFLT = window.__PANEL_DFLT__ || "en";
+  function lang() { var l = document.documentElement.getAttribute("data-lang"); return (l && LOCALES[l]) ? l : DFLT; }
+  function L(key, params) {
+    var m = I18N[key] || {}, s = m[lang()] != null ? m[lang()] : (m[DFLT] != null ? m[DFLT] : key);
+    if (params) for (var k in params) s = s.split("{" + k + "}").join(params[k]);
+    return s;
+  }
 (function () {
   "use strict";
 
@@ -492,14 +549,14 @@ _SCRIPT = """<script>
   // market -> bool -- true right after a write attempt failed for a reason other than not_granted/revoked
   // (which degrades the whole page to read-only some other way) or unavailable/resource_exhausted (which
   // retries silently). Bug found in the browser sweep (2026-09-12): handleWriteError used to call
-  // setRequestStatus() directly with "gửi thất bại", then immediately call renderMarket(), whose own
+  // setRequestStatus() directly with the send-failed message, then immediately call renderMarket(), whose own
   // updateStatusLine() recomputed the line from applied/request/pending and overwrote the failure text in
   // the SAME synchronous tick -- the user never saw it. updateStatusLine() now owns displaying this state
   // (checked once, see below) so there is exactly one write to the status line per repaint, not two racing
   // ones. Cleared by the next tap (onPresetClick/onChipClick) so a retry supersedes the stale note.
   var sendFailed = {};
   // Fixed Vietnamese copy for the in-card pending note (PENDING_RECONCILE follow-up) -- never db content.
-  var PENDING_NOTE_TEXT = "đang chờ áp dụng";
+  function pendingNoteText() { return L("panel.status.pending_note"); }
   var writeTimer = {};
   var heartbeatAt = null;    // Date | null
 
@@ -519,11 +576,28 @@ _SCRIPT = """<script>
     el.textContent = text;
   }
 
-  function setDbBanner(kind, text) {
+  // The db banner is the one line on this page written ONCE, at boot, from a capability probe that never runs
+  // again -- so it cannot re-resolve itself the way the status line does. Store (key, params), not finished
+  // text, and let repaintLanguage() below paint it again when the reader switches language.
+  var dbBannerState = null;
+  function setDbBanner(kind, key, params) {
+    dbBannerState = { kind: kind, key: key, params: params || null };
+    paintDbBanner();
+  }
+  function paintDbBanner() {
     var el = dbBanner();
-    if (!el) return;
-    el.setAttribute("data-kind", kind);
-    el.textContent = text;
+    if (!el || !dbBannerState) return;
+    el.setAttribute("data-kind", dbBannerState.kind);
+    el.textContent = L(dbBannerState.key, dbBannerState.params);
+  }
+
+  // A language change is a presentation event: it repaints from state and must touch nothing else. That is why
+  // this calls paintMarket() and NOT renderMarket() -- renderMarket() runs reconcilePending() first, which
+  // mutates the pending-request state machine. Switching language must never advance a pending write.
+  function repaintLanguage() {
+    paintDbBanner();
+    renderHeartbeatBanner();
+    MARKETS.forEach(paintMarket);
   }
 
   function setControlsEnabled(enabled) {
@@ -559,9 +633,13 @@ _SCRIPT = """<script>
   }
 
   function formatTs(raw) {
-    if (typeof raw !== "string") return "(không rõ)";
+    if (typeof raw !== "string") return L("panel.unknown_time");
     var d = new Date(raw);
-    return isNaN(d.getTime()) ? "(không rõ)" : d.toLocaleString("vi-VN");
+    // A timestamp was formatted in the BROWSER's timezone with no suffix at all -- on the page that drives
+    // /automation. It now follows the page language like every other displayed time and always names its zone.
+    if (isNaN(d.getTime())) return L("panel.unknown_time");
+    var tz = (LOCALES[lang()] || {}).tz || { name: "UTC", offset_minutes: 0 };
+    return new Date(d.getTime() + tz.offset_minutes * 60000).toISOString().slice(0, 16).replace("T", " ") + " " + tz.name;
   }
 
   // The build-time baked selection (what B1 rendered from automation-config.json), used only until the
@@ -646,7 +724,7 @@ _SCRIPT = """<script>
       var isPendingHere = !!pending && pending.preset === pid;
       card.classList.toggle("is-desired", isPendingHere);
       var note = card.querySelector(".preset-pending-note");
-      if (note) { note.hidden = !isPendingHere; note.textContent = isPendingHere ? PENDING_NOTE_TEXT : ""; }
+      if (note) { note.hidden = !isPendingHere; note.textContent = isPendingHere ? pendingNoteText() : ""; }
     });
     var appliedSymbols = doc ? doc.instruments : [];
     marketChips(market).forEach(function (chip) {
@@ -655,7 +733,7 @@ _SCRIPT = """<script>
       var isPendingHere = !!pending && pending.instruments.indexOf(sym) !== -1;
       chip.classList.toggle("is-desired", isPendingHere);
       var note = chip.querySelector(".chip-pending-note");
-      if (note) { note.hidden = !isPendingHere; note.textContent = isPendingHere ? PENDING_NOTE_TEXT : ""; }
+      if (note) { note.hidden = !isPendingHere; note.textContent = isPendingHere ? pendingNoteText() : ""; }
     });
     updateStatusLine(market);
   }
@@ -686,26 +764,28 @@ _SCRIPT = """<script>
     return true;
   }
 
-  var REFUSAL_REASON_BY_CODE = {
+  // The table maps a result code to a MESSAGE KEY, not to a sentence, so the reason a tap was refused is
+  // shown in the reader's language. The codes themselves are the applier's machine values and never translate.
+  var REFUSAL_KEY_BY_CODE = {
     "refused: unknown_or_wrong_market_preset":
-      "preset không hợp lệ cho thị trường này — chạm một preset khác trong danh sách",
+      "panel.refusal.preset",
     "refused: invalid_instrument":
-      "có cặp không nằm trong danh sách cho phép — bỏ chọn cặp đó rồi thử lại",
+      "panel.refusal.symbol",
     "malformed_request":
-      "yêu cầu sai định dạng — chạm lại một preset và cặp theo dõi để gửi yêu cầu mới",
+      "panel.refusal.shape",
     "stale_or_skewed_requested_at":
-      "yêu cầu đã quá cũ hoặc đồng hồ thiết bị lệch — chạm lại để gửi yêu cầu mới"
+      "panel.refusal.stale"
   };
   // PANEL-03: a code this table does not recognise renders as this fixed placeholder, never as itself.
-  var GENERIC_REFUSAL_REASON = "bị từ chối — chọn một preset hợp lệ hoặc sửa lại cặp theo dõi rồi thử lại";
+  var GENERIC_REFUSAL_KEY = "panel.refusal.generic";
   var MAX_RESULT_CODE_LEN = 200;
 
   function mapOrGeneric(code) {
-    if (typeof code !== "string" || !code) return GENERIC_REFUSAL_REASON;
+    if (typeof code !== "string" || !code) return L(GENERIC_REFUSAL_KEY);
     // Capped before lookup so an unbounded string is never held or compared at full length, even
     // internally -- no legitimate code from the registry above is anywhere near this long.
     var capped = code.length > MAX_RESULT_CODE_LEN ? code.slice(0, MAX_RESULT_CODE_LEN) : code;
-    return REFUSAL_REASON_BY_CODE[capped] || GENERIC_REFUSAL_REASON;
+    return L(REFUSAL_KEY_BY_CODE[capped] || GENERIC_REFUSAL_KEY);
   }
 
   function refusalReasonText(req, doc) {
@@ -713,7 +793,7 @@ _SCRIPT = """<script>
     var reasons = [];
     if (doc.preset !== req.preset) reasons.push(mapOrGeneric(doc.preset_result));
     if (!sameInstrumentSet(doc.instruments, req.instruments)) reasons.push(mapOrGeneric(doc.instruments_result));
-    return reasons.length ? reasons.join(" · ") : GENERIC_REFUSAL_REASON;
+    return reasons.length ? reasons.join(" · ") : L(GENERIC_REFUSAL_KEY);
   }
 
   function resolveRequestOutcome(req, doc) {
@@ -737,25 +817,25 @@ _SCRIPT = """<script>
       // the request has actually left the device yet.
       var written = req && req.preset === pending.preset && sameInstrumentSet(req.instruments, pending.instruments);
       setRequestStatus(market, written ? "waiting" : "unsent",
-        written ? "đang chờ áp dụng (≤ 5 phút)" : "chưa gửi");
+        written ? L("panel.status.waiting") : L("panel.status.unsent"));
       return;
     }
     if (sendFailed[market]) {
-      setRequestStatus(market, "send-failed", "gửi thất bại — thử lại");
+      setRequestStatus(market, "send-failed", L("panel.status.send_failed"));
       return;
     }
     if (!req) {
       setRequestStatus(market, doc ? "applied" : "unsent",
-        doc ? "đã áp dụng lúc " + formatTs(doc.applied_at) : "chưa gửi");
+        doc ? L("panel.status.applied_at") + formatTs(doc.applied_at) : L("panel.status.unsent"));
       return;
     }
     var outcome = resolveRequestOutcome(req, doc);
     if (outcome.status === "applied") {
-      setRequestStatus(market, "applied", "đã áp dụng lúc " + formatTs(doc.applied_at));
+      setRequestStatus(market, "applied", L("panel.status.applied_at") + formatTs(doc.applied_at));
     } else if (outcome.status === "refused") {
-      setRequestStatus(market, "refused", "đã từ chối — " + outcome.reason);
+      setRequestStatus(market, "refused", L("panel.status.refused") + outcome.reason);
     } else {
-      setRequestStatus(market, "waiting", "đang chờ áp dụng (≤ 5 phút)");
+      setRequestStatus(market, "waiting", L("panel.status.waiting"));
     }
   }
 
@@ -816,10 +896,10 @@ _SCRIPT = """<script>
     el.hidden = false;
     var status = pendingStatusAcrossMarkets();
     el.textContent = !status.anyPending
-      ? "không có tiến trình áp dụng — bộ áp dụng không phản hồi"
+      ? L("panel.stall.no_response")
       : (status.implausible || status.minutes === null)
-        ? "không có tiến trình áp dụng — đồng hồ thiết bị lệch, không tính được thời gian chờ"
-        : "không có tiến trình áp dụng — yêu cầu đang treo " + status.minutes + " phút";
+        ? L("panel.stall.clock")
+        : L("panel.stall.minutes", { minutes: status.minutes });
   }
 
   function scheduleWrite(market) {
@@ -853,7 +933,7 @@ _SCRIPT = """<script>
     if (code === "not_granted" || code === "revoked") {
       dbReady = false;
       setControlsEnabled(false);
-      setDbBanner("readonly", "Chỉ xem — quyền ghi đã bị thu hồi.");
+      setDbBanner("readonly", "panel.db.revoked");
     } else {
       // Set the flag, not the status text directly -- updateStatusLine() (called via renderMarket() just
       // below) is the single place that writes to the status line, so this can never be clobbered by that
@@ -868,7 +948,7 @@ _SCRIPT = """<script>
 
   function onPresetClick(market, presetId) {
     if (!dbReady) return;
-    sendFailed[market] = false; // a fresh tap supersedes any stale "gửi thất bại" note from a prior attempt
+    sendFailed[market] = false; // a fresh tap supersedes any stale send-failed note from a prior attempt
     var base = desiredBase(market);
     pendingDesired[market] = { preset: presetId, instruments: base.instruments.slice() };
     paintMarket(market); // not renderMarket(): see paintMarket()'s comment -- nothing new to reconcile yet
@@ -926,28 +1006,33 @@ _SCRIPT = """<script>
   function boot() {
     setControlsEnabled(false); // inert until claude.use("db") settles, one way or the other
     if (!window.claude || typeof window.claude.use !== "function") {
-      setDbBanner("readonly", "Chỉ xem — trình xem này không hỗ trợ bộ nhớ điều khiển.");
+      setDbBanner("readonly", "panel.db.unsupported");
       return;
     }
     window.claude.use("db").then(function (namespace) {
       if (!namespace) {
         db = null; dbReady = false;
-        setDbBanner("readonly",
-          "Chỉ xem — không có quyền ghi (chưa được cấp hoặc trình xem không hỗ trợ).");
+        setDbBanner("readonly", "panel.db.no_write");
         return;
       }
       db = namespace; dbReady = true;
-      setDbBanner("ready", "Đã kết nối — chạm để thay đổi cấu hình đang chạy.");
+      setDbBanner("ready", "panel.db.ready");
       setControlsEnabled(true);
       MARKETS.forEach(subscribeMarket);
       subscribeHeartbeat();
     }).catch(function () {
       db = null; dbReady = false;
-      setDbBanner("readonly", "Chỉ xem — không kết nối được bộ nhớ điều khiển.");
+      setDbBanner("readonly", "panel.db.failed");
     });
   }
 
   setInterval(renderHeartbeatBanner, 30000);
+  // The chrome switches by CSS (both languages ship as sibling elements). Everything this script writes at
+  // RUNTIME -- the status line, the pending notes, the stall banner, the db banner, every formatTs() zone --
+  // exists only once in the DOM, in whatever language was current when it was written. Without this observer
+  // those lines stay in the previous language until the next db event, which on a quiet panel is never.
+  new MutationObserver(repaintLanguage).observe(document.documentElement,
+    { attributes: true, attributeFilter: ["data-lang"] });
   boot();
 })();
 </script>"""
@@ -964,21 +1049,28 @@ def render(config, data_present=None, backtested=None, open_positions=None):
 
     columns = "".join(_market_column(m, config, data_present, backtested, open_positions, environment)
                        for m in ("crypto", "cfd"))
-    env_label = "REAL (tiền thật)" if environment == "real" else "DEMO (testnet, tiền giả)"
+    env_label = i18n.tx("panel.env.real" if environment == "real" else "panel.env.demo")
     header = (
-        '<div class="panel-head"><h1>Công tắc phương pháp</h1>'
-        f'<span class="env-pill" data-env="{esc(environment)}">{esc(env_label)}</span></div>'
+        f'<div class="panel-head"><h1>{i18n.tx("panel.title")}</h1>{i18n.switch_html()}'
+        f'<span class="env-pill" data-env="{esc(environment)}">{env_label}</span></div>'
     )
-    # PANEL-02: printed unconditionally, static text -- never derived from db.
-    disclosure = f'<p class="disclosure">{esc(_DISCLOSURE)}</p>'
+    # PANEL-02: printed unconditionally, near the top, never derived from db -- in whichever language
+    # the reader has chosen. Both locales are in the markup; one is shown.
+    disclosure = f'<p class="disclosure">{i18n.tx(_DISCLOSURE_KEY)}</p>'
+    # §50 Freshness: a baked panel is a snapshot until the control documents arrive, and it says which it is.
+    built = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    stamp = (f'<p class="disclosure"{UI.attr("freshness")}>'
+             + i18n.dual(lambda l: i18n.t("panel.built", l, time=esc(built))) + '</p>')
     # PANEL-06/PANEL-07: connectivity + stale-applier banners. Both start inert/hidden; the script block
     # fills them in once claude.use("db") settles and the control/heartbeat subscription reports.
     db_banner = '<div class="db-banner" data-kind="connecting" role="status" aria-live="polite">' \
-                'Đang kết nối tới bộ nhớ điều khiển…</div>'
+                f'{i18n.tx("panel.db.connecting")}</div>'
     heartbeat_banner = '<div class="heartbeat-banner" data-kind="unknown" role="alert" aria-live="assertive" ' \
                         'hidden></div>'
-    return (f'{_STYLE}\n<main class="panel">{header}{disclosure}{db_banner}{heartbeat_banner}'
-            f'<div class="markets">{columns}</div></main>\n{_SCRIPT}')
+    style = _STYLE.replace('__I18N_JS__', i18n.switch_js("panel.title")).replace('__I18N_CSS__', i18n.switch_css())
+    return (f'{style}\n<main class="panel">{header}{disclosure}{stamp}{db_banner}{heartbeat_banner}'
+            f'<div class="markets">{columns}</div></main>\n'
+            f'{_i18n_boot()}{_SCRIPT}')
 
 
 # --------------------------------------------------------------------------------------------------------- main

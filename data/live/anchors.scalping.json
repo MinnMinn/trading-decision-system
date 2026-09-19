@@ -1,0 +1,150 @@
+{
+ "source": "Phân tích đầy đủ day-trade 11/9 11:00Z (tái xác nhận sau lần 11/9 00:15Z, nến đóng tham chiếu 10:45Z): BTC vẫn giữa SC 76,676.07–AR 77,424.98, tham chiếu 76,993 (-0.56% dưới AR, +0.69% trên đáy Spring), chưa có đóng cửa vượt AR lẫn chưa đóng cửa dưới lại Spring. ETH vẫn giữ cấu trúc trên LPS 2,435.00, tham chiếu 2,462.14 (+1.11% trên LPS, +0.72% trên AR); cực trị sau đợt tăng đã lên 2,484.62 nhưng nến đang hình thành vẫn chưa đóng cửa xác nhận SOS. SOL vẫn yếu nhất, tham chiếu 99.18, giữa SC 98.50–AR 100.37. Mốc do phân tích đầy đủ đặt, scanner chỉ so sánh.",
+ "updated": "2026-09-11T11:00:00Z",
+ "symbols": {
+  "BTCUSDT": {
+   "rule": {
+    "type": "range",
+    "support": "sc_low",
+    "resistance": "ar_high"
+   },
+   "levels": [
+    {
+     "name": "sc_low",
+     "label": "SC mới (Cao trào bán), khối lượng kỷ lục cửa sổ",
+     "price": 76676.07,
+     "time": "2026-09-10T12:45:00Z",
+     "role": "support",
+     "method": "wyckoff",
+     "short": "SC"
+    },
+    {
+     "name": "ar_high",
+     "label": "AR (Automatic Rally) — chưa có nến đóng cửa vượt",
+     "price": 77424.98,
+     "time": "2026-09-10T14:45:00Z",
+     "role": "resistance",
+     "method": "wyckoff",
+     "short": "AR"
+    },
+    {
+     "name": "old_sos_high",
+     "label": "đỉnh SOS cũ (9/9), mốc kháng cự vĩ mô xa hơn",
+     "price": 79760.0,
+     "time": "2026-09-09T08:30:00Z",
+     "role": "resistance",
+     "method": "wyckoff",
+     "short": "SOS cũ"
+    },
+    {
+     "name": "spring_low",
+     "label": "Đáy Spring — xuyên xuống dưới SC rồi đóng cửa hồi phục lại vùng giao dịch",
+     "price": 76464.0,
+     "time": "2026-09-10T23:15:00Z",
+     "role": "support",
+     "method": "wyckoff",
+     "short": "Spring"
+    },
+    {
+     "name": "mss_swing",
+     "label": "Điểm swing bị phá bởi đóng cửa MSS giảm gần nhất",
+     "price": 77083.17,
+     "time": "2026-09-10T19:45:00Z",
+     "role": "swing",
+     "method": "ict",
+     "short": "swing MSS"
+    }
+   ]
+  },
+  "ETHUSDT": {
+   "rule": {
+    "type": "range",
+    "support": "sc_low",
+    "resistance": "ar_high"
+   },
+   "levels": [
+    {
+     "name": "sc_low",
+     "label": "SC mới (Cao trào bán), khối lượng kỷ lục cửa sổ",
+     "price": 2405.85,
+     "time": "2026-09-10T13:00:00Z",
+     "role": "support",
+     "method": "wyckoff",
+     "short": "SC"
+    },
+    {
+     "name": "ar_high",
+     "label": "AR — đã đóng cửa vượt (UA khối lượng dưới chuẩn); cực trị sau đó 2,484.62",
+     "price": 2444.45,
+     "time": "2026-09-10T14:45:00Z",
+     "role": "resistance",
+     "method": "wyckoff",
+     "short": "AR"
+    },
+    {
+     "name": "old_sos_high",
+     "label": "đỉnh SOS cũ (9/9), mốc kháng cự vĩ mô xa hơn",
+     "price": 2523.3,
+     "time": "2026-09-09T08:30:00Z",
+     "role": "resistance",
+     "method": "wyckoff",
+     "short": "SOS cũ"
+    },
+    {
+     "name": "lps_low",
+     "label": "Đáy Điểm hỗ trợ cuối (LPS[C]) — kiểm tra lại sau khi đóng cửa vượt AR",
+     "price": 2435.0,
+     "time": "2026-09-10T23:15:00Z",
+     "role": "support",
+     "method": "wyckoff",
+     "short": "LPS"
+    },
+    {
+     "name": "bsl_next",
+     "label": "BSL chưa quét phía trên vùng hiện tại",
+     "price": 2479.29,
+     "time": "2026-09-10T09:00:00Z",
+     "role": "resistance",
+     "method": "ict",
+     "short": "BSL kế tiếp"
+    }
+   ]
+  },
+  "SOLUSDT": {
+   "rule": {
+    "type": "range",
+    "support": "sc_low",
+    "resistance": "ar_high"
+   },
+   "levels": [
+    {
+     "name": "sc_low",
+     "label": "SC mới (Cao trào bán), khối lượng kỷ lục cửa sổ và mạnh nhất trong ba mã",
+     "price": 98.5,
+     "time": "2026-09-10T12:45:00Z",
+     "role": "support",
+     "method": "wyckoff",
+     "short": "SC"
+    },
+    {
+     "name": "ar_high",
+     "label": "AR (Automatic Rally, khối lượng yếu) — chưa có nến đóng cửa vượt",
+     "price": 100.37,
+     "time": "2026-09-10T14:45:00Z",
+     "role": "resistance",
+     "method": "wyckoff",
+     "short": "AR"
+    },
+    {
+     "name": "old_sos_high",
+     "label": "đỉnh SOS cũ (9/9, sớm và thấp hơn BTC/ETH), mốc kháng cự vĩ mô xa hơn",
+     "price": 105.2,
+     "time": "2026-09-09T07:00:00Z",
+     "role": "resistance",
+     "method": "wyckoff",
+     "short": "SOS cũ"
+    }
+   ]
+  }
+ }
+}

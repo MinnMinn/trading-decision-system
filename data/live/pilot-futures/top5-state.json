@@ -1,0 +1,68 @@
+{
+ "started": "2026-09-11T10:55:04Z",
+ "pending": {},
+ "positions": {},
+ "seen": [
+  "crypto-swing-wyckoff-4h-border-b-RENDERUSDT-long-2026-09-11T08:00:00Z",
+  "crypto-day-ict-30m-std4-b-BTCUSDT-long-2026-09-12T04:30:00Z",
+  "crypto-scalping-ict-15m-live-b-BTCUSDT-long-2026-09-18T13:45:00Z",
+  "cfd-swing-wyckoff-4h-border-a-XAUUSD-long-2026-09-18T09:00:00Z"
+ ],
+ "day": "2026-09-19",
+ "trades_today": {},
+ "errors": 0,
+ "halted": {
+  "at": "2026-09-12T16:56:47Z",
+  "why": "futures: equity 3750.48 <= 85% of start 5000.00"
+ },
+ "last_tick": "2026-09-19T15:53:46Z",
+ "venues": {
+  "futures": {
+   "equity_start": 4990.81699458,
+   "closed": [
+    {
+     "symbol": "BTCUSDT",
+     "side": "LONG",
+     "strategy": "crypto-scalping-ict-15m-live-b",
+     "tf": "15m",
+     "execution": "futures",
+     "exit": 79669.5,
+     "via": "SL",
+     "pnl": -18.84,
+     "r": -0.99,
+     "entry": 80073.0,
+     "qty": "0.0467",
+     "opened_at": "2026-09-18T14:11:33Z",
+     "closed_at": "2026-09-18T14:12:24Z",
+     "htf_pass": false,
+     "be": false
+    }
+   ],
+   "consec_losses": 1
+  },
+  "mt5": {
+   "equity_start": 99999.5,
+   "closed": [
+    {
+     "symbol": "XAUUSD",
+     "side": "LONG",
+     "strategy": "cfd-swing-wyckoff-4h-border-a",
+     "tf": "4H",
+     "execution": "mt5",
+     "exit": 4353.83,
+     "via": "FLATTEN",
+     "pnl": 0.0,
+     "r": 0.0,
+     "entry": 4354.27,
+     "qty": "1",
+     "opened_at": "2026-09-18T14:12:28Z",
+     "closed_at": "2026-09-18T14:17:46Z",
+     "htf_pass": false,
+     "be": false
+    }
+   ],
+   "consec_losses": 0
+  }
+ },
+ "equity_basis": "equity"
+}

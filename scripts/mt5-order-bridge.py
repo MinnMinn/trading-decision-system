@@ -20,7 +20,13 @@ Usage:
 import json, os, re, sys, time, uuid
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BRIDGE = os.path.join(ROOT, "data", "live", "mt5-bridge", "bridge")
+# The command/response folder inside the terminal's Common\Files. ONE PER ACCOUNT when several MT5 terminals
+# run on one machine: they share that Common folder, and this connector CONSUMES res-<id>.json (reads then
+# deletes it), so two accounts on the same folder would race to eat each other's replies and one customer's
+# fill could be reported to another. MT5_BRIDGE_SUBDIR must match the EA's InpBridgeDir input on that
+# terminal. Default "bridge" keeps the single-account setup exactly as it was.
+BRIDGE = os.path.join(ROOT, "data", "live", "mt5-bridge",
+                      os.environ.get("MT5_BRIDGE_SUBDIR", "bridge"))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import instruments as I  # noqa: E402
 

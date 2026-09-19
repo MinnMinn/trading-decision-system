@@ -35,12 +35,16 @@ def allowed(style):
 #
 # The page is the builder's output. If the builder changed, the page is stale, whether or not new candles
 # arrived. The cost is one republish per style after a builder change, which is the correct cost.
-BUILDER = ("build-artifact.py", "chart.js", "artifact_theme.py", "method_purity.py")
+BUILDER = ("build-artifact.py", "chart.js", "artifact_theme.py", "method_purity.py", "i18n.py", "htf_context.py")
+# The message catalog is an input to the page in exactly the same way the builder is: it supplies every word on
+# it. A translation fix with no new candles must mark every page due, or the correction sits in the repo while
+# the published pages keep the old wording -- the same defect the BUILDER tuple was added to close.
+BUILDER_DATA = ("docs/architecture/i18n.json", "docs/architecture/methods.json")
 
 
 def builder_mtime():
-    ts = [os.path.getmtime(os.path.join(ROOT, "scripts", f)) for f in BUILDER
-          if os.path.exists(os.path.join(ROOT, "scripts", f))]
+    paths = [os.path.join(ROOT, "scripts", f) for f in BUILDER] + [os.path.join(ROOT, p) for p in BUILDER_DATA]
+    ts = [os.path.getmtime(p) for p in paths if os.path.exists(p)]
     return max(ts) if ts else None
 
 

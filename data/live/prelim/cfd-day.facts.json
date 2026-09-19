@@ -1,0 +1,431 @@
+{
+ "scanned_at": "2026-09-19T15:02:33Z",
+ "tf": "1H",
+ "n": 480,
+ "window_first": "2026-08-20T12:42:53Z",
+ "window_last": "2026-09-19T06:42:54Z",
+ "anchors_source": null,
+ "symbols": {
+  "XAUUSD": {
+   "last": 4376.32,
+   "last_time": "2026-09-19T06:42:53Z",
+   "lo": 4340.63,
+   "hi": 4399.53,
+   "eq": 4370.08,
+   "pct": 0.6059,
+   "stance": "CHỜ",
+   "anchors": null,
+   "setup": null,
+   "last_mss": {
+    "type": "bull",
+    "i": 412,
+    "level": 4300.46,
+    "disp": false,
+    "ext": 4261.21,
+    "ext_time": "2026-09-15T19:42:53Z",
+    "origin": 4280.74,
+    "cisd": {
+     "level": 4293.3,
+     "time": "2026-09-15T18:42:53Z",
+     "confirmed": "2026-09-16T00:42:53Z"
+    },
+    "vol_mult": 1.18
+   },
+   "nearest_fvg": {
+    "type": "bear",
+    "i": 145,
+    "lo": 4582.85,
+    "hi": 4593.64,
+    "size": 10.789999999999964,
+    "ce": 4588.245000000001,
+    "end": 479,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-18",
+    "pdh": 4399.53,
+    "pdl": 4318.4,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "1H",
+    "pch": 4394.28,
+    "pcl": 4379.61,
+    "pch_state": "intact",
+    "pcl_state": "closed_through"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 4399.53,
+     "from": 211,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 4490.67,
+     "from": 242,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 4434.62,
+     "from": 319,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 4340.63,
+     "from": 304,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 4696.73,
+     "from": 65,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 4673.54,
+     "from": 85,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 4642.96,
+     "from": 111,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 4510.76,
+     "from": 234,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 4442.89,
+     "from": 288,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 4335.28,
+     "from": 445,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 4460.04,
+     "from": 247,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 4234.94,
+     "from": 435,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 4318.4,
+     "from": 458,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 4334.21,
+     "from": 463,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [],
+   "context": {
+    "tier": "structure",
+    "style": "cfd-swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-19T12:04:00Z",
+    "window_last": "2026-09-19T04:42:54Z",
+    "last": 4376.32,
+    "last_time": "2026-09-19T04:42:53Z",
+    "lo": 4234.94,
+    "hi": 4402.45,
+    "eq": 4318.695,
+    "pct": 0.844,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bear",
+     "i": 321,
+     "level": 4340.63,
+     "disp": true,
+     "ext": 4434.62,
+     "ext_time": "2026-09-10T16:42:53Z",
+     "origin": 4340.63,
+     "cisd": {
+      "level": 4400.94,
+      "time": "2026-09-10T12:42:53Z",
+      "confirmed": "2026-09-10T16:42:53Z"
+     },
+     "vol_mult": 1.11
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 163,
+     "lo": 4085.73,
+     "hi": 4134.67,
+     "size": 48.940000000000055,
+     "ce": 4110.2,
+     "end": 359,
+     "mitigated": false
+    },
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 4383.7,
+     "pcl": 4342.62,
+     "pch_state": "swept",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": null,
+    "wyckoff_source": null,
+    "bias": "short",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.failed_displace",
+      {
+       "level": "PCH 4,383.70",
+       "other": "PCL 4,342.62"
+      }
+     ],
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.down",
+       "level": "4,340.63"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  },
+  "XAGUSD": {
+   "last": 66.337,
+   "last_time": "2026-09-19T06:42:54Z",
+   "lo": 65.979,
+   "hi": 67.332,
+   "eq": 66.65549999999999,
+   "pct": 0.2646,
+   "stance": "CHỜ",
+   "anchors": null,
+   "setup": null,
+   "last_mss": {
+    "type": "bull",
+    "i": 355,
+    "level": 63.805,
+    "disp": true,
+    "ext": 63.013,
+    "ext_time": "2026-09-11T14:42:54Z",
+    "origin": 63.805,
+    "cisd": {
+     "level": 63.669,
+     "time": "2026-09-11T12:42:54Z",
+     "confirmed": "2026-09-11T16:42:54Z"
+    },
+    "vol_mult": 1.09
+   },
+   "nearest_fvg": {
+    "type": "bull",
+    "i": 449,
+    "lo": 64.15,
+    "hi": 64.573,
+    "size": 0.4229999999999876,
+    "ce": 64.3615,
+    "end": 479,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-18",
+    "pdh": 67.332,
+    "pdl": 65.22,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "1H",
+    "pch": 66.861,
+    "pcl": 66.437,
+    "pch_state": "intact",
+    "pcl_state": "closed_through"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 64.469,
+     "from": 374,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 65.979,
+     "from": 318,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 62.29,
+     "from": 381,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 71.174,
+     "from": 144,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 68.326,
+     "from": 323,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 67.929,
+     "from": 334,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 65.281,
+     "from": 363,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 66.151,
+     "from": 452,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 67.332,
+     "from": 469,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 65.22,
+     "from": 457,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [],
+   "context": {
+    "tier": "structure",
+    "style": "cfd-swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-19T12:04:00Z",
+    "window_last": "2026-09-19T04:42:54Z",
+    "last": 66.337,
+    "last_time": "2026-09-19T04:42:54Z",
+    "lo": 62.29,
+    "hi": 68.326,
+    "eq": 65.30799999999999,
+    "pct": 0.6705,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 351,
+     "level": 64.931,
+     "disp": true,
+     "ext": 62.29,
+     "ext_time": "2026-09-17T04:42:54Z",
+     "origin": 64.931,
+     "cisd": {
+      "level": 64.758,
+      "time": "2026-09-17T00:42:54Z",
+      "confirmed": "2026-09-17T20:42:54Z"
+     },
+     "vol_mult": 1.03
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 175,
+     "lo": 61.664,
+     "hi": 62.207,
+     "size": 0.5429999999999993,
+     "ce": 61.935500000000005,
+     "end": 359,
+     "mitigated": false
+    },
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 66.793,
+     "pcl": 65.982,
+     "pch_state": "swept",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": null,
+    "wyckoff_source": null,
+    "bias": "neutral",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.contradiction",
+      {}
+     ],
+     [
+      "ict",
+      "bias.ict.failed_displace",
+      {
+       "level": "PCH 66.79",
+       "other": "PCL 65.98"
+      }
+     ],
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.up",
+       "level": "64.93"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  }
+ }
+}

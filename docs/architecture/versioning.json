@@ -1,0 +1,70 @@
+{
+  "_source": "CLAUDE.md §46 REPRODUCIBILITY and §47 SYSTEM VERSIONING. The nine reproducibility items and the thirteen version-significant change kinds below are the spec's own lists, in its order and wording. scripts/tests/test_versioning.py parses them back out of CLAUDE.md.",
+  "_why_one_file": "§46 asks what makes a result reproducible; §47 asks what makes a system a different system. They are the same question asked of a result and of the thing that produced it, and the Trading System version is an item in BOTH lists. One registry so that version cannot mean two things.",
+  "_reader": "scripts/versioning.py is the ONE reader.",
+
+  "reproducibility": {
+    "_spec": "CLAUDE.md §46: 'A result without reproducibility metadata must not be treated as equivalent to a fully reproducible experiment.'",
+    "items": [
+      {"id": "code_version", "spec_name": "code version",
+       "definition": "The git commit, AND whether the tree was dirty. A dirty tree means the commit does not identify the code that ran, so 'commit abc123' alone is not a capture -- it is a guess with a hash attached.",
+       "captured_by": "scripts/experiment.py code_version()"},
+      {"id": "trading_system_version", "spec_name": "Trading System version",
+       "definition": "Which version of the system produced the result (§47). Shared with the versioning half of this file on purpose.",
+       "captured_by": "docs/architecture/trading-systems.json via scripts/trading_system.py"},
+      {"id": "dataset_snapshot", "spec_name": "dataset snapshot",
+       "definition": "§10's record of the data read.",
+       "captured_by": "scripts/snapshot.py dataset_snapshot()"},
+      {"id": "configuration_snapshot", "spec_name": "configuration snapshot",
+       "definition": "§11's record of the configuration, by value.",
+       "captured_by": "scripts/snapshot.py config_snapshot()"},
+      {"id": "provider_state", "spec_name": "provider state",
+       "definition": "Which providers answered, in which role, and what each declared it could do at the time (§6). A result computed while a provider was degraded is a different result, and nothing else in the capture list would show it.",
+       "captured_by": "scripts/versioning.py provider_state()"},
+      {"id": "random_seed", "spec_name": "random seed",
+       "definition": "The seed of every stochastic step. `null` is acceptable ONLY with an explicit statement that nothing stochastic ran -- since §39 and §45 added bootstraps and Monte Carlo, that statement is no longer true by default.",
+       "captured_by": "scripts/experiment.py Record field"},
+      {"id": "parameters", "spec_name": "parameters",
+       "definition": "The values the run used, by value.",
+       "captured_by": "scripts/experiment.py Record field"},
+      {"id": "test_periods", "spec_name": "test periods",
+       "definition": "In-sample, out-of-sample and holdout ranges, named separately (§44).",
+       "captured_by": "scripts/experiment.py Record field"},
+      {"id": "validation_state", "spec_name": "validation state",
+       "definition": "What §45 concluded, INCLUDING the checks that did not run. A result whose validation state is 'NOT_RUN on six of eleven checks' is reproducible and unvalidated, and those are different facts.",
+       "captured_by": "scripts/validation.py disprove()"}
+    ],
+    "grades": {
+      "REPRODUCIBLE": "every item captured",
+      "PARTIAL": "some items captured; the result can be described but not re-run identically",
+      "NOT_REPRODUCIBLE": "no reproducibility metadata at all"
+    },
+    "_not_equivalent": "§46's last sentence is a rule about COMPARISON, which is where the harm happens: a fully reproducible result and a partial one placed in the same ranking table are treated as equivalent by the reader whatever the footnote says. scripts/versioning.py compare() refuses to return a comparison without both grades attached, and `assert_comparable()` raises when the grades differ."
+  },
+
+  "versioning": {
+    "_spec": "CLAUDE.md §47: canonical Trading System versioning v1, v2, v3 ... 'Do not create a separate incompatible AI strategy version system.'",
+    "grammar": {
+      "released": "^v[1-9][0-9]*$",
+      "candidate": "^v[1-9][0-9]*\\.[1-9][0-9]*$",
+      "_note": "A candidate is v<parent>.<n> so its parent is readable from its own name -- §47's example is exactly 'Trading System v1 -> Candidate v1.x -> Approved Trading System v2'. There is no third form: a change that is not a released version or a candidate for one has nowhere to live, which is the point."
+    },
+    "change_kinds": [
+      {"id": "methodology", "spec_name": "methodology change"},
+      {"id": "setup", "spec_name": "setup change"},
+      {"id": "entry", "spec_name": "entry change"},
+      {"id": "exit", "spec_name": "exit change"},
+      {"id": "risk", "spec_name": "risk change"},
+      {"id": "account_rule", "spec_name": "account rule change"},
+      {"id": "session", "spec_name": "session change"},
+      {"id": "news_rule", "spec_name": "news rule change"},
+      {"id": "custom_constraint", "spec_name": "custom constraint change"},
+      {"id": "required_data", "spec_name": "required-data change"},
+      {"id": "required_analysis", "spec_name": "required-analysis change"},
+      {"id": "provider_dependency", "spec_name": "provider dependency change"},
+      {"id": "decision_semantics", "spec_name": "decision semantics change"}
+    ],
+    "_all_are_significant": "All thirteen are version-significant. §47 calls them 'examples', which is a floor and not a ceiling: an unlisted change may also be significant, so `is_significant()` takes a declared kind OR an explicit argument, and there is no way to declare a listed kind insignificant.",
+    "_rejected_candidates": "§47: 'Rejected candidates must remain traceable.' A rejected candidate keeps its version number forever -- v1.3 is never reissued to a different candidate. `next_candidate()` therefore reads the §42 experiment store, not a counter, so a number that was spent on something rejected stays spent."
+  }
+}

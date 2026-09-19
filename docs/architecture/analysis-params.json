@@ -53,7 +53,9 @@
       "low_max_ratio": 0.7,
       "high_min_ratio": 1.5,
       "spike_min_ratio": 2.5,
-      "_basis": "ratio to the mean volume of the previous lookback_bars completed bars"
+      "_basis": "ratio to the mean volume of the previous lookback_bars completed bars",
+      "upthrust_min_ratio": 1.0,
+      "_upthrust_basis": "Spring and Upthrust are typed by DIFFERENT tables in the book: Bảng 2.1 (WMT p049, Spring) runs low->type1 / moderate->type2 / high->type3, but Bảng 2.2 (WMT p064, Upthrust) runs the other way -- type1 'increases at the touch', type2 (UTAD) 'very high', type3 (Minor UTAD) 'strong but not as high as type 2'. There is NO low-volume Upthrust in the book. `upthrust_min_ratio` is the floor at which volume counts as having 'increased at the touch'; below it the bar is not any of the book's three Upthrust types and is refused rather than relabelled. Fixed 2026-09-19 after a knowledge audit found the Spring ladder being applied to shorts (knowledge/wyckoff/modern-tools.md:55-72)."
     },
     "spread": {
       "narrow_max_ratio": 0.7,

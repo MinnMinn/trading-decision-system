@@ -5,7 +5,7 @@
 - Tầng phân tích: `docs/architecture/automation-config.json` → `markets.<crypto|cfd>.dimensions`, bốn cờ
   `wyckoff / ict / footprint / heatmap` (SYSTEM-DESIGN.md §6.2). Đổi bằng `/automation dimension <tên> <on|off>`,
   từng cờ một, chỉ ở terminal.
-- Tầng pilot: `scripts/strategy-runner.py:86` `METHODS = ("ICT", "COMBINED", "WYCKOFF", "WYCKOFF-BOOK")`, chọn
+- Tầng pilot: `scripts/strategy-runner.py:95` `METHODS = ("ICT", "COMBINED", "WYCKOFF", "WYCKOFF-BOOK")`, chọn
   qua `docs/architecture/pilot-top5.json` và `execution.pilot_profile`. Không liên quan gì tới bốn cờ trên.
 
 Không có khái niệm "đang chạy phương pháp nào", không có chỗ nào đổi được từ ngoài máy, và thêm một phương pháp
@@ -47,7 +47,7 @@ dispatched (Wyckoff + ICT)"*; `scripts/build-artifact.py:281` hardcode `cols = [
 chỗ nào đọc hai cờ đó. Nên hôm nay `wyckoff`, `ict`, `wyckoff+ict` **giống hệt nhau** ở tầng phân tích. Muốn công
 tắc có nghĩa thì phải làm hai cờ đó có thật — đây là thay đổi hành vi của tầng phân tích, nêu rõ chứ không lén (§4.2).
 
-**2.2 Lọc method ở `load_setups()` sẽ bỏ rơi lệnh đang mở.** `scripts/strategy-runner.py:718-719`:
+**2.2 Lọc method ở `load_setups()` sẽ bỏ rơi lệnh đang mở.** `scripts/strategy-runner.py:742-743`:
 
 ```python
 s = load_state(); setups_cfg = load_setups()
@@ -77,7 +77,7 @@ Hôm nay đang lệch:
 | Thứ | Các bản sao |
 |---|---|
 | tập dimension | `automation.py:80 MARKET_DIMENSIONS`, `schemas/automation-config.schema.json` (chép tay), `build-artifact.py:90 LANES` |
-| tập runner method | `strategy-runner.py:86 METHODS`, `rank-setups.py:35 RUNNABLE` |
+| tập runner method | `strategy-runner.py:95 METHODS`, `rank-setups.py:60 RUNNABLE` |
 
 ### 3.1 Hình dạng
 
@@ -102,13 +102,19 @@ Hôm nay đang lệch:
     "COMBINED-BOOK": { "requires": ["wyckoff","ict"],  "runnable": false, "scan": "wyckoff", "entry": "market" },
     "PARTIAL":       { "requires": ["wyckoff","ict"],  "runnable": false, "scan": "ict",     "entry": "limit"  }
   },
+  // Display text is a {locale: string} object from 2026-09-17 (SYSTEM-DESIGN §15.3): `presets[].label`,
+  // `dimensions.*.reads` and `dimensions.*.pane.label`. A preset whose name is a proper noun ("Wyckoff + ICT")
+  // reads the same in both, but it still carries both, so the shape is uniform and a third locale is a column.
+  // `dimensions.*.label` is NOT localized -- Wyckoff, ICT, Footprint and Heatmap are proper nouns.
+  // Reader: scripts/methods.py `text()` / `preset_text()` / `pane_label()`.
   "presets": [
     { "id": "wyckoff",              "label": "Wyckoff",               "dimensions": ["wyckoff"],                                  "tier": "research" },
     { "id": "ict",                  "label": "ICT",                   "dimensions": ["ict"],                                      "tier": "research" },
     { "id": "wyckoff+ict",          "label": "Wyckoff + ICT",         "dimensions": ["wyckoff","ict"],                            "tier": "trade"    },
     { "id": "wyckoff+footprint",    "label": "Wyckoff + Footprint",   "dimensions": ["wyckoff","footprint"],                      "tier": "trade"    },
     { "id": "wyckoff+ict+footprint","label": "Wyckoff + ICT + Footprint","dimensions": ["wyckoff","ict","footprint"],             "tier": "trade"    },
-    { "id": "full",                 "label": "Đầy đủ 4 chiều",        "dimensions": ["wyckoff","ict","footprint","heatmap"],      "tier": "trade"    }
+    { "id": "full",                 "label": {"en": "All 4 dimensions", "vi": "Đầy đủ 4 chiều"},
+                                                              "dimensions": ["wyckoff","ict","footprint","heatmap"],      "tier": "trade"    }
   ],
   "history": [ { "date": "...", "change": "...", "reason": "...", "approved_by": "..." } ]
 }
@@ -190,7 +196,7 @@ và đưa vào phạm vi `test_instruments_sync.py`. Sau đó thêm token thật
 
 ### 4.3 `scripts/strategy-runner.py` — lọc ở bước 3, grandfather
 
-- `METHODS` (`:86`) import từ registry; `rank-setups.py:35 RUNNABLE` cũng vậy.
+- `METHODS` (`:86`) import từ registry; `rank-setups.py:60 RUNNABLE` cũng vậy.
 - `load_setups()` (`:142-146`) **không đụng tới**. Nó được gọi từ năm chỗ: `tick:718`, `replay:887`,
   `report_state:929`, `--tick-seconds:949`, `--list:952`. Lọc ở đó sẽ:
   - phá parity replay — `replay():893-895` có chú thích rõ *"Not config-gated — a market switched off still
@@ -250,7 +256,7 @@ Tương tác và trạng thái:
 - Banner khi `control/heartbeat` cũ hơn 12 phút: *"không có tiến trình áp dụng — yêu cầu đang treo"*, kèm tuổi của
   request đang chờ. Không có banner này thì "trạng thái live" là lời hứa suông khi không phiên Claude nào mở.
 - Khi `execution.environment == "real"`: cột pilot thay bằng *"pilot không chạy ở REAL"*. Đây là sự thật của code:
-  `strategy-runner.py:165-166` từ chối tick khi environment là `real` (quyết định 2026-09-11, top5 là pilot testnet).
+  `strategy-runner.py:182-183` từ chối tick khi environment là `real` (quyết định 2026-09-11, top5 là pilot testnet).
   Ở `real` chỉ nửa phân tích của preset có hiệu lực.
 
 ### 4.5 Cron áp dụng — `integrations/crons/method-switch.md`
@@ -300,7 +306,7 @@ ra khỏi vòng được lưu sang file archive thay vì mất hẳn.
 
 ### 4.6 Menu chọn nhiều cặp
 
-**Cái này là thật, khác hai cờ `wyckoff`/`ict`.** `scripts/strategy-runner.py:175-182` — `enabled_symbols(market)` trả
+**Cái này là thật, khác hai cờ `wyckoff`/`ict`.** `scripts/strategy-runner.py:192-199` — `enabled_symbols(market)` trả
 về `instruments.execution(market)` **giao với** `markets.<m>.instruments`, và nó gate cả chỗ nạp nến (`:762`) lẫn bước
 3 sinh tín hiệu (`:837`). Bỏ tick một cặp là pilot thôi mở lệnh mới trên cặp đó.
 
@@ -334,7 +340,7 @@ history (CFG-13).
 
 Lưu ý về trần: câu "menu chỉ thu hẹp được" là **rỗng nghĩa** — `analysis == execution` ở cả hai market hôm nay, nên
 trong trần `instruments.json` một cú tick lại chạm tới mọi symbol đặt lệnh được. Trần thật sự là phép giao ở
-`strategy-runner.py:181`, và nó đứng vững.
+`strategy-runner.py:198`, và nó đứng vững.
 
 **Cron không tự tính diff** (CRON-12): nó chỉ quyết định *có hành động hay không* rồi truyền nguyên tập mong muốn;
 `automation.py` tính phần thay đổi. Không để số học tập hợp cho mô hình làm.

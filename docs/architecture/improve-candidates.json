@@ -1,0 +1,82 @@
+{
+  "_comment": "CLAUDE.md §41 stage 4 (docs/plans/2026-09-18-close-feature-gaps.md §0.10) -- THE declared table `scripts/improve-loop.py` reads: for a repeated-failure CLUSTER's key field/value, what candidate override (if any) gets backtested against it. Read-only at runtime -- improve-loop.py never invents a candidate that is not declared here (§41: 'AI must NEVER silently rewrite the production Trading System'; a candidate this table does not name is reported as having none, never guessed).",
+  "_scope": "Each override is a partial `scripts/backtest-methods.py` OPTS/CLI change: `sessions` maps to the --sessions admission-time gate (REPLACES the baseline session set for that candidate run, since the candidate is a deliberately different configuration, not a further tighten -- unlike docs/architecture/trader-constraints.json, which is tighten-only); every other key must be a literal OPTS key (scripts/backtest-methods.py OPTS dict) or improve-loop.py refuses to run the candidate.",
+  "version": 1,
+  "candidates": {
+    "session": {
+      "asia": {
+        "override": {
+          "sessions": [
+            "london",
+            "ny_am",
+            "ny_pm"
+          ]
+        },
+        "why": "if a repeated LOSS cluster keys on the asia session, the declared candidate excludes it -- the thinnest-liquidity window for the crypto/CFD instruments this platform trades -- and keeps the other three."
+      },
+      "ny_pm": {
+        "override": {
+          "sessions": [
+            "london",
+            "ny_am"
+          ]
+        },
+        "why": "ny_pm is the post-settlement, thinning half of the US day for XAUUSD/XAGUSD; a repeated loss cluster keyed on it is a candidate for keeping only the two windows that carry the CFD session's real participation (docs/architecture/sessions.json)."
+      },
+      "london": {
+        "override": {
+          "sessions": [
+            "ny_am"
+          ],
+          "min_rr": 3.0
+        },
+        "why": "if the cluster keys on london rather than asia the thin-liquidity explanation does not apply, so this is not a pure session cut but a session cut plus a higher planned-R floor: each loss costs 1.2-1.9R net of fee (backtest-methods.py fee_R = 2*fee_pct/dist), so the ~8-loss budget a 10% cap allows must buy bigger winners."
+      }
+    },
+    "vol_type": {
+      "3": {
+        "override": {
+          "types": [
+            1,
+            2
+          ]
+        },
+        "why": "WYCKOFF-BOOK/COMBINED-BOOK volume type 3 (high-volume reclaim, VOL.high_min_ratio) is the loosest of the three spring types (knowledge/wyckoff/modern-tools.md §2.6); a repeated loss cluster keyed on it is a declared candidate for dropping it and keeping the two tighter types."
+      },
+      "2": {
+        "override": {
+          "types": [
+            1
+          ],
+          "entry": "test"
+        },
+        "why": "type 2 is the mid-volume Spring (Bang 2.1, WMT p049); when it clusters as a repeated loss this candidate keeps only the tightest type AND always waits for the retest (WA p80: the Test is the confirmation), the one existing knob that buys confirmation without new engine code."
+      },
+      "1": {
+        "override": {
+          "range_touches": 2
+        },
+        "why": "type 1 is the tightest volume type, so a repeated loss cluster on it is not a volume-quality fault -- it is a range-quality fault. Requiring two tests of EACH border before a Spring counts is the candidate (advance.md 2.11.2, Dau hieu 2)."
+      }
+    },
+    "via": {
+      "fvg": {
+        "override": {
+          "combined_entry": "limit",
+          "min_rr": 3.0
+        },
+        "why": "a 'via fvg' loss cluster means the limit DID fill and the trade still lost, so entry quality is not the fault -- payoff is. Pin the causal limit rule and raise the planned-R floor: with average_loss_R at -1.27 a 2R floor does not pay for the ~8 losses a 10% total-drawdown cap permits."
+      }
+    },
+    "method": {
+      "WYCKOFF-BOOK": {
+        "override": {
+          "htf": true,
+          "phase_d": false
+        },
+        "why": "1H WYCKOFF-BOOK B->C (HTF on) is exp -0.12R/dd 19.69% -> +0.62R/dd 7.17%, a PASS. Phase-D BU/LPS entries are the late, low-cause leg of the book engine (advance.md 2.7.4) and are dropped so the cause/effect target has room to pay for the trade."
+      }
+    }
+  },
+  "_removed_2026_09_19": "Removed: via=mss, method=ICT. Both overrode `ict_disp`, which stopped being an OPTS key on 2026-09-19 (docs/audits/2026-09-19-knowledge-fidelity.md finding 11): displacement is what separates an MSS (knowledge/ict/core-a.md §3.3 R10) from a liquidity grab (R11), so the deck offers no setting for it and the engine now requires it unconditionally. The hypothesis 'try requiring displacement' is therefore already the production behaviour -- there is nothing left for the candidate to change. They are DELETED rather than rewritten because inventing a replacement hypothesis is a §41 stage-11 human decision, not this file's. A cluster keyed on `via=mss` or `method=ICT` is now reported as having no declared candidate, which is the honest answer until somebody declares one."
+}

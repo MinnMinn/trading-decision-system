@@ -8,8 +8,8 @@ Hệ thống ra quyết định giao dịch chạy trong Claude Code: phân tíc
 |---|---|
 | Kiến trúc và mọi quyết định thiết kế | `docs/architecture/SYSTEM-DESIGN.md` |
 | Bật tắt tự động hoá | `.claude/commands/automation.md` |
-| Quy trình đọc thị trường hợp nhất | `knowledge/10-integrated-method.md` |
+| Quy trình đọc thị trường hợp nhất | `knowledge/integrated/method.md` |
 | Nguồn dữ liệu và trạng thái AVAILABLE / MOCK / STALE | `docs/architecture/data-sources.md` |
 | Nhật ký lệnh | `trades/` |
 
-Luật cứng ở mọi môi trường: không Forex, chỉ 7 mã trong allowlist, tối đa 1% vốn mỗi lệnh.
+Luật cứng ở mọi môi trường: chỉ những mã trong allowlist, tối đa 1% vốn mỗi lệnh.

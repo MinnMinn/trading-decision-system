@@ -30,7 +30,25 @@ while :; do
     || echo "tick error $(date -u +%FT%TZ)" >> "$PD/loop.log"
   # journal sync (mechanical, no model): ingest any entry/exit this tick produced, rebuild index/views/page.
   # The page is published by the journal-publish session cron when it changed (integrations/crons/journal-publish.md).
-  python3 "$ROOT/scripts/journal.py" all >> "$PD/loop.log" 2>&1 || echo "journal sync error $(date -u +%FT%TZ)" >> "$PD/loop.log"
+  #
+  # DETACHED (2026-09-18, CLAUDE.md §40). This ran SYNCHRONOUSLY here, between the tick and the sleep: an
+  # index rebuild plus an HTML render, of unmeasured duration, delaying the next tick. It is model-free, but
+  # §40 is not about models -- it is about post-trade analysis and visualisation not blocking the live path,
+  # and "it is usually fast" is not isolation. `( … & )` with stdin closed and output redirected fully
+  # detaches it, exactly as scripts/scan-loop.sh already does for every model read.
+  #
+  # The lock is what makes detaching safe: two overlapping journal runs would both rebuild trades/index.jsonl
+  # and race on the same file. `mkdir` is the atomic primitive available in POSIX sh; a stale lock older than
+  # an hour is cleared, because a killed run must not silently stop every later ingest.
+  JLOCK="$PD/.journal.lock"
+  if [ -d "$JLOCK" ] && [ -z "$(find "$JLOCK" -maxdepth 0 -mmin -60 2>/dev/null)" ]; then
+    echo "clearing stale journal lock $(date -u +%FT%TZ)" >> "$PD/loop.log"; rmdir "$JLOCK" 2>/dev/null
+  fi
+  if mkdir "$JLOCK" 2>/dev/null; then
+    ( nohup sh -c 'python3 "$1/scripts/journal.py" all >> "$2/loop.log" 2>&1 || echo "journal sync error $(date -u +%FT%TZ)" >> "$2/loop.log"; rmdir "$3" 2>/dev/null' _ "$ROOT" "$PD" "$JLOCK" >/dev/null 2>&1 </dev/null & )
+  else
+    echo "journal sync still running, skipped this tick $(date -u +%FT%TZ)" >> "$PD/loop.log"
+  fi
   period="$(python3 "$ROOT/scripts/strategy-runner.py" --tick-seconds 2>/dev/null || echo 1800)"
   sleep "$period"
 done

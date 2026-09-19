@@ -17,6 +17,7 @@
 #
 # Usage:
 #   binance-testnet-order.sh account
+#   binance-testnet-order.sh api-restrictions        # §51 key scope -> data/live/key-scope.json (never prints the key)
 #   binance-testnet-order.sh filters <SYMBOL>
 #   binance-testnet-order.sh round-qty <SYMBOL> <RAW_QUANTITY>        # floor to LOT_SIZE stepSize
 #   binance-testnet-order.sh round-price <SYMBOL> <RAW_PRICE>         # floor to PRICE_FILTER tickSize
@@ -117,6 +118,40 @@ case "$cmd" in
 
   account)
     _signed GET "/api/v3/account" "" | _pretty
+    ;;
+
+  api-restrictions)
+    # CLAUDE.md §51: "Never require withdrawal permission." That sentence is about what the KEY can do, which
+    # no amount of reading this repository establishes -- so it is read from the provider, once, deliberately,
+    # and recorded for scripts/execution_safety.py to gate on. The endpoint lives on the SPOT host and reports
+    # the whole API key's restrictions, futures included. It does NOT exist on either testnet host: a 404 or a
+    # -1121/-2015 there is the normal answer for a testnet key, and it is recorded as UNAVAILABLE rather than
+    # as "no withdrawal permission" -- those are different facts and only one of them is reassuring.
+    if out="$(_signed GET "/sapi/v1/account/apiRestrictions" "" 2>&1)"; then
+      printf '%s' "$out" | python3 -c '
+import json, sys, datetime, os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath("'"$SCRIPT_DIR"'")), "scripts"))
+sys.path.insert(0, "'"$SCRIPT_DIR"'")
+import execution_safety as ES
+d = json.load(sys.stdin)
+now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+if "enableWithdrawals" in d:
+    rec = ES.record("binance_spot", enable_withdrawals=bool(d["enableWithdrawals"]), checked_at=now)
+else:
+    rec = ES.record("binance_spot", unavailable=True, checked_at=now,
+                    why="the response carried no enableWithdrawals field")
+print(json.dumps(rec, indent=1))
+'
+    else
+      python3 -c '
+import datetime, os, sys
+sys.path.insert(0, "'"$SCRIPT_DIR"'")
+import execution_safety as ES
+now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+print(ES.record("binance_spot", unavailable=True, checked_at=now,
+                why="the host refused the apiRestrictions request (normal on testnet: the endpoint is mainnet-only)"))
+'
+    fi
     ;;
 
   filters)

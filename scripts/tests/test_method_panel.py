@@ -6,6 +6,25 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import methods as M
 import instruments as I
+import i18n as _I18N
+
+
+# The extracted guard blocks call L() from the rest of the script. The stub returns the message KEY -- which
+# makes these assertions stronger than they were: they check WHICH refusal was chosen, not which sentence one
+# language happened to produce.
+L_STUB = "function L(k){return k;}\n"
+
+
+def _visible(html):
+    """The page without its injected message catalog. The catalog is data the script resolves at runtime; a
+    test asking \"did this section render\" must not match a string that is only sitting in it."""
+    return re.sub(r"<script>window\.__PANEL_[A-Z_]+__=.*?</script>", "", html, flags=re.S)
+
+
+def _say(key, lang=None):
+    """A message as the page renders it. Tests name the KEY, so they assert that the right thing
+    was said rather than that one language's sentence appeared -- the page now carries both."""
+    return _I18N.t(key, lang or _I18N.DEFAULT)
 
 try:
     from playwright.sync_api import sync_playwright
@@ -53,7 +72,9 @@ class Presets(unittest.TestCase):
         html = mp.render(cfg())
         self.assertFalse(any(p["tier"] == "research" for p in M.PRESETS),
                           "fixture assumption stale: a research-tier preset exists again -- revisit this test")
-        self.assertNotIn(mp._TIER_LABEL["research"], html)
+        # Assert the GROUP did not render, not that a word is absent: this also catches a heading rendered
+        # above an empty grid, which the string check would have passed.
+        self.assertNotIn(_say(mp._TIER_KEY["research"]), _visible(html))
 
     def test_solo_mode_cards_state_the_higher_threshold_consequence(self):
         """wyckoff/ict are SOLO-mode presets (tier: trade) since the 2026-09-12 SOLO addition -- the stale
@@ -150,7 +171,8 @@ class Instruments(unittest.TestCase):
     def test_empty_selection_renders_as_a_chosen_state_not_an_error(self):
         """PANEL-11: no instruments is a legitimate narrowing, and must look deliberate."""
         html = mp.render(cfg(cfd_syms=[]))
-        self.assertIn("không mở lệnh mới", html)
+        self.assertIn(_say("panel.empty_note"), html)
+        self.assertIn(_say("panel.empty_note", "vi"), html, "both locales must be in the markup")
 
 
 def _preset_card_html(html, market, pid):
@@ -168,7 +190,7 @@ class PilotHonesty(unittest.TestCase):
     def test_each_preset_card_names_the_runner_methods_it_permits(self):
         html = mp.render(cfg())
         self.assertIn("WYCKOFF-BOOK", html)
-        self.assertIn("COMBINED", html)
+        self.assertIn("ICT", html)
 
     def test_the_page_says_the_runner_wyckoff_is_not_the_wyckoff_dimension(self):
         html = mp.render(cfg())
@@ -176,12 +198,12 @@ class PilotHonesty(unittest.TestCase):
 
     def test_real_environment_replaces_the_pilot_column(self):
         """strategy-runner.py:167 refuses every top5 tick when environment is real."""
-        self.assertIn("pilot không chạy ở REAL", mp.render(cfg(env="real")))
-        self.assertNotIn("pilot không chạy ở REAL", mp.render(cfg(env="demo")))
+        self.assertIn(_say("panel.real_gate.before"), mp.render(cfg(env="real")))
+        self.assertNotIn(_say("panel.real_gate.before"), mp.render(cfg(env="demo")))
 
     def test_wyckoff_honesty_line_appears_iff_the_permitted_set_has_a_wyckoff_runner(self):
         """The honesty line claims the mechanical Wyckoff rule engine ran. Printing it on a card whose
-        permitted runner set has no WYCKOFF/WYCKOFF-BOOK (e.g. the bare ICT preset) claims machinery
+        permitted runner set has no WYCKOFF-BOOK (e.g. the bare ICT preset) claims machinery
         that never engaged -- the opposite failure from the one the line exists to prevent."""
         html = mp.render(cfg())
         seen_present, seen_absent = False, False
@@ -190,7 +212,7 @@ class PilotHonesty(unittest.TestCase):
                 pid = p["id"]
                 card = _preset_card_html(html, market, pid)
                 permitted = M.runner_methods(M.flags_for(pid))
-                expected = bool(permitted & {"WYCKOFF", "WYCKOFF-BOOK"})
+                expected = bool(permitted & {"WYCKOFF-BOOK"})
                 actual = "wyckoff_rules.py" in card
                 self.assertEqual(actual, expected,
                                   f"{market}/{pid}: permitted={sorted(permitted)}, "
@@ -362,7 +384,8 @@ class RequestOutcomeGuard(unittest.TestCase):
     (resolved, not adopted -- the fourth state the cron's write shape produces and the old code missed)."""
 
     def _resolve(self, req, doc):
-        snippet = (_request_outcome_guard_source() + "\nconsole.log(JSON.stringify(resolveRequestOutcome("
+        snippet = (L_STUB + _request_outcome_guard_source()
+                   + "\nconsole.log(JSON.stringify(resolveRequestOutcome("
                    + json.dumps(req) + ", " + json.dumps(doc) + ")));")
         return json.loads(_run_node(snippet))
 
@@ -445,7 +468,9 @@ def _pending_reconcile_guard_source():
     src = mp._SCRIPT
     start = src.index("// PENDING_RECONCILE_GUARD_START")
     end = src.index("// PENDING_RECONCILE_GUARD_END") + len("// PENDING_RECONCILE_GUARD_END")
-    return _request_outcome_guard_source() + "\n" + src[start:end]
+    # Both extracted blocks call L() from the rest of the script; the stub returns the message key, so
+    # assertions read on the choice that was made rather than one language's sentence.
+    return L_STUB + _request_outcome_guard_source() + "\n" + src[start:end]
 
 
 @unittest.skipUnless(NODE, "node not installed -- pendingStillOutstanding is executed for real, not just grepped")
@@ -674,7 +699,7 @@ class BrowserOverTimeBehaviour(unittest.TestCase):
                        "the card must still show its own pending state once the write succeeds -- "
                        "it must not revert to looking untouched")
         status = page.eval_on_selector('.request-status[data-market="crypto"]', "el => el.textContent")
-        self.assertIn("đang chờ áp dụng", status)
+        self.assertIn(_say("panel.status.waiting"), status)
 
     def test_preset_tap_with_no_applied_doc_does_not_empty_the_instruments(self):
         """Defect 2: with the applied doc reported exists:false (its snapshot fires once, synchronously,
@@ -741,7 +766,7 @@ class BrowserOverTimeBehaviour(unittest.TestCase):
         page.click(card_sel)
         page.wait_for_timeout(600)
         status = page.eval_on_selector('.request-status[data-market="crypto"]', "el => el.textContent")
-        self.assertIn("gửi thất bại", status,
+        self.assertIn(_say("panel.status.send_failed"), status,
                        "a genuine send failure must stay visible on the status line, not be silently "
                        "reverted to the old 'applied' text by the very same repaint that set it")
 
@@ -784,7 +809,7 @@ class AppliedDocShape(unittest.TestCase):
 class RefusalDisplay(unittest.TestCase):
     def test_generic_refusal_copy_is_present(self):
         html = mp.render(cfg())
-        self.assertIn("bị từ chối", html)
+        self.assertIn(_say("panel.refusal.generic"), html)
 
     def test_refused_status_has_its_own_visual_treatment_distinct_from_pending_and_applied(self):
         html = mp.render(cfg())
@@ -807,7 +832,7 @@ class HeartbeatBannerInvariants(unittest.TestCase):
 
     def test_guard_copy_is_present(self):
         html = mp.render(cfg())
-        self.assertIn("đồng hồ thiết bị lệch", html)
+        self.assertIn(_say("panel.stall.clock", "vi"), html)
 
     def test_applied_status_is_never_a_function_of_the_device_clock(self):
         """Property 2: a skewed clock must not make the page look healthy. resolveRequestOutcome()
@@ -855,9 +880,13 @@ class RenderedCopyStandingCheck(unittest.TestCase):
         text = self._visible_text(mp.render(cfg())) + self._visible_text(html)
         self.assertNotIn("`", text)
 
-    def test_full_preset_label_is_proper_vietnamese_not_mojibake_ascii(self):
+    def test_preset_labels_render_as_proper_text_not_mojibake_ascii(self):
+        """The registry's labels reach the page intact, accents and all -- the encoding regression this pins.
+        Read from methods.json rather than spelled here, and checked in every locale."""
         html = mp.render(cfg())
-        self.assertIn("Đầy đủ 4 chiều", html)
+        full = next(p for p in M.PRESETS if p["id"] == "full")
+        for lang in _I18N.LOCALES:
+            self.assertIn(full["label"][lang], html)
         self.assertNotIn("Day du 4 chieu", html)
 
 

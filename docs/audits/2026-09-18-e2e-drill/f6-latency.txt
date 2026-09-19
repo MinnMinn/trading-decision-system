@@ -1,0 +1,10 @@
+§40 latency over 2016 traces
+  provider receive timestamp   n=104    p50=4929.5ms  p95=9245.0ms  p99=11109.1ms  max=13754.2ms
+  normalization timestamp      n=148    p50=25.0ms  p95=38.1ms  p99=41.4ms  max=43.5ms
+  analytics update timestamp   n=1167   p50=0.0ms  p95=0.0ms  p99=11.6ms  max=21.7ms
+  decision start               n=1100   p50=0.0ms  p95=0.0ms  p99=0.0ms  max=0.6ms
+  decision end                 n=1096   p50=0.1ms  p95=588.2ms  p99=1929.5ms  max=7165.8ms
+  risk validation              n=1100   p50=0.0ms  p95=584.5ms  p99=1880.2ms  max=7165.6ms
+  order submission             n=2      p50=620.2ms  p95=1312.7ms  p99=1312.7ms  max=1312.7ms
+  provider acknowledgement     n=2      p50=0.1ms  p95=0.2ms  p99=0.2ms  max=0.2ms
+  market event timestamp       n=58     p50=15773379.7ms  (transport-bound: This repo POLLS -- Binance REST klines and MT5 CSV exports)

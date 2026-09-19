@@ -1,0 +1,280 @@
+{
+  "_source": "CLAUDE.md §39 PERFORMANCE METRICS. The twenty-three entries below are §39's own list, in §39's own order and wording. scripts/tests/test_performance.py parses them back out of CLAUDE.md, so a twenty-fourth bullet in the spec fails the build rather than going unimplemented.",
+  "_reader": "scripts/performance.py is the ONE computer. A caller that wants a §39 number asks it; nothing else may define one, because a second definition of 'expectancy' is how two reports of the same trades disagree.",
+  "_sample_size": "§39: 'Always show sample size.' Every result carries `n`, and `n` is not a metric that can be dropped by a caller selecting fields -- performance.metrics() puts it at the top level and refuses to omit it. A metric whose sample is below its own `min_n` is returned as unavailable(), not as a number with a caveat somewhere else on the page.",
+  "_no_universal_score": "§39: 'Do not optimize against a single universal metric.' There is no weighted composite here and performance.py has no `score()`. What it has is `refuse_universal_score()`, whose body raises. Ranking is the caller's business and must be lexicographic over several named metrics (scripts/rank-setups.py), never a single blended number.",
+  "kinds": {
+    "count": "a whole number of trades",
+    "ratio": "a fraction in 0..1, rendered as a percentage by the caller",
+    "r_multiple": "a multiple of the risked amount (R); unit-free and account-size-free",
+    "currency": "account currency; depends on the account profile's size and per-trade risk",
+    "probability": "an estimated probability in 0..1 -- ALWAYS with its method and its assumptions attached",
+    "duration": "a span, carried in bars AND as a wall-clock span when the series says what a bar is"
+  },
+  "metrics": [
+    {
+      "id": "total_trades",
+      "spec_name": "total trades",
+      "kind": "count",
+      "min_n": 0,
+      "needs": [
+        "trades"
+      ],
+      "definition": "Every CLOSED trade in the population, whatever its outcome. Not the number of signals, and not the number of decisions: a blocked entry is §41's evaluation state, not a trade.",
+      "implemented_by": "scripts/performance.py metrics() -> total_trades"
+    },
+    {
+      "id": "wins",
+      "spec_name": "wins",
+      "kind": "count",
+      "min_n": 0,
+      "needs": [
+        "trades"
+      ],
+      "definition": "Trades with R strictly greater than the breakeven band. §39 lists breakeven SEPARATELY from wins and losses, so a flat trade belongs to neither.",
+      "implemented_by": "scripts/performance.py metrics() -> wins"
+    },
+    {
+      "id": "losses",
+      "spec_name": "losses",
+      "kind": "count",
+      "min_n": 0,
+      "needs": [
+        "trades"
+      ],
+      "definition": "Trades with R strictly below the breakeven band.",
+      "implemented_by": "scripts/performance.py metrics() -> losses"
+    },
+    {
+      "id": "breakeven",
+      "spec_name": "breakeven",
+      "kind": "count",
+      "min_n": 0,
+      "needs": [
+        "trades"
+      ],
+      "definition": "Trades whose R lies inside the breakeven band (|R| <= breakeven_band, default 0.05R, and any record whose engine labelled it 'breakeven'). A THIRD bucket, because §39 asks for one: before 2026-09-18 `journal.stats()` folded R<=0 into losses, which put every flat trade in the win-rate denominator and extended the losing streak through it.",
+      "implemented_by": "scripts/performance.py metrics() -> breakeven"
+    },
+    {
+      "id": "win_rate",
+      "spec_name": "win rate",
+      "kind": "ratio",
+      "min_n": 1,
+      "needs": [
+        "trades"
+      ],
+      "definition": "wins / total_trades. Breakeven trades stay in the DENOMINATOR -- they happened -- but never in the numerator. Reported beside `breakeven` so the reader can compute the other convention if they want it.",
+      "implemented_by": "scripts/performance.py metrics() -> win_rate"
+    },
+    {
+      "id": "expectancy",
+      "spec_name": "expectancy",
+      "kind": "r_multiple",
+      "min_n": 1,
+      "needs": [
+        "trades"
+      ],
+      "definition": "Mean R per trade, over every trade including breakeven. Identical in value to average_R for an R-denominated population; both are listed because §39 lists both, and they diverge the moment a caller passes position-weighted R.",
+      "implemented_by": "scripts/performance.py metrics() -> expectancy"
+    },
+    {
+      "id": "average_R",
+      "spec_name": "average R",
+      "kind": "r_multiple",
+      "min_n": 1,
+      "needs": [
+        "trades"
+      ],
+      "definition": "Mean of the per-trade R multiples, unweighted. Reported with `average_win_R` and `average_loss_R`, which is what makes an expectancy readable.",
+      "implemented_by": "scripts/performance.py metrics() -> average_R"
+    },
+    {
+      "id": "profit_factor",
+      "spec_name": "profit factor",
+      "kind": "ratio",
+      "min_n": 1,
+      "needs": [
+        "trades"
+      ],
+      "definition": "gross win R / |gross loss R|. Undefined with no losing trade -- returned as unavailable(), never as infinity and never as a large placeholder number, because a placeholder sorts.",
+      "implemented_by": "scripts/performance.py metrics() -> profit_factor"
+    },
+    {
+      "id": "pnl",
+      "spec_name": "P&L",
+      "kind": "currency",
+      "min_n": 0,
+      "needs": [
+        "trades",
+        "account_profile"
+      ],
+      "definition": "Realised profit and loss in account currency. Requires an account: R is account-free, money is not. Without a starting balance and a per-trade risk fraction this is unavailable rather than assumed.",
+      "implemented_by": "scripts/performance.py metrics() -> pnl"
+    },
+    {
+      "id": "max_drawdown",
+      "spec_name": "max drawdown",
+      "kind": "ratio",
+      "min_n": 1,
+      "needs": [
+        "equity_curve"
+      ],
+      "definition": "Largest peak-to-trough fall of the equity curve, as a fraction of the peak. Also reported in R (`max_drawdown_R`) so an account-free population still has the number.",
+      "implemented_by": "scripts/performance.py metrics() -> max_drawdown"
+    },
+    {
+      "id": "average_drawdown",
+      "spec_name": "average drawdown",
+      "kind": "ratio",
+      "min_n": 1,
+      "needs": [
+        "equity_curve"
+      ],
+      "definition": "Mean depth of the COMPLETED drawdown episodes (peak -> trough -> recovery to that peak). An episode still open at the end of the series is included with a flag, because dropping it would flatter a curve that ends underwater -- which is the case that matters.",
+      "implemented_by": "scripts/performance.py metrics() -> average_drawdown"
+    },
+    {
+      "id": "consecutive_wins",
+      "spec_name": "consecutive wins",
+      "kind": "count",
+      "min_n": 1,
+      "needs": [
+        "trades"
+      ],
+      "definition": "Longest run of consecutive winning trades. A breakeven trade BREAKS a run rather than extending it: it is not a win.",
+      "implemented_by": "scripts/performance.py metrics() -> consecutive_wins"
+    },
+    {
+      "id": "consecutive_losses",
+      "spec_name": "consecutive losses",
+      "kind": "count",
+      "min_n": 1,
+      "needs": [
+        "trades"
+      ],
+      "definition": "Longest run of consecutive losing trades. A breakeven trade breaks this run too -- the pre-2026-09-18 code extended it, which overstated the worst streak wherever management moved a stop to entry.",
+      "implemented_by": "scripts/performance.py metrics() -> consecutive_losses"
+    },
+    {
+      "id": "mfe",
+      "spec_name": "MFE",
+      "kind": "r_multiple",
+      "min_n": 1,
+      "needs": [
+        "trades",
+        "excursions"
+      ],
+      "definition": "Maximum Favourable Excursion: the best unrealised R a trade reached between entry and exit. Reported as the mean over the population plus the mean for winners and losers separately -- 'losers that went to +2R first' is the whole reason the metric exists. §37 explicitly allows future bars to determine it (it is an outcome, not a decision).",
+      "implemented_by": "scripts/performance.py metrics() -> mfe; produced by scripts/backtest-methods.py walk()"
+    },
+    {
+      "id": "mae",
+      "spec_name": "MAE",
+      "kind": "r_multiple",
+      "min_n": 1,
+      "needs": [
+        "trades",
+        "excursions"
+      ],
+      "definition": "Maximum Adverse Excursion: the worst unrealised R a trade reached before its exit, as a NEGATIVE number. Mean over the population plus winners/losers separately -- 'winners that first went to -0.9R' is what tells you whether the stop has any room.",
+      "implemented_by": "scripts/performance.py metrics() -> mae; produced by scripts/backtest-methods.py walk()"
+    },
+    {
+      "id": "sharpe",
+      "spec_name": "Sharpe",
+      "kind": "ratio",
+      "min_n": 8,
+      "needs": [
+        "trades"
+      ],
+      "definition": "mean(R) / stdev(R) over the per-trade series, times sqrt(trades per year) when the population can date itself. PER-TRADE and un-annualised when it cannot -- and it SAYS which, because an un-annualised Sharpe next to an annualised one is a factor of ten. Risk-free rate is taken as zero and that assumption travels in the result.",
+      "implemented_by": "scripts/performance.py metrics() -> sharpe"
+    },
+    {
+      "id": "sortino",
+      "spec_name": "Sortino",
+      "kind": "ratio",
+      "min_n": 8,
+      "needs": [
+        "trades"
+      ],
+      "definition": "As Sharpe but with the downside deviation (RMS of the negative part below the target return, target = 0) in the denominator. Unavailable when nothing was negative: a Sortino with no downside is not infinite, it is unmeasured.",
+      "implemented_by": "scripts/performance.py metrics() -> sortino"
+    },
+    {
+      "id": "recovery_factor",
+      "spec_name": "Recovery Factor",
+      "kind": "ratio",
+      "min_n": 1,
+      "needs": [
+        "trades",
+        "equity_curve"
+      ],
+      "definition": "net profit / max drawdown, both in the same unit (R by default). How many times over the strategy earned back its own worst hole.",
+      "implemented_by": "scripts/performance.py metrics() -> recovery_factor"
+    },
+    {
+      "id": "risk_of_ruin",
+      "spec_name": "Risk of Ruin",
+      "kind": "probability",
+      "min_n": 5,
+      "needs": [
+        "trades",
+        "account_profile"
+      ],
+      "definition": "Probability of reaching the account's ruin threshold within the declared horizon, by BOOTSTRAP over the observed per-trade R distribution (resampled with replacement, fixed seed, count declared). Not the closed-form gambler's-ruin formula: that assumes fixed win/loss sizes, which a 3R-target system does not have. The estimate carries its method, iterations, seed, horizon and threshold -- a probability without those is a decoration.",
+      "implemented_by": "scripts/performance.py metrics() -> risk_of_ruin",
+      "low_confidence_below": 30
+    },
+    {
+      "id": "account_failure_probability",
+      "spec_name": "account failure probability",
+      "kind": "probability",
+      "min_n": 5,
+      "needs": [
+        "trades",
+        "account_profile"
+      ],
+      "definition": "Probability of breaching ANY of the account profile's failure conditions (§33: max daily loss, max total drawdown, trailing drawdown) within the horizon -- a strictly wider event than ruin, and for a funded or prop account usually a much more likely one. Same bootstrap, same declared assumptions. Requires a real account profile from docs/architecture/account-profiles.json; there is no default account.",
+      "implemented_by": "scripts/performance.py metrics() -> account_failure_probability",
+      "low_confidence_below": 30
+    },
+    {
+      "id": "prop_pass_probability",
+      "spec_name": "prop pass probability",
+      "kind": "probability",
+      "min_n": 5,
+      "needs": [
+        "trades",
+        "account_profile"
+      ],
+      "definition": "Probability of reaching the profit target before breaching any failure condition and within the minimum trading days -- i.e. passing the challenge. Defined here, and computed by the same bootstrap, but it is UNAVAILABLE for every account profile that declares no profit target: a personal account cannot be passed. That is a property of the profile, not a gap in the metric.",
+      "implemented_by": "scripts/performance.py metrics() -> prop_pass_probability",
+      "low_confidence_below": 30
+    },
+    {
+      "id": "time_to_target",
+      "spec_name": "time to target",
+      "kind": "duration",
+      "min_n": 1,
+      "needs": [
+        "trades"
+      ],
+      "definition": "For trades that reached their target, the span from entry to that exit -- median and mean, in bars and in wall-clock when the timeframe is known. Losers and timeouts are excluded from the average and COUNTED separately, because a mean over only the winners is a survivorship claim unless the denominator is shown next to it.",
+      "implemented_by": "scripts/performance.py metrics() -> time_to_target"
+    },
+    {
+      "id": "time_in_drawdown",
+      "spec_name": "time in drawdown",
+      "kind": "duration",
+      "min_n": 1,
+      "needs": [
+        "equity_curve"
+      ],
+      "definition": "Share of the series spent below a previous equity peak, plus the longest single underwater stretch. The fraction and the longest stretch are both reported: a strategy underwater 60 % of the time in short dips is a different thing from one that spent a single unbroken year there.",
+      "implemented_by": "scripts/performance.py metrics() -> time_in_drawdown"
+    }
+  ],
+  "_sample_size_floors": "`min_n` is the point below which a metric cannot be COMPUTED at all (a bootstrap over 4 outcomes has almost nothing to resample). It is NOT a confidence judgement. The three probability metrics carry a second, softer field: `low_confidence_below` -- above min_n and below it the metric IS computed and returned, with `low_confidence: true`, its `sample`, and a spread across bootstrap batches so the reader sees how wide the estimate is. User decision 2026-09-19: a wide number that says it is wide beats a refusal, because a prop-account question ('would this setup have passed?') has an answer at n=14 and hiding it helped nobody. §39 'always show sample size' is satisfied by SHOWING it, not by withholding."
+}

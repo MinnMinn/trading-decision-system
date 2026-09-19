@@ -1,13 +1,26 @@
 {
   "_mock": true,
   "_disclaimer": "SYNTHETIC FIXTURE DATA — not real funding history. Rehearsal only.",
+  "_source": "coinglass_mock",
   "symbol": "BTCUSDT",
   "last_updated": "2026-09-09T08:00:00Z",
   "series": [
-    { "time": "2026-09-08T08:00:00Z", "rate": 0.0004 },
-    { "time": "2026-09-08T16:00:00Z", "rate": 0.0001 },
-    { "time": "2026-09-09T00:00:00Z", "rate": -0.0002 },
-    { "time": "2026-09-09T08:00:00Z", "rate": 0.0002 }
+    {
+      "time": "2026-09-08T08:00:00Z",
+      "rate": 0.0004
+    },
+    {
+      "time": "2026-09-08T16:00:00Z",
+      "rate": 0.0001
+    },
+    {
+      "time": "2026-09-09T00:00:00Z",
+      "rate": -0.0002
+    },
+    {
+      "time": "2026-09-09T08:00:00Z",
+      "rate": 0.0002
+    }
   ],
   "note": "Funding dips slightly negative right after the sweep (00:00) then normalizes — mild, not extreme, and not by itself a strong independent signal here; no event-risk-level funding extreme is present."
 }

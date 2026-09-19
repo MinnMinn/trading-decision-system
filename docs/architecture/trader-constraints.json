@@ -1,0 +1,61 @@
+{
+  "_comment": "CLAUDE.md §0.9 (docs/plans/2026-09-18-close-feature-gaps.md) -- per-trader constraints, ADDITIONAL to the platform's own rules, that a trader has decided to trade under from their OWN experience. THE single source of truth read by scripts/trader_constraints.py. Distinct from docs/architecture/account-profiles.json (whose rules the ACCOUNT imposes) and docs/architecture/analysis-params.json (the platform's own thresholds, e.g. the 3R min_rr floor): a trader constraint is a further, personal narrowing on TOP of both, never a way to loosen either.",
+  "_scope": "Every item here may only TIGHTEN the knob it names -- never loosen it, never introduce a new decision path. scripts/trader_constraints.py.overlay() enforces this by construction (max/intersection/OR, never the reverse) and _validate() refuses an authored value that is already on its face a loosening attempt (e.g. a boolean-only-true kind declared false, or a min_rr below the platform floor). A kind not in `_kinds` is refused at import -- an unenforceable constraint must not be able to look enforced.",
+  "version": 1,
+
+  "_kinds": {
+    "min_rr": {
+      "applies_to": "OPTS.min_rr (scripts/backtest-methods.py); live: strategy-runner.py step 10 (planned application, see scripts/trader_constraints.py module docstring)",
+      "tighten": "higher only -- overlay() takes max(current, declared); _validate() refuses a declared value below the platform floor (docs/architecture/analysis-params.json project_defined.ict.min_rr.value, read via scripts/trading_env.min_rr())",
+      "why": "a trader who has personally seen the account get chopped up at 3R may decide THEY only take 3.5R+; the platform floor stays the floor for everyone else"
+    },
+    "sessions": {
+      "applies_to": "the --sessions admission-time gate (scripts/backtest-methods.py simulate()); carried on the overlay result as `_sessions` because OPTS itself has no session key (session gating happens in simulate(), not in scan())",
+      "tighten": "narrower only -- overlay() intersects the declared set with whatever is already in force; _validate() refuses a label not in docs/architecture/sessions.json (scripts/sessions.LABELS)",
+      "why": "a trader who only trades London/NY hours for a given methodology should not have Asia session losses counted as evidence against a rule they never trade under"
+    },
+    "types": {
+      "applies_to": "OPTS.types (WYCKOFF-BOOK/COMBINED-BOOK volume-type filter)",
+      "tighten": "subset only -- overlay() intersects with whatever is already in force",
+      "why": "a trader may have decided type-3 (high-volume) Springs are not for them on a given methodology"
+    },
+    "htf": {
+      "applies_to": "OPTS.htf (higher-timeframe boundary filter)",
+      "tighten": "true only -- overlay() ORs the declared value in; _validate() refuses a declared `false` (that would be an attempt to turn an already-on filter off, which is a loosen)",
+      "why": "a trader may require the HTF filter even when the platform's own default configuration has it off"
+    },
+    "ict_disp": {
+      "applies_to": "OPTS.ict_disp (displacement-candle requirement for the MSS)",
+      "tighten": "true only -- same construction as htf",
+      "why": "a trader who has seen non-displacement MSS candles fail more often for them may require displacement"
+    },
+    "ict_pd": {
+      "applies_to": "OPTS.ict_pd (premium/discount gate)",
+      "tighten": "true only -- same construction as htf",
+      "why": "a trader may require the P/D gate even when the platform default configuration has it off"
+    },
+    "sloped_gate": {
+      "applies_to": "OPTS.sloped_gate (book engine: skip sloped structures)",
+      "tighten": "true only -- same construction as htf",
+      "why": "a trader running the book engine may want sloped structures skipped even when the run's own flags do not"
+    },
+    "max_trades_per_day": {
+      "applies_to": "an account rule (live step 10 -- CLAUDE.md §33's own per-symbol churn cap is the closest existing rule shape; this platform's backtest engine has no per-day trade-count gate to apply this to yet, so it is validated here and enforced only at the live integration point, not by scripts/backtest-methods.py)",
+      "tighten": "lower only -- a declared value must be a positive integer; overlay() takes the min of whatever is already in force",
+      "why": "a trader who over-trades a setup on bad days may cap their own daily count below whatever the account allows"
+    }
+  },
+
+  "traders": {
+    "tung": {
+      "per_methodology": {
+        "ict": [
+          {"kind": "min_rr", "value": 3.5, "why": "personal decision (trader tung, 2026-09-18): the platform's 3R ICT floor still let through setups that felt like a coinflip at 3R exactly; 3.5R is the trader's own, tighter, line."}
+        ],
+        "wyckoff": [
+          {"kind": "sessions", "value": ["london", "ny_am"], "why": "personal decision (trader tung, 2026-09-18): Wyckoff Springs the trader has reviewed outside London/NY morning hours were mostly thin-liquidity noise; restrict Wyckoff entries for this trader to those two sessions."}
+        ]
+      }
+    }
+  }
+}

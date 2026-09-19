@@ -1,15 +1,40 @@
 {
   "_mock": true,
   "_disclaimer": "SYNTHETIC FIXTURE DATA — not a real order book. Rehearsal only.",
+  "_source": "coinglass_mock",
   "symbol": "BTCUSDT",
   "snapshot_time": "2026-09-09T08:00:00Z",
   "levels": [
-    { "price": 64800, "resting_size": 310, "side": "bid" },
-    { "price": 64700, "resting_size": 480, "side": "bid" },
-    { "price": 64500, "resting_size": 190, "side": "bid" },
-    { "price": 66200, "resting_size": 260, "side": "ask" },
-    { "price": 66500, "resting_size": 410, "side": "ask" },
-    { "price": 67000, "resting_size": 520, "side": "ask" }
+    {
+      "price": 64800,
+      "resting_size": 310,
+      "side": "bid"
+    },
+    {
+      "price": 64700,
+      "resting_size": 480,
+      "side": "bid"
+    },
+    {
+      "price": 64500,
+      "resting_size": 190,
+      "side": "bid"
+    },
+    {
+      "price": 66200,
+      "resting_size": 260,
+      "side": "ask"
+    },
+    {
+      "price": 66500,
+      "resting_size": 410,
+      "side": "ask"
+    },
+    {
+      "price": 67000,
+      "resting_size": 520,
+      "side": "ask"
+    }
   ],
   "note": "A new resting-bid wall has rebuilt at 64700-64800 since the sweep (480+310 contracts) — consistent with buyers defending the reclaimed low; the largest resting-ask wall sits at 67000, aligning with the liquidation-heatmap's short cluster at 67100 — two independent CoinGlass observations (orderbook wall + liquidation cluster) pointing at the same 67000-67100 zone. Per SYSTEM-DESIGN.md section 6.1, this still counts as ONE Heatmap-dimension observation, not two, since both come from the same underlying phenomenon (resting short-side liquidity concentrated at that price)."
 }

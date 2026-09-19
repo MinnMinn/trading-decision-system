@@ -1,0 +1,223 @@
+{
+  "_source": "CLAUDE.md §41 FAILURE LEARNING. The eight outcome states, the five things an evaluation state may reveal, the four causal categories and the eleven pipeline stages below are §41's own lists, in §41's order and wording. scripts/tests/test_outcomes.py parses them back out of CLAUDE.md, so a ninth state in the spec fails the build rather than going unrepresentable.",
+  "_reader": "scripts/outcomes.py is the ONE reader. Before it, five of the eight states could not be expressed anywhere in the repo: a trade file has WIN/LOSS/BREAKEVEN, and the runner logged every block reason into a JSONL that nothing ever read back.",
+  "_the_rule_that_is_easy_to_get_backwards": "§41: 'NO TRADE and BLOCKED ENTRY must NOT automatically be classified as failures. They are evaluation states.' A blocked entry that avoided a loss is the system working. A blocked entry that skipped a winner is a cost. Neither is knowable from the block alone -- it needs the counterfactual -- so `is_failure` is THREE-VALUED here and the default for an evaluation state is `null`, never `false` and never `true`.",
+  "states": [
+    {
+      "id": "WIN",
+      "spec_name": "WIN",
+      "family": "realised",
+      "is_failure": false,
+      "definition": "A closed trade whose R is above the breakeven band (§39's three-way split).",
+      "produced_by": "scripts/journal.py from a closed trade record"
+    },
+    {
+      "id": "LOSS",
+      "spec_name": "LOSS",
+      "family": "realised",
+      "is_failure": null,
+      "_is_failure_why": "A loss inside the system's own expectancy is not a failure -- it is the cost of the edge. What makes a loss a FAILURE is a cause (§41's four categories), and that is a separate field. Marking every loss a failure is how a working system gets 'improved' out of existence.",
+      "definition": "A closed trade whose R is below the breakeven band.",
+      "produced_by": "scripts/journal.py from a closed trade record"
+    },
+    {
+      "id": "BREAKEVEN",
+      "spec_name": "BREAKEVEN",
+      "family": "realised",
+      "is_failure": false,
+      "definition": "A closed trade inside the breakeven band, or one the engine labelled breakeven because management moved the stop to entry.",
+      "produced_by": "scripts/journal.py from a closed trade record"
+    },
+    {
+      "id": "NO_TRADE",
+      "spec_name": "NO TRADE",
+      "family": "evaluation",
+      "is_failure": null,
+      "_is_failure_why": "§41 says so in as many words. It is an EVALUATION state: it may reveal beneficial filtering or a missed opportunity, and which one is a question about the counterfactual, not about the record.",
+      "definition": "The system evaluated an opportunity and did not take it -- no setup qualified, or a non-gating condition was absent. Distinct from BLOCKED_ENTRY: nothing refused, there was simply nothing to take.",
+      "produced_by": "scripts/strategy-runner.py log(\"signal\", ok=false) with no blocking dependency"
+    },
+    {
+      "id": "BLOCKED_ENTRY",
+      "spec_name": "BLOCKED ENTRY",
+      "family": "evaluation",
+      "is_failure": null,
+      "_is_failure_why": "As NO TRADE. A blackout that avoided a gap-through-stop is correct risk avoidance; the same blackout on a quiet day is a cost. The record cannot tell you which.",
+      "definition": "A qualifying setup that a REQUIRED_FOR_DECISION dependency refused (§35/§36) -- an event blackout, a data-quality gate, an account rule, a risk refusal. The blocking dependency is part of the record, because 'blocked' without naming what blocked it cannot be learned from.",
+      "produced_by": "scripts/strategy-runner.py log(\"signal\", ok=false, reasons=[...]) with the §36 decision_trace"
+    },
+    {
+      "id": "MISSED_OPPORTUNITY",
+      "spec_name": "MISSED OPPORTUNITY",
+      "family": "evaluation",
+      "is_failure": null,
+      "_is_failure_why": "It is the RESOLUTION of an evaluation state, not a state that arrives on its own. It says a NO_TRADE or BLOCKED_ENTRY would have worked -- which is a counterfactual, and one measured on a single path of prices that did happen.",
+      "definition": "A NO_TRADE or BLOCKED_ENTRY whose plan, had it been taken, would have reached its target before its stop. Always carries the state it resolves and the horizon it was measured over.",
+      "produced_by": "scripts/outcomes.py resolve() -- never asserted directly"
+    },
+    {
+      "id": "EXECUTION_FAILURE",
+      "spec_name": "EXECUTION FAILURE",
+      "family": "fault",
+      "is_failure": true,
+      "definition": "The decision was correct and the order did not happen as decided: a venue rejection, an unfilled protective order, a size the venue would not accept, a bridge that did not answer.",
+      "produced_by": "scripts/strategy-runner.py log kinds rejected / gtx_rejected / skip / error on a venue call"
+    },
+    {
+      "id": "DATA_FAILURE",
+      "spec_name": "DATA FAILURE",
+      "family": "fault",
+      "is_failure": true,
+      "definition": "The decision could not be made on sound information: a §20 quality gate refusal, a stale export, a provider outage, a calendar that could not be loaded (§32).",
+      "produced_by": "scripts/strategy-runner.py quality/fetch refusals and event_risk.CalendarUnavailable"
+    }
+  ],
+  "reveals": [
+    {
+      "id": "beneficial_filtering",
+      "spec_name": "beneficial filtering",
+      "means": "the state avoided a trade that would have lost"
+    },
+    {
+      "id": "harmful_filtering",
+      "spec_name": "harmful filtering",
+      "means": "the state refused trades that would have won, repeatedly"
+    },
+    {
+      "id": "missed_opportunities",
+      "spec_name": "missed opportunities",
+      "means": "this particular one would have won"
+    },
+    {
+      "id": "correct_risk_avoidance",
+      "spec_name": "correct risk avoidance",
+      "means": "the state avoided a trade whose RISK was unacceptable, whatever the outcome turned out to be"
+    },
+    {
+      "id": "incorrect_constraint_behavior",
+      "spec_name": "incorrect constraint behavior",
+      "means": "the constraint fired on a case it was not meant to cover"
+    }
+  ],
+  "causes": [
+    {
+      "id": "strategy_failure",
+      "spec_name": "strategy failure",
+      "means": "the rules fired correctly on inputs that were sound, and the market did something else"
+    },
+    {
+      "id": "execution_failure",
+      "spec_name": "execution failure",
+      "means": "the decision was right and the order was not carried out as decided"
+    },
+    {
+      "id": "data_failure",
+      "spec_name": "data failure",
+      "means": "the inputs were wrong, stale, holed or absent"
+    },
+    {
+      "id": "external_event_failure",
+      "spec_name": "external event failure",
+      "means": "something outside the model's scope moved the market -- an unscheduled event, a venue halt"
+    }
+  ],
+  "_unknown_cause": "§41: 'Unknown is a valid causal state. Do not force every outcome into a causal category.' UNKNOWN is therefore a real value in scripts/outcomes.py, it is the DEFAULT, and a caller that wants a cause must supply evidence for it. A distribution in which every outcome has a confident cause is a distribution nobody checked.",
+  "pipeline": [
+    {
+      "n": 1,
+      "id": "trading_outcomes",
+      "spec_name": "Trading Outcomes",
+      "actor": "system",
+      "implemented_by": "scripts/outcomes.py ingest()"
+    },
+    {
+      "n": 2,
+      "id": "failure_pattern_detection",
+      "spec_name": "Failure Pattern Detection",
+      "actor": "ai_may",
+      "implemented_by": "scripts/outcomes.py cluster()"
+    },
+    {
+      "n": 3,
+      "id": "repeated_failure_cluster",
+      "spec_name": "Repeated Failure Cluster",
+      "actor": "ai_may",
+      "implemented_by": "scripts/outcomes.py cluster(min_size=...)"
+    },
+    {
+      "n": 4,
+      "id": "hypothesis_generation",
+      "spec_name": "Hypothesis Generation",
+      "actor": "ai_may",
+      "implemented_by": null,
+      "_why": "A hypothesis is prose a model writes; the repo's .claude/agents/learning-agent.md owns it. What this module owns is the PROPOSAL RECORD it must be written into, so a hypothesis cannot reach production without passing stages 5-11."
+    },
+    {
+      "n": 5,
+      "id": "candidate_improvements",
+      "spec_name": "Candidate Improvements",
+      "actor": "ai_may",
+      "implemented_by": "scripts/outcomes.py Proposal"
+    },
+    {
+      "n": 6,
+      "id": "backtest",
+      "spec_name": "Backtest",
+      "actor": "system",
+      "implemented_by": "scripts/backtest-methods.py (§37), verdict-stamped by §38"
+    },
+    {
+      "n": 7,
+      "id": "oos_validation",
+      "spec_name": "OOS Validation",
+      "actor": "system",
+      "implemented_by": "scripts/validation.py oos() -- gated at RUN TIME by §44: it refuses unless the period is oos_untouched or final_holdout"
+    },
+    {
+      "n": 8,
+      "id": "robustness_sensitivity",
+      "spec_name": "Robustness / Sensitivity",
+      "actor": "system",
+      "implemented_by": "scripts/validation.py robustness() over parameter_sensitivity / perturbation / stress / monte_carlo"
+    },
+    {
+      "n": 9,
+      "id": "compare_against_baseline",
+      "spec_name": "Compare Against Baseline",
+      "actor": "system",
+      "implemented_by": "scripts/outcomes.py Proposal.compare()"
+    },
+    {
+      "n": 10,
+      "id": "improvement_report",
+      "spec_name": "Improvement Report",
+      "actor": "ai_may",
+      "implemented_by": "scripts/outcomes.py Proposal.report()"
+    },
+    {
+      "n": 11,
+      "id": "human_decision",
+      "spec_name": "Human Decision",
+      "actor": "human_only",
+      "implemented_by": "scripts/outcomes.py Proposal.decide() -- refuses any actor but a human"
+    }
+  ],
+  "ai_may": [
+    {
+      "spec_name": "discover patterns"
+    },
+    {
+      "spec_name": "identify repeated failure clusters"
+    },
+    {
+      "spec_name": "generate hypotheses"
+    },
+    {
+      "spec_name": "propose candidate changes"
+    },
+    {
+      "spec_name": "analyze experiment results"
+    }
+  ],
+  "_ai_must_never": "CLAUDE.md §41: 'AI must NEVER silently rewrite the production Trading System.' Enforced, not described: scripts/outcomes.py has no writer for docs/architecture/trading-systems.json or pilot-top5.json, `Proposal.decide()` refuses any actor other than `human`, and a Proposal that has not passed every implemented pipeline stage cannot be APPROVED at all. The word that matters is `silently` -- a proposal is a visible, recorded, human-decided artifact, and that is the whole mechanism."
+}

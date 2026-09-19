@@ -12,14 +12,31 @@ Rules implemented (knowledge/wyckoff/advance.md = WA, knowledge/wyckoff/modern-t
   R1  CHoBEV / CHoCH gate (WA p67–68): a counter-trend reaction counts as a CHoBEV when its spread and its effort (volume)
       exceed those of the prior counter-trend reactions of the trend; three CHoBEV = CHoCH; only then may a TR be drawn.
   R2  Trading range from events (WA p69, p73): lower border = SC low (start of the first up-wave), upper border = AR high.
-  R3  ST[A] position (WA p75, p77; p150 đối nhãn 1): recorded as st_pct = (ST low − SC low)/TR; ST above 50% = supply thinned,
-      ST below SC = supply abundant. Exposed as a filter, not hardcoded.
+  R3  ST[A] position -- đối nhãn Dấu hiệu 1 (WA p150-153): the book divides the TR into THREE parts, not two.
+      "Nếu ST ở 1/3 phần trên Trading Range ... nền hỗ trợ cực kỳ mạnh ... dấu hiệu để nhận dạng sớm tích lũy";
+      "Nếu ST ở 1/3 phần dưới Trading Range hoặc thậm chí [phá] hỗ trợ cục bộ SC ... dấu hiệu để nhận dạng sớm
+      tái phân phối hoặc phân phối" (WA p150). Recorded as st_pct = (ST low − SC low)/TR and as st_sign:
+      "supports" (upper third) / "neutral" (middle) / "contradicts" (lower third, or below the SC border).
+      Until 2026-09-19 the docstring said "ST above 50%" and the filter's only threshold was a half -- a number
+      the book never gives (docs/audits/2026-09-19-knowledge-fidelity.md finding 9).
+  R3b Phase-B test location -- đối nhãn Dấu hiệu 2 (WA p154-159): "Kiểm tra trên đỉnh của cấu trúc nhiều lần gợi ý
+      dấu hiệu sức mạnh. Kiểm tra ... phần dưới của cấu trúc nhiều lần gợi ý dấu hiệu suy yếu" (WA p154).
+      Counted over the Phase-B swings between ST[A] and the border break: phase_b_tests = {upper, lower} using
+      the same thirds as R3, and phase_b_sign = supports / neutral / contradicts. Recorded, and exposed as an
+      optional filter -- the book presents the four dấu hiệu as judgement inputs, not as one hard gate.
+      NOTE ON FRAME: detect_distributions() runs this same detector on INVERTED prices, so "upper third" always
+      means the third that supports the label being detected. That is why the signs are named supports/contradicts
+      and not upper/lower: the words survive the mirror, the directions do not.
   R4  Phase B must exist before a Phase C call (WA p79, WA3-08 p189–190): a border break before PARAMS.min_phase_b_swings
       swings after ST is mSOW[B]/UA[B], never Spring/UT.
   R5  Sloped structure → do not trade (WA p167, p170): skip when Phase-B swing lows drift by more than PARAMS.slope_max_tr of the TR.
   R6  Spring vs Shakeout (WA p80, p83): price must close back inside within PARAMS.spring_max_bars_outside bars and fewer than
       half the excursion bars may close below the border; otherwise it is a Shakeout (supply remains) → no direct entry (WA2-12).
-  R7  Spring/Upthrust volume type 1/2/3 (WMT p049, knowledge/wyckoff/modern-tools.md §2.6–2.7) with the volume thresholds of analysis-params.json.
+  R7  Spring volume type 1/2/3 (Bảng 2.1, WMT p049) and Upthrust volume type 1/2/3 (Bảng 2.2, WMT p064) --
+      TWO DIFFERENT TABLES, not a mirror: Spring runs low->1/moderate->2/high->3, Upthrust runs
+      increases->1 / very high (UTAD)->2 / strong-but-lower->3, and the book has no low-volume Upthrust.
+      knowledge/wyckoff/modern-tools.md:55-72, thresholds from analysis-params.json. (The single-table
+      reading, and the p049 cite standing for both, were corrected 2026-09-19 after a knowledge audit.)
   R8  Test after the Spring (WA p80): a pullback holding above the Spring low, inside the lower third of the TR, on volume lower
       than the Spring bar, closing in its upper half. Type 2 needs it (WMT p049); type 1 may enter at the reclaim (WA p80, partial).
   R9  SOT into the border (WA p278–284): successive pushes into the low with shortening distance; ≥3 pushes = valid SOT; more than 4
@@ -29,8 +46,20 @@ Rules implemented (knowledge/wyckoff/advance.md = WA, knowledge/wyckoff/modern-t
   R11 Phase D entry (WA p83–85): SOS = close above the TR high with widening spread and volume ≥ average, held for
       PARAMS.commitment_bars closes; BU/LPS = the first pullback to the TR top on lower volume; entry at the first up-close of the
       pullback, stop under the pullback low, target = TR top + 1 TR (PROJECT PARAMETER — the book gives no numeric projection).
-  R12 Stop under the Spring low (WMT p271); first target = opposite border (WMT p273, WA p83–84); breakeven at +1R (WMT p272) is
-      handled by the caller's walk().
+  R0  VOLUME PROVENANCE (WMT p131-133, knowledge/wyckoff/modern-tools.md §7). Every volume rule below -- R1's
+      CHoBEV effort, R7's Spring/Upthrust typing, R8's "Test on lower volume than the Spring", R10's Volume
+      Profile, R11's "SOS on volume >= average" -- assumes TRADED volume. The MT5 CFD feed reports TICK COUNT:
+      the broker counts price changes, not size (docs/architecture/mt5-bridge.md, providers.json). The book
+      flags exactly this ("Forex's tick-based Delta is not real volume and therefore unreliable", WMT p131-132)
+      and states real-volume availability as a hard requirement of its method (WMT p131-133).
+      This engine does NOT refuse a tick feed -- that is a methodology decision, not a reading of the book --
+      but every record it returns now carries `volume_kind` ("traded" | "tick") so no downstream surface can
+      print a volume type as if the book's table had been fed what the book requires. Callers pass it from
+      scripts/instruments.py is_tick_volume(symbol); the default is "traded" only because the crypto feeds are.
+      Before 2026-09-19 nothing carried the distinction at all (knowledge audit finding 8).
+  R12 Stop under the Spring low (WMT p271); first target = opposite border (WMT p273, WA p83–84); breakeven
+      handled by the caller's walk(). NOTE: the book (WMT p272) says "move to entry once price has moved
+      favorably or consolidated" and gives NO number -- the +1R trigger is a PROJECT parameter.
 """
 import bisect, json, os
 
@@ -49,6 +78,7 @@ PARAMS = dict(
     spring_max_bars_outside=3,  # bars allowed outside the TR before it is a Shakeout (project; WA p83 "khá ngắn ngủi")
     test_window=12,             # bars to wait for the Test after the reclaim (project)
     test_zone_tr=1 / 3,         # the Test must hold inside the lower third of the TR (project; WA p80 "kiểm tra nguồn cung")
+    doi_nhan_third=1 / 3,       # WA p150 "chia biên độ của cấu trúc thành 3 phần" -- the đối nhãn thirds (sourced, R3/R3b)
     vp_bins=30,                 # Volume Profile resolution (project)
     phase_d_window=40,          # bars to wait for SOS + BU after the Spring/Test (project)
     d_target_tr=1.0,            # Phase D target = TR top + this × TR (project)
@@ -130,7 +160,7 @@ def bump(k):
     STATS[k] = STATS.get(k, 0) + 1
 
 
-def detect_accumulations(O, H, L, C, V, P=PARAMS):
+def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded"):
     """Walk the series and return every accumulation structure that reaches a Spring candidate, with all rule outputs.
     Each record: dict(sc, ar, st, tr_lo, tr_hi, st_pct, chobev_bars, phase_b_swings, sloped, spring=dict(...), ...)."""
     n = len(C); k = P["pivot"]; sw = swings(H, L, k); out = []
@@ -187,6 +217,9 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS):
         if st is None:
             bump("3_no_st"); continue
         st_pct = (st[2] - tr_lo) / tr
+        # --- đối nhãn Dấu hiệu 1 (R3, WA p150): which third of the TR is ST[A] sitting in? ---
+        third = P["doi_nhan_third"]
+        st_sign = "supports" if st_pct >= 2 * third else ("contradicts" if st_pct <= third else "neutral")
         # --- Phase B: swings after ST; sloped check (R4, R5) ---
         after = [s for s in sw if s[0] > st[0]]
         if not after:
@@ -194,12 +227,17 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS):
         # walk bars from the CHoCH for the first break below the TR low
         start = max(choch_bar, st[0]) + 1; b_lows = [st[2]]
         b_swings = 0; spring = None; sloped = False; sot_lows = [lows[-2][2], sc_low, st[2]]; lpsc_sos = None
+        b_tests = {"upper": 0, "lower": 0}     # đối nhãn Dấu hiệu 2 (R3b, WA p154)
         for b in range(start, n - COMMIT):
             # count swings completed so far in Phase B
             while b_swings < len(after) and after[b_swings][0] + k <= b:
                 s = after[b_swings]
                 if s[1] == "L":
                     b_lows.append(s[2]); sot_lows.append(s[2])
+                    if s[2] <= tr_lo + third * tr:
+                        b_tests["lower"] += 1
+                elif s[2] >= tr_lo + 2 * third * tr:
+                    b_tests["upper"] += 1
                 b_swings += 1
             if L[b] < tr_lo:
                 if b_swings < P["min_phase_b_swings"]:
@@ -223,7 +261,8 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS):
                     pull = q
                 if pull is not None and q > pull and C[q] > O[q] and C[q] > tr_hi:
                     bu = dict(low=min(L[pull:q + 1]), bar=q); break
-            out.append(dict(sc=sc_i, ar=ar[0], st=st[0], choch=choch_bar, tr_lo=tr_lo, tr_hi=tr_hi, st_pct=round(st_pct, 2), phase_b_swings=b_swings,
+            out.append(dict(sc=sc_i, ar=ar[0], st=st[0], choch=choch_bar, tr_lo=tr_lo, tr_hi=tr_hi, st_pct=round(st_pct, 2), st_sign=st_sign, volume_kind=volume_kind, phase_b_swings=b_swings,
+                        phase_b_tests=dict(b_tests), phase_b_sign=("supports" if b_tests["upper"] > b_tests["lower"] else ("contradicts" if b_tests["lower"] > b_tests["upper"] else "neutral")),
                             sloped=(max(b_lows) - min(b_lows) > P["slope_max_tr"] * tr), spring=None, reclaim=None, shakeout=False, spring_low=None, vol_ratio=None,
                             vol_type=None, rec_ratio=None, sot_pushes=0, sot=False, sot_too_strong=False, vpoc=None, vah=None, val=None, lvn=None, abandon=False,
                             test=None, sos=lpsc_sos, bu=bu, path="lps_c"))
@@ -272,17 +311,18 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS):
                         pull = q
                     if pull is not None and q > pull and C[q] > O[q] and C[q] > tr_hi:
                         bu = dict(low=min(L[pull:q + 1]), bar=q); break
-        out.append(dict(sc=sc_i, ar=ar[0], st=st[0], choch=choch_bar, tr_lo=tr_lo, tr_hi=tr_hi, st_pct=round(st_pct, 2), phase_b_swings=b_swings,
+        out.append(dict(sc=sc_i, ar=ar[0], st=st[0], choch=choch_bar, tr_lo=tr_lo, tr_hi=tr_hi, st_pct=round(st_pct, 2), st_sign=st_sign, volume_kind=volume_kind, phase_b_swings=b_swings,
+                        phase_b_tests=dict(b_tests), phase_b_sign=("supports" if b_tests["upper"] > b_tests["lower"] else ("contradicts" if b_tests["lower"] > b_tests["upper"] else "neutral")),
                         sloped=sloped, spring=spring, reclaim=rec, shakeout=shakeout, spring_low=spring_low, vol_ratio=(round(ratio, 2) if ratio else None),
                         vol_type=vt, rec_ratio=rec_ratio, sot_pushes=pushes, sot=(SOT_MIN <= pushes <= SOT_MAX), sot_too_strong=pushes > SOT_MAX,
                         vpoc=vpoc, vah=vah, val=val, lvn=lvn, abandon=abandon, test=test, sos=sos, bu=bu, path="spring"))
     return out
 
 
-def detect_distributions(O, H, L, C, V, P=PARAMS):
+def detect_distributions(O, H, L, C, V, P=PARAMS, volume_kind="traded"):
     """Mirror: run the accumulation detector on inverted prices (WA p101 schematics are mirror images) and map prices back."""
     inv = lambda xs: [-x for x in xs]
-    recs = detect_accumulations(inv(O), inv(L), inv(H), inv(C), V, P)
+    recs = detect_accumulations(inv(O), inv(L), inv(H), inv(C), V, P, volume_kind)
     for r in recs:
         for key in ("tr_lo", "tr_hi", "spring_low", "vpoc", "vah", "val", "lvn"):
             if r.get(key) is not None:

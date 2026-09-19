@@ -1,50 +1,58 @@
 {
-  "_comment": "style -> artifact URL + built page path. Written by scripts/publish-plan.py --mark (single writer); a PENDING url is replaced by the URL the first publish creates. Read by the session publish tick (integrations/crons/publish-tick.md). Keys are the six derived style names (scripts/automation.py STYLE, from HORIZON_TF). On 2026-09-13 two names were REUSED for a different timeframe -- `scalping` moved 1m -> 15m and `swing` moved 1D -> 4h -- so each url was remapped to the page of its NEW timeframe, not carried over with its key: `scalping` and `cfd-scalping` point at the two 15m pages that already existed, and the four pages whose timeframe left the scanned set (1m, 5m and the two 1D) are no longer published by any key. scripts/tests/test_one_system.py pins those four retired page ids so no key can silently inherit one.",
-  "styles": {
-    "scalping": {
-      "url": "https://claude.ai/code/artifact/46b302c5-3a72-45f4-89d3-0a7eef282453",
-      "out": "data/live/.vi-scalping-live.html",
-      "favicon": "⚡"
-    },
-    "day": {
-      "url": "https://claude.ai/code/artifact/d04b0280-177a-4092-b15f-3e049bf00472",
-      "out": "data/live/.vi-day-live.html",
-      "favicon": "⚡"
-    },
-    "swing": {
-      "url": "https://claude.ai/code/artifact/9adadd20-f997-4809-8945-51756baa2685",
-      "out": "data/live/.vi-swing-live.html",
-      "favicon": "⚡"
-    },
-    "cfd-scalping": {
-      "url": "https://claude.ai/code/artifact/97773ba6-6903-412d-99dd-25fc33c690bb",
-      "out": "data/live/.vi-cfd-scalping-live.html",
-      "favicon": "⚡"
-    },
-    "cfd-day": {
-      "url": "PENDING",
-      "out": "data/live/.vi-cfd-day-live.html",
-      "favicon": "⚡"
-    },
-    "cfd-swing": {
-      "url": "PENDING",
-      "out": "data/live/.vi-cfd-swing-live.html",
-      "favicon": "⚡"
-    },
-    "fx-scalping": {
-      "url": "PENDING",
-      "out": "data/live/.vi-fx-scalping-live.html",
-      "favicon": "⚡"
-    },
-    "fx-day": {
-      "url": "PENDING",
-      "out": "data/live/.vi-fx-day-live.html",
-      "favicon": "⚡"
-    },
-    "fx-swing": {
-      "url": "PENDING",
-      "out": "data/live/.vi-fx-swing-live.html",
-      "favicon": "⚡"
-    }
+ "_comment": "style -> artifact URL + built page path. Written by scripts/publish-plan.py --mark (single writer); a PENDING url is replaced by the URL the first publish creates. Read by the session publish tick (integrations/crons/publish-tick.md). Keys are the six derived style names (scripts/automation.py STYLE, from HORIZON_TF). On 2026-09-13 two names were REUSED for a different timeframe -- `scalping` moved 1m -> 15m and `swing` moved 1D -> 4h -- so each url was remapped to the page of its NEW timeframe, not carried over with its key: `scalping` and `cfd-scalping` point at the two 15m pages that already existed, and the four pages whose timeframe left the scanned set (1m, 5m and the two 1D) are no longer published by any key. scripts/tests/test_one_system.py pins those four retired page ids so no key can silently inherit one.",
+ "styles": {
+  "scalping": {
+   "url": "https://claude.ai/code/artifact/46b302c5-3a72-45f4-89d3-0a7eef282453",
+   "out": "data/live/.vi-scalping-live.html",
+   "favicon": "⚡"
+  },
+  "day": {
+   "url": "https://claude.ai/code/artifact/d04b0280-177a-4092-b15f-3e049bf00472",
+   "out": "data/live/.vi-day-live.html",
+   "favicon": "⚡"
+  },
+  "swing": {
+   "url": "https://claude.ai/code/artifact/9adadd20-f997-4809-8945-51756baa2685",
+   "out": "data/live/.vi-swing-live.html",
+   "favicon": "⚡"
+  },
+  "cfd-scalping": {
+   "url": "https://claude.ai/code/artifact/baa5e7b2-20bd-49ad-962d-8a86cfbb2641",
+   "out": "data/live/.vi-cfd-scalping-live.html",
+   "favicon": "⚡"
+  },
+  "cfd-day": {
+   "url": "https://claude.ai/code/artifact/3fe36748-ab2e-40f0-abbe-67637d79c64f",
+   "out": "data/live/.vi-cfd-day-live.html",
+   "favicon": "⚡"
+  },
+  "cfd-swing": {
+   "url": "https://claude.ai/code/artifact/b14d4a00-5539-4285-ac99-d5c4e2c0ea8d",
+   "out": "data/live/.vi-cfd-swing-live.html",
+   "favicon": "⚡"
+  },
+  "fx-scalping": {
+   "url": "PENDING",
+   "out": "data/live/.vi-fx-scalping-live.html",
+   "favicon": "⚡"
+  },
+  "fx-day": {
+   "url": "PENDING",
+   "out": "data/live/.vi-fx-day-live.html",
+   "favicon": "⚡"
+  },
+  "fx-swing": {
+   "url": "PENDING",
+   "out": "data/live/.vi-fx-swing-live.html",
+   "favicon": "⚡"
   }
+ },
+ "_pages_comment": "Non-style artifacts -- pages with no automation.py STYLE entry (scripts/tests/test_one_system.py pins `styles` above to exactly automation.STYLE's values, so a page like this cannot live there). Same convention as `styles` above: scripts/system-ranking.py writes ONE dual-locale file per key's `out` path (EN/VI toggle in-page, i18n.switch_html/css/js) -- not two separate per-locale files.",
+ "pages": {
+  "system-ranking": {
+   "url": "https://claude.ai/code/artifact/e13dc189-7d35-4cec-83c7-3b6221e34beb",
+   "out": "data/live/.vi-system-ranking.html",
+   "favicon": "⚡"
+  }
+ }
 }

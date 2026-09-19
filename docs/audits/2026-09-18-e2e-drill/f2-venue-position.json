@@ -1,0 +1,22 @@
+[
+    {
+        "symbol": "BTCUSDT",
+        "positionAmt": "0.0000",
+        "entryPrice": "0.0",
+        "breakEvenPrice": "0.0",
+        "markPrice": "79582.61554348",
+        "unRealizedProfit": "0.00000000",
+        "liquidationPrice": "0",
+        "leverage": "3",
+        "maxNotionalValue": "200000000",
+        "marginType": "isolated",
+        "isolatedMargin": "0.00000000",
+        "isAutoAddMargin": "false",
+        "positionSide": "BOTH",
+        "notional": "0",
+        "isolatedWallet": "0",
+        "updateTime": 1789740716064,
+        "isolated": true,
+        "adlQuantile": 0
+    }
+]

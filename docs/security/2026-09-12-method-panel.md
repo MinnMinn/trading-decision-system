@@ -56,7 +56,7 @@ cron, now genuinely concurrent).
 2. `db` → applier cron session — **the boundary that did not exist before**: untrusted JSON becomes model-visible text
    in a session that holds repo write and Bash.
 3. Applier cron → `automation.py` argv → `automation-config.json`.
-4. `automation-config.json` → every reader: `strategy-runner.py:151-172`, `cron-templates.py:61-77`,
+4. `automation-config.json` → every reader: `strategy-runner.py:168-189`, `cron-templates.py:61-77`,
    `automation.py` readers (`:304-348`), `/analyze`, `build-artifact.py`.
 
 **Reality check.** No PII, no credentials and no money move across boundary 2 — `automation-config.json` carries no
@@ -109,7 +109,7 @@ other than the one thing it was sent to do**.
 
 | | Threat | Finding |
 |---|---|---|
-| **T/D** | **A torn or malformed config is a pilot outage with open risk** | `automation_gate()` re-reads and `json.load`s the file every tick (`strategy-runner.py:155-158`); an unreadable file returns a refusal, and `tick()` logs `halt` and **returns at `:729-730`** — *before* position management (`:775-784`) and pending management (`:786-796`). That is exactly the failure class the design documents in §2.2 (lines 48-64): `place_limit` sends only the entry order (`strategy-runner.py:543`) and the stop/TP are placed later in `open_position` (`:596-598`), so a resting limit that fills during the outage becomes a leveraged position with **no stop and no take-profit** until a tick completes again. This is why atomic writing is CRITICAL rather than tidy. → CFG-01, CFG-09 |
+| **T/D** | **A torn or malformed config is a pilot outage with open risk** | `automation_gate()` re-reads and `json.load`s the file every tick (`strategy-runner.py:172-175`); an unreadable file returns a refusal, and `tick()` logs `halt` and **returns at `:729-730`** — *before* position management (`:775-784`) and pending management (`:786-796`). That is exactly the failure class the design documents in §2.2 (lines 48-64): `place_limit` sends only the entry order (`strategy-runner.py:567`) and the stop/TP are placed later in `open_position` (`:596-598`), so a resting limit that fills during the outage becomes a leveraged position with **no stop and no take-profit** until a tick completes again. This is why atomic writing is CRITICAL rather than tidy. → CFG-01, CFG-09 |
 | **D** | The applier disables its own layer | `cron-templates.py:61-77` gates every template; `layer` defaults to `"local_read"` when the front matter omits it (`:67`). An applier cron silently gated by an unrelated flag is a reliability *and* a comprehension problem — the user cannot tell what turns it off. → CRON-01 |
 | **T** | Prompt-file tampering | The rendered prompt is written under `$AUTOMATION_SCRATCHPAD` or `$TMPDIR`, falling back to **`/tmp`** (`automation.py:735,746-748`), and later read to create the cron. On a shared host `/tmp` is world-writable; another local user could swap the file between write and `CronCreate`. Pre-existing for all templates, but this is the first template with config-mutation authority. → CRON-10 |
 | **S/E** | — | The instrument allowlist and the risk ceiling are untouched by presets: `instruments.json` remains the single source (`automation.py:72-78`) and sizing/limits are PILOT-16. A preset can only narrow which methods fire; it can never add a symbol or raise risk. Keep it that way. |
@@ -293,7 +293,7 @@ config-mutation authority.
 (`fcntl.flock`) for the whole `load()` → modify → `save()` window, and `save()` MUST write `<path>.tmp` then
 `os.replace()`. Today `save()` truncates the live file in place with no lock (`automation.py:296-300`), so a concurrent
 terminal change is silently lost together with its history row, and a reader can observe a partial file.
-Consequence if skipped: a partial read makes `automation_gate()` refuse (`strategy-runner.py:155-158`) and `tick()`
+Consequence if skipped: a partial read makes `automation_gate()` refuse (`strategy-runner.py:172-175`) and `tick()`
 returns at `:729-730` **before** position management (`:775`) and pending management (`:786`) — a resting limit that
 fills in that window becomes a leveraged position with no stop, because `place_limit` sends only the entry (`:543`) and
 protection is placed later in `open_position` (`:596-598`). Design §4.1 already requires this; it is CRITICAL.
@@ -354,7 +354,7 @@ stays `3` (design §1 decision 2).
 *Closes:* 3.3 T. *Verify:* validate a config containing a control character in `actor` against the schema → invalid. Existing sync test (`scripts/tests/test_methods_sync.py`) stays green.
 
 **CFG-09 (MEDIUM, A08) — a transient config read failure does not immediately cost in-flight management.**
-Readers that halt on an unreadable config — `automation_gate()` (`strategy-runner.py:155-158`) above all — SHOULD retry
+Readers that halt on an unreadable config — `automation_gate()` (`strategy-runner.py:172-175`) above all — SHOULD retry
 the read once after a short delay before refusing the tick. CFG-01 should make torn reads impossible; this bounds the
 cost of being wrong about that, given that the refusal path returns before position and pending management
 (`:729-730` vs `:775`, `:786`). This does **not** relax PILOT-03: after the retry, a still-unreadable config refuses.
@@ -428,14 +428,14 @@ fire, while a real-money session is live, with no confirmation step and no recor
 cannot obtain a viewer identity, so the audit trail can only ever say `artifact-panel`; `automation.py:290-293`). What
 bounds the damage today is real but partial: in-flight positions and resting orders are grandfathered, so a tap can
 never close, open, or unprotect an existing trade (design §1 item 7, §4.3, §6 item 2); the STOP file remains the single
-kill switch and no preset path touches it (design §6 item 5, PILOT-22); `strategy-runner.py:165-166` refuses every tick
+kill switch and no preset path touches it (design §6 item 5, PILOT-22); `strategy-runner.py:182-183` refuses every tick
 when `execution.environment == "real"`, so **at `real` only the analysis half of a preset takes effect today** — the
 money path there runs through `/analyze` and the human-confirmed `/execute`, not through an unattended loop; and every
 applied change appends an actor-stamped row to `history[]`. The exposure that is *not* covered: at `demo` a tap
 immediately changes what the unattended pilot will fire on live testnet order flow, and the two `research`-tier presets
 are explicitly one-dimension configurations where `/analyze` can never return TRADE but the mechanical pilot still
 fires (design §1 item 6) — disclosed on the card, and worth re-reading as a *capital* decision rather than a UI note.
-If the pilot is ever enabled at `real`, the only remaining barrier is `strategy-runner.py:165-166`; that line, not the
+If the pilot is ever enabled at `real`, the only remaining barrier is `strategy-runner.py:182-183`; that line, not the
 panel, is what is holding the money path shut, and it should be treated as a safety-critical line in any future change.
 **Cheap additional controls I recommend, in priority order:** (a) the 15-minute per-market cool-down of CRON-09, which
 bounds both flip-flopping and audit drain for a few lines of prompt; (b) have `method` include the active environment in
@@ -474,7 +474,7 @@ CFG-11..). Scope of this addendum: `control/request.<market>` becomes `{preset, 
 Verified this session, not assumed:
 
 - `markets.<m>.instruments` is **not** a display flag. `enabled_symbols(market)`
-  (`scripts/strategy-runner.py:175-183`) intersects the configured list with `CRYPTO`/`CFD`, which are
+  (`scripts/strategy-runner.py:192-200`) intersects the configured list with `CRYPTO`/`CFD`, which are
   `instruments.execution(market)` (`:59-60`). It gates candle fetching (`:762`) and step-3 signal generation
   (`:837`). An untrusted db array therefore selects **which instruments an unattended pilot may open orders on**.
 - The allowlist is a hard safety rule with exactly one source, `docs/architecture/instruments.json`
@@ -490,7 +490,7 @@ correct, and the batch form must inherit every one of those checks (CFG-12). Two
    load-bearing check is allowlist membership (`market_of()`, `:185-189`, → refuse at `:1007-1014`). Both belong in
    the batch; the FX one exists to give the *right message*, the allowlist one to give the *right answer*.
 2. The "it can only narrow" reassurance is **currently vacuous**: `execution` equals `analysis` for both markets today
-   — 9 crypto, 4 cfd (`instruments.json:23-40`). The intersection at `strategy-runner.py:181` means a db array can
+   — 9 crypto, 4 cfd (`instruments.json:23-40`). The intersection at `strategy-runner.py:198` means a db array can
    never make a symbol orderable that `instruments.json` does not already make orderable, which is the ceiling that
    matters; but within that ceiling, "re-tick everything" currently reaches every orderable symbol in the system.
 3. `instruments.json:52` records on the file itself that six of the nine crypto execution symbols are **UNVALIDATED**
@@ -499,12 +499,12 @@ correct, and the batch form must inherit every one of those checks (CFG-12). Two
    unbacktested symbol into live order flow without the user seeing that sentence. → PANEL-09.
 
 **Grandfathering is intact and must stay so.** `tick()` adds every symbol with an open position or pending order to
-the candle `need` set unconditionally (`strategy-runner.py:766-767`), bypassing `enabled_symbols`, so un-ticking an
+the candle `need` set unconditionally (`strategy-runner.py:790-791`), bypassing `enabled_symbols`, so un-ticking an
 instrument that holds a live position still feeds `manage_position` (`:775-784`) and `manage_pending` (`:786-796`).
 No rule below may move the instrument filter earlier than step 3 — the identical argument as design §2.2 and CFG-01.
 
 **Failure mode of ticking an unwired symbol, stated accurately:** `fetch_candles` raises, the exception is logged
-without incrementing the error counter (`strategy-runner.py:770-773` — unlike `:779-780`, `:790-791`), and step 3 then
+without incrementing the error counter (`strategy-runner.py:794-797` — unlike `:779-780`, `:790-791`), and step 3 then
 skips the symbol for want of candles (`:839-840`). So it degrades **safely** — no orders, no halt — but invisibly, in
 log noise. It is a comprehension problem, not an escalation, and the fix is disclosure (PANEL-09), not a gate.
 
@@ -623,7 +623,7 @@ this is what keeps the audit trail from being the panel's first casualty.
 
 **CFG-14 (HIGH, A04) — the empty set is allowed, but only when it is explicit.**
 `instrument set` accepts an empty selection: it is a narrowing (no new entries in that market — `enabled_symbols`
-returns `[]` at `strategy-runner.py:181`, so step 3 generates nothing, while grandfathering at `:766-767` still manages
+returns `[]` at `strategy-runner.py:198`, so step 3 generates nothing, while grandfathering at `:766-767` still manages
 open positions) and narrowing is the safe direction. It MUST be expressible **only** as an explicit empty argument —
 never inferred from a missing key, a null, an empty string, a non-array, or any validation failure, all of which refuse
 (CRON-11). The history row must say in words that the market was emptied, and `applied.<market>` must mark it
@@ -634,7 +634,7 @@ explicitly so PANEL-11 can render it as a chosen state rather than a blank.
 It MUST refuse (exit 2) any symbol absent from `instruments.analysis(market)` — the allowlist has exactly one source
 and no caller may extend it. It MAY include a symbol present in `analysis` but absent from `execution`: that only
 widens **analysis** scope, because the pilot intersects with `instruments.execution(market)`
-(`strategy-runner.py:59-60,181`) and `instruments.py:22-27` raises at import if `execution` ever escapes `analysis`.
+(`strategy-runner.py:68-69,198`) and `instruments.py:22-27` raises at import if `execution` ever escapes `analysis`.
 The page MUST disclose that distinction per symbol (PANEL-09) so a watch-only tick is not mistaken for enabling
 trading. Today the distinction is empty — `execution == analysis` for both markets (`instruments.json:23-40`) — which
 is precisely why the rule must be written now rather than when the split reappears.

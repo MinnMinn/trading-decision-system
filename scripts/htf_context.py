@@ -24,6 +24,10 @@ What this module gives every consumer (scanner facts, local-read brief, checkers
   tiers(style)                 -> {"structure": tier|None, "bias": tier|None}, tier = {"tf", "style"} (style None = chart only)
   context_style(style)         -> the gate tier's style (scripts/automation.py gate_style)
   engaged_methods(style[,cfg]) -> ("wyckoff","ict") subset switched on for that style's market in /automation
+                                  -- TRADING eligibility. Feeds bias_of / the verdict / the scanner / backtests.
+  analysed_methods(style)      -> ("wyckoff","ict") subset still ANALYSED for that style's market (CLAUDE.md §15,
+                                  methods.analysed_dimensions). A superset of engaged_methods under the default
+                                  `available` scope. Feeds AUTHORING and DISPLAY only -- never the verdict.
   load_tier(style, name, sym[, methods])  -> dict or None: code facts of that tier's style (prelim/<ctx>.facts.json) + the
                                   Wyckoff structure/phase read of that window (narrative/<ctx>.json if that style has a page,
                                   else this style's own narrative `context.wyckoff`) + `bias` and `basis`; `tier` = name.
@@ -36,7 +40,7 @@ What this module gives every consumer (scanner facts, local-read brief, checkers
 Numbers here are copied from code-written files; the phase/structure words come from the last full analysis and carry
 their own `updated` timestamp so staleness is visible.
 """
-import importlib.util, json, os, re
+import importlib.util, json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _spec = importlib.util.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py"))
@@ -45,12 +49,99 @@ _mspec = importlib.util.spec_from_file_location("method_purity", os.path.join(RO
 _mp = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(_mp)   # label -> method, for unlabelled anchors
 CONTEXT_STYLE = _auto.CONTEXT_STYLE            # style -> gate style (alias kept for older readers)
 TIERS = _auto.TIERS
-TIER_NAME = {"bias": "Bias", "structure": "Cấu trúc", "entry": "Vào lệnh"}
 STYLE_TF = {v: k[1] for k, v in _auto.STYLE.items()}   # style -> timeframe label as /automation spells it
 
+# MACHINE VALUES. These are matched against the words the narrative stores, and the match decides a DIRECTION.
+# They are not display text and must never be translated here: doing so would change which trades are allowed,
+# not how they are described. The display labels live in docs/architecture/i18n.json under `structure.*`.
 LONG_STRUCT = ("tích lũy", "tích luỹ", "tái tích lũy", "tái tích luỹ")
 SHORT_STRUCT = ("phân phối", "tái phân phối")
 DIRECTION = {"THEO DÕI LONG": "long", "THEO DÕI SHORT": "short"}
+
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import i18n as _i18n  # noqa: E402
+import methods as _methods  # noqa: E402  -- CLAUDE.md §15 analysis scope (analysed_methods_for_market)
+
+# Tier names as the MODEL BRIEF spells them -- brief_lines/ladder_lines/check_verdict are written in the
+# locale the analysis model authors in (i18n.AUTHORED), so these come from the catalog in that locale rather
+# than being spelled here. The PAGE never reads this: build-artifact.py renders tier names per reader locale.
+TIER_NAME = {k: _i18n.t(f"tier.{k}", _i18n.AUTHORED) for k in ("bias", "structure", "entry")}
+
+
+# The shape of `basis` as load_tier STORES it into data/live/prelim/<style>.facts.json (`context.basis`), and
+# into the point-in-time research snapshots under data/live/model-reads/**. CLAUDE.md §59: this changed, so it
+# is versioned rather than swapped silently.
+#   1  a rendered sentence, in the locale the analysis model authors in
+#   2  a list of (tag, message key, params) parts -- renderable into ANY locale, which is why it changed
+# Format 1 snapshots stay on disk and stay readable: basis_text() returns a str basis unchanged. Nothing reads
+# the STORED value to make a decision (the page and the brief both recompute via load_tier; check-model-prose.py
+# reads only ctx["bias"]), so no data migration is required -- and `bias` itself, the value that gates a trade,
+# has the same type and the same values in both formats.
+BASIS_FORMAT = 2
+
+# ---- the basis ------------------------------------------------------------------------------------------
+# A bias comes with a REASON, and that reason has two audiences: the page (read by a human, in the language they
+# chose) and the model brief (read by the analysis model, in the language it authors in). One formatted string
+# cannot serve both once the page is bilingual, so a basis travels as DATA -- a list of (tag, message key,
+# params) parts -- and is rendered late, per audience.
+#
+# The `bias` value itself is untouched by any of this. It is the thing that gates a trade.
+def _b(key, **params):
+    """One basis part, untagged."""
+    return [(None, key, params)]
+
+
+def basis_text(basis, lang):
+    """Render a keyed basis into one locale's sentence. `[wyckoff]`-style tags are dimension ids -- machine
+    values, identical in every language."""
+    if not basis:
+        return ""
+    # A rendered basis from an older facts.json (before the keyed shape) is already one locale's sentence. Show
+    # it as it was written rather than crashing on it -- see load_tier's BASIS_FORMAT note.
+    if isinstance(basis, str):
+        return basis
+    parts = []
+    for tag, key, params in basis:
+        # Two parameter-name conventions, both resolved in the TARGET locale here rather than at the call site,
+        # because resolving early would freeze one language's word into every language's sentence -- precisely
+        # the silent mixing this whole change exists to prevent.
+        #   *_key   a message key
+        #   *_word  a structure word as the narrative stored it (see _structure)
+        p = {}
+        for k, v in params.items():
+            if k.endswith("_key"):
+                p[k[:-4]] = _i18n.t(v, lang)
+            elif k.endswith("_word"):
+                p[k[:-5]] = _structure(v, lang)
+            else:
+                p[k] = v
+        s = _i18n.t(key, lang, **p)
+        parts.append(f"[{tag}] {s}" if tag else s)
+    # A part that ends in a colon is a HEADER for what follows ("the two reading layers disagree:"), so it runs
+    # straight into the next clause instead of being separated from it by a bullet.
+    out = parts[0]
+    for s in parts[1:]:
+        out += (" " if out.rstrip().endswith(":") else " · ") + s
+    return out
+
+
+def _structure(word, lang):
+    """A stored structure word rendered for a reader.
+
+    Three cases, and each one used to be wrong in a different way:
+      - no word at all      -> "not established". It used to interpolate an empty string, so the page read
+                               "higher timeframe phase A () — stopping action…".
+      - a known word        -> the catalog's term for it, so an English reader gets "accumulation".
+      - anything else       -> the narrative's own word, QUOTED and marked as written. It used to be dropped
+                               raw into the English sentence ("higher timeframe phase C (đi ngang)"), which is
+                               unmarked Vietnamese in English mode. This basis lands in a `title` attribute,
+                               where vi_source()'s markup cannot reach, so the quoting is the marking.
+    """
+    w = (word or "").strip()
+    if not w:
+        return _i18n.t("structure.unestablished", lang)
+    key = f"structure.{w.lower()}"
+    return _i18n.t(key, lang) if _i18n.has(key) else _i18n.t("structure.as_written", lang, word=w)
 
 
 def context_style(style):
@@ -95,35 +186,39 @@ def ict_bias(facts):
        to the model brief, so a Wyckoff word here would leak the method switch straight back in."""
     pc = (facts or {}).get("prev_candle") or {}
     hi_lbl, lo_lbl = _draw_labels(pc.get("tf"))
+    # Formatted HERE, through the one project formatter, so the basis prints 77,505.67 exactly as the ladder
+    # and the chart beside it do. A raw float in a param printed 77505.67 in the tooltip while the page printed
+    # 77,505.67 for the same level -- two renderings of one number on one screen.
+    hi_px, lo_px = _i18n.num(pc.get("pch")), _i18n.num(pc.get("pcl"))
     draw, draw_why = None, None
     hi_s, lo_s = pc.get("pch_state"), pc.get("pcl_state")
     if hi_s == "closed_through":
-        draw, draw_why = "long", f"{hi_lbl} {pc.get('pch')} — thân nến đã đóng qua, mốc này là draw; kỳ vọng tiếp diễn tăng (knowledge/ict/core-a.md §2.14, §3.2 R5–R8)"
+        draw, draw_why = "long", _b("bias.ict.draw_through", level=f"{hi_lbl} {hi_px}", dir_key="dir.up")
     elif hi_s == "swept":
-        draw, draw_why = "short", f"{hi_lbl} {pc.get('pch')} — râu xuyên qua nhưng thân đóng lại (failure to displace); draw đảo về {lo_lbl} {pc.get('pcl')} (knowledge/ict/core-a.md §2.14, §3.2 R5–R8)"
+        draw, draw_why = "short", _b("bias.ict.failed_displace", level=f"{hi_lbl} {hi_px}", other=f"{lo_lbl} {lo_px}")
     lo_dir, lo_why = None, None
     if lo_s == "closed_through":
-        lo_dir, lo_why = "short", f"{lo_lbl} {pc.get('pcl')} — thân nến đã đóng qua, mốc này là draw; kỳ vọng tiếp diễn giảm (knowledge/ict/core-a.md §2.14, §3.2 R5–R8)"
+        lo_dir, lo_why = "short", _b("bias.ict.draw_through", level=f"{lo_lbl} {lo_px}", dir_key="dir.down")
     elif lo_s == "swept":
-        lo_dir, lo_why = "long", f"{lo_lbl} {pc.get('pcl')} — râu xuyên qua nhưng thân đóng lại (failure to displace); draw đảo về {hi_lbl} {pc.get('pch')} (knowledge/ict/core-a.md §2.14, §3.2 R5–R8)"
+        lo_dir, lo_why = "long", _b("bias.ict.failed_displace", level=f"{lo_lbl} {lo_px}", other=f"{hi_lbl} {hi_px}")
     if draw and lo_dir and draw != lo_dir:
-        return "neutral", f"mâu thuẫn trong ICT: {draw_why}; đồng thời {lo_why} — nêu mâu thuẫn, không tự giải quyết"
+        return "neutral", _b("bias.ict.contradiction") + draw_why + lo_why
     if lo_dir and not draw:
         draw, draw_why = lo_dir, lo_why
 
     m = (facts or {}).get("last_mss") or None
     mss_dir = ("long" if m.get("type") == "bull" else "short") if m else None
-    mss_why = f"MSS gần nhất: {'tăng' if mss_dir == 'long' else 'giảm'}, thân đóng vượt swing {m.get('level')} (knowledge/ict/core-b.md §2.2)" if m else None
+    mss_why = _b("bias.ict.mss", dir_key="dir.up" if mss_dir == "long" else "dir.down", level=_i18n.num(m.get("level"))) if m else None
 
     if draw and mss_dir:
         if draw == mss_dir:
-            return draw, f"{draw_why}; {mss_why}"
-        return "neutral", f"mâu thuẫn trong ICT: {draw_why} nhưng {mss_why} — nêu mâu thuẫn, không tự giải quyết"
+            return draw, draw_why + mss_why
+        return "neutral", _b("bias.ict.contradiction") + draw_why + mss_why
     if draw:
         return draw, draw_why
     if mss_dir:
         return mss_dir, mss_why
-    return "unknown", "chưa có draw nào được giải quyết trên nến trước và chưa có MSS trong cửa sổ"
+    return "unknown", _b("bias.ict.nothing")
 
 
 def wyckoff_bias(wyckoff, facts):
@@ -140,30 +235,41 @@ def wyckoff_bias(wyckoff, facts):
     if wyckoff and (wyckoff.get("structure") or wyckoff.get("phase")):
         st = (wyckoff.get("structure") or "").lower(); ph = (wyckoff.get("phase") or "").upper()[:1]
         is_acc = any(k in st for k in LONG_STRUCT); is_dist = any(k in st for k in SHORT_STRUCT)
+        # `st` is a machine value above (the substring match decides direction) and a display value below.
+        # It travels as `structure_word` -- raw, exactly as the narrative stored it -- and _structure() turns it
+        # into the reader's language at render time. Choosing the display form HERE would have to choose a
+        # language here, and this same basis is rendered twice: once for the page, once for the model brief.
+        sd = {"structure_word": st}
         if not ph or ph == "A" or not (is_acc or is_dist):
-            return "neutral", f"khung lớn pha {ph or '?'} ({st or 'chưa xác lập'}) — hành động dừng / cấu trúc chưa xác lập, chưa giao dịch theo hướng (knowledge/wyckoff/advance.md §2.7.1, WA p95–96)"
+            return "neutral", _b("bias.wy.not_established", phase=ph or "?", **sd)
         if ph in ("C", "D", "E"):
             if is_acc:
-                return "long", f"khung lớn {st} pha {ph} — tìm Spring[C]/LPS[C]/phá vỡ theo hướng tăng ở khung nhỏ (WA p93–96, knowledge/wyckoff/advance.md §2.7)"
-            return "short", f"khung lớn {st} pha {ph} — tìm UTAD/LPSY/phá vỡ theo hướng giảm ở khung nhỏ (WA p116–119, knowledge/wyckoff/advance.md §2.8)"
+                return "long", _b("bias.wy.acc_cde", phase=ph, **sd)
+            return "short", _b("bias.wy.dist_cde", phase=ph, **sd)
         # Phase B: boundary rule
         tr = (wyckoff.get("trading_range") or {}); hi, lo = tr.get("high"), tr.get("low"); last = (facts or {}).get("last")
         if hi is None or lo is None or last is None or hi <= lo:
-            return "neutral", f"khung lớn {st} pha B nhưng chưa có biên Trading Range (AR / SC-ST) trong bản đọc khung lớn — không xác định được giá đang ở biên nào; chưa giao dịch (WA p95–96)"
+            return "neutral", _b("bias.wy.b_no_tr", **sd)
         pos = (last - lo) / (hi - lo)
+        pct = f"{pos * 100:.0f}%"
         if is_acc and pos <= BOUNDARY_FRACTION:
-            return "long", f"khung lớn {st} pha B, giá ở {pos * 100:.0f}% TR — sát biên dưới (SC/ST), nơi CO gom hàng và khung nhỏ có thể in Spring[C]/LPS[C] cục bộ (WA p93, p201; knowledge/wyckoff/advance.md §2.7, §3.4)"
+            return "long", _b("bias.wy.b_lower_edge", pct=pct, **sd)
         if is_dist and pos >= 1 - BOUNDARY_FRACTION:
-            return "short", f"khung lớn {st} pha B, giá ở {pos * 100:.0f}% TR — sát biên trên (BC/UT), nơi CO xả hàng và khung nhỏ có thể in UTAD/LPSY cục bộ (WA p116–119, p206; knowledge/wyckoff/advance.md §2.8, §3.4)"
-        side_note = "biên trên — CO bán ở đây, không phải cơ hội cho công chúng" if is_acc and pos >= 1 - BOUNDARY_FRACTION else ("biên dưới — CO mua ở đây trong phân phối" if is_dist and pos <= BOUNDARY_FRACTION else "giữa vùng")
-        return "neutral", f"khung lớn {st} pha B, giá ở {pos * 100:.0f}% TR ({side_note}) — cung/cầu cân bằng, chưa có CO xuất hiện, chưa giao dịch (WA p95–96, p201–203)"
+            return "short", _b("bias.wy.b_upper_edge", pct=pct, **sd)
+        if is_acc and pos >= 1 - BOUNDARY_FRACTION:
+            side_key = "bias.wy.side.upper_in_acc"
+        elif is_dist and pos <= BOUNDARY_FRACTION:
+            side_key = "bias.wy.side.lower_in_dist"
+        else:
+            side_key = "bias.wy.side.mid"
+        return "neutral", _b("bias.wy.b_neutral", pct=pct, side_key=side_key, **sd)
     an = (facts or {}).get("anchors") or {}
     v = (an.get("verdict") or "").upper()
     if v.startswith("PHÁ TRÊN"):
-        return "long", "chưa có đọc Wyckoff khung lớn; scanner khung lớn: PHÁ TRÊN mốc neo (tính toán của hệ thống)"
+        return "long", _b("bias.wy.anchor_only", verdict_key="verdict.PHÁ TRÊN")
     if v.startswith("PHÁ DƯỚI"):
-        return "short", "chưa có đọc Wyckoff khung lớn; scanner khung lớn: PHÁ DƯỚI mốc neo (tính toán của hệ thống)"
-    return "unknown", "chưa có đọc Wyckoff khung lớn và scanner khung lớn chưa có mốc neo bị phá"
+        return "short", _b("bias.wy.anchor_only", verdict_key="verdict.PHÁ DƯỚI")
+    return "unknown", _b("bias.wy.nothing")
 
 
 METHOD_BIAS = {"wyckoff": wyckoff_bias, "ict": lambda wy, f: ict_bias(f)}
@@ -188,6 +294,24 @@ def engaged_methods(style, cfg=None):
     return engaged_methods_for_market(_auto.market_of_style(style), cfg=cfg)
 
 
+def analysed_methods_for_market(market):
+    """The bias-reading methods still ANALYSED for `market` (CLAUDE.md §15) -- NOT the ones that may qualify a
+    trade. Delegates to methods.analysed_dimensions so the scope rule has one implementation, then narrows to
+    BIAS_METHODS because this module only knows how to read those two.
+
+    Deliberately takes no `cfg` override: the analysis scope lives in the same config file, and the one caller
+    that needs to pin behaviour (a test) can point CONFIG_PATH at a fixture. Order is BIAS_METHODS order, so
+    the block list reads the same way every run.
+    """
+    analysed, _, _ = _methods.analysed_dimensions(market)
+    return tuple(m for m in BIAS_METHODS if m in analysed)
+
+
+def analysed_methods(style):
+    """The bias-reading methods still ANALYSED for `style`'s market. See analysed_methods_for_market."""
+    return analysed_methods_for_market(_auto.market_of_style(style))
+
+
 def bias_of(wyckoff, facts, methods=("wyckoff",)):
     """The tier's directional bias, read by the methods that are ENGAGED — the method switch has to reach the
     decision layer, not just the columns that get drawn (user decision 2026-09-13).
@@ -205,18 +329,28 @@ def bias_of(wyckoff, facts, methods=("wyckoff",)):
             b, why = METHOD_BIAS[m](wyckoff, facts)
             if b != "unknown":
                 reads[m] = (b, why)
+
+    def tagged(m, parts):
+        """Tag every part of one method's basis with that method's id, so a combined basis says which reading
+        each clause came from. The tag is a dimension id -- a machine value, the same in every language."""
+        return [(m, key, params) for _, key, params in parts]
+
     if not reads:
         if not methods:
-            return "unknown", "không có lớp đọc nào đang bật cho tầng này — kiểm tra dimension trong /automation"
-        return "unknown", "; ".join(f"{m}: {METHOD_BIAS[m](wyckoff, facts)[1]}" for m in BIAS_METHODS if m in methods)
+            return "unknown", _b("bias.none_engaged")
+        out = []
+        for m in BIAS_METHODS:
+            if m in methods:
+                out += tagged(m, METHOD_BIAS[m](wyckoff, facts)[1])
+        return "unknown", out
     if len(reads) == 1:
         m, (b, why) = next(iter(reads.items()))
-        return b, f"[{m}] {why}"
+        return b, tagged(m, why)
     sides = {b for b, _ in reads.values()}
+    combined = [p for m, (b, why) in reads.items() for p in tagged(m, why)]
     if len(sides) == 1:
-        return sides.pop(), " · ".join(f"[{m}] {why}" for m, (b, why) in reads.items())
-    return "neutral", ("mâu thuẫn giữa hai lớp đọc — nêu ra, không tự giải quyết: "
-                       + " · ".join(f"[{m}] {b}: {why}" for m, (b, why) in reads.items()))
+        return sides.pop(), combined
+    return "neutral", _b("bias.contradiction_two") + combined
 
 
 def load_tier(style, name, sym, methods=None):
@@ -249,7 +383,7 @@ def load_tier(style, name, sym, methods=None):
         "stance": f.get("stance"), "verdict": an.get("verdict"), "verdict_short": an.get("verdict_short"),
         "last_mss": f.get("last_mss"), "nearest_fvg": f.get("nearest_fvg"), "prev_candle": f.get("prev_candle"),
         "anchors": [{"label": L.get("label"), "short": L.get("short"), "method": L.get("method"), "price": L.get("price"), "ref_vs": L.get("ref_vs"), "dist_pct": L.get("dist_pct")} for L in an.get("levels", [])],
-        "wyckoff": wy, "wyckoff_source": src, "bias": bias, "basis": basis,
+        "wyckoff": wy, "wyckoff_source": src, "bias": bias, "basis": basis, "basis_format": BASIS_FORMAT,
     }
 
 
@@ -281,10 +415,22 @@ def check_verdict(verdict, side, ctx, text):
     return out
 
 
-def brief_lines(ctx, fmt, methods=("wyckoff", "ict")):
-    """Vietnamese lines for local-eval-brief.py (numbers only from ctx facts). `methods` = the engaged readers:
-    a disengaged method's read is NOT printed, or the brief hands the model a reading /automation turned off and
-    then asks it to obey the bias derived from it."""
+def brief_lines(ctx, fmt, methods=("wyckoff", "ict"), reading=None):
+    """Vietnamese lines for local-eval-brief.py (numbers only from ctx facts).
+
+    Two different questions, deliberately two arguments (CLAUDE.md §15):
+
+    `methods`  = the ENGAGED readers -- the ones whose read produced `ctx['bias']`, i.e. the ones that may
+                 qualify a trade. Named on the BIAS line so the model can see what the direction rests on.
+    `reading`  = the ANALYSED readers -- the ones whose material may be printed and whose anchors keep their
+                 NAMES. Defaults to `methods`, so every caller that has not been plumbed behaves exactly as
+                 before; the brief passes the wider analysed set, because §15's rule is that the trading
+                 selection "is NOT a global analysis filter".
+
+    Before 2026-09-18 these were one argument, and the consequence was the §15 defect itself: selecting the
+    ICT preset stopped Wyckoff from being READ, not just from being traded.
+    """
+    reading = tuple(reading) if reading is not None else tuple(methods)
     if not ctx:
         return ["- (không có tầng này cho style — khung chưa được quét)"]
     L = [f"- Khung {ctx['tf']} (style {ctx['style']}, scanner chạy {ctx.get('scanned_at')}, nến cuối {ctx.get('last_time')}): giá {fmt(ctx.get('last'))} · {('%.0f' % (ctx['pct'] * 100)) if ctx.get('pct') is not None else '—'}% biên độ ({fmt(ctx.get('lo'))}–{fmt(ctx.get('hi'))}) · EQ {fmt(ctx.get('eq'))} · stance {ctx.get('stance')}"]
@@ -297,28 +443,44 @@ def brief_lines(ctx, fmt, methods=("wyckoff", "ict")):
         am = a.get("method")
         if am not in ("wyckoff", "ict"):   # facts written before the scanner carried the field through
             am = _mp.infer_method(f"{a.get('label') or ''} {a.get('short') or ''} {a.get('name') or ''}")
-        named = not (am in ("wyckoff", "ict") and am not in methods)
+        named = not (am in ("wyckoff", "ict") and am not in reading)
         who = (a.get("short") or a.get("label")) if named else "(không tên — lớp đọc đang tắt)"
         L.append(f"- Mốc {who} {fmt(a.get('price'))}: nến đóng {'trên' if a.get('ref_vs') == 'above' else 'dưới'} ({a.get('dist_pct'):+.2f}%)" if a.get("dist_pct") is not None else f"- Mốc {who} {fmt(a.get('price'))}")
     m = ctx.get("last_mss")
-    if m and "ict" in methods:
+    if m and "ict" in reading:
         L.append(f"- MSS gần nhất khung {ctx['tf']}: {'tăng' if m.get('type') == 'bull' else 'giảm'} tại {fmt(m.get('level'))}")
         pc = ctx.get("prev_candle") or {}
         if pc.get("tf"):
             hi_lbl, lo_lbl = _draw_labels(pc["tf"])
             L.append(f"- Draw khung {ctx['tf']}: {hi_lbl} {fmt(pc.get('pch'))} ({pc.get('pch_state')}) · {lo_lbl} {fmt(pc.get('pcl'))} ({pc.get('pcl_state')})")
-    if "wyckoff" in methods:
+    if "wyckoff" in reading:
         w = ctx.get("wyckoff")
         L.append(f"- Đọc Wyckoff khung {ctx['tf']} (phân tích đầy đủ {w.get('updated')}, {ctx.get('wyckoff_source')}): cấu trúc {w.get('structure')}, pha {w.get('phase')}" + (f", TR {fmt((w.get('trading_range') or {}).get('low'))}–{fmt((w.get('trading_range') or {}).get('high'))}" if w.get('trading_range') else ", TR chưa nêu") if w else f"- Chưa có đọc Wyckoff khung {ctx['tf']} (chưa có phân tích đầy đủ)")
-    L.append(f"- BIAS khung {ctx['tf']} (code): {ctx['bias'].upper()} — {ctx['basis']}")
+    # The brief is read by the ANALYSIS MODEL, which authors in i18n.AUTHORED -- so the basis renders in that
+    # locale here, while the same keyed basis renders in the reader's locale on the page. One source, two
+    # audiences, neither of them getting the other's language.
+    # §15/§18: when the read set is WIDER than the traded set, say so on the line that carries the direction.
+    # Otherwise the model sees Wyckoff material above a bias it did not feed and reasonably assumes it did.
+    extra = [m for m in reading if m not in methods]
+    who = f" (chỉ từ: {', '.join(methods) or 'không lớp nào'}" + (
+        f"; {', '.join(extra)} chỉ để PHÂN TÍCH, không vào bias)" if extra else ")")
+    L.append(f"- BIAS khung {ctx['tf']} (code){who}: {ctx['bias'].upper()} — "
+             f"{basis_text(ctx['basis'], _i18n.AUTHORED)}")
     return L
 
 
-def ladder_lines(style, sym, fmt, methods=None):
+def ladder_lines(style, sym, fmt, methods=None, reading=None):
     """The whole ladder for the brief: Bias, then Cấu trúc, each with brief_lines; marks which tier gates the verdict.
-    `methods` None resolves the engaged set from /automation — the brief must not widen it."""
+
+    `methods` None resolves the ENGAGED set from /automation — the brief must not widen what feeds the bias.
+    `reading` None resolves the ANALYSED set (CLAUDE.md §15) — the material the model may write about, which
+    under the default `available` scope is a superset. The bias is still computed from `methods` alone:
+    load_tier is passed `methods`, never `reading`.
+    """
     if methods is None:
         methods = engaged_methods(style)
+    if reading is None:
+        reading = analysed_methods(style)
     _, gate = _auto.gate_style(style)
     out = []
     for name in ("bias", "structure"):
@@ -329,5 +491,6 @@ def ladder_lines(style, sym, fmt, methods=None):
         if name == gate:
             head += " · TẦNG QUYẾT ĐỊNH BIAS cho verdict"
         out.append(head)
-        out += brief_lines(load_tier(style, name, sym, methods=methods), fmt, methods) if (t and t["style"]) else []
+        out += brief_lines(load_tier(style, name, sym, methods=methods), fmt, methods,
+                           reading=reading) if (t and t["style"]) else []
     return out

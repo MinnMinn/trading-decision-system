@@ -235,8 +235,13 @@ class FlatStyleConsumersFollowTheVocabulary(unittest.TestCase):
                                  f"{style} inherited the retired {what} page")
 
     def test_scalping_inherited_the_fifteen_minute_page(self):
+        """`scalping` still holds the page the 15m style was first published to. `cfd-scalping` does NOT: its
+        original artifact (97773ba6) was deleted upstream -- `Artifact action=read` on it answers "artifact not
+        found" -- so it was republished to a new id on 2026-09-18 and the registry was re-pointed with
+        `publish-plan.py --mark cfd-scalping --url ...`. What still has to hold is that the registry names a
+        real artifact, which test_styles_with_no_page_yet_are_pending_not_wrong checks for every style."""
         self.assertIn("46b302c5", self.artifacts["scalping"]["url"])
-        self.assertIn("97773ba6", self.artifacts["cfd-scalping"]["url"])
+        self.assertTrue(self.artifacts["cfd-scalping"]["url"].startswith("https://claude.ai/code/artifact/"))
 
     def test_styles_with_no_page_yet_are_pending_not_wrong(self):
         """`day` and `swing` were published on 2026-09-17 and have real URLs now, so this can no longer name a
@@ -250,12 +255,18 @@ class FlatStyleConsumersFollowTheVocabulary(unittest.TestCase):
                 self.assertTrue(url == "PENDING" or url.startswith("https://claude.ai/code/artifact/"),
                                 f"{style} url is {url!r}; the registry's convention is PENDING or a real https URL")
 
-    def test_the_two_cfd_styles_still_have_no_page(self):
-        """markets.cfd.enabled is false and the MT5 export only covers XAUUSD/XAGUSD, so these two have nothing
-        to publish yet. Kept as a specific assertion so a stray publish to them is a visible diff."""
-        for style in ("cfd-day", "cfd-swing"):
-            self.assertEqual(self.artifacts[style]["url"], "PENDING",
-                             f"{style} has no page yet; the registry's own convention is PENDING")
+    def test_every_enabled_style_has_a_real_page(self):
+        """Replaces `test_the_two_cfd_styles_still_have_no_page` (2026-09-18). That test asserted cfd-day and
+        cfd-swing were PENDING because `markets.cfd.enabled` was false; the user turned cfd on and all three
+        cfd pages were built and published, so the old assertion was encoding a configuration state as though
+        it were an invariant. The invariant underneath it is the one kept here: a style the scanner is
+        permitted to run must not still be advertising PENDING, because publish-plan.py would then create a
+        SECOND artifact for it on every tick instead of updating the first."""
+        for style in self.auto.enabled_styles():
+            with self.subTest(style=style):
+                url = self.artifacts[style]["url"]
+                self.assertTrue(url.startswith("https://claude.ai/code/artifact/"),
+                                f"{style} is enabled in /automation but its registry url is {url!r}")
 
     def test_local_eval_brief_covers_exactly_the_six_styles(self):
         self.assertEqual(sorted(load_script("local-eval-brief.py").TF),

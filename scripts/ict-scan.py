@@ -2,7 +2,7 @@
 """Deterministic Wyckoff/ICT event scanner + preliminary read + FACTS (no LLM).
 
 Mirrors the artifacts' client-side ictAnalyze() so the preliminary read matches what the chart draws:
-3-bar pivots, equal highs/lows (BSL/SSL) + external range liquidity (ERL), sweeps (wick through a
+3-bar pivots, old + equal highs/lows (BSL/SSL, knowledge/ict/core-a.md §2.7) + external range liquidity (ERL), sweeps (wick through a
 level, close back), 3-candle FVGs until mitigation, MSS (close beyond last swing after a lower-low /
 higher-high), premium/discount vs equilibrium, and volume outliers (Effort-vs-Result hint).
 
@@ -119,19 +119,37 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
 
     tol = eq * EQ_TOL
     pools = []
-    def add(kind, idxs, level):
+    def add(kind, idxs, level, ptype):
+        # Dedupe BEFORE the sweep scan, not after. The scan is O(bars) and `analyze()` runs once per bar in a
+        # backtest, so paying it for a pool that is about to be discarded is the whole cost of adding the
+        # second liquidity type below. The order is safe: the dedupe compares kind and level only.
+        if any(p["kind"] == kind and abs(p["level"] - level) <= tol for p in pools):
+            return
         first, last = min(idxs), max(idxs); swept = -1
         for j in range(last + 1, n):
             if kind == "BSL" and H[j] > level and C[j] < level: swept = j; break
             if kind == "SSL" and L[j] < level and C[j] > level: swept = j; break
-        if not any(p["kind"] == kind and abs(p["level"] - level) <= tol for p in pools):
-            pools.append({"kind": kind, "level": level, "from": first, "swept": swept})
+        pools.append({"kind": kind, "level": level, "from": first, "swept": swept, "type": ptype})
+    # The deck enumerates TWO types of liquidity (knowledge/ict/core-a.md §2.7) and both rest on the same two
+    # lines: "A Swing High at the top of the range will have stop losses from short positions (buy stops). This
+    # is called buyside liquidity" (§2.6).
+    #   type "equal" -- "Equal Highs & Lows are when price reaches the same price level multiple times."
+    #   type "old"   -- "Old Highs & Lows are previous highs and lows." Old High -> BSL, Old Low -> SSL.
+    # Equal pairs are added FIRST so that when a single swing sits on an already-recorded equal-highs line the
+    # stronger, named reading keeps the row (the `tol` dedupe below drops the duplicate).
+    #
+    # Until 2026-09-19 only "equal" existed here, so a lone prior swing high/low could never be BSL/SSL: never a
+    # sweep, never a target, never a dealing-range edge. That is the measured reason the dealing range kept
+    # falling back to the scan-window edge (52 % of point-in-time samples read dr_source = mixed) --
+    # docs/audits/2026-09-19-knowledge-fidelity.md finding 10.
     for a in range(len(sh)):
         for b in range(a + 1, len(sh)):
-            if abs(H[sh[a]] - H[sh[b]]) <= tol and sh[b] - sh[a] >= 4: add("BSL", [sh[a], sh[b]], max(H[sh[a]], H[sh[b]])); break
+            if abs(H[sh[a]] - H[sh[b]]) <= tol and sh[b] - sh[a] >= 4: add("BSL", [sh[a], sh[b]], max(H[sh[a]], H[sh[b]]), "equal"); break
     for a in range(len(sl)):
         for b in range(a + 1, len(sl)):
-            if abs(L[sl[a]] - L[sl[b]]) <= tol and sl[b] - sl[a] >= 4: add("SSL", [sl[a], sl[b]], min(L[sl[a]], L[sl[b]])); break
+            if abs(L[sl[a]] - L[sl[b]]) <= tol and sl[b] - sl[a] >= 4: add("SSL", [sl[a], sl[b]], min(L[sl[a]], L[sl[b]]), "equal"); break
+    for i in sh: add("BSL", [i], H[i], "old")
+    for i in sl: add("SSL", [i], L[i], "old")
     hi_i, lo_i = H.index(hi), L.index(lo)
 
     # MSS = body close beyond the swing preceding the raid (knowledge/ict/core-a.md §2.17, knowledge/ict/core-b.md §2.2). displacement = full-bodied
@@ -306,7 +324,28 @@ def setup_candidate(a, c, lookback):
         stops = {"gap_far_edge": f["lo"], "ob_body_low": ob["body_low"] if ob else None, "sweep_extreme": stop}
         std = {"-2": m["origin"] + 2 * leg, "-2.5": m["origin"] + 2.5 * leg, "-4": m["origin"] + 4 * leg} if leg > 0 else None
         tg = [p["level"] for p in a["unswept"] if p["kind"] == "BSL" and p["level"] > entry]
-        target, tk = (min(tg), "BSL chưa quét") if tg else (a["window_hi"], "đỉnh cửa sổ (ERL)")
+        # TARGET ORDER, per the decks, and this time in the decks' own order. models.md §2.1.5 is explicit:
+        # "the main focus for identifying targets is using standard deviation projections" -- the -2/-2.5
+        # zone first, -4/-4.5 second. Liquidity levels are what the decks call a DRAW (core-a.md §2.8), a
+        # place price is pulled toward and may react at; they are recorded below as `objective` for the
+        # reader, not used as the target. The dealing range's far edge is the fallback only when no
+        # manipulation leg exists to project from: it is the target the R13 diagram itself draws
+        # (core-a.md §3.4, "target is the opposite range extreme").
+        #
+        # Until 2026-09-19 (second correction that day) the order was inverted -- nearest unswept pool first,
+        # the projection only as a fallback. That was survivable while the only pools were equal highs/lows;
+        # the same morning's addition of Old Highs & Lows (the deck's FIRST liquidity type, §2.7 -- correct
+        # for sweeps and for the dealing range) made "nearest unswept pool" almost always the very next swing,
+        # and planned R collapsed: median 0.55 across the reachable 15m population, ONE trade over the 3R
+        # floor. On the SAME twenty entries, the deck's own target gave a median planned R of 2.91, +0.95R per
+        # trade against +0.64R, and NINE trades over the floor. The scanner is the one seam both the backtest
+        # (ict_setups_live) and the live runner (ict_live_setups) read, so this is the whole fix.
+        objective = min(tg) if tg else None
+        target, tk = ((std["-2"], "dự phóng −2σ (models.md §2.1.5)") if std and std["-2"] > entry
+                      else (a["hi"], "biên trên dealing range (core-a.md R13)") if a["hi"] > entry
+                      else (None, "không có mục tiêu: không dự phóng σ, biên range không ở trên entry"))
+        if target is None:
+            return None
         risk, reward = entry - stop, target - entry
     else:
         entry = f["lo"]; stop = max(H[s["swept"]:m["i"] + 1])
@@ -314,12 +353,18 @@ def setup_candidate(a, c, lookback):
         stops = {"gap_far_edge": f["hi"], "ob_body_high": ob["body_high"] if ob else None, "sweep_extreme": stop}
         std = {"-2": m["origin"] - 2 * leg, "-2.5": m["origin"] - 2.5 * leg, "-4": m["origin"] - 4 * leg} if leg > 0 else None
         tg = [p["level"] for p in a["unswept"] if p["kind"] == "SSL" and p["level"] < entry]
-        target, tk = (max(tg), "SSL chưa quét") if tg else (a["window_lo"], "đáy cửa sổ (ERL)")
+        # Mirror of the long branch above -- see that comment for the order and for what changed.
+        objective = max(tg) if tg else None
+        target, tk = ((std["-2"], "dự phóng −2σ (models.md §2.1.5)") if std and std["-2"] < entry
+                      else (a["lo"], "biên dưới dealing range (core-a.md R13)") if a["lo"] < entry
+                      else (None, "không có mục tiêu: không dự phóng σ, biên range không ở dưới entry"))
+        if target is None:
+            return None
         risk, reward = stop - entry, entry - target
     R = round(reward / risk, 2) if risk > 0 else None
     base.update({"complete": True, "fvg": {"lo": f["lo"], "hi": f["hi"], "ce": f["ce"], "time": T[f["i"]], "mitigated": f["mitigated"]}, "ob": ob,
                  "entry": entry, "entry_models": entries, "stop": stop, "stop_owner": "sweep_extreme", "stop_options": stops,
-                 "target": target, "target_kind": tk, "std_targets": std, "R": R, "rr_ok": (R is not None and MIN_RR is not None and R >= MIN_RR), "min_rr": MIN_RR})
+                 "target": target, "target_kind": tk, "objective": objective, "std_targets": std, "R": R, "rr_ok": (R is not None and MIN_RR is not None and R >= MIN_RR), "min_rr": MIN_RR})
     return base
 
 

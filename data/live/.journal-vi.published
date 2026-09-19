@@ -1,0 +1,105 @@
+<title>Nhật ký giao dịch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap">
+
+<style>
+:root{
+  --bg:#F3F5F8; --surface:#FFFFFF; --surface-2:#F7F9FB; --surface-3:#EDF1F5;
+  --line:#DCE2EA; --line-strong:#C5CED9;
+  --ink:#172029; --ink-2:#3D4955; --muted:#5F6B79; --faint:#6B7784;
+  --up:#1F8F5F; --down:#CF3F55; --up-soft:#D9F0E4; --down-soft:#F8DEE2;
+  --warn:#B5731C; --warn-soft:#FBEBD3;
+  --w:#B8801F; --w-soft:#F7EBD2; --i:#4C5BC7; --i-soft:#E3E6F9; --f:#1F8C85; --f-soft:#D8EFEC; --h:#7E4FB3; --h-soft:#EBE0F6;
+  --accent:#2F5FC9;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace; --sans:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --shadow:0 1px 2px rgba(23,32,41,.06),0 6px 20px rgba(23,32,41,.05);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0E1218; --surface:#151B23; --surface-2:#1B222C; --surface-3:#222B36;
+  --line:#28313D; --line-strong:#39465A;
+  --ink:#E7EBF0; --ink-2:#C2CAD5; --muted:#97A3B4; --faint:#8592A2;
+  --up:#3FBF7F; --down:#EF5C70; --up-soft:#173A2B; --down-soft:#3E1F27;
+  --warn:#E0A54A; --warn-soft:#3A2A12;
+  --w:#D79A2E; --w-soft:#33270F; --i:#7C8BE8; --i-soft:#222846; --f:#3BB8AF; --f-soft:#123634; --h:#B285E0; --h-soft:#2E2140;
+  --accent:#7FA4F5; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+}}
+:root[data-theme="dark"]{
+  --bg:#0E1218; --surface:#151B23; --surface-2:#1B222C; --surface-3:#222B36;
+  --line:#28313D; --line-strong:#39465A;
+  --ink:#E7EBF0; --ink-2:#C2CAD5; --muted:#97A3B4; --faint:#8592A2;
+  --up:#3FBF7F; --down:#EF5C70; --up-soft:#173A2B; --down-soft:#3E1F27;
+  --warn:#E0A54A; --warn-soft:#3A2A12;
+  --w:#D79A2E; --w-soft:#33270F; --i:#7C8BE8; --i-soft:#222846; --f:#3BB8AF; --f-soft:#123634; --h:#B285E0; --h-soft:#2E2140;
+  --accent:#7FA4F5; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.mono,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .pos{color:var(--up)} .neg{color:var(--down)}
+.topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.topbar-in{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.brand-title{font-weight:800;font-size:15px} .brand-sub{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.nav{display:flex;gap:4px;margin-left:auto} .nav a{font-family:var(--mono);font-size:12px;font-weight:700;text-decoration:none;color:var(--ink-2);padding:6px 10px;border-radius:6px;border:1px solid transparent}
+.nav a:hover{background:var(--surface-2);border-color:var(--line)} .nav a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.page{max-width:1180px;margin:0 auto;padding:22px 20px 80px;display:flex;flex-direction:column;gap:22px}
+h1{font-size:clamp(22px,3vw,30px);font-weight:800;letter-spacing:-.02em;margin:0;text-wrap:balance}
+h2{font-size:15px;font-weight:800;margin:0 0 10px;display:flex;align-items:baseline;gap:10px} h2 small{font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:500}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.lede p{margin:6px 0 0;color:var(--ink-2);max-width:70ch}
+section{scroll-margin-top:64px}
+.chip{display:inline-flex;align-items:center;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+.chip-wait{background:var(--surface-3);color:var(--ink-2);border-color:var(--line-strong)} .chip-long{background:var(--up-soft);color:var(--up);border-color:var(--up)}
+.chip-short{background:var(--down-soft);color:var(--down);border-color:var(--down)} .chip-setup{background:var(--w-soft);color:var(--w);border-color:var(--w)} .chip-warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+.chip-lg{font-size:12.5px;padding:5px 12px}
+.pilot{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px}
+.pcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.pcard-head{display:flex;align-items:center;gap:10px} .pcard-head .mk{font-family:var(--mono);font-weight:800;font-size:15px} .pcard-head .env{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pk{background:var(--surface-2);border-radius:8px;padding:8px 10px} .pk .l{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)} .pk .v{font-family:var(--mono);font-size:18px;font-weight:700;font-variant-numeric:tabular-nums} .pk .s{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.verdict{font-size:13.5px;border-left:3px solid var(--accent);padding:6px 12px;background:var(--surface-2);border-radius:0 8px 8px 0}
+.reasons{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px;font-size:12.5px}
+.reasons li{display:flex;gap:10px;align-items:center} .reasons .bar{height:6px;border-radius:3px;background:var(--i);opacity:.7;min-width:2px} .reasons .n{font-family:var(--mono);color:var(--muted);min-width:34px;text-align:right}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.tile{padding:12px 16px;border-right:1px solid var(--line)} .tile:last-child{border-right:0}
+.tile .l{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:4px} .tile .v{font-family:var(--mono);font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2} .tile .s{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.rcurve-wrap{position:relative} .rcurve{display:block;width:100%;height:240px}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;padding:6px 9px;font-family:var(--mono);font-size:11px;color:var(--ink);box-shadow:var(--shadow);display:none;z-index:5;white-space:nowrap;line-height:1.5}
+.tip .t{color:var(--muted)} .tip .u{color:var(--up)} .tip .d{color:var(--down)}
+.empty{color:var(--muted);font-size:13px;padding:18px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.card h3{margin:0 0 6px;font-size:13px;font-weight:800}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:12.5px} th,td{padding:8px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;vertical-align:top}
+th{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600;background:var(--surface-2)}
+tbody tr:hover{background:var(--surface-2)} td.num,th.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right} td.id{font-family:var(--mono)} td.setup{white-space:normal;min-width:220px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px} details+details{margin-top:8px} summary{cursor:pointer;font-family:var(--mono);font-size:12.5px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+dl{display:grid;grid-template-columns:200px 1fr;gap:6px 14px;margin:12px 0 4px;max-width:80ch} dt{color:var(--muted);font-size:12.5px} dd{margin:0}
+.note{border-left:3px solid var(--w);padding:10px 14px;background:var(--surface);border-radius:0 8px 8px 0;font-size:13px;max-width:80ch}
+.note code{font-family:var(--mono);font-size:12px;background:var(--surface-3);padding:1px 5px;border-radius:4px}
+footer{font-family:var(--mono);font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;line-height:1.7}
+@media (max-width:700px){dl{grid-template-columns:1fr} .pgrid{grid-template-columns:1fr 1fr} .nav{margin-left:0}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="topbar"><div class="topbar-in"><div><div class="brand-title">Nhật ký giao dịch</div><div class="brand-sub">trades/*.md → scripts/journal.py · sinh 2026-09-12 18:59 UTC</div></div>
+<nav class="nav"><a href="#pilot">Pilot</a><a href="#stats">Thống kê</a><a href="#ledger">Sổ lệnh</a><a href="#reviews">Review</a></nav></div></div>
+<div class="page">
+<div class="lede"><p class="eyebrow">nhật ký · số liệu do code tính · review do người hoặc Claude điền</p><h1>Nhật ký giao dịch</h1><p>Pilot chỉ vào lệnh khi luật cố định đủ điều kiện; nhật ký chỉ có bản ghi mới khi pilot vào lệnh hoặc khi <code>/journal</code> ghi một kế hoạch sau <code>/analyze</code>. Phần đầu trang cho biết pilot có đang chạy không và vì sao chưa có lệnh.</p></div>
+<section id="pilot"><h2>Pilot có đang hoạt động không? <small>data/live/pilot*/log.jsonl (legacy) · top5-log.jsonl / top5-mt5-log.jsonl (profile top5) · docs/architecture/automation-config.json</small></h2><div class="pilot"><div class="pcard"><div class="pcard-head"><span class="mk">Pilot top5 crypto (futures testnet)</span><span class="chip chip-warn chip-lg">DỪNG</span><span class="env">env demo · tick cuối 12/9 16:56Z</span></div>
+<div class="verdict">Nhật ký <b>cần kiểm tra</b>: automation đang TẮT — pilot không tick nên không thể có lệnh mới.</div>
+<div class="pgrid"><div class="pk"><div class="l">Đánh giá 24h</div><div class="v">2</div><div class="s">tổng 2</div></div><div class="pk"><div class="l">Đủ điều kiện</div><div class="v">2</div><div class="s">luật: quét → MSS → FVG · KL ≥ 1.5×</div></div><div class="pk"><div class="l">Lệnh vào / thoát</div><div class="v">0 / 0</div><div class="s">từ log pilot</div></div></div>
+<div><div class="eyebrow" style="margin-bottom:4px">Lý do bị loại nhiều nhất</div><ul class="reasons"><li class="muted">—</li></ul></div></div><div class="pcard"><div class="pcard-head"><span class="mk">Pilot top5 CFD (MT5 demo)</span><span class="chip chip-warn chip-lg">DỪNG</span><span class="env">env demo · tick cuối —</span></div>
+<div class="verdict">Nhật ký <b>hoạt động đúng</b>: automation đang TẮT — pilot không tick nên không thể có lệnh mới; chưa có bản ghi nào trong log.</div>
+<div class="pgrid"><div class="pk"><div class="l">Đánh giá 24h</div><div class="v">0</div><div class="s">tổng 0</div></div><div class="pk"><div class="l">Đủ điều kiện</div><div class="v">0</div><div class="s">luật: quét → MSS → FVG · KL ≥ 1.5×</div></div><div class="pk"><div class="l">Lệnh vào / thoát</div><div class="v">0 / 0</div><div class="s">từ log pilot</div></div></div>
+<div><div class="eyebrow" style="margin-bottom:4px">Lý do bị loại nhiều nhất</div><ul class="reasons"><li class="muted">—</li></ul></div></div></div></section>
+<section id="stats"><h2>Bảng cân đối <small>không tính lệnh diễn tập</small></h2><div class="tiles"><div class="tile"><div class="l">Lệnh đã đóng</div><div class="v">0</div><div class="s">đang mở 0 · kế hoạch 1 · diễn tập 1</div></div><div class="tile"><div class="l">Tỷ lệ thắng</div><div class="v">—</div><div class="s">0 thắng / 0 thua</div></div><div class="tile"><div class="l">R kỳ vọng</div><div class="v">—</div><div class="s">thắng — R · thua — R</div></div><div class="tile"><div class="l">Profit factor</div><div class="v">—</div><div class="s">tổng 0 R · 0 USDT</div></div><div class="tile"><div class="l">Sụt giảm tối đa</div><div class="v">0.00 R</div><div class="s">chuỗi thua dài nhất 0</div></div></div></section>
+
+<section><h2>Đường R tích lũy <small>theo thời điểm đóng lệnh · lăn chuột = zoom · kéo = dịch</small></h2><div class="card"><div class="empty">Chưa có lệnh đóng (không tính diễn tập) — đường R tích lũy sẽ xuất hiện sau lệnh đóng đầu tiên.</div></div></section>
+
+<section id="ledger"><h2>Sổ lệnh <small>1 bản ghi</small></h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Thị trường</th><th>Mã</th><th>Chiều</th><th>Setup</th><th>Phiên</th><th class="num">Entry</th><th class="num">Stop</th><th class="num">Targets</th><th class="num">R kế hoạch</th><th>Trạng thái</th><th>Thoát</th><th>Kết quả</th><th class="num">R</th><th class="num">P&amp;L USDT</th><th class="num">Giữ (phút)</th></tr></thead><tbody><tr><td class='id'>2026-09-09-BTCUSDT-01</td><td>—</td><td class='mono'>BTCUSDT</td><td><span class="chip chip-long">LONG</span></td><td class='setup'>Wyckoff Spring Type 2 (candidate accumulation) <span class="chip chip-warn">diễn tập</span></td><td>—</td><td class='num'>65,200</td><td class='num'>64,650</td><td class='num'>[66500, 67100]</td><td class='num'>—</td><td><span class="chip chip-wait">PLANNED</span></td><td></td><td></td><td class='num'>—</td><td class='num'>—</td><td class='num'>—</td></tr></tbody></table></div></section>
+<section id="reviews"><h2>Review từng lệnh</h2>
+<div class="note">Sau mỗi lệnh, trả lời năm câu: luận điểm còn đúng không · kế hoạch so với thực tế · có phá luật nào không (followed_plan) · nguyên nhân gốc (root_cause) · một thay đổi cụ thể cho lần sau (what_to_change). Sai lầm lặp lại được gom trong <code>docs/mistakes/MISTAKE-DB.md</code>; cập nhật bằng <code>scripts/journal.py review &lt;id&gt; --set key=value</code>.</div>
+<div style="margin-top:12px"><details><summary><b>2026-09-09-BTCUSDT-01</b> <span class='mono'>BTCUSDT</span> <span class="chip chip-long">LONG</span> <span class="chip chip-wait">PLANNED</span>  <span class='mono muted'>R —</span></summary><dl><dt>Luận điểm</dt><dd><span class="muted">chưa ghi</span></dd><dt>Kế hoạch vs thực tế</dt><dd><span class="muted">chưa ghi</span></dd><dt>Tuân thủ kế hoạch</dt><dd><span class="muted">chưa ghi</span></dd><dt>Loại thoát</dt><dd><span class="muted">chưa ghi</span></dd><dt>Lý do thoát</dt><dd><span class="muted">chưa ghi</span></dd><dt>Nguyên nhân gốc</dt><dd><span class="muted">chưa ghi</span></dd><dt>Là sai lầm?</dt><dd><span class="muted">chưa ghi</span></dd><dt>Bài học</dt><dd><span class="muted">chưa ghi</span></dd><dt>Ghi chú review</dt><dd><span class="muted">chưa ghi</span></dd><dt>Thay đổi lần sau</dt><dd><span class="muted">chưa ghi</span></dd><dt>Tự tin trước lệnh (1–5)</dt><dd><span class="muted">chưa ghi</span></dd><dt>Trạng thái cảm xúc</dt><dd><span class="muted">chưa ghi</span></dd><dt>Thẻ</dt><dd><span class="muted">chưa ghi</span></dd><dt>Ảnh chart</dt><dd><span class="muted">chưa ghi</span></dd></dl></details></div></section>
+<footer><b>Nguồn</b>: trades/index.jsonl (dẫn xuất từ trades/*.md) · log pilot · automation-config.json · <b>sinh</b> 2026-09-12 18:59 UTC bởi scripts/journal.py render · đồng bộ tự động sau mỗi tick pilot (scripts/pilot-loop.sh) và bởi /journal, /status, /review.<br>Chart: TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. · <a href="https://www.tradingview.com/" rel="noopener">tradingview.com</a> · Apache-2.0 (scripts/vendor/NOTICE-lightweight-charts.txt)</footer>
+</div>

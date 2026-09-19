@@ -1,4 +1,4 @@
-import importlib.util, json, os, subprocess, sys, tempfile, threading, time, unittest
+import datetime, importlib.util, json, os, subprocess, sys, tempfile, threading, time, unittest
 
 HERE = os.path.dirname(__file__)
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -24,8 +24,12 @@ def synthetic(n=400, seed=7):
 
 class SetupsAreCausal(unittest.TestCase):
     def test_setup_fields_and_validity(self):
+        """COMBINED (a Spring/Upthrust proxy + ICT confirmation, mirroring bt.scan's now-deleted COMBINED
+        block) was removed 2026-09-19 along with the WYCKOFF proxy it depended on
+        (docs/audits/2026-09-19-knowledge-fidelity.md finding 6); sr.setups() now only ever produces ICT
+        setups (see its own docstring)."""
         c = synthetic()
-        for method in ("ICT", "COMBINED"):
+        for method in ("ICT",):
             for side in ("long", "short"):
                 for s in sr.setups(method, side, c, "30m"):
                     n = len(c); K = bt.P["30m"]["K"]
@@ -42,28 +46,50 @@ class SetupsAreCausal(unittest.TestCase):
         c = synthetic(); H = [x["high"] for x in c]; L = [x["low"] for x in c]; C = [x["close"] for x in c]
         PH = bt.all_pivots(H, "high"); PL = bt.all_pivots(L, "low")
         for i in range(60, len(c) - 20):
-            r = bt.find_ict("long", i, i, H, L, C, 14, len(c), PH, PL)
+            r = bt.find_ict("long", i, i, H, L, C, 14, len(c), PH, PL, [x["open"] for x in c])
             if r:
                 mss, edge, far = r
                 self.assertTrue(any(H[k - 1] < L[k + 1] and L[k + 1] == edge for k in range(i + 1, mss)))
 
-    def test_ict_disp_and_std_origin_restored_after_setups(self):
-        """ict_target is gone from setups()'s signature (2026-09-13 audit: its only reader, bt.ict_target(), had
-        no caller left). ict_disp/std_origin are the remaining OPTS keys this function still saves/restores
-        (see setups()'s `prev` dict) -- this replaces the old test_ict_target_restored_after_setups, which
-        asserted on a key that no longer exists in bt.OPTS."""
-        before = (bt.OPTS["ict_disp"], bt.OPTS["std_origin"])
-        sr.setups("COMBINED", "long", synthetic(), "30m", ict_disp=True, std_origin="highest")
-        self.assertEqual((bt.OPTS["ict_disp"], bt.OPTS["std_origin"]), before)
+    def test_the_dead_ict_switches_are_gone_from_the_signature_and_from_opts(self):
+        """Before 2026-09-19 this asserted that setups()'s now-deleted COMBINED branch saved and restored
+        bt.OPTS['ict_disp']/['std_origin'] around its own call into bt.find_ict. COMBINED was removed with the
+        WYCKOFF proxy it depended on (finding 6), after which the three switches were kept as call-site
+        compatibility parameters that read nothing -- and then removed outright (finding 11), because all
+        three name real deck rules that are enforced unconditionally elsewhere: R13 is `pd_ok` in
+        scripts/ict-scan.py, the STDEV fib-0 anchor is fixed by Model11 p20, and displacement is what
+        separates an MSS (R10) from a liquidity grab (R11). A switch that can turn a mandatory rule off is
+        not a feature, and one that reads nothing at all is worse.
+        """
+        import inspect
+        params = inspect.signature(sr.setups).parameters
+        for dead in ("ict_disp", "ict_pd", "std_origin"):
+            self.assertNotIn(dead, params, f"setups() still accepts {dead}")
+            self.assertNotIn(dead, bt.OPTS, f"{dead} is back in bt.OPTS")
+        sr.setups("ICT", "long", synthetic(), "30m")          # the surviving signature still runs
 
 
 class ParityWithBacktest(unittest.TestCase):
     @unittest.skipUnless(os.path.exists(os.path.join(ROOT, "data", "history", "ohlcv.SOLUSDT.30m.json")), "history not fetched")
     def test_replay_matches_backtest_first_setup(self):
+        """`bars` must clear the window the method actually reads. It was 450 while the live ICT scanner reads
+        576 bars on 15m, so replay fed the scanner a short window, live_rules.read_at refused it by design, the
+        runner produced zero placements, and the check passed only because the backtest found nothing in the
+        span either. The first backtest trade to land in a span surfaced it (2026-09-19)."""
         st = sr.load_setups()[0]
-        rep = sr.replay([st["id"]], bars=450)
+        rep = sr.replay([st["id"]], bars=900)
+        self.assertTrue(rep, "replay produced no rows at all")
         for r in rep:
+            self.assertNotIn("skipped", r, r)
             self.assertEqual(r["unmatched"], 0, r)
+
+    def test_replay_actually_exercises_the_runner(self):
+        """A parity check with zero runner placements on every symbol proves nothing; it is the shape the ICT
+        window bug hid behind for as long as it did."""
+        st = sr.load_setups()[0]
+        rep = sr.replay([st["id"]], bars=900)
+        self.assertTrue(any(r["runner_placements"] > 0 or r["backtest_trades"] > 0 for r in rep),
+                        f"neither engine produced anything in the replay span: {rep}")
 
 
 def _load_git_revision(ref, name):
@@ -193,8 +219,12 @@ class HtfGateFailsClosed(unittest.TestCase):
     # planned-R:R floor (rr_reason, MIN_RR = 3R) now also sits in the reasons[] block, and a signal that fails it
     # never reaches the order stage. These tests are about the HTF gate, so the fixture has to clear every OTHER
     # gate to isolate it. Entry/stop/target stay internally consistent with r_planned.
+    # target 103.1, not 103.0, since 2026-09-18: the R:R floor is charged NET of fees (CLAUDE.md §34), and
+    # 3.00R gross on a 1 % stop is 2.96R after the maker fee -- i.e. the old fixture planned exactly the floor
+    # gross and therefore sat just under it net. Moved so this class keeps testing the HTF gate rather than
+    # silently becoming a second test of the R:R gate.
     ONE_SIG = dict(time="2026-01-01T00:00:00Z", mss_time="2026-01-01T00:00:00Z", entry=100.0, stop=99.0,
-                   target=103.0, bars_left=5, r_planned=3.0, vol_type=None)
+                   target=103.1, bars_left=5, r_planned=3.1, vol_type=None)
 
     def _run(self, htf_pass_return):
         cfg = {"enabled": True, "layers": {"pilot": True},
@@ -219,7 +249,7 @@ class HtfGateFailsClosed(unittest.TestCase):
         sr.event_blackout = lambda *a, **k: None
         sr.setups = lambda method, side, c, tf, *a, **k: ([dict(self.ONE_SIG, side=side)] if side == "long" else [])
         sr.htf_pass = lambda *a, **k: htf_pass_return
-        sr.place_limit = lambda sym, st, sig, equity, risk_mult, live: (placed.append((sym, sig)), None)[1]
+        sr.place_limit = lambda sym, st, sig, equity, risk_mult, live, **k: (placed.append((sym, sig)), None)[1]
         sr.place_market = lambda *a, **k: (placed.append(("market",)), None)[1]
         try:
             sr.tick(live=False, tick_time=sr.parse_t("2026-01-02T00:01:00Z"), ignore_gate=True)
@@ -257,6 +287,97 @@ class HtfGateFailsClosed(unittest.TestCase):
                          "these setups declare htf:true but their HTF tier is a timeframe live never scans, so "
                          "the gate would refuse them on every tick forever")
 
+
+class PlanCarriesExpectations(unittest.TestCase):
+    """CLAUDE.md §17/plan §0.6 (Task B2): step 11 builds one scripts/expectation.py record PER DIMENSION the
+    setup's rule family requires, and the SAME records (not a re-derived copy) are what place_limit/
+    place_market eventually persist onto the plan."""
+
+    ONE_SIG = dict(time="2026-01-01T00:00:00Z", mss_time="2026-01-01T00:00:00Z", entry=100.0, stop=99.0,
+                   target=103.1, bars_left=5, r_planned=3.1, vol_type=None)
+
+    def _run(self):
+        cfg = {"enabled": True, "layers": {"pilot": True},
+               "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"], "dimensions": {"wyckoff": True, "ict": True}},
+                           "cfd": {"enabled": False, "instruments": []}},
+               "execution": {"environment": "demo"}}
+        # COMBINED (scan="ict", requires=["wyckoff","ict"]) was removed 2026-09-19 along with the WYCKOFF proxy
+        # it depended on (docs/audits/2026-09-19-knowledge-fidelity.md finding 6). COMBINED-BOOK is its
+        # surviving, book-faithful equivalent but is scan="wyckoff" -- so it routes through setups_wyckoff(),
+        # not setups() -- hence both are mocked below (see `saved`/monkeypatch section).
+        selection = {"setups": [dict(id="test-combined", market="crypto", symbols=["BTCUSDT"], tf="15m",
+                                      method="COMBINED-BOOK", htf=False, mgmt="be", execution="futures")]}
+        state = {}
+        cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, cfg_tmp); cfg_tmp.close()
+        sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(selection, sel_tmp); sel_tmp.close()
+        state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(state, state_tmp); state_tmp.close()
+
+        saved = dict(AUTOMATION_CONFIG=sr.AUTOMATION_CONFIG, SELECTION=sr.SELECTION, STATE=sr.STATE,
+                     fetch_candles=sr.fetch_candles, log=sr.log, setups=sr.setups, setups_wyckoff=sr.setups_wyckoff,
+                     htf_pass=sr.htf_pass, allowed_methods=sr.allowed_methods, load_setups=sr.load_setups,
+                     place_limit=sr.place_limit, place_market=sr.place_market, event_blackout=sr.event_blackout,
+                     from_signal=sr.EP.from_signal)
+        placed_kwargs, spy_calls = [], []
+        real_from_signal = sr.EP.from_signal
+
+        def spy_from_signal(*a, **k):
+            recs = real_from_signal(*a, **k)
+            spy_calls.append(recs)
+            return recs
+
+        def fake_place_limit(sym, st, sig, equity, risk_mult, live, **kw):
+            placed_kwargs.append(kw); return None
+
+        candles80 = [dict(time=f"2026-01-01T{(m // 60) % 24:02d}:{m % 60:02d}:00Z", open=100, high=101, low=99, close=100, volume=1) for m in range(0, 80 * 15, 15)]
+        sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = cfg_tmp.name, sel_tmp.name, state_tmp.name
+        sr.fetch_candles = lambda *a, **k: list(candles80)
+        sr.log = lambda *a, **k: None
+        sr.event_blackout = lambda *a, **k: None
+        sr.setups = lambda method, side, c, tf, *a, **k: ([dict(self.ONE_SIG, side=side)] if side == "long" else [])
+        # `sym` is passed by the caller since 2026-09-19: setups_wyckoff needs it to read the symbol's own
+        # volume kind (traded vs MT5 tick count -- wyckoff_rules R0, WMT p131-133). A stub that omits it
+        # raises TypeError inside the tick and the test sees "no signals" instead of the real reason.
+        sr.setups_wyckoff = lambda method, side, c, tf, sym=None: ([dict(self.ONE_SIG, side=side)] if side == "long" else [])
+        sr.htf_pass = lambda *a, **k: True
+        # COMBINED-BOOK is runnable=false (docs/architecture/methods.json): load_setups() filters it out
+        # (`if s.get("method") in METHODS`, METHODS = mreg.runnable()) before allowed_methods() is even asked,
+        # and allowed_methods() would exclude it too -- both are step 1/3's own concern (tested elsewhere:
+        # load_setups by TestLoadSetups, the preset gate by PresetFilter). This test is about step 11 (one
+        # expectation record per dimension a TWO-dimension method requires), and COMBINED-BOOK is the only
+        # surviving RUNNER_METHODS entry with requires=["wyckoff","ict"] (COMBINED and PARTIAL, the other two,
+        # were removed 2026-09-19 -- docs/audits/2026-09-19-knowledge-fidelity.md finding 6); mocking both
+        # gates open is what lets step 11 be exercised at all despite COMBINED-BOOK never reaching a real live
+        # tick through either of them.
+        sr.load_setups = lambda: [dict(selection["setups"][0])]
+        sr.allowed_methods = lambda *a, **k: {"COMBINED-BOOK"}
+        sr.place_limit = fake_place_limit
+        sr.place_market = lambda *a, **k: None
+        sr.EP.from_signal = spy_from_signal
+        try:
+            sr.tick(live=False, tick_time=sr.parse_t("2026-01-02T00:01:00Z"), ignore_gate=True)
+        finally:
+            for k, v in saved.items():
+                if k == "from_signal":
+                    sr.EP.from_signal = v
+                else:
+                    setattr(sr, k, v)
+            os.unlink(cfg_tmp.name); os.unlink(sel_tmp.name); os.unlink(state_tmp.name)
+        return placed_kwargs, spy_calls
+
+    def test_combined_setup_yields_one_record_per_dimension(self):
+        _placed, spy_calls = self._run()
+        self.assertEqual(len(spy_calls), 1, "expectation records must be computed exactly once per decision")
+        methodologies = sorted(r["original"]["methodology"] for r in spy_calls[0])
+        self.assertEqual(methodologies, ["ict", "wyckoff"])
+
+    def test_the_plan_carries_the_same_record_ids_step_11_named(self):
+        placed_kwargs, spy_calls = self._run()
+        self.assertEqual(len(placed_kwargs), 1, "place_limit must have been called exactly once")
+        got_ids = [r["id"] for r in placed_kwargs[0]["expectations"]]
+        want_ids = [r["id"] for r in spy_calls[0]]
+        self.assertEqual(got_ids, want_ids)
+
+
 class Sizing(unittest.TestCase):
     def test_risk_never_above_the_ceiling_and_notional_capped(self):
         # Asserts against the ceiling constant, not a literal. This test read `0.01` until 2026-09-13, when the
@@ -266,9 +387,9 @@ class Sizing(unittest.TestCase):
         self.assertLessEqual(sr.RISK_PCT, sr.RISK_CEILING)
         qty, risk = sr.size(10000, 100.0, 99.0, 1.0)
         self.assertAlmostEqual(risk, 10000 * sr.RISK_PCT)
-        self.assertLessEqual(qty * 100.0, 10000 * sr.NOTIONAL_CAP_PCT * sr.LEVERAGE + 1e-9)
+        self.assertLessEqual(qty * 100.0, 10000 * sr.NOTIONAL_CAP_PCT * sr.futures_leverage() + 1e-9)
         qty2, _ = sr.size(10000, 100.0, 99.99, 1.0)
-        self.assertAlmostEqual(qty2 * 100.0, 10000 * sr.NOTIONAL_CAP_PCT * sr.LEVERAGE)
+        self.assertAlmostEqual(qty2 * 100.0, 10000 * sr.NOTIONAL_CAP_PCT * sr.futures_leverage())
 
     def test_mt5_lots_from_contract_data(self):
         sr._MT5_SYMBOLS["XAUUSD"] = dict(tick_size=0.01, tick_value=1.0, volume_min=0.01, volume_max=1.0, volume_step=0.01, digits=2)
@@ -352,7 +473,14 @@ class Mt5BridgeProtocol(unittest.TestCase):
         # allowlist it now derives instead of hard-coding.
         script = (open(os.path.join(ROOT, "scripts", "mt5-order-bridge.py")).read()
                   .replace('ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))', f'ROOT = {ROOT!r}')
-                  .replace('BRIDGE = os.path.join(ROOT, "data", "live", "mt5-bridge", "bridge")', f'BRIDGE = {bridge!r}'))
+                  # BRIDGE became a two-line assignment when the folder was made per-account
+                  # (MT5_BRIDGE_SUBDIR, 2026-09-19); match the whole of it, and assert the match so this
+                  # patch cannot silently stop applying and leave the test pointing at the real bridge.
+                  )
+        anchor = ('BRIDGE = os.path.join(ROOT, "data", "live", "mt5-bridge",\n'
+                  '                      os.environ.get("MT5_BRIDGE_SUBDIR", "bridge"))')
+        self.assertIn(anchor, script, "the connector's BRIDGE assignment moved; update this patch")
+        script = script.replace(anchor, f'BRIDGE = {bridge!r}')
         sp = os.path.join(tmp, "bridge.py"); open(sp, "w").write(script)
         try:
             out = json.loads(subprocess.run(["python3", sp, "check"], capture_output=True, text=True, env=env).stdout); self.assertTrue(out["demo"]); self.assertIn("XAUUSD", out["symbols"])
@@ -429,7 +557,7 @@ class PresetFilter(unittest.TestCase):
     def test_allowed_methods_reflects_the_preset(self):
         wy = self.cfg_with({"wyckoff": True, "ict": False, "footprint": False, "heatmap": False})
         got = self._with_config(wy, lambda: sr.allowed_methods("crypto"))
-        self.assertEqual(got, {"WYCKOFF", "WYCKOFF-BOOK"})
+        self.assertEqual(got, {"WYCKOFF-BOOK"})
         none = self.cfg_with({"wyckoff": False, "ict": False, "footprint": False, "heatmap": False})
         self.assertEqual(self._with_config(none, lambda: sr.allowed_methods("crypto")), set())
 
@@ -766,7 +894,7 @@ class ProtectiveOrderFailure(unittest.TestCase):
         return {"started": "2026-01-01T00:00:00Z", "positions": {}, "day": None, "trades_today": {}, "errors": 0,
                 "halted": None, "last_tick": None, "seen": [], "equity_basis": "equity",
                 "pending": {"BTCUSDT": dict(symbol="BTCUSDT", side="LONG", strategy="x", tf="30m", method="ICT",
-                                             execution="futures", mgmt="be", leverage=sr.LEVERAGE, qty="1", price="100",
+                                             execution="futures", mgmt="be", leverage=sr.futures_leverage(), qty="1", price="100",
                                              stop="99", tp="103", order_id="1", client_id="c1", placed_at="2026-01-01T00:00:00Z",
                                              bars_waited=0, expires_bar_left=5, htf_pass=True,
                                              sweep_time=None, mss_time=None)},
@@ -1125,3 +1253,591 @@ class EquityStartMigration(unittest.TestCase):
         s = self._with_state_file(migrated, sr.load_state)
         self.assertAlmostEqual(s["venues"]["futures"]["equity_start"], 4999.0, "an already-migrated baseline must not be reset again")
         self.assertAlmostEqual(s["venues"]["mt5"]["equity_start"], 99999.5)
+
+
+class SessionStepWiring(unittest.TestCase):
+    """A4 -- decision-order.json step 4 emits tr.ok/tr.block from account_profile.entry_gate's own
+    session_restrictions finding instead of unconditionally tr.skip()'ing the step. Full behavioural proof
+    (a session_restrictions rule actually refusing/passing on a dry tick) lives in
+    scripts/tests/test_account_profile.py::AccountLimitsOnTheOrderPath, which already owns the tick() harness
+    and the account-profile fixtures this needs; this checks the wiring at the source."""
+
+    def test_session_is_no_longer_unconditionally_skipped(self):
+        src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        self.assertNotIn('tr.skip("session"', src)
+        self.assertIn('tr.block("session"', src)
+        self.assertIn('tr.ok("session"', src)
+
+    def test_the_session_finding_comes_from_entry_gate_not_a_second_reader(self):
+        src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        self.assertIn('f["rule"] == "session_restrictions"', src)
+
+
+class Drill(unittest.TestCase):
+    """docs/plans/2026-09-18-close-feature-gaps.md §0.11: the demo-only drill that proves signal -> order -> page."""
+
+    def _candles(self, n=40, close=100.0):
+        return [dict(time=f"2026-01-01T{(m // 60) % 24:02d}:{m % 60:02d}:00Z", open=close, high=close + 1, low=close - 1,
+                     close=close, volume=1) for m in range(0, n * 15, 15)]
+
+    def test_synthetic_signal_is_a_3r_market_entry_at_the_last_close(self):
+        c = self._candles()
+        for side in ("long", "short"):
+            sig = sr.drill_signal(c, side)
+            self.assertTrue(sig["entry_now"]); self.assertTrue(sig["drill"])
+            self.assertEqual(sig["entry"], c[-1]["close"]); self.assertEqual(sig["time"], c[-1]["time"])
+            risk = abs(sig["entry"] - sig["stop"]); reward = abs(sig["target"] - sig["entry"])
+            self.assertAlmostEqual(reward / risk, sr.DRILL_RR, places=9)
+            self.assertEqual(sig["r_planned"], sr.DRILL_RR)
+            self.assertGreaterEqual(risk, sr.DRILL_MIN_STOP_PCT * sig["entry"])
+            if side == "long":
+                self.assertLess(sig["stop"], sig["entry"]); self.assertGreater(sig["target"], sig["entry"])
+            else:
+                self.assertGreater(sig["stop"], sig["entry"]); self.assertLess(sig["target"], sig["entry"])
+
+    def test_too_few_bars_is_refused(self):
+        with self.assertRaises(ValueError):
+            sr.drill_signal(self._candles(n=10), "long")
+
+    def test_client_id_of_a_drill_is_prefixed_so_the_venue_audit_can_find_it(self):
+        sig = sr.drill_signal(self._candles(), "long")
+        self.assertTrue(sr.client_id("s", "BTCUSDT", sig).startswith("drill-"))
+        self.assertTrue(sr.client_id("s", "BTCUSDT", dict(sig, drill=False)).startswith("t5-"))
+
+    def test_parse_drill(self):
+        self.assertEqual(sr.parse_drill("crypto-x:BTCUSDT:long"), {"setup": "crypto-x", "symbol": "BTCUSDT", "side": "long"})
+        for bad in ("", "a:b", "a:b:c:d", "a:b:sideways", "a::long"):
+            with self.assertRaises(ValueError):
+                sr.parse_drill(bad)
+
+    def test_refusals_cover_every_condition_that_would_make_the_order_real_or_unasked(self):
+        d = {"setup": "s1", "symbol": "BTCUSDT", "side": "long"}
+        ok = dict(live=True, env_name="demo", config_env="demo", gate_reason=None, setups_known={"s1"}, symbols_enabled={"BTCUSDT"})
+        self.assertIsNone(sr.drill_refusal(d, **ok))
+        self.assertIn("--live", sr.drill_refusal(d, **dict(ok, live=False)))
+        self.assertIn("real", sr.drill_refusal(d, **dict(ok, env_name="real")))
+        self.assertIn("execution.environment", sr.drill_refusal(d, **dict(ok, config_env="real")))
+        self.assertIn("gate", sr.drill_refusal(d, **dict(ok, gate_reason="pilot layer disabled")))
+        self.assertIn("no selected setup", sr.drill_refusal(d, **dict(ok, setups_known={"other"})))
+        self.assertIn("not an enabled", sr.drill_refusal(d, **dict(ok, symbols_enabled={"ETHUSDT"})))
+
+    def test_a_drill_tick_evaluates_only_the_drill_and_the_plan_carries_the_flag(self):
+        """The real detectors are silenced on a drill tick; the synthetic signal walks the same steps and the
+        resulting plan says `drill: true` so the journal can keep it out of every rollup."""
+        import tempfile
+        placed = []
+        cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump({"enabled": True, "execution": {"environment": "demo"}, "layers": {"pilot": True}, "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"]}}}, cfg_tmp); cfg_tmp.close()
+        sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+        json.dump({"setups": [dict(id="s1", market="crypto", tf="15m", method="WYCKOFF-BOOK", htf=False, mgmt="none", execution="futures", symbols=["BTCUSDT"], rule_version="v1")]}, sel_tmp); sel_tmp.close()
+        state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); state_tmp.write("{}"); state_tmp.close()
+        saved = {k: getattr(sr, k) for k in ("AUTOMATION_CONFIG", "SELECTION", "STATE", "STOP", "fetch_candles", "log", "event_blackout", "setups", "setups_wyckoff", "htf_pass", "place_limit", "place_market", "automation_gate", "allowed_methods", "load_state", "save_state")}
+        try:
+            sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = cfg_tmp.name, sel_tmp.name, state_tmp.name
+            sr.STOP = state_tmp.name + ".no-such-stop-file"      # the real kill switch is present on this machine; the test must not read it
+            candles = self._candles(n=120)
+            sr.fetch_candles = lambda *a, **k: list(candles)
+            sr.log = lambda *a, **k: None
+            sr.event_blackout = lambda *a, **k: None
+            sr.automation_gate = lambda: None
+            sr.allowed_methods = lambda *a, **k: {"WYCKOFF-BOOK"}     # the preset filter is step 3's own concern (PresetFilter tests it)
+            real_detector_calls = []
+            sr.setups = lambda *a, **k: real_detector_calls.append(a) or [dict(time="2026-01-01T00:00:00Z", side="long", entry=1, stop=0.5, target=3, r_planned=4.0, vol_type=1, mss_time=None, bars_left=0)]
+            sr.setups_wyckoff = sr.setups
+            sr.htf_pass = lambda *a, **k: True
+            def fake_place_market(sym, st, sig, equity, risk_mult, live, **kw):
+                placed.append((sym, st["id"], sig)); return None
+            sr.place_market = fake_place_market
+            sr.place_limit = lambda *a, **k: placed.append(("limit",)) or None
+            sr.tick(True, sr.parse_t("2026-01-02T00:00:00Z"), drill={"setup": "s1", "symbol": "BTCUSDT", "side": "long"})
+        finally:
+            for k, v in saved.items():
+                setattr(sr, k, v)
+        self.assertEqual(len(placed), 1, placed)
+        sym, sid, sig = placed[0]
+        self.assertEqual((sym, sid, sig["side"]), ("BTCUSDT", "s1", "long"))
+        self.assertTrue(sig["drill"]); self.assertTrue(sig["entry_now"])
+        plan = sr.plan_of(sym, {"id": sid, "tf": "15m", "method": "WYCKOFF-BOOK", "execution": "futures"}, sig, "1", sig["entry"], sig["stop"], sig["target"], 10.0)
+        self.assertTrue(plan["drill"])
+        plan_real = sr.plan_of(sym, {"id": sid, "tf": "15m", "method": "WYCKOFF-BOOK", "execution": "futures"}, dict(sig, drill=False), "1", sig["entry"], sig["stop"], sig["target"], 10.0)
+        self.assertFalse(plan_real["drill"])
+
+
+class TraderOverlayOnTheLivePath(unittest.TestCase):
+    """plan §0.9: a trader's constraints can only TIGHTEN the live walk; without a trader nothing changes."""
+
+    ONE = dict(time="2026-01-01T00:00:00Z", side="long", entry=100.0, stop=99.0, target=103.2, r_planned=3.2, vol_type=1,
+               mss_time=None, bars_left=0, entry_now=True)
+
+    def _run(self, *, trader, registry, method="ICT", tick_time="2026-01-02T00:00:00Z"):
+        import tempfile
+        placed, logs = [], []
+        cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump({"enabled": True, "execution": {"environment": "demo", "trader": trader}, "layers": {"pilot": True}, "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"]}}}, cfg_tmp); cfg_tmp.close()
+        sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+        json.dump({"setups": [dict(id="s1", market="crypto", tf="15m", method=method, htf=False, mgmt="none", execution="futures", symbols=["BTCUSDT"], rule_version="v1")]}, sel_tmp); sel_tmp.close()
+        state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); state_tmp.write("{}"); state_tmp.close()
+        keys = ("AUTOMATION_CONFIG", "SELECTION", "STATE", "STOP", "fetch_candles", "log", "event_blackout", "setups", "setups_wyckoff", "htf_pass", "place_limit", "place_market", "automation_gate", "allowed_methods")
+        saved = {k: getattr(sr, k) for k in keys}; saved_ft = sr.TC.for_trader
+        try:
+            sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = cfg_tmp.name, sel_tmp.name, state_tmp.name
+            sr.STOP = state_tmp.name + ".no-such-stop-file"
+            candles = [dict(time=f"2026-01-01T{(m // 60) % 24:02d}:{m % 60:02d}:00Z", open=100, high=101, low=99, close=100, volume=1) for m in range(0, 120 * 15, 15)]
+            sr.fetch_candles = lambda *a, **k: list(candles)
+            sr.log = lambda kind, venue="futures", **kw: logs.append((kind, kw))
+            sr.event_blackout = lambda *a, **k: None
+            sr.automation_gate = lambda: None
+            sr.allowed_methods = lambda *a, **k: {"ICT", "WYCKOFF-BOOK"}
+            sr.setups = lambda m, side, c, tf, *a, **k: ([dict(self.ONE)] if side == "long" else [])
+            sr.setups_wyckoff = lambda m, side, c, tf, sym=None: ([dict(self.ONE)] if side == "long" else [])
+            sr.htf_pass = lambda *a, **k: True
+            sr.place_market = lambda sym, st, sig, equity, risk_mult, live, **kw: placed.append(sig) or None
+            sr.place_limit = lambda sym, st, sig, equity, risk_mult, live, **kw: placed.append(sig) or None
+            sr.TC.for_trader = lambda tid: registry
+            sr.tick(True, sr.parse_t(tick_time))
+        finally:
+            for k, v in saved.items():
+                setattr(sr, k, v)
+            sr.TC.for_trader = saved_ft
+        sigs = [kw for kind, kw in logs if kind == "signal"]
+        return placed, sigs
+
+    def test_no_trader_leaves_the_walk_unchanged(self):
+        placed, sigs = self._run(trader=None, registry={})
+        self.assertEqual(len(placed), 1, sigs)
+
+    def test_a_trader_floor_refuses_what_the_platform_floor_admits(self):
+        placed, sigs = self._run(trader="t", registry={"ict": [{"kind": "min_rr", "value": 3.5}]})
+        self.assertEqual(placed, [])
+        self.assertTrue(any("sàn riêng của trader" in r for sg in sigs for r in sg["reasons"]), sigs)
+
+    def test_a_trader_floor_cannot_loosen_the_platform_floor(self):
+        # a declared 2.0 would be refused at import by trader_constraints; here overlay() itself takes max()
+        ov = sr.TC.overlay({"min_rr": sr.MIN_RR}, "t", "ict") if False else None
+        self.assertIsNone(sr.rr_reason(dict(self.ONE), "futures", floor=1.0))       # floor below MIN_RR: ignored
+        self.assertIsNotNone(sr.rr_reason(dict(self.ONE), "futures", floor=3.5))    # floor above: applied
+
+    def test_a_trader_session_set_refuses_outside_it(self):
+        placed, sigs = self._run(trader="t", registry={"wyckoff": [{"kind": "sessions", "value": ["london"]}]},
+                                 method="WYCKOFF-BOOK", tick_time="2026-01-02T02:00:00Z")   # 02:00Z = Asia
+        self.assertEqual(placed, [])
+        self.assertTrue(any("trader t" in r and "phiên" in r for sg in sigs for r in sg["reasons"]), sigs)
+
+    def test_overlay_merges_bool_flags_onto_the_setup_copy(self):
+        saved = sr.TC.for_trader
+        try:
+            sr.TC.for_trader = lambda tid: {"ict": [{"kind": "htf", "value": True}]}
+            ov = sr.trader_overlay({"method": "ICT", "htf": False}, "t")
+            self.assertTrue(ov["htf"]); self.assertEqual(ov["min_rr"], sr.MIN_RR)
+            self.assertEqual(sr.trader_overlay({"method": "ICT"}, None), {})
+        finally:
+            sr.TC.for_trader = saved
+
+
+class MarketFillIsAVenueFact(unittest.TestCase):
+    """docs/audits/2026-09-18-e2e-drill.md: the fill price comes from the venue, never from the plan."""
+
+    def test_a_result_response_with_a_price_is_used_as_is(self):
+        self.assertEqual(sr.market_fill("BTCUSDT", {"orderId": 1, "avgPrice": "79767.0", "executedQty": "0.0467"}, "0.0467"), (79767.0, 0.0467))
+
+    def test_a_zero_avg_price_is_polled_from_order_status_not_taken_from_the_plan(self):
+        calls = []
+        saved = sr.order_json
+        try:
+            sr.order_json = lambda *a: calls.append(a) or {"avgPrice": "79767.0", "executedQty": "0.0467", "status": "FILLED"}
+            got = sr.market_fill("BTCUSDT", {"orderId": 7, "avgPrice": "0", "executedQty": "0.0467"}, "0.0467", polls=2, sleep=0)
+        finally:
+            sr.order_json = saved
+        self.assertEqual(got, (79767.0, 0.0467)); self.assertEqual(calls[0][:2], ("order-status", "BTCUSDT"))
+
+    def test_an_unreadable_fill_raises_instead_of_guessing(self):
+        saved = sr.order_json
+        try:
+            sr.order_json = lambda *a: {"avgPrice": "0", "executedQty": "0"}
+            with self.assertRaises(RuntimeError):
+                sr.market_fill("BTCUSDT", {"orderId": 7, "avgPrice": "0"}, "0.0467", polls=2, sleep=0)
+        finally:
+            sr.order_json = saved
+
+
+class Mt5CloseReadsTheSettledProfit(unittest.TestCase):
+    """docs/audits/2026-09-18-e2e-drill.md §4.3: the EA's close reply says profit 0; the settled deal is in position-status."""
+
+    def test_profit_comes_from_position_status_after_the_close_settles(self):
+        calls = []
+        saved = sr.mt5_json
+        try:
+            def fake(cmd, *a):
+                calls.append(cmd)
+                if cmd == "close": return {"ok": True, "price": 4353.83, "profit": 0}
+                return {"ok": True, "state": "closed", "price_close": 4353.83, "profit": -44.0}
+            sr.mt5_json = fake
+            self.assertEqual(sr.mt5_close(1, sleep=0), (4353.83, -44.0))
+        finally:
+            sr.mt5_json = saved
+        self.assertEqual(calls[:2], ["close", "position-status"])
+
+    def test_an_unsettled_close_reports_profit_unknown_not_zero(self):
+        saved = sr.mt5_json
+        try:
+            sr.mt5_json = lambda cmd, *a: {"ok": True, "price": 4353.83, "profit": 0, "state": "open"}
+            px, profit = sr.mt5_close(1, polls=2, sleep=0)
+        finally:
+            sr.mt5_json = saved
+        self.assertEqual(px, 4353.83); self.assertIsNone(profit)
+
+
+class PerAccountScope(unittest.TestCase):
+    """One process, one customer account: its own state, logs, candle cache and kill switch.
+
+    docs/plans/2026-09-19-multi-account.md §0.3 item 2. Before this, `STOP` was one file for every venue and
+    every account, so one customer breaching a drawdown limit halted everybody, and `top5-state.json` was one
+    file written with a bare `open(..., "w")`, so two processes would have silently overwritten each other's
+    positions. Scoping the paths is what makes one process per account safe to run at all.
+    """
+
+    def setUp(self):
+        self._saved = (sr.ACCOUNT, sr.PILOT_DIR, sr.STATE, sr.LOG, sr.MT5_LOG, sr.STOP, sr.CANDLES,
+                       dict(sr.VENUE_LOG))
+        self.account = next(pid for pid, p in sr.AP.PROFILES.items()
+                            if p["environment"] not in sr.AP.UNROUTABLE_ENVIRONMENTS)
+
+    def tearDown(self):
+        (sr.ACCOUNT, sr.PILOT_DIR, sr.STATE, sr.LOG, sr.MT5_LOG, sr.STOP, sr.CANDLES, vl) = self._saved
+        sr.VENUE_LOG = dict(vl)
+
+    def test_binding_none_restores_the_houses_paths_exactly(self):
+        """Every existing test and the running pilot depend on this being byte-identical."""
+        before = sr.PILOT_DIR
+        sr.bind_account(self.account)
+        self.assertNotEqual(sr.PILOT_DIR, before)
+        sr.bind_account(None)
+        self.assertEqual(sr.PILOT_DIR, before)
+        self.assertTrue(sr.PILOT_DIR.endswith("pilot-futures"))
+
+    def test_every_path_a_customer_owns_moves_together(self):
+        sr.bind_account(self.account)
+        for path in (sr.STATE, sr.LOG, sr.MT5_LOG, sr.STOP):
+            self.assertIn(os.path.join("accounts", self.account), path, path)
+        self.assertEqual(sr.VENUE_LOG["mt5"], sr.MT5_LOG, "the venue log map must follow the rebind")
+
+    def test_the_candle_cache_is_SHARED_and_does_not_move(self):
+        """Candles are public market data: BTCUSDT 15m is the same bytes for every customer. Per-account
+        copies would multiply the feed load by N -- 26 provider calls per tick becomes 26N against a rate
+        limit that is per IP, not per key -- and would let two accounts disagree about the market whenever
+        their fetches landed either side of a bar close. What is per-account is what a customer owns or can
+        lose; the market is not that."""
+        before = sr.CANDLES
+        sr.bind_account(self.account)
+        self.assertEqual(sr.CANDLES, before)
+        self.assertNotIn("accounts", sr.CANDLES)
+
+    def test_an_unknown_account_refuses_rather_than_inventing_a_directory(self):
+        with self.assertRaises(SystemExit) as cm:
+            sr.bind_account("no-such-account")
+        self.assertIn("must not guess whose rules apply", str(cm.exception))
+
+    def test_a_research_template_cannot_be_traded(self):
+        research = [pid for pid, p in sr.AP.PROFILES.items()
+                    if p["environment"] in sr.AP.UNROUTABLE_ENVIRONMENTS]
+        if not research:
+            self.skipTest("no research profile in the registry")
+        with self.assertRaises(SystemExit) as cm:
+            sr.bind_account(research[0])
+        self.assertIn("unroutable", str(cm.exception))
+
+
+class TheKillSwitchIsTwoTier(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self._saved = (sr.STOP, sr.GLOBAL_STOP)
+        sr.STOP = os.path.join(self.dir, "STOP")
+        sr.GLOBAL_STOP = os.path.join(self.dir, "GLOBAL-STOP")
+
+    def tearDown(self):
+        sr.STOP, sr.GLOBAL_STOP = self._saved
+
+    def test_neither_file_means_not_halted(self):
+        self.assertFalse(sr.halted())
+
+    def test_this_accounts_own_stop_halts_it(self):
+        open(sr.STOP, "w").close()
+        self.assertTrue(sr.halted())
+
+    def test_the_estate_wide_stop_halts_it_too(self):
+        """One lever that stops everything, kept alongside one lever per customer."""
+        open(sr.GLOBAL_STOP, "w").close()
+        self.assertTrue(sr.halted())
+
+
+class OrdersCarryTheirAccount(unittest.TestCase):
+    """Attribution (plan §0.3 item 1): billing, and disputes."""
+
+    def setUp(self):
+        self._saved = sr.ACCOUNT
+
+    def tearDown(self):
+        sr.ACCOUNT = self._saved
+
+    SIG = {"side": "long", "time": "2026-09-19T14:00:00Z"}
+
+    def test_two_accounts_on_the_same_signal_get_different_client_ids(self):
+        """Without the account in the digest both mint the SAME newClientOrderId, the venue rejects the
+        second as a duplicate, and one customer silently loses the trade while the rejection looks like a
+        venue fault."""
+        sr.ACCOUNT = "acc-a"; a = sr.client_id("setup-1", "BTCUSDT", self.SIG)
+        sr.ACCOUNT = "acc-b"; b = sr.client_id("setup-1", "BTCUSDT", self.SIG)
+        self.assertNotEqual(a, b)
+
+    def test_the_same_account_and_signal_is_still_stable(self):
+        sr.ACCOUNT = "acc-a"
+        self.assertEqual(sr.client_id("setup-1", "BTCUSDT", self.SIG),
+                         sr.client_id("setup-1", "BTCUSDT", self.SIG))
+
+    def test_the_drill_prefix_survives(self):
+        sr.ACCOUNT = "acc-a"
+        self.assertTrue(sr.client_id("s", "BTCUSDT", dict(self.SIG, drill=True)).startswith("drill-"))
+        self.assertTrue(sr.client_id("s", "BTCUSDT", self.SIG).startswith("t5-"))
+
+    def test_house_mode_ids_are_unchanged_in_shape(self):
+        sr.ACCOUNT = None
+        self.assertTrue(sr.client_id("s", "BTCUSDT", self.SIG).startswith("t5-"))
+        self.assertEqual(len(sr.client_id("s", "BTCUSDT", self.SIG)), len("t5-") + 20)
+
+
+class EveryOrderSaysWhoseItIsAndUnderWhatAgreement(unittest.TestCase):
+    """Attribution, end to end (plan §0.3 item 1). A customer asking "which methodology took this trade, on
+    which version, under which agreement" must be answerable from the record alone -- and the same record is
+    the billing line."""
+
+    def setUp(self):
+        self._saved = (sr.ACCOUNT, list(sr.MD.MANDATES))
+
+    def tearDown(self):
+        sr.ACCOUNT, rows = self._saved
+        sr.MD.MANDATES = rows
+
+    ST = {"id": "cfd-scalping-ict-15m-phase1-a", "rule_version": "abc123", "tf": "15m", "method": "ICT",
+          "execution": "mt5", "mgmt": "be"}
+    SIG = {"side": "long", "time": "2026-09-19T14:00:00Z", "mss_time": "2026-09-19T13:45:00Z",
+           "bars_left": 5, "htf_pass": True, "r_planned": 3.2}
+
+    def _plan(self):
+        return sr.plan_of("XAUUSD", self.ST, self.SIG, "0.1", "3300", "3290", "3330", 100.0)
+
+    def test_the_plan_names_the_setup_and_its_version(self):
+        p = self._plan()
+        self.assertEqual(p["strategy"], self.ST["id"])
+        self.assertEqual(p["setup_version"], "abc123")
+
+    def test_the_plan_names_the_mandate_when_one_exists(self):
+        sr.ACCOUNT = "acc-x"
+        sr.MD.MANDATES = [{"id": "m-77", "account": "acc-x", "setup": self.ST["id"],
+                           "setup_version": "abc123", "state": "ACTIVE", "started_at": "2020-01-01"}]
+        self.assertEqual(self._plan()["mandate"], "m-77")
+
+    def test_a_setup_this_account_has_no_mandate_for_records_none_rather_than_guessing(self):
+        sr.ACCOUNT = "acc-x"
+        sr.MD.MANDATES = [{"id": "m-77", "account": "acc-x", "setup": "some-other-setup",
+                           "setup_version": "abc123", "state": "ACTIVE", "started_at": "2020-01-01"}]
+        self.assertIsNone(self._plan()["mandate"])
+
+    def test_house_mode_records_no_mandate_because_there_is_no_agreement(self):
+        sr.ACCOUNT = None
+        self.assertIsNone(self._plan()["mandate"])
+
+    def test_a_paused_mandate_is_not_the_agreement_an_order_runs_under(self):
+        sr.ACCOUNT = "acc-x"
+        sr.MD.MANDATES = [{"id": "m-77", "account": "acc-x", "setup": self.ST["id"],
+                           "setup_version": "abc123", "state": "PAUSED", "started_at": "2020-01-01"}]
+        self.assertIsNone(self._plan()["mandate"])
+
+    def test_an_unreadable_mandate_table_does_not_stop_an_order_decided_on_other_grounds(self):
+        sr.ACCOUNT = "acc-x"
+        saved = sr.MD.for_account
+        try:
+            sr.MD.for_account = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+            self.assertIsNone(self._plan()["mandate"])
+        finally:
+            sr.MD.for_account = saved
+
+
+class TheSharedCandleCacheIsFetchedOncePerBar(unittest.TestCase):
+    """The feed, not the CPU, is what caps how many accounts a machine can serve.
+
+    Every account runs its own process, and each one used to shell out to the provider for all 18 crypto
+    (symbol, timeframe) pairs on every tick -- 18N calls into a rate limit that is per IP, not per key. The
+    cache is shared and the bytes are identical for everyone, so the first runner to tick after a bar close
+    refreshes it and the rest read it. Measured on this repo: a tick fell from ~5.1 s wall / 1.25 s CPU to
+    ~0.85 s wall / 0.81 s CPU once the fetch was skipped.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self._saved = sr.CANDLES
+        sr.CANDLES = self.dir
+
+    def tearDown(self):
+        sr.CANDLES = self._saved
+
+    @staticmethod
+    def _t(epoch):
+        return datetime.datetime.fromtimestamp(epoch, tz=datetime.timezone.utc)
+
+    def _write(self, sym, tf, last_epoch, n=600):
+        step = sr.N.tf_seconds(tf)
+        candles = [{"time": sr.iso(self._t(last_epoch - (n - 1 - i) * step)),
+                    "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 10} for i in range(n)]
+        json.dump({"candles": candles}, open(os.path.join(self.dir, f"ohlcv.{sym}.{tf}.json"), "w"))
+
+    def test_a_cache_holding_the_last_closed_bar_is_reused(self):
+        step = sr.N.tf_seconds("15m")
+        now_ = 1800000000 - (1800000000 % step) + 120          # 2 minutes into a forming bar
+        self._write("BTCUSDT", "15m", now_ - (now_ % step) - step)
+        self.assertTrue(sr._cache_has_last_closed("BTCUSDT", "15m", 576, self._t(now_)))
+
+    def test_a_cache_one_bar_behind_is_refetched(self):
+        step = sr.N.tf_seconds("15m")
+        now_ = 1800000000 - (1800000000 % step) + 120
+        self._write("BTCUSDT", "15m", now_ - (now_ % step) - 2 * step)
+        self.assertFalse(sr._cache_has_last_closed("BTCUSDT", "15m", 576, self._t(now_)))
+
+    def test_a_missing_or_unreadable_cache_refetches(self):
+        self.assertFalse(sr._cache_has_last_closed("NOSUCH", "15m", 10))
+        open(os.path.join(self.dir, "ohlcv.BAD.15m.json"), "w").write("{ not json")
+        self.assertFalse(sr._cache_has_last_closed("BAD", "15m", 10))
+
+    def test_too_few_bars_for_the_callers_window_refetches(self):
+        step = sr.N.tf_seconds("15m")
+        now_ = 1800000000 - (1800000000 % step) + 120
+        self._write("BTCUSDT", "15m", now_ - (now_ % step) - step, n=100)
+        self.assertFalse(sr._cache_has_last_closed("BTCUSDT", "15m", 576, self._t(now_)),
+                         "a 100-bar cache must not satisfy a 576-bar window")
+
+    def test_an_unknown_timeframe_refetches_rather_than_guessing(self):
+        self.assertFalse(sr._cache_has_last_closed("BTCUSDT", "3W", 10))
+
+    def test_the_cache_is_published_atomically(self):
+        """Many readers, and until the reuse check lands everywhere, possibly several writers. `> file`
+        truncates in place and a concurrent reader gets whatever bytes exist at that instant."""
+        src = open(os.path.join(ROOT, "scripts", "fetch-binance-klines.sh"), encoding="utf-8").read()
+        self.assertIn('mv -f "$OUT_FILE.tmp.$$" "$OUT_FILE"', src)
+        self.assertNotIn("""  }' > "$OUT_FILE\"""", src)
+
+    def test_the_quality_gate_still_runs_on_a_reused_cache(self):
+        """A cache this check wrongly accepts must still be caught before it is traded on, not after."""
+        src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        i = src.index("def _cache_has_last_closed")
+        j = src.index("if market == \"crypto\":")
+        block = src[j:j + 1200]
+        self.assertIn("_require_quality", block, "the freshness gate must run whether or not the fetch ran")
+
+
+class SeveralMt5TerminalsCanShareOneMachine(unittest.TestCase):
+    r"""One machine is NOT limited to one CFD account.
+
+    An MT5 terminal is logged into exactly one account, so N customers need N terminals -- but terminals in
+    one installation share `Common\Files`, and this connector CONSUMES res-<id>.json (reads it, then deletes
+    it). Two accounts pointed at one folder would race to eat each other's replies and one customer's fill
+    could be reported to another. Each terminal therefore gets its own folder: the EA's InpBridgeDir input,
+    and the matching MT5_BRIDGE_SUBDIR on the runner side.
+
+    Measured on this machine 2026-09-19: a running terminal64.exe is ~142 MB RSS, so the limit is the number
+    of terminals a host can run, not memory on a 36 GB box. MT5 runs on macOS through the vendor's own
+    Wine-wrapped build (docs/architecture/mt5-bridge.md:27-31); only MetaQuotes' Python package is
+    Windows-only, and this project deliberately does not use it (mt5-bridge.md:14).
+    """
+
+    def setUp(self):
+        self._saved = sr.ACCOUNT
+
+    def tearDown(self):
+        sr.ACCOUNT = self._saved
+
+    def test_house_mode_keeps_the_original_folder(self):
+        sr.ACCOUNT = None
+        self.assertEqual(sr.mt5_bridge_subdir(), "bridge")
+
+    def test_each_account_gets_its_own_folder(self):
+        sr.ACCOUNT = "acc-001"; a = sr.mt5_bridge_subdir()
+        sr.ACCOUNT = "acc-002"; b = sr.mt5_bridge_subdir()
+        self.assertNotEqual(a, b)
+        self.assertIn("acc-001", a)
+
+    def test_the_connector_reads_the_folder_from_the_environment(self):
+        src = open(os.path.join(ROOT, "scripts", "mt5-order-bridge.py"), encoding="utf-8").read()
+        self.assertIn('os.environ.get("MT5_BRIDGE_SUBDIR", "bridge")', src)
+
+    def test_the_runner_passes_it_on_every_bridge_call(self):
+        src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        self.assertIn("MT5_BRIDGE_SUBDIR=mt5_bridge_subdir()", src)
+
+    def test_the_ea_takes_it_as_an_input_and_says_it_is_compiled_in(self):
+        src = open(os.path.join(ROOT, "integrations", "mt5", "OrderBridge.mq5"), encoding="utf-8").read()
+        self.assertIn("input string InpBridgeDir", src)
+        self.assertIn("COMPILED INPUT", src)
+        self.assertIn("g_dir = (StringLen(InpBridgeDir) > 0)", src,
+                      "the input must actually replace the hardcoded folder at OnInit")
+
+
+class TheTerminalMustBeTheAccountWeThinkItIs(unittest.TestCase):
+    """Defence in depth for multi-account MT5 (user question 2026-09-19: "can account ids fix the file mix-up?").
+
+    The first half is isolation by construction -- each terminal gets its own command/response folder, so files
+    cannot cross. This is the second half: it assumes that failed anyway (a symlink repointed, a terminal
+    restarted on the wrong login, a folder name typed once and wrongly) and turns the consequence from
+    "customer A's order placed on customer B's account" into a logged refusal.
+
+    The asymmetry is the reason it is worth a round trip: isolation-only fails SILENTLY and in the worst
+    direction. Identity-only is worse still -- it would let every terminal see every command and rely on a
+    filter being correct in two places.
+    """
+
+    def setUp(self):
+        self._saved = (sr.ACCOUNT, dict(sr._env), sr._MT5_IDENTITY_OK, sr.mt5_json)
+        sr._MT5_IDENTITY_OK = None
+
+    def tearDown(self):
+        sr.ACCOUNT, env, sr._MT5_IDENTITY_OK, sr.mt5_json = self._saved
+        sr._env.clear(); sr._env.update(env)
+
+    def _terminal(self, login):
+        sr.mt5_json = lambda *a, **k: {"login": login, "equity": 1000.0, "trade_mode": "demo"}
+
+    def test_a_matching_login_passes(self):
+        sr.ACCOUNT = "acc-001"; sr._env["MT5_ACCOUNT_LOGIN"] = "12345"
+        self._terminal(12345)
+        self.assertTrue(sr.mt5_assert_identity())
+
+    def test_a_different_login_refuses_and_says_which_folder_is_wrong(self):
+        sr.ACCOUNT = "acc-001"; sr._env["MT5_ACCOUNT_LOGIN"] = "12345"
+        self._terminal(99999)
+        with self.assertRaises(RuntimeError) as cm:
+            sr.mt5_assert_identity()
+        msg = str(cm.exception)
+        self.assertIn("99999", msg)
+        self.assertIn("12345", msg)
+        self.assertIn("bridge-acc-001", msg, "the refusal must name the folder that reached the wrong terminal")
+
+    def test_an_account_run_with_no_configured_login_refuses_rather_than_trusting_whoever_answers(self):
+        sr.ACCOUNT = "acc-001"; sr._env.pop("MT5_ACCOUNT_LOGIN", None)
+        self._terminal(12345)
+        with self.assertRaises(RuntimeError) as cm:
+            sr.mt5_assert_identity()
+        self.assertIn("whoever happens to be logged in", str(cm.exception))
+
+    def test_house_mode_without_a_login_is_unchanged(self):
+        """The existing single-account pilot must not start refusing because a new check appeared."""
+        sr.ACCOUNT = None; sr._env.pop("MT5_ACCOUNT_LOGIN", None)
+        self._terminal(12345)
+        self.assertTrue(sr.mt5_assert_identity())
+
+    def test_it_is_checked_once_per_process_not_per_order(self):
+        sr.ACCOUNT = "acc-001"; sr._env["MT5_ACCOUNT_LOGIN"] = "12345"
+        calls = []
+        sr.mt5_json = lambda *a, **k: (calls.append(a) or {"login": 12345, "trade_mode": "demo"})
+        sr.mt5_assert_identity(); sr.mt5_assert_identity(); sr.mt5_assert_identity()
+        self.assertEqual(len(calls), 1, "a terminal does not change account mid-run; this is the order path")
+
+    def test_the_equity_read_goes_through_it(self):
+        src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        i = src.index("def mt5_equity()")
+        self.assertIn("mt5_assert_identity()", src[i:i + 700])

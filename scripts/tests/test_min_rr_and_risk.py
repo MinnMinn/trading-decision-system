@@ -136,38 +136,68 @@ class RiskCeiling(unittest.TestCase):
 
     def test_equity_halt_is_untouched(self):
         """The -15 % halt is what makes 3 % survivable (it is why 5 % was rejected). Raising the risk without it
-        is a different, unapproved decision."""
-        self.assertEqual(self.sr.EQUITY_HALT_FRAC, 0.85)
+        is a different, unapproved decision.
+
+        Since 2026-09-18 the number is an ACCOUNT rule (CLAUDE.md §33, docs/architecture/account-profiles.json)
+        rather than the runner constant `EQUITY_HALT_FRAC = 0.85`, so this asserts it where it now lives --
+        for EVERY venue, which the single constant could not express."""
+        import account_profile as AP
+        for venue in self.sr.VENUES:
+            with self.subTest(venue=venue):
+                dd = AP.rule(self.sr.profile(venue), "max_total_drawdown")
+                self.assertEqual(dd["pct"], 0.15)
+                self.assertEqual(dd["action"], AP.HALT)
 
 
 class LiveGate(unittest.TestCase):
     def setUp(self):
         self.sr = _load("strategy-runner.py", "sr")
 
-    def test_passes_a_signal_at_or_above_the_floor(self):
-        self.assertIsNone(self.sr.rr_reason({"r_planned": 3.0}))
-        self.assertIsNone(self.sr.rr_reason({"r_planned": 7.4}))
+    # Prices, not just an r_planned scalar, since 2026-09-18: the gate charges fees (CLAUDE.md §34), so it
+    # needs the entry/stop/target it is charging them against. `_sig` builds a signal whose GROSS R:R is
+    # exactly `rr` on a 1 % stop, where the maker fee costs 0.04R.
+    @staticmethod
+    def _sig(rr, entry=100.0, stop=99.0, **over):
+        return dict({"entry": entry, "stop": stop, "target": entry + rr * abs(entry - stop),
+                     "r_planned": rr}, **over)
+
+    def test_passes_a_signal_above_the_floor(self):
+        self.assertIsNone(self.sr.rr_reason(self._sig(3.1), "futures"))
+        self.assertIsNone(self.sr.rr_reason(self._sig(7.4), "futures"))
 
     def test_refuses_a_signal_below_the_floor(self):
         for rr in (0.0, 1.9, 2.99):
-            self.assertIsNotNone(self.sr.rr_reason({"r_planned": rr}), f"{rr}R should be refused")
+            self.assertIsNotNone(self.sr.rr_reason(self._sig(rr), "futures"), f"{rr}R should be refused")
+
+    def test_a_setup_planning_exactly_the_floor_GROSS_is_now_refused(self):
+        """The 2026-09-18 change, stated as the case that flipped. 3.00R gross on a 1 % stop is 2.96R after
+        the maker fee, and the floor it is measured against was itself measured net (analysis-params.json
+        `min_rr._basis`: 'fee 0.05 %/side'). Exactly-at-the-floor gross was never actually at the floor."""
+        why = self.sr.rr_reason(self._sig(3.0), "futures")
+        self.assertIsNotNone(why)
+        self.assertIn("sau phí", why)
 
     def test_fails_closed_on_an_uncomputable_rr(self):
         """An R:R that could not be computed is not permission to trade -- same rule as the htf gate. NaN is the
         one that bites: `nan < 3.0` is False, so a plain comparison would OPEN the gate."""
         for bad in ({}, {"r_planned": None}, {"r_planned": "3"}, {"r_planned": float("nan")}):
-            self.assertIsNotNone(self.sr.rr_reason(bad), f"{bad} should be refused")
+            self.assertIsNotNone(self.sr.rr_reason(bad, "futures"), f"{bad} should be refused")
+
+    def test_fails_closed_when_the_prices_the_fee_needs_are_missing(self):
+        """A gross r_planned with no entry/stop/target cannot be charged, and an uncharged R:R is not a pass."""
+        self.assertIsNotNone(self.sr.rr_reason({"r_planned": 9.0}, "futures"))
 
     def test_the_gate_is_wired_into_the_signal_block(self):
         """A correct rr_reason() that nothing calls blocks nothing."""
         src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
-        self.assertIn("rr_reason(sig)", src)
+        self.assertIn("rr_reason(sig, venue, floor=ov.get(\"min_rr\"))", src)   # plan §0.9: the floor may only be RAISED by a trader overlay
 
     def test_no_decision_path_pins_the_floor_to_zero(self):
         """Every script whose output a live order eventually depends on must measure the population the live gate
-        actually takes. stability-report feeds rank-setups, which writes pilot-top5.json; ict-flags-1y --apply
-        writes ict_disp/ict_pd/std_origin INTO pilot-top5.json directly (and rank-setups carries those keys over
-        on rewrite), so it is a decision path too -- it was missed on the first pass of this change.
+        actually takes. stability-report feeds rank-setups, which writes pilot-top5.json. (scripts/ict-flags-1y.py
+        used to be a third decision path here -- it wrote ict_disp/ict_pd/std_origin straight into
+        pilot-top5.json. It was deleted 2026-09-19 with those three flags: none of them could change an ICT
+        setup, so the year it tuned them measured noise. See docs/audits/2026-09-19-knowledge-fidelity.md.)
 
         A script that genuinely wants the unfiltered population may still pass --min-rr 0 on the command line;
         what is banned is pinning it in code where nobody sees it.
@@ -178,7 +208,7 @@ class LiveGate(unittest.TestCase):
         """
         import re
         pinned = re.compile(r"OPTS(?:\.update\(|\[).*min_rr\s*=\s*0(?:\.0+)?\b")
-        for fname in ("stability-report.py", "ict-flags-1y.py", "strategy-runner.py", "backtest-methods.py"):
+        for fname in ("stability-report.py", "strategy-runner.py", "backtest-methods.py"):
             for i, line in enumerate(open(os.path.join(ROOT, "scripts", fname), encoding="utf-8"), 1):
                 if line.lstrip().startswith("#"):
                     continue
@@ -240,7 +270,8 @@ class OneFloorReaderForBothOrderPaths(unittest.TestCase):
         saved = self.sr.MIN_RR
         try:
             self.sr.MIN_RR = None
-            self.assertIsNotNone(self.sr.rr_reason({"r_planned": 99.0}))
+            self.assertIsNotNone(self.sr.rr_reason({"r_planned": 99.0, "entry": 100.0,
+                                                    "stop": 99.0, "target": 199.0}, "futures"))
         finally:
             self.sr.MIN_RR = saved
 
@@ -267,10 +298,11 @@ class BacktestReportHonesty(unittest.TestCase):
             self.assertNotIn(phrase, self.src, f"stale risk literal in prose: {phrase!r}")
 
     def test_period_keys_are_the_union_across_methods_not_one_method_s(self):
-        """The year/quarter/month tables took their row labels from res["WYCKOFF"]. WYCKOFF ruins in 2023 on this
-        data, so its period list stops there -- and 2024 and 2025 vanished from the table for EVERY method,
-        including the one that was actually profitable."""
-        res = {"WYCKOFF": {"years": [("2023", -90.1)]},
+        """The year/quarter/month tables took their row labels from one method's own list (originally
+        res["WYCKOFF"], the mechanical proxy removed 2026-09-19 -- docs/audits/2026-09-19-knowledge-fidelity.md
+        finding 6). That method ruins in 2023 on this data, so its period list stops there -- and 2024 and 2025
+        vanished from the table for EVERY method, including the one that was actually profitable."""
+        res = {"RUINED-METHOD": {"years": [("2023", -90.1)]},
                "ICT": {"years": [("2023", 42.7), ("2024", 109.1), ("2025", 60.3), ("2026", 103.7)]}}
         self.assertEqual(self.bt.period_keys(res, "years"), ["2023", "2024", "2025", "2026"])
 

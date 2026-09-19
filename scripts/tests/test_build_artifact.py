@@ -15,6 +15,22 @@ def load(name):
     m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
 
 
+_I18N = load("i18n.py")
+
+# A dims reason is (message key, params), not a sentence, so the same reason can be said in either language.
+# Tests name the reason by key and compare against its rendered text, which is what makes them locale-agnostic:
+# the assertion is "this reason was stated", not "this Vietnamese sentence appeared".
+ON = ("dims.reason.in_use", {})
+OFF = ("dims.reason.off", {})
+NO_SRC = ("dims.reason.no_commodity_source", {})
+NO_CANDLES = ("dims.reason.no_candles", {})
+
+
+def _say(reason, lang=None):
+    key, params = reason
+    return _I18N.t(key, lang or _I18N.DEFAULT, **params)
+
+
 def synth(n, t0="2026-09-01T00:00:00Z", step_min=15, base=77000.0):
     """Deterministic OHLCV rows in the connector's shape (no live data needed to run the tests)."""
     import datetime
@@ -73,7 +89,13 @@ class Page(unittest.TestCase):
         self.assertIn("btc", data)
         sym = next(iter(data.values()))
         self.assertEqual([t["key"] for t in sym["tiers"]][-1], "entry")
-        self.assertTrue(all(len(r) == 7 for t in sym["tiers"] for r in t["rows"]))
+        # A candle row is [open, high, low, close, volume, isoUTC] -- six fields. The seventh, a leading
+        # Python-formatted time label, was removed on 2026-09-17: chart.js never read it (it derives every
+        # time from the ISO), it was 13% of the page, and a pre-formatted label cannot serve two languages
+        # and two timezones. This pins the shape so it cannot silently grow one back.
+        self.assertTrue(all(len(r) == 6 for t in sym["tiers"] for r in t["rows"]))
+        self.assertTrue(all(isinstance(r[5], str) and r[5].endswith("Z") for t in sym["tiers"] for r in t["rows"]),
+                        "the last field of every row must be the candle's UTC ISO time")
         self.assertIn("lookback", params)
 
 
@@ -87,7 +109,7 @@ class Engine(unittest.TestCase):
         return json.loads(p.stdout)
 
     def test_ict_engine_result_is_a_function_of_the_window_only(self):
-        rows = [[r["time"][5:16], r["open"], r["high"], r["low"], r["close"], r["volume"], r["time"]] for r in synth(240)]
+        rows = [[r["open"], r["high"], r["low"], r["close"], r["volume"], r["time"]] for r in synth(240)]
         P = {"lookback": 20, "high": 1.5, "spike": 2.5, "ict": {}}
         out = self.run_js(f"const rows={json.dumps(rows)}, P={json.dumps(P)};"
                           "const a=T.ictAnalyze(rows,{kz:true,tfMin:15,market:'crypto'},P);"
@@ -96,25 +118,63 @@ class Engine(unittest.TestCase):
         self.assertTrue(out["same"])
         for k in ("fvgs", "obs", "mss", "pools", "levels", "sess", "kz", "eq", "hi", "lo", "pct"):
             self.assertIn(k, out["keys"])
-        self.assertEqual(out["hi"], max(r[2] for r in rows)); self.assertEqual(out["lo"], min(r[3] for r in rows))
+        self.assertEqual(out["hi"], max(r[1] for r in rows)); self.assertEqual(out["lo"], min(r[2] for r in rows))
 
     def test_volume_stats_use_the_project_lookback(self):
-        rows = [[r["time"][5:16], r["open"], r["high"], r["low"], r["close"], r["volume"], r["time"]] for r in synth(60)]
+        rows = [[r["open"], r["high"], r["low"], r["close"], r["volume"], r["time"]] for r in synth(60)]
         out = self.run_js(f"const rows={json.dumps(rows)};"
                           "const v=T.volStats(rows,{lookback:20}); console.log(JSON.stringify({n:v.ratio.length, first:v.ratio.slice(0,3), last:v.ratio[59]}))")
         self.assertEqual(out["n"], 60); self.assertEqual(out["first"], [None, None, None]); self.assertIsInstance(out["last"], float)
 
     def test_annotation_builders_are_pure(self):
         """Overlay shapes are plain {kind,...} records in (bar index, price) space so they can be checked without a browser."""
-        rows = [[r["time"][5:16], r["open"], r["high"], r["low"], r["close"], r["volume"], r["time"]] for r in synth(120)]
+        rows = [[r["open"], r["high"], r["low"], r["close"], r["volume"], r["time"]] for r in synth(120)]
         out = self.run_js(f"const rows={json.dumps(rows)};"
                           "const P={lookback:20,high:1.5,spike:2.5,ict:{}}; const ict=T.ictAnalyze(rows,{kz:true,tfMin:15,market:'crypto'},P);"
                           "const sh=T.ictShapes(rows,ict,{compact:false,fmt:v=>String(v)});"
-                          "const wy=T.wyckoffShapes(rows,{tr:{high:77300,low:76900,from:rows[10][6]},phases:[{from:rows[5][6],to:rows[40][6],label:'Pha B'}],events:[{time:rows[20][6],label:'SC 76,900',up:false}]},{compact:false,fmt:v=>String(v)});"
+                          "const wy=T.wyckoffShapes(rows,{tr:{high:77300,low:76900,from:rows[10][5]},phases:[{from:rows[5][5],to:rows[40][5],label:'Pha B'}],events:[{time:rows[20][5],label:'SC 76,900',up:false}]},{compact:false,fmt:v=>String(v)});"
                           "console.log(JSON.stringify({kinds:[...new Set(sh.concat(wy).map(s=>s.kind))].sort(), wyN:wy.length, allPlaced:sh.concat(wy).every(s=>s.kind&&(('i1' in s)||('i' in s)))}))")
         self.assertTrue(out["allPlaced"], "every shape carries a bar-index position (i or i1; null = full width)")
         self.assertTrue({"rect", "hseg"} <= set(out["kinds"]))
         self.assertGreaterEqual(out["wyN"], 4)  # TR high + TR low + phase band + event mark
+
+    def test_expectation_shapes_are_pure_and_per_methodology(self):
+        """Task B3 (plan §0.7): expectationShapes draws only the ACTIVE lane's own records, one hseg per leg,
+        and never mixes another methodology's legs into the same lane's shapes (CLAUDE.md §17)."""
+        rows = [[r["open"], r["high"], r["low"], r["close"], r["volume"], r["time"]] for r in synth(60)]
+        plan = {
+            "date_opened": rows[10][5],
+            "expectations": [
+                {"id": "aaa111aaa111", "status": "POTENTIAL", "original": {
+                    "methodology": "ict",
+                    "expected_path": [
+                        {"phase": "before_entry", "level": 100.0, "label": "vùng vào lệnh"},
+                        {"phase": "entry_area", "level": 100.0, "label": "entry"},
+                        {"phase": "after_entry", "level": 103.0, "label": "target_1"},
+                    ]}},
+                {"id": "bbb222bbb222", "status": "POTENTIAL", "original": {
+                    "methodology": "wyckoff",
+                    "expected_path": [
+                        {"phase": "before_entry", "level": 99.0, "label": "vùng vào lệnh"},
+                        {"phase": "entry_area", "level": 99.0, "label": "entry"},
+                        {"phase": "after_entry", "level": 102.0, "label": "target_1"},
+                    ]}},
+            ],
+        }
+        out = self.run_js(f"const rows={json.dumps(rows)}, plans={json.dumps([plan])};"
+                          "const ict=T.expectationShapes(rows,plans,'ict',v=>String(v));"
+                          "const wy=T.expectationShapes(rows,plans,'wyckoff',v=>String(v));"
+                          "console.log(JSON.stringify({ictN:ict.length, wyN:wy.length, "
+                          "ictKinds:[...new Set(ict.map(s=>s.kind))], allPlaced:ict.concat(wy).every(s=>('i1' in s)),"
+                          "ictPrices:ict.map(s=>s.price), wyPrices:wy.map(s=>s.price)}))")
+        self.assertEqual(out["ictN"], 3, "one hseg per leg -- three legs in the ict fixture")
+        self.assertEqual(out["wyN"], 3)
+        self.assertEqual(out["ictKinds"], ["hseg"])
+        self.assertTrue(out["allPlaced"])
+        self.assertEqual(sorted(out["ictPrices"]), [100.0, 100.0, 103.0])
+        self.assertEqual(sorted(out["wyPrices"]), [99.0, 99.0, 102.0])
+        # never merged: ict's shapes carry none of wyckoff's prices and vice versa
+        self.assertTrue(set(out["ictPrices"]).isdisjoint(out["wyPrices"]))
 
 
 class NoEmptyIctPaneApology(unittest.TestCase):
@@ -152,6 +212,64 @@ class PaneRegistryDrivesChartJs(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which("node"), "node not on PATH")
+class RowFieldPositions(unittest.TestCase):
+    """The candle row is a positional array shared between two files: build-artifact.py writes it, chart.js
+    reads it. That contract has no schema and no runtime check -- a wrong index reads a neighbouring field and
+    draws something plausible rather than throwing.
+
+    It broke exactly that way. The i18n work dropped a dead leading label field, shifting every position by
+    one; two of the ~20 read sites were missed. An MSS segment then drew from its level down to the bar's
+    VOLUME on the price scale, and a volume-spike label took an ISO date string as its price -- on the ICT
+    lane, the lane every published page uses. Nothing failed: the Python suite never reaches the shape
+    builders, and the node engine tests only exercised ictAnalyze/volStats/rangePctSeries.
+
+    So both halves are pinned here: the names chart.js uses against the order build-artifact.py documents,
+    and the two previously-wrong sites executed for real under node.
+    """
+
+    def test_the_named_positions_match_the_order_the_builder_writes(self):
+        js = open(CHART_JS, encoding="utf-8").read()
+        m = re.search(r"const OPEN=(\d), HIGH=(\d), LOW=(\d), CLOSE=(\d), VOL=(\d), ISO=(\d);", js)
+        self.assertTrue(m, "chart.js must name its row field positions, not use bare integers")
+        self.assertEqual([int(g) for g in m.groups()], [0, 1, 2, 3, 4, 5])
+        doc = open(os.path.join(ROOT, "scripts", "build-artifact.py"), encoding="utf-8").read()
+        self.assertIn("[open, high, low, close, volume, isoUTC]", doc,
+                      "rows_js must document the row order these names are pinned against")
+
+    def test_no_bare_row_index_survives_in_chart_js(self):
+        js = open(CHART_JS, encoding="utf-8").read()
+        bad = [ln for ln in js.split("\n")
+               if re.search(r"\b(rows|rowsV|r|c|full)\[[A-Za-z0-9_.+ -]*\]\[[0-5]\]", ln)]
+        self.assertEqual(bad, [], "a bare row index is unreviewable — use OPEN/HIGH/LOW/CLOSE/VOL/ISO")
+
+    def run_js(self, body):
+        p = subprocess.run(["node", "-e", f"const T=require({json.dumps(CHART_JS)}); {body}"],
+                           capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return json.loads(p.stdout)
+
+    def test_an_mss_segment_ends_on_the_close_not_the_volume(self):
+        """`vseg.p2` is a PRICE. Reading the volume there put a 1-13 figure on a 77,000 price scale.
+
+        The MSS is handed in rather than discovered, so the test exercises the drawing code directly instead
+        of depending on the synthetic series happening to shift structure.
+        """
+        rows = [[r["open"], r["high"], r["low"], r["close"], r["volume"], r["time"]] for r in synth(240)]
+        mss_i = 200
+        ict = {"n": len(rows), "kz": [], "hi": 78000.0, "eq": 77500.0, "lo": 77000.0, "pct": 0.5,
+               "drSource": "window", "fvgs": [], "obs": [], "cisd": [], "pools": [], "levels": [], "sess": [],
+               "ote": None, "std": None, "mss": [{"type": "bull", "i": mss_i, "level": 77100.0, "disp": True}]}
+        out = self.run_js(f"const rows={json.dumps(rows)}, ict={json.dumps(ict)};"
+                          "const S=T.ictShapes(rows,ict,{compact:false,fmt:x=>String(x)});"
+                          "const v=S.filter(s=>s.kind==='vseg');"
+                          "console.log(JSON.stringify({n:v.length, p2:v.map(s=>s.p2), "
+                          "closes:v.map(s=>rows[s.i][3]), vols:v.map(s=>rows[s.i][4])}))")
+        self.assertEqual(out["n"], 1, "the handed-in MSS must produce exactly one vertical segment")
+        self.assertEqual(out["p2"], out["closes"], "an MSS segment must end at the bar's close")
+        self.assertNotEqual(out["p2"], out["vols"], "it must not end at the bar's volume")
+
+
+@unittest.skipUnless(shutil.which("node"), "node not on PATH")
 class RangePctSeriesEngine(unittest.TestCase):
     """Pure function backing the ICT pane's range_pct kind: per-bar position within the dealing range
     (ict.lo/ict.hi, already computed by ictAnalyze), 0-100, so it can be checked without a browser."""
@@ -162,7 +280,7 @@ class RangePctSeriesEngine(unittest.TestCase):
         return json.loads(p.stdout)
 
     def test_series_is_a_pure_function_of_rows_and_dealing_range(self):
-        rows = [[r["time"][5:16], r["open"], r["high"], r["low"], r["close"], r["volume"], r["time"]] for r in synth(120)]
+        rows = [[r["open"], r["high"], r["low"], r["close"], r["volume"], r["time"]] for r in synth(120)]
         P = {"lookback": 20, "high": 1.5, "spike": 2.5, "ict": {}}
         out = self.run_js(f"const rows={json.dumps(rows)}, P={json.dumps(P)};"
                           "const ict=T.ictAnalyze(rows,{kz:true,tfMin:15,market:'crypto'},P);"
@@ -211,7 +329,7 @@ class DimensionFlagsAreReal(unittest.TestCase):
         import importlib.util
         spec = importlib.util.spec_from_file_location("ba", os.path.join(ROOT, "scripts", "build-artifact.py"))
         ba = importlib.util.module_from_spec(spec); spec.loader.exec_module(ba)
-        dims = {d: {"engaged": d == "wyckoff", "reason": ""} for d in ("wyckoff", "ict", "footprint", "heatmap")}
+        dims = {d: {"engaged": d == "wyckoff", "reason": ("dims.reason.in_use", {})} for d in ("wyckoff", "ict", "footprint", "heatmap")}
         html = ba.matrix("btc", "int", None, None, None, dims)
         self.assertIn("lane-wyckoff", html)
         self.assertNotIn("lane-ict", html)
@@ -246,7 +364,7 @@ class LadderColumnsDropADisengagedWyckoffOrIct(unittest.TestCase):
 
     def test_ladder_columns_drop_a_disengaged_wyckoff_or_ict(self):
         ba = load("build-artifact.py")
-        dims = {d: {"engaged": d == "wyckoff", "reason": ""} for d in ("wyckoff", "ict", "footprint", "heatmap")}
+        dims = {d: {"engaged": d == "wyckoff", "reason": ("dims.reason.in_use", {})} for d in ("wyckoff", "ict", "footprint", "heatmap")}
         html = ba.ladder(_stub_S(), "BTCUSDT", "int", "—", None, None, {}, None, dims)
         self.assertIn("lane-wyckoff", html)
         self.assertNotIn("lane-ict", html)
@@ -254,13 +372,13 @@ class LadderColumnsDropADisengagedWyckoffOrIct(unittest.TestCase):
     def test_ladder_drops_wyckoff_when_ict_is_the_only_engaged_method(self):
         """The reported defect: SOLO ICT preset, dims.wyckoff.engaged is False, dims.ict.engaged is True."""
         ba = load("build-artifact.py")
-        dims = {"wyckoff": {"engaged": False, "reason": "tắt trong /automation"}, "ict": {"engaged": True, "reason": "đang dùng"},
-                "footprint": {"engaged": False, "reason": "..."}, "heatmap": {"engaged": False, "reason": "..."}}
+        dims = {"wyckoff": {"engaged": False, "reason": OFF}, "ict": {"engaged": True, "reason": ON},
+                "footprint": {"engaged": False, "reason": NO_SRC}, "heatmap": {"engaged": False, "reason": NO_SRC}}
         html = ba.ladder(_stub_S(), "BTCUSDT", "int", "—", None, None, {}, None, dims)
         self.assertNotIn("lane-wyckoff", html, "Wyckoff column must not render when dims.wyckoff.engaged is False")
-        self.assertNotIn("chưa có đọc Wyckoff cho khung này", html, "Wyckoff cell text must not leak into the ladder when disengaged")
+        self.assertNotIn(_say(("ladder.no_wyckoff_read", {})), html, "Wyckoff cell text must not leak into the ladder when disengaged")
         self.assertIn("lane-ict", html)
-        self.assertIn("tắt trong /automation", html, "the disengaged reason must be stated, not silently dropped (matrix() convention)")
+        self.assertIn(_say(OFF), html, "the disengaged reason must be stated, not silently dropped (matrix() convention)")
 
 
 class TimelineColumnsDropADisengagedWyckoffOrIct(unittest.TestCase):
@@ -270,13 +388,13 @@ class TimelineColumnsDropADisengagedWyckoffOrIct(unittest.TestCase):
 
     def test_timeline_drops_the_wyckoff_column_when_disengaged(self):
         ba = load("build-artifact.py")
-        dims = {"wyckoff": {"engaged": False, "reason": "tắt trong /automation"}, "ict": {"engaged": True, "reason": "đang dùng"}}
+        dims = {"wyckoff": {"engaged": False, "reason": OFF}, "ict": {"engaged": True, "reason": ON}}
         rows = [{"time": "2026-09-01T00:00:00Z", "event": "MSS", "wyckoff": "LEAK-WYCKOFF-TEXT", "ict": "MSS tăng"}]
         html = ba.timeline(rows, dims)
         self.assertNotIn("lane-wyckoff", html)
         self.assertNotIn("LEAK-WYCKOFF-TEXT", html, "a disengaged method's cell content must not render at all")
         self.assertIn("lane-ict", html)
-        self.assertIn("MSS tăng", html)
+        self.assertIn("MSS tăng", html)   # model prose, shown verbatim
 
 
 class NoDisengagedMethodContentAnywhereInThePage(unittest.TestCase):
@@ -286,9 +404,9 @@ class NoDisengagedMethodContentAnywhereInThePage(unittest.TestCase):
 
     def test_wyckoff_off_ict_on_leaves_no_wyckoff_content_in_any_table(self):
         ba = load("build-artifact.py")
-        dims = {"wyckoff": {"engaged": False, "reason": "tắt trong /automation"}, "ict": {"engaged": True, "reason": "đang dùng"},
-                "footprint": {"engaged": False, "reason": "không có nguồn CoinGlass live"},
-                "heatmap": {"engaged": False, "reason": "không có nguồn CoinGlass live"}}
+        dims = {"wyckoff": {"engaged": False, "reason": OFF}, "ict": {"engaged": True, "reason": ON},
+                "footprint": {"engaged": False, "reason": NO_SRC},
+                "heatmap": {"engaged": False, "reason": NO_SRC}}
         matrix_html = ba.matrix("btc", "int", None, None, None, dims)
         ladder_html = ba.ladder(_stub_S(), "BTCUSDT", "int", "—", None, None, {}, None, dims)
         timeline_html = ba.timeline([{"time": "2026-09-01T00:00:00Z", "event": "x", "wyckoff": "LEAK-WY", "ict": "LEAK-ICT"}], dims)
@@ -310,7 +428,7 @@ class MatrixColumnCountHasACssRule(unittest.TestCase):
         methods = load("methods.py")
         seen_cols = set()
         for preset in methods.PRESETS:
-            dims = {d: {"engaged": d in preset["dimensions"], "reason": ""} for d in methods.ALL_DIMENSIONS}
+            dims = {d: {"engaged": d in preset["dimensions"], "reason": ("dims.reason.in_use", {})} for d in methods.ALL_DIMENSIONS}
             html = ba.matrix("btc", "int", None, None, None, dims)
             m = re.search(r'class="matrix (cols-\d+)"', html)
             self.assertIsNotNone(m, f"preset '{preset['id']}' did not emit a cols-N class")
@@ -330,14 +448,13 @@ class MatrixFooterExplainsEveryDisengagedLane(unittest.TestCase):
         ba = load("build-artifact.py")
         # one lane engaged (footprint) so the matrix renders normally rather than the cols-0 "nothing on" notice
         dims = {
-            "wyckoff": {"engaged": False, "reason": "tắt trong /automation"},
-            "ict": {"engaged": False, "reason": "tắt trong /automation (khác)"},
-            "footprint": {"engaged": True, "reason": "đang dùng"},
-            "heatmap": {"engaged": False, "reason": "không có nguồn CoinGlass live"},
+            "wyckoff": {"engaged": False, "reason": OFF},
+            "ict": {"engaged": False, "reason": NO_CANDLES},
+            "footprint": {"engaged": True, "reason": ON},
+            "heatmap": {"engaged": False, "reason": NO_SRC},
         }
         html = ba.matrix("btc", "int", None, None, None, dims)
-        for label, reason in (("Wyckoff", "tắt trong /automation"), ("ICT", "tắt trong /automation (khác)"),
-                              ("Heatmap", "không có nguồn CoinGlass live")):
+        for label, reason in (("Wyckoff", _say(OFF)), ("ICT", _say(NO_CANDLES)), ("Heatmap", _say(NO_SRC))):
             self.assertIn(label, html, f"{label} missing from footer notes")
             self.assertIn(reason, html, f"reason for {label} missing from footer notes")
 
@@ -402,6 +519,99 @@ class ChartJsReadsInjectedLaneFacts(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+class OverlayLanesAreRegistryDerived(unittest.TestCase):
+    """Task B3 (plan §0.7): OVERLAY_LANES comes from `dimensions.<d>.overlay_engine`, not a hand-kept
+    ("wyckoff", "ict") literal -- that pair used to be typed out in six places in this file."""
+
+    def test_no_hardcoded_wyckoff_ict_tuple_literal_survives(self):
+        src = open(os.path.join(ROOT, "scripts", "build-artifact.py"), encoding="utf-8").read()
+        self.assertNotIn('("wyckoff", "ict")', src)
+
+    def test_overlay_lanes_matches_the_registry(self):
+        b = load("build-artifact.py")
+        methods = load("methods.py")
+        want = tuple(d for d in methods.ALL_DIMENSIONS if methods.DIMENSIONS[d].get("overlay_engine"))
+        self.assertEqual(b.OVERLAY_LANES, want)
+        self.assertEqual(set(b.OVERLAY_LANES), {"wyckoff", "ict"})
+
+
+@unittest.skipUnless(shutil.which("node"), "node not on PATH")
+class ChartJsDrawnGateUsesAnalysedNotEngaged(unittest.TestCase):
+    """Task B3 (plan §0.7): `drawnFor` must key on `analysed` (CLAUDE.md §15 -- trading selection is not a
+    global analysis filter), and an analysed-but-not-engaged lane must carry the `chart.lane.not_in_confluence`
+    notice; the lane-status text for a lane that is NOT analysed must stay unchanged."""
+
+    def test_drawn_for_reads_analysed_not_engaged(self):
+        src = open(CHART_JS, encoding="utf-8").read()
+        self.assertIn("DATA[key].analysed", src)
+        self.assertNotIn("DATA[key].engaged||[]).includes(lane)", src.replace(" ", ""))
+
+    def test_not_in_confluence_key_is_referenced(self):
+        src = open(CHART_JS, encoding="utf-8").read()
+        self.assertIn("chart.lane.not_in_confluence", src)
+
+    def test_key_is_defined_in_both_locales(self):
+        catalog = json.load(open(os.path.join(ROOT, "docs", "architecture", "i18n.json"), encoding="utf-8"))
+        entry = catalog["messages"]["chart.lane.not_in_confluence"]
+        self.assertTrue(entry["en"].strip())
+        self.assertTrue(entry["vi"].strip())
+
+
+class ExpectationsFlowThroughToTheBuiltPage(unittest.TestCase):
+    """Task B3 (plan §0.6/§0.7): a plan carrying per-methodology expectations must reach the built page's
+    embedded data unchanged, and the two methodologies must stay distinguishable -- never merged (CLAUDE.md
+    §17). `trade_plans` is monkeypatched rather than touching the real trades/index.jsonl store (dispatch note:
+    "use a temp copy or monkeypatched trade_plans")."""
+
+    def _build(self, plans):
+        b = load("build-artifact.py")
+        real_read = b.read_json
+        keep = ("analysis-params.json", "automation-config.json")
+        b.read_json = lambda path, default=None: real_read(path, default) if path.endswith(keep) else default
+        b.candles = lambda sym, tf, n, snap=None: (synth(n, step_min=b.TF_MIN.get(tf, 15)), "2026-09-12T00:00:00Z", "test-fixture")
+        b.trade_plans = lambda sym: plans
+        tmp = tempfile.mkdtemp()
+        try:
+            out = os.path.join(tmp, "scalping.html")
+            b.build("scalping", out)
+            html = open(out, encoding="utf-8").read()
+            at = html.find("TChart.init(")
+            dec = json.JSONDecoder()
+            data, end = dec.raw_decode(html, at + len("TChart.init("))
+            return html, data
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_analysed_is_emitted_alongside_engaged(self):
+        _html, data = self._build([])
+        sym = next(iter(data.values()))
+        self.assertIn("analysed", sym)
+        self.assertTrue(set(sym["analysed"]) <= {"wyckoff", "ict", "footprint", "heatmap"})
+
+    def test_two_methodologies_expectations_stay_apart_in_the_built_page(self):
+        X = load("expectation.py")
+        EP = load("expectation_producer.py")
+        plan_row = dict(id="2026-09-17-TEST-01", direction="LONG", entry=100.0, stop_loss=99.0, targets=[103.0],
+                        planned_rr=3.0, status="OPEN", rehearsal_mode=False, date_opened="2026-09-01T01:00:00Z",
+                        setup_type="test")
+        ict_rec = EP.from_plan(plan_row, "ict", created_at="2026-09-01T01:00:00Z")
+        wy_rec = EP.from_plan(plan_row, "wyckoff", created_at="2026-09-01T01:00:00Z")
+        plan_row["expectations"] = [X.to_json(ict_rec), X.to_json(wy_rec)]
+        _html, data = self._build([plan_row])
+        sym = next(iter(data.values()))
+        plans = sym["plans"]
+        self.assertEqual(len(plans), 1)
+        exps = plans[0]["expectations"]
+        methodologies = sorted(e["original"]["methodology"] for e in exps)
+        self.assertEqual(methodologies, ["ict", "wyckoff"])
+        phases = {leg["phase"] for e in exps for leg in e["original"]["expected_path"]}
+        self.assertEqual(phases, {"before_entry", "entry_area", "after_entry"})
+        # never merged: each record keeps its OWN methodology and its OWN id, not a synthesized cross-methodology path
+        ict_only = next(e for e in exps if e["original"]["methodology"] == "ict")
+        wy_only = next(e for e in exps if e["original"]["methodology"] == "wyckoff")
+        self.assertNotEqual(ict_only["id"], wy_only["id"])
+
+
 class PageChromeNamesOnlyTheEngagedMethods(unittest.TestCase):
     """The tables were gated method-by-method (matrix/ladder/timeline above); the page CHROME was not. The lede
     said "đọc bằng Wyckoff (giá + khối lượng) và ICT (cấu trúc giá) riêng rẽ, rồi tổng hợp" as a plain string
@@ -420,53 +630,73 @@ class PageChromeNamesOnlyTheEngagedMethods(unittest.TestCase):
 
     ALL = ("wyckoff", "ict", "footprint", "heatmap")
 
-    def clause(self, *on):
+    def clause(self, *on, lang=None):
         ba = load("build-artifact.py")
-        return ba.method_clause({d: d in on for d in self.ALL})
+        return ba.method_clause({d: d in on for d in self.ALL}, lang or _I18N.DEFAULT)
 
+    def reads(self, dim, lang):
+        """The dimension's own reading-basis gloss, from the registry -- never a literal in this file."""
+        import methods as _M
+        return _M.text(dim, "reads", lang)
+
+    # Every case below runs in EVERY locale. The invariant was never about one language's words: it is that a
+    # clause names the engaged methods and only those, and claims a synthesis step only when there is one.
     def test_one_engaged_method_is_named_alone_with_no_synthesis_claim(self):
-        c = self.clause("ict")
-        self.assertIn("ICT", c)
-        self.assertIn("cấu trúc giá", c, "the dimension's own reading basis must still be stated")
-        self.assertNotIn("Wyckoff", c)
-        self.assertNotIn("khối lượng", c, "Wyckoff's reading basis must not appear in an ICT-only clause")
-        self.assertNotIn("riêng rẽ", c, "'separately' is meaningless with one method")
-        self.assertNotIn("tổng hợp", c, "there is no synthesis step with one method")
+        for lang in _I18N.LOCALES:
+            c = self.clause("ict", lang=lang)
+            self.assertIn("ICT", c)
+            self.assertIn(self.reads("ict", lang), c, "the dimension's own reading basis must still be stated")
+            self.assertNotIn("Wyckoff", c)
+            self.assertNotIn(self.reads("wyckoff", lang), c, "Wyckoff's reading basis must not appear in an ICT-only clause")
+            self.assertNotIn(_I18N.t("lede.read_with_many", lang, methods="", last=""), c,
+                             "'separately, then synthesised' is meaningless with one method")
 
     def test_wyckoff_only_is_the_mirror_case(self):
-        c = self.clause("wyckoff")
-        self.assertIn("Wyckoff", c)
-        self.assertIn("khối lượng", c)
-        self.assertNotIn("ICT", c)
-        self.assertNotIn("tổng hợp", c)
+        for lang in _I18N.LOCALES:
+            c = self.clause("wyckoff", lang=lang)
+            self.assertIn("Wyckoff", c)
+            self.assertIn(self.reads("wyckoff", lang), c)
+            self.assertNotIn("ICT", c)
+            self.assertNotIn(self.reads("ict", lang), c)
 
     def test_two_engaged_methods_keep_the_separate_then_synthesise_wording(self):
-        c = self.clause("wyckoff", "ict")
-        self.assertIn("Wyckoff", c)
-        self.assertIn("ICT", c)
-        self.assertIn("riêng rẽ", c)
-        self.assertIn("tổng hợp", c)
+        for lang in _I18N.LOCALES:
+            c = self.clause("wyckoff", "ict", lang=lang)
+            self.assertIn("Wyckoff", c)
+            self.assertIn("ICT", c)
+            # the many-method template is the one that claims a synthesis step; the one-method template does not
+            tail = _I18N.t("lede.read_with_many", lang, methods="\x00", last="\x01").split("\x01")[-1]
+            self.assertTrue(c.endswith(tail.rstrip()) or tail.strip() in c,
+                            f"the separate-then-synthesise wording is missing from: {c}")
 
     def test_four_engaged_methods_name_all_four(self):
-        c = self.clause(*self.ALL)
-        for label in ("Wyckoff", "ICT", "Footprint", "Heatmap"):
-            self.assertIn(label, c)
-        self.assertIn("tổng hợp", c)
+        for lang in _I18N.LOCALES:
+            c = self.clause(*self.ALL, lang=lang)
+            for label in ("Wyckoff", "ICT", "Footprint", "Heatmap"):
+                self.assertIn(label, c)
 
     def test_no_engaged_method_says_so_instead_of_naming_one(self):
-        c = self.clause()
-        for label in ("Wyckoff", "ICT", "Footprint", "Heatmap"):
-            self.assertNotIn(label, c, "a page with no engaged lane must not name a method at all")
-        self.assertIn("/automation", c, "it must say where the switch is")
+        for lang in _I18N.LOCALES:
+            c = self.clause(lang=lang)
+            for label in ("Wyckoff", "ICT", "Footprint", "Heatmap"):
+                self.assertNotIn(label, c, "a page with no engaged lane must not name a method at all")
+            self.assertIn("/automation", c, "it must say where the switch is")
 
     def test_the_clause_reads_its_glosses_from_the_registry_not_a_literal(self):
-        """methods.json is the single source for the Vietnamese reading-basis gloss, the same way `label` and
-        `pane` already are. A second copy in build-artifact.py is how the first defect happened."""
+        """methods.json is the single source for the reading-basis gloss, the same way `label` and `pane`
+        already are -- now one entry per locale. A second copy in build-artifact.py, or in i18n.json, is how the
+        first defect happened."""
         import json as _j
         reg = _j.load(open(os.path.join(ROOT, "docs", "architecture", "methods.json"), encoding="utf-8"))
+        cat = _j.load(open(os.path.join(ROOT, "docs", "architecture", "i18n.json"), encoding="utf-8"))["messages"]
         for d, v in reg["dimensions"].items():
             self.assertIn("reads", v, f"dimension {d} has no `reads` gloss in methods.json")
-            self.assertIn(v["reads"], self.clause(d), f"{d}'s clause must quote its registry gloss verbatim")
+            for lang in _I18N.LOCALES:
+                self.assertIn(lang, v["reads"], f"dimension {d}'s `reads` gloss has no {lang} text")
+                gloss = v["reads"][lang]
+                self.assertIn(gloss, self.clause(d, lang=lang), f"{d}'s clause must quote its registry gloss verbatim")
+                self.assertNotIn(gloss, [m.get(lang) for m in cat.values()],
+                                 f"{d}'s reading-basis gloss belongs to methods.json, not the message catalog")
 
     def test_glossary_prints_only_engaged_lanes(self):
         ba = load("build-artifact.py")
@@ -474,7 +704,10 @@ class PageChromeNamesOnlyTheEngagedMethods(unittest.TestCase):
         self.assertIn("lane-ict", html)
         for off in ("wyckoff", "footprint", "heatmap"):
             self.assertNotIn(f"lane-{off}", html, f"{off} terminology must not print when the lane is disengaged")
-        self.assertNotIn("Cao trào bán", html, "a disengaged method's glossary entries must not render")
+        # stronger than checking one term: no Wyckoff glossary BLOCK at all, so an emptied-out
+        # block would fail too
+        self.assertNotIn(_I18N.t("gloss.wyckoff.phase_a_events.d", _I18N.DEFAULT)[:30], html,
+                         "a disengaged method's glossary entries must not render")
 
     def test_glossary_with_nothing_engaged_renders_no_lane_block(self):
         ba = load("build-artifact.py")
@@ -488,11 +721,15 @@ class PageChromeNamesOnlyTheEngagedMethods(unittest.TestCase):
         this. Note the flag convention: an ABSENT key means ON (build-artifact.py dims loop, `flag is not False`),
         the opposite of profile_of's truthiness, so the normalisation is load-bearing."""
         ba = load("build-artifact.py")
-        self.assertEqual(ba.preset_label({"wyckoff": False, "ict": True, "footprint": False, "heatmap": False}, "crypto"), "ICT")
-        self.assertEqual(ba.preset_label({"wyckoff": True, "ict": True, "footprint": False, "heatmap": False}, "crypto"), "Wyckoff + ICT")
-        self.assertEqual(ba.preset_label({}, "crypto"), "Đầy đủ 4 chiều", "absent keys mean ON, so {} is all four")
-        self.assertEqual(ba.preset_label({"wyckoff": False, "ict": True}, "cfd"), "ICT",
+        # Which preset was SELECTED is the logic under test, so assert the preset id. The label is copy, and
+        # it lives in methods.json per locale -- covered by the registry completeness check instead.
+        self.assertEqual(ba.preset_id({"wyckoff": False, "ict": True, "footprint": False, "heatmap": False}, "crypto"), "ict")
+        self.assertEqual(ba.preset_id({"wyckoff": True, "ict": True, "footprint": False, "heatmap": False}, "crypto"), "wyckoff+ict")
+        self.assertEqual(ba.preset_id({}, "crypto"), "full", "absent keys mean ON, so {} is all four")
+        self.assertEqual(ba.preset_id({"wyckoff": False, "ict": True}, "cfd"), "ict",
                          "cfd has no footprint/heatmap at all, so their absent keys must not read as ON there")
+        for lang in _I18N.LOCALES:
+            self.assertTrue(ba.preset_label({}, "crypto", lang), f"the configured preset must have a {lang} label")
 
     def test_mode_is_paired_with_the_preset_it_belongs_to(self):
         """The footer printed the NARRATIVE's recorded mode next to a hard-coded "Wyckoff + ICT". Once the config
@@ -562,3 +799,123 @@ class IctOnlyPageMentionsWyckoffNowhereInItsChrome(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoSymbolIsDroppedSilently(unittest.TestCase):
+    """CLAUDE.md §6: an unavailable source is EXPOSED with its reason, never disappeared.
+
+    `STYLE_SYMS["cfd"]` was a hand-written `[_meta("XAUUSD")]` justified by a comment about the MT5 EA only
+    exporting symbols with an attached chart. That stopped being true: a silver chart is attached, XAGUSD has
+    600 live bars in every timeframe, and `automation-config.json` lists it — and the page drew gold alone and
+    said nothing. A hardcoded list cannot become unavailable, so there was nothing for §6 to expose: available
+    analysis was suppressed by a literal.
+
+    Found by opening the built page in a browser and noticing XAGUSD was simply not on it.
+    """
+
+    @staticmethod
+    def _ba():
+        spec = importlib.util.spec_from_file_location("ba", os.path.join(ROOT, "scripts", "build-artifact.py"))
+        m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+        return m
+
+    def test_no_market_has_a_hand_written_symbol_list(self):
+        ba = self._ba()
+        for market in ba._auto.MARKETS:
+            self.assertEqual([m[0] for m in ba.STYLE_SYMS[market]], list(ba.I.analysis(market)),
+                             f"{market}'s page symbols are not its analysis allowlist")
+
+    def test_a_symbol_with_a_feed_is_drawn_and_one_without_is_named(self):
+        ba = self._ba()
+        drawn, absent = ba.drawable(ba.STYLE_SYMS["cfd"], "15m")
+        self.assertIn("XAUUSD", [m[0] for m in drawn])
+        self.assertIn("XAGUSD", [m[0] for m in drawn], "silver has live bars and must be drawn")
+        self.assertEqual(sorted(m[0] for m in absent), ["UKOIL", "USOIL"])
+
+    def test_the_absent_symbols_reach_the_page(self):
+        import subprocess
+        import sys as _sys
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "cfd.html")
+            r = subprocess.run([_sys.executable, os.path.join(ROOT, "scripts", "build-artifact.py"),
+                                "cfd-scalping", "--out", out, "--snapshot-dir", tmp],
+                               capture_output=True, text=True, cwd=ROOT)
+            if r.returncode != 0:
+                self.skipTest(f"the cfd page could not be built here: {r.stdout[-200:]}{r.stderr[-200:]}")
+            with open(out, encoding="utf-8") as fh:
+                html = fh.read()
+        self.assertIn("XAGUSD", html, "silver is drawn")
+        for name in ("USOIL", "UKOIL"):
+            self.assertIn(name, html, f"{name} is allowlisted with no feed and must be NAMED, not dropped")
+        self.assertIn("no feed attached", html)
+
+    def test_a_market_with_no_feed_at_all_still_refuses(self):
+        """Naming the absent ones must not turn a page with zero charts into a page. That is every fx- style."""
+        import subprocess
+        import sys as _sys
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            r = subprocess.run([_sys.executable, os.path.join(ROOT, "scripts", "build-artifact.py"),
+                                "fx-scalping", "--out", os.path.join(tmp, "fx.html")],
+                               capture_output=True, text=True, cwd=ROOT)
+        self.assertNotEqual(r.returncode, 0, "a page with no chart on it was built")
+        self.assertIn("no data for any forex symbol", r.stdout + r.stderr)
+
+
+class PremiumDiscountSaysWhereTheRangeCameFrom(unittest.TestCase):
+    """knowledge/ict/core-a.md §2.18: the dealing range is a BSL<->SSL pair. When one border is the scan
+    window's edge (52% of point-in-time reads on real history) the page must not call the result the decks'
+    'premium'/'discount' without saying so. Knowledge audit 2026-09-19."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.B = load("build-artifact.py")
+
+    def test_a_pool_framed_range_reads_as_the_deck_term_alone(self):
+        self.assertEqual(self.B.dr_qualifier("pools", "vi"), "")
+
+    def test_a_window_border_is_disclosed_in_both_locales(self):
+        for lang, vi_word, en_word in (("vi", "mép cửa sổ", None), ("en", None, "window edge")):
+            mixed = self.B.dr_qualifier("mixed", lang)
+            self.assertIn(vi_word or en_word, mixed, lang)
+        self.assertIn("cả hai biên", self.B.dr_qualifier("window", "vi"))
+        self.assertIn("both borders", self.B.dr_qualifier("window", "en"))
+
+    def test_an_unknown_source_adds_nothing_rather_than_guessing(self):
+        self.assertEqual(self.B.dr_qualifier(None, "vi"), "")
+        self.assertEqual(self.B.dr_qualifier("something-new", "vi"), "")
+
+
+class PhaseBandLabelsAreTheLetterNotSe(unittest.TestCase):
+    """User report 2026-09-19: every Wyckoff phase band on the chart was labelled "se".
+
+    Cause: `String(ph.label).replace(/^(pha|phase)\\s*/i,'').slice(0,2)`. Regex alternation is ORDERED, so
+    "pha" matched first and stripped only 3 characters of "Phase C", leaving "se C" -> sliced to "se". Every
+    phase band on every chart showed the same two letters, which is also why it read as a rendering glitch
+    rather than a label."""
+
+    def _lbl(self, label):
+        """Run the real expression from scripts/chart.js under node -- not a Python re-implementation."""
+        import subprocess, json, re
+        src = open(os.path.join(ROOT, "scripts", "chart.js"), encoding="utf-8").read()
+        m = re.search(r"const lbl=String\(ph\.label\|\|''\)(\.replace\([^;]*?\)\.slice\(0,\s*2\)(?:\.trim\(\))?);", src)
+        self.assertIsNotNone(m, "the phase-label expression moved; update this test to find it")
+        js = f"process.stdout.write(JSON.stringify(String({json.dumps(label)}){m.group(1)}))"
+        out = subprocess.run(["node", "-e", js], capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout)
+
+    def test_every_phase_renders_its_own_letter(self):
+        for letter in "ABCDE":
+            self.assertEqual(self._lbl(f"Phase {letter}"), letter)
+
+    def test_the_vietnamese_prefix_still_works(self):
+        self.assertEqual(self._lbl("Pha C"), "C")
+
+    def test_a_bare_letter_is_left_alone(self):
+        self.assertEqual(self._lbl("C"), "C")
+
+    def test_no_phase_label_renders_as_se(self):
+        for label in ("Phase A", "Phase B", "Phase C", "Phase D", "Phase E", "phase e", "PHASE D"):
+            self.assertNotEqual(self._lbl(label), "se", label)

@@ -21,6 +21,33 @@ required — the frontmatter subset used by this project (scalars, [a, b] lists,
 import argparse, datetime, glob, html, json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import methods as _M      # CLAUDE.md §16/§59: the mode and the dimensions come from the registry, not literals
+import performance as _perf  # CLAUDE.md §39: the ONE computer for the twenty-three performance metrics
+
+
+def _pilot_mode_and_dims(sym, method):
+    """The methodology mode in force and the dimensions a pilot setup's rule family actually uses.
+
+    Both were hard-coded -- `"NORMAL"` and `["wyckoff", "ict"]` -- and both were false. The mode was NORMAL
+    while the live preset resolved to SOLO, and an ICT-only setup was filing itself as having used Wyckoff
+    too. `confluence_score: None` already records that no DecisionAgent ran; the mode here is the
+    CONFIGURATION the trade was taken under, which is what /improve needs to segment by, and the dimensions
+    are the rule family's own `requires[]` from docs/architecture/methods.json.
+
+    Falls back rather than raising: a journal ingest must not fail because a symbol or method is unknown, but
+    it must not invent either, so the fallback is None and the caller omits the field."""
+    mode, dims = None, None
+    try:
+        mode = _M.dispatch_plan(sym)["mode"]
+    except Exception:
+        pass
+    try:
+        req = _M.RUNNER_METHODS.get((method or "").upper(), {}).get("requires")
+        dims = list(req) if req else None
+    except Exception:
+        pass
+    return mode, dims
 TRADES = os.path.join(ROOT, "trades")
 INDEX = os.path.join(TRADES, "index.jsonl")
 PILOT = {"spot": os.path.join(ROOT, "data", "live", "pilot", "log.jsonl"),
@@ -32,6 +59,46 @@ FIELD_ORDER = list(SCHEMA["properties"].keys())
 
 
 # ---------- minimal YAML (frontmatter subset) ----------
+def _split_top_level(inner):
+    r"""Split a `[...]` list's INNER text on top-level commas -- depth-aware over `{}`/`[]` and quote-aware,
+    unlike the regex this replaced.
+
+    The old regex (`re.split(r",\s*(?=(?:[^"']*["'][^"']*["'])*[^"']*$)", inner)`) only tracked quotes, so a
+    list whose items are JSON OBJECTS (scripts/expectation.py `to_json` records, added to `expectations` by
+    B2) split on every comma INSIDE each object too -- `[{"id": "a", "x": 1}]` became `['{"id": "a"', 'x": 1}]`,
+    silently corrupting the round-trip the very first time a nested structure reached frontmatter. Existing
+    fields (`dimensions_used`, `targets`, `tags` -- flat lists of scalars) still split at exactly the same
+    places under the new function, because depth never leaves 0 for them.
+    """
+    parts, buf, depth, i, n = [], [], 0, 0, len(inner)
+    in_str = None
+    while i < n:
+        c = inner[i]
+        if in_str:
+            buf.append(c)
+            if c == "\\" and i + 1 < n:
+                buf.append(inner[i + 1]); i += 2; continue
+            if c == in_str:
+                in_str = None
+        elif c in "\"'":
+            in_str = c; buf.append(c)
+        elif c in "[{":
+            depth += 1; buf.append(c)
+        elif c in "]}":
+            depth -= 1; buf.append(c)
+        elif c == "," and depth == 0:
+            parts.append("".join(buf)); buf = []
+            i += 1
+            while i < n and inner[i] == " ":
+                i += 1
+            continue
+        else:
+            buf.append(c)
+        i += 1
+    parts.append("".join(buf))
+    return parts
+
+
 def _scalar(v):
     v = v.strip()
     if v == "" or v == "null" or v == "~": return None
@@ -41,7 +108,7 @@ def _scalar(v):
     if re.fullmatch(r"-?\d+\.\d+(e-?\d+)?", v): return float(v)
     if v.startswith("[") and v.endswith("]"):
         inner = v[1:-1].strip()
-        return [] if not inner else [_scalar(x) for x in re.split(r",\s*(?=(?:[^\"']*[\"'][^\"']*[\"'])*[^\"']*$)", inner)]
+        return [] if not inner else [_scalar(x) for x in _split_top_level(inner)]
     if v.startswith("{") and v.endswith("}"):
         try: return json.loads(v)
         except Exception: return v
@@ -92,18 +159,15 @@ def all_trades():
 
 # ---------- helpers ----------
 def session_of(iso):
-    """docs/architecture/session-model.md §2: windows in the exchange-local clock, converted per date (DST-aware); weekends = off."""
-    import datetime as _dt, zoneinfo as _zi
-    t = _dt.datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    if t.weekday() >= 5: return "off"
-    def lh(tz):
-        lt = t.astimezone(_zi.ZoneInfo(tz)); return lt.hour + lt.minute / 60
-    if 8 <= lh("Europe/London") < 11: return "london"
-    ny = lh("America/New_York")
-    if 8.5 <= ny < 11: return "ny_am"
-    if 13.5 <= ny < 16: return "ny_pm"
-    if 20 <= ny < 24: return "asia"
-    return "off"
+    """The session label for an entry time -- one line, because the model is data now (CLAUDE.md §21).
+
+    These windows used to be four `if` branches here, a `const SESSIONS` array in chart.js, a table in
+    session-model.md and an enum in the trade schema, with nothing keeping the four in step. They are now
+    docs/architecture/sessions.json, read through scripts/sessions.py; the if/elif chain also meant an overlap
+    would have been resolved by branch order rather than by a declared rule. Verified equivalent over 70,176
+    instants across 2024-2025 (both DST transitions): zero differences."""
+    import sessions as _sessions
+    return _sessions.primary(iso)
 
 
 def minutes_between(a, b):
@@ -171,16 +235,28 @@ def sync_pilot(market):
             date = opened[:10]; seq = next_seq(date, sym); tid = f"{date}-{sym}-{seq:02d}"
             path = os.path.join(TRADES, f"{tid}.md"); n_new += 1
             strat = e.get("strategy")            # profile top5 records (scripts/strategy-runner.py) carry strategy/tf/htf_pass
+            _pm, _pd = _pilot_mode_and_dims(sym, e.get("method"))
             fm = {"id": tid, "instrument": sym, "date_opened": opened,
                   "setup_type": (f"Top5 {strat}: {'sweep SSL' if side=='LONG' else 'sweep BSL'} → MSS → limit tại mép FVG" + (" (Spring/Upthrust proxy làm bối cảnh)" if strat and strat.startswith("combined") else "")) if strat else
                                 f"Pilot rules: {'SSL' if side=='LONG' else 'BSL'} sweep → MSS → FVG ({'discount' if side=='LONG' else 'premium'})",
-                  "direction": side, "methodology_mode": "NORMAL", "market_regime": "UNCLEAR", "rehearsal_mode": False,
-                  "confluence_score": None, "dimensions_used": ["wyckoff", "ict"], "entry": entry, "stop_loss": stop, "targets": [tp],
+                  "direction": side, "methodology_mode": _pm or "NORMAL", "market_regime": "UNCLEAR", "rehearsal_mode": False,
+                  "confluence_score": None, "dimensions_used": _pd or ["wyckoff", "ict"], "entry": entry, "stop_loss": stop, "targets": [tp],
+                  # §17/§0.6: the expectation records scripts/expectation_producer.py built at runner step 11,
+                  # carried through log("entry", ..., expectations=...) -- never rebuilt here. A trade file
+                  # that rebuilt its own expectations from `entry`/`tp` would drift from the ORIGINAL thesis
+                  # the moment the producer's logic changed, which is exactly what §17 immutability forbids.
+                  "expectations": e.get("expectations") or [],
+                  # plan §0.11: a drill is a real order on fake money placed to prove the path; it is kept
+                  # OUT of every rollup (closed_real) and out of outcomes.ingest, never counted as an edge.
+                  "drill": bool(e.get("drill")),
                   "risk_pct": _risk_pct(e), "position_size": float(e["qty"]), "status": "OPEN",
                   "market": e.get("market", mk), "source": src, "timeframe": e.get("tf", "15m"), "session": session_of(opened),
                   "leverage": e.get("leverage", 1), "planned_rr": planned_rr, "confidence": None, "followed_plan": True,
                   "tags": ["pilot", market, side.lower()] + ([strat, "top5", "htf_pass" if e.get("htf_pass") else "htf_fail"] + (["mt5"] if market == "cfd-mt5" else []) if strat else []),
                   **({"strategy": strat, "htf_pass": bool(e.get("htf_pass"))} if strat else {}),
+                  # CLAUDE.md §14: the setup NAME is reused across rule changes, so the version is what
+                  # actually ties this trade to the rules it was taken under (scripts/setup_version.py).
+                  **({"setup_version": e["setup_version"]} if e.get("setup_version") else {}),
                   "exchange_refs": {"entry_order": e.get("entry_order"), "tp_order": e.get("tp_order"), "stop_order": e.get("stop_order"), "oco_list": e.get("oco_list")},
                   "thesis": ((f"Luật top5 `{strat}` (scripts/strategy-runner.py = scripts/backtest-methods.py, không có model quyết định): quét pivot {'SSL' if side=='LONG' else 'BSL'} "
                               f"lúc {e.get('sweep_time')}, MSS đóng thân lúc {e.get('mss_time')}, lệnh limit post-only tại mép FVG, stop {stop}, TP {tp}, hoà vốn tại +1R; "
@@ -217,10 +293,22 @@ def build_index():
 
 
 def closed_real(rows):
-    return [r for r in rows if r.get("status") == "CLOSED" and not r.get("rehearsal_mode")]
+    return [r for r in rows if r.get("status") == "CLOSED" and not r.get("rehearsal_mode") and not r.get("drill")]
 
 
 def stats(rows):
+    """Journal statistics. The legacy keys keep their names and shapes (`journal_render.py` and the edge-log
+    template read them); CLAUDE.md §39's full twenty-three arrive additively under `perf`, computed by the one
+    computer in `scripts/performance.py`.
+
+    RESEARCH-SEMANTICS NOTE (§59): the legacy `wins`/`losses`/`win_rate`/`worst_losing_streak` keys keep their
+    original convention, in which `R <= 0` is a LOSS. That convention has no breakeven bucket, so a flat trade
+    sits in the win-rate denominator and extends the losing streak -- which is precisely the trade that
+    management produces when it moves a stop to entry. §39 lists breakeven beside wins and losses, and
+    `perf.breakeven` / `perf.win_rate` / `perf.consecutive_losses` use that three-way split. The two are
+    reported side by side rather than the old keys being silently redefined: a journal figure quoted in an
+    earlier review must keep meaning what it meant.
+    """
     cl = closed_real(rows)
     rs = [r["r_multiple"] for r in cl if isinstance(r.get("r_multiple"), (int, float))]
     wins = [x for x in rs if x > 0]; losses = [x for x in rs if x <= 0]
@@ -231,7 +319,7 @@ def stats(rows):
     streak = worst = 0
     for x in rs:
         streak = streak + 1 if x <= 0 else 0; worst = max(worst, streak)
-    out = {"closed": len(cl), "wins": len(wins), "losses": len(losses),
+    out = {"perf": _perf.metrics(cl), "closed": len(cl), "wins": len(wins), "losses": len(losses),
            "win_rate": round(len(wins) / len(rs), 3) if rs else None, "avg_r": avg(rs), "avg_win_r": avg(wins), "avg_loss_r": avg(losses),
            "expectancy_r": avg(rs), "profit_factor": (round(sum(wins) / abs(sum(losses)), 2) if losses and sum(losses) < 0 else None),
            "total_r": round(sum(rs), 2) if rs else 0, "max_drawdown_r": round(dd, 2), "worst_losing_streak": worst,

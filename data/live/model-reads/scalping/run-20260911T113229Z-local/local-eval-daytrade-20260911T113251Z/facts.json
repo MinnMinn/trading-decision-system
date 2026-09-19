@@ -1,0 +1,549 @@
+{
+ "scanned_at": "2026-09-11T11:31:23Z",
+ "tf": "15m",
+ "n": 288,
+ "window_first": "2026-09-08T11:45:00Z",
+ "window_last": "2026-09-11T11:30:00Z",
+ "anchors_source": "Phân tích đầy đủ day-trade 11/9 11:00Z (tái xác nhận sau lần 11/9 00:15Z, nến đóng tham chiếu 10:45Z): BTC vẫn giữa SC 76,676.07–AR 77,424.98, tham chiếu 76,993 (-0.56% dưới AR, +0.69% trên đáy Spring), chưa có đóng cửa vượt AR lẫn chưa đóng cửa dưới lại Spring. ETH vẫn giữ cấu trúc trên LPS 2,435.00, tham chiếu 2,462.14 (+1.11% trên LPS, +0.72% trên AR); cực trị sau đợt tăng đã lên 2,484.62 nhưng nến đang hình thành vẫn chưa đóng cửa xác nhận SOS. SOL vẫn yếu nhất, tham chiếu 99.18, giữa SC 98.50–AR 100.37. Mốc do phân tích đầy đủ đặt, scanner chỉ so sánh.",
+ "symbols": {
+  "BTCUSDT": {
+   "last": 76845.56,
+   "last_time": "2026-09-11T11:30:00Z",
+   "lo": 76464.0,
+   "hi": 79760.0,
+   "eq": 78112.0,
+   "pct": 0.1158,
+   "stance": "THEO DÕI LONG",
+   "anchors": {
+    "source": "Phân tích đầy đủ day-trade 11/9 11:00Z (tái xác nhận sau lần 11/9 00:15Z, nến đóng tham chiếu 10:45Z): BTC vẫn giữa SC 76,676.07–AR 77,424.98, tham chiếu 76,993 (-0.56% dưới AR, +0.69% trên đáy Spring), chưa có đóng cửa vượt AR lẫn chưa đóng cửa dưới lại Spring. ETH vẫn giữ cấu trúc trên LPS 2,435.00, tham chiếu 2,462.14 (+1.11% trên LPS, +0.72% trên AR); cực trị sau đợt tăng đã lên 2,484.62 nhưng nến đang hình thành vẫn chưa đóng cửa xác nhận SOS. SOL vẫn yếu nhất, tham chiếu 99.18, giữa SC 98.50–AR 100.37. Mốc do phân tích đầy đủ đặt, scanner chỉ so sánh.",
+    "updated": "2026-09-11T11:00:00Z",
+    "levels": [
+     {
+      "name": "sc_low",
+      "label": "SC mới (Cao trào bán), khối lượng kỷ lục cửa sổ",
+      "role": "support",
+      "price": 76676.07,
+      "time": "2026-09-10T12:45:00Z",
+      "ref_close": 76850.65,
+      "ref_vs": "above",
+      "dist_pct": 0.228,
+      "first_close_beyond": {
+       "time": "2026-09-10T23:00:00Z",
+       "close": 76516.23
+      },
+      "extreme_since": 76464.0,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "ar_high",
+      "label": "AR (Automatic Rally) — chưa có nến đóng cửa vượt",
+      "role": "resistance",
+      "price": 77424.98,
+      "time": "2026-09-10T14:45:00Z",
+      "ref_close": 76850.65,
+      "ref_vs": "below",
+      "dist_pct": -0.742,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "old_sos_high",
+      "label": "đỉnh SOS cũ (9/9), mốc kháng cự vĩ mô xa hơn",
+      "role": "resistance",
+      "price": 79760.0,
+      "time": "2026-09-09T08:30:00Z",
+      "ref_close": 76850.65,
+      "ref_vs": "below",
+      "dist_pct": -3.648,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "spring_low",
+      "label": "Đáy Spring — xuyên xuống dưới SC rồi đóng cửa hồi phục lại vùng giao dịch",
+      "role": "support",
+      "price": 76464.0,
+      "time": "2026-09-10T23:15:00Z",
+      "ref_close": 76850.65,
+      "ref_vs": "above",
+      "dist_pct": 0.506,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "mss_swing",
+      "label": "Điểm swing bị phá bởi đóng cửa MSS giảm gần nhất",
+      "role": "swing",
+      "price": 77083.17,
+      "time": "2026-09-10T19:45:00Z",
+      "ref_close": 76850.65,
+      "ref_vs": "below",
+      "dist_pct": -0.302,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-11T11:15:00Z",
+     "close": 76850.65
+    },
+    "verdict_key": "inside",
+    "verdict": "CHỜ — vẫn giữa vùng",
+    "verdict_short": "CHỜ (giữa vùng)"
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bear",
+    "i": 234,
+    "level": 77083.17,
+    "vol_mult": 0.22
+   },
+   "nearest_fvg": {
+    "type": "bear",
+    "i": 278,
+    "lo": 77164.01,
+    "hi": 77266.0,
+    "size": 101.99000000000524,
+    "end": 287,
+    "mitigated": false
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 77544.0,
+     "from": 215,
+     "swept": -1
+    },
+    {
+     "kind": "SSL",
+     "level": 76670.57,
+     "from": 196,
+     "swept": -1
+    },
+    {
+     "kind": "SSL",
+     "level": 77083.17,
+     "from": 224,
+     "swept": -1
+    }
+   ],
+   "events_recent": [
+    {
+     "kind": "sweep",
+     "pool": "SSL",
+     "level": 76804.99,
+     "i": 286,
+     "time": "2026-09-11T11:15:00Z"
+    }
+   ],
+   "context": {
+    "style": "4h",
+    "tf": "4h",
+    "scanned_at": "2026-09-11T01:31:52Z",
+    "window_last": "2026-09-11T00:00:00Z",
+    "last": 76827.8,
+    "last_time": "2026-09-11T00:00:00Z",
+    "lo": 62535.24,
+    "hi": 82300.0,
+    "eq": 72417.62,
+    "pct": 0.7231,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 134,
+     "level": 79250.0,
+     "vol_mult": 2.77
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 53,
+     "lo": 73400.0,
+     "hi": 74510.77,
+     "size": 1110.770000000004,
+     "end": 179,
+     "mitigated": false
+    },
+    "anchors": [],
+    "wyckoff": {
+     "structure": "tái tích lũy",
+     "phase": "C",
+     "trading_range": {
+      "high": 77959.2,
+      "high_label": "AR",
+      "low": 76676.07,
+      "low_label": "SC",
+      "from": "2026-09-10T12:00:00Z"
+     },
+     "updated": "2026-09-11T11:00:00Z"
+    },
+    "wyckoff_source": "data/live/narrative/daytrade.json (context)",
+    "bias": "long",
+    "basis": "khung lớn tái tích lũy pha C — tìm Spring[C]/LPS[C]/phá vỡ theo hướng tăng ở khung nhỏ (WA p93–96, knowledge/07 §2.7)"
+   }
+  },
+  "ETHUSDT": {
+   "last": 2455.53,
+   "last_time": "2026-09-11T11:30:00Z",
+   "lo": 2405.85,
+   "hi": 2523.3,
+   "eq": 2464.575,
+   "pct": 0.423,
+   "stance": "CHỜ",
+   "anchors": {
+    "source": "Phân tích đầy đủ day-trade 11/9 11:00Z (tái xác nhận sau lần 11/9 00:15Z, nến đóng tham chiếu 10:45Z): BTC vẫn giữa SC 76,676.07–AR 77,424.98, tham chiếu 76,993 (-0.56% dưới AR, +0.69% trên đáy Spring), chưa có đóng cửa vượt AR lẫn chưa đóng cửa dưới lại Spring. ETH vẫn giữ cấu trúc trên LPS 2,435.00, tham chiếu 2,462.14 (+1.11% trên LPS, +0.72% trên AR); cực trị sau đợt tăng đã lên 2,484.62 nhưng nến đang hình thành vẫn chưa đóng cửa xác nhận SOS. SOL vẫn yếu nhất, tham chiếu 99.18, giữa SC 98.50–AR 100.37. Mốc do phân tích đầy đủ đặt, scanner chỉ so sánh.",
+    "updated": "2026-09-11T11:00:00Z",
+    "levels": [
+     {
+      "name": "sc_low",
+      "label": "SC mới (Cao trào bán), khối lượng kỷ lục cửa sổ",
+      "role": "support",
+      "price": 2405.85,
+      "time": "2026-09-10T13:00:00Z",
+      "ref_close": 2456.15,
+      "ref_vs": "above",
+      "dist_pct": 2.091,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "ar_high",
+      "label": "AR — đã đóng cửa vượt (UA khối lượng dưới chuẩn); cực trị sau đó 2,484.62",
+      "role": "resistance",
+      "price": 2444.45,
+      "time": "2026-09-10T14:45:00Z",
+      "ref_close": 2456.15,
+      "ref_vs": "above",
+      "dist_pct": 0.479,
+      "first_close_beyond": {
+       "time": "2026-09-10T16:45:00Z",
+       "close": 2448.78
+      },
+      "extreme_since": 2484.62,
+      "forming_beyond": true,
+      "anchor_in_window": true
+     },
+     {
+      "name": "old_sos_high",
+      "label": "đỉnh SOS cũ (9/9), mốc kháng cự vĩ mô xa hơn",
+      "role": "resistance",
+      "price": 2523.3,
+      "time": "2026-09-09T08:30:00Z",
+      "ref_close": 2456.15,
+      "ref_vs": "below",
+      "dist_pct": -2.661,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "lps_low",
+      "label": "Đáy Điểm hỗ trợ cuối (LPS[C]) — kiểm tra lại sau khi đóng cửa vượt AR",
+      "role": "support",
+      "price": 2435.0,
+      "time": "2026-09-10T23:15:00Z",
+      "ref_close": 2456.15,
+      "ref_vs": "above",
+      "dist_pct": 0.869,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "bsl_next",
+      "label": "BSL chưa quét phía trên vùng hiện tại",
+      "role": "resistance",
+      "price": 2479.29,
+      "time": "2026-09-10T09:00:00Z",
+      "ref_close": 2456.15,
+      "ref_vs": "below",
+      "dist_pct": -0.933,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-11T11:15:00Z",
+     "close": 2456.15
+    },
+    "verdict_key": "above_res",
+    "verdict": "PHÁ TRÊN AR — đã đóng cửa vượt (UA khối lượng dưới chuẩn); cực trị sau đó 2,484.62 — xác nhận tiếp diễn tăng",
+    "verdict_short": "PHÁ TRÊN AR — đã đóng cửa vượt (UA khối lượng dưới chuẩn); cực trị sau đó 2,484.62"
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bull",
+    "i": 258,
+    "level": 2460.29,
+    "vol_mult": 1.79
+   },
+   "nearest_fvg": null,
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 2500.0,
+     "from": 57,
+     "swept": -1
+    },
+    {
+     "kind": "BSL",
+     "level": 2514.32,
+     "from": 68,
+     "swept": -1
+    },
+    {
+     "kind": "BSL",
+     "level": 2523.3,
+     "from": 83,
+     "swept": -1
+    },
+    {
+     "kind": "BSL",
+     "level": 2484.76,
+     "from": 168,
+     "swept": -1
+    },
+    {
+     "kind": "SSL",
+     "level": 2432.88,
+     "from": 206,
+     "swept": -1
+    },
+    {
+     "kind": "SSL",
+     "level": 2460.36,
+     "from": 224,
+     "swept": -1
+    }
+   ],
+   "events_recent": [],
+   "context": {
+    "style": "4h",
+    "tf": "4h",
+    "scanned_at": "2026-09-11T01:31:52Z",
+    "window_last": "2026-09-11T00:00:00Z",
+    "last": 2449.96,
+    "last_time": "2026-09-11T00:00:00Z",
+    "lo": 1863.67,
+    "hi": 2566.53,
+    "eq": 2215.1000000000004,
+    "pct": 0.8341,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 134,
+     "level": 2489.95,
+     "vol_mult": 2.56
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 46,
+     "lo": 2108.0,
+     "hi": 2221.54,
+     "size": 113.53999999999996,
+     "end": 179,
+     "mitigated": false
+    },
+    "anchors": [],
+    "wyckoff": {
+     "structure": "tái tích lũy",
+     "phase": "B",
+     "trading_range": {
+      "high": 2475.03,
+      "high_label": "AR",
+      "low": 2405.85,
+      "low_label": "SC",
+      "from": "2026-09-10T12:00:00Z"
+     },
+     "updated": "2026-09-11T11:00:00Z"
+    },
+    "wyckoff_source": "data/live/narrative/daytrade.json (context)",
+    "bias": "neutral",
+    "basis": "khung lớn tái tích lũy pha B, giá ở 64% TR (giữa vùng) — cung/cầu cân bằng, chưa có CO xuất hiện, chưa giao dịch (WA p95–96, p201–203)"
+   }
+  },
+  "SOLUSDT": {
+   "last": 98.93,
+   "last_time": "2026-09-11T11:30:00Z",
+   "lo": 98.5,
+   "hi": 105.2,
+   "eq": 101.85,
+   "pct": 0.0642,
+   "stance": "THEO DÕI LONG",
+   "anchors": {
+    "source": "Phân tích đầy đủ day-trade 11/9 11:00Z (tái xác nhận sau lần 11/9 00:15Z, nến đóng tham chiếu 10:45Z): BTC vẫn giữa SC 76,676.07–AR 77,424.98, tham chiếu 76,993 (-0.56% dưới AR, +0.69% trên đáy Spring), chưa có đóng cửa vượt AR lẫn chưa đóng cửa dưới lại Spring. ETH vẫn giữ cấu trúc trên LPS 2,435.00, tham chiếu 2,462.14 (+1.11% trên LPS, +0.72% trên AR); cực trị sau đợt tăng đã lên 2,484.62 nhưng nến đang hình thành vẫn chưa đóng cửa xác nhận SOS. SOL vẫn yếu nhất, tham chiếu 99.18, giữa SC 98.50–AR 100.37. Mốc do phân tích đầy đủ đặt, scanner chỉ so sánh.",
+    "updated": "2026-09-11T11:00:00Z",
+    "levels": [
+     {
+      "name": "sc_low",
+      "label": "SC mới (Cao trào bán), khối lượng kỷ lục cửa sổ và mạnh nhất trong ba mã",
+      "role": "support",
+      "price": 98.5,
+      "time": "2026-09-10T12:45:00Z",
+      "ref_close": 98.96,
+      "ref_vs": "above",
+      "dist_pct": 0.467,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "ar_high",
+      "label": "AR (Automatic Rally, khối lượng yếu) — chưa có nến đóng cửa vượt",
+      "role": "resistance",
+      "price": 100.37,
+      "time": "2026-09-10T14:45:00Z",
+      "ref_close": 98.96,
+      "ref_vs": "below",
+      "dist_pct": -1.405,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "old_sos_high",
+      "label": "đỉnh SOS cũ (9/9, sớm và thấp hơn BTC/ETH), mốc kháng cự vĩ mô xa hơn",
+      "role": "resistance",
+      "price": 105.2,
+      "time": "2026-09-09T07:00:00Z",
+      "ref_close": 98.96,
+      "ref_vs": "below",
+      "dist_pct": -5.932,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-11T11:15:00Z",
+     "close": 98.96
+    },
+    "verdict_key": "inside",
+    "verdict": "CHỜ — vẫn giữa vùng",
+    "verdict_short": "CHỜ (giữa vùng)"
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bear",
+    "i": 235,
+    "level": 99.6,
+    "vol_mult": 0.66
+   },
+   "nearest_fvg": null,
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 104.83,
+     "from": 19,
+     "swept": -1
+    },
+    {
+     "kind": "BSL",
+     "level": 103.83,
+     "from": 33,
+     "swept": -1
+    },
+    {
+     "kind": "BSL",
+     "level": 102.13,
+     "from": 157,
+     "swept": -1
+    },
+    {
+     "kind": "BSL",
+     "level": 101.54,
+     "from": 191,
+     "swept": -1
+    },
+    {
+     "kind": "BSL",
+     "level": 100.37,
+     "from": 204,
+     "swept": -1
+    },
+    {
+     "kind": "SSL",
+     "level": 100.75,
+     "from": 141,
+     "swept": -1
+    }
+   ],
+   "events_recent": [
+    {
+     "kind": "sweep",
+     "pool": "SSL",
+     "level": 98.95,
+     "i": 286,
+     "time": "2026-09-11T11:15:00Z"
+    }
+   ],
+   "context": {
+    "style": "4h",
+    "tf": "4h",
+    "scanned_at": "2026-09-11T01:31:52Z",
+    "window_last": "2026-09-11T00:00:00Z",
+    "last": 99.04,
+    "last_time": "2026-09-11T00:00:00Z",
+    "lo": 74.1,
+    "hi": 110.6,
+    "eq": 92.35,
+    "pct": 0.6833,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 134,
+     "level": 105.0,
+     "vol_mult": 2.19
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 46,
+     "lo": 82.5,
+     "hi": 84.01,
+     "size": 1.5100000000000051,
+     "end": 179,
+     "mitigated": false
+    },
+    "anchors": [],
+    "wyckoff": {
+     "structure": "tái tích lũy",
+     "phase": "B",
+     "trading_range": {
+      "high": 100.46,
+      "high_label": "AR",
+      "low": 98.5,
+      "low_label": "SC",
+      "from": "2026-09-10T12:00:00Z"
+     },
+     "updated": "2026-09-11T11:00:00Z"
+    },
+    "wyckoff_source": "data/live/narrative/daytrade.json (context)",
+    "bias": "long",
+    "basis": "khung lớn tái tích lũy pha B, giá ở 28% TR — sát biên dưới (SC/ST), nơi CO gom hàng và khung nhỏ có thể in Spring[C]/LPS[C] cục bộ (WA p93, p201; knowledge/07 §2.7, §3.4)"
+   }
+  }
+ }
+}

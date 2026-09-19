@@ -1,162 +1,12 @@
 {
- "generated": "2026-09-14",
+ "generated": "2026-09-19",
  "mode": "horizons-1y",
  "note": "Written by scripts/rank-setups.py --horizons. One setup per (horizon, method) per market -- every RUNNABLE method gets its own scalping/day/swing setups so any method-switch preset (strategy-runner.py allowed_methods()) still covers all 3 horizons (user decision 2026-09-11, extended 2026-09-13 for the per-method split). Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.",
  "setups": [
   {
-   "id": "crypto-scalping-combined-15m-border-b",
-   "horizon": "scalping",
+   "id": "cfd-swing-wyckoff-book-4h-border-b",
+   "horizon": "swing",
    "rank": 1,
-   "market": "crypto",
-   "symbols": [
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT"
-   ],
-   "tf": "15m",
-   "method": "COMBINED",
-   "htf": false,
-   "mgmt": "be",
-   "fee_assumed": 0.0002,
-   "execution": "futures",
-   "negative_backtest": false,
-   "backtest": {
-    "window": "1y",
-    "n": 104,
-    "ann_pct": 52.5,
-    "max_dd_pct": 33.6,
-    "q_pos_pct": 80,
-    "full_n": 348,
-    "full_ann_pct": 17.8,
-    "years_pos": "2/4",
-    "period": "2023-09-13→2026-09-11",
-    "source": "data/history/stability/crypto-live.json"
-   }
-  },
-  {
-   "id": "crypto-scalping-ict-15m-live-a",
-   "horizon": "scalping",
-   "rank": 2,
-   "market": "crypto",
-   "symbols": [
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT"
-   ],
-   "tf": "15m",
-   "method": "ICT",
-   "htf": false,
-   "mgmt": "none",
-   "fee_assumed": 0.0005,
-   "execution": "futures",
-   "negative_backtest": false,
-   "backtest": {
-    "window": "1y",
-    "n": 32,
-    "ann_pct": 92.6,
-    "max_dd_pct": 22.9,
-    "q_pos_pct": 60,
-    "full_n": 85,
-    "full_ann_pct": 36.9,
-    "years_pos": "4/4",
-    "period": "2023-09-13→2026-09-11",
-    "source": "data/history/stability/crypto-live.json"
-   }
-  },
-  {
-   "id": "crypto-scalping-wyckoff-book-15m-border-c",
-   "horizon": "scalping",
-   "rank": 3,
-   "market": "crypto",
-   "symbols": [
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT"
-   ],
-   "tf": "15m",
-   "method": "WYCKOFF-BOOK",
-   "htf": true,
-   "mgmt": "be",
-   "fee_assumed": 0.0002,
-   "execution": "futures",
-   "negative_backtest": false,
-   "backtest": {
-    "window": "1y",
-    "n": 21,
-    "ann_pct": 0.7,
-    "max_dd_pct": 22.0,
-    "q_pos_pct": 20,
-    "full_n": 49,
-    "full_ann_pct": 2.4,
-    "years_pos": "3/4",
-    "period": "2023-09-13→2026-09-11",
-    "source": "data/history/stability/crypto-live.json"
-   }
-  },
-  {
-   "id": "crypto-day-combined-1h-border-a",
-   "horizon": "day",
-   "rank": 4,
-   "market": "crypto",
-   "symbols": [
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT"
-   ],
-   "tf": "1H",
-   "method": "COMBINED",
-   "htf": false,
-   "mgmt": "none",
-   "fee_assumed": 0.0005,
-   "execution": "futures",
-   "negative_backtest": false,
-   "backtest": {
-    "window": "1y",
-    "n": 18,
-    "ann_pct": 21.0,
-    "max_dd_pct": 13.3,
-    "q_pos_pct": 60,
-    "full_n": 66,
-    "full_ann_pct": -3.4,
-    "years_pos": "1/5",
-    "period": "2022-09-13→2026-09-11",
-    "source": "data/history/stability/crypto-live.json"
-   }
-  },
-  {
-   "id": "crypto-swing-wyckoff-4h-border-c",
-   "horizon": "swing",
-   "rank": 5,
-   "market": "crypto",
-   "symbols": [
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT"
-   ],
-   "tf": "4H",
-   "method": "WYCKOFF",
-   "htf": true,
-   "mgmt": "be",
-   "fee_assumed": 0.0002,
-   "execution": "futures",
-   "negative_backtest": false,
-   "backtest": {
-    "window": "1y",
-    "n": 122,
-    "ann_pct": 33.7,
-    "max_dd_pct": 33.4,
-    "q_pos_pct": 60,
-    "full_n": 463,
-    "full_ann_pct": -12.1,
-    "years_pos": "1/5",
-    "period": "2022-09-05→2026-09-11",
-    "source": "data/history/stability/crypto-live.json"
-   }
-  },
-  {
-   "id": "cfd-swing-wyckoff-4h-border-a",
-   "horizon": "swing",
-   "rank": 6,
    "market": "cfd",
    "symbols": [
     "XAUUSD",
@@ -165,24 +15,36 @@
     "UKOIL"
    ],
    "tf": "4H",
-   "method": "WYCKOFF",
+   "method": "WYCKOFF-BOOK",
    "htf": false,
-   "mgmt": "none",
+   "mgmt": "be",
    "fee_assumed": 0.0005,
    "execution": "mt5",
    "negative_backtest": false,
    "backtest": {
     "window": "1y",
-    "n": 200,
-    "ann_pct": 32.7,
-    "max_dd_pct": 49.7,
-    "q_pos_pct": 60,
-    "full_n": 459,
-    "full_ann_pct": -22.2,
-    "years_pos": "2/3",
-    "period": "2024-04-19→2026-09-11",
-    "source": "data/history/stability/cfd-live.json"
-   }
+    "n": 5,
+    "ann_pct": 4.3,
+    "max_dd_pct": 3.3,
+    "q_pos_pct": 20,
+    "full_n": 54,
+    "full_ann_pct": 0.9,
+    "years_pos": "6/23",
+    "period": "2004-06-11→2026-09-18",
+    "source": "data/history/stability/cfd-ftmo-challenge-phase1.json"
+   },
+   "rule_version": "b316f3f5de48",
+   "rule_version_algo": "sha256-12"
   }
- ]
+ ],
+ "rank_by": "prop-pass",
+ "research_validity": {
+  "per_source": {
+   "data/history/stability/crypto-crypto-prop-discipline.json": "FLAGGED",
+   "data/history/stability/cfd-ftmo-challenge-phase1.json": "FLAGGED"
+  },
+  "worst": "FLAGGED",
+  "refused": [],
+  "source": "docs/architecture/research-validity.json (CLAUDE.md §38)"
+ }
 }

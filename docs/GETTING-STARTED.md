@@ -110,6 +110,16 @@ Hệ thống chưa tự đọc số dư cho phần phân tích. Điền `account
 
 Nghĩa là: đóng Claude thì scanner và pilot vẫn chạy, nhưng chart và các bản nhận định ngừng cập nhật cho đến khi mở Claude và gõ `/automation on` lần nữa.
 
+**Ngôn ngữ của các trang đã xuất bản (từ 2026-09-17):** cả ba trang — chart, công tắc phương pháp, nhật ký — có
+nút **EN / VI** ở thanh trên cùng, **mặc định tiếng Anh**. Giờ hiển thị đi theo ngôn ngữ: EN dùng UTC, VI dùng
+VNT (UTC+7), và **mọi mốc giờ đều ghi rõ múi giờ** nên không thể đọc nhầm. Lựa chọn được nhớ trên trình duyệt
+của bạn, kể cả khi tải lại trang (`?lang=vi` trong URL vừa ghi đè vừa được nhớ, nên link chia sẻ giữ đúng ngôn
+ngữ). Lưu ý: mỗi artifact có bộ nhớ riêng, nên chọn ngôn ngữ ở trang chart **không** tự áp sang trang nhật ký —
+mỗi trang chọn một lần. Đổi ngôn ngữ **chỉ đổi chữ**: không đổi số liệu, không đổi
+verdict, không đổi killzone. Riêng phần **văn bản phân tích do mô hình viết vẫn là tiếng Việt** và được đánh
+dấu trên trang — dịch một bài phân tích là sửa bài phân tích, nên nó được giữ nguyên văn; giai đoạn 2 sẽ cho mô
+hình viết sẵn cả hai thứ tiếng (`docs/specs/2026-09-17-artifact-i18n-design.md`).
+
 **Chạy một phần:**
 
 ```
@@ -171,7 +181,7 @@ Thêm `mock` vào cuối để diễn tập bằng dữ liệu giả: kết qu�
 4. Chỉ còn **một sàn pilot**: `PILOT_MARKETS=futures` (`config/env.example:39`). Hạ `PILOT_RISK_PCT` xuống nhỏ hơn khi mới chạy — trần cứng là `trading_env.MAX_RISK_PCT` = **0.03** (3 %/lệnh, quyết định người dùng 2026-09-13, đi kèm sàn R:R kế hoạch **3.0** đọc qua `trading_env.min_rr()`); `config/env.example` đang đặt sẵn `PILOT_RISK_PCT=0.03`, tức là ngay ở trần.
 5. Chạy lại `bash scripts/verify-automation-v3.sh`. Mục 6 sẽ gọi endpoint chỉ đọc trên mainnet.
 6. Gõ `/automation real`. Đọc kỹ phần báo cáo, đặc biệt các dòng bắt đầu bằng `!`.
-7. Theo dõi tick đầu tiên trong `data/live/pilot-futures/loop.log`. Lưu ý: `strategy-runner.py` **từ chối mọi tick khi `execution.environment == "real"`** (`strategy-runner.py:188` (`== "real"`)) — quyết định người dùng 2026-09-11, pilot demo/testnet trước. Vòng lặp có thể khởi động ở `real` nhưng sẽ không đặt lệnh.
+7. Theo dõi tick đầu tiên trong `data/live/pilot-futures/loop.log`. Lưu ý: `strategy-runner.py` **từ chối mọi tick khi `execution.environment == "real"`** (`strategy-runner.py:358` (`== "real"`)) — quyết định người dùng 2026-09-11, pilot demo/testnet trước. Vòng lặp có thể khởi động ở `real` nhưng sẽ không đặt lệnh.
 
 ---
 

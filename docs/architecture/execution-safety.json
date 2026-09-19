@@ -1,0 +1,88 @@
+{
+  "_source": "CLAUDE.md §51 EXECUTION SAFETY. The requirements below are §51's own sentences. scripts/tests/test_execution_safety.py resolves every `enforced_by` citation against a real function in a real file, so a requirement cannot be satisfied by describing it.",
+  "_reader": "scripts/execution_safety.py is the ONE reader.",
+  "_what_this_adds": "Seven of §51's eight requirements were already held somewhere in the repository and had never been written down in one place; the eighth -- 'Never require withdrawal permission' -- was held nowhere. It was TRUE (no code has ever called a withdrawal endpoint) and unasserted, which are different things: a key minted with withdrawal rights would have worked exactly as well, and nothing would have said so.",
+  "_not_restated_here": "§51's 'before execution validate' list (market, instrument, market type, provider capability, account, risk, event risk, order constraints, execution configuration) is the §36 decision ordering, and it has one source: docs/architecture/decision-order.json. Copying those nine rows here would create a second list to keep in step -- exactly the drift rules/single-source-of-truth.md exists to prevent. This registry points at it.",
+  "requirements": [
+    {
+      "id": "not_on_by_default",
+      "spec": "Real-money execution must NOT be enabled by default.",
+      "enforced_by": "scripts/strategy-runner.py::automation_gate",
+      "how": "The unattended pilot refuses a tick outright when execution.environment is 'real'. The refusal is in the gate that can only stop a tick, never start one."
+    },
+    {
+      "id": "explicit_permission",
+      "spec": "Execution requires explicit permission and appropriate safeguards.",
+      "enforced_by": "scripts/trading_env.py::completeness",
+      "how": "Credentials live in config/env.<environment> as `__FILL_ME__` placeholders until a human fills them; an incomplete environment refuses before anything is signed. Nothing in the repository can mint a credential."
+    },
+    {
+      "id": "human_confirmation",
+      "spec": "Where configured, require human confirmation.",
+      "enforced_by": "scripts/providers.py::unattended_venue_for",
+      "how": "`unattended` is a provider field, so the manual-confirmation provider (binance_spot, one human confirmation per trade through /execute) can never be selected by a loop that has no human in it. A market with zero or several unattended providers raises rather than guessing."
+    },
+    {
+      "id": "validate_before_execution",
+      "spec": "Before execution validate:",
+      "enforced_by": "scripts/decision_order.py::dependencies_of",
+      "how": "This is the §36 decision ordering, whose nine items are §51's own bullet list. docs/architecture/decision-order.json is its single source and names all 17 steps with the function that implements each on the live path and in the backtest; scripts/decision_order.py `Trace` walks them per signal and `strategy-runner.py` writes the result as `decision_trace`. Not restated here -- a second copy would drift the first time a step moved.",
+      "_pointer": "docs/architecture/decision-order.json"
+    },
+    {
+      "id": "prefer_testnet",
+      "spec": "Prefer Binance Spot Testnet for initial safe execution testing where appropriate.",
+      "enforced_by": "scripts/account_profile.py::for_venue",
+      "how": "Both declared account profiles are demo: pilot-binance-futures-testnet and pilot-mt5-demo. There is deliberately NO profile for environment 'real', and an order path with no declared account rules refuses."
+    },
+    {
+      "id": "never_require_withdrawal",
+      "spec": "Never require withdrawal permission.",
+      "enforced_by": "scripts/execution_safety.py::assert_safe",
+      "how": "The one requirement nothing held. A key that HAS withdrawal permission is refused in every environment -- not because this code would use it, but because a key whose compromise costs funds is a different risk from one whose compromise costs a testnet position. An UNKNOWN scope is UNKNOWN: it refuses in 'real' and is recorded (never called safe) in demo, because Binance's apiRestrictions endpoint does not exist on testnet.",
+      "_this_is_the_gap": "Recorded as the single §51 gap in SPEC-COMPLIANCE since the first audit: 'withdrawal permission is never requested but never asserted either -- no key-scope check at load.'"
+    },
+    {
+      "id": "mainnet_not_assumed_safe",
+      "spec": "Never assume mainnet API credentials are safe.",
+      "enforced_by": "scripts/execution_safety.py::assess",
+      "how": "In environment 'real' an unread key scope is a refusal, not a default. The three-valued rule: UNKNOWN never reads as NO_WITHDRAWAL."
+    },
+    {
+      "id": "router_between",
+      "spec": "Decision Engine must remain provider-independent.",
+      "enforced_by": "scripts/strategy-runner.py::venue_of",
+      "how": "The decision path names a MARKET; the venue is resolved from the provider registry, and an unknown symbol raises rather than falling through to a default venue. scripts/tests/test_execution_router.py pins the resolution symbol by symbol.",
+      "_architecture": "Decision Engine -> Execution Router -> Execution Provider (§51's diagram)."
+    }
+  ],
+  "key_scope": {
+    "_why": "CLAUDE.md §51's shortest sentence and the only one with no natural home: 'Never require withdrawal permission.' Requiring is about what the code calls; this is about what the KEY can do, which no amount of reading the code can establish.",
+    "states": {
+      "NO_WITHDRAWAL": "The provider reported this key's restrictions and withdrawals are disabled. The only safe state.",
+      "WITHDRAWAL_ENABLED": "The provider reported that this key may withdraw. Refused in every environment.",
+      "UNKNOWN": "The scope has not been read, or the provider has no endpoint that reports it. NOT healthy, NOT safe -- an unread scope is unread. Refuses in environment 'real'; recorded and allowed in demo, because the testnet has no apiRestrictions endpoint and a testnet key cannot move real funds."
+    },
+    "probe": {
+      "provider": "binance_spot",
+      "endpoint": "GET /sapi/v1/account/apiRestrictions",
+      "field": "enableWithdrawals",
+      "command": "scripts/binance-testnet-order.sh api-restrictions",
+      "_note": "The endpoint lives on the SPOT host (api.binance.com) and reports the restrictions of the whole API key, futures included. It does not exist on either testnet host, which is why UNKNOWN is a normal demo state rather than a fault.",
+      "record": "data/live/key-scope.json"
+    },
+    "refusal_environments": [
+      "real"
+    ]
+  },
+  "dispatch": {
+    "_reader": "scripts/dispatch_order.py is the ONE reader.",
+    "_why": "One setup serves many customer accounts (docs/plans/2026-09-19-multi-account.md §0.3 item 3). When it fires they all want the same instrument on the same side at the same moment, and they cannot all be first. Without a declared rule the order is whichever runner process ticks first -- biased the same way every time by process start, machine load and symbol-loop position, and unauditable afterwards.",
+    "rule": "sha256(signal_id || account_id), ascending",
+    "_rule_why": "Uniform (every account is first about 1/N of the time), deterministic (a customer's queue position is recomputable from the trade record months later, which is what makes it an answer to a dispute) and stateless (each of N independent runner processes computes only its own rank, so they agree without a central dispatcher -- which the one-process-per-account architecture requires).",
+    "stagger_ms": 200,
+    "_stagger_why": "Milliseconds each rank waits before placing. This is REAL latency: 12 accounts at 200 ms means the last places 2.2 s after the first, and on a scalping setup that is not free. It is the price of an order somebody can check; the alternative is not zero delay, it is the same queueing distributed by luck. 200 is a STARTING value, not a measured one -- set it from measured fill dispersion once several accounts have run. 0 is legal and means everyone places at once.",
+    "max_total_delay_ms": 3000,
+    "_max_total_delay_why": "The WORST any account may be made to wait behind the first, whatever N is. scripts/dispatch_order.py uses gap = min(stagger_ms, max_total_delay_ms / (n - 1)), so below the point where this binds the stagger is exactly as declared, and above it the spacing between accounts shrinks while the DEADLINE holds. A fixed stagger does not survive growth: 100 accounts x 200 ms is 19.8 s for the last one, which is a different product rather than a fairer one. With these two numbers the budget starts binding at 16 accounts (3000 / 200 + 1). 3000 ms is a STARTING value, not a measured one -- set it from measured slippage between rank 0 and rank N-1 once several accounts have run. Added 2026-09-19."
+  }
+}

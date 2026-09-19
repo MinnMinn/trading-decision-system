@@ -39,6 +39,10 @@ class Args:
         self.crypto_symbols = crypto_symbols; self.cfd_symbols = cfd_symbols
         self.crypto = []; self.cfd = []   # unused: load_rows is monkeypatched per-test
         self.out = None; self.select = None
+        # CLAUDE.md §38 (2026-09-18): every ranking mode passes the CLI's --require-stamped through to
+        # load_rows. These tests monkeypatch load_rows, so the value is never read -- but the field has to
+        # exist, because the stand-in is a stand-in for the real Namespace.
+        self.require_stamped = False
 
 
 class SelectionCoversEveryMethodPerHorizon(unittest.TestCase):
@@ -52,7 +56,7 @@ class SelectionCoversEveryMethodPerHorizon(unittest.TestCase):
 
     def _run(self, rows_by_market):
         orig_load_rows = RS.load_rows
-        RS.load_rows = lambda paths, market: rows_by_market.get(market, [])
+        RS.load_rows = lambda paths, market, **kw: rows_by_market.get(market, [])
         try:
             with tempfile.TemporaryDirectory() as td:
                 out = os.path.join(td, "out.md"); sel = os.path.join(td, "sel.json")
@@ -151,20 +155,51 @@ class PresetCoverageOfRealSelection(unittest.TestCase):
         """Pins the accepted gaps so they cannot silently grow. If another preset/horizon goes empty, this fails
         and someone has to look at whether the rules got more selective or the data got thinner.
 
+        Re-pinned 2026-09-19, and the jump is large. Two user decisions landed the same day: the WYCKOFF
+        proxy engine and COMBINED/PARTIAL were removed as unfaithful to the books (so the runnable set is
+        {ICT, WYCKOFF-BOOK}), and the selection criterion became PROP-PASS under a declared account. Crypto
+        now earns exactly ONE setup -- ICT scalping -- because no other crypto rule cleared both the account's
+        survival test and HORIZON_MIN_TRADES (day needs 60 trades). Every gap below is therefore a rule that
+        did not earn selection, not a rule that was dropped. If this list SHRINKS, a rule earned its way back
+        in; if it grows, something stopped earning it and that is worth looking at.
+
         Was `[("ict", "swing")]` until 2026-09-13, when the user replaced "fill every slot with the best
         available candidate" with "only profitable candidates, otherwise leave the slot empty". Three more cells
         emptied as a direct result -- every crypto `day` candidate for WYCKOFF and for ICT either lost money or
         had too few trades in the ranking year. That is the rule working, not a regression; the test above is
-        what proves each gap is a data gap rather than crowding-out."""
+        what proves each gap is a data gap rather than crowding-out.
+
+        Re-pinned AGAIN on 2026-09-19, and this time it pins an EMPTY crypto selection -- every preset, every
+        horizon. That is not the test giving up: it is the measured state, and the assertion below fails the
+        moment crypto earns a setup back, which is the direction anyone should want it to fail in. The
+        ICT backtest was booking trades whose FVG limit had already been passed by the bar the setup became
+        detectable -- orders no live runner could have placed, and which scripts/strategy-runner.py correctly
+        refuses. Measured over the last 30 000 15m bars: BTCUSDT 19 -> 6 trades, ETHUSDT 17 -> 1, SOLUSDT
+        11 -> 0; 85 % of the crypto ICT population was unreachable. With that corrected, ICT clears no horizon
+        on either market, and the whole selection is ONE row: cfd swing WYCKOFF-BOOK 4H at n = 5. So every ICT
+        cell is empty here. The ONE row that survived the re-rank is CFD (swing WYCKOFF-BOOK 4H, n = 5), and
+        this class looks at crypto only -- so crypto's coverage is zero across the board. A list this complete
+        is not a passing state; it is the honest reading of the evidence, and it is what the next round of
+        method work has to move.
+
+        Two more emptied on 2026-09-18, on the re-rank that followed the CFD venue-fee correction and the
+        regeneration of both stability files: `("wyckoff", "scalping")` and `("wyckoff+footprint", "scalping")`.
+        Checked before this snapshot was widened, on the fresh 1-year window: every WYCKOFF 15m config ends
+        around $1,000 of a $10,000 start (n = 709 / 1,192 / 1,263), and every WYCKOFF-BOOK 15m config finishes
+        BELOW the start ($7,772 / $8,796 / $9,912). Sample size is not the reason -- the trade counts clear
+        `min_1y` comfortably -- the reason is that the method lost money on the fifteen-minute rung, so the
+        solvency rule leaves the slot empty rather than shipping a loser. Same rule, thinner data."""
         empty = []
         for p in M.PRESETS:
             allowed = M.runner_methods(M.flags_for(p["id"])) & M.runnable()
             covered = {s["horizon"] for s in self.setups if s["method"] in allowed}
             for hz in sorted({"scalping", "day", "swing"} - covered):
                 empty.append((p["id"], hz))
-        self.assertEqual(empty, [("wyckoff", "day"), ("ict", "day"), ("ict", "swing"),
-                                 ("wyckoff+footprint", "day")],
+        self.assertEqual(empty, [(p["id"], hz) for p in M.PRESETS for hz in ("day", "scalping", "swing")],
                          f"the set of uncovered (preset, horizon) cells changed: {empty}")
+        self.assertEqual(self.setups, [],
+                         "crypto has a selected setup again -- that is GOOD news, and this pin must be "
+                         "rewritten to name it rather than asserting the empty state")
 
 
 
@@ -185,7 +220,7 @@ class LosersAreNeverSelected(unittest.TestCase):
         return RS.rank(rows, min_trades=1, window=window)
 
     def _losing(self, **kw):
-        r = _row("1H", "WYCKOFF", **kw)
+        r = _row("1H", "WYCKOFF-BOOK", **kw)
         r["final"] = 900.0; r["ann"] = -90.0
         r["w1y"] = dict(r["w1y"], final=900.0, ann=-90.0)
         return r
@@ -207,12 +242,12 @@ class LosersAreNeverSelected(unittest.TestCase):
         self.assertEqual(self._rank1([self._losing()], window="1y"), [])
 
     def test_a_profitable_row_is_still_selected(self):
-        self.assertEqual(len(self._rank1([_row("1H", "WYCKOFF")])), 1)
-        self.assertEqual(len(self._rank1([_row("1H", "WYCKOFF")], window="1y")), 1)
+        self.assertEqual(len(self._rank1([_row("1H", "WYCKOFF-BOOK")])), 1)
+        self.assertEqual(len(self._rank1([_row("1H", "WYCKOFF-BOOK")], window="1y")), 1)
 
     def test_a_window_shorter_than_three_months_is_not_rankable(self):
         """The CFD case: 2026-07-02 -> 2026-09-11 is 71 days. Profitable on 71 days is not evidence."""
-        r = _row("1H", "WYCKOFF")
+        r = _row("1H", "WYCKOFF-BOOK")
         r["first"], r["last"] = "2026-07-02", "2026-09-11"
         r["w1y"] = dict(r["w1y"], since="2026-07-02")
         self.assertEqual(self._rank1([r]), [])
@@ -220,7 +255,7 @@ class LosersAreNeverSelected(unittest.TestCase):
         self.assertEqual(RS.MIN_WINDOW_DAYS, 90)
 
     def test_exactly_three_months_is_enough(self):
-        r = _row("1H", "WYCKOFF")
+        r = _row("1H", "WYCKOFF-BOOK")
         r["first"], r["last"] = "2026-01-01", "2026-04-01"      # 90 days
         r["w1y"] = dict(r["w1y"], since="2026-01-01")
         self.assertEqual(len(self._rank1([r])), 1)
@@ -229,7 +264,7 @@ class LosersAreNeverSelected(unittest.TestCase):
         """Two losers at the same (horizon, method): the old code took the better of the two. Now: no setup."""
         rows = [self._losing(cfg="A"), self._ruined()]
         orig = RS.load_rows
-        RS.load_rows = lambda paths, market: (rows if market == "crypto" else [])
+        RS.load_rows = lambda paths, market, **kw: (rows if market == "crypto" else [])
         try:
             with tempfile.TemporaryDirectory() as td:
                 a = Args(rows, []); a.out = os.path.join(td, "o.md"); a.select = os.path.join(td, "s.json")
@@ -249,3 +284,74 @@ class LosersAreNeverSelected(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PropPassRanking(unittest.TestCase):
+    """User decision 2026-09-19: rank by whether THIS account's challenge is passed, not by positive quarters.
+    The account-blind key selected two CFD rules that BOTH fail an FTMO-style challenge while rules that pass
+    sat in the same file (docs/audits/2026-09-19-knowledge-fidelity.md §3)."""
+
+    def row(self, **kw):
+        base = dict(tf="1H", cfg="C", method="ICT", n=50, first="2020-01-01", last="2026-01-01",
+                    ruin=None, ann=10.0, q_pos=60, q_worst=-3.0, stab=1.0, y_pos=3, y_n=4,
+                    failed_by=None, perf={})
+        base.update(kw); return base
+
+    def test_a_rule_that_broke_the_account_is_not_selectable(self):
+        broke = self.row(failed_by="drawdown: equity 89000 <= 90% of initial_balance", q_pos=99)
+        kept = self.row(perf={"prop_pass_probability": {"value": 0.1}})
+        out = RS.rank([broke, kept], 1, rank_by="prop-pass")
+        self.assertEqual([r["failed_by"] for r in out], [None])
+
+    def test_higher_pass_probability_wins(self):
+        lo = self.row(method="ICT", perf={"prop_pass_probability": {"value": 0.20}})
+        hi = self.row(method="WYCKOFF-BOOK", perf={"prop_pass_probability": {"value": 0.66}})
+        out = RS.rank([lo, hi], 1, rank_by="prop-pass")
+        self.assertEqual(out[0]["method"] if len(out) == 1 else
+                         sorted(out, key=RS.prop_key, reverse=True)[0]["method"], "WYCKOFF-BOOK")
+
+    def test_an_unmeasurable_pass_probability_never_outranks_a_measured_one(self):
+        measured = self.row(method="ICT", perf={"prop_pass_probability": {"value": 0.05}})
+        unknown = self.row(method="WYCKOFF-BOOK",
+                           perf={"prop_pass_probability": {"unavailable": "sample too small", "owner": "§39"}})
+        self.assertGreater(RS.prop_key(measured), RS.prop_key(unknown))
+
+    def test_ties_on_pass_break_on_failure_probability_then_drawdown(self):
+        a = self.row(method="ICT", perf={"prop_pass_probability": {"value": 0.5},
+                                         "account_failure_probability": {"value": 0.10},
+                                         "max_drawdown": {"value": 0.08}})
+        b = self.row(method="WYCKOFF-BOOK", perf={"prop_pass_probability": {"value": 0.5},
+                                                  "account_failure_probability": {"value": 0.40},
+                                                  "max_drawdown": {"value": 0.03}})
+        self.assertGreater(RS.prop_key(a), RS.prop_key(b), "lower failure probability must win before drawdown")
+
+    def test_the_consistency_mode_is_unchanged_by_default(self):
+        rows = [self.row(q_pos=10, method="ICT"), self.row(q_pos=90, method="WYCKOFF-BOOK")]
+        out = RS.rank(rows, 1)
+        self.assertTrue(out, "consistency mode still returns the best row per (tf, method)")
+
+
+class SmallSampleDoesNotWinOnNoise(unittest.TestCase):
+    """A 14-trade row measured at 66% must not outrank a 51-trade row measured at 60%: §39's nested-bootstrap
+    spread on 14 trades runs roughly 0..1, so the point estimate is not evidence. Ranking takes the
+    conservative end of a flagged-wide estimate (2026-09-19)."""
+
+    def test_a_wide_estimate_is_ranked_at_its_lower_bound(self):
+        wide = {"value": 0.662, "low_confidence": True, "spread": {"prop_pass_probability": [0.0025, 1.0]}}
+        self.assertAlmostEqual(RS._pass_estimate(wide), 0.0025)
+
+    def test_a_solid_estimate_is_ranked_at_its_value(self):
+        solid = {"value": 0.605}
+        self.assertAlmostEqual(RS._pass_estimate(solid), 0.605)
+
+    def test_the_bigger_sample_wins_when_the_small_one_is_wide(self):
+        small = dict(tf="4H", cfg="C", method="WYCKOFF-BOOK", n=14, failed_by=None,
+                     perf={"prop_pass_probability": {"value": 0.662, "low_confidence": True,
+                                                     "spread": {"prop_pass_probability": [0.0025, 1.0]}}})
+        big = dict(tf="4H", cfg="B", method="WYCKOFF-BOOK", n=51, failed_by=None,
+                   perf={"prop_pass_probability": {"value": 0.605}})
+        self.assertGreater(RS.prop_key(big), RS.prop_key(small))
+
+    def test_a_wide_estimate_with_no_spread_falls_back_to_its_value(self):
+        self.assertAlmostEqual(RS._pass_estimate({"value": 0.4, "low_confidence": True}), 0.4)
+        self.assertIsNone(RS._pass_estimate({"unavailable": "n too small"}))

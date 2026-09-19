@@ -1,0 +1,104 @@
+{
+  "_source": "CLAUDE.md §40 REAL-TIME CRITICAL PATH VS RESEARCH PATH. The ten stamps and the four percentiles below are §40's own lists, in §40's order and wording. scripts/tests/test_latency.py parses them back out of CLAUDE.md, so an eleventh stamp in the spec fails the build rather than going uninstrumented.",
+  "_reader": "scripts/latency.py is the ONE recorder and the ONE summariser. A second place that times the order path would drift from this one, and two disagreeing latency numbers are worse than none.",
+  "_interval_semantics": "§40 lists POINTS in time; a percentile needs an INTERVAL. Each stamp below is therefore recorded as the duration of the work that ENDS at that point -- `provider_receive` is the fetch, `normalization` is the normalisation, `decision_end` is the decision itself, `provider_acknowledgement` is the wait for the venue to answer. `decision_start` is the gap between the required analysis being ready and the decision beginning, which is the queueing latency §40 cares about and the only reading under which a start POINT has a duration at all.",
+  "_what_this_is_not": "Not a performance budget. §40 does not set thresholds and neither does this file: it says latency must be MEASURED, and the repo's transport (REST polling and an MT5 file bridge) makes most absolute numbers a property of the poll interval rather than of the code. What the measurement is for is REGRESSION -- the same stage, the same machine, getting slower.",
+  "percentiles": [50, 95, 99],
+  "_percentiles_note": "§40: 'Measure p50, p95, p99, max.' `max` is not a percentile and is reported separately, always with `n` (§39: always show sample size).",
+  "stamps": [
+    {
+      "id": "market_event",
+      "spec_name": "market event timestamp",
+      "kind": "transport_bound",
+      "captured": "the close time of the bar the decision reads (scripts/strategy-runner.py fetch_candles)",
+      "_bound_why": "This repo POLLS -- Binance REST klines and MT5 CSV exports. A bar's close time is the only event time available; the gap between it and our receipt is dominated by the poll interval, not by anything the code does. Recorded so the poll lag is visible and stops being invisible; not reported as an execution latency, because it is not one."
+    },
+    {
+      "id": "provider_receive",
+      "spec_name": "provider receive timestamp",
+      "kind": "hot",
+      "captured": "when the candle fetch for a (symbol, timeframe) returns"
+    },
+    {
+      "id": "normalization",
+      "spec_name": "normalization timestamp",
+      "kind": "hot",
+      "captured": "after the rows are turned into the canonical candle shape and the §20 quality gate has run"
+    },
+    {
+      "id": "analytics_update",
+      "spec_name": "analytics update timestamp",
+      "kind": "hot",
+      "captured": "after the derived analytics and the required methodology read for this tick (htf_context, the rule families)"
+    },
+    {
+      "id": "decision_start",
+      "spec_name": "decision start",
+      "kind": "hot",
+      "captured": "entry to the per-signal §36 walk (scripts/decision_order.py Trace)"
+    },
+    {
+      "id": "decision_end",
+      "spec_name": "decision end",
+      "kind": "hot",
+      "captured": "the per-signal §36 walk itself, recorded at BOTH of its exits -- the blocked signal that `continue`s and the eligible one that falls through to execution. Recorded at both rather than only the second, because a timer that stops only on the path that places an order measures the fast cases and drops the refusals, which are the slow ones."
+    },
+    {
+      "id": "risk_validation",
+      "spec_name": "risk validation",
+      "kind": "hot",
+      "captured": "§36 step 12-13: risk_precheck() and the sizing call inside it"
+    },
+    {
+      "id": "order_submission",
+      "spec_name": "order submission",
+      "kind": "hot",
+      "captured": "the venue call in place_limit()/place_market()"
+    },
+    {
+      "id": "provider_acknowledgement",
+      "spec_name": "provider acknowledgement",
+      "kind": "hot",
+      "captured": "when that venue call returns an order id"
+    },
+    {
+      "id": "fill",
+      "spec_name": "fill",
+      "kind": "transport_bound",
+      "captured": "the venue's own fill time, read on the NEXT tick's reconcile",
+      "_bound_why": "A resting limit fills when the market reaches it, and this loop learns about it when it next polls. The span from submission to fill is therefore a market fact plus a poll interval, not a code latency. Recorded as a wall-clock fact on the trade, and deliberately NOT summarised into the same percentile table as the hot stages -- mixing them would make a slow tick indistinguishable from a patient limit order."
+    }
+  ],
+  "workloads": {
+    "_rule": "CLAUDE.md §40: research, learning, backtesting, AI reasoning and post-trade analysis must NOT block the live decision and execution path. Isolation in this repo is BY PROCESS, and this table is what makes that claim checkable: every entry declares which path it belongs to and how it is kept off the other one.",
+    "hot": [
+      {"id": "normalized_data", "runs_in": "scripts/strategy-runner.py tick()"},
+      {"id": "required_analytics", "runs_in": "scripts/strategy-runner.py tick()"},
+      {"id": "required_methodology", "runs_in": "scripts/strategy-runner.py tick()"},
+      {"id": "decision_engine", "runs_in": "scripts/decision_order.py, called from tick()"},
+      {"id": "risk", "runs_in": "scripts/risk_model.py, called from tick()"},
+      {"id": "event_risk", "runs_in": "scripts/event_risk.py, called from tick()"},
+      {"id": "execution", "runs_in": "scripts/strategy-runner.py place_limit/place_market"}
+    ],
+    "research": [
+      {"id": "optional methodology analysis", "isolated_by": "a separate scanner process; the order path never waits on it (§35 classification decides what may gate)"},
+      {"id": "visualization", "isolated_by": "scripts/build-artifact.py, run by the publish cron, never by the order loop"},
+      {"id": "research", "isolated_by": "scripts/backtest-methods.py / stability-report.py, run by hand or by a research cron"},
+      {"id": "failure clustering", "isolated_by": "not implemented (§41); when it arrives it belongs here"},
+      {"id": "AI reasoning", "isolated_by": "scripts/scan-loop.sh detaches every model read (`( nohup … & )`, stdin closed); the live path imports nothing that calls a model, and a repo-wide grep for anthropic/openai under scripts/ is empty"},
+      {"id": "historical pattern mining", "isolated_by": "research scripts only"},
+      {"id": "post-trade analysis", "isolated_by": "scripts/journal.py, detached from the order loop by scripts/pilot-loop.sh (2026-09-18: it used to run SYNCHRONOUSLY between the tick and the sleep)"}
+    ]
+  },
+  "regression_stages": [
+    "normalization",
+    "provider adapters",
+    "derived analytics",
+    "required methodology analysis",
+    "Decision Engine",
+    "risk",
+    "event-risk validation",
+    "strategy evaluation"
+  ],
+  "_regression_note": "§40's own list of what performance regression tests should cover. scripts/tests/test_latency.py asserts a benchmark exists for each, and that each runs offline -- a regression test that needs the network measures the network."
+}

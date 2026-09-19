@@ -1,12 +1,37 @@
 {
   "_mock": true,
   "_disclaimer": "SYNTHETIC FIXTURE DATA — notional_est values are illustrative, not real liquidation data. Rehearsal only.",
+  "_source": "coinglass_mock",
   "symbol": "BTCUSDT",
   "last_updated": "2026-09-09T08:00:00Z",
   "clusters": [
-    { "price": 64650, "notional_est": 42000000, "side": "long", "status": "consumed", "note": "sat directly below the 09-08T14:00 low (64700); the sweep to 64700-64760 is judged to have run most of this cluster — treat this as already-spent liquidity, not a forward target" },
-    { "price": 63900, "notional_est": 68000000, "side": "long", "status": "resting", "note": "a second, larger long-liquidation cluster further below — if the reclaim fails and price revisits below 64700, this is the next magnet, and its size argues for a wider stop-invalidation buffer than 64650 alone would suggest" },
-    { "price": 67100, "notional_est": 51000000, "side": "short", "status": "resting", "note": "short-liquidation cluster above the range, roughly at the 4H/1D range's upper structure (66500-68500 zone) — a plausible upside liquidity target if the Spring thesis plays out" },
-    { "price": 69300, "notional_est": 39000000, "side": "short", "status": "resting", "note": "secondary short cluster further above, near the 09-01/09-02 supply zone" }
+    {
+      "price": 64650,
+      "notional_est": 42000000,
+      "side": "long",
+      "status": "consumed",
+      "note": "sat directly below the 09-08T14:00 low (64700); the sweep to 64700-64760 is judged to have run most of this cluster — treat this as already-spent liquidity, not a forward target"
+    },
+    {
+      "price": 63900,
+      "notional_est": 68000000,
+      "side": "long",
+      "status": "resting",
+      "note": "a second, larger long-liquidation cluster further below — if the reclaim fails and price revisits below 64700, this is the next magnet, and its size argues for a wider stop-invalidation buffer than 64650 alone would suggest"
+    },
+    {
+      "price": 67100,
+      "notional_est": 51000000,
+      "side": "short",
+      "status": "resting",
+      "note": "short-liquidation cluster above the range, roughly at the 4H/1D range's upper structure (66500-68500 zone) — a plausible upside liquidity target if the Spring thesis plays out"
+    },
+    {
+      "price": 69300,
+      "notional_est": 39000000,
+      "side": "short",
+      "status": "resting",
+      "note": "secondary short cluster further above, near the 09-01/09-02 supply zone"
+    }
   ]
 }

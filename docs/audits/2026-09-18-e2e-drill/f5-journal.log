@@ -1,0 +1,7 @@
+spot: 0 entries in log → 0 new, 0 updated trade files
+futures: 0 entries in log → 0 new, 0 updated trade files
+futures-top5: 1 entries in log → 0 new, 1 updated trade files
+cfd-mt5: 1 entries in log → 0 new, 1 updated trade files
+index: 3 trades → trades/index.jsonl
+views: EDGE-LOG (0 rows), MISTAKE-DB (0 entries)
+render: data/live/.journal-vi.html (3 trades)

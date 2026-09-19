@@ -73,6 +73,16 @@
         },
         "_note": {
           "type": "string"
+        },
+        "trader": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "null (default) or a trader id declared in docs/architecture/trader-constraints.json; the live runner applies that trader's tighten-only constraints (plan §0.9)."
+        },
+        "_trader_note": {
+          "type": "string"
         }
       }
     },

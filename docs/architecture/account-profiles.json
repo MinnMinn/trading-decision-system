@@ -1,0 +1,307 @@
+{
+  "_comment": "THE single source of truth for Account Profiles (CLAUDE.md §33). An Account Profile is the set of rules the ACCOUNT imposes, as opposed to the rules a methodology, a setup or a Trading System imposes -- the distinction §3 draws and §33 makes first-class. Before 2026-09-18 no such object existed: one of the fifteen attributes §33 names lived in config (max risk/trade, risk-config.json) and three more were literal constants inside the live order engine (EQUITY_HALT_FRAC=0.85, MAX_TRADES_PER_DAY=3, LEVERAGE=3), which meant the account's own rules were a property of the runner's source code rather than of the account. scripts/account_profile.py is the ONE reader; scripts/tests/test_account_profile.py fails the build on drift.",
+  "_scope": "These are ACCOUNT rules. They constrain what any Trading System may do on this account; they never describe market behaviour, never contribute to a Confluence Score, and never select a setup. A rule here may only ever TIGHTEN a platform-wide limit -- see max_risk_per_trade and news_restrictions -- because an account cannot grant itself more room than the platform allows.",
+  "version": 1,
+  "_version_why": "Bumped whenever any profile's rules change. An account rule is part of the configuration snapshot of every research run (§11) and a change to one is potentially Trading System version significant (§59): a backtest run under a 15 % drawdown limit is not comparable to one run under 5 %. Bump this and the snapshot stops being ambiguous about which rule set applied.",
+  "context_types": [
+    "PERSONAL",
+    "PROP_CHALLENGE",
+    "PROP_FUNDED",
+    "DEMO",
+    "CUSTOM"
+  ],
+  "_context_types_why": "Exactly the five §5 names, no more. §5 asks for these as CFD account/context types and warns not to assume all CFD accounts have identical rules; they live HERE and not in the market model, because they describe an account, not an instrument -- scripts/tests/test_canonical_market_model.py asserts they have not leaked into instruments.json. The Binance USDT-M TESTNET account is typed DEMO: fake money on a real venue's simulator is what DEMO means, and inventing a sixth value TESTNET would split one concept across two names for no rule difference. Which venue and which environment an account lives on is recorded separately, in `venue` and `environment`, where it belongs.",
+  "unroutable_environments": [
+    "research"
+  ],
+  "_unroutable_environments_why": "Environments an order path can never ask for. The routable ones -- the values `for_venue(venue, environment)` is called with on a path that places orders -- have ONE source, trading_env.ENV_NAMES (demo, real); this list is the complement, and it is declared rather than inferred so that a typo ('reserch') is refused at import instead of quietly producing a profile no lookup can reach. Two consequences, both enforced by scripts/account_profile.py: (a) the (venue, environment) uniqueness rule applies only to routable environments, so several prop templates may share venue 'mt5' under 'research' -- a researcher names the template by id, nobody routes to it; (b) `for_venue()` refuses an unroutable environment outright, so a research template can never become the account an order is sized against, not even when it is the only one on that venue.",
+  "_rule_keys": "Every profile must declare ALL fifteen keys under `rules`, plus `max_trades_per_day_per_symbol`. A key whose value is null means THIS ACCOUNT HAS NO SUCH RULE -- a declared absence. A key that is MISSING is refused at import, because 'nobody wrote a daily-loss limit down' and 'this account has no daily-loss limit' are different facts and the reader must not have to guess which one it is looking at (the same three-valued discipline §20 applies to data).",
+  "_rule_vocabulary": {
+    "initial_balance": "null | {amount, currency}. The fixed number a prop account's rules key off. null where the account has no fixed starting figure and the drawdown basis is captured live instead (see max_total_drawdown.basis).",
+    "max_daily_loss": "null | {pct, basis: initial_balance|day_start_equity, action}. pct is a FRACTION (0.05 = 5 %).",
+    "max_total_drawdown": "null | {pct, basis: initial_balance|equity_start, action}. equity_start = the equity captured at the pilot's first live tick for this venue (strategy-runner state.venues.<v>.equity_start).",
+    "trailing_drawdown": "null | {pct, basis: peak_equity, locks_at: null|{amount}, action}. locks_at models the prop rule where the trailing floor stops trailing once the account reaches a level.",
+    "profit_target": "null | {pct, basis}. An OBJECTIVE, not a gate: reaching it never blocks an entry, it reports progress (§33 lists it beside the limits; conflating the two would make success halt trading).",
+    "min_trading_days": "null | integer. Also an objective, not a gate.",
+    "max_leverage": "null | number. null = this platform does not set leverage on this venue; the broker's own applies.",
+    "max_risk_per_trade": "null | fraction. null = inherit the platform ceiling (docs/architecture/risk-config.json max_risk_pct via trading_env.MAX_RISK_PCT). A number here may only be LOWER than that ceiling; the reader refuses to load a profile that tries to raise it.",
+    "max_positions": "null | {mode: full_book} | {mode: fixed, count}. full_book = one slot per symbol this account may trade, derived from the execution lists of every market whose unattended execution venue is this profile's venue.",
+    "consistency_rules": "[] | [{id, kind, threshold, action, what}]. kind is evaluated by name; an unrecognised kind is refused at import rather than silently ignored.",
+    "news_restrictions": "null | {impacts: [...], pre_minutes, post_minutes}. null = the §24-§32 calendar policy applies unchanged. An object TIGHTENS that policy for this account (longer buffers, more impact levels restricted); the reader refuses a value that would loosen it.",
+    "overnight_restrictions": "null | {hold_allowed: false, action, what}.",
+    "weekend_restrictions": "null | {hold_allowed: false, action, what}.",
+    "session_restrictions": "null | {allowed_sessions: [...], action}. Session labels are validated against docs/architecture/sessions.json at import, so a renamed window cannot leave a dead rule behind.",
+    "custom_failure_conditions": "[] | [{id, kind, threshold, action, what}]. kind is evaluated by name; unrecognised kinds are refused at import.",
+    "max_trades_per_day_per_symbol": "null | integer. NOT one of §33's fifteen -- it is this platform's own churn cap, declared here because it is an account-level entry limit and was previously a constant in the order engine."
+  },
+  "_actions": {
+    "BLOCK_ENTRY": "no new entry while the condition holds; open positions are untouched",
+    "HALT": "stop the account: the pilot writes its STOP kill switch and takes no further action until a human clears it",
+    "UNKNOWN": "the rule could not be evaluated -- never permission. The caller must treat it as at least BLOCK_ENTRY.",
+    "HUMAN_CONFIRMATION": "escalate to a human before entry"
+  },
+  "profiles": {
+    "pilot-binance-futures-testnet": {
+      "what": "The unattended pilot's crypto account: Binance USDT-M FUTURES TESTNET, real orders, fake money.",
+      "context_type": "DEMO",
+      "venue": "futures",
+      "environment": "demo",
+      "rules": {
+        "initial_balance": null,
+        "_initial_balance_why": "The testnet account is topped up by the faucet and has no fixed starting figure; the drawdown basis is the equity captured at the first live tick instead (equity_start), which is what the guard has always compared against.",
+        "max_daily_loss": null,
+        "_max_daily_loss_why": "No daily-loss rule has been decided for this account. Declared null rather than invented: a limit nobody chose, enforced live, would halt the pilot on a number with no argument behind it.",
+        "max_total_drawdown": {
+          "pct": 0.15,
+          "basis": "equity_start",
+          "action": "HALT"
+        },
+        "_max_total_drawdown_why": "The runner's EQUITY_HALT_FRAC = 0.85 expressed as what it is: a 15 % account drawdown limit. Value unchanged -- it is the guard the 2026-09-13 sizing evidence leans on (scripts/tests/test_min_rr_and_risk.py) and the only thing bounding a full book of near-perfectly correlated crypto.",
+        "trailing_drawdown": null,
+        "profit_target": null,
+        "min_trading_days": null,
+        "max_leverage": 3,
+        "_max_leverage_why": "The runner's LEVERAGE constant. ISOLATED margin, notional capped at 25 % of equity x leverage.",
+        "max_risk_per_trade": null,
+        "_max_risk_per_trade_why": "Inherits the platform ceiling. There is ONE authored risk number (risk-config.json max_risk_pct, read through trading_env.MAX_RISK_PCT) and restating 0.01 here would create a second one that could drift.",
+        "max_positions": {
+          "mode": "full_book"
+        },
+        "_max_positions_why": "One slot per orderable crypto symbol, derived from the execution list -- adding a symbol raises the book by exactly one slot with no second edit. Max simultaneous risk = slots x risk/trade; at the 1 % ceiling and nine symbols that is 9 %, and max_total_drawdown is what bounds the damage.",
+        "consistency_rules": [],
+        "news_restrictions": null,
+        "_news_restrictions_why": "The §24-§32 calendar policy applies unchanged; this account adds nothing on top of it.",
+        "overnight_restrictions": null,
+        "weekend_restrictions": null,
+        "_weekend_restrictions_why": "Crypto is a continuous market (instruments.json crypto.continuous); a weekend rule here would restrict nothing.",
+        "session_restrictions": null,
+        "custom_failure_conditions": [
+          {
+            "id": "consecutive-losses",
+            "kind": "consecutive_losses",
+            "threshold": 5,
+            "action": "HALT",
+            "what": "Five losing trades in a row on this venue stops the account (the runner's CONSEC_LOSS_HALT)."
+          }
+        ],
+        "max_trades_per_day_per_symbol": 3
+      }
+    },
+    "pilot-mt5-demo": {
+      "what": "The unattended pilot's CFD/FX account: the MT5 DEMO account reached through the file order bridge.",
+      "context_type": "DEMO",
+      "venue": "mt5",
+      "environment": "demo",
+      "rules": {
+        "initial_balance": null,
+        "max_daily_loss": null,
+        "max_total_drawdown": {
+          "pct": 0.15,
+          "basis": "equity_start",
+          "action": "HALT"
+        },
+        "trailing_drawdown": null,
+        "profit_target": null,
+        "min_trading_days": null,
+        "max_leverage": null,
+        "_max_leverage_why": "This platform sets no leverage on MT5: the bridge sizes in lots from the broker's contract data and the broker's own leverage applies. Declaring 3 here would be a number nothing reads.",
+        "max_risk_per_trade": null,
+        "max_positions": {
+          "mode": "full_book"
+        },
+        "_max_positions_why": "One slot per symbol THIS ACCOUNT may trade, which is every market routed to the mt5 venue -- cfd AND forex. The constant this replaces was len(CFD) alone, so the cap ignored the seven FX majors that route to the same account (flagged in SPEC-COMPLIANCE §4 as belonging with the §33 account limits). Binding effect today is unchanged: forex is default_enabled=false, so no FX signal is generated, and the one-position-per-symbol rule already bounds the book.",
+        "consistency_rules": [],
+        "news_restrictions": null,
+        "overnight_restrictions": null,
+        "_overnight_restrictions_why": "No swap-free or flat-by-close rule applies to this demo account. A prop account that requires flat by the session close declares {hold_allowed: false, action: BLOCK_ENTRY} here.",
+        "weekend_restrictions": null,
+        "_weekend_restrictions_why": "CFD and FX markets close at the weekend, so positions cannot be opened then anyway; this account adds no rule about carrying one across.",
+        "session_restrictions": null,
+        "custom_failure_conditions": [
+          {
+            "id": "consecutive-losses",
+            "kind": "consecutive_losses",
+            "threshold": 5,
+            "action": "HALT",
+            "what": "Five losing trades in a row on this venue stops the account."
+          }
+        ],
+        "max_trades_per_day_per_symbol": 3
+      }
+    },
+    "ftmo-challenge-phase1": {
+      "what": "RESEARCH profile for the FTMO Challenge Phase 1 rule set -- backtesting a Trading System against prop-firm fail conditions, not a live account. No execution venue routes to this profile (environment != demo/real); `for_venue()` cannot return it.",
+      "context_type": "PROP_CHALLENGE",
+      "venue": "mt5",
+      "environment": "research",
+      "_source": {
+        "retrieved": "2026-09-18",
+        "urls": [
+          "propfirmatlas.io/guides/ftmo-challenge-rules-guide",
+          "ftmo.com/en/trading-objectives"
+        ],
+        "verify": "values came from web search summaries, not the vendor page (fetch blocked); confirm at ftmo.com/en/trading-objectives and help.the5ers.com before treating a pass as real"
+      },
+      "rules": {
+        "initial_balance": {
+          "amount": 100000,
+          "currency": "USD"
+        },
+        "max_daily_loss": {
+          "pct": 0.05,
+          "basis": "day_start_equity",
+          "action": "HALT"
+        },
+        "max_total_drawdown": {
+          "pct": 0.1,
+          "basis": "initial_balance",
+          "action": "HALT"
+        },
+        "trailing_drawdown": null,
+        "profit_target": {
+          "pct": 0.1,
+          "basis": "initial_balance"
+        },
+        "min_trading_days": 4,
+        "_min_trading_days_why": "2024+ sources report 4 minimum trading days for FTMO Challenge Phase 1; older sources report 10. 4 recorded, flagged for verification per _source (docs/plans/2026-09-18-close-feature-gaps.md §0.1).",
+        "max_leverage": null,
+        "max_risk_per_trade": null,
+        "max_positions": {
+          "mode": "full_book"
+        },
+        "consistency_rules": [],
+        "news_restrictions": null,
+        "overnight_restrictions": null,
+        "weekend_restrictions": null,
+        "session_restrictions": null,
+        "custom_failure_conditions": [],
+        "max_trades_per_day_per_symbol": null
+      }
+    },
+    "the5ers-high-stakes-step1": {
+      "what": "RESEARCH profile for The5ers High Stakes (Classic) Step 1 rule set -- backtesting a Trading System against prop-firm fail conditions, not a live account. No execution venue routes to this profile (environment != demo/real); `for_venue()` cannot return it.",
+      "context_type": "PROP_CHALLENGE",
+      "venue": "mt5",
+      "environment": "research",
+      "_source": {
+        "retrieved": "2026-09-18",
+        "urls": [
+          "help.the5ers.com/what-is-the-drawdown-rule-for-high-stakes",
+          "the5ers.com/faqs/"
+        ],
+        "verify": "values came from web search summaries, not the vendor page (fetch blocked); confirm at ftmo.com/en/trading-objectives and help.the5ers.com before treating a pass as real"
+      },
+      "rules": {
+        "initial_balance": {
+          "amount": 100000,
+          "currency": "USD"
+        },
+        "max_daily_loss": {
+          "pct": 0.05,
+          "basis": "day_start_equity",
+          "action": "HALT"
+        },
+        "max_total_drawdown": {
+          "pct": 0.1,
+          "basis": "initial_balance",
+          "action": "HALT"
+        },
+        "trailing_drawdown": null,
+        "profit_target": {
+          "pct": 0.08,
+          "basis": "initial_balance"
+        },
+        "min_trading_days": 3,
+        "max_leverage": null,
+        "max_risk_per_trade": null,
+        "max_positions": {
+          "mode": "full_book"
+        },
+        "consistency_rules": [],
+        "news_restrictions": null,
+        "overnight_restrictions": null,
+        "weekend_restrictions": null,
+        "session_restrictions": null,
+        "custom_failure_conditions": [],
+        "max_trades_per_day_per_symbol": null
+      }
+    },
+    "crypto-personal-v1": {
+      "what": "The user's OWN crypto account, as a RESEARCH profile: what 'losing' means when nobody else's rules apply. A personal account is only finished when the money is gone -- there is no daily loss limit and no challenge to pass (CLAUDE.md §33). Used to answer 'would this rule have survived my own account?', never to route an order (environment `research`).",
+      "context_type": "PERSONAL",
+      "venue": "futures",
+      "environment": "research",
+      "rules": {
+        "initial_balance": {
+          "amount": 10000,
+          "currency": "USDT"
+        },
+        "max_daily_loss": null,
+        "max_total_drawdown": {
+          "pct": 0.5,
+          "basis": "initial_balance",
+          "action": "HALT"
+        },
+        "trailing_drawdown": null,
+        "profit_target": null,
+        "min_trading_days": null,
+        "max_leverage": null,
+        "max_risk_per_trade": null,
+        "max_positions": {
+          "mode": "full_book"
+        },
+        "consistency_rules": [],
+        "news_restrictions": null,
+        "overnight_restrictions": null,
+        "weekend_restrictions": null,
+        "session_restrictions": null,
+        "custom_failure_conditions": [],
+        "max_trades_per_day_per_symbol": null
+      },
+      "_rules_why": "initial_balance 10000 USDT matches scripts/backtest-methods.py START, so the money metrics describe the account the backtest actually simulates. max_total_drawdown 0.50 is the user's own stated ruin line for a personal account ('cháy tài khoản mới tính là thua hẳn', 2026-09-18) expressed conservatively -- halve the account and the plan is over. No profit_target: a personal account cannot be 'passed', so §39's prop_pass_probability is unavailable FOR THIS PROFILE by design, not by a gap."
+    },
+    "crypto-prop-discipline": {
+      "what": "FTMO-style limits applied to CRYPTO on purpose. The user's decision 2026-09-19: crypto is not traded under any prop firm's rules, but measuring it AS IF it were is how you find out whether a rule is sustainable rather than merely profitable on one lucky path. A research yardstick, not an account anyone holds.",
+      "context_type": "CUSTOM",
+      "venue": "futures",
+      "environment": "research",
+      "rules": {
+        "initial_balance": {
+          "amount": 10000,
+          "currency": "USDT"
+        },
+        "max_daily_loss": {
+          "pct": 0.05,
+          "basis": "day_start_equity",
+          "action": "HALT"
+        },
+        "max_total_drawdown": {
+          "pct": 0.1,
+          "basis": "initial_balance",
+          "action": "HALT"
+        },
+        "trailing_drawdown": null,
+        "profit_target": {
+          "pct": 0.1,
+          "basis": "initial_balance"
+        },
+        "min_trading_days": 4,
+        "max_leverage": null,
+        "max_risk_per_trade": null,
+        "max_positions": {
+          "mode": "full_book"
+        },
+        "consistency_rules": [],
+        "news_restrictions": null,
+        "overnight_restrictions": null,
+        "weekend_restrictions": null,
+        "session_restrictions": null,
+        "custom_failure_conditions": [],
+        "max_trades_per_day_per_symbol": null
+      },
+      "_rules_why": "The same four numbers as ftmo-challenge-phase1 (5% daily, 10% total, 10% target, 4 days) so the crypto and CFD answers are comparable, on the backtest's own 10000 balance. This profile deliberately describes NO real account -- context_type CUSTOM, environment research, unroutable -- so no order path can ever resolve to it (CLAUDE.md §51)."
+    }
+  },
+  "_no_real_profile_why": "There is deliberately no profile for environment 'real' on either venue. The reader raises when asked for an account it has no rules for, so switching execution.environment to 'real' cannot start trading real money until somebody has written that account's rules down -- one more lock alongside the runner's own refusal and the MT5 EA's demo-account check (§51).",
+  "_prop_profiles_why": "ftmo-challenge-phase1 and the5ers-high-stakes-step1 exist for RESEARCH under §33/§37 (user decision 2026-09-18): backtesting a Trading System against prop-firm fail conditions before ever opening a funded challenge. Both declare `environment: \"research\"`, which is not a value `for_venue()`'s (venue, environment) lookup can ever be asked for on an order path (that always passes \"demo\" or \"real\") -- so these profiles can be loaded by id (`account_profile.get(...)`) for a backtest but never routed to by execution. Values in `rules` came from web search summaries (vendor pages blocked at fetch time, 2026-09-18); each profile's `_source` records what to verify before treating a pass/fail under it as real."
+}

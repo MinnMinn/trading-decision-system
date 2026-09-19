@@ -1,0 +1,221 @@
+{
+  "_comment": "THE single source of truth for CLAUDE.md §35 -- the Trading System artifact and, above all, the four-way dependency classification (REQUIRED_FOR_DECISION / OPTIONAL_FOR_ANALYSIS / VISUALIZATION_ONLY / RESEARCH_ONLY) that §36 and §62 are unenforceable without. scripts/trading_system.py is the ONE reader; import it, never re-derive a role, never hard-code a dependency id. Before this file existed the dependency model was binary -- a dimension was engaged or skipped (scripts/methods.py dispatch_plan) -- and nothing anywhere declared what a live decision may WAIT for versus what must never block it.",
+  "schema_version": 1,
+
+  "roles": ["REQUIRED_FOR_DECISION", "OPTIONAL_FOR_ANALYSIS", "VISUALIZATION_ONLY", "RESEARCH_ONLY"],
+  "_roles_why": "The four names are CLAUDE.md §35's, verbatim and in its order. Only REQUIRED_FOR_DECISION may gate a live entry decision (§36, §62). The other three MUST NOT block execution -- scripts/trading_system.py assert_may_gate() raises when a caller tries to block on one, which is how §62's 'a required analysis failure must never silently become an optional one' gets an inverse that is also enforced: an optional analysis failure can never silently become a gate.",
+
+  "gating_role": "REQUIRED_FOR_DECISION",
+
+  "dependencies": {
+    "candles.entry": {
+      "kind": "data",
+      "produced_by": "scripts/strategy-runner.py fetch_candles() over data/live/market-data (crypto) or data/live/mt5-bridge (cfd, forex); quality state from scripts/quality.py",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "The system's own timeframe bars. Every setup detector in this repo consumes them; there is no setup that can be evaluated without them (scripts/strategy-runner.py:413). A system that does not declare these required could not decide anything at all."
+    },
+    "candles.htf": {
+      "kind": "data",
+      "produced_by": "scripts/strategy-runner.py fetch_candles(HTF_OF[tf]) -- the same feeds one rung up the ladder (docs/architecture/timeframe-mapping.md)",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "only_when": "setup.htf",
+      "else_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "A setup row that declares htf:true is asking for a higher-timeframe gate, and the runner already fails closed on it (strategy-runner.py: `if st.get(\"htf\") and sig[\"htf_pass\"] is not True`). A row that declares htf:false never consults the read at all, so calling it required there would be a fiction that blocks nothing. The condition is declared rather than assumed; with no setup row in hand the reader resolves it REQUIRED, because 'I was not told which setup' must not read as 'not required'."
+    },
+    "candles.context": {
+      "kind": "data",
+      "produced_by": "scripts/automation.py CONTEXT_STYLE -> the context style's own bars, drawn as the page's Bias tier",
+      "baseline_role": "VISUALIZATION_ONLY",
+      "why": "The published page's top ladder rung. It informs a reader; it is not an input to any order the runner places (strategy-runner.py reads HTF_OF, never CONTEXT_STYLE). Classifying it VISUALIZATION_ONLY is what forbids it from ever becoming a silent gate."
+    },
+
+    "analytics.ict_scan": {
+      "kind": "analytics",
+      "produced_by": "scripts/ict-scan.py and scripts/live_rules.py read_at()",
+      "dimension": "ict",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "only_when": "setup.method_requires",
+      "else_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "The MECHANICAL ICT rules, not the discretionary ICT dimension below -- homonyms, see methods.json `_runner_note`. Required exactly when the setup's runner method names `ict` in methods.json runner_methods[*].requires; a WYCKOFF-BOOK-only setup does not consult it."
+    },
+    "analytics.wyckoff_rules": {
+      "kind": "analytics",
+      "produced_by": "scripts/wyckoff_rules.py (CHoCH gate, TR from SC/AR, Spring vs Shakeout, VP veto)",
+      "dimension": "wyckoff",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "only_when": "setup.method_requires",
+      "else_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "Same homonym split as analytics.ict_scan: these are the mechanical rules the runner scans with, keyed off the same requires[] table."
+    },
+    "analytics.htf_bias": {
+      "kind": "analytics",
+      "produced_by": "scripts/htf_context.py bias_of() via scripts/live_rules.py, consumed by strategy-runner.py htf_pass()",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "only_when": "setup.htf",
+      "else_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "The derived read that candles.htf feeds. Declared separately from the bars because the two fail differently: the bars can be present and the bias still unreadable (no entry in automation.SCAN_WINDOW for that timeframe), and the runner blocks on that case by name."
+    },
+
+    "methodology.wyckoff": {
+      "kind": "methodology",
+      "produced_by": "structure-agent + wyckoff-skill (the discretionary Confluence dimension), registry docs/architecture/methods.json dimensions.wyckoff",
+      "dimension": "wyckoff",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "only_when": "preset.engages",
+      "else_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "CLAUDE.md §15: the active trading selection decides what may qualify a trade, and it is NOT a global analysis filter. So a dimension the preset engages is REQUIRED_FOR_DECISION and one it does not is OPTIONAL_FOR_ANALYSIS -- still read, still displayed, never counted and never a gate. The predicate answers False without consulting any config when the market has no source for the dimension at all (methods.json dimensions.*.markets)."
+    },
+    "methodology.ict": {
+      "kind": "methodology",
+      "produced_by": "structure-agent + ict-skill, registry docs/architecture/methods.json dimensions.ict",
+      "dimension": "ict",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "only_when": "preset.engages",
+      "else_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "Same rule as methodology.wyckoff."
+    },
+    "methodology.footprint": {
+      "kind": "methodology",
+      "produced_by": "flow-agent + footprint-skill, registry docs/architecture/methods.json dimensions.footprint",
+      "dimension": "footprint",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "only_when": "preset.engages",
+      "else_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "Same rule. On cfd and forex the predicate is False structurally -- CoinGlass is crypto-derivatives only (SYSTEM-DESIGN.md §12 item 3) -- so the dimension cannot become a gate on a market that has no source for it. That is §35 doing its job, not §6 being bypassed: the unavailability is still reported by §6, this only settles whether it may block."
+    },
+    "methodology.heatmap": {
+      "kind": "methodology",
+      "produced_by": "liquidity-agent + heatmap-skill, registry docs/architecture/methods.json dimensions.heatmap",
+      "dimension": "heatmap",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "only_when": "preset.engages",
+      "else_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "Same rule as methodology.footprint."
+    },
+
+    "event_risk.calendar": {
+      "kind": "event_risk",
+      "produced_by": "docs/architecture/event-calendar.json via scripts/event_risk.py, tightened per account by scripts/account_profile.py tighten_calendar()",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "CLAUDE.md §32: a missing, stale, invalid or unknown calendar must never be read as 'no news'. Unconditionally required for every system -- there is no setup, method or market for which the event-risk state is optional before a new entry (§24). event_risk.py already fails closed; this is the declaration that makes that behaviour a stated contract rather than an implementation detail."
+    },
+
+    "account.equity": {
+      "kind": "account",
+      "produced_by": "strategy-runner.py usdt_balance() (futures) / mt5_equity() (mt5)",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "Both the §33 survival rules and §34 sizing read it. Unconditional: there is no entry path in this repo that sizes without an equity figure."
+    },
+    "account.profile_rules": {
+      "kind": "account",
+      "produced_by": "docs/architecture/account-profiles.json via scripts/account_profile.py entry_gate() / halt_check()",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "§33. A declared rule whose input is missing reports UNKNOWN and refuses the entry; declaring the whole profile REQUIRED_FOR_DECISION is what makes that refusal correct rather than over-cautious."
+    },
+    "risk.net_rr": {
+      "kind": "risk",
+      "produced_by": "scripts/risk_model.py net_r() -- gross R less the modelled fee cost in R",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "§34. The R:R floor is measured net of fees; a signal whose net R cannot be computed is refused rather than admitted at its gross number."
+    },
+    "risk.position_size": {
+      "kind": "risk",
+      "produced_by": "scripts/risk_model.py size() plus the venue's minimum-notional / lot filters (strategy-runner.py min_notional(), mt5_lots())",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "§34 again: risk must be validated BEFORE execution, and a size that cannot be computed (unknown filter, unknown lot step) is a refusal, not a guess."
+    },
+    "venue.reconciliation": {
+      "kind": "execution",
+      "produced_by": "strategy-runner.py tick() step 2b -- position-risk / open-orders (futures) and mt5_json(\"state\") (mt5)",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "PILOT-06. New risk must not be added on a symbol whose venue state this runner does not own. Required for every system: a system that does not execute today asks nobody, and a system that starts executing tomorrow inherits the gate rather than having to remember it."
+    },
+
+    "display.chart": {
+      "kind": "display",
+      "produced_by": "scripts/chart.js + scripts/build-artifact.py",
+      "baseline_role": "VISUALIZATION_ONLY",
+      "why": "Chart panes, lane colouring, zoom. CLAUDE.md §35's own example of VISUALIZATION_ONLY. A failed render must never stop an order."
+    },
+    "display.expected_path": {
+      "kind": "display",
+      "produced_by": "scripts/expectation_producer.py builds the scripts/expectation.py records (one per required dimension); scripts/chart.js expectationShapes() draws each methodology's legs, never merged",
+      "baseline_role": "VISUALIZATION_ONLY",
+      "why": "§17 expectations are methodology-specific annotations of what may happen. They are explicitly NOT signals (§17 closing rule), so they may not gate."
+    },
+    "display.model_narrative": {
+      "kind": "analysis",
+      "produced_by": "data/live/narrative/<style>.json + data/live/anchors.<style>.json, checked by scripts/check-narrative.py",
+      "baseline_role": "OPTIONAL_FOR_ANALYSIS",
+      "why": "The model's written read and the anchors the published page scores against. Classified OPTIONAL_FOR_ANALYSIS rather than VISUALIZATION_ONLY because it is an interpretation, not an overlay -- but it is not required by any system: scripts/strategy-runner.py never opens either file (verified by grep, and by scripts/tests/test_trading_system.py)."
+    },
+
+    "research.backtest_stability": {
+      "kind": "research",
+      "produced_by": "scripts/backtest-methods.py + scripts/stability-report.py -> data/history/stability/*.json",
+      "baseline_role": "RESEARCH_ONLY",
+      "why": "§40: research must not block the live path. The numbers that chose a setup are not consulted again at decision time."
+    },
+    "research.ranking": {
+      "kind": "research",
+      "produced_by": "scripts/rank-setups.py -> docs/architecture/pilot-top5.json",
+      "baseline_role": "RESEARCH_ONLY",
+      "why": "Ranking selects which setups exist; once written, the runner reads the rows, not the ranking run."
+    },
+    "research.journal_review": {
+      "kind": "research",
+      "produced_by": "scripts/journal.py stats() and the post-trade review path",
+      "baseline_role": "RESEARCH_ONLY",
+      "why": "§41 failure learning. It may propose changes; it may never gate an entry, and it may never rewrite the production system (§41)."
+    }
+  },
+  "_dependencies_coverage": "Checked against CLAUDE.md §35's own examples. Its REQUIRED_FOR_DECISION list names one input with no entry here: a 'required volatility metric'. That is deliberate rather than an omission -- volatility in this repo is not separately produced. The volume/displacement thresholds (backtest-methods.py VOL / DISP, analysis-params.json) are consumed INSIDE analytics.ict_scan and analytics.wyckoff_rules and have no artifact a decision could wait on, so a dependency id for one would be a classification with nothing behind it. When a volatility metric becomes its own analytic, it gets its own id here. §35's RESEARCH_ONLY examples that do not exist yet (candidate generation, Monte Carlo, exploratory AI analysis) are likewise absent for want of an artifact, not for want of a role -- they belong to §41-§45.",
+  "_dependencies_why": "`baseline_role` is the role a dependency has in a system that does NOT name it required. It may never be REQUIRED_FOR_DECISION -- scripts/trading_system.py refuses to load a registry where it is. That single rule is what makes required-ness impossible to INHERIT: a dependency can only gate a system that wrote its id down. `only_when` names a predicate implemented in the reader (setup.htf, setup.method_requires, preset.engages); when the predicate cannot be evaluated for lack of context, the reader resolves REQUIRED, never `else_role`.",
+
+  "dependency_profiles": {
+    "pilot-v1": {
+      "required_for_decision": [
+        "candles.entry",
+        "candles.htf",
+        "analytics.ict_scan",
+        "analytics.wyckoff_rules",
+        "analytics.htf_bias",
+        "methodology.wyckoff",
+        "methodology.ict",
+        "methodology.footprint",
+        "methodology.heatmap",
+        "event_risk.calendar",
+        "account.equity",
+        "account.profile_rules",
+        "risk.net_rr",
+        "risk.position_size",
+        "venue.reconciliation"
+      ],
+      "why": "Every system in this repo gates on the same fifteen today, so the list lives once and each system NAMES the profile it uses -- the same idiom methods.json uses for presets. A system that ever needs a different gating set gets its own profile rather than an edit to this one; that is what keeps a change to one system from silently re-gating the other eight. The seven dependencies absent from this list (candles.context, display.chart, display.expected_path, display.model_narrative, research.backtest_stability, research.ranking, research.journal_review) are absent deliberately -- their baseline roles are what §35 calls VISUALIZATION_ONLY / RESEARCH_ONLY / OPTIONAL_FOR_ANALYSIS, and none of them may block an entry."
+    }
+  },
+
+  "systems": {
+    "scalping":     {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "futures", "environment": "demo"}},
+    "day":          {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "futures", "environment": "demo"}},
+    "swing":        {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "futures", "environment": "demo"}},
+    "cfd-scalping": {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}},
+    "cfd-day":      {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}},
+    "cfd-swing":    {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}},
+    "fx-scalping":  {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}},
+    "fx-day":       {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}},
+    "fx-swing":     {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}}
+  },
+  "_systems_why": "One Trading System per style, and the style set is NOT declared here -- it is scripts/automation.py STYLE, derived from (market x horizon). The reader refuses to load if the key set differs, so a new market or horizon cannot appear with no Trading System governing it, and a Trading System cannot exist for a style that does not. Market, timeframe, instruments, setups, entry/exit rules, risk ceiling, custom constraints and event-risk buffers are all RESOLVED from their own registries by trading_system.describe() rather than copied here -- §35 asks the system to declare its composition, not to become a second copy of six other files. `account_profile` is declared because it is the one field with no derivation: cfd-scalping, cfd-day and the three fx styles have no pilot setup row today, so there is no execution venue to derive an account from, and naming it anyway is what makes the account's rules apply the day one of them is switched on rather than the day after.",
+
+  "_version_why": "`version` is the CLAUDE.md §47 canonical Trading System version. Declared here so a configuration snapshot (§11) can record WHICH system produced a result; the rule for when it must be bumped is §47's and is not implemented yet -- scripts/tests/test_trading_system.py asserts only that the field exists and is vN.",
+
+  "history": [
+    {
+      "date": "2026-09-18",
+      "change": "initial registry: 22 classified dependencies, 1 dependency profile, 9 Trading Systems (one per automation.STYLE)",
+      "reason": "CLAUDE.md §35's four-way classification existed in prose and nowhere in code or config; §36's canonical ordering and §62's non-negotiable invariant were both unenforceable without it, and snapshot.py was typing required_evidence / required_analytics as unavailable(\"§35\") for exactly this reason.",
+      "approved_by": "user (standing instruction: execute CLAUDE.md §1-§62 in order)"
+    }
+  ]
+}

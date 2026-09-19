@@ -1,0 +1,260 @@
+{
+  "_comment": "THE single source of truth for CLAUDE.md §36 -- the canonical decision ordering. Seventeen steps, in §36's own order and its own words. scripts/decision_order.py is the ONE reader; the live order path (scripts/strategy-runner.py) records a Trace against it and refuses to place an order when the trace violates the order or blocks at a step that may not block. Before this file existed there were TWO orderings that implemented nothing in common -- twelve prose steps in .claude/commands/analyze.md and whatever sequence tick() happened to execute -- and neither was the canonical sequence §36 names.",
+  "schema_version": 1,
+  "_steps_why": "`may_block` says whether this step is allowed to stop an entry. `dependencies` names ids from docs/architecture/trading-systems.json -- the link is checked at load, and a step may only block on a dependency the active Trading System classifies REQUIRED_FOR_DECISION (§35, §62). `live`, `analyze` and `backtest` say where the step is implemented on each of the three paths, or declare `null` with a reason: a step that no path implements must SAY so rather than be quietly absent, which is how the missing event-risk precheck stayed invisible.",
+  "steps": [
+    {
+      "n": 1,
+      "id": "market_instrument",
+      "name": "Market / Instrument validation",
+      "may_block": true,
+      "dependencies": [],
+      "live": "scripts/strategy-runner.py enabled_symbols() / venue_of() -- the instruments.json allowlist; venue_of raises on an unlisted symbol",
+      "analyze": ".claude/commands/analyze.md refuse-before-any-analysis clause",
+      "why": "The allowlist is the first gate on both paths because everything after it assumes a known instrument.",
+      "backtest": "scripts/backtest-methods.py load() -- the history file IS the instrument; the allowlist is applied by the CALLER (scripts/rank-setups.py derives its symbol list from instruments.py), not by the engine"
+    },
+    {
+      "n": 2,
+      "id": "data_quality",
+      "name": "Data availability and quality validation",
+      "may_block": true,
+      "dependencies": [
+        "candles.entry",
+        "candles.htf"
+      ],
+      "live": "scripts/strategy-runner.py fetch_candles() -> _require_quality() (scripts/quality.py §20 states)",
+      "analyze": ".claude/commands/analyze.md step 1 (DataValidationStatus)",
+      "why": "§20's six states decide here; a required input that is not FRESH produces WAIT / NO_TRADE / BLOCK_ENTRY / HUMAN_CONFIRMATION rather than a guess.",
+      "backtest": "scripts/backtest-methods.py load() -> quality.assess(); PARTIAL/INVALID history is FLAGGED into QUALITY_FLAGS rather than raised, because refusing to run would delete the finding along with the result (§38)"
+    },
+    {
+      "n": 3,
+      "id": "event_precheck",
+      "name": "Event / News Risk Precheck",
+      "may_block": true,
+      "dependencies": [
+        "event_risk.calendar"
+      ],
+      "live": "scripts/strategy-runner.py tick() -- the per-tick precheck, evaluated before any setup is scanned",
+      "analyze": ".claude/commands/analyze.md step 2",
+      "why": "§36 calls this 'an early safety and data-availability check' and keeps it DISTINCT from step 14. It asks whether the calendar can be consulted at all -- a missing or unparseable calendar is the §32 fail-safe and must stop the tick before work is done on a decision that cannot legally be made. Step 14 asks the different question of whether THIS instrument is inside a restricted window right now. Added 2026-09-18: the live path had only step 14.",
+      "backtest": "scripts/backtest-methods.py simulate() -- admission-time refusal, entry_time only"
+    },
+    {
+      "n": 4,
+      "id": "session",
+      "name": "Session validation",
+      "may_block": true,
+      "dependencies": [
+        "account.profile_rules"
+      ],
+      "live": "scripts/strategy-runner.py tick() step 4 -- account_profile.entry_gate session_restrictions finding",
+      "analyze": ".claude/commands/analyze.md step 4 (HTF context names the session regime); session weights are scored, not gated",
+      "why": "§21 sessions exist and are registered (docs/architecture/sessions.json); the gate is account_profile.entry_gate's own session_restrictions finding -- the runner used to read it and emit tr.skip('session', ...) regardless of the finding's state (2026-09-18: emits tr.ok/tr.block from the finding itself instead, so a declared session_restrictions rule actually gates).",
+      "backtest": "scripts/backtest-methods.py simulate() -- admission-time refusal, entry_time only"
+    },
+    {
+      "n": 5,
+      "id": "account_constraints",
+      "name": "Account constraints",
+      "may_block": true,
+      "dependencies": [
+        "account.equity",
+        "account.profile_rules"
+      ],
+      "live": "scripts/strategy-runner.py AP.halt_check() per venue (survival) and AP.entry_gate() per signal (new entries)",
+      "analyze": ".claude/commands/analyze.md step 9 (risk-agent hard checks)",
+      "why": "§33. Split across the tick deliberately: halt_check runs before any work because a halted account must do none, entry_gate runs per signal because its inputs (open positions, trades today) change within the tick.",
+      "backtest": "scripts/backtest-methods.py simulate() -- the SURVIVAL half only: RISK per trade and the RUIN_FRAC halt. The account's ENTRY gates (position cap, per-symbol daily cap, session/overnight/weekend rules) are not applied; `account_profile` in the §11 snapshot says so by value"
+    },
+    {
+      "n": 6,
+      "id": "methodology_applicability",
+      "name": "Methodology applicability",
+      "may_block": true,
+      "dependencies": [
+        "methodology.wyckoff",
+        "methodology.ict",
+        "methodology.footprint",
+        "methodology.heatmap"
+      ],
+      "live": "scripts/strategy-runner.py allowed_methods() (the preset filter) and the unscannable-timeframe check",
+      "analyze": ".claude/commands/analyze.md steps 3 and 5 (mode lock + dispatch plan)",
+      "why": "§15/§16: which methodologies the ACTIVE system may trade, decided before any of them is read.",
+      "backtest": "scripts/backtest-methods.py resolve_methods() and scan()'s `only=` / `want` set -- the same methods.json requires[] table the live path reads"
+    },
+    {
+      "n": 7,
+      "id": "required_evidence",
+      "name": "Required evidence generation",
+      "may_block": true,
+      "dependencies": [
+        "analytics.ict_scan",
+        "analytics.wyckoff_rules",
+        "analytics.htf_bias"
+      ],
+      "live": "scripts/live_rules.py / scripts/ict-scan.py / scripts/wyckoff_rules.py, inside setups()",
+      "analyze": ".claude/commands/analyze.md step 5 (agent reads)",
+      "why": "The mechanical analytics. Homonyms with step 8's dimensions -- docs/architecture/methods.json `_runner_note`.",
+      "backtest": "scripts/backtest-methods.py all_pivots() / last_pivot() (causal by construction: a pivot at i needs bar i+3, so last_pivot admits only i <= upto-4), scripts/wyckoff_rules.py, and scripts/live_rules.py read_at() inside ict_setups_live() -- the SAME module the live runner uses, which is what live/backtest parity rests on"
+    },
+    {
+      "n": 8,
+      "id": "required_methodology",
+      "name": "Required methodology analysis",
+      "may_block": true,
+      "dependencies": [
+        "methodology.wyckoff",
+        "methodology.ict",
+        "methodology.footprint",
+        "methodology.heatmap"
+      ],
+      "live": null,
+      "_live_why": "The pilot runner trades MECHANICAL rule families, not the discretionary Confluence dimensions; no skill read reaches tick(). This is the §37 'same logical system' caveat in its sharpest form and is recorded rather than papered over.",
+      "analyze": ".claude/commands/analyze.md step 5 (structure-agent / flow-agent / liquidity-agent)",
+      "why": "§13's discretionary reads.",
+      "backtest": null,
+      "_backtest_why": "Same absence as the live path: the engine runs mechanical rule families, not the discretionary Confluence dimensions."
+    },
+    {
+      "n": 9,
+      "id": "setup_detection",
+      "name": "Required setup detection",
+      "may_block": true,
+      "dependencies": [
+        "analytics.ict_scan",
+        "analytics.wyckoff_rules"
+      ],
+      "live": "scripts/strategy-runner.py setups() / setups_wyckoff()",
+      "analyze": ".claude/commands/analyze.md step 4 (candidate Setup Type)",
+      "why": "§14: the market condition that qualifies for entry.",
+      "backtest": "scripts/backtest-methods.py scan() -- the Spring/Upthrust border loop, wyckoff_rules.detect_accumulations/detect_distributions, and ict_setups_live()"
+    },
+    {
+      "n": 10,
+      "id": "entry_condition",
+      "name": "Required entry condition evaluation",
+      "may_block": true,
+      "dependencies": [
+        "candles.htf",
+        "analytics.htf_bias"
+      ],
+      "live": "scripts/strategy-runner.py htf_pass() and the signal's own entry fields",
+      "analyze": ".claude/commands/analyze.md step 4",
+      "why": "The higher-timeframe gate fails CLOSED: anything other than an explicit True blocks (a bias that could not be read is not permission).",
+      "backtest": "scripts/backtest-methods.py htf_allows() / bias_allows() / find_ict() / fvg_fill() -- fvg_fill applies the causal cut (the gap must be complete by the MSS close)"
+    },
+    {
+      "n": 11,
+      "id": "expectation",
+      "name": "Required expectation / target generation ONLY if explicitly required by the active Trading System",
+      "may_block": true,
+      "dependencies": [
+        "display.expected_path"
+      ],
+      "live": "scripts/strategy-runner.py -- the rule families always emit a target, so the input is present; it is not separately gated",
+      "analyze": ".claude/commands/analyze.md step 10 (Decision Output expected path)",
+      "why": "§17. The ONLY-if is load-bearing: a system that does not require an expectation must not wait for one. The step may block in principle, but `display.expected_path` is VISUALIZATION_ONLY in every system today, so a Trace that tries to block HERE is refused by §35's assert_may_gate -- the classification does the enforcing, not a second rule in this file.",
+      "backtest": "scripts/backtest-methods.py -- `target` is the opposite Trading-Range border, set at detection time from bars already seen"
+    },
+    {
+      "n": 12,
+      "id": "risk_calculation",
+      "name": "Risk calculation",
+      "may_block": true,
+      "dependencies": [
+        "risk.position_size"
+      ],
+      "live": "scripts/strategy-runner.py risk_precheck(), which runs size() / mt5_lots() / min_notional() over scripts/risk_model.py at this step -- before 2026-09-18 those ran inside place_limit()/place_market(), i.e. at step 17, so a decision that could not be sized said TRADE at step 16 and then quietly did nothing",
+      "analyze": ".claude/commands/analyze.md step 9 (risk-agent)",
+      "why": "§34. A size that cannot be computed is a refusal, not a guess.",
+      "backtest": "scripts/backtest-methods.py simulate() -- risk as a fraction of compounding equity, with the venue's fee charged in R. NOT applied: MIN_NOTIONAL, lot step and volume_min, so a backtest trade may be a size no venue would accept (CLAUDE.md §37 'unrealistic execution assumptions'; owned by §38)"
+    },
+    {
+      "n": 13,
+      "id": "risk_validation",
+      "name": "Risk constraint validation",
+      "may_block": true,
+      "dependencies": [
+        "risk.net_rr",
+        "risk.position_size"
+      ],
+      "live": "scripts/strategy-runner.py rr_reason() -- the R:R floor measured NET of fees",
+      "analyze": ".claude/commands/analyze.md step 9",
+      "why": "§34 again: risk is validated BEFORE execution, by a check that names which rule refused.",
+      "backtest": "scripts/backtest-methods.py simulate() -- the planned-R:R floor, applied to R measured NET of fees since 2026-09-18 so that it is the same gate scripts/strategy-runner.py rr_reason() applies live"
+    },
+    {
+      "n": 14,
+      "id": "event_final",
+      "name": "Final News / Event Constraint Validation",
+      "may_block": true,
+      "dependencies": [
+        "event_risk.calendar"
+      ],
+      "live": "scripts/strategy-runner.py event_blackout(t, sym) -- per instrument, tightened by the account profile",
+      "analyze": ".claude/commands/analyze.md step 8 (blocking HIGH event-risk window)",
+      "why": "§36: this step 'determines final configured entry eligibility'. Per instrument, because §26 says an event does not reach every instrument -- a tick-wide answer would be wrong for eight of the nine symbols.",
+      "backtest": "scripts/backtest-methods.py simulate() -- admission-time refusal, entry_time only"
+    },
+    {
+      "n": 15,
+      "id": "contradiction_confluence",
+      "name": "Contradiction / Confluence validation",
+      "may_block": true,
+      "dependencies": [
+        "methodology.wyckoff",
+        "methodology.ict",
+        "methodology.footprint",
+        "methodology.heatmap"
+      ],
+      "live": null,
+      "_live_why": "Same reason as step 8: the runner engages no discretionary dimension, so it computes no Confluence Score and has no contradiction to resolve. scripts/confluence.py and scripts/htf_context.py bias_of() implement §18/§19 for the analysis path.",
+      "analyze": ".claude/commands/analyze.md steps 6, 7 and 8",
+      "why": "§18/§19.",
+      "backtest": null,
+      "_backtest_why": "Same absence as the live path: no discretionary dimension is engaged, so there is no Confluence Score and no contradiction to resolve."
+    },
+    {
+      "n": 16,
+      "id": "eligibility",
+      "name": "Final trade eligibility",
+      "may_block": true,
+      "dependencies": [
+        "venue.reconciliation"
+      ],
+      "live": "scripts/strategy-runner.py -- the `reasons` list: a signal with any reason is logged and skipped",
+      "analyze": ".claude/commands/analyze.md step 8 verdict + step 10 Final Verdict",
+      "why": "The single place the answer becomes yes or no. Its one dependency is the venue reconciliation (PILOT-06): whether this runner owns the venue state for this symbol is not a market question and not an account rule -- it is the last eligibility fact, and adding risk on a symbol the runner does not own is refused here.",
+      "backtest": "scripts/backtest-methods.py simulate() -- one open position per symbol (a trade entering inside an open trade of the same symbol is skipped) and the ruin halt"
+    },
+    {
+      "n": 17,
+      "id": "execution_instruction",
+      "name": "Execution instruction generation",
+      "may_block": false,
+      "dependencies": [],
+      "live": "scripts/strategy-runner.py place_limit() / place_market() -> the venue adapters",
+      "analyze": ".claude/commands/analyze.md step 12 -- /analyze NEVER executes; it ends by saying so",
+      "why": "The only step that is not a gate: by here the decision is made, and this step carries it out. `may_block: false` is enforced -- a refusal discovered at execution time is a defect in steps 1-16, not a legitimate decision.",
+      "backtest": "scripts/backtest-methods.py simulate() books the fill at the modelled price and charges the venue fee; walk() then determines the outcome from bars AFTER the entry, which is the only place CLAUDE.md §37 allows the future to decide anything"
+    }
+  ],
+  "_analyze_mapping_why": "The twelve prose steps of .claude/commands/analyze.md are not renumbered to seventeen. They are a DIFFERENT path (discretionary, human-facing, never executing) and several canonical steps collapse into one prose step there. What scripts/tests/test_decision_order.py enforces is that every canonical step names where it lives on each path or declares `null` with a reason -- not that the two paths have the same number of steps.",
+  "history": [
+    {
+      "date": "2026-09-18",
+      "change": "initial registry: CLAUDE.md §36's seventeen steps, with per-step dependencies linked to docs/architecture/trading-systems.json and per-path implementation or a declared absence",
+      "reason": "§36's canonical ordering existed as prose in CLAUDE.md and as two unrelated de-facto orders in the repo. Writing it down found that the live path had no step 3 (Event Risk Precheck) at all -- only step 14 -- so a calendar that could not be read was discovered late, per signal, instead of early, per tick.",
+      "approved_by": "user (standing instruction: execute CLAUDE.md §1-§62 in order)"
+    },
+    {
+      "date": "2026-09-18",
+      "change": "added the `backtest` path to all seventeen steps",
+      "reason": "CLAUDE.md §37. Writing the column found that the backtest's R:R floor was applied to GROSS R while the live gate (§34) uses R net of fees -- 5% of admitted trades across BTC/ETH/SOL 15m were ones the live runner refuses. simulate() now applies the floor to net R.",
+      "approved_by": "user (standing instruction: execute CLAUDE.md §1-§62 in order)"
+    }
+  ],
+  "_paths_why": "Three paths, because CLAUDE.md §37 asks the backtest to execute 'the same logical Trading System and Decision Engine semantics used by live decisions wherever practical'. Declaring the backtest column is how 'wherever practical' stops being a judgement call: five of the seventeen steps are absent there, each with its reason, and scripts/tests/test_backtesting.py checks that list against what the §11 configuration snapshot independently reports as not applied."
+}

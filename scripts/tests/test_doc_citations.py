@@ -44,6 +44,25 @@ ANCHOR_SLACK = 3        # lines either side; absorbs a comment added above the a
 HISTORICAL = ("docs/audits/", "docs/prompts/", "docs/plans/", "docs/backtests/")
 
 
+# Where a cited script name may live. `scripts/` was the only entry until 2026-09-18, which made a citation of
+# a TEST unresolvable -- and a test is often the most honest thing a doc can cite: "this invariant is enforced"
+# is evidenced by the test that fails when it stops being true, not by the implementation that claims it.
+# SYSTEM-DESIGN.md §1.0's never-override table cites `test_live_rules.py:101` for exactly that reason.
+# Order matters only for error messages; a basename collision between the two directories would be a repo
+# problem of its own, and the first hit wins.
+SCRIPT_DIRS = ("scripts", os.path.join("scripts", "tests"))
+
+
+def _resolve(script):
+    """Absolute path of a cited script name, or None. Searching a short list beats hard-coding one directory
+    in three separate assertions, which is what let a tests/ citation read as 'file does not exist'."""
+    for d in SCRIPT_DIRS:
+        p = os.path.join(ROOT, d, script)
+        if os.path.exists(p):
+            return p
+    return None
+
+
 def _line_count(path):
     with open(path, encoding="utf-8") as fh:
         return sum(1 for _ in fh)
@@ -165,15 +184,15 @@ class KnowledgeCitationsResolve(unittest.TestCase):
 
 class DocCitationsResolve(unittest.TestCase):
     def test_every_cited_script_exists(self):
-        missing = sorted({(doc, s) for doc, s, _, _ in citations()
-                          if not os.path.exists(os.path.join(ROOT, "scripts", s))})
-        self.assertEqual(missing, [], f"citations point at scripts that do not exist: {missing}")
+        missing = sorted({(doc, s) for doc, s, _, _ in citations() if _resolve(s) is None})
+        self.assertEqual(missing, [], f"citations point at scripts that do not exist: {missing} "
+                                      f"(searched {', '.join(SCRIPT_DIRS)})")
 
     def test_every_cited_line_is_in_range(self):
         counts, bad = {}, []
         for doc, script, line, _ in citations():
-            p = os.path.join(ROOT, "scripts", script)
-            if not os.path.exists(p):
+            p = _resolve(script)
+            if p is None:
                 continue                        # reported by the test above
             counts.setdefault(script, _line_count(p))
             if line > counts[script]:
@@ -187,8 +206,8 @@ class DocCitationsResolve(unittest.TestCase):
         for doc, script, line, anchor in citations():
             if not anchor:
                 continue
-            p = os.path.join(ROOT, "scripts", script)
-            if not os.path.exists(p):
+            p = _resolve(script)
+            if p is None:
                 continue
             srcs.setdefault(script, open(p, encoding="utf-8").read().splitlines())
             lines = srcs[script]

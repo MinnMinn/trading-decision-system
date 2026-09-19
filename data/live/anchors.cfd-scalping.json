@@ -1,0 +1,96 @@
+{
+ "source": "Phân tích đầy đủ vàng 15m 2026-09-11 dựng từ snapshot local-eval-gold-20260911T150202Z: CHoCH xác nhận qua SC 4,313.68 → AR 4,340.42 → ST 4,300.64 (Phase A), Spring[C] 4,289.57 xuyên và đảo chiều (Phase C), SOS[D] 4,390.13 xác nhận cầu áp đảo cung (Phase D); bốn mốc ICT (EQ, FVG tăng chưa lấp, hai pool BSL chưa quét) lấy trực tiếp từ FACTS của scanner. Mốc do phân tích đầy đủ đặt, scanner chỉ so sánh.",
+ "updated": "2026-09-11T15:00:00Z",
+ "symbols": {
+  "XAUUSD": {
+   "rule": {
+    "type": "range",
+    "support": "spring_low",
+    "resistance": "bsl_local"
+   },
+   "levels": [
+    {
+     "name": "sc_low",
+     "label": "SC 4,313.68 — cao trào bán mở Phase A",
+     "role": "support",
+     "price": 4313.68,
+     "time": "2026-09-10T19:00:00Z",
+     "method": "wyckoff",
+     "short": "SC 4313.68"
+    },
+    {
+     "name": "ar_high",
+     "label": "AR 4,340.42 — biên trên Trading Range",
+     "role": "resistance",
+     "price": 4340.42,
+     "time": "2026-09-11T01:00:00Z",
+     "method": "wyckoff",
+     "short": "AR 4340.42"
+    },
+    {
+     "name": "st_low",
+     "label": "ST 4,300.64 — thấp hơn SC, cung còn nhiều",
+     "role": "support",
+     "price": 4300.64,
+     "time": "2026-09-11T03:45:00Z",
+     "method": "wyckoff",
+     "short": "ST 4300.64"
+    },
+    {
+     "name": "spring_low",
+     "label": "Spring[C] 4,289.57 — thử nguồn cung Phase C",
+     "role": "support",
+     "price": 4289.57,
+     "time": "2026-09-11T12:30:00Z",
+     "method": "wyckoff",
+     "short": "Spring 4289.57"
+    },
+    {
+     "name": "sos_break",
+     "label": "SOS[D] 4,390.13 — dấu hiệu sức mạnh Phase D",
+     "role": "resistance",
+     "price": 4390.13,
+     "time": "2026-09-11T12:45:00Z",
+     "method": "wyckoff",
+     "short": "SOS 4390.13"
+    },
+    {
+     "name": "eq",
+     "label": "EQ 4,364.40 — điểm cân bằng dealing range 96 nến",
+     "role": "eq",
+     "price": 4364.40,
+     "time": "2026-09-10T00:45:00Z",
+     "method": "ict",
+     "short": "EQ 4364.40"
+    },
+    {
+     "name": "unfilled_bull_fvg",
+     "label": "FVG tăng chưa lấp 4,343.33–4,352.43",
+     "role": "support",
+     "price": 4343.33,
+     "time": "2026-09-11T12:30:00Z",
+     "method": "ict",
+     "short": "FVG 4343.33"
+    },
+    {
+     "name": "bsl_local",
+     "label": "BSL 4,402.45 (pool cục bộ, chưa bị quét)",
+     "role": "resistance",
+     "price": 4402.45,
+     "time": "2026-09-11T13:45:00Z",
+     "method": "ict",
+     "short": "BSL 4402.45"
+    },
+    {
+     "name": "bsl_window",
+     "label": "BSL 4,442.89 (đỉnh cửa sổ, chưa bị quét)",
+     "role": "resistance",
+     "price": 4442.89,
+     "time": "2026-09-07T15:30:00Z",
+     "method": "ict",
+     "short": "BSL 4442.89"
+    }
+   ]
+  }
+ }
+}

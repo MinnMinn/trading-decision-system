@@ -356,29 +356,45 @@ class LegacyEngineIsGone(unittest.TestCase):
 
 
 class IctTargetComesFromLiveSetupCandidate(unittest.TestCase):
-    """After the ict_target() removal, ict_setups_live (bt.scan's ICT branch) is the ONLY source of an ICT
-    trade's target: su["target"] from live_rules.ict_scan.setup_candidate. ict_disp / ict_pd / std_origin are
-    the last OPTS knobs that used to feed the deleted target-model switch (via std_origin) or the deleted
-    legacy ICT branch (ict_pd) -- ict_setups_live never reads bt.OPTS at all, so varying them must not change
-    a single ICT trade. Runs on 4H, which has real ICT trades (LiveIctFillCheckActuallyFilters below) --
-    1D produces zero ICT trades on this symbol, which would make the invariance check vacuous."""
+    """After the ict_target() removal, bt.scan's ICT branch (ict_setups_live) is the ONLY source of an ICT
+    trade's target: su["target"] from live_rules.ict_scan.setup_candidate. The invariant is that this path
+    reads NOTHING from bt.OPTS -- so no OPTS key, present or future, can move an ICT target.
+
+    Rewritten twice on 2026-09-19. It used to vary ict_disp / ict_pd / std_origin, the three knobs that fed
+    the deleted target-model switch; all three were removed from OPTS that day (knowledge audit finding 11),
+    so setting them now just inserts keys nothing reads -- which is a weaker test, not a passing one. And its
+    fixture (BTCUSDT 4H) went to ZERO ICT trades when the fill window was corrected to the live one, which
+    would have made the comparison vacuous rather than failing.
+
+    Fixture: XAUUSD 15m, measured 2026-09-19 as the densest surviving ICT series (17 trades over full
+    history, against BTCUSDT 15m 15, BTCUSDT 1H 2, and 0 on every 4H series tested).
+    """
 
     def setUp(self):
         self.bt = load("backtest-methods.py")
 
-    def test_varying_the_leftover_ict_opts_does_not_change_ict_targets(self):
-        sym, tf = "BTCUSDT", "4H"   # 4H has real ICT trades (see LiveIctFillCheckActuallyFilters)
+    def test_no_opts_key_can_move_an_ict_target(self):
+        sym, tf = "XAUUSD", "15m"
         base = dict(self.bt.OPTS)
         try:
-            self.bt.OPTS.update(ict_disp=False, ict_pd=False, std_origin="pivot")
             baseline = self.bt.scan(sym, tf, only=("ICT",))["trades"]["ICT"]
-            self.assertGreater(len(baseline), 0, "no ICT trades on BTCUSDT 1D -- cannot prove invariance")
-            self.bt.OPTS.update(ict_disp=True, ict_pd=True, std_origin="highest")
+            self.assertGreater(len(baseline), 0,
+                               f"no ICT trades on {sym} {tf} -- the fixture has gone empty and this check "
+                               f"would pass vacuously; pick a series that still has trades")
+            # Every OPTS key the ICT path could plausibly be tempted to read, moved off its default at once.
+            self.bt.OPTS.update(types=(1,), range_touches=5, htf=True, entry="test", mgmt="none",
+                                sloped_gate=True, st_gate=True, phase_b_gate=True, st_min=0.9,
+                                phase_d=False, combined_entry="market")
             varied = self.bt.scan(sym, tf, only=("ICT",))["trades"]["ICT"]
-            self.assertEqual(baseline, varied, "ICT trades changed when ict_disp/ict_pd/std_origin changed -- "
-                                                "the live ICT path must be fully independent of these OPTS")
+            self.assertEqual(baseline, varied,
+                             "ICT trades changed when unrelated OPTS changed -- the live ICT path must be "
+                             "independent of bt.OPTS; its rules come from scripts/ict-scan.py")
         finally:
-            self.bt.OPTS.update(base)
+            self.bt.OPTS.clear(); self.bt.OPTS.update(base)
+
+    def test_the_dead_switches_are_not_back(self):
+        for dead in ("ict_disp", "ict_pd", "std_origin"):
+            self.assertNotIn(dead, self.bt.OPTS)
 
 
 class ScanOnlyFilterMatchesUnfiltered(unittest.TestCase):
@@ -398,7 +414,7 @@ class ScanOnlyFilterMatchesUnfiltered(unittest.TestCase):
             self.assertEqual(unfiltered["trades"][m], filtered["trades"][m], m)
 
     def test_a_single_named_method_matches_its_slice_of_the_unfiltered_scan(self):
-        sym, tf = "BTCUSDT", "4H"   # 4H has real COMBINED/ICT trades (see LiveIctFillCheckActuallyFilters)
+        sym, tf = "BTCUSDT", "4H"   # 4H has real COMBINED-BOOK/ICT trades (see LiveIctFillCheckActuallyFilters)
         unfiltered = self.bt.scan(sym, tf)
         for m in self.bt.RUNNER_METHODS:
             filtered = self.bt.scan(sym, tf, only=(m,))
@@ -408,15 +424,15 @@ class ScanOnlyFilterMatchesUnfiltered(unittest.TestCase):
 class ScanOnlySkipsUnwantedWork(unittest.TestCase):
     """The point of `only` is to SKIP computing a method, not compute-then-discard: it must never invoke the live
     ICT scanner when nobody asked for ICT trades -- that unconditional call is what made strategy-runner.replay()
-    pay the live-scanner cost on every symbol for a COMBINED-only parity check, 27x-ing the test suite
+    pay the live-scanner cost on every symbol for a COMBINED-BOOK-only parity check, 27x-ing the test suite
     (code-quality review, 2026-09-13)."""
 
     def setUp(self):
         self.bt = load("backtest-methods.py")
 
-    def test_only_combined_never_calls_the_live_ict_scanner(self):
+    def test_only_combined_book_never_calls_the_live_ict_scanner(self):
         with mock.patch.object(self.bt.lr, "read_at", wraps=self.bt.lr.read_at) as spy:
-            self.bt.scan("BTCUSDT", "1D", only=("COMBINED",))
+            self.bt.scan("BTCUSDT", "1D", only=("COMBINED-BOOK",))
         spy.assert_not_called()
 
     def test_only_ict_does_call_the_live_ict_scanner(self):
@@ -425,9 +441,9 @@ class ScanOnlySkipsUnwantedWork(unittest.TestCase):
         spy.assert_called()
 
     def test_only_filters_unwanted_methods_out_of_the_trades_dict(self):
-        res = self.bt.scan("BTCUSDT", "4H", only=("COMBINED",))
-        self.assertTrue(set(res["trades"].keys()) <= {"COMBINED"}, res["trades"].keys())
-        self.assertGreater(len(res["trades"]["COMBINED"]), 0, "fixture must exercise a real COMBINED trade")
+        res = self.bt.scan("BTCUSDT", "4H", only=("COMBINED-BOOK",))
+        self.assertTrue(set(res["trades"].keys()) <= {"COMBINED-BOOK"}, res["trades"].keys())
+        self.assertGreater(len(res["trades"]["COMBINED-BOOK"]), 0, "fixture must exercise a real COMBINED-BOOK trade")
 
 
 if __name__ == "__main__":

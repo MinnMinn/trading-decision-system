@@ -1,0 +1,96 @@
+{
+ "style": "gold",
+ "updated": "2026-09-11T15:00:00Z",
+ "source": "Đánh giá đầy đủ vàng 15m: snapshot local-eval-gold-20260911T150202Z (15m×96 làm việc) + local-eval-gold-4h-20260911T150203Z (4H×60 ngữ cảnh), dữ liệu tới 2026-09-11T15:00:00Z (làm việc) / nến 4H tới 2026-09-11T13:00:00Z (ngữ cảnh, đóng băng snapshot).",
+ "mode": "NORMAL",
+ "headline": {
+  "text": "XAUUSD 15m: THEO DÕI LONG — Spring 4,289.57 rồi SOS[D] xác nhận, LPS đang test quanh 4,370",
+  "detail": "Giá 4,369.18 lúc 15:00Z, 56% cửa sổ 96 nến 4,285.91–4,434.62. Spring[C] xuyên xuống 4,289.57 lúc 12:30Z rồi đảo chiều; SOS[D] 4,388.38 lúc 12:45Z (KL 2.49×) xác nhận Phase D; giá đang thoái lui kiểm định LPS quanh 4,370.76."
+ },
+ "symbols": {
+  "XAUUSD": {
+   "verdict": "THEO DÕI LONG",
+   "invalidation": {
+    "owner": "wyckoff",
+    "level": 4289.57,
+    "rule": "đóng cửa dưới đáy Spring 4,289.57"
+   },
+   "lookback_html": "<p>So với lần phân tích đầy đủ trước (cấu trúc chưa xác lập, mới hai trong ba CHoBEV, verdict CHỜ), phản ứng đối xu hướng thứ ba đã xuất hiện qua chuỗi SC 4,313.68 (19:00Z 10/9) → AR 4,340.42 (01:00Z 11/9) → ST 4,300.64 (03:45Z 11/9), xác nhận CHoCH và cho phép gán Phase A–D. Đáy 4,313.68 của lần đọc trước không còn là hỗ trợ chính — đã bị Spring[C] 4,289.57 (12:30Z 11/9) xuyên qua trước khi đảo chiều mạnh, và SOS[D] 4,390.13 (12:45Z 11/9, khối lượng 2.49×) xác nhận cầu áp đảo cung, đưa verdict từ CHỜ lên THEO DÕI LONG.<span class=\"cite\">[tính toán của hệ thống]</span></p>",
+   "synthesis_html": "<p>Bối cảnh 4h: cấu trúc tích lũy đang chuyển sang Phase C — Spring[C] 4,289.57 lúc 09:00Z 11/9 thử nguồn cung rồi đảo chiều mạnh trong Trading Range; bias khung lớn nghiêng LONG, khung nhỏ 15m được phép tìm cơ hội theo hướng tăng.<span class=\"cite\">WA p93–96 · knowledge/07 §2.7</span></p><p>Đáy Spring[C] khung 15m (4,289.57 lúc 12:30Z) và pool thanh khoản SSL 4,310.87 / đáy ST 4,300.64 (ICT) nằm rất gần nhau về mặt sự kiện — Wyckoff sở hữu đợt xuyên giá và khối lượng của nó, ICT chỉ được tính điểm phần cấu trúc còn lại sau đó (khoảng trống giá, vị trí premium/discount) nên đây là MỘT quan sát, không phải hai. Tương tự, dấu hiệu sức mạnh SOS[D] (Wyckoff) và MSS tăng đóng cửa vượt swing 4,349.92 (ICT) là cùng một đợt phá vỡ cấu trúc — điểm số chỉ tính một lần ở ICT, Wyckoff chỉ cộng thêm phần xác nhận theo thời gian và khối lượng.<span class=\"cite\">knowledge/10 §4.3</span></p><p>Kết luận THEO DÕI LONG: Wyckoff đã xác lập CHoCH và đang ở Phase D với SOS khối lượng 2.49× hợp lệ (≥ trung bình), ICT xác nhận bằng MSS tăng và phá qua khoảng trống giá giảm cũ 4,346.29–4,351.10, cùng hướng với bias khung 4h nên không phải 'ngược bối cảnh'. Tuy nhiên chưa kết luận SETUP TIỀM NĂNG vì hệ thống chưa ghi nhận chuỗi quét thanh khoản→MSS cùng chiều hoàn chỉnh, và LPS[D] đang thoái lui (4,370.76) vẫn chưa được xác nhận giữ.<span class=\"cite\">[tính toán của hệ thống]</span></p><p>Chủ sở hữu điều kiện vô hiệu được chọn là Wyckoff, tại đáy Spring 4,289.57 — một nến đóng cửa dưới mốc này sẽ vô hiệu hoá giả thuyết Phase D và cần đánh giá lại toàn bộ cấu trúc; mốc này rộng hơn các lựa chọn dừng lỗ chặt của ICT (biên FVG hay đáy order block), phù hợp quản trị rủi ro theo Wyckoff.<span class=\"cite\">knowledge/10 §4.4</span></p><p>Khối lượng dùng cho toàn bộ đọc Wyckoff trên là khối lượng tick từ cầu nối MT5, không phải khối lượng khớp lệnh thực — theo knowledge/10 §4.1, độ tin cậy Nỗ lực–Kết quả (SC, Spring, SOS) bị hạ so với khối lượng khớp lệnh thực, và tính độc lập giữa hai phương pháp trên loại khối lượng này gần như không còn.<span class=\"cite\">knowledge/10 §4.1</span></p>",
+   "wyckoff": {
+    "structure": "tích lũy",
+    "phase": "D",
+    "regime": "TRANSITIONAL",
+    "trading_range": {
+     "high": 4340.42,
+     "high_label": "AR 4,340.42",
+     "low": 4300.64,
+     "low_label": "ST 4,300.64 (dưới SC 4,313.68)",
+     "from": "2026-09-10T19:00:00Z"
+    },
+    "phases": [
+     {"from": "2026-09-10T19:00:00Z", "to": "2026-09-11T04:00:00Z", "label": "Phase A – dừng giảm (SC→AR→ST)"},
+     {"from": "2026-09-11T04:00:00Z", "to": "2026-09-11T12:15:00Z", "label": "Phase B – đi ngang (UA, test đáy)"},
+     {"from": "2026-09-11T12:15:00Z", "to": "2026-09-11T12:35:00Z", "label": "Phase C – Spring thử cung"},
+     {"from": "2026-09-11T12:35:00Z", "to": "2026-09-11T15:00:00Z", "label": "Phase D – SOS, LPS đang test"}
+    ],
+    "events": [
+     {"time": "2026-09-10T19:00:00Z", "label": "SC 4,313.68", "up": false},
+     {"time": "2026-09-11T01:00:00Z", "label": "AR 4,340.42", "up": true},
+     {"time": "2026-09-11T03:45:00Z", "label": "ST 4,300.64", "up": false},
+     {"time": "2026-09-11T06:00:00Z", "label": "UA[B] 4,361.01", "up": true},
+     {"time": "2026-09-11T12:00:00Z", "label": "ST[B] 4,324.66", "up": false},
+     {"time": "2026-09-11T12:30:00Z", "label": "Spring[C] 4,289.57", "up": false},
+     {"time": "2026-09-11T12:45:00Z", "label": "SOS[D] 4,390.13", "up": true},
+     {"time": "2026-09-11T14:45:00Z", "label": "LPS[D] 4,370.76", "up": false}
+    ],
+    "text_html": "<p>Từ đỉnh cửa sổ 4,434.62 giá giảm liên tục xuống đáy 4,313.68 lúc 19:00Z ngày 10/9 với khối lượng 1.67× trung bình — biên độ mở rộng, đủ tiêu chuẩn một cao trào bán (SC) mở đầu Phase A. Lực đẩy tự động (AR) sau đó đưa giá lên 4,340.42 lúc 01:00Z 11/9, xác lập biên trên Trading Range; một kiểm định thứ cấp (ST) tại 4,300.64 lúc 03:45Z 11/9 — thấp hơn đáy SC — cho thấy nguồn cung khi đó vẫn còn nhiều, dự báo còn kiểm định lại. Ba phản ứng đối xu hướng liên tiếp (SC→AR→ST rồi bật lên) đáp ứng tiêu chí ba lần thay đổi hành vi (CHoBEV), xác nhận thay đổi đặc tính (CHoCH) từ giảm sang đi ngang, cho phép gán Phase A–E.<span class=\"cite\">WA p67–71, p72–75 · knowledge/07 §2.6, §2.7.1 · KL 1.67× [tính toán của hệ thống]</span></p><p>Phase B đi ngang trong vùng 4,300.64–4,340.42: một hành động tăng giá bẫy (UA[B]) kiểm định biên trên tới 4,361.01 lúc 06:00Z 11/9 rồi bị từ chối, sau đó giá co hẹp và kiểm định lại đáy Phase B tại 4,324.66 lúc 12:00Z — CO vẫn gom hàng qua các đợt rũ bỏ hai chiều mà chưa lộ rõ hướng đẩy giá.<span class=\"cite\">WA p77–79 · knowledge/07 §2.7.2</span></p><p>Nến 12:30Z 11/9 đâm xuống 4,289.57 — dưới cả đáy ST 4,300.64 lẫn đáy SC 4,313.68 — rồi đảo chiều đóng cửa ngay trong Trading Range tại 4,353.82, với khối lượng 2.78× trung bình: đúng cấu trúc một Spring[C], thử nghiệm dứt điểm nguồn cung còn lại của Phase C. Vì đóng cửa quay lại trong vùng (khác Shakeout, vốn đòi hỏi các nến đóng cửa dưới biên), đây được gọi bằng Spring chứ không phải Shakeout.<span class=\"cite\">WA p79–83 · knowledge/07 §2.7.3 · KL 2.78× [tính toán của hệ thống]</span></p><p>Ngay sau Spring, nến 12:45Z đóng cửa 4,388.38 vượt hẳn biên trên AR 4,340.42 với khối lượng 2.49× trung bình — một dấu hiệu sức mạnh (SOS[D]) hợp lệ vì khối lượng vượt trung bình. Giá tiếp tục cầu áp đảo cung lên đỉnh 4,402.45 lúc 13:45Z rồi thoái lui về 4,370.76 lúc 14:45Z với khối lượng giảm dần (2.51× → 1.92×) — dạng một điểm hỗ trợ cuối cùng (LPS[D]) đang được kiểm định, chưa xác nhận giữ.<span class=\"cite\">WA p83–85 · knowledge/07 §2.7.4 · KL 2.49×, 1.92× [tính toán của hệ thống]</span></p><p>Toàn bộ khối lượng trên là khối lượng tick từ cầu nối MT5, không phải khối lượng khớp lệnh thực; theo khuyến cáo chung, độ tin cậy của các đọc Nỗ lực–Kết quả (SC, Spring, SOS) ở trên bị hạ so với khối lượng khớp lệnh thực.<span class=\"cite\">knowledge/10 §4.1</span></p>"
+   },
+   "ict": {
+    "levels": [
+     {"price": 4364.40, "label": "EQ 4,364.40 — điểm cân bằng dealing range 96 nến", "time": "2026-09-10T00:45:00Z"},
+     {"price": 4343.33, "label": "FVG tăng chưa lấp 4,343.33–4,352.43", "time": "2026-09-11T12:30:00Z"},
+     {"price": 4402.45, "label": "BSL 4,402.45 (pool cục bộ, chưa bị quét)", "time": "2026-09-11T13:45:00Z"},
+     {"price": 4442.89, "label": "BSL 4,442.89 (đỉnh cửa sổ, chưa bị quét)", "time": "2026-09-07T15:30:00Z"}
+    ],
+    "text_html": "<p>MSS tăng gần nhất đóng cửa vượt swing 4,349.92; đợt phá vỡ này diễn ra ngay khi giá vượt qua khoảng trống giá giảm 4,346.29–4,351.10 chưa lấp trước đó, xác nhận tiếp diễn tăng theo cấu trúc dealing range 96 nến 4,285.91–4,434.62. Giá hiện tại 4,369.18 nằm trên điểm cân bằng (EQ) 4,364.40, tức đang ở vùng premium nhẹ.<span class=\"cite\">docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2 · docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19</span></p><p>Sự sụt giá xuống 4,289.57 lúc 12:30Z quét qua cả hai pool thanh khoản bán (SSL 4,310.87 phiên Á và đáy 4,300.64 trước đó) rồi đảo chiều mạnh — một cú quét thanh khoản hơn là một MSS giảm mới, vì không có chuỗi nến đóng cửa xác nhận tiếp diễn giảm. Khoảng trống giá tăng mới 4,343.33–4,352.43 hình thành ngay sau đó vẫn chưa bị lấp, đóng vai trò hỗ trợ gần nhất.<span class=\"cite\">docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7 · docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17 · docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24</span></p><p>Phía trên còn hai pool thanh khoản mua chưa bị quét: BSL 4,402.45 (đỉnh cục bộ 13:45Z) và BSL 4,442.89 (đỉnh cửa sổ) — hai mục tiêu tiềm năng nếu giá giữ trên khoảng trống giá tăng. MSS tăng xác nhận lúc 12:30Z rơi vào khung ny_am (08:30–11:00 America/New_York = 12:30–15:00Z ngày 11/9, giờ mùa hè), khung có trọng số đầy đủ cho vàng — giả định của dự án, không phải quy tắc từ nguồn ICT gốc.<span class=\"cite\">docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7 · docs/architecture/session-model.md §2, §5</span></p>"
+   },
+   "footprint": {
+    "status": "unavailable"
+   },
+   "heatmap": {
+    "status": "unavailable"
+   },
+   "timeline": [
+    {"time": "2026-09-10T19:00:00Z", "event": "Đáy mới 4,313.68, đóng cửa 4,322.48", "wyckoff": "SC — cao trào bán mở Phase A", "ict": "Quét vùng thấp trước đó"},
+    {"time": "2026-09-11T01:00:00Z", "event": "Hồi lên đỉnh 4,340.42", "wyckoff": "AR — biên trên Trading Range", "ict": "Swing kháng cự trước MSS giảm cũ"},
+    {"time": "2026-09-11T03:45:00Z", "event": "Đáy 4,300.64, thấp hơn đáy 19:00Z", "wyckoff": "ST — thấp hơn SC, cung còn nhiều", "ict": "Quét SSL 4,310.87"},
+    {"time": "2026-09-11T06:00:00Z", "event": "Đỉnh 4,361.01 rồi bị từ chối", "wyckoff": "UA[B] — bẫy tăng giá Phase B", "ict": ""},
+    {"time": "2026-09-11T12:00:00Z", "event": "Đáy Phase B 4,324.66", "wyckoff": "ST[B] — kiểm định biên dưới Phase B", "ict": ""},
+    {"time": "2026-09-11T12:30:00Z", "event": "Xuyên xuống 4,289.57 trong nến, đóng cửa 4,353.82", "wyckoff": "Spring[C] — thử nguồn cung Phase C", "ict": "Quét thanh khoản qua SSL 4,310.87 và đáy 4,300.64"},
+    {"time": "2026-09-11T12:45:00Z", "event": "Đóng cửa 4,388.38, vượt AR", "wyckoff": "SOS[D] — dấu hiệu sức mạnh Phase D", "ict": "MSS tăng, phá FVG giảm cũ"},
+    {"time": "2026-09-11T13:45:00Z", "event": "Đỉnh 4,402.45", "wyckoff": "Đỉnh mở rộng Phase D", "ict": "Pool BSL cục bộ chưa quét"},
+    {"time": "2026-09-11T14:45:00Z", "event": "Thoái lui về 4,370.76", "wyckoff": "LPS[D] đang test", "ict": "Giá về gần EQ 4,364.40"},
+    {"time": "2026-09-11T15:00:00Z", "event": "Giá hiện tại 4,369.18", "wyckoff": "", "ict": "Vùng premium nhẹ trên EQ"}
+   ],
+   "context": {
+    "wyckoff": {
+     "structure": "tích lũy",
+     "phase": "C",
+     "regime": "TRANSITIONAL",
+     "trading_range": {
+      "high": 4340.63,
+      "high_label": "Swing kháng cự cũ 4,340.63",
+      "low": 4285.91,
+      "low_label": "Đáy sâu nhất 4H 4,285.91",
+      "from": "2026-09-10T21:00:00Z"
+     },
+     "text_html": "<p>Trên khung 4H, sau đỉnh 4,510.76 (3/9) giá giảm về đáy 4,285.91 lúc 21:00Z 10/9 rồi tiếp tục dò đáy 4,300.64 lúc 01:00Z 11/9 — vùng cao trào bán (SC) của cấu trúc lớn. Nến 09:00Z 11/9 đâm xuống lại 4,289.57 trong nến rồi đóng cửa bật lên 4,388.38, đúng dạng một Spring[C]: thử nguồn cung còn lại rồi đảo chiều ngay trong Trading Range, mở khả năng chuyển sang Phase C của cấu trúc tích lũy khung lớn.<span class=\"cite\">WA p79–83 · knowledge/07 §2.7.3 · KL 1.22× [tính toán của hệ thống]</span></p><p>Khối lượng trên khung 4H cũng là khối lượng tick MT5, không phải khối lượng khớp lệnh thực nên độ tin cậy Nỗ lực–Kết quả của Spring[C] này bị hạ theo cùng khuyến cáo áp dụng cho khung 15 phút.<span class=\"cite\">knowledge/10 §4.1</span></p>"
+    },
+    "ict": {
+     "text_html": "<p>Trên khung 4H, MSS gần nhất là giảm, đóng cửa vượt swing 4,340.63; nến 4H gần nhất đóng cửa 4,371.40 lúc 13:00Z 11/9 đã hồi lại trên mức swing này, trong dealing range 180 nến 4,017.16–4,696.73 quanh điểm cân bằng (EQ) 4,356.94 — vùng premium nhẹ.<span class=\"cite\">docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2 · docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19</span></p><p>Khoảng trống giá tăng chưa lấp gần nhất trên khung 4H là 4,085.73–4,134.67, nằm sâu dưới vùng giá hiện tại — không phải điểm giá cần theo dõi trong ngắn hạn; chưa ghi nhận chuỗi quét thanh khoản rồi MSS cùng chiều mới trên khung này.<span class=\"cite\">docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24 · docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17</span></p>"
+    }
+   }
+  }
+ }
+}

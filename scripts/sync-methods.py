@@ -10,6 +10,8 @@ scripts/tests/test_methods_sync.py runs this in --check mode so drift fails the 
 Derived spots (add new ones HERE, never a new hand-kept list):
   - schemas/automation-config.schema.json  markets.<m>.dimensions.{properties,required}  <- dimensions[*].markets
   - schemas/narrative.schema.json          symbols.*.invalidation.owner.enum             <- dimensions[*].owns_invalidation
+  - schemas/trade-file.schema.json         methodology_mode.enum                         <- modes
+  - schemas/confluence-score.schema.json   methodology_mode.enum                         <- modes
 
 Generating the shape from dimensions[*].markets is what keeps SYSTEM-DESIGN.md §12's property alive: a market
 that has no source for a dimension does not get a flag it would silently ignore -- the key is simply absent and
@@ -24,6 +26,16 @@ import methods as M
 SCHEMA = os.path.join(ROOT, "docs", "architecture", "schemas", "automation-config.schema.json")
 NARRATIVE_SCHEMA = os.path.join(ROOT, "docs", "architecture", "schemas", "narrative.schema.json")
 OWNER_PATH = ("properties", "symbols", "additionalProperties", "properties", "invalidation", "properties", "owner")
+
+# The methodology-mode enum, in every schema that records one. Added 2026-09-18 after SOLO (registry,
+# 2026-09-12) never reached either schema: the live preset `ict` resolves to SOLO, so a conformant /analyze
+# record or trade file for the CURRENT configuration was schema-invalid for six days and nothing noticed,
+# because nothing generated the pair. CLAUDE.md §16 (modes are explicit configuration) and §59 (a registry
+# change must be traced to its consumers).
+MODE_SCHEMAS = (
+    os.path.join(ROOT, "docs", "architecture", "schemas", "trade-file.schema.json"),
+    os.path.join(ROOT, "docs", "architecture", "schemas", "confluence-score.schema.json"),
+)
 
 
 def _at(doc, path):
@@ -91,6 +103,18 @@ def main():
     if ndrift and a.write:
         owner_block["enum"] = owners
 
+    # methodology_mode enums, generated from the registry's `modes` table.
+    mode_docs, mode_drift = {}, []
+    modes = sorted(M.MODES)
+    for path in MODE_SCHEMAS:
+        d = json.load(open(path, encoding="utf-8"))
+        field = d["properties"]["methodology_mode"]
+        if sorted(field.get("enum") or []) != modes:
+            mode_drift.append(path)
+            if a.write:
+                field["enum"] = modes
+        mode_docs[path] = d
+
     if a.check:
         for m in drift:
             print(f"DRIFT: {os.path.relpath(SCHEMA, ROOT)} markets.{m}.dimensions does not match "
@@ -98,7 +122,10 @@ def main():
         if ndrift:
             print(f"DRIFT: {os.path.relpath(NARRATIVE_SCHEMA, ROOT)} invalidation.owner.enum does not match "
                   f"docs/architecture/methods.json (expected {owners})")
-        return 1 if (drift or ndrift) else 0
+        for path in mode_drift:
+            print(f"DRIFT: {os.path.relpath(path, ROOT)} methodology_mode.enum does not match "
+                  f"docs/architecture/methods.json modes (expected {modes})")
+        return 1 if (drift or ndrift or mode_drift) else 0
 
     if drift:
         with open(SCHEMA, "w", encoding="utf-8") as f:
@@ -110,7 +137,12 @@ def main():
             json.dump(ndoc, f, indent=2, ensure_ascii=False)
             f.write("\n")
         print(f"wrote {os.path.relpath(NARRATIVE_SCHEMA, ROOT)}: invalidation.owner.enum = {owners}")
-    if not drift and not ndrift:
+    for path in mode_drift:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(mode_docs[path], f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        print(f"wrote {os.path.relpath(path, ROOT)}: methodology_mode.enum = {modes}")
+    if not drift and not ndrift and not mode_drift:
         print("no drift; nothing to write")
     return 0
 

@@ -109,11 +109,11 @@ class Validation(unittest.TestCase):
     def _base(self):
         return {
             "dimensions": {
-                "wyckoff": {"markets": ["crypto"], "owns_invalidation": True, "reads": "giá + khối lượng", "pane": {"kind": "volume", "label": "Khối lượng"}},
-                "ict": {"markets": ["crypto"], "owns_invalidation": True, "reads": "cấu trúc giá", "pane": {"kind": "range_pct", "label": "Dealing range"}},
+                "wyckoff": {"markets": ["crypto"], "owns_invalidation": True, "reads": "giá + khối lượng", "pane": {"kind": "volume", "label": "Khối lượng"}, "overlay_engine": "wyckoff"},
+                "ict": {"markets": ["crypto"], "owns_invalidation": True, "reads": "cấu trúc giá", "pane": {"kind": "range_pct", "label": "Dealing range"}, "overlay_engine": "ict"},
             },
             "presets": [{"id": "a", "dimensions": ["wyckoff"], "mode": "SOLO"}],
-            "runner_methods": {"WYCKOFF": {"requires": ["wyckoff"]}},
+            "runner_methods": {"WYCKOFF-BOOK": {"requires": ["wyckoff"]}},
             "modes": {"SOLO": {"minimum": 1, "threshold": 85}, "NORMAL": {"minimum": 2, "threshold": 70}},
         }
 
@@ -144,6 +144,26 @@ class Validation(unittest.TestCase):
             M._validate(d)
         self.assertIn("ict", str(ctx.exception))
         self.assertIn("owns_invalidation", str(ctx.exception))
+
+    def test_dimension_missing_overlay_engine_raises(self):
+        """build-artifact.py OVERLAY_LANES and chart.js `drawnFor` (plan §0.7) key on this instead of a
+        hand-kept ("wyckoff", "ict") pair -- a 5th dimension must SAY whether it has a shape-drawing engine."""
+        d = self._base()
+        del d["dimensions"]["ict"]["overlay_engine"]
+        with self.assertRaises(ValueError) as ctx:
+            M._validate(d)
+        self.assertIn("ict", str(ctx.exception))
+        self.assertIn("overlay_engine", str(ctx.exception))
+
+    def test_dimension_overlay_engine_null_is_valid(self):
+        """footprint/heatmap have no live source to draw from yet (CLAUDE.md §57) -- null must be accepted,
+        not just a lane name. `_base()` has no preset label, so `_validate` still raises further down; the
+        assertion is that it is no longer THIS check that objects."""
+        d = self._base()
+        d["dimensions"]["ict"]["overlay_engine"] = None
+        with self.assertRaises(ValueError) as ctx:
+            M._validate(d)
+        self.assertNotIn("overlay_engine", str(ctx.exception))
 
     def test_dimension_missing_reads_gloss_raises(self):
         """`reads` is the short phrase naming WHAT the dimension reads, quoted by the page lede for each engaged
@@ -187,27 +207,27 @@ class Validation(unittest.TestCase):
 
 class RunnerMethods(unittest.TestCase):
     def test_requires_is_total_over_the_backtest_vocabulary(self):
-        """Every method backtest-methods.py can produce must map, or a future RUNNABLE growth KeyErrors."""
-        self.assertEqual(set(M.RUNNER_METHODS),
-                         {"WYCKOFF", "WYCKOFF-BOOK", "ICT", "COMBINED", "COMBINED-BOOK", "PARTIAL"})
+        """Every method backtest-methods.py can produce must map, or a future RUNNABLE growth KeyErrors.
+        WYCKOFF, COMBINED and PARTIAL were removed 2026-09-19 (docs/audits/2026-09-19-knowledge-fidelity.md
+        finding 6): WYCKOFF's trading range had no CHoCH gate and no Phase A/B, so it could fire a "Spring"
+        mid-trend with no accumulation structure behind it; COMBINED and PARTIAL depended on that same range."""
+        self.assertEqual(set(M.RUNNER_METHODS), {"WYCKOFF-BOOK", "ICT", "COMBINED-BOOK"})
 
     def test_derivation(self):
         allow = lambda *on: M.runner_methods({d: d in on for d in M.ALL_DIMENSIONS})
-        self.assertEqual(allow("wyckoff"), {"WYCKOFF", "WYCKOFF-BOOK"})
+        self.assertEqual(allow("wyckoff"), {"WYCKOFF-BOOK"})
         self.assertEqual(allow("ict"), {"ICT"})
-        self.assertEqual(allow("wyckoff", "ict"),
-                         {"WYCKOFF", "WYCKOFF-BOOK", "ICT", "COMBINED", "COMBINED-BOOK", "PARTIAL"})
-        self.assertEqual(allow("wyckoff", "footprint"), {"WYCKOFF", "WYCKOFF-BOOK"})
+        self.assertEqual(allow("wyckoff", "ict"), {"WYCKOFF-BOOK", "ICT", "COMBINED-BOOK"})
+        self.assertEqual(allow("wyckoff", "footprint"), {"WYCKOFF-BOOK"})
         self.assertEqual(allow("footprint", "heatmap"), set())
         self.assertEqual(allow(), set())
 
     def test_runnable_subset_matches_the_runner(self):
-        self.assertEqual(M.runnable(), {"ICT", "COMBINED", "WYCKOFF", "WYCKOFF-BOOK"})
+        self.assertEqual(M.runnable(), {"ICT", "WYCKOFF-BOOK"})
 
     def test_runner_methods_for_a_footprint_preset_does_not_widen(self):
-        self.assertEqual(M.runner_methods(M.flags_for("wyckoff+footprint")), {"WYCKOFF", "WYCKOFF-BOOK"})
-        self.assertEqual(M.runner_methods(M.flags_for("full")),
-                         {"WYCKOFF", "WYCKOFF-BOOK", "ICT", "COMBINED", "COMBINED-BOOK", "PARTIAL"})
+        self.assertEqual(M.runner_methods(M.flags_for("wyckoff+footprint")), {"WYCKOFF-BOOK"})
+        self.assertEqual(M.runner_methods(M.flags_for("full")), {"WYCKOFF-BOOK", "ICT", "COMBINED-BOOK"})
 
 
 class Unverifiable(unittest.TestCase):
@@ -270,9 +290,48 @@ class DispatchPlan(unittest.TestCase):
         self.assertIn("heatmap", p["skipped"])
         self.assertIn("flow-agent", p["dispatch"])
 
-    def test_structure_agent_is_dropped_when_both_its_dimensions_are_off(self):
-        p = self.plan("BTCUSDT", self.base({"wyckoff": False, "ict": False, "footprint": True, "heatmap": True}))
+    def test_structure_agent_is_dropped_when_both_its_dimensions_are_off_AND_scope_is_preset(self):
+        """Updated 2026-09-18 for CLAUDE.md §15, deliberately -- the original asserted the behaviour §15
+        forbids.
+
+        It used to hold unconditionally: turning wyckoff and ict off in the preset stopped them being
+        analysed at all, so their agent was dropped. That is the "active trading configuration acting as a
+        global analysis filter" §15 names. Under the default `available` scope both are still ANALYSED (they
+        are live-sourced from candles), so structure-agent is still dispatched -- it just contributes nothing
+        to the trade decision.
+
+        The original intent -- an agent with nothing to do is not dispatched -- survives under
+        `analysis_scope: "preset"`, the deliberate narrowing, and that is what this now pins."""
+        cfg = self.base({"wyckoff": False, "ict": False, "footprint": True, "heatmap": True})
+        cfg["markets"]["crypto"]["analysis_scope"] = "preset"
+        p = self.plan("BTCUSDT", cfg)
         self.assertNotIn("structure-agent", p["dispatch"])
+        self.assertEqual(p["analysis_scope"], "preset")
+
+    def test_under_the_default_scope_an_untraded_methodology_is_still_analysed(self):
+        """The §15 fix itself: the preset says what may qualify a trade, not what may be read."""
+        p = self.plan("BTCUSDT", self.base({"wyckoff": False, "ict": True, "footprint": False, "heatmap": False}))
+        self.assertEqual(p["analysis_scope"], "available")
+        self.assertEqual(p["engaged"], ["ict"], "only the preset's dimension may qualify a trade")
+        self.assertIn("wyckoff", p["analysed"], "an untraded but live-sourced methodology must still be read")
+        self.assertEqual(p["analysed_not_traded"], ["wyckoff"])
+        self.assertIn("structure-agent", p["dispatch"])
+
+    def test_a_dimension_with_no_live_source_is_not_analysed_whatever_the_preset_says(self):
+        """§15 and §6 together: 'when their data and capabilities are available'. Footprint's only provider is
+        a fixture, so analysing it would be the mock-satisfies-a-requirement failure in another hat."""
+        p = self.plan("BTCUSDT", self.base({"wyckoff": True, "ict": True, "footprint": True, "heatmap": True}))
+        self.assertNotIn("footprint", p["analysed"])
+        self.assertIn("coinglass", p["analysis_skipped"]["footprint"])
+
+    def test_a_traded_dimension_is_dispatched_even_when_its_source_is_a_fixture(self):
+        """Dispatch is the UNION. Making it follow `analysed` alone would stop dispatching an agent for a
+        dimension the preset DOES trade whenever its only provider is a fixture -- silently breaking the
+        deliberate mock rehearsal runs the fixtures exist for."""
+        p = self.plan("BTCUSDT", self.base({"wyckoff": False, "ict": False, "footprint": True, "heatmap": False}))
+        self.assertIn("footprint", p["engaged"])
+        self.assertNotIn("footprint", p["analysed"])
+        self.assertIn("flow-agent", p["dispatch"])
 
     def test_plan_reports_the_engaged_count_and_the_mode_minimum(self):
         """wyckoff-only now names the real 'wyckoff' preset, which is mode SOLO (minimum 1) since 2026-09-12

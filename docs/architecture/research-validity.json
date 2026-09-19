@@ -1,0 +1,98 @@
+{
+  "_source": "CLAUDE.md §38 BACKTEST INVALIDATION. The ten bullets below are §38's own list, in §38's own order and wording. scripts/tests/test_research_validity.py parses them back out of CLAUDE.md, so an eleventh bullet in the spec fails the build rather than going undetected.",
+  "_reader": "scripts/research_validity.py is the ONE reader. Nothing else may decide what a defect means to a run.",
+  "_rule": "§38's sentence is 'flagged OR invalidated'. Which of the two a condition gets is declared here, once, with the reason -- not chosen per call site, where it would drift toward whichever verdict was convenient that day. A caller may ESCALATE a FLAGS condition to INVALIDATES when it has evidence the defect was worse than the general case. A caller may NEVER downgrade INVALIDATES; research_validity.Assessment.finding() raises.",
+  "_dispositions_test": "The line between the two is the DIRECTION OF THE ERROR. INVALIDATES = the run's numbers are about trades that could not have been taken as measured, and the error runs in an unbounded, usually flattering direction (the future got in). FLAGS = the run measured something real, but not the thing it claims: a narrower dataset, a less-constrained system, a cheaper venue. A flagged result is evidence about a different system; an invalid result is not evidence.",
+  "dispositions": {
+    "FLAGS": "The run stays readable and its verdict becomes FLAGGED. The finding travels with every number it produced.",
+    "INVALIDATES": "The run's verdict becomes INVALID. Per §38 its performance figures may not be presented as a result, and consumers that SELECT on performance (scripts/rank-setups.py) must refuse it."
+  },
+  "verdicts": {
+    "VALID": "Every declared condition was checked or declared not-applicable for this run, and none fired.",
+    "FLAGGED": "At least one FLAGS condition fired and no INVALIDATES condition did.",
+    "INVALID": "At least one INVALIDATES condition fired.",
+    "UNVERIFIED": "No condition fired, but at least one was never looked at. NOT one of §38's two words -- it is the honest third state that keeps 'nobody checked' from rendering as 'passed', which is the exact failure §38's last sentence names."
+  },
+  "conditions": [
+    {
+      "id": "look_ahead",
+      "spec_bullet": "look-ahead",
+      "disposition": "INVALIDATES",
+      "why": "A decision that moved when the future moved was not a decision; it was a reading of the answer. §37: future movement may determine the OUTCOME and nothing else.",
+      "detector": "scripts/leakage.py probe()",
+      "evidence": "A probe report with violations. research_validity.from_leakage() turns each into a finding."
+    },
+    {
+      "id": "leakage",
+      "spec_bullet": "leakage",
+      "disposition": "INVALIDATES",
+      "why": "Same defect as look-ahead reached by a different road (a derived series computed over the whole history, a parameter fitted on the test window). The result is the same: the measured system could not have been run.",
+      "detector": null,
+      "_detector_why": "scripts/leakage.py catches the consequence look-ahead and leakage SHARE -- a past decision that moves when the future moves -- and a probe violation is recorded under look_ahead, so this condition is the residual: the leakage a probe structurally cannot see. Mutating one series' future does not disturb a parameter that was already fitted over the whole history, a threshold chosen after looking at the results, or a symbol set assembled from survivors; those are baked in before the probe runs. §9's bias register already names the two live instances (data snooping: 7 ICT-target variants over one dataset, undisclosed; survivorship: the allowlist holds only currently-listed symbols). Owners: §43 experiment budget, §45 validation."
+    },
+    {
+      "id": "invalid_timestamps",
+      "spec_bullet": "invalid timestamps",
+      "disposition": "INVALIDATES",
+      "why": "Time order IS the experiment. If a bar repeats a timestamp, goes backwards, or carries something that is not a timestamp, then 'the information available at the historical decision time' has no referent and no PIT claim about the run can be true or false.",
+      "detector": "scripts/quality.py assess() -> INVALID whose reason names a timestamp fault (`_structural_fault`)",
+      "evidence": "backtest-methods.QUALITY_FLAGS; research_validity.from_quality_flags() routes timestamp faults here and every other INVALID to corrupted_provider_data."
+    },
+    {
+      "id": "future_calendar_state",
+      "spec_bullet": "future calendar state",
+      "disposition": "INVALIDATES",
+      "why": "§28/§29: a calendar revision, a cancellation or a later classification change reaching an earlier decision is look-ahead wearing a news filter. It flatters in the same unbounded direction, because the revision is usually what actually happened.",
+      "detector": null,
+      "_detector_why": "No backtest in this repo reads a calendar at all -- the configuration snapshot records `event_risk.calendar` under `declared_but_not_applied_by_this_engine`, which is the incomplete_required_inputs condition, not this one. This condition becomes checkable the moment a calendar joins a research run, and scripts/event_risk.py already refuses to load one without a snapshot id (§29). Declared now so that day cannot arrive without a verdict attached."
+    },
+    {
+      "id": "unavailable_historical_data",
+      "spec_bullet": "unavailable historical data",
+      "disposition": "FLAGS",
+      "why": "A hole narrows what the run measured; it does not let the future in. §20 is blunt that an indicator computed over a holey window 'is not a degraded one, it is a different one', so the result is evidence about a different series and must say so -- but the trades it did book were booked on real bars in real order.",
+      "detector": "scripts/quality.py assess() -> PARTIAL or MISSING",
+      "evidence": "backtest-methods.QUALITY_FLAGS; research_validity.from_quality_flags()."
+    },
+    {
+      "id": "unrealistic_execution_assumptions",
+      "spec_bullet": "unrealistic execution assumptions",
+      "disposition": "FLAGS",
+      "why": "An unmodelled cost or venue constraint makes the run a measurement of a cheaper, more permissive venue than the one that trades. That is a real measurement of a different system, and the direction of the error is known and statable -- which is what separates it from the look-ahead family.",
+      "detector": "backtest-methods.EXECUTION_ASSUMPTIONS",
+      "evidence": "The engine declares what it does and does not model in one dict; research_validity.from_execution_assumptions() raises one finding naming everything unmodelled. Standing, not incidental: every run of this engine carries it."
+    },
+    {
+      "id": "corrupted_provider_data",
+      "spec_bullet": "corrupted provider data",
+      "disposition": "FLAGS",
+      "why": "A candle whose high is below its low, or whose close sits outside its range, is a bad bar -- the rules read it and got nonsense. Nonsense is not a claim about the future, and one bad bar in forty thousand does not make the other forty thousand a lie, so §38's first word applies. Escalate when the corruption is widespread enough to be the result.",
+      "detector": "scripts/quality.py assess() -> INVALID (structural faults other than timestamps)",
+      "evidence": "backtest-methods.QUALITY_FLAGS; research_validity.from_quality_flags()."
+    },
+    {
+      "id": "incomplete_required_inputs",
+      "spec_bullet": "incomplete required inputs",
+      "disposition": "FLAGS",
+      "why": "A dependency the Trading System declares REQUIRED_FOR_DECISION (§35) that the engine never consults. The three this engine omits -- event_risk.calendar, account.profile_rules, venue.reconciliation -- are all GATES: omitting a gate can only ADD trades, so the run measures a superset of the live system, not a flattered version of it. That is why it flags rather than invalidates. THE TEST, and it is not a loophole: omitting a dependency INVALIDATES the moment it could change a trade's TERMS rather than only its existence -- an omitted sizing input, an omitted stop rule, an omitted price source. Escalate then.",
+      "detector": "scripts/snapshot.py backtest_config_snapshot() -> required_evidence.declared_but_not_applied_by_this_engine",
+      "evidence": "research_validity.from_config_snapshot() reads the §11 configuration snapshot the run already takes."
+    },
+    {
+      "id": "future_methodology_state",
+      "spec_bullet": "future methodology state",
+      "disposition": "INVALIDATES",
+      "why": "Rules that did not exist at the historical decision time, applied to it. §47 calls a methodology/setup/entry change version-significant precisely because the old numbers stop describing the new rules; a run that mixes the two describes neither.",
+      "detector": null,
+      "_detector_why": "scripts/setup_version.py stamps the rule version a SETUP carries (§14), which is the ingredient a detector needs, but nothing yet compares a stored research result's stamped version against the rules a re-run would apply. Until that comparison exists this condition is UNVERIFIED on every run rather than silently clear -- see the `UNVERIFIED` verdict above. Owner: §47."
+    },
+    {
+      "id": "oos_contamination",
+      "spec_bullet": "OOS contamination",
+      "disposition": "INVALIDATES",
+      "why": "§44: once an out-of-sample period has influenced candidate or parameter selection it is exposed, and a result that still presents it as pristine validation overstates its own evidence without bound.",
+      "detector": null,
+      "_detector_why": "§44 (OOS exposure tracking) is not implemented -- there is no experiment history to ask, so exposure cannot be computed. §9's bias register already records the untracked selection pressure (120 candidate rows -> 6 setups, nothing recorded). Owner: §44."
+    }
+  ]
+}

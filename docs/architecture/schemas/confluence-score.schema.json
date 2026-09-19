@@ -20,8 +20,9 @@
     "methodology_mode": {
       "type": "string",
       "enum": [
-        "NORMAL",
         "ENHANCED",
+        "NORMAL",
+        "SOLO",
         "STRICT"
       ]
     },
@@ -144,7 +145,7 @@
       "properties": {
         "eligible": {
           "type": "boolean",
-          "description": "false if data source for this dimension is MOCK/UNAVAILABLE/STALE, or the dimension wasn't used"
+          "description": "MAY THIS LANE COUNT TOWARD THE SCORE? true only when BOTH hold: (a) the active method preset ENGAGES it -- methods.dispatch_plan(instrument)['engaged'] -- and (b) its data source is AVAILABLE (not MOCK/STALE/UNAVAILABLE). Clause (a) is CLAUDE.md §18 ('Confluence must only include explicitly configured methodologies'; 'Do not count unrelated methodology analysis'); clause (b) is §6/§20. Before 2026-09-18 this field named only (b), which was accidentally safe because an untraded lane was also unanalysed -- §15 ended that coincidence, so a lane that is READ but not TRADED (analysis_scope 'available') now satisfies (b) while failing (a) and must score 0. Checked by scripts/confluence.py."
         },
         "points": {
           "type": "number",

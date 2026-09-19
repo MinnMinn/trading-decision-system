@@ -1,0 +1,321 @@
+{
+ "scanned_at": "2026-09-19T12:04:00Z",
+ "tf": "4H",
+ "n": 360,
+ "window_first": "2026-06-29T08:42:53Z",
+ "window_last": "2026-09-19T04:42:54Z",
+ "anchors_source": null,
+ "symbols": {
+  "XAUUSD": {
+   "last": 4376.32,
+   "last_time": "2026-09-19T04:42:53Z",
+   "lo": 4234.94,
+   "hi": 4402.45,
+   "eq": 4318.695,
+   "pct": 0.844,
+   "stance": "CHỜ",
+   "anchors": null,
+   "setup": null,
+   "last_mss": {
+    "type": "bear",
+    "i": 321,
+    "level": 4340.63,
+    "disp": true,
+    "ext": 4434.62,
+    "ext_time": "2026-09-10T16:42:53Z",
+    "origin": 4340.63,
+    "cisd": {
+     "level": 4400.94,
+     "time": "2026-09-10T12:42:53Z",
+     "confirmed": "2026-09-10T16:42:53Z"
+    },
+    "vol_mult": 1.11
+   },
+   "nearest_fvg": {
+    "type": "bull",
+    "i": 163,
+    "lo": 4085.73,
+    "hi": 4134.67,
+    "size": 48.940000000000055,
+    "ce": 4110.2,
+    "end": 359,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-18",
+    "pdh": 4399.53,
+    "pdl": 4318.4,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "4H",
+    "pch": 4383.7,
+    "pcl": 4342.62,
+    "pch_state": "swept",
+    "pcl_state": "intact"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 4402.45,
+     "from": 328,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 3959.56,
+     "from": 14,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 4017.16,
+     "from": 74,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 4180.51,
+     "from": 40,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 4120.29,
+     "from": 142,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 4696.73,
+     "from": 246,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 4673.54,
+     "from": 252,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 4642.96,
+     "from": 259,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 4631.13,
+     "from": 268,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 4510.76,
+     "from": 292,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 4442.89,
+     "from": 307,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 3942.48,
+     "from": 7,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 3995.92,
+     "from": 136,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 4220.77,
+     "from": 174,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 4565.03,
+     "from": 262,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 4234.94,
+     "from": 347,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [],
+   "context": null
+  },
+  "XAGUSD": {
+   "last": 66.337,
+   "last_time": "2026-09-19T04:42:54Z",
+   "lo": 62.29,
+   "hi": 68.326,
+   "eq": 65.30799999999999,
+   "pct": 0.6705,
+   "stance": "CHỜ",
+   "anchors": null,
+   "setup": null,
+   "last_mss": {
+    "type": "bull",
+    "i": 351,
+    "level": 64.931,
+    "disp": true,
+    "ext": 62.29,
+    "ext_time": "2026-09-17T04:42:54Z",
+    "origin": 64.931,
+    "cisd": {
+     "level": 64.758,
+     "time": "2026-09-17T00:42:54Z",
+     "confirmed": "2026-09-17T20:42:54Z"
+    },
+    "vol_mult": 1.03
+   },
+   "nearest_fvg": {
+    "type": "bull",
+    "i": 175,
+    "lo": 61.664,
+    "hi": 62.207,
+    "size": 0.5429999999999993,
+    "ce": 61.935500000000005,
+    "end": 359,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-18",
+    "pdh": 67.332,
+    "pdl": 65.22,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "4H",
+    "pch": 66.793,
+    "pcl": 65.982,
+    "pch_state": "swept",
+    "pcl_state": "intact"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 59.26,
+     "from": 99,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 62.29,
+     "from": 333,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 60.932,
+     "from": 106,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 60.087,
+     "from": 120,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 58.609,
+     "from": 150,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 71.174,
+     "from": 268,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 68.326,
+     "from": 317,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 65.281,
+     "from": 328,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 64.931,
+     "from": 345,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 66.151,
+     "from": 352,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 54.748,
+     "from": 85,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 56.087,
+     "from": 96,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 60.868,
+     "from": 172,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [],
+   "context": null
+  }
+ }
+}

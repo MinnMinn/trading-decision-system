@@ -1,0 +1,262 @@
+{
+  "_comment": "THE provider registry (CLAUDE.md §2, §4, §6). A provider is anything OUTSIDE this repo that the system depends on for information or for order submission. Nothing else may hard-code a connector path, a venue name or a vendor's identity: scripts/providers.py is the only reader, and scripts/tests/test_providers.py fails the build if a declared adapter does not exist on disk or a consumer re-hardcodes a path this file already owns. Same discipline as docs/architecture/instruments.json (symbols) and docs/architecture/methods.json (dimensions).",
+  "_why": "Before this file, 'crypto' meant Binance by hard-coded script path -- scripts/strategy-runner.py held ORDER/MT5/FETCH as module constants, so choosing a different venue meant editing the live order engine. CLAUDE.md §2 forbids exactly that ('Binance must NOT become the architectural center') and requires that market-data, analytics, aggregated-intelligence and execution be INDEPENDENTLY choosable. Declaring providers as data is the first half of that; routing on the declaration instead of on `if venue == ...` is the second half and is tracked as CLAUDE.md §4 work (SYSTEM-DESIGN.md §16.1).",
+  "schema_version": 1,
+  "roles": {
+    "_comment": "The four independent choices CLAUDE.md §2 requires. A provider declares one or more. The point of separating them is that Data Source != Execution Venue (CLAUDE.md §4): a provider may inform a decision without ever being allowed to receive an order, and vice versa.",
+    "market_data": "Supplies price/volume series the system reads (OHLCV today).",
+    "analytics": "Supplies DERIVED reads over market data (structure, phases, levels). Today this is computed in-repo, declared as the `local_derived` provider so the seam is visible rather than implicit.",
+    "aggregated_intelligence": "Supplies cross-venue aggregates (open interest, funding, liquidation/orderbook heatmaps, footprint). CLAUDE.md §23 governs how these may be presented.",
+    "execution": "Receives orders. The only role that can move money."
+  },
+  "capabilities": {
+    "_comment": "THE capability vocabulary (CLAUDE.md §6). A provider declares what it ACTUALLY supplies, explicitly. Two rules from §6 govern this block: never invent a capability, and never assume one merely because a provider exists. A capability listed here that NO provider declares is not an oversight -- it is the honest statement that this system has no source for it, and several below are exactly that.",
+    "_declared_vs_live": "Declaring a capability says the provider CAN supply it. Whether it can supply it TODAY is `status`: a `mock_only` provider's capabilities are structural, not live. providers.markets_with_capability() answers the first question, markets_with_live_capability() the second, and conflating them is how a fixture ends up satisfying a live decision requirement.",
+    "ohlcv_historical": "Completed candles for a past window.",
+    "ohlcv_realtime": "Streaming/pushed candles. NO PROVIDER DECLARES THIS -- every feed here is REST polling or a file bridge (CLAUDE.md §52).",
+    "trades_raw": "Individual trades with side, the input a footprint is built FROM. NO PROVIDER DECLARES THIS -- CLAUDE.md §22's Raw Trades -> Classification -> Aggregation chain has no source, which is why footprint arrives pre-aggregated.",
+    "orderbook_depth": "Live order-book depth. NO PROVIDER DECLARES THIS.",
+    "footprint_bars": "Pre-aggregated footprint bars (price levels with bid/ask volume, delta, CVD).",
+    "liquidation_heatmap": "Liquidation clusters by price.",
+    "orderbook_heatmap": "Resting order-book liquidity concentration by price.",
+    "open_interest": "Open-interest series.",
+    "funding": "Funding-rate series.",
+    "economic_calendar": "Scheduled economic events with impact and release times. NO PROVIDER DECLARES THIS -- docs/architecture/event-calendar.md is hand-maintained, which is the root of CLAUDE.md §24-§32.",
+    "news": "News headlines and revisions. NO PROVIDER DECLARES THIS.",
+    "order_submission": "Can receive and manage orders.",
+    "testnet": "Offers a non-real-money environment. On Binance that is testnet.binance.vision / testnet.binancefuture.com; on MT5 the analogue is a DEMO account, which scripts/strategy-runner.py asserts on connect."
+  },
+  "status_values": {
+    "_comment": "Truthful connection state. CLAUDE.md §6: never invent a capability, never assume one because a provider exists. A provider that is not `connected` may not satisfy a live decision requirement.",
+    "connected": "Real credentials/feed verified in this repo, in use.",
+    "mock_only": "Fixtures exist under mock/; no real connector is configured. Output is REHEARSAL, never a live signal.",
+    "not_built": "Declared because the domain needs the seam, but no adapter exists yet.",
+    "_research_only_note": "A provider may additionally be `research_only`: connected and trustworthy for history, but supplying a DIFFERENT instrument from the one traded, so it may never satisfy a live decision requirement (CLAUDE.md §6). providers.is_live() stays True for it -- it is genuinely connected -- and providers.is_research_only() is the separate question."
+  },
+  "providers": {
+    "binance_public": {
+      "label": "Binance public REST",
+      "venue": "binance",
+      "external": true,
+      "roles": [
+        "market_data"
+      ],
+      "capabilities": [
+        "ohlcv_historical"
+      ],
+      "markets": [
+        "crypto"
+      ],
+      "adapter": "scripts/fetch-binance-klines.sh",
+      "auth": "none",
+      "status": "connected",
+      "note": "Public klines endpoint, no API key. Writes docs/architecture/data-sources.md's crypto market-data contract shape into data/live/market-data/ (or $KLINES_OUT_DIR for the pilot's private copies).",
+      "market_type": "SPOT",
+      "aggregation_scope": "single_venue",
+      "underlying_venues": [
+        "binance"
+      ],
+      "market_type_note": "api.binance.com/api/v3/klines is the SPOT endpoint (scripts/fetch-binance-klines.sh:43). The unattended pilot executes on binance_futures, whose contracts are PERPETUAL -- so the analysed series and the traded instrument are DIFFERENT market types. Not silently: providers.data_execution_mismatch() reports it and SYSTEM-DESIGN.md §20.1 records the consequences.",
+      "source_markers": [
+        "binance_public_rest_live",
+        "binance_public_rest_history"
+      ]
+    },
+    "binance_spot": {
+      "label": "Binance SPOT",
+      "venue": "binance",
+      "external": true,
+      "roles": [
+        "execution"
+      ],
+      "capabilities": [
+        "order_submission",
+        "testnet"
+      ],
+      "markets": [
+        "crypto"
+      ],
+      "adapter": "scripts/binance-testnet-order.sh",
+      "execution_alias": "spot",
+      "market_type": "SPOT",
+      "unattended": false,
+      "auth": "api_key_secret",
+      "environment_driven": true,
+      "status": "connected",
+      "note": "LONG-only, no spot shorting. Endpoint follows config/env.<environment> via scripts/trading-env.sh: demo -> testnet.binance.vision, real -> api.binance.com (REAL MONEY). The `testnet` in the file name is historical; the script is not testnet-only. Used by /execute (one human confirmation per trade).",
+      "aggregation_scope": "single_venue",
+      "underlying_venues": [
+        "binance"
+      ]
+    },
+    "binance_futures": {
+      "label": "Binance USDT-M Futures",
+      "venue": "binance",
+      "external": true,
+      "roles": [
+        "execution"
+      ],
+      "capabilities": [
+        "order_submission",
+        "testnet"
+      ],
+      "markets": [
+        "crypto"
+      ],
+      "adapter": "scripts/binance-futures-testnet-order.sh",
+      "execution_alias": "futures",
+      "market_type": "PERPETUAL",
+      "alias_collides_with_market_type": "Binance names this product \"futures\" and every state row, log line, setup `execution` field and pilot directory in this repo is tagged with that word, so the alias cannot be renamed without migrating persisted state. But the contract is a PERPETUAL -- no expiry, funding-paid -- so the alias is a provider word that LOOKS like a canonical market type and is not one. Never infer contract semantics from the alias: ask providers.market_type_of(). CLAUDE.md §5 is exactly this hazard.",
+      "unattended": true,
+      "auth": "api_key_secret",
+      "environment_driven": true,
+      "status": "connected",
+      "note": "Long/short, ISOLATED margin, leverage <= 3 (the connector refuses more). demo -> testnet.binancefuture.com, real -> fapi.binance.com. This is the unattended pilot's venue; scripts/strategy-runner.py refuses every tick while execution.environment is `real`.",
+      "aggregation_scope": "single_venue",
+      "underlying_venues": [
+        "binance"
+      ]
+    },
+    "mt5_bridge": {
+      "label": "MetaTrader 5 file bridge",
+      "venue": "mt5",
+      "external": true,
+      "roles": [
+        "market_data",
+        "execution"
+      ],
+      "capabilities": [
+        "ohlcv_historical",
+        "order_submission",
+        "testnet"
+      ],
+      "markets": [
+        "cfd",
+        "forex"
+      ],
+      "adapter": "scripts/mt5-order-bridge.py",
+      "execution_alias": "mt5",
+      "market_type": "CFD",
+      "unattended": true,
+      "market_data_adapter": "integrations/mt5/ExportOHLCV.mq5",
+      "auth": "terminal_session",
+      "status": "connected",
+      "note": "One provider carrying two roles, which is exactly why roles are a list and not a single field. Market data is a per-chart EA export into data/live/mt5-bridge/ (a symbol has no data until a chart running the EA is open for it); execution is integrations/mt5/OrderBridge.mq5 driven by the adapter above. Volume is TICK volume, not traded size -- docs/architecture/instruments.json markets.<m>.tick_volume is what readers gate on.",
+      "aggregation_scope": "single_venue",
+      "underlying_venues": [
+        "mt5_broker"
+      ],
+      "market_data_market_type": "CFD",
+      "market_type_note": "One provider, one market type on both roles here: the EA exports the same broker CFD series the OrderBridge trades.",
+      "source_markers": [
+        "mt5_bridge_live",
+        "mt5_bridge_history",
+        "mt5_bridge_history_utc"
+      ],
+      "server": "MetaQuotes-Demo",
+      "server_timezone": "Europe/Helsinki",
+      "_server_timezone_why": "EET/EEST -- UTC+2 winter, UTC+3 summer, EU transition dates. MEASURED from the exported XAUUSD 1H series on 2026-09-18, not read off the server's name: (1) the week opens Monday 01:00 and closes Friday 23:00 server-local with hour 00 the daily break; (2) the most volatile hour is 16:00 server in BOTH summer and winter, so the clock moves with daylight saving rather than sitting at a fixed offset; (3) in the 12-25 March window, when the US is on DST and the EU is not, that hour drops to 15:00 and returns to 16:00 in April -- the EU transition date, not the US one. Consistent with the `_server_utc_offset_sec_now = 10800` the export recorded in September. scripts/import-mt5-history.py REFUSES to convert without this field, and refuses if a file's `_server` is not the one named here: applying one broker's zone to another's timestamps is a silent one-hour error in every bar, which is worse than no import at all. The evidence is written up in docs/architecture/mt5-history-export.md.",
+      "_source_markers_why": "Two markers, one provider, because they are two different EXPORTS of the same broker feed and conflating them would hide which one a research result read. `mt5_bridge_live` is ExportOHLCV.mq5: an EA on a 60-second timer writing ~600 recent bars into the live path, where freshness is checked. `mt5_bridge_history` is ExportHistory.mq5: a one-shot Script writing years of bars, whose timestamps are RAW SERVER TIME with no `Z` and are only UTC once converted with the zone measured in docs/architecture/mt5-history-export.md. A file carrying the history marker has not been through that conversion yet; the importer is what turns it into a `data/history/` series."
+    },
+    "coinglass": {
+      "label": "CoinGlass",
+      "venue": "aggregate",
+      "external": true,
+      "roles": [
+        "aggregated_intelligence"
+      ],
+      "capabilities": [
+        "footprint_bars",
+        "liquidation_heatmap",
+        "orderbook_heatmap",
+        "open_interest",
+        "funding"
+      ],
+      "markets": [
+        "crypto"
+      ],
+      "adapter": null,
+      "auth": "api_key",
+      "status": "mock_only",
+      "note": "No API key configured. Fixtures live in mock/coinglass/ and carry _mock + _disclaimer. Supplies the Footprint and Heatmap dimensions, which is why those two dimensions list `crypto` only in docs/architecture/methods.json -- CoinGlass is crypto-derivatives only. Its outputs are cross-venue aggregates and CLAUDE.md §23 forbids presenting them as any single venue's figure.",
+      "aggregation_scope": "multi_venue",
+      "underlying_venues": [
+        "UNDECLARED"
+      ],
+      "aggregation_note": "CoinGlass figures are aggregates ACROSS venues. `underlying_venues` is UNDECLARED because the vendor contract in docs/architecture/data-sources.md does not carry the venue list and the fixtures do not either -- CLAUDE.md §23 forbids presenting a cross-venue aggregate as any single venue's figure, and naming a venue set we have not verified would be the same error in the other direction. Fill this in from the real API response before the connector ships.",
+      "source_markers": [
+        "coinglass_mock"
+      ],
+      "_source_markers_why": "The fixtures in mock/coinglass/ carry `_source: \"coinglass_mock\"` so a loaded aggregate can be joined back to THIS record -- which is where CLAUDE.md §23's aggregation_scope and underlying_venues live. Before 2026-09-18 they carried no marker at all, so nothing could tell which provider had written them, and §23's five fields could not be attached to a figure even in principle. The marker says `mock` because that is what these files are; a real connector adds its own marker here rather than reusing this one, so a fixture can never be mistaken for a live pull."
+    },
+    "local_derived": {
+      "label": "In-repo derived analytics",
+      "venue": "local",
+      "external": false,
+      "roles": [
+        "analytics"
+      ],
+      "capabilities": [],
+      "markets": [
+        "crypto",
+        "cfd",
+        "forex"
+      ],
+      "adapter": "scripts/ict-scan.py",
+      "auth": "none",
+      "status": "connected",
+      "note": "Declared deliberately. CLAUDE.md §2 requires the analytics provider to be an independent choice; today there is exactly one and it is this repo's own deterministic scanner (scripts/ict-scan.py, scripts/wyckoff_rules.py, scripts/htf_context.py). Naming it makes the seam visible instead of implicit, and stops a future external analytics vendor from being wired in as though no choice were being made.",
+      "aggregation_scope": "derived",
+      "underlying_venues": []
+    },
+    "yahoo_finance": {
+      "label": "Yahoo Finance (front-month futures)",
+      "venue": "yahoo_finance",
+      "external": true,
+      "capabilities": [
+        "ohlcv_historical"
+      ],
+      "roles": [
+        "market_data"
+      ],
+      "markets": [
+        "cfd"
+      ],
+      "adapter": "scripts/fetch-history-cfd.py",
+      "source_markers": [
+        "yahoo_finance_*"
+      ],
+      "auth": "none",
+      "status": "connected",
+      "research_only": true,
+      "market_data_market_type": "FUTURES",
+      "aggregation_scope": "single_venue",
+      "underlying_venues": [
+        "UNDECLARED"
+      ],
+      "note": "RESIDUAL research-only history for the commodity CFDs. Until 2026-09-18 it was the ONLY deep history available, because ExportOHLCV.mq5 gives ~600 bars per timeframe; ExportHistory.mq5 + scripts/import-mt5-history.py now supply years of the TRADED instrument, and on 2026-09-18 they replaced XAUUSD/XAGUSD 15m, 1H, 4H, 1D and 1W. What is left is the timeframes the broker export has no bar for: XAUUSD 2H/30m/5m and XAGUSD 2H. Those series are still FRONT-MONTH CONTINUOUS FUTURES, not the CFD the system trades: XAUUSD<-GC=F, XAGUSD<-SI=F, USOIL<-CL=F, UKOIL<-BZ=F (the mapping lives in scripts/fetch-history-cfd.py MAP -- only Yahoo can say what its contract codes mean). USOIL/UKOIL keep it for EVERY timeframe: the MT5 account carries no oil symbol at all. `underlying_venues` is UNDECLARED because each contract is a different exchange and naming them per ticker here would be inference, not a read fact.",
+      "differences_from_traded_instrument": [
+        "exchange session hours, not 24/5 CFD quotes",
+        "real contract volume, where the MT5 bridge gives tick volume",
+        "roll gaps between front-month contracts",
+        "prices in futures terms -- basis to spot"
+      ],
+      "research_only_why": "It may not satisfy a live decision: it is a different instrument from the one that gets the order (FUTURES here, CFD at the venue). Declared so a backtest built on it cannot be read as evidence about the traded instrument without the difference being stated -- CLAUDE.md §10 and the fetcher's own docstring both require that, and nothing enforced it before.",
+      "_residual_timeframes_why": "One instrument now has two providers across its timeframes, which is the fault CLAUDE.md §6 forbids loudly on the order path and which is much quieter in research -- every series is individually valid, correctly labelled and §20 FRESH, and a table spanning them compares a CFD against a futures contract and prints one number. scripts/backtest-methods.py `provider_mix()` detects it and §38 FLAGS the run; scripts/tests/test_backtesting.py::OneInstrumentTwoProviders pins it. The clean fix is to stop ranking CFD setups on 2H/30m/5m, which is what the 2026-09-18 regeneration did (15m/1H/4H/1D only)."
+    }
+  },
+  "history": [
+    {
+      "date": "2026-09-18",
+      "change": "initial registry: 6 providers, 4 roles, honest status per provider",
+      "reason": "CLAUDE.md §2 compliance. Extracted from scripts/strategy-runner.py ORDER/MT5/FETCH module constants and from the prose `feed` strings in docs/architecture/instruments.json, neither of which any code could dispatch on. Capabilities (CLAUDE.md §6) are deliberately NOT in this file yet -- that is the next registry field, added when §6 is implemented, so this commit stays one concern.",
+      "approved_by": "spec-compliance program (CLAUDE.md §2)"
+    }
+  ],
+  "aggregation_scopes": {
+    "_comment": "How a provider's figures relate to venues (CLAUDE.md §7 aggregationScope, §23). Declared so a cross-venue aggregate can never be rendered as one venue's number by accident.",
+    "single_venue": "Every figure comes from one venue, named in underlying_venues.",
+    "multi_venue": "Figures are aggregated across venues. underlying_venues must name them, or say UNDECLARED.",
+    "derived": "Computed in-repo from other providers' data; carries the provenance of its inputs."
+  }
+}

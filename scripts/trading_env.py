@@ -7,17 +7,23 @@
 
 active environment = docs/architecture/automation-config.json -> execution.environment, overridable by the
 TRADING_ENV environment variable. File = config/env.<name> (template config/env.example).
-Secret values "keychain:<service>[@<account>]" are resolved via scripts/get-secret.sh (macOS Keychain).
+Secret values "keychain:<service>[@<account>]" are resolved via scripts/get_secret.py (the OS's own
+credential store: macOS Keychain, Windows Credential Manager, libsecret on Linux).
 Values are returned in a dict and never printed by this module.
 PILOT_RISK_PCT is clamped to <= MAX_RISK_PCT whatever the file says. MAX_RISK_PCT is read once, here, from
 docs/architecture/risk-config.json -- strategy-runner.RISK_CEILING and scripts/trading-env.sh both read it from
 this module rather than keeping a copy of the number.
 """
-import json, os, subprocess
+import json, os, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
-GET_SECRET = os.path.join(ROOT, "scripts", "get-secret.sh")
+# The ONE secret reader. Was scripts/get-secret.sh (macOS `security`); now a Python reader that answers
+# the same question on macOS, Windows and Linux, because the platform moves to Windows and
+# `security` does not exist there (docs/plans/2026-09-20-windows-migration.md §2). The reference
+# syntax CLAUDE.md declares -- keychain:<service>[@<account>] -- is unchanged, so no env file, no
+# registry and no caller moves.
+GET_SECRET = os.path.join(ROOT, "scripts", "get_secret.py")
 ENV_NAMES = ("demo", "real")
 PLACEHOLDER = "__FILL_ME__"
 SECRET_SUFFIXES = ("_KEY", "_SECRET_KEY", "_PASSWORD")
@@ -108,7 +114,9 @@ def _resolve(value):
         return value
     ref = value[len("keychain:"):]
     svc, _, acct = ref.partition("@")
-    cmd = [GET_SECRET, svc] + ([acct] if acct else [])
+    # Invoked through sys.executable, not by shebang: Windows does not honour `#!` lines, and the platform
+    # is moving there (docs/plans/2026-09-20-windows-migration.md). Same reason the reader itself is Python.
+    cmd = [sys.executable, GET_SECRET, svc] + ([acct] if acct else [])
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
     except Exception:

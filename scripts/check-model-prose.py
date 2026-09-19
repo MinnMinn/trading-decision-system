@@ -23,7 +23,31 @@ import numbers_guard as ng   # noqa: E402
 import htf_context as htf    # noqa: E402
 
 style = sys.argv[1]
-VERDICTS = ("SETUP TIỀM NĂNG", "THEO DÕI LONG", "THEO DÕI SHORT", "CHỜ")
+# ONE source for the vocabulary: the schema the layer-3 narrative is validated against. Kept as a literal
+# here until 2026-09-19, when scripts/build-artifact.py was found extracting the same field with a LOOSER
+# regex and no vocabulary at all -- two readers, two answers about what a verdict is. Reading the schema means
+# a fifth value cannot be accepted by one and rejected by the other.
+def _verdicts():
+    import json as _json
+    d = _json.load(open(f"{ROOT}/docs/architecture/schemas/narrative.schema.json", encoding="utf-8"))
+    out = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k == "verdict" and isinstance(v, dict) and isinstance(v.get("enum"), list):
+                    out.append(v["enum"])
+                walk(v)
+        elif isinstance(o, list):
+            for x in o:
+                walk(x)
+    walk(d)
+    if not out:
+        raise SystemExit("narrative.schema.json has no `verdict` enum")
+    return tuple(out[0])
+
+
+VERDICTS = _verdicts()
 BLOCKS = ("wyckoff", "ict", "footprint", "heatmap", "synth")
 facts_path = sys.argv[sys.argv.index("--facts") + 1] if "--facts" in sys.argv else f"{ROOT}/data/live/prelim/{style}.facts.json"
 facts = json.load(open(facts_path, encoding="utf-8"))
@@ -54,9 +78,11 @@ for sym, d in facts["symbols"].items():
     if verdict not in VERDICTS:
         print(f"{sym}: verdict '{verdict}' not in {VERDICTS}"); status = max(status, 1)
     blocks = split_blocks(h)
-    # Only the ENGAGED methods owe a block. Demanding m-wyckoff while /automation has Wyckoff off forced the model
-    # to write Wyckoff prose in an ICT-only run — the method switch leaking back in through the validator.
-    for m in htf.engaged_methods(style) + ("synth",):
+    # Every ANALYSED method owes a block (CLAUDE.md §15) — not just the one the preset trades. This must be the
+    # same set local-eval-brief.py demands, or the brief asks for a block the validator rejects; both read
+    # htf_context.analysed_methods so there is one answer. Live-sourcing still gates it: a dimension whose only
+    # provider is a fixture is not analysed, so it is not demanded here either.
+    for m in htf.analysed_methods(style) + ("synth",):
         if m not in blocks or not blocks[m]:
             print(f"{sym}: missing <div class=\"m-{m}\"> block"); status = max(status, 1)
         elif 'class="cite"' not in blocks[m]:

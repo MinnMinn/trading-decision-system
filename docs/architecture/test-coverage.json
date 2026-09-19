@@ -1,0 +1,437 @@
+{
+  "_source": "CLAUDE.md §54 TESTING and §55 ADVERSARIAL TESTS. The 29 invariants and the 52 adversarial cases (11 Data, 7 Methodology, 7 Decision, 11 News, 8 Research, 8 Execution) below are the spec's own lists, in its order and wording. scripts/tests/test_coverage.py parses them back out of CLAUDE.md, so a new bullet in either section fails the build.",
+  "_reader": "scripts/test_coverage.py is the ONE reader. Every citation is `path::test_function`, and the checker RESOLVES each one -- a citation pointing at a test that no longer exists fails, which is what stops this file becoming a list of good intentions.",
+  "_why_this_exists": "§54 and §55 are the two sections a repository cannot self-report on. Both had been audited by hand -- 18 of 29 and 14 of 38 -- and a hand audit is accurate on the day it is written and never again. Making the audit a registry with resolvable citations turns 'are the invariants tested?' into a question the suite answers about itself.",
+  "_uncovered_is_a_value": "A case with no test must declare `covered: false` AND a reason. 'Not yet written' and 'cannot be written because the feature does not exist' are different facts, and only the first is a to-do. The checker refuses an uncovered entry with no reason.",
+  "invariants": [
+    {
+      "spec_name": "canonical market model",
+      "covered": true,
+      "by": "scripts/tests/test_canonical_market_model.py::test_the_five_canonical_market_types_exist"
+    },
+    {
+      "spec_name": "provider isolation",
+      "covered": true,
+      "by": "scripts/tests/test_providers.py::test_crypto_market_data_and_crypto_execution_are_different_providers"
+    },
+    {
+      "spec_name": "provider capability registry",
+      "covered": true,
+      "by": "scripts/tests/test_capabilities.py::test_every_provider_declares_a_capability_list"
+    },
+    {
+      "spec_name": "normalization",
+      "covered": true,
+      "by": "scripts/tests/test_normalized.py::test_a_bar_is_knowable_one_period_after_its_open"
+    },
+    {
+      "spec_name": "provenance",
+      "covered": true,
+      "by": "scripts/tests/test_normalized.py::test_every_copy_agrees_with_the_one_available_time_reads"
+    },
+    {
+      "spec_name": "PIT",
+      "covered": true,
+      "by": "scripts/tests/test_backtesting.py::test_an_entry_that_peeks_at_the_future_is_caught"
+    },
+    {
+      "spec_name": "dataset snapshots",
+      "covered": true,
+      "by": "scripts/tests/test_snapshot.py::test_different_inputs_do_not_share_an_id"
+    },
+    {
+      "spec_name": "configuration snapshots",
+      "covered": true,
+      "by": "scripts/tests/test_config_snapshot.py::test_the_declared_fields_are_exactly_the_ones_section_11_lists"
+    },
+    {
+      "spec_name": "data quality",
+      "covered": true,
+      "by": "scripts/tests/test_quality.py::test_the_vocabulary_is_the_specs_own"
+    },
+    {
+      "spec_name": "methodology isolation",
+      "covered": true,
+      "by": "scripts/tests/test_method_purity.py::test_wyckoff_block_rejects_ict_terms"
+    },
+    {
+      "spec_name": "setup isolation",
+      "covered": true,
+      "by": "scripts/tests/test_setup_version.py::test_it_is_stable_for_identical_inputs"
+    },
+    {
+      "spec_name": "expectation lifecycle",
+      "covered": true,
+      "by": "scripts/tests/test_expectation.py::test_a_status_change_returns_a_new_record_and_keeps_the_same_original"
+    },
+    {
+      "spec_name": "required-analysis gating",
+      "covered": true,
+      "by": "scripts/tests/test_trading_system.py::test_assert_may_gate_refuses_every_non_gating_role"
+    },
+    {
+      "spec_name": "optional-analysis non-blocking",
+      "covered": true,
+      "by": "scripts/tests/test_trading_system.py::test_a_broken_optional_input_does_not_block"
+    },
+    {
+      "spec_name": "confluence",
+      "covered": true,
+      "by": "scripts/tests/test_confluence.py::test_an_analysed_but_untraded_lane_cannot_score"
+    },
+    {
+      "spec_name": "contradiction",
+      "covered": true,
+      "by": "scripts/tests/test_contradiction.py::test_two_engaged_methods_disagreeing_returns_neutral"
+    },
+    {
+      "spec_name": "sessions",
+      "covered": true,
+      "by": "scripts/tests/test_sessions.py::test_precedence_is_unique_so_an_overlap_cannot_be_a_coin_toss"
+    },
+    {
+      "spec_name": "DST",
+      "covered": true,
+      "by": "scripts/tests/test_sessions.py::test_the_spring_forward_day_has_no_gap_and_no_double_count"
+    },
+    {
+      "spec_name": "risk",
+      "covered": true,
+      "by": "scripts/tests/test_min_rr_and_risk.py::test_there_is_exactly_one_ceiling"
+    },
+    {
+      "spec_name": "account constraints",
+      "covered": true,
+      "by": "scripts/tests/test_account_profile.py::test_every_profile_declares_all_sixteen_rule_keys"
+    },
+    {
+      "spec_name": "event risk",
+      "covered": true,
+      "by": "scripts/tests/test_event_risk.py::test_the_default_buffers_are_ten_and_ten"
+    },
+    {
+      "spec_name": "news boundaries",
+      "covered": true,
+      "by": "scripts/tests/test_event_risk.py::test_the_boundaries_are_inclusive_and_exact"
+    },
+    {
+      "spec_name": "news revisions",
+      "covered": true,
+      "by": "scripts/tests/test_event_risk.py::test_uncertainty_is_preserved_when_no_actual_time_exists"
+    },
+    {
+      "spec_name": "execution safety",
+      "covered": true,
+      "by": "scripts/tests/test_strategy_runner.py::test_refuses_real_environment"
+    },
+    {
+      "spec_name": "realtime recovery",
+      "covered": true,
+      "by": "scripts/tests/test_feed_health.py::test_recovery_is_recorded_rather_than_erasing_the_incident"
+    },
+    {
+      "spec_name": "experiment reproducibility",
+      "covered": true,
+      "by": "scripts/tests/test_versioning.py::test_the_three_ways_a_capture_is_ticked_off_without_capturing_anything"
+    },
+    {
+      "spec_name": "OOS exposure",
+      "covered": true,
+      "by": "scripts/tests/test_research_ledger.py::test_unexposing_always_raises_and_says_what_to_do_instead"
+    },
+    {
+      "spec_name": "versioning",
+      "covered": true,
+      "by": "scripts/tests/test_versioning.py::test_there_is_no_third_form"
+    },
+    {
+      "spec_name": "failure learning",
+      "covered": true,
+      "by": "scripts/tests/test_outcomes.py::test_a_registry_that_calls_an_evaluation_state_a_failure_is_refused"
+    }
+  ],
+  "adversarial": {
+    "Data": [
+      {
+        "spec_name": "stale data",
+        "covered": true,
+        "by": "scripts/tests/test_quality.py::test_an_old_write_is_stale"
+      },
+      {
+        "spec_name": "missing data",
+        "covered": true,
+        "by": "scripts/tests/test_quality.py::test_an_empty_series_is_missing_not_invalid"
+      },
+      {
+        "spec_name": "partial data",
+        "covered": true,
+        "by": "scripts/tests/test_quality.py::test_a_hole_in_a_continuous_series_is_partial"
+      },
+      {
+        "spec_name": "invalid data",
+        "covered": true,
+        "by": "scripts/tests/test_quality.py::test_a_high_below_its_low"
+      },
+      {
+        "spec_name": "unknown data",
+        "covered": true,
+        "by": "scripts/tests/test_quality.py::test_a_series_that_cannot_date_itself_is_unknown"
+      },
+      {
+        "spec_name": "provider outage",
+        "covered": true,
+        "by": "scripts/tests/test_feed_health.py::test_a_feed_that_stops_advancing_for_several_bars_is_stalled"
+      },
+      {
+        "spec_name": "unsupported capability",
+        "covered": true,
+        "by": "scripts/tests/test_capabilities.py::test_a_provider_with_no_capability_list_refuses_to_load"
+      },
+      {
+        "spec_name": "provider mismatch",
+        "covered": true,
+        "by": "scripts/tests/test_capabilities.py::test_the_execution_role_and_the_order_submission_capability_must_agree"
+      },
+      {
+        "spec_name": "duplicate data",
+        "covered": true,
+        "by": "scripts/tests/test_feed_health.py::test_identical_polls_inside_one_bar_are_not_a_stall"
+      },
+      {
+        "spec_name": "sequence gaps",
+        "covered": true,
+        "by": "scripts/tests/test_feed_health.py::test_a_gap_since_the_previous_poll_is_detected"
+      },
+      {
+        "spec_name": "future timestamps",
+        "covered": true,
+        "by": "scripts/tests/test_live_rules.py::test_future_bars_cannot_change_the_read"
+      }
+    ],
+    "Methodology": [
+      {
+        "spec_name": "unavailable required methodology",
+        "covered": true,
+        "by": "scripts/tests/test_trading_system.py::test_missing_context_resolves_required_never_optional"
+      },
+      {
+        "spec_name": "unavailable optional methodology",
+        "covered": true,
+        "by": "scripts/tests/test_trading_system.py::test_a_broken_optional_input_does_not_block"
+      },
+      {
+        "spec_name": "contradictory methodology outputs",
+        "covered": true,
+        "by": "scripts/tests/test_contradiction.py::test_two_engaged_methods_disagreeing_returns_neutral"
+      },
+      {
+        "spec_name": "slow required methodology",
+        "covered": true,
+        "by": "scripts/tests/test_latency.py::test_derived_analytics_and_required_methodology_analysis"
+      },
+      {
+        "spec_name": "stale required methodology",
+        "covered": true,
+        "by": "scripts/tests/test_quality.py::test_an_old_write_is_stale"
+      },
+      {
+        "spec_name": "incomplete required evidence",
+        "covered": true,
+        "by": "scripts/tests/test_research_validity.py::test_the_configuration_snapshots_unapplied_required_dependencies_become_a_finding"
+      },
+      {
+        "spec_name": "missing expected-path dependency",
+        "covered": true,
+        "by": "scripts/tests/test_expectation.py::test_a_record_missing_one_is_refused_rather_than_written_with_a_hole"
+      }
+    ],
+    "Decision": [
+      {
+        "spec_name": "required analysis not ready",
+        "covered": true,
+        "by": "scripts/tests/test_trading_system.py::test_a_missing_required_input_blocks_entry"
+      },
+      {
+        "spec_name": "required analysis invalid",
+        "covered": true,
+        "by": "scripts/tests/test_trading_system.py::test_a_required_input_nobody_reported_is_missing_not_absent"
+      },
+      {
+        "spec_name": "optional analysis still running",
+        "covered": true,
+        "by": "scripts/tests/test_trading_system.py::test_a_broken_optional_input_does_not_block"
+      },
+      {
+        "spec_name": "visualization unavailable",
+        "covered": true,
+        "by": "scripts/tests/test_trading_system.py::test_assert_may_gate_refuses_every_non_gating_role"
+      },
+      {
+        "spec_name": "research worker unavailable",
+        "covered": true,
+        "by": "scripts/tests/test_latency.py::test_the_journal_no_longer_runs_synchronously_inside_the_order_loop"
+      },
+      {
+        "spec_name": "AI unavailable",
+        "covered": true,
+        "by": "scripts/tests/test_latency.py::test_no_model_call_is_reachable_from_the_live_path"
+      },
+      {
+        "spec_name": "required dependency accidentally downgraded to optional",
+        "covered": true,
+        "by": "scripts/tests/test_trading_system.py::test_there_is_no_runtime_reclassification"
+      }
+    ],
+    "News": [
+      {
+        "spec_name": "missing event",
+        "covered": true,
+        "by": "scripts/tests/test_event_risk.py::test_a_missing_calendar_blocks_rather_than_reading_as_no_news"
+      },
+      {
+        "spec_name": "duplicate event",
+        "covered": true,
+        "by": "scripts/tests/test_event_risk.py::test_overlapping_events_produce_one_union_window"
+      },
+      {
+        "spec_name": "delayed event",
+        "covered": true,
+        "by": "scripts/tests/test_event_risk.py::test_after_the_event_the_actual_time_is_preferred"
+      },
+      {
+        "spec_name": "revised event",
+        "covered": true,
+        "by": "scripts/tests/test_event_risk.py::test_an_actual_time_learned_later_cannot_move_an_earlier_window"
+      },
+      {
+        "spec_name": "cancelled event",
+        "covered": true,
+        "by": "scripts/tests/test_event_risk.py::test_a_cancelled_event_is_kept_not_deleted"
+      },
+      {
+        "spec_name": "unknown impact",
+        "covered": true,
+        "by": "scripts/tests/test_event_risk.py::test_unknown_is_not_low_strict_mode_treats_it_as_no_trade"
+      },
+      {
+        "spec_name": "overlapping events",
+        "covered": true,
+        "by": "scripts/tests/test_event_risk.py::test_section_30_requires_the_union_and_forbids_gaps"
+      },
+      {
+        "spec_name": "exact boundaries",
+        "covered": true,
+        "by": "scripts/tests/test_event_risk.py::test_the_boundaries_are_inclusive_and_exact"
+      },
+      {
+        "spec_name": "timezone",
+        "covered": true,
+        "by": "scripts/tests/test_sessions.py::test_a_nonexistent_timezone_is_refused"
+      },
+      {
+        "spec_name": "DST",
+        "covered": true,
+        "by": "scripts/tests/test_sessions.py::test_the_fall_back_day_does_not_duplicate_the_window"
+      },
+      {
+        "spec_name": "future release information",
+        "covered": true,
+        "by": "scripts/tests/test_event_risk.py::test_an_event_published_after_the_decision_is_invisible"
+      }
+    ],
+    "Research": [
+      {
+        "spec_name": "look-ahead",
+        "covered": true,
+        "by": "scripts/tests/test_backtesting.py::test_a_decision_that_only_exists_because_of_the_future_is_caught"
+      },
+      {
+        "spec_name": "leakage",
+        "covered": true,
+        "by": "scripts/tests/test_research_validity.py::test_a_leakage_probe_violation_invalidates_and_a_clean_probe_clears"
+      },
+      {
+        "spec_name": "OOS contamination",
+        "covered": true,
+        "by": "scripts/tests/test_research_ledger.py::test_an_exposed_period_can_no_longer_validate"
+      },
+      {
+        "spec_name": "repeated candidate selection",
+        "covered": true,
+        "by": "scripts/tests/test_research_ledger.py::test_rejected_candidates_are_counted_because_they_still_consumed_a_test"
+      },
+      {
+        "spec_name": "parameter overfitting",
+        "covered": true,
+        "by": "scripts/tests/test_validation.py::test_parameter_sensitivity_exposes_a_result_that_lives_at_one_setting"
+      },
+      {
+        "spec_name": "multiple testing",
+        "covered": true,
+        "by": "scripts/tests/test_validation.py::test_selection_bias_and_multiple_testing_refuse_while_the_denominator_is_incomplete"
+      },
+      {
+        "spec_name": "survivorship bias",
+        "covered": true,
+        "by": "scripts/tests/test_validation.py::test_survivorship_reports_rather_than_passing"
+      },
+      {
+        "spec_name": "unrealistic execution",
+        "covered": true,
+        "by": "scripts/tests/test_validation.py::test_stress_names_which_hostile_scenarios_were_survived"
+      }
+    ],
+    "Execution": [
+      {
+        "spec_name": "provider failure",
+        "covered": true,
+        "by": "scripts/tests/test_providers.py::test_a_missing_adapter_refuses_to_load"
+      },
+      {
+        "spec_name": "stale price",
+        "covered": true,
+        "by": "scripts/tests/test_feed_health.py::test_a_feed_that_stops_advancing_for_several_bars_is_stalled"
+      },
+      {
+        "spec_name": "changed market",
+        "covered": true,
+        "by": "scripts/tests/test_feed_health.py::test_a_revised_closed_bar_is_detected"
+      },
+      {
+        "spec_name": "invalid order",
+        "covered": true,
+        "by": "scripts/tests/test_risk_model.py::test_min_notional_is_read_whichever_order_the_venue_prints_the_keys"
+      },
+      {
+        "spec_name": "risk limit exceeded",
+        "covered": true,
+        "by": "scripts/tests/test_min_rr_and_risk.py::test_the_ceiling_is_actually_reachable"
+      },
+      {
+        "spec_name": "account limit exceeded",
+        "covered": true,
+        "by": "scripts/tests/test_account_profile.py::test_trailing_drawdown_measured_against_the_peak"
+      },
+      {
+        "spec_name": "news block",
+        "covered": true,
+        "by": "scripts/tests/test_event_risk.py::test_a_stale_calendar_blocks"
+      },
+      {
+        "spec_name": "missing required decision input",
+        "covered": true,
+        "by": "scripts/tests/test_decision_order.py::test_blocking_on_a_dependency_with_no_trading_system_is_refused"
+      }
+    ]
+  },
+  "critical_invariant": {
+    "spec_text": "A required analysis failure must never silently become an optional analysis.",
+    "covered": true,
+    "by": [
+      "scripts/tests/test_trading_system.py::test_there_is_no_runtime_reclassification",
+      "scripts/tests/test_trading_system.py::test_missing_context_resolves_required_never_optional",
+      "scripts/tests/test_trading_system.py::test_a_baseline_role_of_required_refuses_to_load"
+    ],
+    "_note": "The previous audit recorded this as UNTESTABLE -- 'there is no classification field to assert on'. §35 created the field, so the invariant now has three separate guards: a runtime reclassify that only raises, unknown context resolving REQUIRED rather than optional, and a registry that refuses required-ness being inherited (which is how a dependency would become required-for-everything and then be relaxed for one caller)."
+  }
+}

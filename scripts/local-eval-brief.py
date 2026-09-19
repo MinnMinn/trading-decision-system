@@ -13,6 +13,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import importlib.util as _iu  # noqa: E402
 import instruments as I  # noqa: E402
+import trading_system as TS  # noqa: E402  # §35: the role names below come from the registry, not from prose
 _as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py"))
 _auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
 # style -> (timeframe code as scripts/fetch-binance-klines.sh spells it, bars in the window).
@@ -129,20 +130,39 @@ def main():
 """ + CITES)
     import importlib.util as _iu
     _hs = _iu.spec_from_file_location("htf_context", f"{ROOT}/scripts/htf_context.py"); _htf = _iu.module_from_spec(_hs); _hs.loader.exec_module(_htf)
-    _engaged = _htf.engaged_methods(a.style)
-    # Which method blocks THIS run owes. Mục 6 lists the shape of all four; /automation decides which are required,
-    # and scripts/check-model-prose.py checks exactly this set. Demanding m-wyckoff in an ICT-only run forced the
-    # model to write Wyckoff prose the run does not read (audit 2026-09-13).
-    print(f"\n## KHỐI BẮT BUỘC CHO LẦN CHẠY NÀY (/automation): "
-          + " + ".join(f"m-{m}" for m in _engaged + ("synth",))
-          + (f"  — KHÔNG viết khối m-{', m-'.join(m for m in ('wyckoff', 'ict') if m not in _engaged)}: "
-             "dimension đang tắt, khối đó sẽ bị check-model-prose.py từ chối."
-             if set(("wyckoff", "ict")) - set(_engaged) else ""))
+    _engaged = _htf.engaged_methods(a.style)      # may qualify a trade  -> feeds the bias and the verdict
+    _analysed = _htf.analysed_methods(a.style)    # still read (§15)     -> feeds the prose blocks only
+    # §35: the split is the Trading System's declared classification, asked for once here rather than
+    # re-derived from `_engaged` in prose. Same answer today (`preset.engages` IS the condition the registry
+    # names), but sourced -- if the registry ever classifies a dimension differently for this system, this
+    # brief changes with it instead of continuing to assert the old split.
+    _role = lambda m: TS.role_of(a.style, f"methodology.{m}", engaged=_engaged)
+    _optional = tuple(m for m in _analysed if _role(m) != TS.REQUIRED)
+    # Which method blocks THIS run owes. Mục 6 lists the shape of all four; CLAUDE.md §15 decides which are
+    # required: every methodology with a LIVE source, not just the one the preset trades. The narrower rule
+    # (audit 2026-09-13, "demanding m-wyckoff in an ICT-only run forced the model to write Wyckoff prose the
+    # run does not read") was right about the symptom and wrong about the cause -- the prose WAS unread
+    # because nothing displayed it, which is the §15 defect, not a reason to stop writing it. What the old
+    # rule got right is preserved: a dimension with no live source is still not demanded.
+    print(f"\n## KHỐI BẮT BUỘC CHO LẦN CHẠY NÀY: "
+          + " + ".join(f"m-{m}" for m in _analysed + ("synth",))
+          + (f"  — KHÔNG viết khối m-{', m-'.join(m for m in ('wyckoff', 'ict') if m not in _analysed)}: "
+             "không có nguồn dữ liệu LIVE, khối đó sẽ bị check-model-prose.py từ chối."
+             if set(("wyckoff", "ict")) - set(_analysed) else ""))
+    if _optional:
+        # §15: "Displayed analysis != trading confluence." The model must know which of the blocks it is
+        # about to write can move the verdict, or it will argue a direction from a lane that cannot vote.
+        print(f"PHẠM VI: giao dịch = {', '.join(_engaged) or '(không lớp nào)'} "
+              f"({TS.REQUIRED} — chỉ lớp này vào bias/verdict/confluence); "
+              f"phân tích thêm = {', '.join(_optional)} ({TS.OPTIONAL} — viết đầy đủ, có trích dẫn, "
+              f"nhưng KHÔNG được dùng để đổi verdict, và m-synth phải nói rõ lớp này không tính vào confluence).")
     print("\n## THANG KHUNG (code tính; luật giảm khung — knowledge/wyckoff/advance.md §2.7, WA p93–96; docs/architecture/timeframe-mapping.md)")
-    print(f"Chỉ in bản đọc của lớp đang bật: {', '.join(_engaged) or '(không có lớp nào)'}.")
+    print(f"In bản đọc của các lớp đang phân tích: {', '.join(_analysed) or '(không có lớp nào)'}"
+          + (f"; bias chỉ tính từ {', '.join(_engaged) or '(không lớp nào)'}." if _optional else "."))
     for sym in syms:
         f = lambda v: fmt(sym, v)
-        print(f"\n## {sym}"); print("\n".join(_htf.ladder_lines(a.style, sym, f, methods=_engaged)))
+        print(f"\n## {sym}")
+        print("\n".join(_htf.ladder_lines(a.style, sym, f, methods=_engaged, reading=_analysed)))
     print("\n## FACTS (scanner, không được thay đổi)")
     for sym in syms:
         d = facts["symbols"][sym]; f = lambda v: fmt(sym, v)

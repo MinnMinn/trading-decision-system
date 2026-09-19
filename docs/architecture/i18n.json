@@ -1,0 +1,1926 @@
+{
+  "_comment": "THE single source of truth for every user-facing string the published pages render FROM CODE, and for the locale records that go with them. Reader: scripts/i18n.py (the only one). Guard: scripts/tests/test_i18n.py, which fails the build if a renderer grows a Vietnamese literal, if a key is missing a locale, or if two locales of one message disagree about their {placeholders}. Twin of instruments.json and methods.json. NOT in here: (a) labels the registries already own -- dimension labels, `reads` glosses, pane labels and preset names live in methods.json, instrument display metadata in instruments.json, both now as {en, vi} objects; (b) machine values -- the narrative verdict enum, the structure words htf_context.py matches on, methodology names, acronyms, symbols, timeframes, preset ids and file paths are never translated, only given display labels here where one is needed; (c) prose the MODEL writes -- layer 2 (data/live/prelim/*.model.html) and layer 3 (data/live/narrative/*.json) are authored in Vietnamese at analysis time and inserted verbatim; phase 2 makes those bilingual at the source (docs/specs/2026-09-17-artifact-i18n-design.md).",
+  "schema_version": 1,
+  "default": "en",
+  "_locales_note": "`tz` is PRESENTATION ONLY -- it shifts what a timestamp reads as, never a stored time, a candle time, a decision time, or the IANA-zone killzone/session computation (chart.js SESSIONS, journal.py). VNT is UTC+7 with no DST, so a fixed offset is correct for it; were a DST zone ever added it would need a real zone id here instead. `number_locale` is deliberately en-US for BOTH languages: swapping decimal and thousands separators between languages on a page full of prices is a misreading risk with no upside, and keeping them identical is what lets test_i18n.py assert that every number is byte-identical across locales.",
+  "locales": {
+    "en": {
+      "label": "EN",
+      "name": "English",
+      "tz": {
+        "name": "UTC",
+        "offset_minutes": 0,
+        "note": "UTC"
+      },
+      "number_locale": "en-US"
+    },
+    "vi": {
+      "label": "VI",
+      "name": "Tiếng Việt",
+      "tz": {
+        "name": "VNT",
+        "offset_minutes": 420,
+        "note": "UTC+7"
+      },
+      "number_locale": "en-US"
+    }
+  },
+  "messages": {
+    "ui.lang.group": {
+      "en": "Language",
+      "vi": "Ngôn ngữ"
+    },
+    "ui.lang.switch_to": {
+      "en": "Show this page in {name}",
+      "vi": "Hiển thị trang này bằng {name}"
+    },
+    "ui.tz.note": {
+      "en": "Times {tz}",
+      "vi": "Giờ {tz}"
+    },
+    "ui.dash": {
+      "en": "—",
+      "vi": "—"
+    },
+    "ui.vi_source.tag": {
+      "en": "Vietnamese source · times UTC",
+      "vi": "Nguồn tiếng Việt · giờ UTC"
+    },
+    "ui.vi_source.page": {
+      "en": "The analysis text on this page is written in Vietnamese by the analysis model and is shown as written — it is not translated, because translating an analysis would change it. Vietnamese passages are marked, and the times inside them are UTC.",
+      "vi": "Phần văn bản phân tích trên trang này do mô hình viết bằng tiếng Việt và được giữ nguyên văn; thời gian trong đó là UTC."
+    },
+    "tier.bias": {
+      "en": "Bias",
+      "vi": "Bias"
+    },
+    "tier.structure": {
+      "en": "Structure",
+      "vi": "Cấu trúc"
+    },
+    "tier.entry": {
+      "en": "Entry",
+      "vi": "Vào lệnh"
+    },
+    "horizon.6h": {
+      "en": "6 hours",
+      "vi": "6 giờ"
+    },
+    "horizon.48h": {
+      "en": "48 hours",
+      "vi": "48 giờ"
+    },
+    "horizon.6d": {
+      "en": "6 days",
+      "vi": "6 ngày"
+    },
+    "horizon.20d": {
+      "en": "20 days",
+      "vi": "20 ngày"
+    },
+    "horizon.60d": {
+      "en": "60 days",
+      "vi": "60 ngày"
+    },
+    "horizon.8mo": {
+      "en": "8 months",
+      "vi": "8 tháng"
+    },
+    "horizon.4y": {
+      "en": "4 years",
+      "vi": "4 năm"
+    },
+    "bias.long": {
+      "en": "LONG",
+      "vi": "LONG"
+    },
+    "bias.short": {
+      "en": "SHORT",
+      "vi": "SHORT"
+    },
+    "bias.neutral": {
+      "en": "NEUTRAL",
+      "vi": "TRUNG LẬP"
+    },
+    "bias.unknown": {
+      "en": "UNKNOWN",
+      "vi": "CHƯA RÕ"
+    },
+    "_verdict_note": {
+      "en": "Display labels for the narrative verdict enum. The stored values stay Vietnamese: they are machine values pinned by narrative.schema.json, matched by build-artifact.VERDICT_CLASS and htf_context.DIRECTION. Translating them in storage would change decision plumbing.",
+      "vi": "Nhãn hiển thị cho enum verdict. Giá trị lưu trữ giữ nguyên tiếng Việt: đó là giá trị máy."
+    },
+    "verdict.CHỜ": {
+      "en": "WAIT",
+      "vi": "CHỜ"
+    },
+    "verdict.THEO DÕI LONG": {
+      "en": "WATCHING LONG",
+      "vi": "THEO DÕI LONG"
+    },
+    "verdict.THEO DÕI SHORT": {
+      "en": "WATCHING SHORT",
+      "vi": "THEO DÕI SHORT"
+    },
+    "verdict.SETUP TIỀM NĂNG": {
+      "en": "POTENTIAL SETUP",
+      "vi": "SETUP TIỀM NĂNG"
+    },
+    "verdict.PHÁ TRÊN": {
+      "en": "BROKE ABOVE",
+      "vi": "PHÁ TRÊN"
+    },
+    "verdict.PHÁ DƯỚI": {
+      "en": "BROKE BELOW",
+      "vi": "PHÁ DƯỚI"
+    },
+    "dims.reason.in_use": {
+      "en": "in use",
+      "vi": "đang dùng"
+    },
+    "dims.reason.off": {
+      "en": "off in /automation",
+      "vi": "tắt trong /automation"
+    },
+    "dims.reason.analysis_only": {
+      "en": "analysis only — not traded by the active system, does not count toward confluence",
+      "vi": "chỉ phân tích — hệ thống đang chạy không giao dịch lớp này, không tính vào confluence"
+    },
+    "dims.reason.analysis_pending": {
+      "en": "analysed but no reading written yet — not traded by the active system",
+      "vi": "đang trong phạm vi phân tích nhưng chưa có bản đọc — hệ thống đang chạy không giao dịch lớp này"
+    },
+    "matrix.head.optional": {
+      "en": "analysis only",
+      "vi": "chỉ phân tích"
+    },
+    "dims.reason.no_commodity_source": {
+      "en": "no CoinGlass source for commodities (SYSTEM-DESIGN §12)",
+      "vi": "không có nguồn CoinGlass cho hàng hoá (SYSTEM-DESIGN §12)"
+    },
+    "dims.reason.no_live_source": {
+      "en": "no live CoinGlass source — not drawn, not scored (mode {mode}: {preset})",
+      "vi": "không có nguồn CoinGlass live — không vẽ, không chấm điểm (chế độ {mode}: {preset})"
+    },
+    "dims.reason.no_candles": {
+      "en": "no candles for this timeframe",
+      "vi": "không có nến cho khung này"
+    },
+    "dims.none_on": {
+      "en": "No reading layer is switched on for this instrument — check the dimensions in /automation.",
+      "vi": "Không có lớp đọc nào đang bật cho mã này — kiểm tra dimension trong /automation."
+    },
+    "dims.no_live_source_named": {
+      "en": "{names}: no live source",
+      "vi": "{names}: không có nguồn live"
+    },
+    "symbols.absent_named": {
+      "en": "{names}: on the analysis list, no feed attached — not drawn",
+      "vi": "{names}: có trong danh sách phân tích, chưa gắn nguồn dữ liệu — không vẽ"
+    },
+    "dims.none_configured": {
+      "en": "no reading layer switched on",
+      "vi": "chưa bật lớp nào"
+    },
+    "dir.up": {
+      "en": "up",
+      "vi": "tăng"
+    },
+    "dir.down": {
+      "en": "down",
+      "vi": "giảm"
+    },
+    "side.above": {
+      "en": "above",
+      "vi": "trên"
+    },
+    "side.below": {
+      "en": "below",
+      "vi": "dưới"
+    },
+    "side.high": {
+      "en": "high",
+      "vi": "đỉnh"
+    },
+    "side.low": {
+      "en": "low",
+      "vi": "đáy"
+    },
+    "_layer1_purity_note": {
+      "en": "These messages are rendered INSIDE per-method blocks that scripts/method_purity.py checks, in every locale, and an impure translation aborts the build (exit 2). Two rules shaped the English wording. A Wyckoff block may not use ICT or liquidity vocabulary: `l1.level.*` says 'closed beyond', never 'swept', because level lines render into the Wyckoff block too. An ICT block may not use Wyckoff vocabulary or name volume at all: `l1.ict.range_pos` says 'dealing range' (the ICT term), never 'trading range' (Wyckoff's), and `l1.ict.*` says 'expect continuation higher', never 'markup'. Do not 'improve' these into the more idiomatic word without re-running the build.",
+      "vi": "Các thông điệp này nằm trong khối theo phương pháp mà scripts/method_purity.py kiểm tra ở mọi ngôn ngữ; bản dịch sai từ vựng sẽ chặn build (exit 2)."
+    },
+    "l1.level.close_vs": {
+      "en": "{label} {price} ({time}): candle closed {side} ({pct})",
+      "vi": "{label} {price} ({time}): nến đóng {side} ({pct})"
+    },
+    "l1.level.first_close": {
+      "en": " · first candle closing beyond {time} @ {price} · extreme since {extreme}",
+      "vi": " · nến đóng vượt đầu tiên {time} @ {price} · cực trị sau đó {extreme}"
+    },
+    "l1.level.forming": {
+      "en": " · the forming candle is beyond it right now",
+      "vi": " · nến đang hình thành hiện đang vượt"
+    },
+    "l1.wyckoff.vol_item": {
+      "en": "{mult} the mean at {time} on a {dir} candle",
+      "vi": "{mult} trung bình lúc {time} trên nến {dir}"
+    },
+    "l1.wyckoff.vol_recent": {
+      "en": "Unusual volume recently: {items} — check Effort vs Result before trusting the direction (multiple against the window mean, a project parameter).",
+      "vi": "Khối lượng bất thường gần đây: {items} — kiểm tra Nỗ lực–Kết quả trước khi tin vào hướng (bội số theo trung bình cửa sổ, tham số dự án)."
+    },
+    "l1.wyckoff.vol_none": {
+      "en": "No unusual-volume candles among the recent candles (threshold: a project parameter).",
+      "vi": "Không có nến khối lượng bất thường trong các nến gần đây (ngưỡng: tham số dự án)."
+    },
+    "l1.ict.range_pos": {
+      "en": "Price {price} = {pct} of the window dealing range ({lo}–{hi}), {zone}, EQ {eq}.",
+      "vi": "Giá {price} = {pct} dealing range cửa sổ ({lo}–{hi}), {zone}, EQ {eq}."
+    },
+    "l1.ict.mss": {
+      "en": "Latest MSS: {dir}, closed past the swing at {level}.",
+      "vi": "MSS gần nhất: {dir}, đóng cửa vượt swing {level}."
+    },
+    "l1.ict.fvg": {
+      "en": "Nearest unmitigated FVG: {dir} {lo}–{hi}.",
+      "vi": "FVG chưa lấp gần giá nhất: {dir} {lo}–{hi}."
+    },
+    "l1.ict.fvg_none": {
+      "en": "No unmitigated FVG near price.",
+      "vi": "Không có FVG chưa lấp gần giá."
+    },
+    "l1.ict.fvg_mitigated": {
+      "en": " mitigated",
+      "vi": " đã lấp"
+    },
+    "l1.ict.fvg_unmitigated": {
+      "en": " unmitigated",
+      "vi": " chưa lấp"
+    },
+    "l1.ict.pools": {
+      "en": "Unswept pools: {items}.",
+      "vi": "Pool chưa quét: {items}."
+    },
+    "l1.ict.events": {
+      "en": "Recent events: {items}.",
+      "vi": "Sự kiện gần đây: {items}."
+    },
+    "l1.ict.ev.sweep": {
+      "en": "swept {pool} {level} @{time}",
+      "vi": "quét {pool} {level} @{time}"
+    },
+    "l1.ict.ev.mss": {
+      "en": "MSS {dir} {level} @{time}",
+      "vi": "MSS {dir} {level} @{time}"
+    },
+    "l1.ict.ev.erl": {
+      "en": "touched ERL {side} {level} @{time}",
+      "vi": "chạm ERL {side} {level} @{time}"
+    },
+    "l1.ict.setup.complete": {
+      "en": "Candidate {side} setup: swept {pool} {sweep} @{sweep_t} → MSS {mss} @{mss_t} → FVG {fvg_lo}–{fvg_hi}{fvg_state} · entry {entry} · stop {stop} · target {target} ({target_kind}) · R = {r} · {zone}.",
+      "vi": "Setup ứng viên {side}: quét {pool} {sweep} @{sweep_t} → MSS {mss} @{mss_t} → FVG {fvg_lo}–{fvg_hi}{fvg_state} · entry {entry} · stop {stop} · target {target} ({target_kind}) · R = {r} · {zone}."
+    },
+    "l1.ict.setup.incomplete": {
+      "en": "Candidate {side} setup incomplete: missing {missing}.",
+      "vi": "Setup ứng viên {side} chưa hoàn chỉnh: thiếu {missing}."
+    },
+    "l1.ict.setup.none": {
+      "en": "No sweep → same-direction MSS chain among the recent candles.",
+      "vi": "Không có chuỗi quét → MSS cùng chiều trong các nến gần đây."
+    },
+    "l1.synth.verdict_anchor": {
+      "en": "Rule verdict against the anchors of the latest full analysis: {verdict} (candle close {time} = {close}).",
+      "vi": "Verdict theo luật so với mốc neo của phân tích đầy đủ gần nhất: {verdict} (nến đóng {time} = {close})."
+    },
+    "l1.synth.no_anchor": {
+      "en": "No anchors from a full analysis yet — the scanner has only its fixed-rule stance.",
+      "vi": "Chưa có mốc neo từ phân tích đầy đủ — scanner chỉ có stance theo luật cố định."
+    },
+    "l1.synth.anchor_mixed": {
+      "en": "Anchor (combined): {line}",
+      "vi": "Mốc neo (tổng hợp): {line}"
+    },
+    "_bias_purity_note": {
+      "en": "The bias basis is rendered on the page AND fed to the model brief, and each half must stay inside its own method's vocabulary (scripts/method_purity.py). Two English words were deliberately avoided: `bias.ict.draw_through` says 'expect continuation higher', never 'markup' (a Wyckoff term, and forbidden in an ICT block); `bias.wy.*` says 'higher timeframe', never 'dealing range' or any liquidity word. scripts/tests/test_i18n.py checks both locales of every bias.ict.* against the ICT rule and every bias.wy.* against the Wyckoff rule.",
+      "vi": "Phần cơ sở của bias hiển thị trên trang VÀ được đưa vào brief cho mô hình; mỗi nửa phải giữ đúng từ vựng của phương pháp mình."
+    },
+    "bias.ict.draw_through": {
+      "en": "{level} — the body has closed through, so that level was the draw; expect continuation {dir} (knowledge/ict/core-a.md §2.14, §3.2 R5–R8)",
+      "vi": "{level} — thân nến đã đóng qua, mốc này là draw; kỳ vọng tiếp diễn {dir} (knowledge/ict/core-a.md §2.14, §3.2 R5–R8)"
+    },
+    "bias.ict.failed_displace": {
+      "en": "{level} — wick through but the body closed back inside (failure to displace); the draw flips to {other} (knowledge/ict/core-a.md §2.14, §3.2 R5–R8)",
+      "vi": "{level} — râu xuyên qua nhưng thân đóng lại (failure to displace); draw đảo về {other} (knowledge/ict/core-a.md §2.14, §3.2 R5–R8)"
+    },
+    "bias.ict.mss": {
+      "en": "latest MSS: {dir}, body closed past the swing at {level} (knowledge/ict/core-b.md §2.2)",
+      "vi": "MSS gần nhất: {dir}, thân đóng vượt swing {level} (knowledge/ict/core-b.md §2.2)"
+    },
+    "bias.ict.contradiction": {
+      "en": "contradiction inside ICT — stated, not resolved:",
+      "vi": "mâu thuẫn trong ICT — nêu ra, không tự giải quyết:"
+    },
+    "bias.ict.nothing": {
+      "en": "no draw resolved on the previous candle and no MSS in the window",
+      "vi": "chưa có draw nào được giải quyết trên nến trước và chưa có MSS trong cửa sổ"
+    },
+    "bias.wy.not_established": {
+      "en": "higher timeframe phase {phase} ({structure}) — stopping action / structure not established, no directional trade yet (knowledge/wyckoff/advance.md §2.7.1, WA p95–96)",
+      "vi": "khung lớn pha {phase} ({structure}) — hành động dừng / cấu trúc chưa xác lập, chưa giao dịch theo hướng (knowledge/wyckoff/advance.md §2.7.1, WA p95–96)"
+    },
+    "bias.wy.acc_cde": {
+      "en": "higher timeframe {structure} phase {phase} — look for Spring[C]/LPS[C] or an upward break on the lower timeframe (WA p93–96, knowledge/wyckoff/advance.md §2.7)",
+      "vi": "khung lớn {structure} pha {phase} — tìm Spring[C]/LPS[C]/phá vỡ theo hướng tăng ở khung nhỏ (WA p93–96, knowledge/wyckoff/advance.md §2.7)"
+    },
+    "bias.wy.dist_cde": {
+      "en": "higher timeframe {structure} phase {phase} — look for UTAD/LPSY or a downward break on the lower timeframe (WA p116–119, knowledge/wyckoff/advance.md §2.8)",
+      "vi": "khung lớn {structure} pha {phase} — tìm UTAD/LPSY/phá vỡ theo hướng giảm ở khung nhỏ (WA p116–119, knowledge/wyckoff/advance.md §2.8)"
+    },
+    "bias.wy.b_no_tr": {
+      "en": "higher timeframe {structure} phase B, but the higher-timeframe read carries no TR border (AR / SC-ST) — which edge price sits at cannot be told; no trade (WA p95–96)",
+      "vi": "khung lớn {structure} pha B nhưng chưa có biên Trading Range (AR / SC-ST) trong bản đọc khung lớn — không xác định được giá đang ở biên nào; chưa giao dịch (WA p95–96)"
+    },
+    "bias.wy.b_lower_edge": {
+      "en": "higher timeframe {structure} phase B, price at {pct} of the TR — hard on the lower edge (SC/ST), where the CO absorbs and the lower timeframe can print a local Spring[C]/LPS[C] (WA p93, p201; knowledge/wyckoff/advance.md §2.7, §3.4)",
+      "vi": "khung lớn {structure} pha B, giá ở {pct} TR — sát biên dưới (SC/ST), nơi CO gom hàng và khung nhỏ có thể in Spring[C]/LPS[C] cục bộ (WA p93, p201; knowledge/wyckoff/advance.md §2.7, §3.4)"
+    },
+    "bias.wy.b_upper_edge": {
+      "en": "higher timeframe {structure} phase B, price at {pct} of the TR — hard on the upper edge (BC/UT), where the CO unloads and the lower timeframe can print a local UTAD/LPSY (WA p116–119, p206; knowledge/wyckoff/advance.md §2.8, §3.4)",
+      "vi": "khung lớn {structure} pha B, giá ở {pct} TR — sát biên trên (BC/UT), nơi CO xả hàng và khung nhỏ có thể in UTAD/LPSY cục bộ (WA p116–119, p206; knowledge/wyckoff/advance.md §2.8, §3.4)"
+    },
+    "bias.wy.b_neutral": {
+      "en": "higher timeframe {structure} phase B, price at {pct} of the TR ({side}) — supply and demand in balance, no CO showing yet, no trade (WA p95–96, p201–203)",
+      "vi": "khung lớn {structure} pha B, giá ở {pct} TR ({side}) — cung/cầu cân bằng, chưa có CO xuất hiện, chưa giao dịch (WA p95–96, p201–203)"
+    },
+    "bias.wy.side.upper_in_acc": {
+      "en": "upper edge — the CO sells here; it is not the public's opportunity",
+      "vi": "biên trên — CO bán ở đây, không phải cơ hội cho công chúng"
+    },
+    "bias.wy.side.lower_in_dist": {
+      "en": "lower edge — the CO buys here during distribution",
+      "vi": "biên dưới — CO mua ở đây trong phân phối"
+    },
+    "bias.wy.side.mid": {
+      "en": "mid-range",
+      "vi": "giữa vùng"
+    },
+    "bias.wy.anchor_only": {
+      "en": "no higher-timeframe Wyckoff read; higher-timeframe scanner: {verdict} on the anchor (a system calculation)",
+      "vi": "chưa có đọc Wyckoff khung lớn; scanner khung lớn: {verdict} mốc neo (tính toán của hệ thống)"
+    },
+    "bias.wy.nothing": {
+      "en": "no higher-timeframe Wyckoff read, and the higher-timeframe scanner has no broken anchor",
+      "vi": "chưa có đọc Wyckoff khung lớn và scanner khung lớn chưa có mốc neo bị phá"
+    },
+    "bias.none_engaged": {
+      "en": "no reading layer is switched on for this tier — check the dimensions in /automation",
+      "vi": "không có lớp đọc nào đang bật cho tầng này — kiểm tra dimension trong /automation"
+    },
+    "bias.contradiction_two": {
+      "en": "the two reading layers disagree — stated, not resolved:",
+      "vi": "mâu thuẫn giữa hai lớp đọc — nêu ra, không tự giải quyết:"
+    },
+    "ladder.head.tier": {
+      "en": "Tier",
+      "vi": "Tầng"
+    },
+    "ladder.head.conclusion": {
+      "en": "Conclusion",
+      "vi": "Kết luận"
+    },
+    "ladder.gate_note": {
+      "en": "tier that decides the verdict",
+      "vi": "tầng quyết định verdict"
+    },
+    "ladder.updated": {
+      "en": "updated {time}",
+      "vi": "cập nhật {time}"
+    },
+    "ladder.read_at": {
+      "en": "read {time}",
+      "vi": "đọc {time}"
+    },
+    "ladder.no_wyckoff_read": {
+      "en": "no Wyckoff read for this timeframe yet",
+      "vi": "chưa có đọc Wyckoff cho khung này"
+    },
+    "ladder.not_scanned": {
+      "en": "not scanned",
+      "vi": "chưa quét"
+    },
+    "ladder.last_mss": {
+      "en": "latest MSS: {dir} past {level}",
+      "vi": "MSS gần nhất: {dir} qua {level}"
+    },
+    "ladder.no_mss": {
+      "en": "no MSS in the window",
+      "vi": "chưa có MSS trong cửa sổ"
+    },
+    "ladder.no_slower_tf": {
+      "en": "no slower timeframe taken (monthly)",
+      "vi": "không lấy khung chậm hơn (khung tháng)"
+    },
+    "ladder.chart_only": {
+      "en": "no read — chart only",
+      "vi": "không có đọc — chỉ có chart"
+    },
+    "ladder.no_numbers": {
+      "en": "no figures",
+      "vi": "không có số liệu"
+    },
+    "ladder.chart_only_sub": {
+      "en": "chart only, not scanned",
+      "vi": "chỉ chart, chưa quét"
+    },
+    "lane.key_hint": {
+      "en": "key {n}",
+      "vi": "phím {n}"
+    },
+    "nav.glossary": {
+      "en": "Terminology",
+      "vi": "Thuật ngữ"
+    },
+    "nav.methods": {
+      "en": "Method",
+      "vi": "Phương pháp"
+    },
+    "sym.window_pos": {
+      "en": "position in the {tf} window {pct}",
+      "vi": "vị trí trong cửa sổ {tf} {pct}"
+    },
+    "sym.last_candle": {
+      "en": "last candle {time}",
+      "vi": "nến cuối {time}"
+    },
+    "sym.entry_tf": {
+      "en": "entry {tf}",
+      "vi": "vào lệnh {tf}"
+    },
+    "chart.no_candles": {
+      "en": "no {tf} candles for {sym} yet — this timeframe has not been fetched",
+      "vi": "chưa có nến {tf} cho {sym} — khung này chưa được lấy"
+    },
+    "chart.shaded_is_entry": {
+      "en": "shaded area = the entry window",
+      "vi": "vùng tô = cửa sổ vào lệnh"
+    },
+    "chart.hint": {
+      "en": "wheel = zoom · drag = pan · drag the axis = stretch · End = last candle · keys 1–{n} change method",
+      "vi": "lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–{n} đổi phương pháp"
+    },
+    "chart.zoom.out": {
+      "en": "zoom out",
+      "vi": "thu nhỏ"
+    },
+    "chart.zoom.in": {
+      "en": "zoom in",
+      "vi": "phóng to"
+    },
+    "chart.zoom.reset": {
+      "en": "whole window",
+      "vi": "toàn bộ cửa sổ"
+    },
+    "chart.ruler": {
+      "en": "R:R ruler (key R)",
+      "vi": "thước R:R (phím R)"
+    },
+    "chart.replay": {
+      "en": "bar replay (key P)",
+      "vi": "bar replay (phím P)"
+    },
+    "meta.ladder": {
+      "en": "Timeframe ladder · read top-down",
+      "vi": "Thang khung · đọc từ trên xuống"
+    },
+    "meta.ladder_note": {
+      "en": "bias is never formed on the entry timeframe · adjacent rungs ≥ ×4 (timeframe-mapping.md)",
+      "vi": "bias không tạo ở khung vào lệnh · liền kề ≥ ×4 (timeframe-mapping.md)"
+    },
+    "meta.gate_tier": {
+      "en": "tier that decides the verdict: {tier}",
+      "vi": "tầng quyết định verdict: {tier}"
+    },
+    "meta.no_gate_tier": {
+      "en": "no tier decides the verdict (no slower timeframe scanned)",
+      "vi": "không có tầng quyết định verdict (chưa quét khung chậm hơn)"
+    },
+    "meta.chart_only": {
+      "en": "chart only",
+      "vi": "chỉ chart"
+    },
+    "meta.headline": {
+      "en": "Main event (latest full analysis)",
+      "vi": "Sự kiện chính (phân tích đầy đủ gần nhất)"
+    },
+    "meta.status": {
+      "en": "Status (local)",
+      "vi": "Trạng thái (cục bộ)"
+    },
+    "meta.data_through": {
+      "en": "data through {time}",
+      "vi": "dữ liệu tới {time}"
+    },
+    "lede.not_a_signal": {
+      "en": "analysis, not a signal",
+      "vi": "phân tích, không phải tín hiệu"
+    },
+    "lede.three_tiers": {
+      "en": "Three timeframe tiers per instrument — {bias} → {structure} → {entry} — {methods}.",
+      "vi": "Ba tầng khung cho mỗi mã — {bias} → {structure} → {entry} — {methods}."
+    },
+    "lede.disclaimer": {
+      "en": "NOT A TRADING SIGNAL · research only",
+      "vi": "KHÔNG PHẢI TÍN HIỆU GIAO DỊCH · chỉ nghiên cứu"
+    },
+    "footer.sources": {
+      "en": "Data sources",
+      "vi": "Nguồn dữ liệu"
+    },
+    "footer.none_yet": {
+      "en": "none yet",
+      "vi": "chưa có"
+    },
+    "footer.layers_built": {
+      "en": "<b>Layer 1</b> scanner {scanned} · <b>Layer 3</b> {narrative} · <b>page built</b> {built} by scripts/build-artifact.py ({style})",
+      "vi": "<b>Lớp 1</b> scanner {scanned} · <b>Lớp 3</b> {narrative} · <b>trang dựng</b> {built} bởi scripts/build-artifact.py ({style})"
+    },
+    "footer.mode": {
+      "en": "Mode",
+      "vi": "Chế độ"
+    },
+    "footer.last_full_mode": {
+      "en": "latest full analysis: {mode}",
+      "vi": "phân tích đầy đủ gần nhất: {mode}"
+    },
+    "footer.layers": {
+      "en": "Reading layers",
+      "vi": "Lớp đọc"
+    },
+    "footer.layers_detail": {
+      "en": "preliminary (scanner), local (Sonnet, event-driven), full (daily)",
+      "vi": "sơ bộ (máy quét), cục bộ (Sonnet, theo sự kiện), toàn diện (hàng ngày)"
+    },
+    "footer.rules": {
+      "en": "Rules",
+      "vi": "Luật"
+    },
+    "footer.rules_detail": {
+      "en": "figures come from code (SYSTEM-DESIGN §13); every per-method block goes through scripts/method_purity.py",
+      "vi": "số liệu từ code (SYSTEM-DESIGN §13); mỗi khối phương pháp qua scripts/method_purity.py"
+    },
+    "footer.footprint_on_wyckoff": {
+      "en": "Footprint takes Wyckoff as its base",
+      "vi": "Footprint lấy Wyckoff làm nền"
+    },
+    "footer.scanner_params": {
+      "en": "Scanner: {pivot}-candle pivot, equal-high/low tolerance {eqtol}, FVG ≥ {fvgmin}× the median range; volume thresholds: docs/architecture/analysis-params.json (project parameters, not quotations from a book).",
+      "vi": "Scanner: pivot {pivot} nến, dung sai đỉnh/đáy bằng nhau {eqtol}, FVG ≥ {fvgmin}× biên độ trung vị; ngưỡng khối lượng: docs/architecture/analysis-params.json (tham số dự án, không phải trích dẫn sách)."
+    },
+    "lede.no_method": {
+      "en": "no method layer is switched on in /automation",
+      "vi": "chưa bật lớp phương pháp nào trong /automation"
+    },
+    "lede.read_with_one": {
+      "en": "read with {method}",
+      "vi": "đọc bằng {method}"
+    },
+    "lede.read_with_many": {
+      "en": "read with {methods} and {last} separately, then synthesised",
+      "vi": "đọc bằng {methods} và {last} riêng rẽ, rồi tổng hợp"
+    },
+    "gloss.summary": {
+      "en": "Terminology by method",
+      "vi": "Thuật ngữ theo phương pháp"
+    },
+    "gloss.open_hint": {
+      "en": "open when needed",
+      "vi": "mở khi cần"
+    },
+    "gloss.none_on": {
+      "en": "No method layer is switched on in /automation.",
+      "vi": "Chưa bật lớp phương pháp nào trong /automation."
+    },
+    "_gloss_purity_note": {
+      "en": "Each lane's definitions must use only that lane's vocabulary, checked in both locales by scripts/tests/test_i18n.py. The Wyckoff entries say 'penetration', never 'sweep' -- the Vietnamese says 'cú xuyên', not 'quét', for the same reason -- and the ICT entries say 'dealing range', never 'trading range', and never name volume at all.",
+      "vi": "Định nghĩa của mỗi lane chỉ được dùng từ vựng của lane đó; kiểm tra ở cả hai ngôn ngữ."
+    },
+    "gloss.wyckoff.phase_a_events.t": {
+      "en": "PS · SC · AR · ST",
+      "vi": "PS · SC · AR · ST"
+    },
+    "gloss.wyckoff.phase_a_events.d": {
+      "en": "Preliminary Support, Selling Climax, Automatic Rally, Secondary Test — the four Phase A events of an accumulation; the TR is built from the AR high and the SC/ST low (knowledge/wyckoff/advance.md §2.7).",
+      "vi": "Preliminary Support, Selling Climax (Cao trào bán), Automatic Rally, Secondary Test — bốn sự kiện Pha A của tích lũy; TR dựng từ đỉnh AR và đáy SC/ST (knowledge/wyckoff/advance.md §2.7)."
+    },
+    "gloss.wyckoff.spring.t": {
+      "en": "Spring / Shakeout / Test",
+      "vi": "Spring / Shakeout / Test"
+    },
+    "gloss.wyckoff.spring.d": {
+      "en": "Phase C: a penetration below the TR that closes back inside; type 1/2/3 by volume (knowledge/wyckoff/modern-tools.md §2.6); the Test is the revisit on lower volume.",
+      "vi": "Pha C: cú xuyên xuống dưới TR rồi đóng lại bên trong; loại 1/2/3 theo khối lượng (knowledge/wyckoff/modern-tools.md §2.6); Test là nhịp kiểm tra lại trên khối lượng thấp hơn."
+    },
+    "gloss.wyckoff.phase_d_events.t": {
+      "en": "SOS · LPS · BU",
+      "vi": "SOS · LPS · BU"
+    },
+    "gloss.wyckoff.phase_d_events.d": {
+      "en": "Phase D: Sign of Strength, Last Point of Support, Back-Up (the revisit of the broken area).",
+      "vi": "Pha D: Sign of Strength (dấu hiệu sức mạnh), Last Point of Support (điểm hỗ trợ cuối), Back-Up (kiểm tra lại vùng phá vỡ)."
+    },
+    "gloss.wyckoff.distribution_events.t": {
+      "en": "PSY · BC · UT · UTAD · SOW · LPSY",
+      "vi": "PSY · BC · UT · UTAD · SOW · LPSY"
+    },
+    "gloss.wyckoff.distribution_events.d": {
+      "en": "The matching distribution events; UT/UTAD belong to distribution only, UA to accumulation only (WA p8, knowledge/wyckoff/advance.md §1.3).",
+      "vi": "Các sự kiện phân phối tương ứng; UT/UTAD chỉ dùng trong phân phối, UA chỉ trong tích lũy (WA p8, knowledge/wyckoff/advance.md §1.3)."
+    },
+    "gloss.wyckoff.chobev.t": {
+      "en": "CHoBEV / CHoCH",
+      "vi": "CHoBEV / CHoCH"
+    },
+    "gloss.wyckoff.chobev.d": {
+      "en": "Three CHoBEV make one CHoCH — the mandatory gate before any phase label is assigned (knowledge/wyckoff/advance.md §2.6).",
+      "vi": "Ba CHoBEV tạo một CHoCH — cổng bắt buộc trước khi gán nhãn pha (knowledge/wyckoff/advance.md §2.6)."
+    },
+    "gloss.wyckoff.effort_result.t": {
+      "en": "Effort vs Result",
+      "vi": "Nỗ lực – Kết quả"
+    },
+    "gloss.wyckoff.effort_result.d": {
+      "en": "Compare candle range against volume: in harmony = continuation, diverging = exhaustion or absorption (knowledge/wyckoff/advance.md §2.2, §4.1).",
+      "vi": "So biên độ nến với khối lượng: hài hoà = tiếp diễn, phân kỳ = cạn kiệt/hấp thụ (knowledge/wyckoff/advance.md §2.2, §4.1)."
+    },
+    "gloss.wyckoff.phases.t": {
+      "en": "Phases A–E",
+      "vi": "Pha A–E"
+    },
+    "gloss.wyckoff.phases.d": {
+      "en": "Stop the trend → build the cause → test → sign → effect; a phase label always travels with its mislabelling test (knowledge/wyckoff/advance.md §2.11).",
+      "vi": "Dừng xu hướng → xây nguyên nhân → kiểm tra → dấu hiệu → hiệu ứng; nhãn pha luôn kèm đối nhãn (knowledge/wyckoff/advance.md §2.11)."
+    },
+    "gloss.ict.liquidity.t": {
+      "en": "BSL / SSL · ERL / IRL",
+      "vi": "BSL / SSL · ERL / IRL"
+    },
+    "gloss.ict.liquidity.d": {
+      "en": "Buy-side / sell-side liquidity at equal highs and lows; external versus internal range liquidity (knowledge/ict/core-a.md §2.6–2.7, knowledge/ict/core-b.md §2.13).",
+      "vi": "Buy-side / sell-side liquidity tại đỉnh/đáy bằng nhau; external vs internal range liquidity (knowledge/ict/core-a.md §2.6–2.7, knowledge/ict/core-b.md §2.13)."
+    },
+    "gloss.ict.sweep_mss.t": {
+      "en": "Sweep vs MSS",
+      "vi": "Sweep vs MSS"
+    },
+    "gloss.ict.sweep_mss.d": {
+      "en": "A liquidity sweep runs through a level and closes back; a Market Structure Shift is a body close past the opposing swing after displacement (knowledge/ict/core-a.md §2.14, §2.17).",
+      "vi": "Quét thanh khoản = xuyên qua rồi đóng lại; Market Structure Shift = nến đóng cửa phá swing ngược chiều sau displacement (knowledge/ict/core-a.md §2.14, §2.17)."
+    },
+    "gloss.ict.displacement_fvg.t": {
+      "en": "Displacement · FVG",
+      "vi": "Displacement · FVG"
+    },
+    "gloss.ict.displacement_fvg.d": {
+      "en": "A strong push leaves a Fair Value Gap (candle 1 and candle 3 do not overlap); the FVG is drawn until it is mitigated (knowledge/ict/core-a.md §2.16, §2.21).",
+      "vi": "Nến đẩy mạnh để lại Fair Value Gap (nến 1 và nến 3 không chồng nhau); FVG được vẽ tới khi lấp (knowledge/ict/core-a.md §2.16, §2.21)."
+    },
+    "gloss.ict.order_block.t": {
+      "en": "Order Block",
+      "vi": "Order Block"
+    },
+    "gloss.ict.order_block.d": {
+      "en": "The last opposing candle before displacement; the OB line is that candle's open, mean threshold = 0.5 of the body; tight stop = body low (close), wide stop = the low of the sweep (knowledge/ict/core-b.md §2.5, re-checked against the PDF 2026-09-12).",
+      "vi": "Nến ngược chiều cuối cùng trước displacement; đường OB = giá mở của nến đó, mean threshold = 0.5 thân; stop chặt = đáy thân (close), stop rộng = đáy cú quét (knowledge/ict/core-b.md §2.5, xác minh lại PDF 2026-09-12)."
+    },
+    "gloss.ict.cisd.t": {
+      "en": "CISD",
+      "vi": "CISD"
+    },
+    "gloss.ict.cisd.d": {
+      "en": "Change in State of Delivery: a close through the open of the first candle in the last opposing-colour run into the level; earlier than the MSS (knowledge/ict/core-b.md §2.3, knowledge/ict/models.md §2.3).",
+      "vi": "Change in State of Delivery: nến đóng qua giá mở của nến đầu tiên trong chuỗi nến ngược màu cuối cùng chạy vào mức; sớm hơn MSS (knowledge/ict/core-b.md §2.3, knowledge/ict/models.md §2.3)."
+    },
+    "gloss.ict.dealing_range.t": {
+      "en": "Dealing range · EQ · premium / discount",
+      "vi": "Dealing range · EQ · premium / discount"
+    },
+    "gloss.ict.dealing_range.d": {
+      "en": "The range is the nearest unswept BSL↔SSL pair (where the liquidity sits); EQ = 50%; buy in discount, sell in premium; with no pair, the window edges are used and said so (knowledge/ict/core-a.md §2.18–2.19).",
+      "vi": "Range = cặp BSL↔SSL chưa quét gần nhất (nơi thanh khoản đang nằm); EQ = 50%; mua ở discount, bán ở premium; khi không có cặp thì dùng biên cửa sổ và ghi rõ (knowledge/ict/core-a.md §2.18–2.19)."
+    },
+    "gloss.ict.prev_levels.t": {
+      "en": "PDH/PDL · PWH/PWL · Asia/London session",
+      "vi": "PDH/PDL · PWH/PWL · phiên Á/London"
+    },
+    "gloss.ict.prev_levels.d": {
+      "en": "Previous day's, previous week's and session highs and lows are liquidity levels; a wick through that closes back = failure to displace (a reversal frame), a body close through = the level was the draw (knowledge/ict/core-a.md §2.8–2.9, §2.12, §2.14). The day boundary (00Z) and the session windows (session-model.md) are project assumptions.",
+      "vi": "Đỉnh/đáy ngày, tuần trước và phiên là mức thanh khoản; râu xuyên rồi đóng lại = failure to displace (đóng khung đảo chiều), thân đóng qua = mức là draw (knowledge/ict/core-a.md §2.8–2.9, §2.12, §2.14). Ranh giới ngày (00Z) và phiên (session-model.md) là giả định dự án."
+    },
+    "gloss.ict.ote_std.t": {
+      "en": "OTE · STD",
+      "vi": "OTE · STD"
+    },
+    "gloss.ict.ote_std.d": {
+      "en": "OTE: fib 1 at the leg's origin, 0 at its extreme, entry band 0.62–0.79, emphasis 0.705 (knowledge/ict/core-a.md §2.20). Std: 1 at the sweep's extreme, 0 at the prior highest high / lowest low; −2/−2.5 the exit band, −4 the maximum extension (knowledge/ict/core-b.md §2.12, knowledge/ict/models.md §2.1.5).",
+      "vi": "OTE: fib 1 tại gốc nhịp, 0 tại đỉnh/đáy nhịp, vùng vào 0.62–0.79, nhấn 0.705 (knowledge/ict/core-a.md §2.20). Std: 1 tại cực trị cú quét, 0 tại đỉnh/đáy tạo highest high/lowest low trước đó; −2/−2.5 vùng chốt, −4 mở rộng tối đa (knowledge/ict/core-b.md §2.12, knowledge/ict/models.md §2.1.5)."
+    },
+    "gloss.ict.killzone.t": {
+      "en": "Killzone",
+      "vi": "Killzone"
+    },
+    "gloss.ict.killzone.d": {
+      "en": "Two sets of EST hours in the deck, with no rule for crypto or CFD (knowledge/ict/core-a.md §2.1, §6). The page draws them per docs/architecture/session-model.md: LDN 08–11 Europe/London, NY AM 08:30–11, NY PM 13:30–16 America/New_York, converted to UTC per date; weighting by market; not drawn at weekends — project parameters.",
+      "vi": "Hai bộ giờ EST trong deck, không có luật cho crypto/CFD (knowledge/ict/core-a.md §2.1, §6). Trang vẽ theo docs/architecture/session-model.md: LDN 08–11 Europe/London, NY AM 08:30–11, NY PM 13:30–16 America/New_York, đổi UTC theo ngày; trọng số theo thị trường; không vẽ cuối tuần — tham số dự án."
+    },
+    "gloss.footprint.poc_imbalance.t": {
+      "en": "POC · Imbalance · Stacked Imbalance",
+      "vi": "POC · Imbalance · Stacked Imbalance"
+    },
+    "gloss.footprint.poc_imbalance.d": {
+      "en": "The largest-volume level inside the candle; a diagonal bid/ask difference at or above the tool's ratio (knowledge/wyckoff/modern-tools.md §3.2).",
+      "vi": "Mức khối lượng lớn nhất trong nến; chênh lệch chéo bid/ask ≥ tỉ lệ theo công cụ (knowledge/wyckoff/modern-tools.md §3.2)."
+    },
+    "gloss.footprint.absorption_seq.t": {
+      "en": "Absorption → Exhaustion → Development",
+      "vi": "Hấp thụ → Cạn kiệt → Phát triển"
+    },
+    "gloss.footprint.absorption_seq.d": {
+      "en": "The reading sequence at the Spring/Upthrust anchor candle (knowledge/wyckoff/modern-tools.md §5 step 5).",
+      "vi": "Chuỗi đọc tại nến neo Spring/Upthrust (knowledge/wyckoff/modern-tools.md §5 bước 5)."
+    },
+    "gloss.footprint.delta.t": {
+      "en": "Delta / Cumulative Delta",
+      "vi": "Delta / Cumulative Delta"
+    },
+    "gloss.footprint.delta.d": {
+      "en": "Strong / moderate / weak / hidden divergence at the Spring or UTAD location (knowledge/wyckoff/modern-tools.md §3.3).",
+      "vi": "Phân kỳ mạnh/vừa/yếu/ẩn tại vị trí Spring hoặc UTAD (knowledge/wyckoff/modern-tools.md §3.3)."
+    },
+    "gloss.heatmap.liq_cluster.t": {
+      "en": "Liquidation cluster",
+      "vi": "Cụm thanh lý"
+    },
+    "gloss.heatmap.liq_cluster.d": {
+      "en": "A price area where liquidation orders concentrate — a target, or a place to be run through (master spec).",
+      "vi": "Vùng giá tập trung lệnh thanh lý — mục tiêu hoặc điểm quét (master spec)."
+    },
+    "gloss.heatmap.ob_wall.t": {
+      "en": "Orderbook wall",
+      "vi": "Tường orderbook"
+    },
+    "gloss.heatmap.ob_wall.d": {
+      "en": "Concentrated resting liquidity; where it coincides with a liquidation cluster it counts as one observation, not two.",
+      "vi": "Thanh khoản nằm chờ tập trung; trùng cụm thanh lý thì tính là một quan sát."
+    },
+    "matrix.head.layer": {
+      "en": "Reading layer",
+      "vi": "Lớp đọc"
+    },
+    "matrix.head.synthesis": {
+      "en": "Synthesis",
+      "vi": "Tổng hợp"
+    },
+    "matrix.row.prelim": {
+      "en": "Preliminary",
+      "vi": "Sơ bộ"
+    },
+    "matrix.row.local": {
+      "en": "Local",
+      "vi": "Cục bộ"
+    },
+    "matrix.row.full": {
+      "en": "Full",
+      "vi": "Toàn diện"
+    },
+    "matrix.sub.scanner": {
+      "en": "scanner",
+      "vi": "scanner"
+    },
+    "matrix.sub.scanner_at": {
+      "en": "scanner · data through {time}",
+      "vi": "scanner · dữ liệu tới {time}"
+    },
+    "matrix.sub.model": {
+      "en": "Sonnet",
+      "vi": "Sonnet"
+    },
+    "matrix.sub.model_at": {
+      "en": "Sonnet · data through {time}",
+      "vi": "Sonnet · dữ liệu tới {time}"
+    },
+    "matrix.sub.legacy_format": {
+      "en": "older format, methods not separated",
+      "vi": "định dạng cũ, chưa tách phương pháp"
+    },
+    "matrix.sub.full": {
+      "en": "full analysis",
+      "vi": "phân tích đầy đủ"
+    },
+    "matrix.sub.full_at": {
+      "en": "full analysis · {when}",
+      "vi": "phân tích đầy đủ · {when}"
+    },
+    "matrix.empty.facts": {
+      "en": "No facts.json for this style yet.",
+      "vi": "Chưa có facts.json cho style này."
+    },
+    "matrix.empty.local": {
+      "en": "No local read yet.",
+      "vi": "Chưa có đánh giá cục bộ."
+    },
+    "matrix.empty.full": {
+      "en": "No full analysis in the current format yet (data/live/narrative/&lt;style&gt;.json).",
+      "vi": "Chưa có phân tích đầy đủ theo định dạng mới (data/live/narrative/&lt;style&gt;.json)."
+    },
+    "l3.phase": {
+      "en": "Phase {phase}",
+      "vi": "Pha {phase}"
+    },
+    "l3.tr.high": {
+      "en": "range high",
+      "vi": "đỉnh vùng"
+    },
+    "l3.tr.low": {
+      "en": "range low",
+      "vi": "đáy vùng"
+    },
+    "l3.invalidation": {
+      "en": "invalidated: {rule} {level} · owner {owner}",
+      "vi": "vô hiệu: {rule} {level} · chủ sở hữu {owner}"
+    },
+    "l3.lookback": {
+      "en": "Looking back",
+      "vi": "Nhìn lại"
+    },
+    "l3.now": {
+      "en": "Now",
+      "vi": "Hiện tại"
+    },
+    "_structure_note": {
+      "en": "Display labels for the Wyckoff structure/regime words the narrative writes. The stored words stay Vietnamese: htf_context.py LONG_STRUCT/SHORT_STRUCT match on them to decide bias direction, so translating them in storage would change a decision, not a label. A word with no entry here is shown verbatim and marked as Vietnamese.",
+      "vi": "Nhãn hiển thị cho các từ cấu trúc Wyckoff. Giá trị lưu trữ giữ nguyên tiếng Việt vì htf_context.py so khớp trên chúng."
+    },
+    "structure.tích lũy": {
+      "en": "accumulation",
+      "vi": "tích lũy"
+    },
+    "structure.tích luỹ": {
+      "en": "accumulation",
+      "vi": "tích luỹ"
+    },
+    "structure.tái tích lũy": {
+      "en": "re-accumulation",
+      "vi": "tái tích lũy"
+    },
+    "structure.tái tích luỹ": {
+      "en": "re-accumulation",
+      "vi": "tái tích luỹ"
+    },
+    "structure.phân phối": {
+      "en": "distribution",
+      "vi": "phân phối"
+    },
+    "structure.tái phân phối": {
+      "en": "re-distribution",
+      "vi": "tái phân phối"
+    },
+    "structure.chưa xác lập": {
+      "en": "not established",
+      "vi": "chưa xác lập"
+    },
+    "structure.unestablished": {
+      "en": "not established",
+      "vi": "chưa xác lập"
+    },
+    "structure.as_written": {
+      "en": "“{word}”, as written",
+      "vi": "“{word}”"
+    },
+    "timeline.summary": {
+      "en": "Event timeline of the full analysis",
+      "vi": "Dòng sự kiện của phân tích đầy đủ"
+    },
+    "timeline.count": {
+      "en": "{n} marks · {lanes}",
+      "vi": "{n} mốc · {lanes}"
+    },
+    "timeline.lanes_one": {
+      "en": "{names} in its own column",
+      "vi": "{names} ở cột riêng"
+    },
+    "timeline.lanes_many": {
+      "en": "{names} in separate columns",
+      "vi": "{names} ở các cột riêng"
+    },
+    "timeline.col.time": {
+      "en": "Time (UTC)",
+      "vi": "Thời gian (UTC)"
+    },
+    "timeline.col.event": {
+      "en": "Event",
+      "vi": "Sự kiện"
+    },
+    "l1.synth.stance": {
+      "en": "Scanner stance: {stance} (fixed rules, project parameters — not a model's judgement).",
+      "vi": "Stance scanner: {stance} (luật cố định, tham số dự án — không phải nhận định của mô hình)."
+    },
+    "footer.updated": {
+      "en": "updated {time}",
+      "vi": "cập nhật {time}"
+    },
+    "_chart_note": {
+      "en": "Strings chart.js draws at runtime. They ride in through the params object build-artifact.py injects (i18n.js_catalog), not the HTML, because a canvas label cannot be a lang-tagged sibling. Same purity rules as the rest: the wyckoff legend never says sweep or liquidity, the ICT legend never names volume.",
+      "vi": "Chuỗi chart.js vẽ lúc chạy, đi qua __PARAMS__ thay vì HTML."
+    },
+    "chart.vol": {
+      "en": "Vol",
+      "vi": "KL"
+    },
+    "chart.mean": {
+      "en": "mean",
+      "vi": "TB"
+    },
+    "chart.mean_n": {
+      "en": "mean of {n} candles",
+      "vi": "TB {n} nến"
+    },
+    "chart.entry": {
+      "en": "entry",
+      "vi": "vào"
+    },
+    "chart.stop": {
+      "en": "stop",
+      "vi": "dừng"
+    },
+    "chart.risk": {
+      "en": "risk",
+      "vi": "rủi ro"
+    },
+    "chart.rehearsal": {
+      "en": "rehearsal",
+      "vi": "diễn tập"
+    },
+    "chart.now_pct": {
+      "en": "now {pct}%",
+      "vi": "hiện {pct}%"
+    },
+    "chart.dealing_range_pct": {
+      "en": "{pct}% dealing range",
+      "vi": "{pct}% dealing range"
+    },
+    "chart.ob_open_mt": {
+      "en": " open · 0.5 MT",
+      "vi": " mở · 0.5 MT"
+    },
+    "chart.invalidation": {
+      "en": "invalidated",
+      "vi": "vô hiệu"
+    },
+    "chart.phase.before_entry": {
+      "en": "before entry",
+      "vi": "trước khi vào lệnh"
+    },
+    "chart.phase.entry_area": {
+      "en": "entry area",
+      "vi": "vùng vào lệnh"
+    },
+    "chart.phase.after_entry": {
+      "en": "after entry",
+      "vi": "sau khi vào lệnh"
+    },
+    "chart.lane.not_in_confluence": {
+      "en": "analysis only — not counted in the Confluence Score",
+      "vi": "chỉ phân tích — không tính vào Confluence Score"
+    },
+    "chart.entry_window": {
+      "en": "entry window →",
+      "vi": "vào lệnh →"
+    },
+    "chart.not_closed_through": {
+      "en": "not closed through yet",
+      "vi": "chưa đóng qua"
+    },
+    "chart.dr.window": {
+      "en": "window edges",
+      "vi": "biên cửa sổ"
+    },
+    "chart.dr.mixed": {
+      "en": "1 edge = window",
+      "vi": "1 biên = cửa sổ"
+    },
+    "chart.mss.no_displacement": {
+      "en": "closed past the swing, displacement missing",
+      "vi": "đóng qua swing, thiếu displacement"
+    },
+    "chart.pane.no_live": {
+      "en": "no live source, not drawn (SYSTEM-DESIGN §12)",
+      "vi": "chưa có nguồn live, không vẽ (SYSTEM-DESIGN §12)"
+    },
+    "chart.ruler.start": {
+      "en": "R:R ruler — click 1 = entry, click 2 = stop · Esc clears",
+      "vi": "thước R:R — click 1 = vào lệnh, click 2 = dừng lỗ · Esc xoá"
+    },
+    "chart.ruler.step2": {
+      "en": "R:R ruler — click 2 = stop · Esc clears",
+      "vi": "thước R:R — click 2 = dừng lỗ · Esc xoá"
+    },
+    "chart.ruler.risk": {
+      "en": "R:R ruler — risk {risk} ({pct}) · 1R/2R/3R drawn on the profit side · Esc clears",
+      "vi": "thước R:R — rủi ro {risk} ({pct}) · 1R/2R/3R vẽ phía lời · Esc xoá"
+    },
+    "chart.replay.pick": {
+      "en": "replay — click to choose the starting candle · ← → one candle · Space plays · Esc exits · candle {i}/{n}",
+      "vi": "replay — click chọn nến bắt đầu · ← → từng nến · Space chạy · Esc thoát · nến {i}/{n}"
+    },
+    "chart.replay.step": {
+      "en": "replay — ← → one candle · Space {space} · Esc exits · candle {i}/{n}",
+      "vi": "replay — ← → từng nến · Space {space} · Esc thoát · nến {i}/{n}"
+    },
+    "chart.replay.play": {
+      "en": "plays",
+      "vi": "chạy"
+    },
+    "chart.replay.pause": {
+      "en": "pauses",
+      "vi": "dừng"
+    },
+    "chart.replay.count": {
+      "en": "replay · candle {i}/{n}",
+      "vi": "replay · nến {i}/{n}"
+    },
+    "legend.candle_up": {
+      "en": "candle closed up",
+      "vi": "nến đóng tăng"
+    },
+    "legend.candle_down": {
+      "en": "candle closed down",
+      "vi": "nến đóng giảm"
+    },
+    "legend.volume": {
+      "en": "volume",
+      "vi": "khối lượng"
+    },
+    "legend.tick_volume": {
+      "en": "(tick, MT5)",
+      "vi": "(tick, MT5)"
+    },
+    "legend.volume_high": {
+      "en": "volume ≥ {high}× the mean of {lookback} candles (≥ {spike}× carries its figure)",
+      "vi": "KL ≥ {high}× TB {lookback} nến (≥ {spike}× ghi số)"
+    },
+    "legend.tr": {
+      "en": "trading range border (AR / SC)",
+      "vi": "biên vùng giao dịch (AR / SC)"
+    },
+    "legend.phases": {
+      "en": "phases A–E",
+      "vi": "pha A–E"
+    },
+    "legend.wyckoff_events": {
+      "en": "Wyckoff events placed by the full analysis",
+      "vi": "sự kiện Wyckoff do phân tích đầy đủ đặt"
+    },
+    "legend.plans": {
+      "en": "trade plans from trades/ (red box = risk, green = profit)",
+      "vi": "kế hoạch lệnh từ trades/ (hộp đỏ = rủi ro, xanh = lời)"
+    },
+    "legend.fvg_up": {
+      "en": "FVG up",
+      "vi": "FVG tăng"
+    },
+    "legend.fvg_down": {
+      "en": "FVG down (dotted = CE 0.5)",
+      "vi": "FVG giảm (nét chấm = CE 0.5)"
+    },
+    "legend.ob": {
+      "en": "OB: open line + 0.5 mean threshold (faded = the open has been touched)",
+      "vi": "OB: đường open + 0.5 mean threshold (mờ = đã chạm open)"
+    },
+    "legend.liquidity": {
+      "en": "BSL / SSL / old high-low / ERL (× = swept, body did not close through)",
+      "vi": "BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)"
+    },
+    "legend.prev_levels": {
+      "en": "PDH/PDL · PWH/PWL · ASIA/LDN H-L (× swept · ✓ closed through)",
+      "vi": "PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)"
+    },
+    "legend.eq": {
+      "en": "EQ of the nearest BSL↔SSL dealing range · premium above / discount below",
+      "vi": "EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới"
+    },
+    "legend.cisd": {
+      "en": "CISD (● = a candle closed through)",
+      "vi": "CISD (● = nến đóng qua)"
+    },
+    "legend.killzone": {
+      "en": "killzone LDN / NY AM / NY PM per session-model (½ = reduced weight)",
+      "vi": "killzone LDN / NY AM / NY PM theo session-model (½ = trọng số giảm)"
+    },
+    "legend.killzone_off": {
+      "en": "killzone: not drawn on this timeframe",
+      "vi": "killzone: không vẽ ở khung này"
+    },
+    "legend.mss": {
+      "en": "MSS↑/↓ solid = displacement present; dashed = closed past the swing but displacement missing",
+      "vi": "MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement"
+    },
+    "legend.ote": {
+      "en": "OTE .62/.705/.79 and −2σ/−2.5σ/−4σ are drawn only for the latest MSS still in force",
+      "vi": "OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực"
+    },
+    "legend.pane_range": {
+      "en": "lower pane: the close's % position in the current dealing range (0% = lower edge, 100% = upper edge), EQ = 50%",
+      "vi": "pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên), EQ = 50%"
+    },
+    "legend.thresholds": {
+      "en": "the numeric thresholds are project parameters (analysis-params.json → project_defined.ict)",
+      "vi": "ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)"
+    },
+    "_journal_note": {
+      "en": "The trade-journal page (scripts/journal_render.py). Its per-trade REVIEW fields are human/Claude prose and are shown verbatim through i18n.vi_source, the same treatment the chart pages give model prose.",
+      "vi": "Trang nhật ký giao dịch. Phần review từng lệnh là văn bản người viết, giữ nguyên văn."
+    },
+    "journal.title": {
+      "en": "Trade Journal & Performance",
+      "vi": "Trade Journal & Performance"
+    },
+    "journal.brand_sub": {
+      "en": "trades/*.md → scripts/journal.py · generated {gen}",
+      "vi": "trades/*.md → scripts/journal.py · sinh {gen}"
+    },
+    "journal.nav.pilot": {
+      "en": "Pilot",
+      "vi": "Pilot"
+    },
+    "journal.nav.stats": {
+      "en": "Statistics",
+      "vi": "Thống kê"
+    },
+    "journal.nav.ledger": {
+      "en": "Ledger",
+      "vi": "Sổ lệnh"
+    },
+    "journal.nav.reviews": {
+      "en": "Reviews",
+      "vi": "Review"
+    },
+    "journal.eyebrow": {
+      "en": "journal · figures computed by code · reviews written by a human or Claude",
+      "vi": "nhật ký · số liệu do code tính · review do người hoặc Claude điền"
+    },
+    "journal.lede": {
+      "en": "The pilot enters only when its fixed rules qualify; the journal gains a record only when the pilot enters, or when <code>/journal</code> writes a plan after <code>/analyze</code>. The top of this page says whether the pilot is running and why it has not traded.",
+      "vi": "Pilot chỉ vào lệnh khi luật cố định đủ điều kiện; nhật ký chỉ có bản ghi mới khi pilot vào lệnh hoặc khi <code>/journal</code> ghi một kế hoạch sau <code>/analyze</code>. Phần đầu trang cho biết pilot có đang chạy không và vì sao chưa có lệnh."
+    },
+    "journal.state.stopped": {
+      "en": "STOPPED",
+      "vi": "DỪNG"
+    },
+    "journal.state.running": {
+      "en": "RUNNING",
+      "vi": "ĐANG CHẠY"
+    },
+    "journal.state.not_ticking": {
+      "en": "NOT TICKING",
+      "vi": "KHÔNG TICK"
+    },
+    "journal.why.automation_off": {
+      "en": "automation is OFF{stopped} — the pilot does not tick, so there can be no new trade",
+      "vi": "automation đang TẮT{stopped} — pilot không tick nên không thể có lệnh mới"
+    },
+    "journal.why.stopped_at": {
+      "en": " (stopped {time})",
+      "vi": " (dừng {time})"
+    },
+    "journal.why.no_qualifier": {
+      "en": "{n} 15-minute evaluations since {first}, <b>0 qualified to enter</b> → no trade to write to the journal yet",
+      "vi": "{n} lần đánh giá 15 phút từ {first}, <b>0 lần đủ điều kiện vào lệnh</b> → chưa có lệnh nào để ghi vào nhật ký"
+    },
+    "journal.why.entries": {
+      "en": "{entries} entries / {exits} exits in the log — <code>journal.py sync-pilot</code> writes them into trades/",
+      "vi": "{entries} lệnh vào / {exits} lệnh thoát trong log — <code>journal.py sync-pilot</code> ghi chúng vào trades/"
+    },
+    "journal.why.no_records": {
+      "en": "no records in the log yet",
+      "vi": "chưa có bản ghi nào trong log"
+    },
+    "journal.verdict": {
+      "en": "Journal <b>{state}</b>: {why}.",
+      "vi": "Nhật ký <b>{state}</b>: {why}."
+    },
+    "journal.verdict.ok": {
+      "en": "is behaving correctly",
+      "vi": "hoạt động đúng"
+    },
+    "journal.verdict.check": {
+      "en": "needs checking",
+      "vi": "cần kiểm tra"
+    },
+    "journal.pilot.env": {
+      "en": "env {env} · last tick {last}",
+      "vi": "env {env} · tick cuối {last}"
+    },
+    "journal.pilot.evals24": {
+      "en": "Evaluations, 24h",
+      "vi": "Đánh giá 24h"
+    },
+    "journal.pilot.evals_total": {
+      "en": "total {n}",
+      "vi": "tổng {n}"
+    },
+    "journal.pilot.qualified": {
+      "en": "Qualified",
+      "vi": "Đủ điều kiện"
+    },
+    "journal.pilot.rule": {
+      "en": "rule: sweep → MSS → FVG · volume ≥ {high}×",
+      "vi": "luật: quét → MSS → FVG · KL ≥ {high}×"
+    },
+    "journal.pilot.entries_exits": {
+      "en": "Entries / exits",
+      "vi": "Lệnh vào / thoát"
+    },
+    "journal.pilot.from_log": {
+      "en": "from the pilot log",
+      "vi": "từ log pilot"
+    },
+    "journal.pilot.top_reasons": {
+      "en": "Most common rejection reasons",
+      "vi": "Lý do bị loại nhiều nhất"
+    },
+    "journal.pilot.heading": {
+      "en": "Is the pilot running?",
+      "vi": "Pilot có đang hoạt động không?"
+    },
+    "journal.tile.closed": {
+      "en": "Closed trades",
+      "vi": "Lệnh đã đóng"
+    },
+    "journal.tile.closed_sub": {
+      "en": "open {open} · planned {planned} · rehearsal {rehearsal}",
+      "vi": "đang mở {open} · kế hoạch {planned} · diễn tập {rehearsal}"
+    },
+    "journal.tile.win_rate": {
+      "en": "Win rate",
+      "vi": "Tỷ lệ thắng"
+    },
+    "journal.tile.win_rate_sub": {
+      "en": "{wins} wins / {losses} losses",
+      "vi": "{wins} thắng / {losses} thua"
+    },
+    "journal.tile.expectancy": {
+      "en": "Expected R",
+      "vi": "R kỳ vọng"
+    },
+    "journal.tile.expectancy_sub": {
+      "en": "win {win} R · loss {loss} R",
+      "vi": "thắng {win} R · thua {loss} R"
+    },
+    "journal.tile.profit_factor": {
+      "en": "Profit factor",
+      "vi": "Profit factor"
+    },
+    "journal.tile.profit_factor_sub": {
+      "en": "total {total} R · {usd} USDT",
+      "vi": "tổng {total} R · {usd} USDT"
+    },
+    "journal.tile.max_dd": {
+      "en": "Max drawdown",
+      "vi": "Sụt giảm tối đa"
+    },
+    "journal.tile.max_dd_sub": {
+      "en": "longest losing streak {n}",
+      "vi": "chuỗi thua dài nhất {n}"
+    },
+    "journal.section.balance": {
+      "en": "Balance sheet",
+      "vi": "Bảng cân đối"
+    },
+    "journal.section.balance_sub": {
+      "en": "rehearsal trades excluded",
+      "vi": "không tính lệnh diễn tập"
+    },
+    "journal.section.r_curve": {
+      "en": "Cumulative R curve",
+      "vi": "Đường R tích lũy"
+    },
+    "journal.section.r_curve_sub": {
+      "en": "by close time · wheel = zoom · drag = pan",
+      "vi": "theo thời điểm đóng lệnh · lăn chuột = zoom · kéo = dịch"
+    },
+    "journal.section.breakdown": {
+      "en": "Breakdown",
+      "vi": "Phân rã"
+    },
+    "journal.section.ledger": {
+      "en": "Ledger",
+      "vi": "Sổ lệnh"
+    },
+    "journal.section.ledger_sub": {
+      "en": "{n} records",
+      "vi": "{n} bản ghi"
+    },
+    "journal.section.reviews": {
+      "en": "Per-trade review",
+      "vi": "Review từng lệnh"
+    },
+    "journal.r_curve.empty": {
+      "en": "No closed trades yet (rehearsals excluded) — the cumulative R curve appears after the first closed trade.",
+      "vi": "Chưa có lệnh đóng (không tính diễn tập) — đường R tích lũy sẽ xuất hiện sau lệnh đóng đầu tiên."
+    },
+    "journal.r_curve.tip": {
+      "en": "trade {n}",
+      "vi": "lệnh {n}"
+    },
+    "journal.by.setup_type": {
+      "en": "By setup type",
+      "vi": "Theo loại setup"
+    },
+    "journal.by.instrument": {
+      "en": "By instrument",
+      "vi": "Theo mã"
+    },
+    "journal.by.session": {
+      "en": "By session",
+      "vi": "Theo phiên"
+    },
+    "journal.by.market": {
+      "en": "By market",
+      "vi": "Theo thị trường"
+    },
+    "journal.by.direction": {
+      "en": "By direction",
+      "vi": "Theo chiều"
+    },
+    "journal.by.exit_type": {
+      "en": "By exit type",
+      "vi": "Theo cách thoát"
+    },
+    "journal.col.group": {
+      "en": "Group",
+      "vi": "Nhóm"
+    },
+    "journal.col.trades": {
+      "en": "Trades",
+      "vi": "Lệnh"
+    },
+    "journal.col.wins": {
+      "en": "Wins",
+      "vi": "Thắng"
+    },
+    "journal.col.avg_r": {
+      "en": "Avg R",
+      "vi": "R TB"
+    },
+    "journal.col.id": {
+      "en": "ID",
+      "vi": "ID"
+    },
+    "journal.col.market": {
+      "en": "Market",
+      "vi": "Thị trường"
+    },
+    "journal.col.instrument": {
+      "en": "Instrument",
+      "vi": "Mã"
+    },
+    "journal.col.direction": {
+      "en": "Direction",
+      "vi": "Chiều"
+    },
+    "journal.col.setup": {
+      "en": "Setup",
+      "vi": "Setup"
+    },
+    "journal.col.targets": {
+      "en": "Targets",
+      "vi": "Mục tiêu"
+    },
+    "journal.col.session": {
+      "en": "Session",
+      "vi": "Phiên"
+    },
+    "journal.col.planned_rr": {
+      "en": "Planned R",
+      "vi": "R kế hoạch"
+    },
+    "journal.col.status": {
+      "en": "Status",
+      "vi": "Trạng thái"
+    },
+    "journal.col.exit": {
+      "en": "Exit",
+      "vi": "Thoát"
+    },
+    "journal.col.result": {
+      "en": "Result",
+      "vi": "Kết quả"
+    },
+    "journal.col.hold": {
+      "en": "Hold (min)",
+      "vi": "Giữ (phút)"
+    },
+    "journal.empty.trades": {
+      "en": "No trades yet.",
+      "vi": "Chưa có lệnh nào."
+    },
+    "journal.rehearsal": {
+      "en": "rehearsal",
+      "vi": "diễn tập"
+    },
+    "journal.field.thesis": {
+      "en": "Thesis",
+      "vi": "Luận điểm"
+    },
+    "journal.field.plan_vs_actual": {
+      "en": "Plan vs actual",
+      "vi": "Kế hoạch vs thực tế"
+    },
+    "journal.field.followed_plan": {
+      "en": "Followed the plan",
+      "vi": "Tuân thủ kế hoạch"
+    },
+    "journal.field.exit_type": {
+      "en": "Exit type",
+      "vi": "Loại thoát"
+    },
+    "journal.field.exit_reason": {
+      "en": "Exit reason",
+      "vi": "Lý do thoát"
+    },
+    "journal.field.root_cause": {
+      "en": "Root cause",
+      "vi": "Nguyên nhân gốc"
+    },
+    "journal.field.is_mistake": {
+      "en": "A mistake?",
+      "vi": "Là sai lầm?"
+    },
+    "journal.field.lessons": {
+      "en": "Lessons",
+      "vi": "Bài học"
+    },
+    "journal.field.review_notes": {
+      "en": "Review notes",
+      "vi": "Ghi chú review"
+    },
+    "journal.field.what_to_change": {
+      "en": "Change next time",
+      "vi": "Thay đổi lần sau"
+    },
+    "journal.field.confidence": {
+      "en": "Confidence before entry (1–5)",
+      "vi": "Tự tin trước lệnh (1–5)"
+    },
+    "journal.field.emotional_state": {
+      "en": "Emotional state",
+      "vi": "Trạng thái cảm xúc"
+    },
+    "journal.field.tags": {
+      "en": "Tags",
+      "vi": "Thẻ"
+    },
+    "journal.field.screenshots": {
+      "en": "Chart images",
+      "vi": "Ảnh chart"
+    },
+    "journal.field.empty": {
+      "en": "not recorded",
+      "vi": "chưa ghi"
+    },
+    "journal.reviews.note": {
+      "en": "After each trade, answer five questions: is the thesis still right · plan versus actual · was any rule broken (followed_plan) · root cause (root_cause) · one concrete change for next time (what_to_change). Repeated mistakes are collected in <code>docs/mistakes/MISTAKE-DB.md</code>; update with <code>scripts/journal.py review &lt;id&gt; --set key=value</code>.",
+      "vi": "Sau mỗi lệnh, trả lời năm câu: luận điểm còn đúng không · kế hoạch so với thực tế · có phá luật nào không (followed_plan) · nguyên nhân gốc (root_cause) · một thay đổi cụ thể cho lần sau (what_to_change). Sai lầm lặp lại được gom trong <code>docs/mistakes/MISTAKE-DB.md</code>; cập nhật bằng <code>scripts/journal.py review &lt;id&gt; --set key=value</code>."
+    },
+    "journal.footer.sources": {
+      "en": "Sources",
+      "vi": "Nguồn"
+    },
+    "journal.footer.detail": {
+      "en": "trades/index.jsonl (derived from trades/*.md) · pilot log · automation-config.json · <b>generated</b> {gen} by scripts/journal.py render · synced automatically after every pilot tick (scripts/pilot-loop.sh) and by /journal, /status, /review.",
+      "vi": "trades/index.jsonl (dẫn xuất từ trades/*.md) · log pilot · automation-config.json · <b>sinh</b> {gen} bởi scripts/journal.py render · đồng bộ tự động sau mỗi tick pilot (scripts/pilot-loop.sh) và bởi /journal, /status, /review."
+    },
+    "journal.r_curve.cumulative": {
+      "en": "cumulative",
+      "vi": "tích lũy"
+    },
+    "_panel_note": {
+      "en": "The method control panel (scripts/method-panel.py). It is an INTERACTIVE artifact with the db capability, and the language choice is per-viewer presentation -- it goes to localStorage, never to a db row, because those rows drive real automation (docs/security/2026-09-12-method-panel.md PANEL-01). The disclosure below is PANEL-02 and must stay visible in every language.",
+      "vi": "Trang công tắc phương pháp. Lựa chọn ngôn ngữ chỉ lưu cục bộ, không bao giờ ghi vào db điều khiển."
+    },
+    "panel.title": {
+      "en": "Trading Control Center",
+      "vi": "Trading Control Center"
+    },
+    "panel.disclosure": {
+      "en": "Tapping here changes the trading configuration that is currently running. This page CANNOT record who tapped — the audit trail only records the actor \"artifact-panel\".",
+      "vi": "Chạm vào đây thay đổi cấu hình giao dịch đang chạy. Trang này KHÔNG THỂ ghi nhận ai đã chạm -- nhật ký chỉ ghi actor \"artifact-panel\"."
+    },
+    "panel.tier.trade": {
+      "en": "Can qualify for entry",
+      "vi": "Đủ điều kiện vào lệnh"
+    },
+    "panel.tier.research": {
+      "en": "Research only",
+      "vi": "Chỉ nghiên cứu"
+    },
+    "panel.solo_note": {
+      "en": "Runs SOLO — {minimum} dimension, with no other dimension cross-confirming it, so it needs a score ≥{solo} (instead of NORMAL's {normal}) to reach TRADE.",
+      "vi": "Chạy SOLO — {minimum} dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥{solo} (thay vì {normal} của NORMAL) mới ra được TRADE."
+    },
+    "panel.wyckoff_honesty.before": {
+      "en": "the pilot runs the mechanical rules in ",
+      "vi": "pilot chạy luật cơ học "
+    },
+    "panel.wyckoff_honesty.after": {
+      "en": " (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill's full Wyckoff read.",
+      "vi": " (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill."
+    },
+    "panel.real_gate.before": {
+      "en": "the pilot does not run under REAL (",
+      "vi": "pilot không chạy ở REAL ("
+    },
+    "panel.real_gate.after": {
+      "en": ") — only the analysis half of the preset is in force.",
+      "vi": ") — chỉ nửa phân tích của preset còn hiệu lực."
+    },
+    "panel.coinglass_note": {
+      "en": "Locked on CFD — CoinGlass is the order-flow source for footprint/heatmap and covers crypto derivatives only (SYSTEM-DESIGN.md §12 item 3).",
+      "vi": "Khoá ở CFD — CoinGlass là nguồn order-flow cho footprint/heatmap, chỉ có cho crypto-derivatives (SYSTEM-DESIGN.md §12 mục 3)."
+    },
+    "panel.empty_note": {
+      "en": "no pair selected — no new trades will be opened in this market; open positions and resting orders are still managed.",
+      "vi": "không cặp nào được chọn — không mở lệnh mới ở thị trường này; vị thế và lệnh chờ đang mở vẫn được quản lý."
+    },
+    "panel.methods_none": {
+      "en": "(none)",
+      "vi": "(không có)"
+    },
+    "panel.mode_line": {
+      "en": "mode {mode} · minimum {minimum} dimensions · score threshold {threshold}",
+      "vi": "chế độ {mode} · tối thiểu {minimum} dimension · ngưỡng điểm {threshold}"
+    },
+    "panel.badge.nodata": {
+      "en": "no data",
+      "vi": "chưa có dữ liệu"
+    },
+    "panel.badge.nodata_title": {
+      "en": "No candle data on disk yet",
+      "vi": "Chưa có dữ liệu nến trên đĩa"
+    },
+    "panel.badge.unvalidated": {
+      "en": "not validated",
+      "vi": "chưa kiểm định"
+    },
+    "panel.badge.unvalidated_title": {
+      "en": "Not validated by a backtest",
+      "vi": "Chưa kiểm định bằng backtest"
+    },
+    "panel.badge.locked": {
+      "en": "no orders",
+      "vi": "không đặt lệnh"
+    },
+    "panel.badge.locked_title": {
+      "en": "Analysis only — orders cannot be placed",
+      "vi": "Chỉ phân tích, không đặt lệnh được"
+    },
+    "panel.badge.open": {
+      "en": "position open",
+      "vi": "đang mở"
+    },
+    "panel.badge.open_title": {
+      "en": "A position is open",
+      "vi": "Đang có lệnh mở"
+    },
+    "panel.custom_note": {
+      "en": "Current preset: <code>custom</code> — {flags}. Set from the terminal — tap a preset to override.",
+      "vi": "Preset hiện tại: <code>custom</code> — {flags}. đặt từ terminal — chạm một preset để ghi đè."
+    },
+    "panel.watched_pairs": {
+      "en": "Watched pairs",
+      "vi": "Cặp theo dõi"
+    },
+    "panel.status.unsent": {
+      "en": "not sent",
+      "vi": "chưa gửi"
+    },
+    "panel.status.waiting": {
+      "en": "waiting to be applied (≤ 5 minutes)",
+      "vi": "đang chờ áp dụng (≤ 5 phút)"
+    },
+    "panel.status.pending_note": {
+      "en": "waiting to be applied",
+      "vi": "đang chờ áp dụng"
+    },
+    "panel.status.send_failed": {
+      "en": "send failed — try again",
+      "vi": "gửi thất bại — thử lại"
+    },
+    "panel.status.applied_at": {
+      "en": "applied at ",
+      "vi": "đã áp dụng lúc "
+    },
+    "panel.status.refused": {
+      "en": "refused — ",
+      "vi": "đã từ chối — "
+    },
+    "panel.unknown_time": {
+      "en": "(unknown)",
+      "vi": "(không rõ)"
+    },
+    "panel.refusal.preset": {
+      "en": "preset not valid for this market — tap another preset in the list",
+      "vi": "preset không hợp lệ cho thị trường này — chạm một preset khác trong danh sách"
+    },
+    "panel.refusal.symbol": {
+      "en": "a pair is not on the allowlist — deselect it and try again",
+      "vi": "có cặp không nằm trong danh sách cho phép — bỏ chọn cặp đó rồi thử lại"
+    },
+    "panel.refusal.shape": {
+      "en": "the request is malformed — tap a preset and the watched pairs again to send a new one",
+      "vi": "yêu cầu sai định dạng — chạm lại một preset và cặp theo dõi để gửi yêu cầu mới"
+    },
+    "panel.refusal.stale": {
+      "en": "the request is too old, or this device's clock is off — tap again to send a new one",
+      "vi": "yêu cầu đã quá cũ hoặc đồng hồ thiết bị lệch — chạm lại để gửi yêu cầu mới"
+    },
+    "panel.refusal.generic": {
+      "en": "refused — choose a valid preset or correct the watched pairs, then try again",
+      "vi": "bị từ chối — chọn một preset hợp lệ hoặc sửa lại cặp theo dõi rồi thử lại"
+    },
+    "panel.stall.no_response": {
+      "en": "no applier running — the applier is not responding",
+      "vi": "không có tiến trình áp dụng — bộ áp dụng không phản hồi"
+    },
+    "panel.stall.clock": {
+      "en": "no applier running — this device's clock is off, so the wait cannot be measured",
+      "vi": "không có tiến trình áp dụng — đồng hồ thiết bị lệch, không tính được thời gian chờ"
+    },
+    "panel.stall.minutes": {
+      "en": "no applier running — the request has been pending {minutes} minutes",
+      "vi": "không có tiến trình áp dụng — yêu cầu đang treo {minutes} phút"
+    },
+    "panel.db.revoked": {
+      "en": "Read-only — write access has been revoked.",
+      "vi": "Chỉ xem — quyền ghi đã bị thu hồi."
+    },
+    "panel.db.unsupported": {
+      "en": "Read-only — this viewer does not support the control store.",
+      "vi": "Chỉ xem — trình xem này không hỗ trợ bộ nhớ điều khiển."
+    },
+    "panel.db.no_write": {
+      "en": "Read-only — no write permission (not granted, or the viewer does not support it).",
+      "vi": "Chỉ xem — không có quyền ghi (chưa được cấp hoặc trình xem không hỗ trợ)."
+    },
+    "panel.db.ready": {
+      "en": "Connected — tap to change the running configuration.",
+      "vi": "Đã kết nối — chạm để thay đổi cấu hình đang chạy."
+    },
+    "panel.db.failed": {
+      "en": "Read-only — could not reach the control store.",
+      "vi": "Chỉ xem — không kết nối được bộ nhớ điều khiển."
+    },
+    "panel.db.connecting": {
+      "en": "Connecting to the control store…",
+      "vi": "Đang kết nối tới bộ nhớ điều khiển…"
+    },
+    "panel.env.real": {
+      "en": "REAL (real money)",
+      "vi": "REAL (tiền thật)"
+    },
+    "panel.env.demo": {
+      "en": "DEMO (testnet, play money)",
+      "vi": "DEMO (testnet, tiền giả)"
+    },
+    "ctx.title": {
+      "en": "What this page is reading, and what would trade it",
+      "vi": "Trang này đang đọc gì, và cái gì sẽ vào lệnh"
+    },
+    "ctx.note": {
+      "en": "Point-in-time: every value below is as of the build stamp in the footer, not as of now.",
+      "vi": "Theo thời điểm: mọi giá trị bên dưới tính theo mốc build ở chân trang, không phải lúc này."
+    },
+    "ctx.market": {
+      "en": "Market",
+      "vi": "Thị trường"
+    },
+    "ctx.market_type": {
+      "en": "Market type",
+      "vi": "Loại thị trường"
+    },
+    "ctx.market_type_split": {
+      "en": "{analysis} read · {execution} traded",
+      "vi": "đọc {analysis} · vào lệnh {execution}"
+    },
+    "ctx.data_provider": {
+      "en": "Data provider",
+      "vi": "Nguồn dữ liệu"
+    },
+    "ctx.source_venue": {
+      "en": "Source venue",
+      "vi": "Sàn nguồn"
+    },
+    "ctx.execution_venue": {
+      "en": "Execution venue",
+      "vi": "Nơi khớp lệnh"
+    },
+    "ctx.execution_none": {
+      "en": "none — analysis only",
+      "vi": "không có — chỉ phân tích"
+    },
+    "ctx.session": {
+      "en": "Session",
+      "vi": "Phiên"
+    },
+    "ctx.data_quality": {
+      "en": "Data quality",
+      "vi": "Chất lượng dữ liệu"
+    },
+    "ctx.event_risk": {
+      "en": "Event risk",
+      "vi": "Rủi ro tin tức"
+    },
+    "ctx.event_risk_clear": {
+      "en": "no restricted window",
+      "vi": "không có cửa sổ hạn chế"
+    },
+    "ctx.event_risk_blocked": {
+      "en": "entry blocked",
+      "vi": "chặn vào lệnh"
+    },
+    "ctx.account_profile": {
+      "en": "Account profile",
+      "vi": "Hồ sơ tài khoản"
+    },
+    "ctx.risk": {
+      "en": "Risk ceiling",
+      "vi": "Trần rủi ro"
+    },
+    "ctx.risk_value": {
+      "en": "{pct}% of equity per trade",
+      "vi": "{pct}% vốn mỗi lệnh"
+    },
+    "ctx.required": {
+      "en": "Required for the decision",
+      "vi": "Bắt buộc cho quyết định"
+    },
+    "ctx.optional": {
+      "en": "Not required — never counted",
+      "vi": "Không bắt buộc — không được tính"
+    },
+    "ctx.none": {
+      "en": "none",
+      "vi": "không có"
+    },
+    "ctx.asof": {
+      "en": "as of {time}",
+      "vi": "tính đến {time}"
+    },
+    "ctx.required_note": {
+      "en": "Only these may block an entry. Everything else on this page is read and shown, never counted (§62).",
+      "vi": "Chỉ những mục này mới được chặn lệnh. Mọi thứ khác trên trang được đọc và hiển thị, không bao giờ được tính (§62)."
+    },
+    "panel.venue": {
+      "en": "Orders → {venue}",
+      "vi": "Lệnh → {venue}"
+    },
+    "panel.venue_none": {
+      "en": "no unattended execution venue",
+      "vi": "không có nơi khớp lệnh tự động"
+    },
+    "panel.dims_available": {
+      "en": "Dimensions available on this market: {dims}",
+      "vi": "Các chiều phân tích có trên thị trường này: {dims}"
+    },
+    "panel.built": {
+      "en": "Panel state baked at {time}; live values arrive from the control documents.",
+      "vi": "Trạng thái bảng được dựng lúc {time}; giá trị trực tiếp đến từ tài liệu điều khiển."
+    },
+    "journal.section.account": {
+      "en": "Account rules these trades were placed under",
+      "vi": "Quy tắc tài khoản mà các lệnh này tuân theo"
+    },
+    "ctx.active_methodology": {
+      "en": "Active methodology",
+      "vi": "Phương pháp đang dùng"
+    },
+    "ctx.available_methodologies": {
+      "en": "Available / analysed",
+      "vi": "Có sẵn / đã đọc"
+    },
+    "panel.active_preset": {
+      "en": "Active preset: {preset}",
+      "vi": "Bộ đang áp dụng: {preset}"
+    },
+    "ranking.page.title": {
+      "en": "System Performance & Ranking",
+      "vi": "System Performance & Ranking"
+    },
+    "ranking.page.intro": {
+      "en": "Every Trading System with a selected setup, ranked by each configurable objective in turn. No score is blended across objectives -- each table below orders lexicographically over one objective's own declared keys (CLAUDE.md §48).",
+      "vi": "Mọi Trading System có setup được chọn, xếp theo từng mục tiêu có thể cấu hình. Không có điểm số nào bị trộn giữa các mục tiêu -- mỗi bảng dưới đây xếp theo đúng thứ tự khoá đã khai báo của riêng một mục tiêu (CLAUDE.md §48)."
+    },
+    "ranking.no_universal_score": {
+      "en": "No score here ranks trading systems overall: this page has no blended metric, and none of the tables below should be read as naming one winner across objectives.",
+      "vi": "Không có điểm số nào ở trang này xếp hạng chung các hệ thống: trang không có chỉ số trộn lẫn, và không bảng nào dưới đây nên được đọc là chỉ ra một hệ thống thắng chung mọi mục tiêu."
+    },
+    "ranking.objective.caption": {
+      "en": "Ranked by {name}: {keys}, in that order. The deciding key is named per row.",
+      "vi": "Xếp theo {name}: {keys}, theo đúng thứ tự đó. Khoá quyết định được ghi theo từng dòng."
+    },
+    "ranking.col.rank": {
+      "en": "Rank",
+      "vi": "Hạng"
+    },
+    "ranking.col.trading_system": {
+      "en": "Trading System",
+      "vi": "Trading System"
+    },
+    "ranking.col.setup": {
+      "en": "Setup",
+      "vi": "Setup"
+    },
+    "ranking.col.n": {
+      "en": "n",
+      "vi": "n"
+    },
+    "ranking.col.decided_by": {
+      "en": "Decided by",
+      "vi": "Quyết định bởi"
+    },
+    "ranking.col.validation_state": {
+      "en": "Validation state (§38)",
+      "vi": "Trạng thái xác thực (§38)"
+    },
+    "ranking.col.test_period": {
+      "en": "Test period",
+      "vi": "Giai đoạn kiểm thử"
+    },
+    "ranking.col.assumptions": {
+      "en": "Assumptions",
+      "vi": "Giả định"
+    },
+    "ranking.col.robustness": {
+      "en": "Robustness (§45)",
+      "vi": "Độ vững (§45)"
+    },
+    "ranking.col.missing": {
+      "en": "Missing exposures",
+      "vi": "Thiếu mục bắt buộc"
+    },
+    "ranking.decided_by.none": {
+      "en": "(last)",
+      "vi": "(dòng cuối)"
+    },
+    "ranking.not_ruined.alive": {
+      "en": "not ruined",
+      "vi": "chưa cháy"
+    },
+    "ranking.not_ruined.ruined": {
+      "en": "ruined {date}",
+      "vi": "cháy {date}"
+    },
+    "ranking.custom.note": {
+      "en": "{name} is not rendered as a table here: CLAUDE.md §48 requires a custom objective to declare its own keys and directions, which this page does not supply on a caller's behalf.",
+      "vi": "{name} không được vẽ thành bảng ở đây: CLAUDE.md §48 yêu cầu một mục tiêu tuỳ chỉnh phải tự khai báo khoá và hướng, mà trang này không tự ý cung cấp thay cho người gọi."
+    },
+    "ranking.exposure_report.title": {
+      "en": "Exposure report (§48)",
+      "vi": "Báo cáo mục bắt buộc (§48)"
+    },
+    "ranking.exposure_report.missing_from": {
+      "en": "missing from",
+      "vi": "thiếu ở"
+    },
+    "l1.dr.mixed": {
+      "en": " (one border is the window edge)",
+      "vi": " (một biên là mép cửa sổ)"
+    },
+    "l1.dr.window": {
+      "en": " (both borders are window edges)",
+      "vi": " (cả hai biên là mép cửa sổ)"
+    },
+    "matrix.sub.model_written": {
+      "en": "written {when}",
+      "vi": "viết lúc {when}"
+    },
+    "matrix.sub.model_stale": {
+      "en": "STALE — {days}d behind the candles on this page",
+      "vi": "CŨ — chậm {days} ngày so với nến trên trang này"
+    },
+    "status.src.model": {
+      "en": "local read",
+      "vi": "đọc cục bộ"
+    },
+    "status.src.scanner": {
+      "en": "scanner",
+      "vi": "máy quét"
+    },
+    "status.src.none": {
+      "en": "no read yet",
+      "vi": "chưa có bản đọc"
+    }
+  }
+}

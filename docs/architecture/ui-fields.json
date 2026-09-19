@@ -1,0 +1,217 @@
+{
+  "_source": "CLAUDE.md §50 UI / UX. The 4 core UI areas and the 22 fields below are §50's own lists, in §50's order and wording. scripts/tests/test_ui_contract.py parses them back out of CLAUDE.md, so a new bullet in §50 fails the build.",
+  "_reader": "scripts/ui_contract.py is the ONE reader. Every field names a `marker` -- a `data-ui-field` attribute the page renders -- and the checker BUILDS the pages and looks for it. A field claimed here and not rendered fails, which is the difference between this registry and a design intention.",
+  "_why_this_exists": "§50 is the only section whose compliance is invisible from the code: a field can be computed correctly, carried correctly, and never reach the screen. The previous audit was a 22-row hand check that found 6 fields missing; a hand check goes stale the first time a page is edited. Making the field list a registry with rendered markers turns 'does the UI expose this?' into a question the suite answers by building the page.",
+  "_absent_is_a_value": "A field with `pages: []` is legal and must carry a `_why`. 'Not surfaced yet' and 'has no value to surface in this repository' are different facts. The checker refuses an unsurfaced field with no reason.",
+  "_no_hardcoding": "Every field names the ONE reader that supplies its value. A literal typed into the page is the failure this column exists to prevent -- a page that says PERPETUAL because someone typed PERPETUAL is not exposing the market type, it is asserting it.",
+
+  "pages": {
+    "chart": {
+      "built_by": "scripts/build-artifact.py",
+      "what": "The published chart artifact, one per style (scalping | day | swing, crypto and cfd). This is the page a human reads BEFORE a decision, so it carries the decision-surface fields.",
+      "styles": ["scalping", "cfd-scalping"]
+    },
+    "panel": {
+      "built_by": "scripts/method-panel.py",
+      "what": "The method control panel -- the ACTIVE TRADING CONFIGURATION surface. §50's 'Trading Control Center must distinguish ACTIVE TRADING CONFIGURATION from AVAILABLE / RUNNING ANALYSIS' is this page's two-tier layout."
+    },
+    "journal": {
+      "built_by": "scripts/journal_render.py",
+      "what": "Trade Journal & Performance. The only page where a trade has an ACTUAL path to compare against the expectation that was recorded before entry."
+    },
+    "ranking": {
+      "built_by": "scripts/system-ranking.py",
+      "what": "System Performance & Ranking. One table per §48 objective over every Trading System with a selected setup, plus the §48 exposure report. §48's markers (ranking-objective, ranking-sample-size, ranking-validation-state, ranking-test-period, ranking-assumptions, ranking-robustness) live outside the 22-field registry below -- this page's contract is scripts/ranking.py's own always_expose list, not a §50 field."
+    }
+  },
+
+  "areas": [
+    {
+      "spec_name": "Trading Control Center",
+      "served_by": ["panel", "chart"],
+      "_why": "The panel is the active configuration (what the pilot will trade); the chart page is the running analysis over it. §50 requires the two be distinguishable and they are two different pages, which is the strongest form of that distinction."
+    },
+    {
+      "spec_name": "Trade Journal & Performance",
+      "served_by": ["journal"],
+      "_why": "scripts/journal_render.py: pilot liveness, R curve, ledger, per-trade review."
+    },
+    {
+      "spec_name": "System Lab",
+      "served_by": [],
+      "_why": "No page. Candidate generation and experiments are markdown reports under docs/backtests/ plus the §42 record store under docs/experiments/, both read in a terminal. §41 blocks approval of any proposal today (no period in the repository can validate one, §44), so a System Lab page would be a UI over a workflow that cannot yet complete -- speculative under §57. Becomes applicable when research_ledger.periods() reports a validation-available period."
+    },
+    {
+      "spec_name": "System Performance & Ranking",
+      "served_by": ["ranking"]
+    }
+  ],
+
+  "fields": [
+    {
+      "spec_name": "Market",
+      "id": "market",
+      "pages": ["chart", "panel"],
+      "marker": "market",
+      "source": "scripts/instruments.py market_of()"
+    },
+    {
+      "spec_name": "Instrument",
+      "id": "instrument",
+      "pages": ["chart", "panel", "journal"],
+      "marker": "instrument",
+      "source": "scripts/instruments.py analysis() + display()"
+    },
+    {
+      "spec_name": "Market Type",
+      "id": "market_type",
+      "pages": ["chart"],
+      "marker": "market-type",
+      "source": "scripts/instruments.py market_types() + scripts/providers.py data_market_type()",
+      "_note": "Two values, not one, and the page must show both: the analysis data is SPOT while the pilot executes PERPETUAL (the §20.1 divergence on record). Collapsing them to one word would hide it."
+    },
+    {
+      "spec_name": "Data Provider",
+      "id": "data_provider",
+      "pages": ["chart"],
+      "marker": "data-provider",
+      "source": "scripts/providers.py for_role('market_data', market)"
+    },
+    {
+      "spec_name": "Source Venue",
+      "id": "source_venue",
+      "pages": ["chart"],
+      "marker": "source-venue",
+      "source": "scripts/providers.py venue_of()"
+    },
+    {
+      "spec_name": "Execution Venue",
+      "id": "execution_venue",
+      "pages": ["chart", "panel"],
+      "marker": "execution-venue",
+      "source": "scripts/providers.py for_role('execution', market)",
+      "_note": "CLAUDE.md §4: Data Source != Execution Venue. Printing them as one line, next to each other and separately labelled, is what makes the distinction visible rather than merely true."
+    },
+    {
+      "spec_name": "Session",
+      "id": "session",
+      "pages": ["chart"],
+      "marker": "session",
+      "source": "scripts/sessions.py active() / primary()"
+    },
+    {
+      "spec_name": "Active Methodology",
+      "id": "active_methodology",
+      "pages": ["chart", "panel"],
+      "marker": "active-methodology",
+      "source": "scripts/methods.py preset + automation-config.json dimensions"
+    },
+    {
+      "spec_name": "Available Methodologies",
+      "id": "available_methodologies",
+      "pages": ["chart", "panel"],
+      "marker": "available-methodologies",
+      "source": "scripts/methods.py analysed_dimensions()"
+    },
+    {
+      "spec_name": "Setup",
+      "id": "setup",
+      "pages": ["chart"],
+      "marker": "setup",
+      "source": "data/live/narrative + data/live/prelim facts (the ladder rows)"
+    },
+    {
+      "spec_name": "Data Quality",
+      "id": "data_quality",
+      "pages": ["chart"],
+      "marker": "data-quality",
+      "source": "scripts/quality.py assess()",
+      "_note": "§20's six states, computed over the candles the page is drawing -- not a green dot meaning 'a file was found'."
+    },
+    {
+      "spec_name": "Freshness",
+      "id": "freshness",
+      "pages": ["chart", "panel", "journal"],
+      "marker": "freshness",
+      "source": "the candle files' last bar time + the build timestamp"
+    },
+    {
+      "spec_name": "Provenance",
+      "id": "provenance",
+      "pages": ["chart"],
+      "marker": "provenance",
+      "source": "scripts/build-artifact.py src_notes (symbol · timeframe · provider · updated, per series)"
+    },
+    {
+      "spec_name": "Event Risk",
+      "id": "event_risk",
+      "pages": ["chart"],
+      "marker": "event-risk",
+      "source": "scripts/event_risk.py state()",
+      "_note": "A published page is a snapshot, so the event-risk line carries its own as-of time and says so. An event-risk claim without an as-of is a claim about now made by a file written hours ago -- §20's 'never silently convert STALE to FRESH' applied to the screen."
+    },
+    {
+      "spec_name": "Account Profile",
+      "id": "account_profile",
+      "pages": ["chart", "journal"],
+      "marker": "account-profile",
+      "source": "scripts/account_profile.py for_venue()"
+    },
+    {
+      "spec_name": "Risk",
+      "id": "risk",
+      "pages": ["chart", "journal"],
+      "marker": "risk",
+      "source": "scripts/trading_env.py MAX_RISK_PCT (one source: risk-config.json) + account_profile.effective_risk_pct()"
+    },
+    {
+      "spec_name": "Required Analysis",
+      "id": "required_analysis",
+      "pages": ["chart"],
+      "marker": "required-analysis",
+      "distinguishable_by": "ui-req",
+      "source": "scripts/trading_system.py classification()"
+    },
+    {
+      "spec_name": "Optional Analysis",
+      "id": "optional_analysis",
+      "pages": ["chart"],
+      "marker": "optional-analysis",
+      "distinguishable_by": "ui-opt",
+      "source": "scripts/trading_system.py classification()"
+    },
+    {
+      "spec_name": "Expected Path",
+      "id": "expected_path",
+      "pages": ["chart"],
+      "marker": "expected-path",
+      "source": "data/live/narrative per-method expected path (one per methodology, never merged)"
+    },
+    {
+      "spec_name": "Actual Path",
+      "id": "actual_path",
+      "pages": ["chart", "journal"],
+      "marker": "actual-path",
+      "source": "the drawn candles (chart) and trades/index.jsonl (journal)"
+    },
+    {
+      "spec_name": "Decision Explanation",
+      "id": "decision_explanation",
+      "pages": ["chart"],
+      "marker": "decision-explanation",
+      "source": "the per-symbol synthesis row of the evidence matrix"
+    },
+    {
+      "spec_name": "Blocking Reason",
+      "id": "blocking_reason",
+      "pages": ["chart"],
+      "marker": "blocking-reason",
+      "source": "scripts/build-artifact.py reason_text() over the lane reason keys"
+    }
+  ],
+
+  "forbidden_words": {
+    "_why": "§50: 'Use Confluence Score, not Confidence %. Avoid fake precision.' A percentage attached to a discretionary read is a probability claim the system cannot make.",
+    "words": ["Confidence %", "Confidence:"]
+  }
+}

@@ -34,7 +34,7 @@
       }
     },
     "cfd": {
-      "enabled": false,
+      "enabled": true,
       "instruments": [
         "XAUUSD",
         "XAGUSD"
@@ -90,7 +90,7 @@
     "launchd_label": "com.tyme.trading.pilot.futures",
     "stopped_at": "2026-09-12T18:25:54Z"
   },
-  "last_updated": "2026-09-17T14:11:34Z",
+  "last_updated": "2026-09-18T14:17:50Z",
   "history": [
     {
       "ts": "2026-09-10T10:06:03Z",
@@ -1232,6 +1232,41 @@
       "action": "real",
       "detail": null,
       "result": "refused"
+    },
+    {
+      "ts": "2026-09-18T04:44:08Z",
+      "actor": "tungnguyen",
+      "action": "market cfd=on",
+      "detail": "user asked to see the CFD artifact working; pilot layer is off and the STOP kill switch is present, so this enables analysis + publishing only",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-18T14:07:38Z",
+      "actor": "claude (WS-F drill, user-approved)",
+      "action": "layer pilot=on",
+      "detail": "temporary for one demo drill order per venue (docs/plans/2026-09-18-close-feature-gaps.md WS-F); switched back off right after",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-18T14:07:58Z",
+      "actor": "claude (WS-F drill, user-approved)",
+      "action": "dimension wyckoff=on --market cfd",
+      "detail": "temporary: both CFD setups are preset-blocked without wyckoff; needed for the XAUUSD demo drill, switched back off right after",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-18T14:17:49Z",
+      "actor": "claude (WS-F drill done)",
+      "action": "layer pilot=off",
+      "detail": "drill finished; back to the pre-drill state",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-18T14:17:50Z",
+      "actor": "claude (WS-F drill done)",
+      "action": "dimension wyckoff=off --market cfd",
+      "detail": "drill finished; back to the pre-drill state",
+      "result": "applied"
     }
   ]
 }

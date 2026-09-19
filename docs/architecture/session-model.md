@@ -24,7 +24,14 @@ Rationale: session behaviour follows the local clock of the market that is openi
 
 ## 2. Windows
 
-Labels match the `session` enum already in `docs/architecture/schemas/trade-file.schema.json`: `asia`, `london`, `ny_am`, `ny_pm`, `off`.
+**The windows themselves live in `docs/architecture/sessions.json`** (added 2026-09-18, CLAUDE.md §21). That
+file is the single source: `scripts/sessions.py` is the one reader, `scripts/sync-sessions.py --write`
+regenerates the `session` enum in `schemas/trade-file.schema.json` and the `SESSIONS` / `KZ_WEIGHT` literals in
+`scripts/chart.js`, and `scripts/tests/test_sessions.py` fails the build on drift. Until then the same numbers
+were written out in six places with nothing keeping them in step — including this table.
+
+This document keeps the **reasoning**, which the JSON does not duplicate. The table below is a reader's
+convenience, not an authority: if it disagrees with `sessions.json`, the JSON is right and this is stale.
 
 | Label | Local window | Zone | What it is |
 |---|---|---|---|
@@ -42,7 +49,13 @@ Labels match the `session` enum already in `docs/architecture/schemas/trade-file
 
 ## 3. Weight by instrument
 
-Weight classes map to points via `analysis-params.json` → `timing.weight_by_class` (`full` = 7, `reduced` = 3, `none` = 0).
+Weight **classes** live in `sessions.json` → `weights`, keyed by `instruments.json` `display.<sym>.asset_class`.
+The class → points mapping stays in `analysis-params.json` → `timing.weight_by_class` (`full` = 7,
+`reduced` = 3, `none` = 0), because that is the scoring parameter and the tuning surface for `/improve`; the
+class is the model. An asset class the registry does not name gets `_default` — `none` everywhere — rather
+than inheriting another class's weights.
+
+As with §2, the table below is a reader's convenience and `sessions.json` is the authority.
 
 | Instrument | `london` | `ny_am` | `ny_pm` | `asia` / `off` |
 |---|---|---|---|---|
@@ -79,3 +92,24 @@ Revisit this file when any of these happen:
 - The journal accumulates enough closed trades to compare outcomes by session (`journal.py` already groups by `session`). If a window shows no edge, drop its weight rather than keeping it for symmetry.
 - A new ICT source is ingested that addresses crypto or commodity sessions directly.
 - The instrument universe changes.
+
+---
+
+## 7. Overlaps and custom sessions (2026-09-18)
+
+CLAUDE.md §21 names both as first-class. Neither existed before `sessions.json`:
+
+- **Overlaps.** `sessions.active(t)` returns *every* window an instant is inside, in the registry's declared
+  `precedence` order; `sessions.primary(t)` collapses that to the one label a trade file records. The old
+  `journal.session_of` was an if/elif chain, so an overlap would have been resolved by branch order — a rule
+  nobody wrote down. Today's four windows do not overlap (London 08:00–11:00 local is 13:30–16:00 London while
+  NY AM runs), so this changes no label today. It exists so that moving a window later cannot introduce a
+  silent resolution.
+- **Custom sessions.** Adding one is a data edit plus `sync-sessions.py --write`. The loader validates that the
+  zone is a real IANA zone, that the hours are in range, that the window is not zero-width, that no two windows
+  share a precedence, and that every asset class states a class for every window.
+
+**Model version.** `sessions.json` carries `version`. A session label is stamped on every journalled trade, so
+moving a window silently re-labels history; the version is what lets a configuration snapshot (§11) say which
+model produced a label, and CLAUDE.md §59 treats a session-rule change as potentially Trading System version
+significant.

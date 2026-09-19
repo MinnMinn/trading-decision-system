@@ -1,0 +1,75 @@
+{
+  "_source": "CLAUDE.md §48 SYSTEM RANKING and §49 NEWS A/B. The seven objectives, the seven things a ranking must always expose, the nine A/B comparison dimensions and the six things an A/B must hold identical are the spec's own lists, in its order and wording. scripts/tests/test_ranking.py parses them back out of CLAUDE.md.",
+  "_why_one_file": "§49 is a RANKING of two configurations against each other. It needs the same exposure rules §48 sets (objective, sample size, validation state, assumptions) and it needs them to mean the same thing, so the two share a registry rather than growing a second, quieter set.",
+  "_reader": "scripts/ranking.py is the ONE reader.",
+
+  "ranking": {
+    "_spec": "CLAUDE.md §48: 'Ranking objectives must be configurable. Do not create a universal \"best system\" score.'",
+    "objectives": [
+      {"id": "expectancy", "spec_name": "Expectancy",
+       "keys": ["expectancy"], "direction": ["max"],
+       "definition": "Mean R per trade. The default objective and the one that ignores path entirely: a system with a great expectancy and a ruinous drawdown ranks first here, which is exactly why §48 forbids one universal score."},
+      {"id": "survival", "spec_name": "Survival",
+       "keys": ["not_ruined", "account_failure_probability", "max_drawdown"], "direction": ["max", "min", "min"],
+       "definition": "Did it stay alive, and how likely is it not to? §39's account-failure probability leads, because 'did not blow up on this one path' is a weaker claim than 'is unlikely to'."},
+      {"id": "drawdown", "spec_name": "Drawdown",
+       "keys": ["max_drawdown", "time_in_drawdown"], "direction": ["min", "min"],
+       "definition": "Depth first, then time spent underwater -- two systems with the same worst hole are not the same experience if one sat in it for a year."},
+      {"id": "prop_pass_rate", "spec_name": "Prop Pass Rate",
+       "keys": ["prop_pass_probability"], "direction": ["max"],
+       "definition": "§39's pass probability. UNAVAILABLE for every account that declares no profit target, which is every account this repo has -- a demo account cannot be passed."},
+      {"id": "risk_adjusted_return", "spec_name": "Risk-Adjusted Return",
+       "keys": ["sortino", "sharpe"], "direction": ["max", "max"],
+       "definition": "Sortino first: upside dispersion is not risk, and ranking on Sharpe punishes the systems whose good months are very good."},
+      {"id": "consistency", "spec_name": "Consistency",
+       "keys": ["positive_period_share", "worst_period"], "direction": ["max", "max"],
+       "definition": "The share of periods that were positive, then the worst one. This is what scripts/rank-setups.py has always sorted on, now named as one objective among seven rather than as the meaning of 'best'."},
+      {"id": "custom", "spec_name": "Custom Objective",
+       "keys": [], "direction": [],
+       "definition": "A caller-supplied lexicographic key list. §48 requires objectives to be CONFIGURABLE, and a fixed menu of six is not configurable -- but a custom objective must still declare its keys and directions, so a reader can see what decided."}
+    ],
+    "always_expose": [
+      {"id": "ranking_objective", "spec_name": "ranking objective",
+       "means": "which objective was used, AND the ordered keys it sorted on -- 'ranked by consistency' without the keys is a label, not a method"},
+      {"id": "metrics", "spec_name": "metrics", "means": "the §39 values behind the ordering"},
+      {"id": "sample_size", "spec_name": "sample size", "means": "n, per row (§39)"},
+      {"id": "validation_state", "spec_name": "validation state", "means": "§45's verdict, including the checks that did not run"},
+      {"id": "test_period", "spec_name": "test period", "means": "what span produced the numbers, and its §44 state"},
+      {"id": "assumptions", "spec_name": "assumptions", "means": "§38's execution assumptions and research-validity verdict"},
+      {"id": "robustness_status", "spec_name": "robustness status", "means": "§45's robustness() verdict for this row"}
+    ],
+    "_no_universal_score": "§48: 'Do not create a universal best system score.' Every objective here is LEXICOGRAPHIC over named keys in a declared order -- never a weighted blend. A blend hides which criterion decided, and the weights become the real objective while looking like arithmetic. scripts/ranking.py has no weighting parameter and `rank()` returns the deciding key per row.",
+    "_exposure_is_not_optional": "A row that cannot supply one of the seven is NOT dropped and NOT silently ranked -- it is ranked and marked. Dropping it hides a system; ranking it silently hides that the comparison is uneven."
+  },
+
+  "news_ab": {
+    "_spec": "CLAUDE.md §49: 'Do not assume the filter improves performance.'",
+    "arms": [
+      {"id": "A", "spec_name": "News filter enabled", "news_filter": true},
+      {"id": "B", "spec_name": "News filter disabled", "news_filter": false}
+    ],
+    "compare": [
+      {"id": "expectancy", "spec_name": "expectancy", "from": "§39"},
+      {"id": "drawdown", "spec_name": "drawdown", "from": "§39"},
+      {"id": "trade_count", "spec_name": "trade count", "from": "§39"},
+      {"id": "opportunity_loss", "spec_name": "opportunity loss",
+       "from": "§41: the R the blocked entries would have made, as a total -- the COST side of the filter"},
+      {"id": "missed_opportunities", "spec_name": "missed opportunities",
+       "from": "§41: the COUNT of blocked entries that would have won. Listed separately from opportunity loss because one big miss and twenty small ones are different objections."},
+      {"id": "robustness", "spec_name": "robustness", "from": "§45 robustness()"},
+      {"id": "regime_behavior", "spec_name": "regime behavior", "from": "§45 partition() by regime"},
+      {"id": "session_behavior", "spec_name": "session behavior", "from": "§45 partition() by session"},
+      {"id": "sample_size", "spec_name": "sample size", "from": "§39"}
+    ],
+    "identical": [
+      {"id": "datasets", "spec_name": "datasets"},
+      {"id": "time_ranges", "spec_name": "time ranges"},
+      {"id": "pit_state", "spec_name": "PIT state"},
+      {"id": "risk_assumptions", "spec_name": "risk assumptions"},
+      {"id": "execution_assumptions", "spec_name": "execution assumptions"},
+      {"id": "account_profile", "spec_name": "account profile"}
+    ],
+    "_identical_is_the_experiment": "The six things §49 says to hold identical ARE the experiment: an A/B in which the arms differ in anything else measures that other thing. scripts/ranking.py ab() refuses to report a comparison whose arms differ on any of them, naming which -- rather than reporting it with a caveat, because a caveat on a two-column table is not read.",
+    "_do_not_assume": "§49 says the filter must not be ASSUMED to improve performance, which means the A/B must be able to conclude that it does not. `ab()` therefore reports opportunity loss and missed opportunities beside expectancy and drawdown, and states the direction of each difference without judging it."
+  }
+}

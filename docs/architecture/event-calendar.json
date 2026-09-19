@@ -1,0 +1,84 @@
+{
+  "_comment": "THE event calendar and event-risk policy (CLAUDE.md §24-§32). Replaces the hand-parsed markdown table in docs/architecture/event-calendar.md, which is now the human-facing explanation and points here. The markdown had to go: scripts/strategy-runner.py read it with a regex over the WHOLE FILE, so the 'How to add an entry' EXAMPLE on that page acted as a live blackout window, and a `17:00 - 20:00` row parsed as two point events leaving 17:30-19:30 unprotected -- the exact gap CLAUDE.md §30 forbids. scripts/event_risk.py is the one reader.",
+  "_maintenance": "No automatic feed in v1: this file is maintained by hand, or proposed via /improve, never silently. An empty `events` list is NOT a clean bill of health -- CLAUDE.md §32 forbids assuming 'no news' -- which is why `snapshot.covers_through` exists: past it, the calendar is STALE and the configured fail-safe applies.",
+
+  "snapshot": {
+    "_why": "CLAUDE.md §29: historical event-risk evaluation must preserve the information state of the calendar. `id` identifies this state in a research record (§10/§11); `as_of` is when it was last curated; `covers_through` is the date past which this file makes NO claim, which is what turns a stale calendar into UNKNOWN instead of silence.",
+    "id": "cal-2026-09-18-a",
+    "version": 1,
+    "as_of": "2026-09-18T00:00:00Z",
+    "covers_through": "2026-09-30T23:59:59Z",
+    "source": "hand-maintained"
+  },
+
+  "impact_levels": {
+    "_comment": "CLAUDE.md §25's own four levels. SYSTEM-DESIGN.md and .claude/commands/analyze.md said MODERATE where the spec says MEDIUM; the spec's word wins and both were corrected.",
+    "HIGH": "Restricted by default (§25).",
+    "MEDIUM": "Configurable (§25). Not restricted unless `policy.by_impact.MEDIUM.restricted` says so.",
+    "LOW": "Normally unrestricted (§25).",
+    "UNKNOWN": "NEVER silently treated as LOW (§25). Not restricted by default, but STRICT mode may treat it as NO TRADE -- `policy.by_impact.UNKNOWN.strict_no_trade`."
+  },
+
+  "event_statuses": {
+    "_comment": "CLAUDE.md §29: a calendar snapshot must account for revisions, cancellations and classification changes.",
+    "scheduled": "Announced, not yet released.",
+    "released": "Released; `actual_release_time` should be set where it is reliably known (§27).",
+    "revised": "The row was changed after first publication. The revision must not affect a decision made before it became available (§28).",
+    "cancelled": "The event will not happen. Still carried, not deleted, so a historical decision that saw it scheduled remains reconstructible."
+  },
+
+  "policy": {
+    "_comment": "CLAUDE.md §24's defaults, stated as configuration because §24 says 'These values must be configurable'.",
+    "pre_minutes": 10,
+    "post_minutes": 10,
+    "_buffer_why": "§24: 'NO NEW ENTRY 10 minutes before HIGH-impact news / NO NEW ENTRY 10 minutes after'. An event may override both with its own `pre_minutes`/`post_minutes`.",
+
+    "by_impact": {
+      "HIGH": {"restricted": true},
+      "MEDIUM": {"restricted": false},
+      "LOW": {"restricted": false},
+      "UNKNOWN": {"restricted": false, "strict_no_trade": true}
+    },
+
+    "existing_positions": {
+      "_comment": "CLAUDE.md §31: news restrictions primarily apply to NEW ENTRY; what happens to an OPEN position is separately configurable, and nothing closes automatically unless configured.",
+      "action": "HOLD",
+      "actions_available": ["HOLD", "REDUCE_RISK", "CLOSE_BEFORE_NEWS", "CUSTOM"],
+      "_default_why": "HOLD is the only default that changes nothing. Closing a position because a release is approaching is a trading decision with its own cost and slippage; §31 says not to make it automatically."
+    },
+
+    "fail_safe": {
+      "_comment": "CLAUDE.md §32: when critical event information is missing, stale, invalid or unknown, apply the CONFIGURED fail-safe. 'Never silently assume no news when the calendar is unavailable.' Before 2026-09-18 the runner returned None on every failure, which is precisely that assumption, on the order path.",
+      "action": "BLOCK_ENTRY",
+      "actions_available": ["BLOCK_ENTRY", "UNKNOWN", "HUMAN_CONFIRMATION"],
+      "_default_why": "BLOCK_ENTRY, because CLAUDE.md §1 puts Safety above Convenience and a missing calendar is indistinguishable from a calendar with an FOMC in it. This blocks NEW ENTRY only -- §31 governs open positions and is unaffected."
+    }
+  },
+
+  "relevance": {
+    "_comment": "CLAUDE.md §26: 'Do not apply every economic event globally to every instrument.' An event reaches an instrument when the event names a currency the instrument quotes, a country/region declared for it, or an asset class it belongs to. The instrument's currencies come from its canonical id (instruments.json `canonical`, e.g. XAU/USD -> {XAU, USD}); its asset class from `display.asset_class`.",
+    "currency_aliases": {
+      "USDT": ["USD"],
+      "USDC": ["USD"]
+    },
+    "_alias_why": "A dollar stablecoin is not the dollar, and this file does not pretend otherwise -- but a US macro release does reach a USDT pair through the peg and through the dollar-funding channel, and declaring that here is an arguable, visible decision. Hiding the same assumption inside matching code would make it invisible. Remove the alias to make US events irrelevant to crypto pairs.",
+    "global_keyword": "GLOBAL",
+    "_global_why": "An event may declare `currencies: [\"GLOBAL\"]` for something that genuinely reaches everything. It exists so that 'affects everything' is a claim someone typed, not the default."
+  },
+
+  "events": [
+    {
+      "_comment": "Example shape, kept as a CANCELLED row rather than a live one. The previous markdown file put its example in prose and the parser read it as a real blackout; a cancelled row cannot restrict anything, and it documents every field a real row needs.",
+      "id": "example-do-not-remove",
+      "name": "Example row (see _comment) -- cancelled, restricts nothing",
+      "impact": "HIGH",
+      "scheduled_event_time": "2000-01-01T00:00:00Z",
+      "actual_release_time": null,
+      "available_time": "2000-01-01T00:00:00Z",
+      "status": "cancelled",
+      "currencies": ["USD"],
+      "countries": ["US"],
+      "asset_classes": []
+    }
+  ]
+}
