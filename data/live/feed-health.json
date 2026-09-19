@@ -4856,11 +4856,11 @@
     66.337
    ]
   },
-  "unchanged_polls": 0,
+  "unchanged_polls": 1,
   "state": "HEALTHY",
   "last_updated": "2026-09-19T08:42:52Z",
-  "observed_at": "2026-09-19T11:29:44Z",
-  "previous_state": "UNKNOWN",
+  "observed_at": "2026-09-19T18:15:39Z",
+  "previous_state": "HEALTHY",
   "incidents": 0
  },
  "mt5_bridge|XAGUSD|1H": {
@@ -9720,11 +9720,11 @@
     4376.32
    ]
   },
-  "unchanged_polls": 0,
+  "unchanged_polls": 1,
   "state": "HEALTHY",
   "last_updated": "2026-09-19T08:42:51Z",
-  "observed_at": "2026-09-19T11:29:44Z",
-  "previous_state": "UNKNOWN",
+  "observed_at": "2026-09-19T18:15:39Z",
+  "previous_state": "HEALTHY",
   "incidents": 0
  },
  "mt5_bridge|XAUUSD|1H": {

@@ -115,7 +115,7 @@ class NoInventedRules(unittest.TestCase):
 class MethodologyIsNotSetupIsNotTradingSystem(unittest.TestCase):
     def test_methodology_and_setup_live_in_different_artifacts(self):
         self.assertTrue(os.path.exists(os.path.join(ROOT, "docs", "architecture", "methods.json")))
-        self.assertTrue(os.path.exists(os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")))
+        self.assertTrue(os.path.exists(os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")))
 
     def test_a_runner_method_is_not_the_same_thing_as_a_dimension_of_the_same_name(self):
         """`WYCKOFF-BOOK` the mechanical rule family and `wyckoff` the Confluence dimension are homonyms in

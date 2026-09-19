@@ -3,7 +3,7 @@
 §14 asks for four properties: explicit, independently testable, versioned, explainable. Three held. Versioned
 did not, and the failure is specific: a setup's `id` encodes its parameters
 (`crypto-scalping-combined-15m-border-b`) but not a version, `scripts/rank-setups.py` rewrites
-`docs/architecture/pilot-top5.json` in place, and `trade-file.schema.json` records `strategy` as that id. So a
+`docs/architecture/pilot-top20.json` in place, and `trade-file.schema.json` records `strategy` as that id. So a
 rule change produces the SAME id with DIFFERENT behaviour, and every past trade filed under it silently
 re-points at rules it was never taken under.
 

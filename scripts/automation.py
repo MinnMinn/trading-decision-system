@@ -51,9 +51,9 @@ Subcommands
                                       resting orders are still managed.
   layer <scanner|local_read|pilot> <on|off>
   pilot <start|stop|status|adopt> [--market spot|futures] [--no-launchd]
-  pilot profile <legacy|top5>         which rule set the pilot loop runs (top5 = strategy-runner.py: selected setups, both venues)
+  pilot profile <legacy|top20>         which rule set the pilot loop runs (top20 = strategy-runner.py: selected setups, both venues)
   on|demo [setup top <N> | setup horizons]   default (no spec) = `setup horizons`: one setup per horizon (scalping/day/swing) per market,
-                                      ranked on the last 12 months; `setup top N` = N crypto + N CFD; both set the profile to top5
+                                      ranked on the last 12 months; `setup top N` = N crypto + N CFD; both set the profile to top20
   allows <scanner|local_read|pilot> [style]     exit 0 if permitted, 2 if not (for shell gates)
   allows master                       exit 0 only if the config exists AND `enabled` is true. Fails CLOSED on a
                                       missing or corrupt file, unlike the three layer forms above, which treat
@@ -911,10 +911,10 @@ def session_cron_block(on):
 
 # ---------- mutating subcommands ----------
 def apply_setup_spec(cfg, a):
-    """`setup top N` (user decision 2026-09-11): rank the last 365 days with scripts/rank-setups.py, write docs/architecture/pilot-top5.json
+    """`setup top N` (user decision 2026-09-11): rank the last 365 days with scripts/rank-setups.py, write docs/architecture/pilot-top20.json
     with N crypto + N CFD setups. Returns (rc, lines). `setup` absent -> no change."""
     spec = [x.lower() for x in (getattr(a, "setup", None) or [])]
-    sel = os.path.join(ROOT, "docs", "architecture", "pilot-top5.json"); out = os.path.join(ROOT, "docs", "backtests", "top-setups-latest.md")
+    sel = os.path.join(ROOT, "docs", "architecture", "pilot-top20.json"); out = os.path.join(ROOT, "docs", "backtests", "top-setups-latest.md")
     cfd_syms = ",".join(cfg["markets"]["cfd"]["instruments"] or ["XAUUSD"]); crypto_syms = ",".join(cfg["markets"]["crypto"]["instruments"] or MARKET_INSTRUMENTS["crypto"])
     if not spec:
         # user decision 2026-09-11 (night): plain `on`/`demo` runs scalping + day + swing for crypto AND CFD -- one setup per horizon per
@@ -1501,7 +1501,7 @@ def main():
     al = sub.add_parser("allows"); al.add_argument("layer", choices=LAYERS + ["master"])
     al.add_argument("style", nargs="?", default=None)
     p = audited(sub.add_parser("demo")); p.add_argument("setup", nargs="*", default=[]); p = audited(sub.add_parser("real")); p.add_argument("setup", nargs="*", default=[])
-    p = audited(sub.add_parser("on")); p.add_argument("setup", nargs="*", default=[], help="optional: `setup top N` = rank the last 12 months, select N crypto + N CFD setups, switch the pilot profile to top5, then bring everything up")
+    p = audited(sub.add_parser("on")); p.add_argument("setup", nargs="*", default=[], help="optional: `setup top N` = rank the last 12 months, select N crypto + N CFD setups, switch the pilot profile to top20, then bring everything up")
     audited(sub.add_parser("off"))
     p = audited(sub.add_parser("market"))
     p.add_argument("name", choices=MARKETS); p.add_argument("value", choices=["on", "off"])
@@ -1523,7 +1523,7 @@ def main():
     p = audited(sub.add_parser("pilot"))
     # `profile` was removed with the second engine (2026-09-13): one engine means a profile can only select
     # "the engine" or "nothing", and layers.pilot already expresses the second. Dropped from `choices` as well
-    # as from the handler -- leaving it accepted made `pilot profile top5` exit 0 and print the status block,
+    # as from the handler -- leaving it accepted made `pilot profile top20` exit 0 and print the status block,
     # so a user who typed it would believe they had changed something.
     p.add_argument("action", choices=["start", "stop", "status", "adopt"])
     p.add_argument("--market", choices=PILOT_MARKETS, default=None)

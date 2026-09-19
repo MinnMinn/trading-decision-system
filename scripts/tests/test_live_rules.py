@@ -441,7 +441,11 @@ class ScanOnlySkipsUnwantedWork(unittest.TestCase):
         spy.assert_called()
 
     def test_only_filters_unwanted_methods_out_of_the_trades_dict(self):
-        res = self.bt.scan("BTCUSDT", "4H", only=("COMBINED-BOOK",))
+        # XAGUSD 1H, not BTCUSDT 4H: under the causal window-by-window Wyckoff read (2026-09-19, bt.wyckoff_fires)
+        # COMBINED-BOOK's spring-leg structures almost never fire on the bar they are identified, and a hunt over
+        # every non-15m history found exactly one causal COMBINED-BOOK trade -- this one. BTCUSDT 4H's single
+        # trade was one the runner could never have placed.
+        res = self.bt.scan("XAGUSD", "1H", only=("COMBINED-BOOK",))
         self.assertTrue(set(res["trades"].keys()) <= {"COMBINED-BOOK"}, res["trades"].keys())
         self.assertGreater(len(res["trades"]["COMBINED-BOOK"]), 0, "fixture must exercise a real COMBINED-BOOK trade")
 

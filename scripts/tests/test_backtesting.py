@@ -136,23 +136,23 @@ class TheRealEngineIsPointInTime(unittest.TestCase):
         if not cls.series:
             raise unittest.SkipTest("no BTCUSDT 15m history on this machine")
 
-    def _run_for(self, method):
+    def _run_for(self, method, sym="BTCUSDT", tf="15m"):
         bt = self.bt
 
         def run(candles):
             real = bt.load
             bt.load = lambda s, t, _c=candles: (_c, "injected")
             try:
-                sc = bt.scan("BTCUSDT", "15m", only=(method,))
+                sc = bt.scan(sym, tf, only=(method,))
                 return list(sc["trades"][method]) if sc else []
             finally:
                 bt.load = real
         return run
 
-    def _probe(self, method, bars, min_checked=1):
-        series = self.series[-bars:]
+    def _probe(self, method, bars, min_checked=1, sym="BTCUSDT", tf="15m", series=None):
+        series = (self.series if series is None else series)[-bars:]
         cut = int(len(series) * 0.7)
-        rep = leakage.probe(self._run_for(method), series, cut, key=_key,
+        rep = leakage.probe(self._run_for(method, sym, tf), series, cut, key=_key,
                             decision_fields=DECISION_FIELDS)
         self.assertGreaterEqual(rep["checked"], min_checked,
                                 f"{method}: the probe examined {rep['checked']} decisions -- a probe with "
@@ -178,7 +178,15 @@ class TheRealEngineIsPointInTime(unittest.TestCase):
         self._probe("WYCKOFF-BOOK", 20000, min_checked=1)
 
     def test_combined_book_entries_do_not_read_the_future(self):
-        self._probe("COMBINED-BOOK", 20000, min_checked=1)
+        """Fixture moved off BTCUSDT 15m (2026-09-19): under the causal window-by-window Wyckoff read
+        (bt.wyckoff_fires) COMBINED-BOOK's spring-leg structures almost never fire on the bar they are
+        identified, and a hunt over every non-15m history found exactly ONE causal COMBINED-BOOK trade -- XAGUSD
+        1H, entered 2018-04-05T13:00Z, ~50 000 bars from the end. A 4 000-bar slice around it keeps the probe's
+        5 engine runs at seconds, with the entry well before the 70 % cut and the 300-bar window before it intact."""
+        full, _src = self.bt.load("XAGUSD", "1H")
+        if not full or len(full) < 52500:
+            raise unittest.SkipTest("no XAGUSD 1H history on this machine")
+        self._probe("COMBINED-BOOK", 4000, min_checked=1, sym="XAGUSD", tf="1H", series=full[-52500:-48500])
 
     def test_the_pivot_helper_is_causal_by_construction(self):
         """`last_pivot` is the one place a 3-bar pivot could leak: a pivot at i is only confirmed at i+3."""

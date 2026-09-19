@@ -326,7 +326,7 @@ class WiredIntoTheLivePath(unittest.TestCase):
     def test_every_real_pilot_setup_row_resolves_to_a_trading_system(self):
         """Regression: pilot rows spell timeframes `1H`/`4H` and automation.STYLE spells them `1h`/`4h`, so
         the first wiring left three of six setups with no governing system."""
-        rows = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")))["setups"]
+        rows = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")))["setups"]
         self.assertTrue(rows)
         for row in rows:
             sysd = TS.for_setup(row)

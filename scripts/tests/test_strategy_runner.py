@@ -92,6 +92,57 @@ class ParityWithBacktest(unittest.TestCase):
                         f"neither engine produced anything in the replay span: {rep}")
 
 
+class TheBacktestSeesOnlyWhatTheRunnerSaw(unittest.TestCase):
+    """bt.scan()'s Wyckoff branch reads the history window by window through bt.wyckoff_fires -- the runner's own
+    read -- since 2026-09-19. Before that it detected over the whole series at once, and wyckoff_rules' CHoCH
+    stage can complete a structure with a swing that forms AFTER its Phase D entry bar (XAGUSD 4H, entry
+    2026-07-20T05:00Z: the structure exists on no causal prefix until five bars after that entry). The backtest
+    took that entry; the runner could not have -- replay() reported it as the first Wyckoff parity mismatch.
+    Measured cost of the fix, WYCKOFF-BOOK trades old -> causal: XAGUSD 4H 41 -> 31, XAUUSD 4H 50 -> 46,
+    BTCUSDT 15m 115 -> 89, ETHUSDT 1H 41 -> 34; almost every spring-leg entry went (its reclaim/test bar is
+    only identified later), the Phase D legs mostly stayed."""
+
+    HIST = os.path.join(ROOT, "data", "history", "ohlcv.XAGUSD.4H.json")
+
+    def setUp(self):
+        bt.OPTS.update(htf=False, sides=("long", "short"), types=(1, 2, 3), entry="book")
+
+    def test_one_window_for_both_engines(self):
+        """The runner's WINDOW is bt's number, not a second literal that can drift from it."""
+        self.assertEqual(sr.WINDOW, bt.WYCKOFF_WINDOW)
+        self.assertIn("WINDOW = bt.WYCKOFF_WINDOW", open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read())
+
+    @unittest.skipUnless(os.path.exists(HIST), "history not fetched")
+    def test_every_backtest_wyckoff_trade_is_the_runners_read_at_its_own_entry_bar(self):
+        """Parity by construction, checked on real bars: for each WYCKOFF-BOOK trade the backtest reports in the
+        last 3000 bars, the runner's setups_wyckoff() on the WINDOW bars ending at that trade's entry bar fires
+        the identical entry/stop/target."""
+        c = json.load(open(self.HIST))["candles"]; idx = {b["time"]: i for i, b in enumerate(c)}
+        sc = bt.scan("XAGUSD", "4H", only=("WYCKOFF-BOOK",))
+        trades = [t for t in sc["trades"]["WYCKOFF-BOOK"] if t["entry_time"] >= c[-3000]["time"]]
+        self.assertTrue(trades, "no WYCKOFF-BOOK trade in the last 3000 bars to check against")
+        for t in trades:
+            e = idx[t["entry_time"]]
+            fires = sr.setups_wyckoff("WYCKOFF-BOOK", t["side"], c[e + 1 - sr.WINDOW:e + 1], "4H", sym="XAGUSD")
+            hit = [f for f in fires if abs(f["entry"] - t["entry"]) < 1e-9 and abs(f["stop"] - t["stop"]) < 1e-9 and abs(f["target"] - t["target"]) < 1e-9]
+            self.assertEqual(len(hit), 1, f"{t['event']} entered {t['entry_time']}: the runner's read at that bar gives {fires}")
+
+    @unittest.skipUnless(os.path.exists(HIST), "history not fetched")
+    def test_the_entry_that_needed_future_bars_is_gone(self):
+        """The case that found it, pinned so a whole-series shortcut cannot creep back into scan(). The second
+        half states the reason on the detector itself; if wyckoff_rules is ever made causal at the CHoCH stage
+        that half will start failing, and then it should simply be deleted -- the first half is the invariant."""
+        c = json.load(open(self.HIST))["candles"]
+        sc = bt.scan("XAGUSD", "4H", only=("WYCKOFF-BOOK",))
+        self.assertNotIn("2026-07-20T05:00:00Z", [t["entry_time"] for t in sc["trades"]["WYCKOFF-BOOK"]])
+        e = [b["time"] for b in c].index("2026-07-20T05:00:00Z")
+        def found(prefix):
+            O = [x["open"] for x in prefix]; H = [x["high"] for x in prefix]; L = [x["low"] for x in prefix]; C = [x["close"] for x in prefix]; V = [x.get("volume", 0) for x in prefix]
+            return any(r.get("bu") and r["bu"]["bar"] == e for r in sr.W.detect_distributions(O, H, L, C, V, volume_kind="tick"))
+        self.assertFalse(found(c[:e + 1]), "the structure is visible on the causal prefix -- the detector changed; delete this half")
+        self.assertTrue(found(c[:e + 6]), "the structure no longer appears five bars later either -- the detector changed; delete this half")
+
+
 def _load_git_revision(ref, name):
     """Loads scripts/`name` as it existed at git ref `ref`, with __file__ pinned to the file's CURRENT path so
     ROOT-relative reads inside the module resolve against the real repo. Used to derive a "before" expectation
@@ -116,7 +167,10 @@ class IctParityAchieved(unittest.TestCase):
     need rewriting once the migration landed -- this is that rewrite; it must stay green from here on, not just
     once."""
 
-    WINDOW = 3000
+    # 6000, not 3000 (2026-09-19): after the fill fix ICT fires 6 times in the last 30 000 BTCUSDT 15m bars, the
+    # nearest 2 919 and 5 036 bars from the end, and the live scanner needs its 576-bar window before either --
+    # so 3000 bars held zero trades and the parity test proved agreement on nothing. 6000 holds two.
+    WINDOW = 6000
 
     def setUp(self):
         self.full = json.load(open(os.path.join(ROOT, "data", "history", "ohlcv.BTCUSDT.15m.json")))["candles"][-self.WINDOW:]
@@ -199,10 +253,17 @@ class IctParityAchieved(unittest.TestCase):
             for sig in sr.setups("ICT", side, self.full, "15m", sym="BTCUSDT"):
                 self.assertGreaterEqual(sig["bars_left"], 0)
 
-    def test_pilot_selection_still_contains_ict_setups(self):
-        """The reason parity matters: these are the setups that would trade if the locks were lifted."""
-        setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")))["setups"]
-        self.assertTrue([s for s in setups if s.get("method") == "ICT"])
+    def test_ict_is_still_selectable_and_every_selected_method_is_runnable(self):
+        """The reason parity matters: these are the setups that would trade if the locks were lifted. This used
+        to assert that the selection CONTAINS an ICT setup -- a pin on a ranking outcome, and it went false for
+        a measured reason, not a code one: after the 2026-09-19 fill fix ICT places 2-4 trades a year against
+        the 1y window's 20-trade threshold (docs/audits/2026-09-19-knowledge-fidelity.md §8-§9). The invariant
+        worth keeping is that ICT remains a RUNNABLE, selectable method, and that nothing the ranking selects
+        is a method the runner cannot run."""
+        self.assertIn("ICT", sr.mreg.runnable())
+        setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")))["setups"]
+        for st in setups:
+            self.assertIn(st.get("method"), sr.mreg.runnable(), st.get("id"))
 
 
 class HtfGateFailsClosed(unittest.TestCase):
@@ -280,7 +341,7 @@ class HtfGateFailsClosed(unittest.TestCase):
         crypto-scalping-wyckoff-5m-border-c was exactly that (WYCKOFF, 5m, htf:true, HTF_OF["5m"] == "30m",
         which automation.SCAN_WINDOW has no entry for). The 2026-09-13 re-rank onto live-scannable timeframes
         removed it. This asserts the selection cannot reacquire one -- it is the invariant, not that one id."""
-        setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")))["setups"]
+        setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")))["setups"]
         doomed = [s["id"] for s in setups
                   if s.get("htf") and sr.ict_scan_bars(sr.HTF_OF.get(s["tf"])) is None]
         self.assertEqual(doomed, [],
@@ -1489,7 +1550,7 @@ class PerAccountScope(unittest.TestCase):
     """One process, one customer account: its own state, logs, candle cache and kill switch.
 
     docs/plans/2026-09-19-multi-account.md §0.3 item 2. Before this, `STOP` was one file for every venue and
-    every account, so one customer breaching a drawdown limit halted everybody, and `top5-state.json` was one
+    every account, so one customer breaching a drawdown limit halted everybody, and `top20-state.json` was one
     file written with a bare `open(..., "w")`, so two processes would have silently overwritten each other's
     positions. Scoping the paths is what makes one process per account safe to run at all.
     """

@@ -218,7 +218,7 @@
         "pilot_futures",
         "pilot_mt5"
       ],
-      "description": "who produced the record: /analyze pipeline, the rules-only demo pilot, a hand entry, or the profile-top5 CFD leg (real orders on the MT5 DEMO account through integrations/mt5/OrderBridge.mq5)"
+      "description": "who produced the record: /analyze pipeline, the rules-only demo pilot, a hand entry, or the profile-top20 CFD leg (real orders on the MT5 DEMO account through integrations/mt5/OrderBridge.mq5)"
     },
     "timeframe": {
       "type": "string",
@@ -301,11 +301,11 @@
     "strategy": {
       "type": "string",
       "pattern": "^[a-z0-9-]+$",
-      "description": "profile-top5 pilot only (scripts/strategy-runner.py): which mechanical rule produced the trade; absent for every other source"
+      "description": "profile-top20 pilot only (scripts/strategy-runner.py): which mechanical rule produced the trade; absent for every other source"
     },
     "htf_pass": {
       "type": "boolean",
-      "description": "profile-top5 pilot only: whether the 2H boundary filter (backtest config C) allowed the direction at signal time; logged either way so B vs C can be compared from the journal"
+      "description": "profile-top20 pilot only: whether the 2H boundary filter (backtest config C) allowed the direction at signal time; logged either way so B vs C can be compared from the journal"
     },
     "screenshots": {
       "type": "array",
@@ -497,7 +497,7 @@
         "null"
       ],
       "pattern": "^[0-9a-f]{12}$",
-      "description": "CLAUDE.md §14: the rule version of the setup that produced this trade (scripts/setup_version.py). `strategy` is the setup's NAME and is reused across rule changes -- rank-setups.py rewrites pilot-top5.json in place -- so the name alone cannot tie a closed trade to the rules it was taken under. Null for trades predating 2026-09-18 and for any path that did not record one."
+      "description": "CLAUDE.md §14: the rule version of the setup that produced this trade (scripts/setup_version.py). `strategy` is the setup's NAME and is reused across rule changes -- rank-setups.py rewrites pilot-top20.json in place -- so the name alone cannot tie a closed trade to the rules it was taken under. Null for trades predating 2026-09-18 and for any path that did not record one."
     },
     "expectations": {
       "type": "array",

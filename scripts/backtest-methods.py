@@ -586,6 +586,108 @@ RUNNER_METHODS = ("WYCKOFF-BOOK", "ICT", "COMBINED-BOOK")
 # WYCKOFF-BOOK (scripts/wyckoff_rules.py) is the only Wyckoff engine left in this file.
 
 
+_WY_CANDIDATES = {}    # scan()'s per-process cache of _wyckoff_candidates, keyed by history identity (see scan)
+WYCKOFF_WINDOW = 300   # bars one live WYCKOFF-BOOK read sees. ONE number for both engines: strategy-runner.WINDOW
+                       # and replay() read it, and scan() walks the history in windows of exactly this size, so a
+                       # structure the runner could not see (older than its window) is not a backtest trade either.
+
+
+def wyckoff_fires(side, candles, tf, sym=None):
+    """WYCKOFF-BOOK entries that fire on the LAST bar of `candles` -- THE live read. strategy-runner.setups_wyckoff()
+    delegates here, and scan() calls it window by window, so the backtest and the runner ask wyckoff_rules the
+    same question about the same bars (CLAUDE.md §37), the way ict_setups_live() already does for ICT.
+
+    Why a per-window read and not one detection over the whole history (the shape scan()'s Wyckoff branch had
+    until 2026-09-19): wyckoff_rules dates a swing at its pivot bar, but a k-bar pivot is only KNOWN k bars
+    later, and the CHoCH stage consumes swing pairs up to one swing beyond the pair it is judging
+    (`while j + 2 < len(sw)`). Run over the full series, the detector reported structures whose CHoCH was
+    completed by a swing that formed AFTER the SOS and after the Phase D entry bar -- and scan() took the entry.
+    XAGUSD 4H, entry 2026-07-20T05:00Z: the structure exists on no causal prefix until five bars after that
+    entry. The parity harness (strategy-runner replay()) caught it because the runner never placed it -- it could
+    not have. That is §8 look-ahead, and the fix is structural rather than a patch to that one stage: the
+    backtest now sees exactly what the runner sees, and any later stage of the detector that leans on later bars
+    is causal here by construction. Cost: ~0.5 ms per window, ~50 s over 105 000 15m bars (measured 2026-09-19).
+
+    Returns one dict per firing: leg ("spring" | "phase_d"), t0 (the structure's Spring/SOS time -- the runner's
+    signal key, "-D" appended by the caller for Phase D), entry (last close), stop, target, and `rec` (the
+    wyckoff_rules record, indexes local to `candles`)."""
+    O = [x["open"] for x in candles]; H = [x["high"] for x in candles]; L = [x["low"] for x in candles]
+    C = [x["close"] for x in candles]; V = [x.get("volume", 0) for x in candles]; Tm = [x["time"] for x in candles]
+    return _fires_from(side, _wyckoff_candidates(side, O, H, L, C, V, tf, sym), C, Tm)
+
+
+def _wyckoff_candidates(side, O, H, L, C, V, tf, sym):
+    """The wyckoff_rules records of this window that COULD fire on its last bar (a reclaim, test or BU sitting on
+    it) -- everything OPTS-independent, so scan() can cache it per window and re-run the gates cheaply for each
+    config (stability-report's A/B/C, improve-loop's candidates) instead of re-detecting 100 000 windows apiece."""
+    W.PARAMS["spring_max_bars_outside"] = P[tf]["sob"]
+    last = len(C) - 1
+    vkind = "tick" if (sym and _I.is_tick_volume(sym)) else "traded"   # wyckoff_rules R0 / WMT p131-133
+    recs = W.detect_accumulations(O, H, L, C, V, volume_kind=vkind) if side == "long" else W.detect_distributions(O, H, L, C, V, volume_kind=vkind)
+    return [r for r in recs if (r["bu"] and r["bu"]["bar"] == last) or r["reclaim"] == last or r["test"] == last]
+
+
+def _fires_from(side, recs, C, Tm):
+    """The OPTS-dependent half of the read: gates, leg choice, stop/target, placeability -- on the last bar."""
+    last = len(C) - 1; out = []
+    for r in recs:
+        # --- đối nhãn (WA p150-165), wyckoff_rules R3/R3b. BOTH signs are RECORDED on every structure and
+        # NEITHER gates by default, and that symmetry is the point.
+        # Dấu hiệu 1 defaulted ON for part of 2026-09-19 on the strength of WA p150 ("Nếu ST ở 1/3 phần dưới
+        # Trading Range ... dấu hiệu để nhận dạng sớm tái phân phối hoặc phân phối") and was turned back off
+        # the same day, for the same reason the sloped gate was: the book states a SIGN for early
+        # identification, and "therefore refuse the trade" is an inference on top of it. The section these
+        # come from is titled "những thử nghiệm trong các Phase" -- tests for judging a structure WHILE IT IS
+        # FORMING -- and it closes by saying outright that "trong diễn biến thực tế của thị trường, chúng ta
+        # không thể thực sự biết đó là tích lũy hay phân phối" (WA p167). A veto the source does not state is a
+        # project rule, and a project rule wearing the book's authority is what the 2026-09-19 knowledge audit
+        # exists to remove. What IS the book's: the thirds themselves (WA p150), which is why the signs use
+        # 1/3 and 2/3 and not the half this code used before. Whether to gate on them is a §41 hypothesis with
+        # a measurable answer -- run it with --st-gate and compare, rather than assuming.
+        # Measured cost of defaulting Dấu hiệu 1 on, BTCUSDT: 4H WYCKOFF-BOOK 11 -> 9 structures and
+        # COMBINED-BOOK 1 -> 0; 15m (20 000 bars) WYCKOFF-BOOK 6 -> 5.
+        if OPTS["st_gate"] and r.get("st_sign") == "contradicts":
+            continue
+        if OPTS["phase_b_gate"] and r.get("phase_b_sign") == "contradicts":
+            continue
+        # sloped_gate stays OFF by default, and that is a reading of the book, not an omission. It was flipped
+        # ON on 2026-09-19 on the strength of WA p170 ("Tôi không khuyến khích mọi người giao dịch với những
+        # mẫu hình dốc như thế này") and flipped back the same day when the cost was measured. Three reasons,
+        # in order of weight:
+        #   1. The book TEACHES the four sloped variants over fifteen pages (WA p167-181) with their own
+        #      entries (Spring[C], UTAD[C], LPSY[C]/[D]) and closes with "tất cả đều là biến thể của cấu trúc
+        #      nằm ngang" (WA p180-181). A rule that discards them discards the book's own material.
+        #   2. The discouragement is SCOPED. This repo's own extraction reads it as WA2-42: "IF you are a
+        #      first-time Wyckoff operator, THEN use only horizontal schematics" (knowledge/wyckoff/advance.md:1113).
+        #   3. The threshold is ours, not the book's. `slope_max_tr = 0.35` is a PROJECT parameter and the book
+        #      says in the same breath that there is "không có một quy chuẩn nào về độ dốc" (WA p170). Gating
+        #      by default on a number the source says does not exist is precisely the unlabelled-invention
+        #      this week's audit exists to remove.
+        # Measured cost of defaulting it on, BTCUSDT 15m, last 20 000 bars: WYCKOFF-BOOK 23 -> 5 structures
+        # (-78 %) and COMBINED-BOOK 1 -> 0.
+        if OPTS["sloped_gate"] and r["sloped"]:
+            continue
+        if OPTS["st_min"] is not None and r["st_pct"] < OPTS["st_min"]:
+            continue
+        tr = r["tr_hi"] - r["tr_lo"]; t0 = Tm[r["spring"] if r["spring"] is not None else r["sos"]]
+        if r["path"] == "spring" and not r["shakeout"] and not r["abandon"] and not r["sot_too_strong"] and r["vol_type"] in OPTS["types"]:
+            rec = r["reclaim"]; vt = r["vol_type"]; rr = r["rec_ratio"]
+            w_bar = rec if (OPTS["entry"] == "book" and (vt == 1 or (vt == 3 and rr is not None and rr >= VOL["high_min_ratio"]))) else r["test"]
+            # Only the last bar can be an entry -- earlier bars were earlier reads (the runner's rule, now the
+            # backtest's too). An entry whose close already sits beyond its stop or target is not placeable.
+            if w_bar == last:
+                stop = r["spring_low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["spring_low"] * (1 + STOP_BUFFER_PCT)
+                target = r["tr_hi"] if side == "long" else r["tr_lo"]
+                if (side == "long" and target > C[last] > stop) or (side == "short" and target < C[last] < stop):
+                    out.append(dict(leg="spring", t0=t0, entry=C[last], stop=stop, target=target, rec=r))
+        if OPTS["phase_d"] and r["bu"] and r["bu"]["bar"] == last:
+            stop = r["bu"]["low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["bu"]["low"] * (1 + STOP_BUFFER_PCT)
+            target = r["tr_hi"] + W.PARAMS["d_target_tr"] * tr if side == "long" else r["tr_lo"] - W.PARAMS["d_target_tr"] * tr
+            if (side == "long" and target > C[last] > stop) or (side == "short" and target < C[last] < stop):
+                out.append(dict(leg="phase_d", t0=t0, entry=C[last], stop=stop, target=target, rec=r))
+    return out
+
+
 def scan(sym, tf, only=None):
     """`only`: which of RUNNER_METHODS to compute; None (default) computes all three. A caller that needs exactly
     one method's trades should pass e.g. only=("ICT",) so scan() SKIPS the other methods' work rather than
@@ -605,87 +707,59 @@ def scan(sym, tf, only=None):
     htf = htf_position(sym, tf) if OPTS["htf"] else None
     # ---------- WYCKOFF-BOOK / COMBINED-BOOK (scripts/wyckoff_rules.py: CHoCH gate, TR from SC/AR, Phase B, Spring vs Shakeout, VP veto, Test, Phase D) ----------
     if want & {"WYCKOFF-BOOK", "COMBINED-BOOK"}:
-        W.PARAMS["spring_max_bars_outside"] = p["sob"]
-        O = [x["open"] for x in c]
-        vkind = "tick" if _I.is_tick_volume(sym) else "traded"   # wyckoff_rules R0 / WMT p131-133
-        for side, recs in (("long", W.detect_accumulations(O, H, L, C, V, volume_kind=vkind)), ("short", W.detect_distributions(O, H, L, C, V, volume_kind=vkind))):
-            if side not in OPTS["sides"]:
-                continue
-            for r in recs:
-                t0 = Tm[r["spring"] if r["spring"] is not None else r["sos"]]
-                if htf is not None and not htf_allows(htf, t0, side):
+        # Window by window, exactly the live read -- wyckoff_fires() says why. A structure fires once per leg, at
+        # the one bar the runner would have entered on; later windows re-find the same structure under the same
+        # t0 and are dropped here, as replay() drops them.
+        seen = set(); WIN = WYCKOFF_WINDOW
+        # Detection is the cost (~0.5 ms/window) and does not depend on OPTS; the gates do. So the per-window
+        # candidates are computed once per history in this process and every config re-runs only the gates.
+        ck = (sym, tf, n, Tm[0], Tm[-1])
+        if ck not in _WY_CANDIDATES:
+            _WY_CANDIDATES[ck] = {(side, k): _wyckoff_candidates(side, O[k - WIN:k], H[k - WIN:k], L[k - WIN:k], C[k - WIN:k], V[k - WIN:k], tf, sym)
+                                  for k in range(WIN, n + 1) for side in ("long", "short")}
+        cands = _WY_CANDIDATES[ck]
+        for k in range(WIN, n + 1):
+            last = k - 1; a = k - WIN
+            for side in OPTS["sides"]:
+                cs = cands[(side, k)]
+                if not cs:
                     continue
-                # --- đối nhãn (WA p150-165), wyckoff_rules R3/R3b. BOTH signs are RECORDED on every
-                # structure and NEITHER gates by default, and that symmetry is the point.
-                # Dấu hiệu 1 defaulted ON for part of 2026-09-19 on the strength of WA p150 ("Nếu ST ở 1/3
-                # phần dưới Trading Range ... dấu hiệu để nhận dạng sớm tái phân phối hoặc phân phối") and was
-                # turned back off the same day, for the same reason the sloped gate was: the book states a
-                # SIGN for early identification, and "therefore refuse the trade" is an inference on top of it.
-                # The section these come from is titled "những thử nghiệm trong các Phase" -- tests for judging
-                # a structure WHILE IT IS FORMING -- and it closes by saying outright that "trong diễn biến
-                # thực tế của thị trường, chúng ta không thể thực sự biết đó là tích lũy hay phân phối"
-                # (WA p167). A veto the source does not state is a project rule, and a project rule wearing
-                # the book's authority is what the 2026-09-19 knowledge audit exists to remove.
-                # What IS the book's: the thirds themselves (WA p150), which is why the signs use 1/3 and 2/3
-                # and not the half this code used before. Whether to gate on them is a §41 hypothesis with a
-                # measurable answer -- run it with --no-st-gate off and compare, rather than assuming.
-                # Measured cost of defaulting Dấu hiệu 1 on, BTCUSDT: 4H WYCKOFF-BOOK 11 -> 9 structures and
-                # COMBINED-BOOK 1 -> 0; 15m (20 000 bars) WYCKOFF-BOOK 6 -> 5.
-                if OPTS["st_gate"] and r.get("st_sign") == "contradicts":
-                    continue
-                if OPTS["phase_b_gate"] and r.get("phase_b_sign") == "contradicts":
-                    continue
-                # sloped_gate stays OFF by default, and that is a reading of the book, not an omission.
-                # It was flipped ON on 2026-09-19 on the strength of WA p170 ("Tôi không khuyến khích mọi
-                # người giao dịch với những mẫu hình dốc như thế này") and flipped back the same day when the
-                # cost was measured. Three reasons, in order of weight:
-                #   1. The book TEACHES the four sloped variants over fifteen pages (WA p167-181) with their
-                #      own entries (Spring[C], UTAD[C], LPSY[C]/[D]) and closes with "tất cả đều là biến thể
-                #      của cấu trúc nằm ngang" (WA p180-181). A rule that discards them discards the book's
-                #      own material.
-                #   2. The discouragement is SCOPED. This repo's own extraction reads it as WA2-42: "IF you
-                #      are a first-time Wyckoff operator, THEN use only horizontal schematics"
-                #      (knowledge/wyckoff/advance.md:1113).
-                #   3. The threshold is ours, not the book's. `slope_max_tr = 0.35` is a PROJECT parameter and
-                #      the book says in the same breath that there is "không có một quy chuẩn nào về độ dốc"
-                #      (WA p170). Gating by default on a number the source says does not exist is precisely
-                #      the unlabelled-invention this week's audit exists to remove.
-                # Measured cost of defaulting it on, BTCUSDT 15m, last 20 000 bars:
-                # WYCKOFF-BOOK 23 -> 5 structures (-78 %) and COMBINED-BOOK 1 -> 0.
-                if OPTS["sloped_gate"] and r["sloped"]:
-                    continue
-                if OPTS["st_min"] is not None and r["st_pct"] < OPTS["st_min"]:
-                    continue
-                tr = r["tr_hi"] - r["tr_lo"]
-                base = dict(symbol=sym, tf=tf, side=side, time=t0, event=f"{sym}-{side}-book-{t0}", support=r["tr_lo"], resistance=r["tr_hi"], vol_type=r["vol_type"], vol_ratio=r["vol_ratio"],
-                            volume_kind=r["volume_kind"], st_sign=r["st_sign"], phase_b_sign=r["phase_b_sign"],
-                            st_pct=r["st_pct"], sot=r["sot"], path=r["path"])
-                if r["path"] == "spring" and not r["shakeout"] and not r["abandon"] and not r["sot_too_strong"] and r["vol_type"] in OPTS["types"]:
-                    rec = r["reclaim"]; vt = r["vol_type"]; rr = r["rec_ratio"]
-                    stop = r["spring_low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["spring_low"] * (1 + STOP_BUFFER_PCT)
-                    target = r["tr_hi"] if side == "long" else r["tr_lo"]
-                    if "WYCKOFF-BOOK" in want:
-                        w_bar = rec if (OPTS["entry"] == "book" and (vt == 1 or (vt == 3 and rr is not None and rr >= VOL["high_min_ratio"]))) else r["test"]
-                        if w_bar is not None:
-                            w = walk(side, C[w_bar], stop, target, H, L, C, w_bar + 1, HZ)
+                for f in _fires_from(side, cs, C[a:k], Tm[a:k]):
+                    key = (side, f["t0"], f["leg"])
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    r = f["rec"]; t0 = f["t0"]
+                    if htf is not None and not htf_allows(htf, t0, side):
+                        continue
+                    base = dict(symbol=sym, tf=tf, side=side, time=t0, event=f"{sym}-{side}-book-{t0}", support=r["tr_lo"], resistance=r["tr_hi"], vol_type=r["vol_type"], vol_ratio=r["vol_ratio"],
+                                volume_kind=r["volume_kind"], st_sign=r["st_sign"], phase_b_sign=r["phase_b_sign"],
+                                st_pct=r["st_pct"], sot=r["sot"], path=r["path"])
+                    if f["leg"] == "phase_d":
+                        if "WYCKOFF-BOOK" in want:
+                            w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ)
                             if w:
-                                trades["WYCKOFF-BOOK"].append(dict(base, entry=C[w_bar], entry_time=Tm[w_bar], stop=stop, target=target, exit_time=Tm[w["exit"]], leg="spring", **w))
-                    if "COMBINED-BOOK" in want and rec is not None:
-                        ict = find_ict(side, r["spring"], rec, H, L, C, K, n, PH, PL, O)
+                                trades["WYCKOFF-BOOK"].append(dict(base, event=base["event"] + "-D", entry=f["entry"], entry_time=Tm[last], stop=f["stop"], target=f["target"], exit_time=Tm[w["exit"]], leg="phase_d", **w))
+                        continue
+                    if "WYCKOFF-BOOK" in want:
+                        w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ)
+                        if w:
+                            trades["WYCKOFF-BOOK"].append(dict(base, entry=f["entry"], entry_time=Tm[last], stop=f["stop"], target=f["target"], exit_time=Tm[w["exit"]], leg="spring", **w))
+                    if "COMBINED-BOOK" in want and r["reclaim"] is not None:
+                        # Window-local structure indexes -> history indexes for the ICT leg, which walks FORWARD
+                        # from the reclaim on the full arrays (an MSS/FVG that forms later is later information,
+                        # used later). The structure is only KNOWN at `last`, its fire bar: an ICT entry the leg
+                        # finds before that bar would be taken on a structure nobody had yet identified.
+                        ict = find_ict(side, a + r["spring"], a + r["reclaim"], H, L, C, K, n, PH, PL, O)
                         if ict:
                             mss, edge, far = ict
-                            fill = fvg_fill(side, mss, edge, far, stop, H, L, K, n)
+                            fill = fvg_fill(side, mss, edge, far, f["stop"], H, L, K, n)
                             e_bar, e_px = (fill, edge) if fill is not None else (mss, C[mss])
-                            cw = walk(side, e_px, stop, target, H, L, C, e_bar + 1, HZ)
+                            if e_bar < last:
+                                continue
+                            cw = walk(side, e_px, f["stop"], f["target"], H, L, C, e_bar + 1, HZ)
                             if cw:
-                                trades["COMBINED-BOOK"].append(dict(base, entry=e_px, entry_time=Tm[e_bar], stop=stop, target=target, exit_time=Tm[cw["exit"]], via="fvg" if fill is not None else "mss", **cw))
-                if "WYCKOFF-BOOK" in want and OPTS["phase_d"] and r["bu"]:
-                    b = r["bu"]["bar"]
-                    stop = r["bu"]["low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["bu"]["low"] * (1 + STOP_BUFFER_PCT)
-                    target = r["tr_hi"] + W.PARAMS["d_target_tr"] * tr if side == "long" else r["tr_lo"] - W.PARAMS["d_target_tr"] * tr
-                    w = walk(side, C[b], stop, target, H, L, C, b + 1, HZ)
-                    if w:
-                        trades["WYCKOFF-BOOK"].append(dict(base, event=base["event"] + "-D", entry=C[b], entry_time=Tm[b], stop=stop, target=target, exit_time=Tm[w["exit"]], leg="phase_d", **w))
+                                trades["COMBINED-BOOK"].append(dict(base, entry=e_px, entry_time=Tm[e_bar], stop=f["stop"], target=f["target"], exit_time=Tm[cw["exit"]], via="fvg" if fill is not None else "mss", **cw))
     # ---------- ICT only ----------
     # The LIVE scanner (scripts/ict-scan.py + scripts/htf_context.py, via scripts/live_rules.py) decides every
     # structure -- pivot, sweep, MSS, FVG, dealing range, bias -- so the backtest measures the system actually
@@ -901,7 +975,7 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
         # the floor once the venue's own fee is charged. A backtest that admits 5 % of trades its own live
         # system would decline is not measuring that system.
         #
-        # RESEARCH-SEMANTICS CHANGE (§59): every stability report and every `pilot-top5.json` backtest block
+        # RESEARCH-SEMANTICS CHANGE (§59): every stability report and every `pilot-top20.json` backtest block
         # produced before this date was computed under the gross convention and is NOT comparable to a run
         # after it. They are deliberately not regenerated here -- see SYSTEM-DESIGN.md §45.
         dist = abs(t["entry"] - t["stop"]) / t["entry"]

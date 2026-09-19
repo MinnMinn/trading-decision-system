@@ -281,3 +281,32 @@ của scanner.** Ba bản ghi §42 niêm phong dưới `docs/experiments/`, `dec
 **Bảng xếp hạng sau khi sửa target (−2σ)**: vẫn **một** dòng, CFD swing WYCKOFF-BOOK 4H, n = 5. ICT có kỳ vọng
 dương trên 20 lệnh nhưng **quá thưa** để qua ngưỡng chọn theo cửa sổ 1 năm (scalping cần 20 lệnh/năm). Vấn
 đề của ICT hôm nay không còn là "sai" — là **hiếm**.
+
+## 10. Cuối ngày: backtest Wyckoff **nhìn thấy tương lai** — tìm ra nhờ phép kiểm chẵn-lẻ, sửa bằng cấu trúc
+
+Sau khi hạ sàn R:R xuống 2, phép kiểm chẵn-lẻ runner ↔ backtest (`strategy-runner replay()`) báo lệch **lần
+đầu tiên trên Wyckoff**: XAGUSD 4H, backtest vào lệnh Phase D lúc `2026-07-20T05:00Z`, runner không đặt. Không
+phải do sàn R:R (lệch y hệt ở 3R), không phải do cửa sổ (1 500 nến vẫn không thấy). Nguyên nhân nằm trong
+`wyckoff_rules`: đỉnh/đáy được ghi tại nến pivot nhưng chỉ *biết* sau k nến; tầng CHoCH lại tiêu thụ cặp swing
+tới **một swing sau** cặp đang xét (`while j + 2 < len(sw)`). Chạy trên toàn chuỗi, detector báo một cấu trúc mà
+CHoCH của nó được hoàn tất bởi một swing hình thành **sau** SOS và sau nến vào lệnh — và backtest vào lệnh đó.
+Trên mọi tiền tố nhân quả kết thúc tại nến vào lệnh, cấu trúc **không tồn tại**; nó chỉ xuất hiện 5 nến sau.
+Đó là look-ahead §8, và §38 buộc phải vô hiệu hoá mọi con số Wyckoff trước hôm nay.
+
+Sửa bằng cấu trúc, không vá tầng đó: `bt.scan()` giờ đọc lịch sử **từng cửa sổ 300 nến** qua
+`bt.wyckoff_fires()` — chính hàm mà `strategy-runner.setups_wyckoff()` uỷ quyền — nên backtest thấy đúng những
+gì runner thấy, và bất kỳ tầng nào của detector dựa vào nến sau cũng nhân quả **theo xây dựng** (cùng hình dạng
+`ict_setups_live` đã có cho ICT). Chi phí đo được: ~0,5 ms/cửa sổ, ~50 s trên 105 000 nến 15m.
+
+| | cũ | nhân quả | ghi chú |
+|---|---|---|---|
+| XAGUSD 4H | 41 | 31 | spring 4 → 0 |
+| XAUUSD 4H | 50 | 46 | spring 2 → 0 |
+| BTCUSDT 4H | 11 | 9 | spring 1 → 0 |
+| BTCUSDT 15m | 115 | 89 | spring 15 → 1 |
+| ETHUSDT 1H | 41 | 34 | spring 4 → 0 |
+
+**Phát hiện kèm theo, để ngỏ:** gần như toàn bộ lệnh nhánh **Spring** biến mất — nến reclaim/test của nó chỉ được
+nhận diện *sau* khi đã qua, nên runner sống cũng không bao giờ bắn. Đây là việc của phương pháp (làm nhánh Spring
+xác nhận ngay tại nến nó bắn), không phải của backtest; ghi vào `policy.json` (bản ghi §59 thứ 22), chưa sửa.
+Bảng xếp hạng và stability được chạy lại cùng lúc với sàn 2R.

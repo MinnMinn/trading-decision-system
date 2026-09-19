@@ -115,7 +115,7 @@ class PresetCoverageOfRealSelection(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        path = os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")
+        path = os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")
         cls.setups = [s for s in json.load(open(path, encoding="utf-8"))["setups"] if s["market"] == "crypto"]
 
     def test_every_preset_covers_all_three_horizons_for_crypto(self):

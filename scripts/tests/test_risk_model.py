@@ -162,11 +162,12 @@ class TheFloorIsNowNet(unittest.TestCase):
     def test_the_runners_gate_uses_the_net_number(self):
         """Through the runner's own rr_reason(), not a reimplementation of it."""
         sr = _load("sr", "strategy-runner.py")
-        # entry_now=True -> MARKET order -> taker fee, which is what makes 3.25R gross into 2.75R net.
-        sig_gross_ok_net_bad = {"entry": 100.0, "stop": 99.8, "target": 100.65, "r_planned": 3.25,
+        # entry_now=True -> MARKET order -> taker fee: on a 0.2 % stop it costs 0.50R, which is what makes
+        # 2.25R gross into 1.75R net -- below the live floor (2.0 since 2026-09-19; the case was 3.25/2.75 at 3R).
+        sig_gross_ok_net_bad = {"entry": 100.0, "stop": 99.8, "target": 100.45, "r_planned": 2.25,
                                 "entry_now": True}
         why = sr.rr_reason(sig_gross_ok_net_bad, "futures")
-        self.assertIsNotNone(why, "a 3.25R gross / 2.75R net setup must be refused")
+        self.assertIsNotNone(why, "a 2.25R gross / 1.75R net setup must be refused")
         self.assertIn("sau phí", why)
 
     def test_the_runners_gate_still_passes_a_genuinely_good_setup(self):
@@ -183,7 +184,8 @@ class TheFloorIsNowNet(unittest.TestCase):
         """`entry_now` means a MARKET order at the bar close; everything else rests a post-only GTX limit.
         Pricing them the same would over-charge one family and under-charge the other."""
         sr = _load("sr", "strategy-runner.py")
-        sig = {"entry": 100.0, "stop": 99.6, "target": 101.3, "r_planned": 3.25}
+        # 2.20R gross on a 0.4 % stop: taker costs 0.25R (1.95R net, below the 2.0 floor), maker 0.10R (2.10R net).
+        sig = {"entry": 100.0, "stop": 99.6, "target": 100.88, "r_planned": 2.2}
         market = sr.rr_reason(dict(sig, entry_now=True), "futures")
         limit = sr.rr_reason(dict(sig), "futures")
         self.assertIsNotNone(market, "taker fees must make this one fail")
@@ -330,10 +332,10 @@ class MinNotionalNoLongerGuesses(unittest.TestCase):
 
 class LiveAndResearchPriceTheSameTradeTheSameWay(unittest.TestCase):
     def test_every_selected_setups_assumed_fee_is_declared_for_its_venue(self):
-        """`pilot-top5.json` records the fee each ranking run ASSUMED. If a setup was validated at a fee the
+        """`pilot-top20.json` records the fee each ranking run ASSUMED. If a setup was validated at a fee the
         account does not pay, its evidence is about a different trade -- so the two must be reconciled rather
         than each carrying its own number."""
-        sel = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top5.json"), encoding="utf-8"))
+        sel = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top20.json"), encoding="utf-8"))
         cfg = RM._config()["costs"]
         mismatched = []
         for s in sel["setups"]:

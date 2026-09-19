@@ -19,7 +19,7 @@
       "venue": "binance_futures",
       "maker_pct_per_side": 0.0002,
       "taker_pct_per_side": 0.0005,
-      "_source": "Binance USDT-M standard VIP-0 schedule, as ASSUMED by the ranking runs recorded in docs/architecture/pilot-top5.json `fee_assumed`. NOT read from the venue: no connector fetches the account's fee tier, so this is a declared assumption and scripts/tests/test_risk_model.py asserts the setups' assumptions agree with it rather than letting each setup carry its own."
+      "_source": "Binance USDT-M standard VIP-0 schedule, as ASSUMED by the ranking runs recorded in docs/architecture/pilot-top20.json `fee_assumed`. NOT read from the venue: no connector fetches the account's fee tier, so this is a declared assumption and scripts/tests/test_risk_model.py asserts the setups' assumptions agree with it rather than letting each setup carry its own."
     },
     "mt5": {
       "venue": "mt5_bridge",

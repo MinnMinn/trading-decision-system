@@ -35,7 +35,8 @@ def _load(fname, name):
 class MinRRSource(unittest.TestCase):
     def test_params_file_carries_the_floor(self):
         v = json.load(open(PARAMS, encoding="utf-8"))["project_defined"]["ict"]["min_rr"]["value"]
-        self.assertEqual(v, 3.0, "the R:R floor lives in analysis-params.json and nowhere else")
+        # 2.0 since the 2026-09-19 user decision (the source's own 2R); 3.0 was the 2026-09-13 override.
+        self.assertEqual(v, 2.0, "the R:R floor lives in analysis-params.json and nowhere else")
 
     def test_basis_records_that_this_is_a_user_override_of_the_sourced_2R(self):
         """knowledge/ict/models.md §3.1 rule 23 says 2R. 3R is stricter than the source, so the basis must say whose call it
@@ -51,7 +52,15 @@ class BacktestReadsTheFloor(unittest.TestCase):
         self.bt = _load("backtest-methods.py", "bt")
 
     def test_opts_default_is_the_params_value_not_zero(self):
-        self.assertEqual(self.bt.OPTS["min_rr"], 3.0)
+        # The floor is the user's number (analysis-params.json project_defined.ict.min_rr, one reader:
+        # trading_env.min_rr). 3.0 from 2026-09-13; 2.0 from 2026-09-19, which is the source's own 2R
+        # (knowledge/ict/models.md §3.1). Read from the registry rather than pinned: what this test guards is
+        # that the backtest inherits THE floor, not which number the floor happens to be.
+        import json
+        want = json.load(open(os.path.join(ROOT, "docs", "architecture", "analysis-params.json"),
+                              encoding="utf-8"))["project_defined"]["ict"]["min_rr"]["value"]
+        self.assertEqual(self.bt.OPTS["min_rr"], want)
+        self.assertEqual(want, 2.0, "the floor moved again; update the note above with the decision that moved it")
 
     def test_cli_default_is_the_params_value_too(self):
         """OPTS defaulting correctly is not enough: main() overwrites min_rr from argparse on every run, so a
@@ -166,14 +175,15 @@ class LiveGate(unittest.TestCase):
         self.assertIsNone(self.sr.rr_reason(self._sig(7.4), "futures"))
 
     def test_refuses_a_signal_below_the_floor(self):
-        for rr in (0.0, 1.9, 2.99):
+        for rr in (0.0, 1.5, 1.99):
             self.assertIsNotNone(self.sr.rr_reason(self._sig(rr), "futures"), f"{rr}R should be refused")
 
     def test_a_setup_planning_exactly_the_floor_GROSS_is_now_refused(self):
-        """The 2026-09-18 change, stated as the case that flipped. 3.00R gross on a 1 % stop is 2.96R after
-        the maker fee, and the floor it is measured against was itself measured net (analysis-params.json
-        `min_rr._basis`: 'fee 0.05 %/side'). Exactly-at-the-floor gross was never actually at the floor."""
-        why = self.sr.rr_reason(self._sig(3.0), "futures")
+        """The 2026-09-18 change, stated as the case that flipped. Exactly-the-floor gross on a 1 % stop is
+        0.04R less after the maker fee, and the floor it is measured against was itself measured net
+        (analysis-params.json `min_rr._basis`: 'fee 0.05 %/side'). Exactly-at-the-floor gross was never
+        actually at the floor. Reads the floor from the runner so the case follows the registry."""
+        why = self.sr.rr_reason(self._sig(float(self.sr.MIN_RR)), "futures")
         self.assertIsNotNone(why)
         self.assertIn("sau phí", why)
 
@@ -194,9 +204,9 @@ class LiveGate(unittest.TestCase):
 
     def test_no_decision_path_pins_the_floor_to_zero(self):
         """Every script whose output a live order eventually depends on must measure the population the live gate
-        actually takes. stability-report feeds rank-setups, which writes pilot-top5.json. (scripts/ict-flags-1y.py
+        actually takes. stability-report feeds rank-setups, which writes pilot-top20.json. (scripts/ict-flags-1y.py
         used to be a third decision path here -- it wrote ict_disp/ict_pd/std_origin straight into
-        pilot-top5.json. It was deleted 2026-09-19 with those three flags: none of them could change an ICT
+        pilot-top20.json. It was deleted 2026-09-19 with those three flags: none of them could change an ICT
         setup, so the year it tuned them measured noise. See docs/audits/2026-09-19-knowledge-fidelity.md.)
 
         A script that genuinely wants the unfiltered population may still pass --min-rr 0 on the command line;
@@ -266,7 +276,7 @@ class OneFloorReaderForBothOrderPaths(unittest.TestCase):
 
     def test_the_runner_gate_fails_closed_on_an_unreadable_floor(self):
         """demo-pilot got this branch on the first pass; the runner did not, and the runner is the path that
-        actually runs under the current top5 profile."""
+        actually runs under the current top20 profile."""
         saved = self.sr.MIN_RR
         try:
             self.sr.MIN_RR = None

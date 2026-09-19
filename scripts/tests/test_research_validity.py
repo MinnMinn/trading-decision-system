@@ -324,7 +324,7 @@ class TheVerdictTravelsWithTheNumbers(unittest.TestCase):
 
 
 class AnInvalidRunCannotBeSelectedFrom(unittest.TestCase):
-    """The end §38 exists for: `pilot-top5.json` is what the runner places orders from."""
+    """The end §38 exists for: `pilot-top20.json` is what the runner places orders from."""
 
     def _stability_file(self, tmpdir, verdict, name="crypto-std25.json"):
         os.makedirs(tmpdir, exist_ok=True)

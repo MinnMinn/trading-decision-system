@@ -1,6 +1,6 @@
 """Every `scripts/<file>:<line>` citation in docs/ must resolve.
 
-Why this exists: the threat model docs/security/2026-09-11-top5-pilot.md cites its own enforcement points by
+Why this exists: the threat model docs/security/2026-09-11-top20-pilot.md cites its own enforcement points by
 line number in ~26 places. On 2026-09-13 a security review verified that ELEVEN of them were already stale --
 one cited a line in the (now-deleted) legacy engine that had moved by two lines -- and every one of those sat
 inside a CRITICAL/HIGH rule. Then the same day's edits moved them AGAIN while the review was being read.

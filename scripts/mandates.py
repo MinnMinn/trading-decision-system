@@ -15,13 +15,13 @@ the setup) has nowhere to put any of those, and picks an arbitrary owner for a s
 
 It is a separate file for the same reason every other list here is: one list, one JSON, one reader. The
 account registry stays `docs/architecture/account-profiles.json` (scripts/account_profile.py) and the setup
-selection stays `docs/architecture/pilot-top5.json`; this file only joins them, and validates that both ends
+selection stays `docs/architecture/pilot-top20.json`; this file only joins them, and validates that both ends
 of every row actually exist.
 
 The version pin is the point
 ----------------------------
 `setup_version` is the setup's `rule_version` as it stood when the mandate was attached. scripts/rank-setups.py
-rewrites pilot-top5.json in place, so the same setup id can mean different rules after any re-ranking -- which
+rewrites pilot-top20.json in place, so the same setup id can mean different rules after any re-ranking -- which
 happened four times in one day on 2026-09-19. A customer must keep running the rules they agreed to until they
 accept new ones, so the pin is recorded and `drift()` reports divergence rather than resolving it. Resolving it
 silently would change what somebody's money is doing without telling them.
@@ -53,7 +53,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PATH = os.path.join(ROOT, "docs", "architecture", "mandates.json")
-SELECTION = os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")
+SELECTION = os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")
 
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import account_profile as AP

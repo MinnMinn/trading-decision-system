@@ -219,5 +219,5 @@
       "spec_name": "analyze experiment results"
     }
   ],
-  "_ai_must_never": "CLAUDE.md §41: 'AI must NEVER silently rewrite the production Trading System.' Enforced, not described: scripts/outcomes.py has no writer for docs/architecture/trading-systems.json or pilot-top5.json, `Proposal.decide()` refuses any actor other than `human`, and a Proposal that has not passed every implemented pipeline stage cannot be APPROVED at all. The word that matters is `silently` -- a proposal is a visible, recorded, human-decided artifact, and that is the whole mechanism."
+  "_ai_must_never": "CLAUDE.md §41: 'AI must NEVER silently rewrite the production Trading System.' Enforced, not described: scripts/outcomes.py has no writer for docs/architecture/trading-systems.json or pilot-top20.json, `Proposal.decide()` refuses any actor other than `human`, and a Proposal that has not passed every implemented pipeline stage cannot be APPROVED at all. The word that matters is `silently` -- a proposal is a visible, recorded, human-decided artifact, and that is the whole mechanism."
 }

@@ -70,7 +70,7 @@ LADDER = (
     ("evidence", "this module: an observation plus source, times, quality, methodology scope and provenance"),
     ("interpretation", "<style>.<SYM>.model.html -- a model's per-method reading, vocabulary-gated by "
                        "scripts/method_purity.py so one methodology cannot borrow another's terms"),
-    ("setup", "docs/architecture/pilot-top5.json rule families; live detection in scripts/live_rules.py"),
+    ("setup", "docs/architecture/pilot-top20.json rule families; live detection in scripts/live_rules.py"),
     ("decision", "the /analyze verdict and the pilot's order path (scripts/strategy-runner.py tick)"),
 )
 

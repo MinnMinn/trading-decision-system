@@ -545,9 +545,15 @@ class DoiNhanSignsAreRecordedAndNeitherVetoesByDefault(unittest.TestCase):
     def test_the_gate_is_in_the_live_path_too(self):
         """CLAUDE.md §37: the backtest must run the live semantics. A gate in only one engine means the
         selection was measured on a population the runner does not take."""
-        src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        # Since 2026-09-19 there is ONE Wyckoff read, bt.wyckoff_fires(); the runner's setups_wyckoff delegates to
+        # it and bt.scan() walks it window by window, so the gates live in that one function and are read from
+        # bt.OPTS there. The runner must not grow a second copy.
+        runner = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        self.assertIn("bt.wyckoff_fires(side, candles, tf, sym)", runner, "setups_wyckoff no longer delegates to the shared read")
+        self.assertNotIn("W.detect_accumulations", runner, "the runner detects on its own again -- two engines")
+        engine = open(os.path.join(ROOT, "scripts", "backtest-methods.py"), encoding="utf-8").read()
         for gate in ("sloped_gate", "st_gate", "phase_b_gate"):
-            self.assertIn(f'bt.OPTS["{gate}"]', src, f"setups_wyckoff does not apply {gate}")
+            self.assertIn(f'OPTS["{gate}"]', engine, f"the shared read does not apply {gate}")
 
 
 class VolumeProvenanceReachesEveryRecord(unittest.TestCase):
@@ -569,10 +575,12 @@ class VolumeProvenanceReachesEveryRecord(unittest.TestCase):
         self.assertFalse(self.bt._I.is_tick_volume("BTCUSDT"))
 
     def test_both_engines_pass_the_symbols_own_kind(self):
-        for rel in ("scripts/backtest-methods.py", "scripts/strategy-runner.py"):
-            src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
-            self.assertIn("is_tick_volume(sym)", src, f"{rel} guesses the volume kind instead of reading it")
-            self.assertIn("volume_kind=vkind", src, f"{rel} does not pass the kind into the detector")
+        # One read for both engines since 2026-09-19 (bt.wyckoff_fires); the runner passes `sym` through to it.
+        src = open(os.path.join(ROOT, "scripts", "backtest-methods.py"), encoding="utf-8").read()
+        self.assertIn("is_tick_volume(sym)", src, "the shared read guesses the volume kind instead of reading it")
+        self.assertIn("volume_kind=vkind", src, "the shared read does not pass the kind into the detector")
+        runner = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+        self.assertIn("bt.wyckoff_fires(side, candles, tf, sym)", runner, "the runner does not hand its symbol to the shared read")
 
     def test_the_kind_reaches_the_trade_record(self):
         src = open(os.path.join(ROOT, "scripts", "backtest-methods.py"), encoding="utf-8").read()
@@ -581,7 +589,7 @@ class VolumeProvenanceReachesEveryRecord(unittest.TestCase):
 
 class DeadIctSwitchesAreGone(unittest.TestCase):
     """finding 11: --ict-pd and --std-origin were declared, printed in report headers, written into
-    pilot-top5.json and tuned for a year by scripts/ict-flags-1y.py -- and read by nothing. Both rules they
+    pilot-top20.json and tuned for a year by scripts/ict-flags-1y.py -- and read by nothing. Both rules they
     named are real deck rules already enforced elsewhere, which is why the fix is deletion, not wiring."""
 
     @classmethod

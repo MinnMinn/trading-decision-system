@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pilot profile `top5` -- mechanical runner for the setups selected in docs/architecture/pilot-top5.json
+"""Pilot profile `top20` -- mechanical runner for the setups selected in docs/architecture/pilot-top20.json
 (written by scripts/rank-setups.py from the stability backtests). Crypto setups trade Binance USDT-M FUTURES TESTNET
 (scripts/binance-futures-testnet-order.sh); CFD setups trade the MT5 DEMO account through the file bridge
 (scripts/mt5-order-bridge.py + integrations/mt5/OrderBridge.mq5). Real trades, fake money, on both venues.
@@ -10,7 +10,7 @@ tick when execution.environment is "real" (user decision 2026-09-11: demo/testne
 non-demo accounts on its side too.
 
 Rules = the backtest, function for function (scripts/backtest-methods.py, imported; parameters bt.P[tf]). Only
-  the two RUNNABLE methods can ever be selected into pilot-top5.json and reach this runner:
+  the two RUNNABLE methods can ever be selected into pilot-top20.json and reach this runner:
   WYCKOFF-BOOK  scripts/wyckoff_rules.py structures on the window (CHoCH gate, TR from SC/AR, Phase B, Spring vs Shakeout, VP veto, Test, Phase D
             BU) -- MARKET at the entry bar close; Phase D target = TR top + 1 TR. (The "WYCKOFF" mechanical
             proxy -- rolling R-bar min/max as the trading range, no CHoCH gate, no Phase A/B -- was removed
@@ -23,23 +23,23 @@ Rules = the backtest, function for function (scripts/backtest-methods.py, import
             the legacy ICT branch that was their only caller was removed)
   (COMBINED-BOOK -- the book Wyckoff engine + the ICT confirmation, LIMIT at the FVG edge -- exists in
   scripts/backtest-methods.py but is runnable=false (docs/architecture/methods.json): backtest-only, never
-  selectable into pilot-top5.json. The earlier "COMBINED" and "PARTIAL" methods, which paired the same removed
+  selectable into pilot-top20.json. The earlier "COMBINED" and "PARTIAL" methods, which paired the same removed
   proxy Spring with an ICT confirmation, were removed with it, 2026-09-19.)
   Entry = LIMIT valid K bars after the MSS (post-only GTX on Binance; a pending order with SL/TP attached on MT5); no fill -> no
   trade. Management = STOP_MARKET + TAKE_PROFIT_MARKET closePosition (futures) or the position's own SL/TP (MT5); breakeven at +1R
   on a CLOSED candle when the setup says mgmt=be (WMT p272); time stop after H bars. The higher-timeframe boundary filter
   (bt.htf_allows on HTF_OF[tf]) is logged as htf_pass for every signal; orders obey it only for setups with htf=true.
 Risk: PILOT_RISK_PCT of equity per trade (env file, clamped <= RISK_CEILING = trading_env.MAX_RISK_PCT, 1 %), halved after 2 consecutive
-losses; every entry must plan >= MIN_RR (3R, analysis-params.json) or it is refused; futures notional <= 25 % of
+losses; every entry must plan >= MIN_RR (analysis-params.json; 2R since 2026-09-19) or it is refused; futures notional <= 25 % of
 equity x leverage 3, ISOLATED; MT5 lots from the bridge's contract data, capped by the EA's InpMaxLots. One position or resting
 order per symbol; the position cap, the per-symbol daily entry cap and the leverage come from the venue's ACCOUNT PROFILE
 (docs/architecture/account-profiles.json, CLAUDE.md §33) -- they are the account's rules, not this file's constants.
 Halts (STOP file written with the reason): the account profile's max_total_drawdown (15 % from start, per venue) and its
 declared failure conditions (5 consecutive losses, per venue); 3 consecutive connector errors (infrastructure, not an account rule). Refused per tick: kill switch, automation gate (master/pilot layer/market/profile/environment), event blackout.
 Reconcile (PILOT-06): venue positions/orders this runner does not own block new entries in that symbol.
-Files (this runner is their only writer): data/live/pilot-futures/top5-state.json, top5-log.jsonl (crypto), top5-mt5-log.jsonl (CFD),
+Files (this runner is their only writer): data/live/pilot-futures/top20-state.json, top20-log.jsonl (crypto), top20-mt5-log.jsonl (CFD),
 candles/ohlcv.<SYM>.<TF>.json (private Binance copies). CFD candles are READ from data/live/mt5-bridge/ (the export EA writes them).
-Journal: scripts/journal.py sync-pilot --market futures-top5 | cfd-mt5.
+Journal: scripts/journal.py sync-pilot --market futures-top20 | cfd-mt5.
 Usage: strategy-runner.py --live | --dry-run [--ignore-gate] [--tick-time ISO] | --replay <setup-id|all> [--bars N] | --report | --flatten | --list | --tick-seconds
 """
 import argparse, contextlib, datetime, hashlib, importlib.util, json, os, re, subprocess, sys, time
@@ -98,12 +98,12 @@ PILOT_DIR = os.path.join(ROOT, "data", "live", "pilot-futures")
 # What IS per-account is everything a customer owns or can lose: state, logs, kill switch.
 CANDLES = os.path.join(ROOT, "data", "live", "candles-cache")
 MT5_DIR = os.path.join(ROOT, "data", "live", "mt5-bridge")
-STATE = os.path.join(PILOT_DIR, "top5-state.json")
-LOG = os.path.join(PILOT_DIR, "top5-log.jsonl")
-MT5_LOG = os.path.join(PILOT_DIR, "top5-mt5-log.jsonl")
+STATE = os.path.join(PILOT_DIR, "top20-state.json")
+LOG = os.path.join(PILOT_DIR, "top20-log.jsonl")
+MT5_LOG = os.path.join(PILOT_DIR, "top20-mt5-log.jsonl")
 STOP = os.path.join(PILOT_DIR, "STOP")
 AUTOMATION_CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
-SELECTION = os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")
+SELECTION = os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")
 _ispec = importlib.util.spec_from_file_location("instruments", os.path.join(ROOT, "scripts", "instruments.py"))
 instruments = importlib.util.module_from_spec(_ispec); _ispec.loader.exec_module(instruments)
 # EXECUTION list (docs/architecture/instruments.json) -- the orderable subset, never the analysis allowlist.
@@ -155,7 +155,7 @@ def _span(stage):
 import importlib.util as _iu
 _as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py")); _auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
 HTF_OF = {tf: _auto.next_rung(tf, RUNNER_TFS) for tf in RUNNER_TFS}
-WINDOW = 300
+WINDOW = bt.WYCKOFF_WINDOW   # the live WYCKOFF-BOOK window; ONE number with bt.scan()'s (see bt.wyckoff_fires)
 NOTIONAL_CAP_PCT = 0.25
 # The position cap, the daily entry cap, the leverage, the drawdown halt and the consecutive-loss halt used to
 # be five literals here. They are not runner settings -- they are the ACCOUNT's rules, and CLAUDE.md §33 makes
@@ -252,7 +252,7 @@ def bind_account(account_id):
     """Point this process at ONE account: its own state, logs, candle cache and kill switch.
 
     Isolation is the requirement (plan §0.3 item 2). Before this, `STOP` was one file for every venue and
-    every account, so one customer breaching a drawdown limit halted everybody; `top5-state.json` was one
+    every account, so one customer breaching a drawdown limit halted everybody; `top20-state.json` was one
     file written with a bare `open(..., "w")`, so two processes would have silently overwritten each other's
     positions. Scoping the paths is what makes one process per account safe to run.
 
@@ -276,9 +276,9 @@ def bind_account(account_id):
         except ValueError as e:
             raise SystemExit(f"--account {account_id!r}: {e}") from None
         PILOT_DIR = os.path.join(ROOT, "data", "live", "accounts", account_id)
-    STATE = os.path.join(PILOT_DIR, "top5-state.json")
-    LOG = os.path.join(PILOT_DIR, "top5-log.jsonl")
-    MT5_LOG = os.path.join(PILOT_DIR, "top5-mt5-log.jsonl")
+    STATE = os.path.join(PILOT_DIR, "top20-state.json")
+    LOG = os.path.join(PILOT_DIR, "top20-log.jsonl")
+    MT5_LOG = os.path.join(PILOT_DIR, "top20-mt5-log.jsonl")
     STOP = os.path.join(PILOT_DIR, "STOP")
     VENUE_LOG = {"mt5": MT5_LOG}
     return PILOT_DIR
@@ -344,7 +344,7 @@ def load_setups():
 def automation_gate():
     """Reason to refuse this tick, or None. Can only stop, never start. Missing/unreadable config = refuse (PILOT-03)."""
     if not os.path.exists(AUTOMATION_CONFIG):
-        return "no automation config -- profile top5 runs only under /automation"
+        return "no automation config -- profile top20 runs only under /automation"
     try:
         c = json.load(open(AUTOMATION_CONFIG, encoding="utf-8"))
     except Exception:
@@ -353,10 +353,10 @@ def automation_gate():
         return "automation master switch is OFF"
     if not c.get("layers", {}).get("pilot", True):
         return "pilot layer disabled"
-    # (deleted 2026-09-13) the pilot_profile != "top5" refusal: there is one engine now, so the only thing this
+    # (deleted 2026-09-13) the pilot_profile != "top20" refusal: there is one engine now, so the only thing this
     # key could still express is "run nothing", which layers.pilot already expresses.
     if c.get("execution", {}).get("environment", "demo") == "real":
-        return "environment is REAL -- the top5 profile is a demo/testnet pilot (user decision 2026-09-11); refusing"
+        return "environment is REAL -- the top20 profile is a demo/testnet pilot (user decision 2026-09-11); refusing"
     if ENV_ERROR:
         return f"environment '{ENV_NAME}' unusable -- {ENV_ERROR}"
     ok, missing, note = trading_env.completeness(ENV_NAME, ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY"))
@@ -880,7 +880,8 @@ def rr_reason(sig, venue, floor=None):
 
     Called from the one reasons[] block every method's signal passes through -- not from each setups() branch:
     ICT and WYCKOFF-BOOK both emit r_planned and both must obey the same floor, and a per-branch copy would
-    drift. User decision 2026-09-13: MIN_RR = 3R (docs/architecture/analysis-params.json). Before this gate the
+    drift. User decision 2026-09-13: MIN_RR = 3R; 2026-09-19: 2R, the source's own number (both recorded in
+    docs/architecture/analysis-params.json `_basis` and policy.json). Before this gate the
     floor existed only as an advisory note printed by ict-scan.py:359 while every decision path ran min_rr=0.0,
     so the runner took setups planning as little as 0.00R -- 38 % of last year's planned under 2R.
 
@@ -898,7 +899,7 @@ def rr_reason(sig, venue, floor=None):
     if not isinstance(rr, (int, float)) or isinstance(rr, bool) or rr != rr:
         return "không tính được R/R kế hoạch"
     # NET of fees since 2026-09-18 (CLAUDE.md §34). `r_planned` is gross -- |target-entry|/|entry-stop| -- but
-    # the 3R floor was MEASURED net: analysis-params.json's own basis line says "fee 0.05 %/side", and the
+    # the floor was MEASURED net: analysis-params.json's own basis line says "fee 0.05 %/side", and the
     # backtest behind it subtracts 2*fee/dist from every R (backtest-methods.py:517). Comparing a gross number
     # to a net floor admitted trades the evidence rejected, and by more the tighter the stop: at 0.05 %/side a
     # 1 % stop costs 0.10R and a 0.2 % stop costs 0.50R. The order type is not a guess either -- `entry_now`
@@ -938,52 +939,25 @@ def setups(method, side, candles, tf, sym=None):
 
 
 def setups_wyckoff(method, side, candles, tf, sym=None):
-    """WYCKOFF-BOOK entries that fire on the LAST CLOSED bar (market at its close), mirroring bt.scan's
-    WYCKOFF-BOOK block. Returns dicts with entry_now=True; no limit, no expiry. Only the last bar can be an
-    entry -- earlier bars were our earlier ticks.
+    """WYCKOFF-BOOK entries that fire on the LAST CLOSED bar (market at its close). Returns dicts with
+    entry_now=True; no limit, no expiry. Only the last bar can be an entry -- earlier bars were our earlier ticks.
 
-    `method` is not read below (unchanged from before this edit: every RUNNER_METHODS name whose `scan` is
-    "wyckoff" -- mreg.scan_of -- routes here, currently WYCKOFF-BOOK and the non-runnable COMBINED-BOOK). The
-    "WYCKOFF" mechanical proxy this function used to ALSO detect via a separate branch (rolling R-bar min/max
-    range, no CHoCH gate, no Phase A/B) was removed 2026-09-19 (docs/audits/2026-09-19-knowledge-fidelity.md
-    finding 6) along with the runner method of the same name; this is now the only code path here."""
-    p = bt.P[tf]
-    H = [x["high"] for x in candles]; L = [x["low"] for x in candles]; C = [x["close"] for x in candles]; V = [x.get("volume", 0) for x in candles]
-    O = [x["open"] for x in candles]; Tm = [x["time"] for x in candles]; n = len(candles); last = n - 1; out = []
-    # WYCKOFF-BOOK: structures detected on the window (CHoCH gate, TR from SC/AR, Phase B, Spring vs Shakeout, VP veto, Test, Phase D)
-    W.PARAMS["spring_max_bars_outside"] = p["sob"]
-    vkind = "tick" if (sym and bt._I.is_tick_volume(sym)) else "traded"   # wyckoff_rules R0 / WMT p131-133
-    recs = (W.detect_accumulations(O, H, L, C, V, volume_kind=vkind) if side == "long"
-            else W.detect_distributions(O, H, L, C, V, volume_kind=vkind))
-    for r in recs:
-        # The SAME structure gates bt.scan() applies, read from the SAME bt.OPTS (CLAUDE.md §37: the backtest
-        # must run the live semantics). Added 2026-09-19 with the đối nhãn work: before that the live path
-        # took sloped structures and contradicting-ST structures that the backtest, run with --sloped-gate,
-        # had never measured -- two engines, one selection (docs/audits/2026-09-19-knowledge-fidelity.md).
-        if bt.OPTS["sloped_gate"] and r["sloped"]:
-            continue
-        if bt.OPTS["st_gate"] and r.get("st_sign") == "contradicts":
-            continue
-        if bt.OPTS["phase_b_gate"] and r.get("phase_b_sign") == "contradicts":
-            continue
-        tr = r["tr_hi"] - r["tr_lo"]; t0 = Tm[r["spring"] if r["spring"] is not None else r["sos"]]
-        if r["path"] == "spring" and not r["shakeout"] and not r["abandon"] and not r["sot_too_strong"] and r["vol_type"] in (1, 2, 3):
-            rec = r["reclaim"]; vt = r["vol_type"]; rr = r["rec_ratio"]
-            w_bar = rec if (vt == 1 or (vt == 3 and rr is not None and rr >= bt.VOL["high_min_ratio"])) else r["test"]
-            if w_bar == last:
-                stop = r["spring_low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["spring_low"] * (1 + STOP_BUFFER_PCT)
-                target = r["tr_hi"] if side == "long" else r["tr_lo"]
-                if (side == "long" and target > C[last] > stop) or (side == "short" and target < C[last] < stop):
-                    out.append(dict(time=t0, vol_type=vt, side=side, entry_now=True, entry=C[last], stop=stop, target=target, mss_time=None, bars_left=0, leg="spring",
-                                    r_planned=abs(target - C[last]) / abs(C[last] - stop)))
-        if r["bu"] and r["bu"]["bar"] == last:
-            stop = r["bu"]["low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["bu"]["low"] * (1 + STOP_BUFFER_PCT)
-            target = r["tr_hi"] + W.PARAMS["d_target_tr"] * tr if side == "long" else r["tr_lo"] - W.PARAMS["d_target_tr"] * tr
-            if (side == "long" and target > C[last] > stop) or (side == "short" and target < C[last] < stop):
-                out.append(dict(time=t0 + "-D", vol_type=r["vol_type"], side=side, entry_now=True, entry=C[last], stop=stop, target=target, mss_time=None, bars_left=0, leg="phase_d",
-                                r_planned=abs(target - C[last]) / abs(C[last] - stop)))
+    The read itself is bt.wyckoff_fires() -- the SAME function bt.scan() calls window by window since 2026-09-19,
+    so this runner and the backtest cannot drift (CLAUDE.md §37); before that the two were parallel copies, and
+    the backtest's copy, detecting over the whole history at once, took a Phase D entry the causal read here
+    could not see (XAGUSD 4H 2026-07-20; see wyckoff_fires' docstring). The structure gates (sloped / đối
+    nhãn / st_min) are read from bt.OPTS inside it.
+
+    `method` is not read below: every RUNNER_METHODS name whose `scan` is "wyckoff" -- mreg.scan_of -- routes
+    here, currently WYCKOFF-BOOK and the non-runnable COMBINED-BOOK. The "WYCKOFF" mechanical proxy this
+    function used to ALSO detect via a separate branch was removed 2026-09-19 (docs/audits/2026-09-19-knowledge-fidelity.md
+    finding 6) along with the runner method of the same name."""
+    out = []
+    for f in bt.wyckoff_fires(side, candles, tf, sym):
+        out.append(dict(time=f["t0"] + ("-D" if f["leg"] == "phase_d" else ""), vol_type=f["rec"]["vol_type"], side=side, entry_now=True,
+                        entry=f["entry"], stop=f["stop"], target=f["target"], mss_time=None, bars_left=0, leg=f["leg"],
+                        r_planned=abs(f["target"] - f["entry"]) / abs(f["entry"] - f["stop"])))
     return out
-
 
 def htf_pass(sym, side, candles_htf, htf_tf):
     """Higher-timeframe boundary gate. Migrated onto the LIVE bias read (2026-09-13, Task 8): bt.bias_allows
@@ -1074,7 +1048,7 @@ def client_id(setup_id, sym, sig):
     return prefix + hashlib.sha1(seed.encode()).hexdigest()[:20]
 
 
-DRILL_RR = 3.5          # GROSS planned R of the synthetic signal. The live floor (bt.MIN_RR = 3.0) is applied NET of fees
+DRILL_RR = 3.5          # GROSS planned R of the synthetic signal. The live floor (bt.MIN_RR; 2.0 since 2026-09-19, was 3.0) is applied NET of fees
                         # (§37, 2026-09-18): with the 0.4 % minimum stop a taker round-trip costs up to 0.25R, so 3.0 gross
                         # would be refused by the gate it is meant to exercise. 3.5 gross clears the floor and still exercises it.
 DRILL_MIN_STOP_PCT = 0.004
@@ -2079,7 +2053,7 @@ def replay(setup_ids, bars=900):
 
 
 def report_state(s):
-    lines = [f"TOP5 RUNNER [env {ENV_NAME}] {iso(now())} started {s['started']} halted: {s.get('halted')}"]
+    lines = [f"TOP20 RUNNER [env {ENV_NAME}] {iso(now())} started {s['started']} halted: {s.get('halted')}"]
     for v in VENUES:
         vs = s["venues"][v]
         lines.append(f"{v}: equity start {vs['equity_start']} | closed {len(vs['closed'])} | realised {sum(c['pnl'] for c in vs['closed']):+.2f} | consec losses {vs['consec_losses']}")

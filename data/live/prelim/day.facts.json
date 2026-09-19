@@ -1,24 +1,24 @@
 {
- "scanned_at": "2026-09-19T15:02:33Z",
+ "scanned_at": "2026-09-19T17:02:21Z",
  "tf": "1H",
  "n": 480,
- "window_first": "2026-08-30T16:00:00Z",
- "window_last": "2026-09-19T15:00:00Z",
+ "window_first": "2026-08-30T18:00:00Z",
+ "window_last": "2026-09-19T17:00:00Z",
  "anchors_source": null,
  "symbols": {
   "BTCUSDT": {
-   "last": 81610.01,
-   "last_time": "2026-09-19T15:00:00Z",
-   "lo": 80911.12,
-   "hi": 81741.0,
-   "eq": 81326.06,
-   "pct": 0.8422,
+   "last": 81800.01,
+   "last_time": "2026-09-19T17:00:00Z",
+   "lo": 81183.28,
+   "hi": 82300.0,
+   "eq": 81741.64,
+   "pct": 0.5523,
    "stance": "CHỜ",
    "anchors": null,
    "setup": null,
    "last_mss": {
     "type": "bear",
-    "i": 374,
+    "i": 372,
     "level": 77481.98,
     "disp": true,
     "ext": 79600.0,
@@ -33,11 +33,11 @@
    },
    "nearest_fvg": {
     "type": "bull",
-    "i": 478,
-    "lo": 81366.46,
-    "hi": 81578.0,
-    "size": 211.5399999999936,
-    "ce": 81472.23000000001,
+    "i": 451,
+    "lo": 78182.01,
+    "hi": 80073.09,
+    "size": 1891.0800000000017,
+    "ce": 79127.54999999999,
     "end": 479,
     "mitigated": false
    },
@@ -50,8 +50,8 @@
    },
    "prev_candle": {
     "tf": "1H",
-    "pch": 81639.61,
-    "pcl": 81342.0,
+    "pch": 81914.01,
+    "pcl": 81472.0,
     "pch_state": "intact",
     "pcl_state": "intact"
    },
@@ -59,140 +59,132 @@
     {
      "kind": "BSL",
      "level": 77223.32,
-     "from": 379,
+     "from": 377,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 76259.98,
-     "from": 66,
+     "from": 64,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 76000.0,
-     "from": 284,
+     "from": 282,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "BSL",
      "level": 82300.0,
-     "from": 101,
+     "from": 99,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 80559.99,
-     "from": 175,
+     "from": 173,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 79600.0,
-     "from": 364,
+     "from": 362,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 78490.79,
-     "from": 449,
-     "swept": -1,
-     "type": "old"
-    },
-    {
-     "kind": "BSL",
-     "level": 81741.0,
-     "from": 465,
+     "from": 447,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 81528.01,
-     "from": 473,
+     "from": 471,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 74967.97,
-     "from": 386,
+     "from": 384,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 75064.82,
-     "from": 410,
+     "from": 408,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 77972.3,
-     "from": 453,
+     "from": 451,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 80844.58,
-     "from": 464,
+     "from": 462,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 80911.12,
-     "from": 468,
+     "from": 466,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 81183.28,
+     "from": 475,
      "swept": -1,
      "type": "old"
     }
    ],
-   "events_recent": [
-    {
-     "kind": "fvg_bull",
-     "lo": 81366.46,
-     "hi": 81578.0,
-     "i": 478,
-     "time": "2026-09-19T14:00:00Z"
-    }
-   ],
+   "events_recent": [],
    "context": {
     "tier": "structure",
     "style": "swing",
     "tf": "4h",
-    "scanned_at": "2026-09-19T12:04:00Z",
-    "window_last": "2026-09-19T12:00:00Z",
-    "last": 81298.0,
-    "last_time": "2026-09-19T12:00:00Z",
+    "scanned_at": "2026-09-19T16:03:27Z",
+    "window_last": "2026-09-19T16:00:00Z",
+    "last": 81564.01,
+    "last_time": "2026-09-19T16:00:00Z",
     "lo": 76000.0,
-    "hi": 81741.0,
-    "eq": 78870.5,
-    "pct": 0.9228,
+    "hi": 82300.0,
+    "eq": 79150.0,
+    "pct": 0.8832,
     "stance": "CHỜ",
     "verdict": null,
     "verdict_short": null,
     "last_mss": {
      "type": "bull",
-     "i": 353,
+     "i": 352,
      "level": 79600.0,
      "disp": true,
      "ext": 76000.0,
      "ext_time": "2026-09-17T12:00:00Z",
      "origin": 79600.0,
      "cisd": null,
-     "vol_mult": 3.7
+     "vol_mult": 3.71
     },
     "nearest_fvg": {
      "type": "bull",
-     "i": 353,
+     "i": 352,
      "lo": 78490.79,
      "hi": 80555.54,
      "size": 2064.75,
@@ -202,8 +194,8 @@
     },
     "prev_candle": {
      "tf": "4H",
-     "pch": 81528.01,
-     "pcl": 81075.28,
+     "pch": 81951.0,
+     "pcl": 81183.28,
      "pch_state": "intact",
      "pcl_state": "intact"
     },
@@ -225,18 +217,18 @@
    }
   },
   "ETHUSDT": {
-   "last": 2640.23,
-   "last_time": "2026-09-19T15:00:00Z",
-   "lo": 2602.94,
+   "last": 2649.01,
+   "last_time": "2026-09-19T17:00:00Z",
+   "lo": 2629.16,
    "hi": 2662.85,
-   "eq": 2632.895,
-   "pct": 0.6224,
+   "eq": 2646.005,
+   "pct": 0.5892,
    "stance": "CHỜ",
    "anchors": null,
    "setup": null,
    "last_mss": {
     "type": "bear",
-    "i": 374,
+    "i": 372,
     "level": 2487.84,
     "disp": false,
     "ext": 2615.0,
@@ -247,11 +239,11 @@
      "time": "2026-09-14T14:00:00Z",
      "confirmed": "2026-09-15T03:00:00Z"
     },
-    "vol_mult": 1.08
+    "vol_mult": 1.09
    },
    "nearest_fvg": {
     "type": "bull",
-    "i": 453,
+    "i": 451,
     "lo": 2511.22,
     "hi": 2554.47,
     "size": 43.25,
@@ -263,13 +255,13 @@
     "date": "2026-09-18",
     "pdh": 2646.0,
     "pdl": 2436.89,
-    "pdh_state": "swept",
+    "pdh_state": "closed_through",
     "pdl_state": "intact"
    },
    "prev_candle": {
     "tf": "1H",
-    "pch": 2644.13,
-    "pcl": 2634.93,
+    "pch": 2651.66,
+    "pcl": 2636.0,
     "pch_state": "intact",
     "pcl_state": "intact"
    },
@@ -277,70 +269,77 @@
     {
      "kind": "BSL",
      "level": 2521.65,
-     "from": 237,
+     "from": 235,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 2436.41,
-     "from": 21,
+     "from": 19,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 2369.11,
-     "from": 81,
+     "from": 79,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "BSL",
      "level": 2665.99,
-     "from": 286,
+     "from": 284,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 2662.85,
-     "from": 472,
+     "from": 470,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 2356.41,
-     "from": 66,
+     "from": 64,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 2358.88,
-     "from": 386,
+     "from": 384,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 2428.12,
-     "from": 427,
+     "from": 425,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 2494.37,
-     "from": 453,
+     "from": 451,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 2602.94,
-     "from": 465,
+     "from": 463,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 2629.16,
+     "from": 475,
      "swept": -1,
      "type": "old"
     }
@@ -350,20 +349,20 @@
     "tier": "structure",
     "style": "swing",
     "tf": "4h",
-    "scanned_at": "2026-09-19T12:04:00Z",
-    "window_last": "2026-09-19T12:00:00Z",
-    "last": 2639.8,
-    "last_time": "2026-09-19T12:00:00Z",
+    "scanned_at": "2026-09-19T16:03:27Z",
+    "window_last": "2026-09-19T16:00:00Z",
+    "last": 2638.37,
+    "last_time": "2026-09-19T16:00:00Z",
     "lo": 2369.11,
     "hi": 2665.99,
     "eq": 2517.55,
-    "pct": 0.9118,
-    "stance": "THEO DÕI SHORT",
+    "pct": 0.907,
+    "stance": "CHỜ",
     "verdict": null,
     "verdict_short": null,
     "last_mss": {
      "type": "bear",
-     "i": 335,
+     "i": 334,
      "level": 2462.02,
      "disp": false,
      "ext": 2615.0,
@@ -378,7 +377,7 @@
     },
     "nearest_fvg": {
      "type": "bull",
-     "i": 353,
+     "i": 352,
      "lo": 2521.65,
      "hi": 2578.93,
      "size": 57.279999999999745,
@@ -388,8 +387,8 @@
     },
     "prev_candle": {
      "tf": "4H",
-     "pch": 2662.85,
-     "pcl": 2623.95,
+     "pch": 2652.1,
+     "pcl": 2629.16,
      "pch_state": "intact",
      "pcl_state": "intact"
     },
@@ -411,18 +410,18 @@
    }
   },
   "SOLUSDT": {
-   "last": 111.8,
-   "last_time": "2026-09-19T15:00:00Z",
+   "last": 112.07,
+   "last_time": "2026-09-19T17:00:00Z",
    "lo": 111.18,
-   "hi": 112.5,
-   "eq": 111.84,
-   "pct": 0.4697,
+   "hi": 112.21,
+   "eq": 111.695,
+   "pct": 0.8641,
    "stance": "CHỜ",
    "anchors": null,
    "setup": null,
    "last_mss": {
     "type": "bear",
-    "i": 469,
+    "i": 467,
     "level": 112.33,
     "disp": false,
     "ext": 114.09,
@@ -437,7 +436,7 @@
    },
    "nearest_fvg": {
     "type": "bull",
-    "i": 453,
+    "i": 451,
     "lo": 106.13,
     "hi": 108.39,
     "size": 2.260000000000005,
@@ -454,93 +453,100 @@
    },
    "prev_candle": {
     "tf": "1H",
-    "pch": 112.21,
-    "pcl": 111.47,
-    "pch_state": "intact",
+    "pch": 112.02,
+    "pcl": 111.23,
+    "pch_state": "closed_through",
     "pcl_state": "intact"
    },
    "unswept_pools": [
     {
      "kind": "BSL",
      "level": 107.07,
-     "from": 155,
+     "from": 153,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 100.67,
-     "from": 357,
+     "from": 355,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 105.29,
-     "from": 448,
+     "from": 446,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "BSL",
      "level": 107.36,
-     "from": 164,
+     "from": 162,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 102.05,
-     "from": 433,
+     "from": 431,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 114.32,
-     "from": 459,
+     "from": 457,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 114.09,
-     "from": 465,
+     "from": 463,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 112.5,
-     "from": 473,
+     "from": 471,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 112.21,
+     "from": 476,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 95.82,
-     "from": 386,
+     "from": 384,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 96.09,
-     "from": 409,
+     "from": 407,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 99.53,
-     "from": 427,
+     "from": 425,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 111.18,
-     "from": 470,
+     "from": 468,
      "swept": -1,
      "type": "old"
     }
@@ -550,20 +556,20 @@
     "tier": "structure",
     "style": "swing",
     "tf": "4h",
-    "scanned_at": "2026-09-19T12:04:00Z",
-    "window_last": "2026-09-19T12:00:00Z",
-    "last": 111.9,
-    "last_time": "2026-09-19T12:00:00Z",
+    "scanned_at": "2026-09-19T16:03:27Z",
+    "window_last": "2026-09-19T16:00:00Z",
+    "last": 111.46,
+    "last_time": "2026-09-19T16:00:00Z",
     "lo": 96.09,
     "hi": 114.32,
     "eq": 105.205,
-    "pct": 0.8673,
+    "pct": 0.8431,
     "stance": "CHỜ",
     "verdict": null,
     "verdict_short": null,
     "last_mss": {
      "type": "bull",
-     "i": 351,
+     "i": 350,
      "level": 104.82,
      "disp": true,
      "ext": 96.09,
@@ -578,7 +584,7 @@
     },
     "nearest_fvg": {
      "type": "bull",
-     "i": 353,
+     "i": 352,
      "lo": 106.67,
      "hi": 111.01,
      "size": 4.340000000000003,
@@ -588,8 +594,8 @@
     },
     "prev_candle": {
      "tf": "4H",
-     "pch": 112.5,
-     "pcl": 111.47,
+     "pch": 112.21,
+     "pcl": 111.29,
      "pch_state": "intact",
      "pcl_state": "intact"
     },
@@ -611,18 +617,18 @@
    }
   },
   "ASTERUSDT": {
-   "last": 0.77,
-   "last_time": "2026-09-19T15:00:00Z",
+   "last": 0.764,
+   "last_time": "2026-09-19T17:00:00Z",
    "lo": 0.753,
-   "hi": 0.792,
-   "eq": 0.7725,
-   "pct": 0.4359,
+   "hi": 0.771,
+   "eq": 0.762,
+   "pct": 0.6111,
    "stance": "CHỜ",
    "anchors": null,
    "setup": null,
    "last_mss": {
     "type": "bull",
-    "i": 461,
+    "i": 459,
     "level": 0.759,
     "disp": false,
     "ext": 0.743,
@@ -633,11 +639,11 @@
      "time": "2026-09-18T15:00:00Z",
      "confirmed": "2026-09-18T21:00:00Z"
     },
-    "vol_mult": 0.55
+    "vol_mult": 0.56
    },
    "nearest_fvg": {
     "type": "bull",
-    "i": 415,
+    "i": 413,
     "lo": 0.698,
     "hi": 0.703,
     "size": 0.0050000000000000044,
@@ -654,8 +660,8 @@
    },
    "prev_candle": {
     "tf": "1H",
-    "pch": 0.771,
-    "pcl": 0.766,
+    "pch": 0.765,
+    "pcl": 0.758,
     "pch_state": "intact",
     "pcl_state": "intact"
    },
@@ -663,112 +669,119 @@
     {
      "kind": "BSL",
      "level": 0.719,
-     "from": 259,
+     "from": 257,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 0.735,
-     "from": 213,
+     "from": 211,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 0.73,
-     "from": 239,
+     "from": 237,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 0.672,
-     "from": 290,
+     "from": 288,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "BSL",
      "level": 0.874,
-     "from": 141,
+     "from": 139,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.812,
-     "from": 186,
+     "from": 184,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.809,
-     "from": 190,
+     "from": 188,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.711,
-     "from": 364,
+     "from": 362,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.685,
-     "from": 391,
+     "from": 389,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.792,
-     "from": 465,
+     "from": 463,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.771,
+     "from": 476,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.661,
-     "from": 386,
+     "from": 384,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.668,
-     "from": 400,
+     "from": 398,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.739,
-     "from": 438,
+     "from": 436,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.742,
-     "from": 444,
+     "from": 442,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.743,
-     "from": 456,
+     "from": 454,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.753,
-     "from": 472,
+     "from": 470,
      "swept": -1,
      "type": "old"
     }
@@ -778,20 +791,20 @@
     "tier": "structure",
     "style": "swing",
     "tf": "4h",
-    "scanned_at": "2026-09-19T12:04:00Z",
-    "window_last": "2026-09-19T12:00:00Z",
-    "last": 0.768,
-    "last_time": "2026-09-19T12:00:00Z",
+    "scanned_at": "2026-09-19T16:03:27Z",
+    "window_last": "2026-09-19T16:00:00Z",
+    "last": 0.76,
+    "last_time": "2026-09-19T16:00:00Z",
     "lo": 0.668,
     "hi": 0.792,
     "eq": 0.73,
-    "pct": 0.8065,
+    "pct": 0.7419,
     "stance": "CHỜ",
     "verdict": null,
     "verdict_short": null,
     "last_mss": {
      "type": "bull",
-     "i": 343,
+     "i": 342,
      "level": 0.697,
      "disp": true,
      "ext": 0.668,
@@ -806,7 +819,7 @@
     },
     "nearest_fvg": {
      "type": "bull",
-     "i": 344,
+     "i": 343,
      "lo": 0.704,
      "hi": 0.718,
      "size": 0.014000000000000012,
@@ -816,16 +829,29 @@
     },
     "prev_candle": {
      "tf": "4H",
-     "pch": 0.77,
-     "pcl": 0.753,
+     "pch": 0.771,
+     "pcl": 0.762,
      "pch_state": "intact",
-     "pcl_state": "intact"
+     "pcl_state": "closed_through"
     },
     "anchors": [],
     "wyckoff": null,
     "wyckoff_source": null,
-    "bias": "long",
+    "bias": "neutral",
     "basis": [
+     [
+      "ict",
+      "bias.ict.contradiction",
+      {}
+     ],
+     [
+      "ict",
+      "bias.ict.draw_through",
+      {
+       "level": "PCL 0.76",
+       "dir_key": "dir.down"
+      }
+     ],
      [
       "ict",
       "bias.ict.mss",
@@ -839,18 +865,18 @@
    }
   },
   "VIRTUALUSDT": {
-   "last": 0.6742,
-   "last_time": "2026-09-19T15:00:00Z",
+   "last": 0.6789,
+   "last_time": "2026-09-19T17:00:00Z",
    "lo": 0.6594,
    "hi": 0.6853,
    "eq": 0.67235,
-   "pct": 0.5714,
+   "pct": 0.7529,
    "stance": "CHỜ",
    "anchors": null,
    "setup": null,
    "last_mss": {
     "type": "bull",
-    "i": 416,
+    "i": 414,
     "level": 0.5968,
     "disp": false,
     "ext": 0.5884,
@@ -861,11 +887,11 @@
      "time": "2026-09-16T21:00:00Z",
      "confirmed": "2026-09-16T23:00:00Z"
     },
-    "vol_mult": 0.66
+    "vol_mult": 0.65
    },
    "nearest_fvg": {
     "type": "bull",
-    "i": 441,
+    "i": 439,
     "lo": 0.6201,
     "hi": 0.6265,
     "size": 0.006399999999999961,
@@ -882,121 +908,121 @@
    },
    "prev_candle": {
     "tf": "1H",
-    "pch": 0.6821,
-    "pcl": 0.6757,
-    "pch_state": "intact",
-    "pcl_state": "closed_through"
+    "pch": 0.6787,
+    "pcl": 0.67,
+    "pch_state": "closed_through",
+    "pcl_state": "intact"
    },
    "unswept_pools": [
     {
      "kind": "SSL",
      "level": 0.702,
-     "from": 213,
+     "from": 211,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "BSL",
      "level": 0.7586,
-     "from": 202,
+     "from": 200,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.7373,
-     "from": 217,
+     "from": 215,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.7301,
-     "from": 232,
+     "from": 230,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.5968,
-     "from": 403,
+     "from": 401,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.6184,
-     "from": 428,
+     "from": 426,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.6853,
-     "from": 476,
+     "from": 474,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.6975,
-     "from": 227,
+     "from": 225,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.5748,
-     "from": 409,
+     "from": 407,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.5884,
-     "from": 415,
+     "from": 413,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.5974,
-     "from": 420,
+     "from": 418,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.6023,
-     "from": 429,
+     "from": 427,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.6054,
-     "from": 438,
+     "from": 436,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.6351,
-     "from": 451,
+     "from": 449,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.6509,
-     "from": 457,
+     "from": 455,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.6594,
-     "from": 470,
+     "from": 468,
      "swept": -1,
      "type": "old"
     }
@@ -1006,20 +1032,20 @@
     "tier": "structure",
     "style": "swing",
     "tf": "4h",
-    "scanned_at": "2026-09-19T12:04:00Z",
-    "window_last": "2026-09-19T12:00:00Z",
-    "last": 0.6806,
-    "last_time": "2026-09-19T12:00:00Z",
+    "scanned_at": "2026-09-19T16:03:27Z",
+    "window_last": "2026-09-19T16:00:00Z",
+    "last": 0.6724,
+    "last_time": "2026-09-19T16:00:00Z",
     "lo": 0.5748,
     "hi": 0.7301,
     "eq": 0.65245,
-    "pct": 0.6813,
+    "pct": 0.6285,
     "stance": "CHỜ",
     "verdict": null,
     "verdict_short": null,
     "last_mss": {
      "type": "bull",
-     "i": 350,
+     "i": 349,
      "level": 0.6381,
      "disp": true,
      "ext": 0.5748,
@@ -1034,7 +1060,7 @@
     },
     "nearest_fvg": {
      "type": "bull",
-     "i": 350,
+     "i": 349,
      "lo": 0.6146,
      "hi": 0.6326,
      "size": 0.018000000000000016,
@@ -1044,8 +1070,8 @@
     },
     "prev_candle": {
      "tf": "4H",
-     "pch": 0.6834,
-     "pcl": 0.6628,
+     "pch": 0.6853,
+     "pcl": 0.671,
      "pch_state": "intact",
      "pcl_state": "intact"
     },
@@ -1067,78 +1093,18 @@
    }
   },
   "SUIUSDT": {
-   "last": 0.845,
-   "last_time": "2026-09-19T15:00:00Z",
+   "last": 0.8585,
+   "last_time": "2026-09-19T17:00:00Z",
    "lo": 0.807,
    "hi": 0.8698,
    "eq": 0.8384,
-   "pct": 0.6051,
+   "pct": 0.8201,
    "stance": "CHỜ",
    "anchors": null,
-   "setup": {
-    "side": "long",
-    "sweep": {
-     "pool": "SSL",
-     "level": 0.8083,
-     "time": "2026-09-19T07:00:00Z"
-    },
-    "mss": {
-     "level": 0.834,
-     "time": "2026-09-19T09:00:00Z",
-     "vol_mult": 1.85,
-     "displacement": true,
-     "cisd": {
-      "level": 0.8295,
-      "time": "2026-09-19T04:00:00Z",
-      "confirmed": "2026-09-19T09:00:00Z"
-     }
-    },
-    "in_discount": false,
-    "pd_ok": false,
-    "dr_source": "pools",
-    "complete": true,
-    "fvg": {
-     "lo": 0.8369,
-     "hi": 0.8537,
-     "ce": 0.8452999999999999,
-     "time": "2026-09-19T10:00:00Z",
-     "mitigated": true
-    },
-    "ob": {
-     "open": 0.8163,
-     "mt": 0.8125,
-     "body_low": 0.8087,
-     "body_high": 0.8163,
-     "time": "2026-09-19T07:00:00Z"
-    },
-    "entry": 0.8537,
-    "entry_models": {
-     "iofed": 0.8537,
-     "ce": 0.8452999999999999,
-     "fill": 0.8369
-    },
-    "stop": 0.807,
-    "stop_owner": "sweep_extreme",
-    "stop_options": {
-     "gap_far_edge": 0.8369,
-     "ob_body_low": 0.8087,
-     "sweep_extreme": 0.807
-    },
-    "target": 0.8879999999999998,
-    "target_kind": "dự phóng −2σ (models.md §2.1.5)",
-    "objective": 0.8698,
-    "std_targets": {
-     "-2": 0.8879999999999998,
-     "-2.5": 0.9014999999999997,
-     "-4": 0.9419999999999996
-    },
-    "R": 0.73,
-    "rr_ok": false,
-    "min_rr": 3.0
-   },
+   "setup": null,
    "last_mss": {
     "type": "bull",
-    "i": 473,
+    "i": 471,
     "level": 0.834,
     "disp": true,
     "ext": 0.807,
@@ -1149,11 +1115,11 @@
      "time": "2026-09-19T04:00:00Z",
      "confirmed": "2026-09-19T09:00:00Z"
     },
-    "vol_mult": 1.85
+    "vol_mult": 1.84
    },
    "nearest_fvg": {
     "type": "bull",
-    "i": 473,
+    "i": 471,
     "lo": 0.8266,
     "hi": 0.8328,
     "size": 0.006199999999999983,
@@ -1170,121 +1136,114 @@
    },
    "prev_candle": {
     "tf": "1H",
-    "pch": 0.8548,
-    "pcl": 0.8435,
-    "pch_state": "intact",
+    "pch": 0.8581,
+    "pcl": 0.8378,
+    "pch_state": "closed_through",
     "pcl_state": "intact"
    },
    "unswept_pools": [
     {
      "kind": "SSL",
      "level": 0.7955,
-     "from": 213,
+     "from": 211,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 0.807,
-     "from": 221,
+     "from": 219,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 0.7153,
-     "from": 357,
+     "from": 355,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "BSL",
-     "level": 0.8447,
-     "from": 188,
-     "swept": -1,
-     "type": "old"
-    },
-    {
-     "kind": "BSL",
      "level": 0.8369,
-     "from": 202,
+     "from": 200,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.7732,
-     "from": 254,
+     "from": 252,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.766,
-     "from": 286,
+     "from": 284,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.748,
-     "from": 364,
+     "from": 362,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.6941,
-     "from": 403,
+     "from": 401,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.7388,
-     "from": 433,
+     "from": 431,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.7895,
-     "from": 444,
+     "from": 442,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.8698,
-     "from": 475,
+     "from": 473,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.673,
-     "from": 386,
+     "from": 384,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.6765,
-     "from": 390,
+     "from": 388,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.678,
-     "from": 409,
+     "from": 407,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.7293,
-     "from": 438,
+     "from": 436,
      "swept": -1,
      "type": "old"
     }
@@ -1294,20 +1253,20 @@
     "tier": "structure",
     "style": "swing",
     "tf": "4h",
-    "scanned_at": "2026-09-19T12:04:00Z",
-    "window_last": "2026-09-19T12:00:00Z",
-    "last": 0.8638,
-    "last_time": "2026-09-19T12:00:00Z",
+    "scanned_at": "2026-09-19T16:03:27Z",
+    "window_last": "2026-09-19T16:00:00Z",
+    "last": 0.8405,
+    "last_time": "2026-09-19T16:00:00Z",
     "lo": 0.678,
     "hi": 0.954,
     "eq": 0.8160000000000001,
-    "pct": 0.6732,
-    "stance": "CHỜ",
+    "pct": 0.5888,
+    "stance": "THEO DÕI SHORT",
     "verdict": null,
     "verdict_short": null,
     "last_mss": {
      "type": "bull",
-     "i": 350,
+     "i": 349,
      "level": 0.748,
      "disp": true,
      "ext": 0.678,
@@ -1318,22 +1277,22 @@
       "time": "2026-09-16T12:00:00Z",
       "confirmed": "2026-09-16T16:00:00Z"
      },
-     "vol_mult": 2.22
+     "vol_mult": 2.2
     },
     "nearest_fvg": {
      "type": "bull",
-     "i": 358,
-     "lo": 0.834,
-     "hi": 0.8619,
-     "size": 0.027900000000000036,
-     "ce": 0.84795,
+     "i": 349,
+     "lo": 0.7428,
+     "hi": 0.7723,
+     "size": 0.02949999999999997,
+     "ce": 0.75755,
      "end": 359,
      "mitigated": false
     },
     "prev_candle": {
      "tf": "4H",
-     "pch": 0.8698,
-     "pcl": 0.8075,
+     "pch": 0.8656,
+     "pcl": 0.8379,
      "pch_state": "intact",
      "pcl_state": "intact"
     },
@@ -1355,18 +1314,18 @@
    }
   },
   "TAOUSDT": {
-   "last": 270.9,
-   "last_time": "2026-09-19T15:00:00Z",
+   "last": 270.0,
+   "last_time": "2026-09-19T17:00:00Z",
    "lo": 251.5,
-   "hi": 272.4,
-   "eq": 261.95,
-   "pct": 0.9282,
+   "hi": 277.0,
+   "eq": 264.25,
+   "pct": 0.7255,
    "stance": "CHỜ",
    "anchors": null,
    "setup": null,
    "last_mss": {
     "type": "bull",
-    "i": 412,
+    "i": 410,
     "level": 219.4,
     "disp": true,
     "ext": 214.1,
@@ -1381,11 +1340,11 @@
    },
    "nearest_fvg": {
     "type": "bull",
-    "i": 478,
-    "lo": 267.9,
-    "hi": 270.8,
-    "size": 2.900000000000034,
-    "ce": 269.35,
+    "i": 471,
+    "lo": 258.8,
+    "hi": 263.3,
+    "size": 4.5,
+    "ce": 261.05,
     "end": 479,
     "mitigated": false
    },
@@ -1398,8 +1357,8 @@
    },
    "prev_candle": {
     "tf": "1H",
-    "pch": 271.8,
-    "pcl": 267.0,
+    "pch": 272.7,
+    "pcl": 268.2,
     "pch_state": "intact",
     "pcl_state": "intact"
    },
@@ -1407,129 +1366,114 @@
     {
      "kind": "SSL",
      "level": 228.2,
-     "from": 284,
+     "from": 282,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "BSL",
      "level": 277.0,
-     "from": 178,
+     "from": 176,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 226.6,
-     "from": 417,
+     "from": 415,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 232.0,
-     "from": 435,
+     "from": 433,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 259.1,
-     "from": 467,
-     "swept": -1,
-     "type": "old"
-    },
-    {
-     "kind": "BSL",
-     "level": 272.4,
-     "from": 475,
+     "from": 465,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 213.4,
-     "from": 400,
+     "from": 398,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 214.1,
-     "from": 408,
+     "from": 406,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 217.9,
-     "from": 415,
+     "from": 413,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 224.8,
-     "from": 429,
+     "from": 427,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 242.9,
-     "from": 451,
+     "from": 449,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 246.6,
-     "from": 457,
+     "from": 455,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 247.0,
-     "from": 463,
+     "from": 461,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 251.5,
-     "from": 470,
+     "from": 468,
      "swept": -1,
      "type": "old"
     }
    ],
-   "events_recent": [
-    {
-     "kind": "fvg_bull",
-     "lo": 267.9,
-     "hi": 270.8,
-     "i": 478,
-     "time": "2026-09-19T14:00:00Z"
-    }
-   ],
+   "events_recent": [],
    "context": {
     "tier": "structure",
     "style": "swing",
     "tf": "4h",
-    "scanned_at": "2026-09-19T12:04:00Z",
-    "window_last": "2026-09-19T12:00:00Z",
-    "last": 269.3,
-    "last_time": "2026-09-19T12:00:00Z",
+    "scanned_at": "2026-09-19T16:03:27Z",
+    "window_last": "2026-09-19T16:00:00Z",
+    "last": 270.7,
+    "last_time": "2026-09-19T16:00:00Z",
     "lo": 213.4,
     "hi": 277.0,
     "eq": 245.2,
-    "pct": 0.8789,
-    "stance": "THEO DÕI SHORT",
+    "pct": 0.9009,
+    "stance": "CHỜ",
     "verdict": null,
     "verdict_short": null,
     "last_mss": {
      "type": "bull",
-     "i": 351,
+     "i": 350,
      "level": 242.1,
      "disp": true,
      "ext": 213.4,
@@ -1540,22 +1484,22 @@
       "time": "2026-09-16T04:00:00Z",
       "confirmed": "2026-09-16T08:00:00Z"
      },
-     "vol_mult": 1.95
+     "vol_mult": 1.94
     },
     "nearest_fvg": {
      "type": "bull",
-     "i": 358,
+     "i": 357,
      "lo": 258.6,
-     "hi": 268.3,
-     "size": 9.699999999999989,
-     "ce": 263.45000000000005,
+     "hi": 264.1,
+     "size": 5.5,
+     "ce": 261.35,
      "end": 359,
      "mitigated": false
     },
     "prev_candle": {
      "tf": "4H",
-     "pch": 272.4,
-     "pcl": 252.0,
+     "pch": 273.6,
+     "pcl": 264.1,
      "pch_state": "intact",
      "pcl_state": "intact"
     },
@@ -1577,29 +1521,29 @@
    }
   },
   "RENDERUSDT": {
-   "last": 1.593,
-   "last_time": "2026-09-19T15:00:00Z",
+   "last": 1.586,
+   "last_time": "2026-09-19T17:00:00Z",
    "lo": 1.533,
    "hi": 1.635,
    "eq": 1.584,
-   "pct": 0.5882,
-   "stance": "THEO DÕI SHORT",
+   "pct": 0.5196,
+   "stance": "CHỜ",
    "anchors": null,
    "setup": null,
    "last_mss": {
     "type": "bull",
-    "i": 410,
+    "i": 408,
     "level": 1.314,
     "disp": false,
     "ext": 1.287,
     "ext_time": "2026-09-16T17:00:00Z",
     "origin": 1.314,
     "cisd": null,
-    "vol_mult": 2.75
+    "vol_mult": 2.73
    },
    "nearest_fvg": {
     "type": "bull",
-    "i": 440,
+    "i": 438,
     "lo": 1.442,
     "hi": 1.474,
     "size": 0.03200000000000003,
@@ -1616,8 +1560,8 @@
    },
    "prev_candle": {
     "tf": "1H",
-    "pch": 1.614,
-    "pcl": 1.589,
+    "pch": 1.59,
+    "pcl": 1.569,
     "pch_state": "intact",
     "pcl_state": "intact"
    },
@@ -1625,101 +1569,86 @@
     {
      "kind": "BSL",
      "level": 1.428,
-     "from": 18,
+     "from": 16,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "BSL",
      "level": 1.46,
-     "from": 252,
+     "from": 250,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 1.399,
-     "from": 21,
+     "from": 19,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 1.533,
-     "from": 462,
+     "from": 460,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "BSL",
      "level": 1.314,
-     "from": 405,
-     "swept": -1,
-     "type": "old"
-    },
-    {
-     "kind": "BSL",
-     "level": 1.591,
-     "from": 467,
+     "from": 403,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 1.635,
-     "from": 476,
+     "from": 474,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 1.284,
-     "from": 400,
+     "from": 398,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 1.287,
-     "from": 408,
+     "from": 406,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 1.513,
-     "from": 457,
+     "from": 455,
      "swept": -1,
      "type": "old"
     }
    ],
-   "events_recent": [
-    {
-     "kind": "sweep",
-     "pool": "BSL",
-     "level": 1.603,
-     "i": 478,
-     "time": "2026-09-19T14:00:00Z"
-    }
-   ],
+   "events_recent": [],
    "context": {
     "tier": "structure",
     "style": "swing",
     "tf": "4h",
-    "scanned_at": "2026-09-19T12:04:00Z",
-    "window_last": "2026-09-19T12:00:00Z",
-    "last": 1.598,
-    "last_time": "2026-09-19T12:00:00Z",
+    "scanned_at": "2026-09-19T16:03:27Z",
+    "window_last": "2026-09-19T16:00:00Z",
+    "last": 1.576,
+    "last_time": "2026-09-19T16:00:00Z",
     "lo": 1.284,
-    "hi": 1.603,
-    "eq": 1.4435,
-    "pct": 0.9843,
-    "stance": "CHỜ",
+    "hi": 1.637,
+    "eq": 1.4605000000000001,
+    "pct": 0.8272,
+    "stance": "THEO DÕI SHORT",
     "verdict": null,
     "verdict_short": null,
     "last_mss": {
      "type": "bull",
-     "i": 349,
+     "i": 348,
      "level": 1.415,
      "disp": false,
      "ext": 1.284,
@@ -1730,11 +1659,11 @@
       "time": "2026-09-15T12:00:00Z",
       "confirmed": "2026-09-16T20:00:00Z"
      },
-     "vol_mult": 1.29
+     "vol_mult": 1.28
     },
     "nearest_fvg": {
      "type": "bull",
-     "i": 350,
+     "i": 349,
      "lo": 1.442,
      "hi": 1.489,
      "size": 0.04700000000000015,
@@ -1744,27 +1673,22 @@
     },
     "prev_candle": {
      "tf": "4H",
-     "pch": 1.598,
-     "pcl": 1.534,
-     "pch_state": "swept",
-     "pcl_state": "intact"
+     "pch": 1.635,
+     "pcl": 1.574,
+     "pch_state": "intact",
+     "pcl_state": "swept"
     },
     "anchors": [],
     "wyckoff": null,
     "wyckoff_source": null,
-    "bias": "neutral",
+    "bias": "long",
     "basis": [
-     [
-      "ict",
-      "bias.ict.contradiction",
-      {}
-     ],
      [
       "ict",
       "bias.ict.failed_displace",
       {
-       "level": "PCH 1.60",
-       "other": "PCL 1.53"
+       "level": "PCL 1.57",
+       "other": "PCH 1.64"
       }
      ],
      [
@@ -1780,18 +1704,18 @@
    }
   },
   "ONDOUSDT": {
-   "last": 0.436,
-   "last_time": "2026-09-19T15:00:00Z",
+   "last": 0.4387,
+   "last_time": "2026-09-19T17:00:00Z",
    "lo": 0.3934,
-   "hi": 0.4393,
-   "eq": 0.41635,
-   "pct": 0.9281,
+   "hi": 0.4434,
+   "eq": 0.4184,
+   "pct": 0.906,
    "stance": "CHỜ",
    "anchors": null,
    "setup": null,
    "last_mss": {
     "type": "bull",
-    "i": 476,
+    "i": 474,
     "level": 0.4153,
     "disp": true,
     "ext": 0.3934,
@@ -1802,15 +1726,15 @@
      "time": "2026-09-19T03:00:00Z",
      "confirmed": "2026-09-19T11:00:00Z"
     },
-    "vol_mult": 5.38
+    "vol_mult": 5.32
    },
    "nearest_fvg": {
     "type": "bull",
-    "i": 478,
-    "lo": 0.427,
-    "hi": 0.4344,
-    "size": 0.007400000000000018,
-    "ce": 0.43069999999999997,
+    "i": 426,
+    "lo": 0.351,
+    "hi": 0.3596,
+    "size": 0.008599999999999997,
+    "ce": 0.35529999999999995,
     "end": 479,
     "mitigated": false
    },
@@ -1823,8 +1747,8 @@
    },
    "prev_candle": {
     "tf": "1H",
-    "pch": 0.4393,
-    "pcl": 0.423,
+    "pch": 0.4397,
+    "pcl": 0.428,
     "pch_state": "intact",
     "pcl_state": "intact"
    },
@@ -1832,121 +1756,107 @@
     {
      "kind": "BSL",
      "level": 0.3801,
-     "from": 153,
+     "from": 151,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 0.3474,
-     "from": 85,
+     "from": 83,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "SSL",
      "level": 0.3239,
-     "from": 400,
+     "from": 398,
      "swept": -1,
      "type": "equal"
     },
     {
      "kind": "BSL",
      "level": 0.3812,
-     "from": 232,
+     "from": 230,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.3652,
-     "from": 364,
+     "from": 362,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.3335,
-     "from": 406,
+     "from": 404,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "BSL",
      "level": 0.3559,
-     "from": 417,
-     "swept": -1,
-     "type": "old"
-    },
-    {
-     "kind": "SSL",
-     "level": 0.323,
-     "from": 394,
-     "swept": -1,
-     "type": "old"
-    },
-    {
-     "kind": "SSL",
-     "level": 0.3362,
      "from": 415,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
+     "level": 0.323,
+     "from": 392,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.3362,
+     "from": 413,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
      "level": 0.366,
-     "from": 438,
+     "from": 436,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.3797,
-     "from": 445,
+     "from": 443,
      "swept": -1,
      "type": "old"
     },
     {
      "kind": "SSL",
      "level": 0.3934,
-     "from": 470,
+     "from": 468,
      "swept": -1,
      "type": "old"
     }
    ],
-   "events_recent": [
-    {
-     "kind": "erl_high",
-     "level": 0.4393,
-     "i": 478,
-     "time": "2026-09-19T14:00:00Z"
-    },
-    {
-     "kind": "fvg_bull",
-     "lo": 0.427,
-     "hi": 0.4344,
-     "i": 478,
-     "time": "2026-09-19T14:00:00Z"
-    }
-   ],
+   "events_recent": [],
    "context": {
     "tier": "structure",
     "style": "swing",
     "tf": "4h",
-    "scanned_at": "2026-09-19T12:04:00Z",
-    "window_last": "2026-09-19T12:00:00Z",
-    "last": 0.4118,
-    "last_time": "2026-09-19T12:00:00Z",
-    "lo": 0.323,
-    "hi": 0.4282,
-    "eq": 0.37560000000000004,
-    "pct": 0.8441,
+    "scanned_at": "2026-09-19T16:03:27Z",
+    "window_last": "2026-09-19T16:00:00Z",
+    "last": 0.4337,
+    "last_time": "2026-09-19T16:00:00Z",
+    "lo": 0.3934,
+    "hi": 0.4434,
+    "eq": 0.4184,
+    "pct": 0.806,
     "stance": "CHỜ",
     "verdict": null,
     "verdict_short": null,
     "last_mss": {
      "type": "bull",
-     "i": 347,
+     "i": 346,
      "level": 0.3652,
      "disp": true,
      "ext": 0.323,
@@ -1957,13 +1867,22 @@
       "time": "2026-09-15T12:00:00Z",
       "confirmed": "2026-09-16T20:00:00Z"
      },
-     "vol_mult": 6.4
+     "vol_mult": 6.33
     },
-    "nearest_fvg": null,
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 358,
+     "lo": 0.4154,
+     "hi": 0.4327,
+     "size": 0.017299999999999982,
+     "ce": 0.42405,
+     "end": 359,
+     "mitigated": false
+    },
     "prev_candle": {
      "tf": "4H",
-     "pch": 0.4154,
-     "pcl": 0.3937,
+     "pch": 0.4434,
+     "pcl": 0.4089,
      "pch_state": "intact",
      "pcl_state": "intact"
     },

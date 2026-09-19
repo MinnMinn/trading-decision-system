@@ -4,7 +4,7 @@ human may make.
 §41's three demands, and how each had been missed:
 
 **Eight outcome states.** Five were *unrepresentable*. A trade file carries WIN / LOSS / BREAKEVEN; the runner
-logged every block reason into `top5-log.jsonl` and **nothing ever read it back**, so "the filter saved us"
+logged every block reason into `top20-log.jsonl` and **nothing ever read it back**, so "the filter saved us"
 and "the filter cost us a winner" were the same silence.
 
 **"NO TRADE and BLOCKED ENTRY must NOT automatically be classified as failures."** The word is *automatically*.

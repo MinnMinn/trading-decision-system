@@ -167,7 +167,7 @@ class SelectionPressureIsReal(unittest.TestCase):
                 total += len(json.load(fh).get("rows", []))
         if total == 0:
             self.skipTest("no stability rows on disk")
-        selection = os.path.join(ROOT, "docs", "architecture", "pilot-top5.json")
+        selection = os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")
         with open(selection, encoding="utf-8") as fh:
             picked = len(json.load(fh).get("setups", []))
         self.assertGreater(total, picked * 5,
@@ -177,12 +177,12 @@ class SelectionPressureIsReal(unittest.TestCase):
         """A failing-forward test: when §43 adds the count, this test should be DELETED along with the
         register's 'unrecorded' wording. Until then it pins the gap so the claim cannot go stale."""
         import json
-        with open(os.path.join(ROOT, "docs", "architecture", "pilot-top5.json"), encoding="utf-8") as fh:
+        with open(os.path.join(ROOT, "docs", "architecture", "pilot-top20.json"), encoding="utf-8") as fh:
             d = json.load(fh)
         keys = " ".join(k.lower() for k in d)
         for token in ("candidate", "rejected", "considered"):
             self.assertNotIn(token, keys,
-                             f"pilot-top5.json now records {token!r} -- §43 landed; update §22's "
+                             f"pilot-top20.json now records {token!r} -- §43 landed; update §22's "
                              f"selection-bias row and delete this test")
 
 

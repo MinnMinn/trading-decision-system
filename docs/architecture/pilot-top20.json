@@ -1,5 +1,5 @@
 {
- "generated": "2026-09-19",
+ "generated": "2026-09-20",
  "mode": "horizons-1y",
  "note": "Written by scripts/rank-setups.py --horizons. One setup per (horizon, method) per market -- every RUNNABLE method gets its own scalping/day/swing setups so any method-switch preset (strategy-runner.py allowed_methods()) still covers all 3 horizons (user decision 2026-09-11, extended 2026-09-13 for the per-method split). Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.",
  "setups": [
@@ -24,16 +24,16 @@
    "backtest": {
     "window": "1y",
     "n": 5,
-    "ann_pct": 4.3,
-    "max_dd_pct": 3.3,
+    "ann_pct": 4.4,
+    "max_dd_pct": 2.2,
     "q_pos_pct": 20,
-    "full_n": 54,
-    "full_ann_pct": 0.9,
-    "years_pos": "6/23",
+    "full_n": 65,
+    "full_ann_pct": 0.1,
+    "years_pos": "7/23",
     "period": "2004-06-11→2026-09-18",
     "source": "data/history/stability/cfd-ftmo-challenge-phase1.json"
    },
-   "rule_version": "b316f3f5de48",
+   "rule_version": "2755e9d10b2c",
    "rule_version_algo": "sha256-12"
   }
  ],

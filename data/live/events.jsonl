@@ -5037,3 +5037,32 @@
 {"t": "2026-09-19T15:46:07Z", "style": "scalping", "symbol": "ETHUSDT", "kind": "sweep", "pool": "BSL", "level": 2646.12, "i": 575, "time": "2026-09-19T15:45:00Z"}
 {"t": "2026-09-19T15:46:07Z", "style": "scalping", "symbol": "ETHUSDT", "kind": "mss_bull", "level": 2643.99, "i": 574, "time": "2026-09-19T15:30:00Z"}
 {"t": "2026-09-19T15:46:07Z", "style": "scalping", "symbol": "VIRTUALUSDT", "kind": "sweep", "pool": "SSL", "level": 0.6738, "i": 574, "time": "2026-09-19T15:30:00Z"}
+{"t": "2026-09-19T16:02:22Z", "style": "day", "symbol": "BTCUSDT", "kind": "sweep", "pool": "BSL", "level": 81741.0, "i": 478, "time": "2026-09-19T15:00:00Z"}
+{"t": "2026-09-19T16:02:22Z", "style": "day", "symbol": "SUIUSDT", "kind": "sweep", "pool": "BSL", "level": 0.8447, "i": 478, "time": "2026-09-19T15:00:00Z"}
+{"t": "2026-09-19T16:02:22Z", "style": "day", "symbol": "TAOUSDT", "kind": "sweep", "pool": "BSL", "level": 272.4, "i": 478, "time": "2026-09-19T15:00:00Z"}
+{"t": "2026-09-19T16:02:22Z", "style": "day", "symbol": "RENDERUSDT", "kind": "sweep", "pool": "BSL", "level": 1.591, "i": 478, "time": "2026-09-19T15:00:00Z"}
+{"t": "2026-09-19T16:02:22Z", "style": "day", "symbol": "ONDOUSDT", "kind": "erl_high", "level": 0.4434, "i": 478, "time": "2026-09-19T15:00:00Z"}
+{"t": "2026-09-19T16:03:27Z", "style": "swing", "symbol": "SUIUSDT", "kind": "sweep", "pool": "BSL", "level": 0.8575, "i": 358, "time": "2026-09-19T12:00:00Z"}
+{"t": "2026-09-19T16:03:27Z", "style": "swing", "symbol": "SUIUSDT", "kind": "sweep", "pool": "BSL", "level": 0.8447, "i": 358, "time": "2026-09-19T12:00:00Z"}
+{"t": "2026-09-19T16:03:27Z", "style": "swing", "symbol": "RENDERUSDT", "kind": "sweep", "pool": "BSL", "level": 1.603, "i": 358, "time": "2026-09-19T12:00:00Z"}
+{"t": "2026-09-19T16:03:27Z", "style": "swing", "symbol": "ONDOUSDT", "kind": "erl_high", "level": 0.4434, "i": 358, "time": "2026-09-19T12:00:00Z"}
+{"t": "2026-09-19T16:16:43Z", "style": "scalping", "symbol": "SOLUSDT", "kind": "sweep", "pool": "SSL", "level": 111.29, "i": 574, "time": "2026-09-19T16:00:00Z"}
+{"t": "2026-09-19T16:16:43Z", "style": "scalping", "symbol": "ASTERUSDT", "kind": "mss_bear", "level": 0.762, "i": 575, "time": "2026-09-19T16:15:00Z"}
+{"t": "2026-09-19T16:16:43Z", "style": "scalping", "symbol": "VIRTUALUSDT", "kind": "sweep", "pool": "SSL", "level": 0.6702, "i": 574, "time": "2026-09-19T16:00:00Z"}
+{"t": "2026-09-19T16:46:04Z", "style": "scalping", "symbol": "SUIUSDT", "kind": "sweep", "pool": "BSL", "level": 0.8548, "i": 575, "time": "2026-09-19T16:45:00Z"}
+{"t": "2026-09-19T16:46:04Z", "style": "scalping", "symbol": "SUIUSDT", "kind": "mss_bull", "level": 0.8548, "i": 574, "time": "2026-09-19T16:30:00Z"}
+{"t": "2026-09-19T17:01:15Z", "style": "scalping", "symbol": "ASTERUSDT", "kind": "sweep", "pool": "SSL", "level": 0.762, "i": 574, "time": "2026-09-19T16:45:00Z"}
+{"t": "2026-09-19T17:16:31Z", "style": "scalping", "symbol": "ETHUSDT", "kind": "sweep", "pool": "BSL", "level": 2652.1, "i": 574, "time": "2026-09-19T17:00:00Z"}
+{"t": "2026-09-19T17:16:31Z", "style": "scalping", "symbol": "SOLUSDT", "kind": "sweep", "pool": "BSL", "level": 112.24, "i": 574, "time": "2026-09-19T17:00:00Z"}
+{"t": "2026-09-19T17:31:42Z", "style": "scalping", "symbol": "BTCUSDT", "kind": "sweep", "pool": "SSL", "level": 81472.0, "i": 574, "time": "2026-09-19T17:15:00Z"}
+{"t": "2026-09-19T17:31:42Z", "style": "scalping", "symbol": "ETHUSDT", "kind": "sweep", "pool": "BSL", "level": 2662.85, "i": 574, "time": "2026-09-19T17:15:00Z"}
+{"t": "2026-09-19T17:31:42Z", "style": "scalping", "symbol": "ETHUSDT", "kind": "erl_high", "level": 2668.0, "i": 574, "time": "2026-09-19T17:15:00Z"}
+{"t": "2026-09-19T17:31:42Z", "style": "scalping", "symbol": "VIRTUALUSDT", "kind": "sweep", "pool": "BSL", "level": 0.6821, "i": 574, "time": "2026-09-19T17:15:00Z"}
+{"t": "2026-09-19T17:31:42Z", "style": "scalping", "symbol": "SUIUSDT", "kind": "sweep", "pool": "BSL", "level": 0.8698, "i": 574, "time": "2026-09-19T17:15:00Z"}
+{"t": "2026-09-19T17:31:42Z", "style": "scalping", "symbol": "SUIUSDT", "kind": "erl_high", "level": 0.8703, "i": 574, "time": "2026-09-19T17:15:00Z"}
+{"t": "2026-09-19T17:31:42Z", "style": "scalping", "symbol": "TAOUSDT", "kind": "mss_bear", "level": 268.2, "i": 574, "time": "2026-09-19T17:15:00Z"}
+{"t": "2026-09-19T17:46:52Z", "style": "scalping", "symbol": "BTCUSDT", "kind": "sweep", "pool": "BSL", "level": 81528.01, "i": 574, "time": "2026-09-19T17:30:00Z"}
+{"t": "2026-09-19T17:46:52Z", "style": "scalping", "symbol": "ASTERUSDT", "kind": "sweep", "pool": "SSL", "level": 0.758, "i": 574, "time": "2026-09-19T17:30:00Z"}
+{"t": "2026-09-19T17:46:52Z", "style": "scalping", "symbol": "TAOUSDT", "kind": "sweep", "pool": "SSL", "level": 264.1, "i": 574, "time": "2026-09-19T17:30:00Z"}
+{"t": "2026-09-19T18:16:14Z", "style": "scalping", "symbol": "ETHUSDT", "kind": "sweep", "pool": "SSL", "level": 2636.0, "i": 575, "time": "2026-09-19T18:15:00Z"}
+{"t": "2026-09-19T18:16:14Z", "style": "scalping", "symbol": "SOLUSDT", "kind": "mss_bear", "level": 111.23, "i": 574, "time": "2026-09-19T18:00:00Z"}

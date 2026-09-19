@@ -2,7 +2,7 @@
 """Pick the N most CONSISTENT setups per market from stability-report JSON files and write the pilot's selection file.
 
 Usage: rank-setups.py --crypto data/history/stability/crypto-*.json --cfd data/history/stability/cfd-*.json
-                      [--n 5] [--min-trades-crypto 100] [--min-trades-cfd 40] [--out docs/backtests/<file>.md] [--select docs/architecture/pilot-top5.json]
+                      [--n 20] [--min-trades-crypto 100] [--min-trades-cfd 40] [--out docs/backtests/<file>.md] [--select docs/architecture/pilot-top20.json]
 
 A "setup" = (market, timeframe, method, ICT target model, configuration A/B/C). Rows are ranked by: not blown up → share of
 positive quarters → share of positive years → worst quarter → stability ratio (quarter mean / σ × √n). One row per
@@ -12,7 +12,7 @@ below), never hardcoded here -- currently ICT (LIMIT at the FVG edge) and WYCKOF
 the entry bar: Spring reclaim / Test / BU), exactly as the backtest. (WYCKOFF, the mechanical proxy, and
 COMBINED were removed 2026-09-19 -- docs/audits/2026-09-19-knowledge-fidelity.md finding 6.)
 
-The selection file (single writer: this script) is read by scripts/strategy-runner.py and shown by `/automation pilot profile top5`.
+The selection file (single writer: this script) is read by scripts/strategy-runner.py and shown by `/automation pilot profile top20`.
 CFD setups get execution "mt5" (demo account through integrations/mt5/OrderBridge.mq5 + scripts/mt5-order-bridge.py) and only the three
 live timeframes the MT5 EA exports or the runner can aggregate (CFD_TFS: 15m, 1H, 4H). Every number here is a code proxy over research history — for CFD that is
 Yahoo Finance futures data (scripts/fetch-history-cfd.py), not the CFD quotes the pilot will trade on.
@@ -101,7 +101,7 @@ def load_rows(paths, market, *, require_stamped=False):
 
     This is the one place all three ranking modes read their input, so it is the one place the §38 gate
     belongs. "Never silently produce a trustworthy-looking performance result from invalid research" applies
-    with particular force here: these rows do not end in a report, they end in `pilot-top5.json`, which is what
+    with particular force here: these rows do not end in a report, they end in `pilot-top20.json`, which is what
     the runner places orders from.
 
     Two verdicts are refused outright (`INVALID`, and anything not in the allow-list). `UNSTAMPED` -- a file
@@ -308,11 +308,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--crypto", nargs="*", default=glob.glob(f"{ROOT}/data/history/stability/crypto-*.json"))
     ap.add_argument("--cfd", nargs="*", default=glob.glob(f"{ROOT}/data/history/stability/cfd-*.json"))
-    ap.add_argument("--n", type=int, default=5); ap.add_argument("--min-trades-crypto", type=int, default=100); ap.add_argument("--min-trades-cfd", type=int, default=40)  # --window 1y lowers these: see main()
+    ap.add_argument("--n", type=int, default=20); ap.add_argument("--min-trades-crypto", type=int, default=100); ap.add_argument("--min-trades-cfd", type=int, default=40)  # --window 1y lowers these: see main()
     ap.add_argument("--out"); ap.add_argument("--select")
     # Defaults DERIVED, not typed. `--cfd-symbols` used to read "XAUUSD,XAGUSD,USOIL,UKOIL"; when USOIL/UKOIL
     # left the execution list on 2026-09-18 (no such symbol on the broker) that literal would have written them
-    # straight back into pilot-top5.json on the next ranking run, with nothing failing. The crypto default stays
+    # straight back into pilot-top20.json on the next ranking run, with nothing failing. The crypto default stays
     # the BACKTESTED subset rather than the execution list -- selection may only claim symbols that were
     # measured (instruments.json `backtested`), and that is a narrower set on purpose.
     ap.add_argument("--crypto-symbols", default=",".join(_I.backtested("crypto")))
@@ -341,7 +341,7 @@ def main():
         return main_window_1y(a, today)
     L = [f"# Top {a.n} setup mỗi thị trường — xếp theo độ ổn định — {today}", "",
          "_`scripts/rank-setups.py` trên các file `stability-report.py --json`. Tiêu chí: không cháy → tỉ lệ quý dương → tỉ lệ năm dương → quý tệ nhất → tỉ số ổn định. Mỗi (khung, luật) giữ một target và cấu hình tốt nhất, nên 5 dòng là 5 luật khác nhau. Cấu hình A = phí taker 0,05 %, không quản lý; B = phí maker 0,02 % + hoà vốn +1R; C = B + lọc khung lớn. Cả long lẫn short. Mọi số là proxy code trên lịch sử nghiên cứu._", ""]
-    selection = dict(generated=today, note="Written by scripts/rank-setups.py. Read by scripts/strategy-runner.py (pilot profile top5) and shown by /automation pilot profile. CFD execution = MT5 demo account via the file order bridge; crypto = Binance futures testnet.", setups=[])
+    selection = dict(generated=today, note="Written by scripts/rank-setups.py. Read by scripts/strategy-runner.py (pilot profile top20) and shown by /automation pilot profile. CFD execution = MT5 demo account via the file order bridge; crypto = Binance futures testnet.", setups=[])
     for market, paths, mn, syms in (("crypto", a.crypto, a.min_trades_crypto, a.crypto_symbols.split(",")), ("cfd", a.cfd, a.min_trades_cfd, a.cfd_symbols.split(","))):
         rows = load_rows(sorted(paths), market, require_stamped=a.require_stamped)
         if not rows:

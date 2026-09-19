@@ -9,7 +9,7 @@ Inputs (all read-only; each has exactly one writer elsewhere):
   docs/architecture/instruments.json      the allowlist + display metadata      (scripts/instruments.py)
   docs/architecture/automation-config.json  applied state at build time         (scripts/automation.py, single writer)
   data/live/<market-data|mt5-bridge>/      which symbols actually have candles   (scanner / MT5 EA)
-  data/live/pilot-futures/top5-state.json which symbols hold an open position    (scripts/strategy-runner.py, its
+  data/live/pilot-futures/top20-state.json which symbols hold an open position    (scripts/strategy-runner.py, its
                                            only writer -- STATE at strategy-runner.py:51; positions{} is keyed by
                                            symbol across BOTH markets, since one runner trades crypto futures
                                            testnet and CFD MT5 demo)
@@ -53,7 +53,7 @@ CONFIG_PATH = os.path.join(ROOT, "docs", "architecture", "automation-config.json
 # here was a deliberate choice at the time -- importing automation.py for one dict is worse -- but the copy
 # still had to be edited whenever a market was added, which is the cost the comment could not remove.
 DATA_DIR = I.DATA_DIR
-PILOT_STATE_PATH = os.path.join(ROOT, "data", "live", "pilot-futures", "top5-state.json")
+PILOT_STATE_PATH = os.path.join(ROOT, "data", "live", "pilot-futures", "top20-state.json")
 
 
 # ------------------------------------------------------------------------------------------- disk-probed defaults
@@ -79,7 +79,7 @@ def _real_data_present(root=ROOT):
 def _real_backtested(root=ROOT):
     """The set of symbols the pilot rules are actually validated on, read from the structured
     docs/architecture/instruments.json -> backtested field via scripts/instruments.py (the single source,
-    checked against docs/architecture/pilot-top5.json's own per-setup symbol lists when the field was written).
+    checked against docs/architecture/pilot-top20.json's own per-setup symbol lists when the field was written).
 
     This used to regex a prose sentence out of instruments.json's history; that broke silently the moment
     anyone reworded the sentence, and worse, degraded a MISS to "assume backtested" -- exactly backwards for a
@@ -90,14 +90,14 @@ def _real_backtested(root=ROOT):
 
 
 def _real_open_positions(root=ROOT):
-    """Symbols the top5 runner currently holds a position in, read from its own state file
-    (data/live/pilot-futures/top5-state.json, strategy-runner.py:51, the runner's only writer;
+    """Symbols the top20 runner currently holds a position in, read from its own state file
+    (data/live/pilot-futures/top20-state.json, strategy-runner.py:51, the runner's only writer;
     positions{} is keyed by symbol and spans both markets). Missing/corrupt state is UNKNOWN; this degrades to
     "assume no open position" rather than "assume everyone is open" -- the actual safety property (an open
     position keeps getting candles/management even if its symbol is unticked) is enforced by the runner's own
     grandfather logic (strategy-runner.py:766-767) independently of what this badge shows, so the badge erring
     quiet here is a display-honesty gap, not a trading-safety one."""
-    path = os.path.join(root, "data", "live", "pilot-futures", "top5-state.json") \
+    path = os.path.join(root, "data", "live", "pilot-futures", "top20-state.json") \
         if root != ROOT else PILOT_STATE_PATH
     try:
         with open(path, encoding="utf-8") as fh:

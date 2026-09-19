@@ -1,0 +1,438 @@
+- generic [active] [ref=f57e1]:
+  - generic [ref=f57e3]:
+    - generic [ref=f57e4]:
+      - generic [ref=f57e5]: CFD Scalping
+      - generic [ref=f57e6]: 15m × 576 (6 days) · data through 09:45 UTC
+    - navigation [ref=f57e7]:
+      - link "XAU" [ref=f57e8] [cursor=pointer]:
+        - /url: "#sec-xau"
+      - link "XAG" [ref=f57e9] [cursor=pointer]:
+        - /url: "#sec-xagusd"
+      - link "Terminology" [ref=f57e10] [cursor=pointer]:
+        - /url: "#sec-glossary"
+    - group "Method" [ref=f57e11]:
+      - button "Wyckoff" [ref=f57e12] [cursor=pointer]
+      - button "ICT" [ref=f57e14] [cursor=pointer]
+      - button "Footprint" [ref=f57e16] [cursor=pointer]
+      - button "Heatmap" [ref=f57e18] [cursor=pointer]
+    - group "Language" [ref=f57e20]:
+      - button "EN" [pressed] [ref=f57e21] [cursor=pointer]
+      - button "VI" [ref=f57e22] [cursor=pointer]
+    - generic [ref=f57e23]: Times UTC
+  - generic [ref=f57e24]:
+    - generic [ref=f57e25]:
+      - generic [ref=f57e26]:
+        - paragraph [ref=f57e27]: MT5 bridge (tick volume) · 15m × 576 (6 days) · analysis, not a signal
+        - heading "CFD Scalping" [level=1] [ref=f57e28]
+        - paragraph [ref=f57e29]: Three timeframe tiers per instrument — Bias → Structure → Entry — read with ICT (price structure).
+        - paragraph [ref=f57e30]: The analysis text on this page is written in Vietnamese by the analysis model and is shown as written — it is not translated, because translating an analysis would change it. Vietnamese passages are marked, and the times inside them are UTC.
+      - generic [ref=f57e31]: NOT A TRADING SIGNAL · research only
+    - generic [ref=f57e32]:
+      - generic [ref=f57e33]:
+        - generic [ref=f57e34]: Timeframe ladder · read top-down
+        - generic [ref=f57e36]:
+          - generic [ref=f57e37]: Bias 4H ×4
+          - text: →
+          - generic [ref=f57e38]: Structure 1H ×4
+          - text: →
+          - generic [ref=f57e39]: Entry 15m
+        - generic [ref=f57e40]: "tier that decides the verdict: Bias · bias is never formed on the entry timeframe · adjacent rungs ≥ ×4 (timeframe-mapping.md)"
+      - generic [ref=f57e41]:
+        - generic [ref=f57e42]: Main event (latest full analysis)
+        - generic [ref=f57e43]: "XAUUSD 15m: THEO DÕI LONG — Spring 4,289.57 rồi SOS[D] xác nhận, LPS đang test quanh 4,370"
+        - generic [ref=f57e44]: Giá 4,369.18 lúc 15:00Z, 56% cửa sổ 96 nến 4,285.91–4,434.62. Spring[C] xuyên xuống 4,289.57 lúc 12:30Z rồi đảo chiều; SOS[D] 4,388.38 lúc 12:45Z (KL 2.49×) xác nhận Phase D; giá đang thoái lui kiểm định LPS quanh 4,370.76.
+      - generic [ref=f57e45]:
+        - generic [ref=f57e46]: Status (local)
+        - generic [ref=f57e47]:
+          - generic [ref=f57e48]:
+            - generic [ref=f57e49]: XAU
+            - generic [ref=f57e50]: WAIT
+          - generic [ref=f57e51]:
+            - generic [ref=f57e52]: XAG
+            - generic [ref=f57e53]: —
+        - generic [ref=f57e54]: data through 09:45 UTC
+    - generic [ref=f57e55]:
+      - generic [ref=f57e56]:
+        - heading "What this page is reading, and what would trade it" [level=2] [ref=f57e57]
+        - paragraph [ref=f57e58]: "Point-in-time: every value below is as of the build stamp in the footer, not as of now."
+      - generic [ref=f57e59]:
+        - generic [ref=f57e60]:
+          - generic [ref=f57e61]: Market
+          - generic [ref=f57e62]: cfd
+        - generic [ref=f57e63]:
+          - generic [ref=f57e64]: Market type
+          - generic [ref=f57e65]: CFD
+        - generic [ref=f57e66]:
+          - generic [ref=f57e67]: Data provider
+          - generic [ref=f57e68]: mt5_bridge
+          - generic [ref=f57e69]: connected
+        - generic [ref=f57e70]:
+          - generic [ref=f57e71]: Source venue
+          - generic [ref=f57e72]: mt5
+        - generic [ref=f57e73]:
+          - generic [ref=f57e74]: Execution venue
+          - generic [ref=f57e75]: mt5_bridge
+          - generic [ref=f57e76]: mt5
+        - generic [ref=f57e77]:
+          - generic [ref=f57e78]: Session
+          - generic [ref=f57e79]: london
+          - generic [ref=f57e80]: as of 09:57 UTC
+        - generic [ref=f57e81]:
+          - generic [ref=f57e82]: Data quality
+          - generic [ref=f57e83]: FRESH
+          - generic [ref=f57e84]: XAG FRESH · XAU FRESH
+        - generic [ref=f57e85]:
+          - generic [ref=f57e86]: Event risk
+          - generic [ref=f57e87]: no restricted window
+          - generic [ref=f57e88]: as of 09:57 UTC
+        - generic [ref=f57e89]:
+          - generic [ref=f57e90]: Account profile
+          - generic [ref=f57e91]: pilot-mt5-demo
+        - generic [ref=f57e92]:
+          - generic [ref=f57e93]: Risk ceiling
+          - generic [ref=f57e94]: 1% of equity per trade
+        - generic [ref=f57e95]:
+          - generic [ref=f57e96]: Active methodology
+          - generic [ref=f57e97]: ICT
+          - generic [ref=f57e98]: ICT
+        - generic [ref=f57e99]:
+          - generic [ref=f57e100]: Available / analysed
+          - generic [ref=f57e101]: Wyckoff · ICT
+        - generic [ref=f57e102]:
+          - generic [ref=f57e103]: Required for the decision
+          - generic [ref=f57e104]: ICT
+          - generic [ref=f57e105]: Only these may block an entry. Everything else on this page is read and shown, never counted (§62).
+        - generic [ref=f57e106]:
+          - generic [ref=f57e107]: Not required — never counted
+          - generic [ref=f57e108]: Footprint · Heatmap · Wyckoff
+    - generic [ref=f57e109]:
+      - generic [ref=f57e110]:
+        - generic [ref=f57e111]: XAU/USD
+        - generic [ref=f57e112]: 4,377.27
+        - generic [ref=f57e113]:
+          - generic [ref=f57e114]: position in the 15m window 71%
+          - generic [ref=f57e116]: last candle 18/9 09:45 UTC
+        - generic [ref=f57e118]:
+          - generic [ref=f57e119]: entry 15m
+          - generic [ref=f57e120]: WAIT
+      - generic [ref=f57e121]:
+        - generic [ref=f57e122]: Tier
+        - generic [ref=f57e123]: ICT
+        - generic [ref=f57e125]: Conclusion
+        - generic [ref=f57e126]:
+          - generic [ref=f57e127]: Bias
+          - generic [ref=f57e128]: 4H ×4
+          - generic [ref=f57e129]: updated 04:59 UTC
+        - generic [ref=f57e130]:
+          - text: 56% dealing range (4,017.16–4,696.73) · premium
+          - generic [ref=f57e131]: "latest MSS: down past 4,340.63"
+        - generic [ref=f57e132]:
+          - 'generic "[ict] contradiction inside ICT — stated, not resolved: [ict] PCH 4,366.98 — the body has closed through, so that level was the draw; expect continuation up (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] latest MSS: down, body closed past the swing at 4,340.63 (knowledge/ict/core-b.md §2.2)" [ref=f57e133]': NEUTRAL
+          - generic [ref=f57e134]: tier that decides the verdict
+        - generic [ref=f57e135]:
+          - generic [ref=f57e136]: Structure
+          - generic [ref=f57e137]: 1H ×4
+          - generic [ref=f57e138]: updated 09:00 UTC
+        - generic [ref=f57e139]:
+          - text: 80% dealing range (4,234.94–4,434.62) · premium
+          - generic [ref=f57e140]: "latest MSS: up past 4,300.46"
+        - 'generic "[ict] latest MSS: up, body closed past the swing at 4,300.46 (knowledge/ict/core-b.md §2.2)" [ref=f57e142]': LONG
+        - generic [ref=f57e143]:
+          - generic [ref=f57e144]: Entry
+          - generic [ref=f57e145]: 15m
+          - generic [ref=f57e146]: updated 09:45 UTC
+        - generic [ref=f57e147]:
+          - text: 60% dealing range (4,334.21–4,402.45) · premium
+          - generic [ref=f57e148]: "latest MSS: down past 4,385.07"
+        - generic [ref=f57e149]: WAIT
+      - generic [ref=f57e151]: "Wyckoff: analysis only — not traded by the active system, does not count toward confluence"
+      - generic [ref=f57e154]:
+        - generic [ref=f57e155]:
+          - generic [ref=f57e156]:
+            - generic [ref=f57e157]:
+              - generic [ref=f57e158]: Bias
+              - text: · 4H × 360 (60 days) · 06-26 13:00 → 09-18 09:00 UTC
+            - generic [ref=f57e159]:
+              - generic [ref=f57e160]: shaded area = the entry window
+              - button "−" [ref=f57e161] [cursor=pointer]
+              - button "+" [ref=f57e162] [cursor=pointer]
+              - button "⟲" [ref=f57e163] [cursor=pointer]
+          - generic [ref=f57e164]: Wyckoff — analysis only — not traded by the active system, does not count toward confluence
+        - generic [ref=f57e167]:
+          - generic [ref=f57e168]:
+            - generic [ref=f57e169]:
+              - generic [ref=f57e170]: Structure
+              - text: · 1H × 480 (20 days) · 08-19 13:00 → 09-18 09:00 UTC
+            - generic [ref=f57e171]:
+              - generic [ref=f57e172]: shaded area = the entry window
+              - button "−" [ref=f57e173] [cursor=pointer]
+              - button "+" [ref=f57e174] [cursor=pointer]
+              - button "⟲" [ref=f57e175] [cursor=pointer]
+          - generic [ref=f57e176]: Wyckoff — analysis only — not traded by the active system, does not count toward confluence
+        - generic [ref=f57e179]:
+          - generic [ref=f57e180]:
+            - generic [ref=f57e181]:
+              - generic [ref=f57e182]: Entry
+              - text: · 15m × 576 (6 days) · 09-09 22:00 → 09-18 09:45 UTC
+            - generic [ref=f57e183]:
+              - generic [ref=f57e184]: wheel = zoom · drag = pan · drag the axis = stretch · End = last candle · keys 1–4 change method
+              - button "−" [ref=f57e185] [cursor=pointer]
+              - button "+" [ref=f57e186] [cursor=pointer]
+              - button "⟲" [ref=f57e187] [cursor=pointer]
+              - button "R:R" [ref=f57e188] [cursor=pointer]
+              - button "▶" [ref=f57e189] [cursor=pointer]
+          - generic [ref=f57e190]: Wyckoff — analysis only — not traded by the active system, does not count toward confluence
+      - generic [ref=f57e193]:
+        - generic [ref=f57e194]: Reading layer
+        - generic [ref=f57e195]:
+          - text: Wyckoff
+          - generic [ref=f57e197]: analysis only
+        - generic [ref=f57e198]: ICT
+        - generic [ref=f57e200]: Synthesis
+        - generic [ref=f57e201]:
+          - generic [ref=f57e202]: Preliminary
+          - generic [ref=f57e203]: scanner · data through 09:45 UTC
+        - list [ref=f57e206]:
+          - listitem [ref=f57e207]:
+            - generic [ref=f57e208]: SC 4,313.68 — cao trào bán mở Phase A
+            - text: "4,313.68 (10/9 19:00 UTC): candle closed above (+1.46%) · first candle closing beyond 11/9 03:15 UTC @ 4,309.16 · extreme since 4,234.94"
+          - listitem [ref=f57e209]:
+            - generic [ref=f57e210]: AR 4,340.42 — biên trên Trading Range
+            - text: "4,340.42 (11/9 01:00 UTC): candle closed above (+0.83%) · first candle closing beyond 11/9 05:30 UTC @ 4,342.75 · extreme since 4,402.45 · the forming candle is beyond it right now"
+          - listitem [ref=f57e211]:
+            - generic [ref=f57e212]: ST 4,300.64 — thấp hơn SC, cung còn nhiều
+            - text: "4,300.64 (11/9 03:45 UTC): candle closed above (+1.76%) · first candle closing beyond 14/9 09:15 UTC @ 4,287.88 · extreme since 4,234.94"
+          - listitem [ref=f57e213]:
+            - generic [ref=f57e214]: Spring[C] 4,289.57 — thử nguồn cung Phase C
+            - text: "4,289.57 (11/9 12:30 UTC): candle closed above (+2.03%) · first candle closing beyond 14/9 09:15 UTC @ 4,287.88 · extreme since 4,234.94"
+          - listitem [ref=f57e215]:
+            - generic [ref=f57e216]: SOS[D] 4,390.13 — dấu hiệu sức mạnh Phase D
+            - text: "4,390.13 (11/9 12:45 UTC): candle closed below (-0.31%) · first candle closing beyond 11/9 13:30 UTC @ 4,394.72 · extreme since 4,402.45"
+          - listitem [ref=f57e217]: "No unusual-volume candles among the recent candles (threshold: a project parameter)."
+        - list [ref=f57e220]:
+          - listitem [ref=f57e221]: Price 4,375.09 = 60% of the window dealing range (4,334.21–4,402.45), premium, EQ 4,368.33.
+          - listitem [ref=f57e222]:
+            - generic [ref=f57e223]: EQ 4,364.40 — điểm cân bằng dealing range 96 nến
+            - text: "4,364.40 (10/9 00:45 UTC): candle closed above (+0.28%) · the forming candle is beyond it right now"
+          - listitem [ref=f57e224]:
+            - generic [ref=f57e225]: FVG tăng chưa lấp 4,343.33–4,352.43
+            - text: "4,343.33 (11/9 12:30 UTC): candle closed above (+0.76%) · first candle closing beyond 13/9 22:00 UTC @ 4,330.66 · extreme since 4,234.94"
+          - listitem [ref=f57e226]:
+            - generic [ref=f57e227]: BSL 4,402.45 (pool cục bộ, chưa bị quét)
+            - text: "4,402.45 (11/9 13:45 UTC): candle closed below (-0.59%)"
+          - listitem [ref=f57e228]:
+            - generic [ref=f57e229]: BSL 4,442.89 (đỉnh cửa sổ, chưa bị quét)
+            - text: "4,442.89 (7/9 15:30 UTC): candle closed below (-1.49%)"
+          - listitem [ref=f57e230]: "Latest MSS: down, closed past the swing at 4,385.07."
+          - listitem [ref=f57e231]: "Nearest unmitigated FVG: down 4,376.93–4,385.76."
+          - listitem [ref=f57e232]: "Unswept pools: BSL 4,402.45, SSL 4,334.21."
+          - listitem [ref=f57e233]: "Recent events: swept BSL 4,381.27 @09:30 UTC; MSS down 4,385.07 @09:30 UTC."
+          - listitem [ref=f57e234]: No sweep → same-direction MSS chain among the recent candles.
+        - generic [ref=f57e235]:
+          - generic [ref=f57e236]: CHỜ (giữa vùng)
+          - list [ref=f57e240]:
+            - listitem [ref=f57e241]:
+              - text: "Rule verdict against the anchors of the latest full analysis:"
+              - generic [ref=f57e242]: CHỜ — vẫn giữa vùng
+              - text: (candle close 18/9 09:30 UTC = 4,376.53).
+            - listitem [ref=f57e243]: "Scanner stance: POTENTIAL SETUP (fixed rules, project parameters — not a model's judgement)."
+        - generic [ref=f57e244]:
+          - generic [ref=f57e245]: Local
+          - generic [ref=f57e246]: Sonnet · data through 05:00 UTC
+        - generic [ref=f57e248]:
+          - generic [ref=f57e249]: Vietnamese source · times UTC
+          - paragraph [ref=f57e250]: Vùng tích lũy mở ra bằng cao trào bán SC 4.313,68 (Phase A), sau đó AR 4.340,42 xác lập biên trên trading range, ST 4.300,64 đóng thấp hơn SC cho thấy cung vẫn còn nhiều, và Spring[C] 4.289,57 thử lại cung trong Phase C; giá tham chiếu 4.366,62 hiện nằm trên toàn bộ các mốc này và đang tiến gần SOS[D] 4.390,13 (còn cách 0,54%) WA p71–72 · knowledge/wyckoff/advance.md §2.7 · WA p80 · knowledge/wyckoff/advance.md §2.7.3
+          - paragraph [ref=f57e251]: Thay đổi tính chất (CHoCH) gần nhất là tăng, đóng vượt swing 4.356,49 nhưng khối lượng chỉ đạt 0,63× trung bình — nỗ lực tăng yếu so với kết quả dịch giá đạt được; lưu ý khối lượng ở đây là volume tick từ MT5 (không phải volume sàn thật), nên tín hiệu Nỗ lực–Kết quả này được giảm trọng số ghi nhận WA p33–39 · knowledge/wyckoff/advance.md §2.2 · WMT p019–022, p149–154 · knowledge/wyckoff/modern-tools.md §2.3, §4.1
+          - paragraph [ref=f57e252]: Đọc Wyckoff khung 4h đang ở Phase C của cấu trúc tích lũy TR 4.285,91–4.340,63; đây là phân tích bổ sung (OPTIONAL_FOR_ANALYSIS) cho mã này, không được dùng để đổi bias hay cộng vào confluence của quyết định giao dịch knowledge/wyckoff/advance.md §2.7
+        - generic [ref=f57e254]:
+          - generic [ref=f57e255]: Vietnamese source · times UTC
+          - paragraph [ref=f57e256]: Giá 4.366,00 đang nằm trên EQ 4.357,74 của dealing range cửa sổ 96 nến (4.334,21–4.381,27), tức ở vùng premium; PCH 4.366,98 vừa bị quét bằng râu nhưng thân nến đóng lại dưới đó — failure to displace — nên đây là một cú grab thanh khoản mua chứ chưa xác nhận tiếp diễn tăng, draw đảo về phía PCL 4.334,21 docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/ict/core-a.md §2.18–2.19 · docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/ict/core-a.md §2.14, §2.17
+          - paragraph [ref=f57e257]: MSS khung 1h là tăng (mức cụ thể chưa có trong facts của lần đọc này) trong khi MSS khung 4h là giảm tại 4.340,63 — hai khung mâu thuẫn nhau, nêu ra ở đây chứ không tự giải quyết docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/ict/core-b.md §2.1–2.2
+          - paragraph [ref=f57e258]: "Về thanh khoản: BSL 4.402,45 và 4.442,89 vẫn chưa bị quét ở phía trên, SSL 4.334,21 chưa bị quét ở phía dưới, còn FVG tăng 4.343,33–4.352,43 vẫn chưa lấp nằm dưới giá hiện tại; đợt quét BSL 4.367,15 lúc 05:00 UTC (06:00 London BST, 01:00 New York EDT) rơi ngoài toàn bộ khung killzone london/ny_am/ny_pm theo cấu hình dự án docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/ict/core-a.md §2.6–2.7 · docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/ict/core-a.md §2.21–2.24 · docs/TTrades PDFs/1. Killzones.pdf tr.1–2 · knowledge/ict/core-a.md §2.1 · docs/architecture/session-model.md"
+        - generic [ref=f57e259]:
+          - generic [ref=f57e260]: WAIT
+          - generic [ref=f57e262]:
+            - generic [ref=f57e263]: Vietnamese source · times UTC
+            - paragraph [ref=f57e264]: "Bias 4h: cấu trúc là tích lũy Phase C theo Wyckoff, nhưng lớp quyết định bias (ict) đọc SHORT vì PCH 4.366,98 chỉ bị quét thất bại (thân đóng lại dưới) và draw đảo về PCL 4.334,21; phân tích Wyckoff ở trên chỉ mang tính bối cảnh, không tính vào confluence knowledge/integrated/method.md §4.2 · docs/architecture/timeframe-mapping.md"
+            - paragraph [ref=f57e265]: Cấu trúc khung 1h trung lập — MSS 1h tăng nhưng PCH 1h cũng chỉ bị quét thất bại — nên tầng cấu trúc không xác nhận cùng chiều với bias 4h docs/architecture/timeframe-mapping.md
+            - paragraph [ref=f57e266]: Mốc AR (Wyckoff, 4.340,42) và MSS giảm khung 4h (ict, 4.340,63) nằm sát nhau nên được tính là một quan sát duy nhất theo luật khử trùng lặp, không cộng dồn thành hai tín hiệu độc lập knowledge/integrated/method.md §4.3
+            - paragraph [ref=f57e267]: "Kết luận: CHỜ — giá vẫn ở giữa vùng cửa sổ (68% biên độ) dù bối cảnh khung lớn nghiêng SHORT, vì tầng cấu trúc 1h trung lập và facts không có chuỗi quét→MSS cùng chiều để đủ điều kiện setup; điều kiện vô hiệu thuộc quyền sở hữu của lớp ict — thân nến đóng vượt lại trên BSL 4.402,45 sẽ vô hiệu hoá bias SHORT hiện tại knowledge/integrated/method.md §4.4"
+        - generic [ref=f57e268]:
+          - generic [ref=f57e269]: Full
+          - generic [ref=f57e270]: full analysis · 11/9 15:00 UTC
+        - generic [ref=f57e271]:
+          - generic [ref=f57e272]:
+            - generic [ref=f57e273]: accumulation
+            - generic [ref=f57e274]: Phase D
+            - generic [ref=f57e275]: TRANSITIONAL
+          - paragraph [ref=f57e276]:
+            - generic [ref=f57e277]: AR 4,340.42
+            - generic [ref=f57e278]: 4,340.42
+            - generic [ref=f57e279]: ST 4,300.64 (dưới SC 4,313.68)
+            - generic [ref=f57e280]: 4,300.64
+          - generic [ref=f57e281]:
+            - generic [ref=f57e282]: Vietnamese source · times UTC
+            - paragraph [ref=f57e283]: Từ đỉnh cửa sổ 4,434.62 giá giảm liên tục xuống đáy 4,313.68 lúc 19:00Z ngày 10/9 với khối lượng 1.67× trung bình — biên độ mở rộng, đủ tiêu chuẩn một cao trào bán (SC) mở đầu Phase A. Lực đẩy tự động (AR) sau đó đưa giá lên 4,340.42 lúc 01:00Z 11/9, xác lập biên trên Trading Range; một kiểm định thứ cấp (ST) tại 4,300.64 lúc 03:45Z 11/9 — thấp hơn đáy SC — cho thấy nguồn cung khi đó vẫn còn nhiều, dự báo còn kiểm định lại. Ba phản ứng đối xu hướng liên tiếp (SC→AR→ST rồi bật lên) đáp ứng tiêu chí ba lần thay đổi hành vi (CHoBEV), xác nhận thay đổi đặc tính (CHoCH) từ giảm sang đi ngang, cho phép gán Phase A–E.WA p67–71, p72–75 · knowledge/07 §2.6, §2.7.1 · KL 1.67× [tính toán của hệ thống]
+            - paragraph [ref=f57e284]: "Phase B đi ngang trong vùng 4,300.64–4,340.42: một hành động tăng giá bẫy (UA[B]) kiểm định biên trên tới 4,361.01 lúc 06:00Z 11/9 rồi bị từ chối, sau đó giá co hẹp và kiểm định lại đáy Phase B tại 4,324.66 lúc 12:00Z — CO vẫn gom hàng qua các đợt rũ bỏ hai chiều mà chưa lộ rõ hướng đẩy giá.WA p77–79 · knowledge/07 §2.7.2"
+            - paragraph [ref=f57e285]: "Nến 12:30Z 11/9 đâm xuống 4,289.57 — dưới cả đáy ST 4,300.64 lẫn đáy SC 4,313.68 — rồi đảo chiều đóng cửa ngay trong Trading Range tại 4,353.82, với khối lượng 2.78× trung bình: đúng cấu trúc một Spring[C], thử nghiệm dứt điểm nguồn cung còn lại của Phase C. Vì đóng cửa quay lại trong vùng (khác Shakeout, vốn đòi hỏi các nến đóng cửa dưới biên), đây được gọi bằng Spring chứ không phải Shakeout.WA p79–83 · knowledge/07 §2.7.3 · KL 2.78× [tính toán của hệ thống]"
+            - paragraph [ref=f57e286]: Ngay sau Spring, nến 12:45Z đóng cửa 4,388.38 vượt hẳn biên trên AR 4,340.42 với khối lượng 2.49× trung bình — một dấu hiệu sức mạnh (SOS[D]) hợp lệ vì khối lượng vượt trung bình. Giá tiếp tục cầu áp đảo cung lên đỉnh 4,402.45 lúc 13:45Z rồi thoái lui về 4,370.76 lúc 14:45Z với khối lượng giảm dần (2.51× → 1.92×) — dạng một điểm hỗ trợ cuối cùng (LPS[D]) đang được kiểm định, chưa xác nhận giữ.WA p83–85 · knowledge/07 §2.7.4 · KL 2.49×, 1.92× [tính toán của hệ thống]
+            - paragraph [ref=f57e287]: Toàn bộ khối lượng trên là khối lượng tick từ cầu nối MT5, không phải khối lượng khớp lệnh thực; theo khuyến cáo chung, độ tin cậy của các đọc Nỗ lực–Kết quả (SC, Spring, SOS) ở trên bị hạ so với khối lượng khớp lệnh thực.knowledge/10 §4.1
+        - generic [ref=f57e288]:
+          - paragraph [ref=f57e289]:
+            - generic [ref=f57e290]: EQ 4,364.40 — điểm cân bằng dealing range 96 nến
+            - generic [ref=f57e291]: 4,364.40
+            - generic [ref=f57e292]: FVG tăng chưa lấp 4,343.33–4,352.43
+            - generic [ref=f57e293]: 4,343.33
+            - generic [ref=f57e294]: BSL 4,402.45 (pool cục bộ, chưa bị quét)
+            - generic [ref=f57e295]: 4,402.45
+            - generic [ref=f57e296]: BSL 4,442.89 (đỉnh cửa sổ, chưa bị quét)
+            - generic [ref=f57e297]: 4,442.89
+          - generic [ref=f57e298]:
+            - generic [ref=f57e299]: Vietnamese source · times UTC
+            - paragraph [ref=f57e300]: MSS tăng gần nhất đóng cửa vượt swing 4,349.92; đợt phá vỡ này diễn ra ngay khi giá vượt qua khoảng trống giá giảm 4,346.29–4,351.10 chưa lấp trước đó, xác nhận tiếp diễn tăng theo cấu trúc dealing range 96 nến 4,285.91–4,434.62. Giá hiện tại 4,369.18 nằm trên điểm cân bằng (EQ) 4,364.40, tức đang ở vùng premium nhẹ.docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2 · docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19
+            - paragraph [ref=f57e301]: Sự sụt giá xuống 4,289.57 lúc 12:30Z quét qua cả hai pool thanh khoản bán (SSL 4,310.87 phiên Á và đáy 4,300.64 trước đó) rồi đảo chiều mạnh — một cú quét thanh khoản hơn là một MSS giảm mới, vì không có chuỗi nến đóng cửa xác nhận tiếp diễn giảm. Khoảng trống giá tăng mới 4,343.33–4,352.43 hình thành ngay sau đó vẫn chưa bị lấp, đóng vai trò hỗ trợ gần nhất.docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7 · docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17 · docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24
+            - paragraph [ref=f57e302]: "Phía trên còn hai pool thanh khoản mua chưa bị quét: BSL 4,402.45 (đỉnh cục bộ 13:45Z) và BSL 4,442.89 (đỉnh cửa sổ) — hai mục tiêu tiềm năng nếu giá giữ trên khoảng trống giá tăng. MSS tăng xác nhận lúc 12:30Z rơi vào khung ny_am (08:30–11:00 America/New_York = 12:30–15:00Z ngày 11/9, giờ mùa hè), khung có trọng số đầy đủ cho vàng — giả định của dự án, không phải quy tắc từ nguồn ICT gốc.docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7 · docs/architecture/session-model.md §2, §5"
+        - generic [ref=f57e303]:
+          - generic [ref=f57e304]:
+            - generic [ref=f57e305]: WATCHING LONG
+            - generic [ref=f57e306]: "invalidated: đóng cửa dưới đáy Spring 4,289.57 4,289.57 · owner wyckoff"
+          - generic [ref=f57e308]: Looking back
+          - generic [ref=f57e309]:
+            - generic [ref=f57e310]: Vietnamese source · times UTC
+            - paragraph [ref=f57e311]: So với lần phân tích đầy đủ trước (cấu trúc chưa xác lập, mới hai trong ba CHoBEV, verdict CHỜ), phản ứng đối xu hướng thứ ba đã xuất hiện qua chuỗi SC 4,313.68 (19:00Z 10/9) → AR 4,340.42 (01:00Z 11/9) → ST 4,300.64 (03:45Z 11/9), xác nhận CHoCH và cho phép gán Phase A–D. Đáy 4,313.68 của lần đọc trước không còn là hỗ trợ chính — đã bị Spring[C] 4,289.57 (12:30Z 11/9) xuyên qua trước khi đảo chiều mạnh, và SOS[D] 4,390.13 (12:45Z 11/9, khối lượng 2.49×) xác nhận cầu áp đảo cung, đưa verdict từ CHỜ lên THEO DÕI LONG.[tính toán của hệ thống]
+          - generic [ref=f57e312]: Now
+          - generic [ref=f57e313]:
+            - generic [ref=f57e314]: Vietnamese source · times UTC
+            - paragraph [ref=f57e315]: "Bối cảnh 4h: cấu trúc tích lũy đang chuyển sang Phase C — Spring[C] 4,289.57 lúc 09:00Z 11/9 thử nguồn cung rồi đảo chiều mạnh trong Trading Range; bias khung lớn nghiêng LONG, khung nhỏ 15m được phép tìm cơ hội theo hướng tăng.WA p93–96 · knowledge/07 §2.7"
+            - paragraph [ref=f57e316]: Đáy Spring[C] khung 15m (4,289.57 lúc 12:30Z) và pool thanh khoản SSL 4,310.87 / đáy ST 4,300.64 (ICT) nằm rất gần nhau về mặt sự kiện — Wyckoff sở hữu đợt xuyên giá và khối lượng của nó, ICT chỉ được tính điểm phần cấu trúc còn lại sau đó (khoảng trống giá, vị trí premium/discount) nên đây là MỘT quan sát, không phải hai. Tương tự, dấu hiệu sức mạnh SOS[D] (Wyckoff) và MSS tăng đóng cửa vượt swing 4,349.92 (ICT) là cùng một đợt phá vỡ cấu trúc — điểm số chỉ tính một lần ở ICT, Wyckoff chỉ cộng thêm phần xác nhận theo thời gian và khối lượng.knowledge/10 §4.3
+            - paragraph [ref=f57e317]: "Kết luận THEO DÕI LONG: Wyckoff đã xác lập CHoCH và đang ở Phase D với SOS khối lượng 2.49× hợp lệ (≥ trung bình), ICT xác nhận bằng MSS tăng và phá qua khoảng trống giá giảm cũ 4,346.29–4,351.10, cùng hướng với bias khung 4h nên không phải 'ngược bối cảnh'. Tuy nhiên chưa kết luận SETUP TIỀM NĂNG vì hệ thống chưa ghi nhận chuỗi quét thanh khoản→MSS cùng chiều hoàn chỉnh, và LPS[D] đang thoái lui (4,370.76) vẫn chưa được xác nhận giữ.[tính toán của hệ thống]"
+            - paragraph [ref=f57e318]: Chủ sở hữu điều kiện vô hiệu được chọn là Wyckoff, tại đáy Spring 4,289.57 — một nến đóng cửa dưới mốc này sẽ vô hiệu hoá giả thuyết Phase D và cần đánh giá lại toàn bộ cấu trúc; mốc này rộng hơn các lựa chọn dừng lỗ chặt của ICT (biên FVG hay đáy order block), phù hợp quản trị rủi ro theo Wyckoff.knowledge/10 §4.4
+            - paragraph [ref=f57e319]: Khối lượng dùng cho toàn bộ đọc Wyckoff trên là khối lượng tick từ cầu nối MT5, không phải khối lượng khớp lệnh thực — theo knowledge/10 §4.1, độ tin cậy Nỗ lực–Kết quả (SC, Spring, SOS) bị hạ so với khối lượng khớp lệnh thực, và tính độc lập giữa hai phương pháp trên loại khối lượng này gần như không còn.knowledge/10 §4.1
+      - generic [ref=f57e320]: "Wyckoff: analysis only — not traded by the active system, does not count toward confluence · Footprint: no CoinGlass source for commodities (SYSTEM-DESIGN §12) · Heatmap: no CoinGlass source for commodities (SYSTEM-DESIGN §12)"
+      - group [ref=f57e323]:
+        - generic "Event timeline of the full analysis (10 marks · Wyckoff / ICT in separate columns)" [ref=f57e324] [cursor=pointer]
+        - text: Time (UTC) Event Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC Vietnamese source · times UTC
+        - generic [ref=f57e326]: ": analysis only — not traded by the active system, does not count toward confluence"
+    - generic [ref=f57e327]:
+      - generic [ref=f57e328]:
+        - generic [ref=f57e329]: XAG/USD
+        - generic [ref=f57e330]: "67.01"
+        - generic [ref=f57e331]:
+          - generic [ref=f57e332]: position in the 15m window 84%
+          - generic [ref=f57e334]: last candle 18/9 09:45 UTC
+        - generic [ref=f57e336]:
+          - generic [ref=f57e337]: entry 15m
+          - generic [ref=f57e338]: —
+      - generic [ref=f57e339]:
+        - generic [ref=f57e340]: Tier
+        - generic [ref=f57e341]: ICT
+        - generic [ref=f57e343]: Conclusion
+        - generic [ref=f57e344]:
+          - generic [ref=f57e345]: Bias
+          - generic [ref=f57e346]: 4H ×4
+          - generic [ref=f57e347]: updated 04:59 UTC
+        - generic [ref=f57e348]:
+          - text: 53% dealing range (62.29–71.17) · premium
+          - generic [ref=f57e349]: "latest MSS: up past 64.93"
+        - generic [ref=f57e350]:
+          - 'generic "[ict] PCH 66.14 — the body has closed through, so that level was the draw; expect continuation up (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] latest MSS: up, body closed past the swing at 64.93 (knowledge/ict/core-b.md §2.2)" [ref=f57e351]': LONG
+          - generic [ref=f57e352]: tier that decides the verdict
+        - generic [ref=f57e353]:
+          - generic [ref=f57e354]: Structure
+          - generic [ref=f57e355]: 1H ×4
+          - generic [ref=f57e356]: updated 09:00 UTC
+        - generic [ref=f57e357]:
+          - text: 55% dealing range (62.29–71.17) · premium
+          - generic [ref=f57e358]: "latest MSS: up past 63.80"
+        - 'generic "[ict] latest MSS: up, body closed past the swing at 63.80 (knowledge/ict/core-b.md §2.2)" [ref=f57e360]': LONG
+        - generic [ref=f57e361]:
+          - generic [ref=f57e362]: Entry
+          - generic [ref=f57e363]: 15m
+          - generic [ref=f57e364]: updated 09:45 UTC
+        - generic [ref=f57e365]:
+          - text: 92% dealing range (63.42–67.33) · premium
+          - generic [ref=f57e366]: "latest MSS: up past 65.95"
+        - generic [ref=f57e367]: —
+      - generic [ref=f57e369]: "Wyckoff: analysed but no reading written yet — not traded by the active system"
+      - generic [ref=f57e372]:
+        - generic [ref=f57e373]:
+          - generic [ref=f57e374]:
+            - generic [ref=f57e375]:
+              - generic [ref=f57e376]: Bias
+              - text: · 4H × 360 (60 days) · 06-26 09:00 → 09-18 09:00 UTC
+            - generic [ref=f57e377]:
+              - generic [ref=f57e378]: shaded area = the entry window
+              - button "−" [ref=f57e379] [cursor=pointer]
+              - button "+" [ref=f57e380] [cursor=pointer]
+              - button "⟲" [ref=f57e381] [cursor=pointer]
+          - generic [ref=f57e382]: Wyckoff — analysed but no reading written yet — not traded by the active system
+        - generic [ref=f57e385]:
+          - generic [ref=f57e386]:
+            - generic [ref=f57e387]:
+              - generic [ref=f57e388]: Structure
+              - text: · 1H × 480 (20 days) · 08-19 14:00 → 09-18 09:00 UTC
+            - generic [ref=f57e389]:
+              - generic [ref=f57e390]: shaded area = the entry window
+              - button "−" [ref=f57e391] [cursor=pointer]
+              - button "+" [ref=f57e392] [cursor=pointer]
+              - button "⟲" [ref=f57e393] [cursor=pointer]
+          - generic [ref=f57e394]: Wyckoff — analysed but no reading written yet — not traded by the active system
+        - generic [ref=f57e397]:
+          - generic [ref=f57e398]:
+            - generic [ref=f57e399]:
+              - generic [ref=f57e400]: Entry
+              - text: · 15m × 576 (6 days) · 09-09 22:00 → 09-18 09:45 UTC
+            - generic [ref=f57e401]:
+              - generic [ref=f57e402]: wheel = zoom · drag = pan · drag the axis = stretch · End = last candle · keys 1–4 change method
+              - button "−" [ref=f57e403] [cursor=pointer]
+              - button "+" [ref=f57e404] [cursor=pointer]
+              - button "⟲" [ref=f57e405] [cursor=pointer]
+              - button "R:R" [ref=f57e406] [cursor=pointer]
+              - button "▶" [ref=f57e407] [cursor=pointer]
+          - generic [ref=f57e408]: Wyckoff — analysed but no reading written yet — not traded by the active system
+      - generic [ref=f57e411]:
+        - generic [ref=f57e412]: Reading layer
+        - generic [ref=f57e413]: ICT
+        - generic [ref=f57e415]: Synthesis
+        - generic [ref=f57e416]:
+          - generic [ref=f57e417]: Preliminary
+          - generic [ref=f57e418]: scanner · data through 09:45 UTC
+        - list [ref=f57e421]:
+          - listitem [ref=f57e422]: Price 67.01 = 92% of the window dealing range (63.42–67.33), premium, EQ 65.38.
+          - listitem [ref=f57e423]: "Latest MSS: up, closed past the swing at 65.95."
+          - listitem [ref=f57e424]: "Nearest unmitigated FVG: up 64.77–65.12."
+          - listitem [ref=f57e425]: "Unswept pools: BSL 67.33, BSL 64.93, BSL 66.15, SSL 62.29, SSL 62.83, SSL 63.42."
+          - listitem [ref=f57e426]: No sweep → same-direction MSS chain among the recent candles.
+        - generic [ref=f57e427]:
+          - generic [ref=f57e428]: WAIT
+          - list [ref=f57e431]:
+            - listitem [ref=f57e432]: No anchors from a full analysis yet — the scanner has only its fixed-rule stance.
+            - listitem [ref=f57e433]: "Scanner stance: WAIT (fixed rules, project parameters — not a model's judgement)."
+        - generic [ref=f57e434]:
+          - generic [ref=f57e435]: Local
+          - generic [ref=f57e436]: Sonnet
+        - paragraph [ref=f57e438]: —
+        - paragraph [ref=f57e440]: No local read yet.
+        - generic [ref=f57e441]:
+          - generic [ref=f57e442]: Full
+          - generic [ref=f57e443]: full analysis
+        - paragraph [ref=f57e445]: —
+        - paragraph [ref=f57e447]: No full analysis in the current format yet (data/live/narrative/<style>.json).
+      - generic [ref=f57e448]: "Wyckoff: analysed but no reading written yet — not traded by the active system · Footprint: no CoinGlass source for commodities (SYSTEM-DESIGN §12) · Heatmap: no CoinGlass source for commodities (SYSTEM-DESIGN §12)"
+    - group [ref=f57e452]:
+      - generic "Terminology by method ( open when needed )" [ref=f57e453] [cursor=pointer]:
+        - text: Terminology by method
+        - generic [ref=f57e454]: ( open when needed )
+      - text: "BSL / SSL · ERL / IRL Buy-side / sell-side liquidity at equal highs and lows; external versus internal range liquidity (knowledge/ict/core-a.md §2.6–2.7, knowledge/ict/core-b.md §2.13). Sweep vs MSS A liquidity sweep runs through a level and closes back; a Market Structure Shift is a body close past the opposing swing after displacement (knowledge/ict/core-a.md §2.14, §2.17). Displacement · FVG A strong push leaves a Fair Value Gap (candle 1 and candle 3 do not overlap); the FVG is drawn until it is mitigated (knowledge/ict/core-a.md §2.16, §2.21). Order Block The last opposing candle before displacement; the OB line is that candle's open, mean threshold = 0.5 of the body; tight stop = body low (close), wide stop = the low of the sweep (knowledge/ict/core-b.md §2.5, re-checked against the PDF 2026-09-12). CISD Change in State of Delivery: a close through the open of the first candle in the last opposing-colour run into the level; earlier than the MSS (knowledge/ict/core-b.md §2.3, knowledge/ict/models.md §2.3). Dealing range · EQ · premium / discount The range is the nearest unswept BSL↔SSL pair (where the liquidity sits); EQ = 50%; buy in discount, sell in premium; with no pair, the window edges are used and said so (knowledge/ict/core-a.md §2.18–2.19). PDH/PDL · PWH/PWL · Asia/London session Previous day's, previous week's and session highs and lows are liquidity levels; a wick through that closes back = failure to displace (a reversal frame), a body close through = the level was the draw (knowledge/ict/core-a.md §2.8–2.9, §2.12, §2.14). The day boundary (00Z) and the session windows (session-model.md) are project assumptions. OTE · STD OTE: fib 1 at the leg's origin, 0 at its extreme, entry band 0.62–0.79, emphasis 0.705 (knowledge/ict/core-a.md §2.20). Std: 1 at the sweep's extreme, 0 at the prior highest high / lowest low; −2/−2.5 the exit band, −4 the maximum extension (knowledge/ict/core-b.md §2.12, knowledge/ict/models.md §2.1.5). Killzone Two sets of EST hours in the deck, with no rule for crypto or CFD (knowledge/ict/core-a.md §2.1, §6). The page draws them per docs/architecture/session-model.md: LDN 08–11 Europe/London, NY AM 08:30–11, NY PM 13:30–16 America/New_York, converted to UTC per date; weighting by market; not drawn at weekends — project parameters."
+    - contentinfo [ref=f57e455]:
+      - generic [ref=f57e456]:
+        - generic [ref=f57e457]: "Data sources: XAUUSD 15m: mt5_bridge_live · updated 2026-09-18T09:57:36Z · bias 4H updated 2026-09-18T09:57:35Z · structure 1H updated 2026-09-18T09:57:36Z · XAGUSD 15m: mt5_bridge_live · updated 2026-09-18T09:57:36Z · bias 4H updated 2026-09-18T09:57:35Z · structure 1H updated 2026-09-18T09:57:36Z"
+        - generic [ref=f57e458]: Layer 1 scanner 2026-09-18T09:46:34Z · Layer 3 2026-09-11T15:00:00Z · page built 2026-09-18T09:57:55Z by scripts/build-artifact.py (cfd-scalping)
+        - generic [ref=f57e459]: "Mode SOLO: ICT (latest full analysis: NORMAL)"
+        - text: "· USOIL · UKOIL: on the analysis list, no feed attached — not drawn ·"
+        - generic [ref=f57e460]: "Reading layers: preliminary (scanner), local (Sonnet, event-driven), full (daily)"
+        - generic [ref=f57e461]: "Rules: figures come from code (SYSTEM-DESIGN §13); every per-method block goes through scripts/method_purity.py. Scanner: 3-candle pivot, equal-high/low tolerance 0.08%, FVG ≥ 0.6× the median range; volume thresholds: docs/architecture/analysis-params.json (project parameters, not quotations from a book)."
+        - text: "Chart: TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. ·"
+        - link "tradingview.com" [ref=f57e462] [cursor=pointer]:
+          - /url: https://www.tradingview.com/
+        - text: · Apache-2.0 (scripts/vendor/NOTICE-lightweight-charts.txt)

@@ -12,6 +12,7 @@ docs/Footprint/
 docs/TTrades PDFs/
 docs/Wyckoff and Modern Tools/
 docs/Wyckoff Advance/
+# .cache/ holds page scans (JPEG) of the two Wyckoff books above: copyrighted, 274 MB -- same rule as the books.
 .cache/
 
 # Runtime market data and pilot state. Tracked since 2026-09-19 by user decision ("push everything that was
@@ -78,6 +79,5 @@ __pycache__/
 # 2026-09-19 by the same user decision: every backtest number in docs/ points at these files, and a clone
 # without them cannot reproduce a single result (CLAUDE.md §10, §46).
 
-# Playwright MCP scratch output (screenshots, console logs) from browser verification runs
-.playwright-mcp/
-.goal/
+# .playwright-mcp/ (browser-verification screenshots and snapshots) and .goal/ (the session goal record) are
+# TRACKED since 2026-09-19 by user decision ("push everything that was ignored, except sensitive files").

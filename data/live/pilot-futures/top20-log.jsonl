@@ -1225,3 +1225,6 @@
 {"t": "2026-09-19T11:35:56Z", "kind": "note", "why": "dry run ignoring the gate/kill switch (pilot layer disabled) -- no order can be sent in this mode"}
 {"t": "2026-09-19T11:38:40Z", "kind": "note", "why": "dry run ignoring the gate/kill switch (pilot layer disabled) -- no order can be sent in this mode"}
 {"t": "2026-09-19T15:53:46Z", "kind": "note", "why": "dry run ignoring the gate/kill switch (pilot layer disabled) -- no order can be sent in this mode"}
+{"t": "2026-09-19T16:58:09Z", "kind": "note", "why": "dry run ignoring the gate/kill switch (pilot layer disabled) -- no order can be sent in this mode"}
+{"t": "2026-09-19T18:15:39Z", "kind": "note", "why": "dry run ignoring the gate/kill switch (pilot layer disabled) -- no order can be sent in this mode"}
+{"t": "2026-09-19T18:15:39Z", "kind": "preset_filtered", "setup": "cfd-swing-wyckoff-book-4h-border-b", "market": "cfd", "method": "WYCKOFF-BOOK", "why": "method not permitted by the current method preset"}
