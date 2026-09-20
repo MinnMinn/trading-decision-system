@@ -607,10 +607,10 @@
       "open": 0.60600000,
       "high": 0.68530000,
       "low": 0.57480000,
-      "close": 0.67240000,
-      "volume": 31105907.50000000
+      "close": 0.67190000,
+      "volume": 32642368.20000000
     }
   ],
-  "last_updated": "2026-09-19T16:03:31Z",
+  "last_updated": "2026-09-20T00:03:49Z",
   "_source": "binance_public_rest_live"
 }

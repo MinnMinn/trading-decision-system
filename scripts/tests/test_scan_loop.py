@@ -141,3 +141,24 @@ class ScanLoopWindowResolution(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ScannerPlistDetachesChildren(unittest.TestCase):
+    """scan-loop.sh hands the model layer to `( nohup bash scripts/model-read.sh … & )` and exits within seconds.
+    launchd's default for a job that exits is to SIGTERM every remaining process in its process group
+    (launchd.plist(5), AbandonProcessGroup), and `nohup` only ignores SIGHUP -- so without the key every headless
+    read (layer 2 and the 07:30Z daily full, layer 3) died ~1 s after spawn. Evidence 2026-09-20: `Terminated: 15`
+    for sed/claude in data/live/model-reads.log, run dirs holding only prompt.md, no `.last-full` ever written, and
+    data/live/narrative/scalping.json frozen at 2026-09-11 -- the Wyckoff overlays on the Crypto Scalping page went
+    blank once its events fell out of the 15m window. Reproduced with a throwaway launchd job: child killed without
+    the key, alive with it. The pilot plist is KeepAlive (long-running) and is deliberately not covered here.
+    """
+
+    def test_scanner_plist_abandons_its_process_group(self):
+        import plistlib
+        p = os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.scanner.plist")
+        with open(p, "rb") as f:
+            d = plistlib.load(f)
+        self.assertIs(d.get("AbandonProcessGroup"), True,
+                      "com.tyme.trading.scanner.plist must set AbandonProcessGroup=true, or launchd kills every "
+                      "detached model-read.sh the moment scan-loop.sh exits (layer 2 + layer 3 never complete)")

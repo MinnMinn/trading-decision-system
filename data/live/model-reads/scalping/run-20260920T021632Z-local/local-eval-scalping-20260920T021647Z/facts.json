@@ -1,0 +1,3485 @@
+{
+ "scanned_at": "2026-09-20T02:16:31Z",
+ "tf": "15m",
+ "n": 576,
+ "window_first": "2026-09-14T02:30:00Z",
+ "window_last": "2026-09-20T02:15:00Z",
+ "anchors_source": "local-eval-brief.py scalping --bars 96 + swing --bars 60, run-20260920T020732Z-full",
+ "symbols": {
+  "BTCUSDT": {
+   "last": 81175.61,
+   "last_time": "2026-09-20T02:15:00Z",
+   "lo": 80844.58,
+   "hi": 81330.01,
+   "eq": 81087.295,
+   "pct": 0.6819,
+   "stance": "CHỜ",
+   "anchors": {
+    "source": "local-eval-brief.py scalping --bars 96 + swing --bars 60, run-20260920T020732Z-full",
+    "updated": "2026-09-20T02:00:00Z",
+    "levels": [
+     {
+      "name": "sc_low",
+      "label": "SC mới, KL kỷ lục cửa sổ",
+      "method": "wyckoff",
+      "short": "SC",
+      "role": "support",
+      "price": 76676.07,
+      "time": "2026-09-10T12:45:00Z",
+      "ref_close": 81152.03,
+      "ref_vs": "above",
+      "dist_pct": 5.837,
+      "first_close_beyond": {
+       "time": "2026-09-15T13:30:00Z",
+       "close": 76422.56
+      },
+      "extreme_since": 74967.97,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ar_high",
+      "label": "AR (Automatic Rally)",
+      "method": "wyckoff",
+      "short": "AR",
+      "role": "resistance",
+      "price": 77424.98,
+      "time": "2026-09-10T14:45:00Z",
+      "ref_close": 81152.03,
+      "ref_vs": "above",
+      "dist_pct": 4.814,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 77496.74
+      },
+      "extreme_since": 81951.0,
+      "forming_beyond": true,
+      "anchor_in_window": false
+     },
+     {
+      "name": "spring_low",
+      "label": "Đáy Spring, hồi phục TR",
+      "method": "wyckoff",
+      "short": "Spring",
+      "role": "support",
+      "price": 76464.0,
+      "time": "2026-09-10T23:15:00Z",
+      "ref_close": 81152.03,
+      "ref_vs": "above",
+      "dist_pct": 6.131,
+      "first_close_beyond": {
+       "time": "2026-09-15T13:30:00Z",
+       "close": 76422.56
+      },
+      "extreme_since": 74967.97,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "fvg_top",
+      "label": "FVG giảm — cạnh trên",
+      "method": "ict",
+      "short": "FVG giảm",
+      "role": "resistance",
+      "price": 81716.0,
+      "time": "",
+      "ref_close": 81152.03,
+      "ref_vs": "below",
+      "dist_pct": -0.69,
+      "first_close_beyond": {
+       "time": "2026-09-19T15:30:00Z",
+       "close": 81919.05
+      },
+      "extreme_since": 81951.0,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "fvg_bot",
+      "label": "FVG giảm — cạnh dưới",
+      "method": "ict",
+      "short": "FVG giảm",
+      "role": "resistance",
+      "price": 81602.0,
+      "time": "",
+      "ref_close": 81152.03,
+      "ref_vs": "below",
+      "dist_pct": -0.551,
+      "first_close_beyond": {
+       "time": "2026-09-19T00:45:00Z",
+       "close": 81668.98
+      },
+      "extreme_since": 81951.0,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "mss_swing",
+      "label": "MSS giảm — swing",
+      "method": "ict",
+      "short": "MSS giảm",
+      "role": "swing",
+      "price": 81472.0,
+      "time": "",
+      "ref_close": 81152.03,
+      "ref_vs": "below",
+      "dist_pct": -0.393,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "bsl_1",
+      "label": "BSL chưa quét",
+      "method": "ict",
+      "short": "BSL",
+      "role": "resistance",
+      "price": 81330.0,
+      "time": "",
+      "ref_close": 81152.03,
+      "ref_vs": "below",
+      "dist_pct": -0.219,
+      "first_close_beyond": {
+       "time": "2026-09-19T00:45:00Z",
+       "close": 81668.98
+      },
+      "extreme_since": 81951.0,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_1",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 77972.0,
+      "time": "",
+      "ref_close": 81152.03,
+      "ref_vs": "above",
+      "dist_pct": 4.078,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 77496.74
+      },
+      "extreme_since": 74967.97,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-20T02:00:00Z",
+     "close": 81152.03
+    },
+    "verdict_key": "above_res",
+    "verdict": "PHÁ TRÊN AR (Automatic Rally) — xác nhận tiếp diễn tăng",
+    "verdict_short": "PHÁ TRÊN AR (Automatic Rally)"
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bear",
+    "i": 541,
+    "level": 81472.0,
+    "disp": false,
+    "ext": 81951.0,
+    "ext_time": "2026-09-19T15:30:00Z",
+    "origin": 81569.4,
+    "cisd": {
+     "level": 81569.4,
+     "time": "2026-09-19T15:30:00Z",
+     "confirmed": "2026-09-19T17:15:00Z"
+    },
+    "vol_mult": 0.32
+   },
+   "nearest_fvg": {
+    "type": "bear",
+    "i": 539,
+    "lo": 81601.67,
+    "hi": 81716.0,
+    "size": 114.33000000000175,
+    "ce": 81658.83499999999,
+    "end": 575,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-19",
+    "pdh": 81951.0,
+    "pdl": 80844.58,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "15m",
+    "pch": 81152.03,
+    "pcl": 81084.0,
+    "pch_state": "closed_through",
+    "pcl_state": "intact"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 77223.32,
+     "from": 130,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 76535.03,
+     "from": 292,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 78490.79,
+     "from": 410,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 77379.41,
+     "from": 16,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 76000.0,
+     "from": 287,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 80501.0,
+     "from": 437,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 80844.58,
+     "from": 470,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 79600.0,
+     "from": 71,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 78182.01,
+     "from": 424,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 81951.0,
+     "from": 532,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 81330.01,
+     "from": 568,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 74967.97,
+     "from": 161,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 75064.82,
+     "from": 256,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 77216.76,
+     "from": 392,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 77972.3,
+     "from": 426,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [],
+   "context": {
+    "tier": "bias",
+    "style": "swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-20T00:03:44Z",
+    "window_last": "2026-09-20T00:00:00Z",
+    "last": 81221.44,
+    "last_time": "2026-09-20T00:00:00Z",
+    "lo": 76000.0,
+    "hi": 81951.0,
+    "eq": 78975.5,
+    "pct": 0.8774,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 350,
+     "level": 79600.0,
+     "disp": true,
+     "ext": 76000.0,
+     "ext_time": "2026-09-17T12:00:00Z",
+     "origin": 79600.0,
+     "cisd": null,
+     "vol_mult": 3.71
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 350,
+     "lo": 78490.79,
+     "hi": 80555.54,
+     "size": 2064.75,
+     "ce": 79523.165,
+     "end": 359,
+     "mitigated": false
+    },
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 81431.13,
+     "pcl": 80904.46,
+     "pch_state": "intact",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": null,
+    "wyckoff_source": null,
+    "bias": "long",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.up",
+       "level": "79,600.00"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  },
+  "ETHUSDT": {
+   "last": 2623.87,
+   "last_time": "2026-09-20T02:15:00Z",
+   "lo": 2612.21,
+   "hi": 2637.99,
+   "eq": 2625.1,
+   "pct": 0.4523,
+   "stance": "CHỜ",
+   "anchors": {
+    "source": "local-eval-brief.py scalping --bars 96 + swing --bars 60, run-20260920T020732Z-full",
+    "updated": "2026-09-20T02:00:00Z",
+    "levels": [
+     {
+      "name": "sc_low",
+      "label": "SC mới, KL kỷ lục cửa sổ",
+      "method": "wyckoff",
+      "short": "SC",
+      "role": "support",
+      "price": 2405.85,
+      "time": "2026-09-10T13:00:00Z",
+      "ref_close": 2622.88,
+      "ref_vs": "above",
+      "dist_pct": 9.021,
+      "first_close_beyond": {
+       "time": "2026-09-15T18:30:00Z",
+       "close": 2387.33
+      },
+      "extreme_since": 2358.88,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ar_high",
+      "label": "AR — UA khối lượng yếu",
+      "method": "wyckoff",
+      "short": "AR",
+      "role": "resistance",
+      "price": 2444.45,
+      "time": "2026-09-10T14:45:00Z",
+      "ref_close": 2622.88,
+      "ref_vs": "above",
+      "dist_pct": 7.299,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 2504.15
+      },
+      "extreme_since": 2668.0,
+      "forming_beyond": true,
+      "anchor_in_window": false
+     },
+     {
+      "name": "lps_c",
+      "label": "LPS[C] — kiểm tra hỗ trợ",
+      "method": "wyckoff",
+      "short": "LPS[C]",
+      "role": "support",
+      "price": 2435.0,
+      "time": "2026-09-10T23:15:00Z",
+      "ref_close": 2622.88,
+      "ref_vs": "above",
+      "dist_pct": 7.716,
+      "first_close_beyond": {
+       "time": "2026-09-15T14:30:00Z",
+       "close": 2416.82
+      },
+      "extreme_since": 2358.88,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "fvg_top",
+      "label": "FVG tăng — cạnh trên",
+      "method": "ict",
+      "short": "FVG tăng",
+      "role": "support",
+      "price": 2601.48,
+      "time": "",
+      "ref_close": 2622.88,
+      "ref_vs": "above",
+      "dist_pct": 0.823,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 2504.15
+      },
+      "extreme_since": 2358.88,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "fvg_bot",
+      "label": "FVG tăng — cạnh dưới",
+      "method": "ict",
+      "short": "FVG tăng",
+      "role": "support",
+      "price": 2595.12,
+      "time": "",
+      "ref_close": 2622.88,
+      "ref_vs": "above",
+      "dist_pct": 1.07,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 2504.15
+      },
+      "extreme_since": 2358.88,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "mss_swing",
+      "label": "MSS giảm — swing",
+      "method": "ict",
+      "short": "MSS giảm",
+      "role": "swing",
+      "price": 2636.0,
+      "time": "",
+      "ref_close": 2622.88,
+      "ref_vs": "below",
+      "dist_pct": -0.498,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_1",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 2612.21,
+      "time": "",
+      "ref_close": 2622.88,
+      "ref_vs": "above",
+      "dist_pct": 0.408,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 2504.15
+      },
+      "extreme_since": 2358.88,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-20T02:00:00Z",
+     "close": 2622.88
+    },
+    "verdict_key": "above_res",
+    "verdict": "PHÁ TRÊN AR — UA khối lượng yếu — xác nhận tiếp diễn tăng",
+    "verdict_short": "PHÁ TRÊN AR — UA khối lượng yếu"
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bear",
+    "i": 546,
+    "level": 2636.0,
+    "disp": false,
+    "ext": 2668.0,
+    "ext_time": "2026-09-19T17:15:00Z",
+    "origin": 2636.0,
+    "cisd": {
+     "level": 2641.17,
+     "time": "2026-09-19T16:00:00Z",
+     "confirmed": "2026-09-19T18:00:00Z"
+    },
+    "vol_mult": 0.56
+   },
+   "nearest_fvg": {
+    "type": "bull",
+    "i": 445,
+    "lo": 2595.12,
+    "hi": 2601.48,
+    "size": 6.360000000000127,
+    "ce": 2598.3,
+    "end": 575,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-19",
+    "pdh": 2668.0,
+    "pdl": 2602.94,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "15m",
+    "pch": 2622.88,
+    "pcl": 2618.25,
+    "pch_state": "closed_through",
+    "pcl_state": "intact"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 2521.65,
+     "from": 93,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 2640.54,
+     "from": 458,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 2637.99,
+     "from": 499,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 2432.82,
+     "from": 140,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 2413.01,
+     "from": 154,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 2612.21,
+     "from": 488,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 2610.0,
+     "from": 440,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 2668.0,
+     "from": 539,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 2358.88,
+     "from": 161,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 2369.11,
+     "from": 256,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 2416.21,
+     "from": 287,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 2425.03,
+     "from": 296,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 2428.12,
+     "from": 324,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 2485.54,
+     "from": 406,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 2585.26,
+     "from": 443,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 2602.94,
+     "from": 475,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [],
+   "context": {
+    "tier": "bias",
+    "style": "swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-20T00:03:44Z",
+    "window_last": "2026-09-20T00:00:00Z",
+    "last": 2628.51,
+    "last_time": "2026-09-20T00:00:00Z",
+    "lo": 2369.11,
+    "hi": 2668.0,
+    "eq": 2518.5550000000003,
+    "pct": 0.8679,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bear",
+     "i": 332,
+     "level": 2462.02,
+     "disp": false,
+     "ext": 2615.0,
+     "ext_time": "2026-09-14T20:00:00Z",
+     "origin": 2462.02,
+     "cisd": {
+      "level": 2508.49,
+      "time": "2026-09-14T16:00:00Z",
+      "confirmed": "2026-09-15T00:00:00Z"
+     },
+     "vol_mult": 2.81
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 350,
+     "lo": 2521.65,
+     "hi": 2578.93,
+     "size": 57.279999999999745,
+     "ce": 2550.29,
+     "end": 359,
+     "mitigated": false
+    },
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 2640.54,
+     "pcl": 2617.75,
+     "pch_state": "intact",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": null,
+    "wyckoff_source": null,
+    "bias": "short",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.down",
+       "level": "2,462.02"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  },
+  "SOLUSDT": {
+   "last": 110.49,
+   "last_time": "2026-09-20T02:15:00Z",
+   "lo": 105.29,
+   "hi": 111.22,
+   "eq": 108.255,
+   "pct": 0.8769,
+   "stance": "CHỜ",
+   "anchors": {
+    "source": "local-eval-brief.py scalping --bars 96 + swing --bars 60, run-20260920T020732Z-full",
+    "updated": "2026-09-20T02:00:00Z",
+    "levels": [
+     {
+      "name": "sc_low",
+      "label": "SC mới, KL mạnh nhất 3 mã",
+      "method": "wyckoff",
+      "short": "SC",
+      "role": "support",
+      "price": 98.5,
+      "time": "2026-09-10T12:45:00Z",
+      "ref_close": 110.47,
+      "ref_vs": "above",
+      "dist_pct": 12.152,
+      "first_close_beyond": {
+       "time": "2026-09-15T18:30:00Z",
+       "close": 98.06
+      },
+      "extreme_since": 95.82,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ar_high",
+      "label": "AR — KL yếu",
+      "method": "wyckoff",
+      "short": "AR",
+      "role": "resistance",
+      "price": 100.37,
+      "time": "2026-09-10T14:45:00Z",
+      "ref_close": 110.47,
+      "ref_vs": "above",
+      "dist_pct": 10.063,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 100.73
+      },
+      "extreme_since": 114.32,
+      "forming_beyond": true,
+      "anchor_in_window": false
+     },
+     {
+      "name": "fvg_top",
+      "label": "FVG tăng — cạnh trên",
+      "method": "ict",
+      "short": "FVG tăng",
+      "role": "support",
+      "price": 108.39,
+      "time": "",
+      "ref_close": 110.47,
+      "ref_vs": "above",
+      "dist_pct": 1.919,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 100.73
+      },
+      "extreme_since": 95.82,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "fvg_bot",
+      "label": "FVG tăng — cạnh dưới",
+      "method": "ict",
+      "short": "FVG tăng",
+      "role": "support",
+      "price": 108.09,
+      "time": "",
+      "ref_close": 110.47,
+      "ref_vs": "above",
+      "dist_pct": 2.202,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 100.73
+      },
+      "extreme_since": 95.82,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "mss_swing",
+      "label": "MSS giảm — swing",
+      "method": "ict",
+      "short": "MSS giảm",
+      "role": "swing",
+      "price": 111.23,
+      "time": "",
+      "ref_close": 110.47,
+      "ref_vs": "below",
+      "dist_pct": -0.683,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_1",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "resistance",
+      "price": 112.88,
+      "time": "",
+      "ref_close": 110.47,
+      "ref_vs": "below",
+      "dist_pct": -2.135,
+      "first_close_beyond": {
+       "time": "2026-09-18T19:00:00Z",
+       "close": 112.93
+      },
+      "extreme_since": 114.32,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-20T02:00:00Z",
+     "close": 110.47
+    },
+    "verdict_key": "above_res",
+    "verdict": "PHÁ TRÊN AR — KL yếu — xác nhận tiếp diễn tăng",
+    "verdict_short": "PHÁ TRÊN AR — KL yếu"
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bear",
+    "i": 542,
+    "level": 111.23,
+    "disp": true,
+    "ext": 112.46,
+    "ext_time": "2026-09-19T17:15:00Z",
+    "origin": 111.23,
+    "cisd": {
+     "level": 111.65,
+     "time": "2026-09-19T16:00:00Z",
+     "confirmed": "2026-09-19T17:15:00Z"
+    },
+    "vol_mult": 1.78
+   },
+   "nearest_fvg": {
+    "type": "bull",
+    "i": 429,
+    "lo": 108.09,
+    "hi": 108.39,
+    "size": 0.29999999999999716,
+    "ce": 108.24000000000001,
+    "end": 575,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-19",
+    "pdh": 114.09,
+    "pdl": 110.08,
+    "pdh_state": "intact",
+    "pdl_state": "swept"
+   },
+   "prev_candle": {
+    "tf": "15m",
+    "pch": 110.49,
+    "pcl": 110.11,
+    "pch_state": "swept",
+    "pcl_state": "intact"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 106.13,
+     "from": 394,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 112.5,
+     "from": 506,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 111.22,
+     "from": 564,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 100.9,
+     "from": 13,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 100.67,
+     "from": 42,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 99.66,
+     "from": 140,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 98.83,
+     "from": 150,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 99.48,
+     "from": 303,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 105.29,
+     "from": 401,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 106.67,
+     "from": 416,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 114.32,
+     "from": 453,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 114.09,
+     "from": 477,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 111.61,
+     "from": 547,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 95.82,
+     "from": 161,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 96.09,
+     "from": 253,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 97.38,
+     "from": 273,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 98.47,
+     "from": 282,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 99.11,
+     "from": 296,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 99.57,
+     "from": 319,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 100.25,
+     "from": 339,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 100.77,
+     "from": 367,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 112.88,
+     "from": 476,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [],
+   "context": {
+    "tier": "bias",
+    "style": "swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-20T00:03:44Z",
+    "window_last": "2026-09-20T00:00:00Z",
+    "last": 110.95,
+    "last_time": "2026-09-20T00:00:00Z",
+    "lo": 96.09,
+    "hi": 114.32,
+    "eq": 105.205,
+    "pct": 0.8151,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 348,
+     "level": 104.82,
+     "disp": true,
+     "ext": 96.09,
+     "ext_time": "2026-09-16T16:00:00Z",
+     "origin": 104.82,
+     "cisd": {
+      "level": 98.02,
+      "time": "2026-09-16T12:00:00Z",
+      "confirmed": "2026-09-16T16:00:00Z"
+     },
+     "vol_mult": 2.1
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 347,
+     "lo": 101.76,
+     "hi": 104.42,
+     "size": 2.6599999999999966,
+     "ce": 103.09,
+     "end": 359,
+     "mitigated": false
+    },
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 111.37,
+     "pcl": 110.08,
+     "pch_state": "intact",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": null,
+    "wyckoff_source": null,
+    "bias": "long",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.up",
+       "level": "104.82"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  },
+  "ASTERUSDT": {
+   "last": 0.762,
+   "last_time": "2026-09-20T02:15:00Z",
+   "lo": 0.758,
+   "hi": 0.763,
+   "eq": 0.7605,
+   "pct": 0.8,
+   "stance": "CHỜ",
+   "anchors": {
+    "source": "local-eval-brief.py scalping --bars 96 + swing --bars 60, run-20260920T020732Z-full",
+    "updated": "2026-09-20T02:00:00Z",
+    "levels": [
+     {
+      "name": "mss_swing",
+      "label": "MSS tăng — swing",
+      "method": "ict",
+      "short": "MSS",
+      "role": "swing",
+      "price": 0.76,
+      "time": "",
+      "ref_close": 0.761,
+      "ref_vs": "above",
+      "dist_pct": 0.132,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": true,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_1",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 0.72,
+      "time": "",
+      "ref_close": 0.761,
+      "ref_vs": "above",
+      "dist_pct": 5.694,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 0.695
+      },
+      "extreme_since": 0.661,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_2",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 0.73,
+      "time": "",
+      "ref_close": 0.761,
+      "ref_vs": "above",
+      "dist_pct": 4.247,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 0.695
+      },
+      "extreme_since": 0.661,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_3",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 0.74,
+      "time": "",
+      "ref_close": 0.761,
+      "ref_vs": "above",
+      "dist_pct": 2.838,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 0.695
+      },
+      "extreme_since": 0.661,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-20T02:00:00Z",
+     "close": 0.761
+    },
+    "verdict_key": null,
+    "verdict": null,
+    "verdict_short": null
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bull",
+    "i": 511,
+    "level": 0.761,
+    "disp": true,
+    "ext": 0.753,
+    "ext_time": "2026-09-19T08:00:00Z",
+    "origin": 0.758,
+    "cisd": {
+     "level": 0.762,
+     "time": "2026-09-19T07:15:00Z",
+     "confirmed": "2026-09-19T10:15:00Z"
+    },
+    "vol_mult": 0.73
+   },
+   "nearest_fvg": {
+    "type": "bear",
+    "i": 483,
+    "lo": 0.784,
+    "hi": 0.786,
+    "size": 0.0020000000000000018,
+    "ce": 0.785,
+    "end": 575,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-19",
+    "pdh": 0.792,
+    "pdl": 0.753,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "15m",
+    "pch": 0.762,
+    "pcl": 0.759,
+    "pch_state": "intact",
+    "pcl_state": "intact"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 0.694,
+     "from": 258,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.771,
+     "from": 528,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.672,
+     "from": 168,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.673,
+     "from": 189,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.735,
+     "from": 332,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.739,
+     "from": 355,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.742,
+     "from": 383,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.753,
+     "from": 454,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.758,
+     "from": 534,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.672,
+     "from": 217,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.752,
+     "from": 445,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.792,
+     "from": 475,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.789,
+     "from": 482,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.783,
+     "from": 491,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.772,
+     "from": 549,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.768,
+     "from": 562,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.763,
+     "from": 570,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.701,
+     "from": 74,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.661,
+     "from": 161,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.668,
+     "from": 214,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.669,
+     "from": 222,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.691,
+     "from": 270,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.718,
+     "from": 295,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.724,
+     "from": 301,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.73,
+     "from": 318,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.738,
+     "from": 344,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.743,
+     "from": 441,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.748,
+     "from": 448,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.755,
+     "from": 558,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [],
+   "context": {
+    "tier": "bias",
+    "style": "swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-20T00:03:44Z",
+    "window_last": "2026-09-20T00:00:00Z",
+    "last": 0.763,
+    "last_time": "2026-09-20T00:00:00Z",
+    "lo": 0.753,
+    "hi": 0.792,
+    "eq": 0.7725,
+    "pct": 0.2564,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 340,
+     "level": 0.697,
+     "disp": true,
+     "ext": 0.668,
+     "ext_time": "2026-09-16T08:00:00Z",
+     "origin": 0.697,
+     "cisd": {
+      "level": 0.692,
+      "time": "2026-09-15T16:00:00Z",
+      "confirmed": "2026-09-16T20:00:00Z"
+     },
+     "vol_mult": 0.58
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 341,
+     "lo": 0.704,
+     "hi": 0.718,
+     "size": 0.014000000000000012,
+     "ce": 0.711,
+     "end": 359,
+     "mitigated": false
+    },
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 0.771,
+     "pcl": 0.755,
+     "pch_state": "intact",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": null,
+    "wyckoff_source": null,
+    "bias": "long",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.up",
+       "level": "0.70"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  },
+  "VIRTUALUSDT": {
+   "last": 0.6776,
+   "last_time": "2026-09-20T02:15:00Z",
+   "lo": 0.6617,
+   "hi": 0.6804,
+   "eq": 0.6710499999999999,
+   "pct": 0.8503,
+   "stance": "CHỜ",
+   "anchors": {
+    "source": "local-eval-brief.py scalping --bars 96 + swing --bars 60, run-20260920T020732Z-full",
+    "updated": "2026-09-20T02:00:00Z",
+    "levels": [
+     {
+      "name": "mss_swing",
+      "label": "MSS giảm — swing",
+      "method": "ict",
+      "short": "MSS",
+      "role": "swing",
+      "price": 0.67,
+      "time": "",
+      "ref_close": 0.6774,
+      "ref_vs": "above",
+      "dist_pct": 1.104,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": true,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_1",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 0.63,
+      "time": "",
+      "ref_close": 0.6774,
+      "ref_vs": "above",
+      "dist_pct": 7.524,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 0.6194
+      },
+      "extreme_since": 0.5748,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_2",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 0.65,
+      "time": "",
+      "ref_close": 0.6774,
+      "ref_vs": "above",
+      "dist_pct": 4.215,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 0.6194
+      },
+      "extreme_since": 0.5748,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_3",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 0.66,
+      "time": "",
+      "ref_close": 0.6774,
+      "ref_vs": "above",
+      "dist_pct": 2.636,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 0.6194
+      },
+      "extreme_since": 0.5748,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-20T02:00:00Z",
+     "close": 0.6774
+    },
+    "verdict_key": null,
+    "verdict": null,
+    "verdict_short": null
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bear",
+    "i": 571,
+    "level": 0.6707,
+    "disp": false,
+    "ext": 0.6801,
+    "ext_time": "2026-09-20T00:45:00Z",
+    "origin": 0.6707,
+    "cisd": {
+     "level": 0.6722,
+     "time": "2026-09-20T00:15:00Z",
+     "confirmed": "2026-09-20T01:00:00Z"
+    },
+    "vol_mult": 0.26
+   },
+   "nearest_fvg": {
+    "type": "bull",
+    "i": 574,
+    "lo": 0.6726,
+    "hi": 0.677,
+    "size": 0.0044000000000000705,
+    "ce": 0.6748000000000001,
+    "end": 575,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-19",
+    "pdh": 0.6853,
+    "pdl": 0.6586,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "15m",
+    "pch": 0.6781,
+    "pcl": 0.6721,
+    "pch_state": "intact",
+    "pcl_state": "intact"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 0.6184,
+     "from": 328,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.6804,
+     "from": 480,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6045,
+     "from": 113,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6022,
+     "from": 132,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6008,
+     "from": 140,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.5881,
+     "from": 197,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6348,
+     "from": 399,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6586,
+     "from": 454,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.5978,
+     "from": 166,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.5968,
+     "from": 228,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.596,
+     "from": 269,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.6505,
+     "from": 416,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.6853,
+     "from": 519,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.6836,
+     "from": 539,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.681,
+     "from": 548,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.5748,
+     "from": 252,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.5974,
+     "from": 296,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6054,
+     "from": 367,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6092,
+     "from": 375,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6326,
+     "from": 392,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6509,
+     "from": 442,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6548,
+     "from": 449,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6568,
+     "from": 464,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6594,
+     "from": 495,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6617,
+     "from": 500,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [
+    {
+     "kind": "fvg_bull",
+     "lo": 0.6726,
+     "hi": 0.677,
+     "i": 574,
+     "time": "2026-09-20T02:00:00Z"
+    }
+   ],
+   "context": {
+    "tier": "bias",
+    "style": "swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-20T00:03:44Z",
+    "window_last": "2026-09-20T00:00:00Z",
+    "last": 0.6714,
+    "last_time": "2026-09-20T00:00:00Z",
+    "lo": 0.5748,
+    "hi": 0.6853,
+    "eq": 0.63005,
+    "pct": 0.8742,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 347,
+     "level": 0.6381,
+     "disp": true,
+     "ext": 0.5748,
+     "ext_time": "2026-09-16T16:00:00Z",
+     "origin": 0.6381,
+     "cisd": {
+      "level": 0.5942,
+      "time": "2026-09-16T12:00:00Z",
+      "confirmed": "2026-09-16T20:00:00Z"
+     },
+     "vol_mult": 2.11
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 347,
+     "lo": 0.6146,
+     "hi": 0.6326,
+     "size": 0.018000000000000016,
+     "ce": 0.6236,
+     "end": 359,
+     "mitigated": false
+    },
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 0.681,
+     "pcl": 0.6638,
+     "pch_state": "intact",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": null,
+    "wyckoff_source": null,
+    "bias": "long",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.up",
+       "level": "0.64"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  },
+  "SUIUSDT": {
+   "last": 0.8657,
+   "last_time": "2026-09-20T02:15:00Z",
+   "lo": 0.8519,
+   "hi": 0.8712,
+   "eq": 0.86155,
+   "pct": 0.715,
+   "stance": "CHỜ",
+   "anchors": {
+    "source": "local-eval-brief.py scalping --bars 96 + swing --bars 60, run-20260920T020732Z-full",
+    "updated": "2026-09-20T02:00:00Z",
+    "levels": [
+     {
+      "name": "mss_swing",
+      "label": "MSS giảm — swing",
+      "method": "ict",
+      "short": "MSS",
+      "role": "swing",
+      "price": 0.85,
+      "time": "",
+      "ref_close": 0.8663,
+      "ref_vs": "above",
+      "dist_pct": 1.918,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": true,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_1",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 0.77,
+      "time": "",
+      "ref_close": 0.8663,
+      "ref_vs": "above",
+      "dist_pct": 12.506,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 0.7128
+      },
+      "extreme_since": 0.673,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_2",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 0.78,
+      "time": "",
+      "ref_close": 0.8663,
+      "ref_vs": "above",
+      "dist_pct": 11.064,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 0.7128
+      },
+      "extreme_since": 0.673,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_3",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 0.8,
+      "time": "",
+      "ref_close": 0.8663,
+      "ref_vs": "above",
+      "dist_pct": 8.287,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 0.7128
+      },
+      "extreme_since": 0.673,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-20T02:00:00Z",
+     "close": 0.8663
+    },
+    "verdict_key": null,
+    "verdict": null,
+    "verdict_short": null
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bear",
+    "i": 571,
+    "level": 0.8539,
+    "disp": false,
+    "ext": 0.8712,
+    "ext_time": "2026-09-20T00:30:00Z",
+    "origin": 0.8539,
+    "cisd": {
+     "level": 0.8574,
+     "time": "2026-09-20T00:00:00Z",
+     "confirmed": "2026-09-20T01:00:00Z"
+    },
+    "vol_mult": 1.08
+   },
+   "nearest_fvg": {
+    "type": "bull",
+    "i": 381,
+    "lo": 0.7569,
+    "hi": 0.7604,
+    "size": 0.0034999999999999476,
+    "ce": 0.75865,
+    "end": 575,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-19",
+    "pdh": 0.8872,
+    "pdl": 0.807,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "15m",
+    "pch": 0.8685,
+    "pcl": 0.8592,
+    "pch_state": "intact",
+    "pcl_state": "intact"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 0.6941,
+     "from": 195,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.7379,
+     "from": 342,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.7139,
+     "from": 287,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.7159,
+     "from": 320,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.7291,
+     "from": 344,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.7958,
+     "from": 437,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.8068,
+     "from": 455,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.748,
+     "from": 71,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.808,
+     "from": 438,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.8048,
+     "from": 445,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.8872,
+     "from": 549,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.8712,
+     "from": 568,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.673,
+     "from": 161,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6765,
+     "from": 175,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.678,
+     "from": 253,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.6987,
+     "from": 271,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.709,
+     "from": 282,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.722,
+     "from": 332,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.7228,
+     "from": 339,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.737,
+     "from": 375,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.7723,
+     "from": 392,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.7733,
+     "from": 397,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.7758,
+     "from": 406,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.7812,
+     "from": 418,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.7989,
+     "from": 449,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.8378,
+     "from": 534,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.8461,
+     "from": 558,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.8519,
+     "from": 572,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [],
+   "context": {
+    "tier": "bias",
+    "style": "swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-20T00:03:44Z",
+    "window_last": "2026-09-20T00:00:00Z",
+    "last": 0.8574,
+    "last_time": "2026-09-20T00:00:00Z",
+    "lo": 0.678,
+    "hi": 0.954,
+    "eq": 0.8160000000000001,
+    "pct": 0.65,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 347,
+     "level": 0.748,
+     "disp": true,
+     "ext": 0.678,
+     "ext_time": "2026-09-16T16:00:00Z",
+     "origin": 0.748,
+     "cisd": {
+      "level": 0.6919,
+      "time": "2026-09-16T12:00:00Z",
+      "confirmed": "2026-09-16T16:00:00Z"
+     },
+     "vol_mult": 2.17
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 347,
+     "lo": 0.7428,
+     "hi": 0.7723,
+     "size": 0.02949999999999997,
+     "ce": 0.75755,
+     "end": 359,
+     "mitigated": false
+    },
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 0.8804,
+     "pcl": 0.8461,
+     "pch_state": "intact",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": null,
+    "wyckoff_source": null,
+    "bias": "long",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.up",
+       "level": "0.75"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  },
+  "TAOUSDT": {
+   "last": 264.1,
+   "last_time": "2026-09-20T02:15:00Z",
+   "lo": 262.0,
+   "hi": 268.8,
+   "eq": 265.4,
+   "pct": 0.3088,
+   "stance": "CHỜ",
+   "anchors": {
+    "source": "local-eval-brief.py scalping --bars 96 + swing --bars 60, run-20260920T020732Z-full",
+    "updated": "2026-09-20T02:00:00Z",
+    "levels": [
+     {
+      "name": "mss_swing",
+      "label": "MSS tăng — swing",
+      "method": "ict",
+      "short": "MSS",
+      "role": "swing",
+      "price": 265.2,
+      "time": "",
+      "ref_close": 264.3,
+      "ref_vs": "below",
+      "dist_pct": -0.339,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_1",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 247.0,
+      "time": "",
+      "ref_close": 264.3,
+      "ref_vs": "above",
+      "dist_pct": 7.004,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 236.1
+      },
+      "extreme_since": 213.4,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_2",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 251.5,
+      "time": "",
+      "ref_close": 264.3,
+      "ref_vs": "above",
+      "dist_pct": 5.089,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 236.1
+      },
+      "extreme_since": 213.4,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_3",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 252.0,
+      "time": "",
+      "ref_close": 264.3,
+      "ref_vs": "above",
+      "dist_pct": 4.881,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 236.1
+      },
+      "extreme_since": 213.4,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-20T02:00:00Z",
+     "close": 264.3
+    },
+    "verdict_key": null,
+    "verdict": null,
+    "verdict_short": null
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bull",
+    "i": 561,
+    "level": 265.2,
+    "disp": false,
+    "ext": 260.2,
+    "ext_time": "2026-09-19T21:00:00Z",
+    "origin": 265.2,
+    "cisd": {
+     "level": 264.8,
+     "time": "2026-09-19T20:45:00Z",
+     "confirmed": "2026-09-19T22:30:00Z"
+    },
+    "vol_mult": 0.54
+   },
+   "nearest_fvg": {
+    "type": "bull",
+    "i": 503,
+    "lo": 255.0,
+    "hi": 255.9,
+    "size": 0.9000000000000057,
+    "ce": 255.45,
+    "end": 575,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-19",
+    "pdh": 273.6,
+    "pdl": 248.9,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "15m",
+    "pch": 264.7,
+    "pcl": 263.3,
+    "pch_state": "intact",
+    "pcl_state": "intact"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 220.2,
+     "from": 179,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 224.7,
+     "from": 118,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 225.9,
+     "from": 318,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 248.8,
+     "from": 458,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 216.3,
+     "from": 249,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 221.8,
+     "from": 265,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 225.2,
+     "from": 298,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 259.1,
+     "from": 483,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 256.1,
+     "from": 499,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 273.6,
+     "from": 531,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 268.8,
+     "from": 569,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 213.4,
+     "from": 216,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 214.1,
+     "from": 246,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 214.3,
+     "from": 253,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 217.9,
+     "from": 274,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 221.9,
+     "from": 287,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 222.8,
+     "from": 295,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 223.7,
+     "from": 301,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 228.2,
+     "from": 367,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 238.3,
+     "from": 392,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 240.3,
+     "from": 398,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 242.9,
+     "from": 419,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 246.6,
+     "from": 442,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 247.0,
+     "from": 468,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 251.5,
+     "from": 495,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 252.0,
+     "from": 502,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 268.2,
+     "from": 534,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 260.2,
+     "from": 554,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 262.0,
+     "from": 563,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [],
+   "context": {
+    "tier": "bias",
+    "style": "swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-20T00:03:44Z",
+    "window_last": "2026-09-20T00:00:00Z",
+    "last": 264.8,
+    "last_time": "2026-09-20T00:00:00Z",
+    "lo": 213.4,
+    "hi": 273.6,
+    "eq": 243.5,
+    "pct": 0.8538,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 348,
+     "level": 242.1,
+     "disp": true,
+     "ext": 213.4,
+     "ext_time": "2026-09-16T08:00:00Z",
+     "origin": 242.1,
+     "cisd": {
+      "level": 218.8,
+      "time": "2026-09-16T04:00:00Z",
+      "confirmed": "2026-09-16T08:00:00Z"
+     },
+     "vol_mult": 1.93
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 347,
+     "lo": 234.3,
+     "hi": 238.3,
+     "size": 4.0,
+     "ce": 236.3,
+     "end": 359,
+     "mitigated": false
+    },
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 266.2,
+     "pcl": 260.2,
+     "pch_state": "intact",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": null,
+    "wyckoff_source": null,
+    "bias": "long",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.up",
+       "level": "242.10"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  },
+  "RENDERUSDT": {
+   "last": 1.594,
+   "last_time": "2026-09-20T02:15:00Z",
+   "lo": 1.569,
+   "hi": 1.601,
+   "eq": 1.585,
+   "pct": 0.7813,
+   "stance": "CHỜ",
+   "anchors": {
+    "source": "local-eval-brief.py scalping --bars 96 + swing --bars 60, run-20260920T020732Z-full",
+    "updated": "2026-09-20T02:00:00Z",
+    "levels": [
+     {
+      "name": "mss_swing",
+      "label": "MSS tăng — swing",
+      "method": "ict",
+      "short": "MSS",
+      "role": "swing",
+      "price": 1.59,
+      "time": "",
+      "ref_close": 1.595,
+      "ref_vs": "above",
+      "dist_pct": 0.314,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": true,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_1",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 1.4,
+      "time": "",
+      "ref_close": 1.595,
+      "ref_vs": "above",
+      "dist_pct": 13.929,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 1.391
+      },
+      "extreme_since": 1.284,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_2",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 1.49,
+      "time": "",
+      "ref_close": 1.595,
+      "ref_vs": "above",
+      "dist_pct": 7.047,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 1.391
+      },
+      "extreme_since": 1.284,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_3",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 1.5,
+      "time": "",
+      "ref_close": 1.595,
+      "ref_vs": "above",
+      "dist_pct": 6.333,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 1.391
+      },
+      "extreme_since": 1.284,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-20T02:00:00Z",
+     "close": 1.595
+    },
+    "verdict_key": null,
+    "verdict": null,
+    "verdict_short": null
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bull",
+    "i": 568,
+    "level": 1.587,
+    "disp": true,
+    "ext": 1.545,
+    "ext_time": "2026-09-19T22:00:00Z",
+    "origin": 1.587,
+    "cisd": {
+     "level": 1.556,
+     "time": "2026-09-19T22:00:00Z",
+     "confirmed": "2026-09-19T22:30:00Z"
+    },
+    "vol_mult": 2.04
+   },
+   "nearest_fvg": {
+    "type": "bull",
+    "i": 574,
+    "lo": 1.583,
+    "hi": 1.594,
+    "size": 0.01100000000000012,
+    "ce": 1.5885,
+    "end": 575,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-19",
+    "pdh": 1.635,
+    "pdl": 1.533,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "15m",
+    "pch": 1.596,
+    "pcl": 1.58,
+    "pch_state": "intact",
+    "pcl_state": "intact"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 1.34,
+     "from": 263,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 1.386,
+     "from": 279,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 1.428,
+     "from": 346,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.36,
+     "from": 126,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.287,
+     "from": 246,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.375,
+     "from": 295,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.533,
+     "from": 464,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.569,
+     "from": 534,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 1.358,
+     "from": 156,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 1.635,
+     "from": 519,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 1.601,
+     "from": 570,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.284,
+     "from": 216,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.325,
+     "from": 268,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.399,
+     "from": 367,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.489,
+     "from": 392,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.492,
+     "from": 400,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.498,
+     "from": 418,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.513,
+     "from": 442,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 1.545,
+     "from": 558,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [
+    {
+     "kind": "fvg_bull",
+     "lo": 1.583,
+     "hi": 1.594,
+     "i": 574,
+     "time": "2026-09-20T02:00:00Z"
+    }
+   ],
+   "context": {
+    "tier": "bias",
+    "style": "swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-20T00:03:44Z",
+    "window_last": "2026-09-20T00:00:00Z",
+    "last": 1.576,
+    "last_time": "2026-09-20T00:00:00Z",
+    "lo": 1.284,
+    "hi": 1.635,
+    "eq": 1.4595,
+    "pct": 0.8319,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 346,
+     "level": 1.415,
+     "disp": false,
+     "ext": 1.284,
+     "ext_time": "2026-09-16T08:00:00Z",
+     "origin": 1.415,
+     "cisd": {
+      "level": 1.362,
+      "time": "2026-09-15T12:00:00Z",
+      "confirmed": "2026-09-16T20:00:00Z"
+     },
+     "vol_mult": 1.27
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 347,
+     "lo": 1.442,
+     "hi": 1.489,
+     "size": 0.04700000000000015,
+     "ce": 1.4655,
+     "end": 359,
+     "mitigated": false
+    },
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 1.579,
+     "pcl": 1.545,
+     "pch_state": "intact",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": null,
+    "wyckoff_source": null,
+    "bias": "long",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.up",
+       "level": "1.42"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  },
+  "ONDOUSDT": {
+   "last": 0.4165,
+   "last_time": "2026-09-20T02:15:00Z",
+   "lo": 0.4086,
+   "hi": 0.423,
+   "eq": 0.4158,
+   "pct": 0.5486,
+   "stance": "CHỜ",
+   "anchors": {
+    "source": "local-eval-brief.py scalping --bars 96 + swing --bars 60, run-20260920T020732Z-full",
+    "updated": "2026-09-20T02:00:00Z",
+    "levels": [
+     {
+      "name": "mss_swing",
+      "label": "MSS giảm — swing",
+      "method": "ict",
+      "short": "MSS",
+      "role": "swing",
+      "price": 0.43,
+      "time": "",
+      "ref_close": 0.4165,
+      "ref_vs": "below",
+      "dist_pct": -3.14,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_1",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 0.38,
+      "time": "",
+      "ref_close": 0.4165,
+      "ref_vs": "above",
+      "dist_pct": 9.605,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 0.3484
+      },
+      "extreme_since": 0.323,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_2",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 0.39,
+      "time": "",
+      "ref_close": 0.4165,
+      "ref_vs": "above",
+      "dist_pct": 6.795,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 0.3484
+      },
+      "extreme_since": 0.323,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ssl_3",
+      "label": "SSL chưa quét",
+      "method": "ict",
+      "short": "SSL",
+      "role": "support",
+      "price": 0.42,
+      "time": "",
+      "ref_close": 0.4165,
+      "ref_vs": "below",
+      "dist_pct": -0.833,
+      "first_close_beyond": {
+       "time": "2026-09-14T02:30:00Z",
+       "close": 0.3484
+      },
+      "extreme_since": 0.323,
+      "forming_beyond": true,
+      "anchor_in_window": false
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-20T02:00:00Z",
+     "close": 0.4165
+    },
+    "verdict_key": null,
+    "verdict": null,
+    "verdict_short": null
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bear",
+    "i": 549,
+    "level": 0.428,
+    "disp": true,
+    "ext": 0.4344,
+    "ext_time": "2026-09-19T19:15:00Z",
+    "origin": 0.428,
+    "cisd": {
+     "level": 0.4288,
+     "time": "2026-09-19T19:15:00Z",
+     "confirmed": "2026-09-19T19:45:00Z"
+    },
+    "vol_mult": 1.44
+   },
+   "nearest_fvg": {
+    "type": "bull",
+    "i": 574,
+    "lo": 0.4137,
+    "hi": 0.4162,
+    "size": 0.0025000000000000022,
+    "ce": 0.41495000000000004,
+    "end": 575,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-19",
+    "pdh": 0.4434,
+    "pdl": 0.3934,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "15m",
+    "pch": 0.4168,
+    "pcl": 0.4128,
+    "pch_state": "intact",
+    "pcl_state": "intact"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 0.3559,
+     "from": 45,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.3611,
+     "from": 65,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.3997,
+     "from": 424,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.3264,
+     "from": 208,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.3239,
+     "from": 216,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.3659,
+     "from": 338,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.3836,
+     "from": 382,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.3934,
+     "from": 495,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.4086,
+     "from": 518,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.3652,
+     "from": 72,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.3469,
+     "from": 156,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.3335,
+     "from": 240,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.3421,
+     "from": 263,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.3799,
+     "from": 350,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.4434,
+     "from": 531,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.4405,
+     "from": 541,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.4344,
+     "from": 547,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.424,
+     "from": 562,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 0.423,
+     "from": 568,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.323,
+     "from": 190,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.3362,
+     "from": 274,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.3466,
+     "from": 296,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.3476,
+     "from": 324,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.3797,
+     "from": 397,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.383,
+     "from": 406,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.3916,
+     "from": 429,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.3924,
+     "from": 437,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.428,
+     "from": 535,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 0.4172,
+     "from": 566,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [
+    {
+     "kind": "fvg_bull",
+     "lo": 0.4137,
+     "hi": 0.4162,
+     "i": 574,
+     "time": "2026-09-20T02:00:00Z"
+    }
+   ],
+   "context": {
+    "tier": "bias",
+    "style": "swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-20T00:03:44Z",
+    "window_last": "2026-09-20T00:00:00Z",
+    "last": 0.4189,
+    "last_time": "2026-09-20T00:00:00Z",
+    "lo": 0.3934,
+    "hi": 0.4434,
+    "eq": 0.4184,
+    "pct": 0.51,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 344,
+     "level": 0.3652,
+     "disp": true,
+     "ext": 0.323,
+     "ext_time": "2026-09-16T00:00:00Z",
+     "origin": 0.3652,
+     "cisd": {
+      "level": 0.3473,
+      "time": "2026-09-15T12:00:00Z",
+      "confirmed": "2026-09-16T20:00:00Z"
+     },
+     "vol_mult": 6.29
+    },
+    "nearest_fvg": null,
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 0.4269,
+     "pcl": 0.4114,
+     "pch_state": "intact",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": null,
+    "wyckoff_source": null,
+    "bias": "long",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.up",
+       "level": "0.37"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  }
+ }
+}

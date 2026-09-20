@@ -1,0 +1,546 @@
+{
+ "scanned_at": "2026-09-20T02:31:45Z",
+ "tf": "15m",
+ "n": 576,
+ "window_first": "2026-09-10T19:42:53Z",
+ "window_last": "2026-09-19T07:27:54Z",
+ "anchors_source": "Phân tích đầy đủ vàng 15m 2026-09-11 dựng từ snapshot local-eval-gold-20260911T150202Z: CHoCH xác nhận qua SC 4,313.68 → AR 4,340.42 → ST 4,300.64 (Phase A), Spring[C] 4,289.57 xuyên và đảo chiều (Phase C), SOS[D] 4,390.13 xác nhận cầu áp đảo cung (Phase D); bốn mốc ICT (EQ, FVG tăng chưa lấp, hai pool BSL chưa quét) lấy trực tiếp từ FACTS của scanner. Mốc do phân tích đầy đủ đặt, scanner chỉ so sánh.",
+ "symbols": {
+  "XAUUSD": {
+   "last": 4376.32,
+   "last_time": "2026-09-19T07:27:53Z",
+   "lo": 4334.21,
+   "hi": 4398.14,
+   "eq": 4366.175,
+   "pct": 0.6587,
+   "stance": "CHỜ",
+   "anchors": {
+    "source": "Phân tích đầy đủ vàng 15m 2026-09-11 dựng từ snapshot local-eval-gold-20260911T150202Z: CHoCH xác nhận qua SC 4,313.68 → AR 4,340.42 → ST 4,300.64 (Phase A), Spring[C] 4,289.57 xuyên và đảo chiều (Phase C), SOS[D] 4,390.13 xác nhận cầu áp đảo cung (Phase D); bốn mốc ICT (EQ, FVG tăng chưa lấp, hai pool BSL chưa quét) lấy trực tiếp từ FACTS của scanner. Mốc do phân tích đầy đủ đặt, scanner chỉ so sánh.",
+    "updated": "2026-09-11T15:00:00Z",
+    "levels": [
+     {
+      "name": "sc_low",
+      "label": "SC 4,313.68 — cao trào bán mở Phase A",
+      "method": "wyckoff",
+      "short": "SC 4313.68",
+      "role": "support",
+      "price": 4313.68,
+      "time": "2026-09-10T19:00:00Z",
+      "ref_close": 4381.36,
+      "ref_vs": "above",
+      "dist_pct": 1.569,
+      "first_close_beyond": {
+       "time": "2026-09-11T14:57:53Z",
+       "close": 4309.16
+      },
+      "extreme_since": 4234.94,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     },
+     {
+      "name": "ar_high",
+      "label": "AR 4,340.42 — biên trên Trading Range",
+      "method": "wyckoff",
+      "short": "AR 4340.42",
+      "role": "resistance",
+      "price": 4340.42,
+      "time": "2026-09-11T01:00:00Z",
+      "ref_close": 4381.36,
+      "ref_vs": "above",
+      "dist_pct": 0.943,
+      "first_close_beyond": {
+       "time": "2026-09-11T01:12:53Z",
+       "close": 4364.46
+      },
+      "extreme_since": 4402.45,
+      "forming_beyond": true,
+      "anchor_in_window": true
+     },
+     {
+      "name": "st_low",
+      "label": "ST 4,300.64 — thấp hơn SC, cung còn nhiều",
+      "method": "wyckoff",
+      "short": "ST 4300.64",
+      "role": "support",
+      "price": 4300.64,
+      "time": "2026-09-11T03:45:00Z",
+      "ref_close": 4381.36,
+      "ref_vs": "above",
+      "dist_pct": 1.877,
+      "first_close_beyond": {
+       "time": "2026-09-14T20:57:53Z",
+       "close": 4287.88
+      },
+      "extreme_since": 4234.94,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "spring_low",
+      "label": "Spring[C] 4,289.57 — thử nguồn cung Phase C",
+      "method": "wyckoff",
+      "short": "Spring 4289.57",
+      "role": "support",
+      "price": 4289.57,
+      "time": "2026-09-11T12:30:00Z",
+      "ref_close": 4381.36,
+      "ref_vs": "above",
+      "dist_pct": 2.14,
+      "first_close_beyond": {
+       "time": "2026-09-14T20:57:53Z",
+       "close": 4287.88
+      },
+      "extreme_since": 4234.94,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "sos_break",
+      "label": "SOS[D] 4,390.13 — dấu hiệu sức mạnh Phase D",
+      "method": "wyckoff",
+      "short": "SOS 4390.13",
+      "role": "resistance",
+      "price": 4390.13,
+      "time": "2026-09-11T12:45:00Z",
+      "ref_close": 4381.36,
+      "ref_vs": "below",
+      "dist_pct": -0.2,
+      "first_close_beyond": {
+       "time": "2026-09-12T01:12:53Z",
+       "close": 4394.72
+      },
+      "extreme_since": 4402.45,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "eq",
+      "label": "EQ 4,364.40 — điểm cân bằng dealing range 96 nến",
+      "method": "ict",
+      "short": "EQ 4364.40",
+      "role": "eq",
+      "price": 4364.4,
+      "time": "2026-09-10T00:45:00Z",
+      "ref_close": 4381.36,
+      "ref_vs": "above",
+      "dist_pct": 0.389,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": true,
+      "anchor_in_window": false
+     },
+     {
+      "name": "unfilled_bull_fvg",
+      "label": "FVG tăng chưa lấp 4,343.33–4,352.43",
+      "method": "ict",
+      "short": "FVG 4343.33",
+      "role": "support",
+      "price": 4343.33,
+      "time": "2026-09-11T12:30:00Z",
+      "ref_close": 4381.36,
+      "ref_vs": "above",
+      "dist_pct": 0.876,
+      "first_close_beyond": {
+       "time": "2026-09-11T12:42:53Z",
+       "close": 4333.12
+      },
+      "extreme_since": 4234.94,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "bsl_local",
+      "label": "BSL 4,402.45 (pool cục bộ, chưa bị quét)",
+      "method": "ict",
+      "short": "BSL 4402.45",
+      "role": "resistance",
+      "price": 4402.45,
+      "time": "2026-09-11T13:45:00Z",
+      "ref_close": 4381.36,
+      "ref_vs": "below",
+      "dist_pct": -0.479,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": true
+     },
+     {
+      "name": "bsl_window",
+      "label": "BSL 4,442.89 (đỉnh cửa sổ, chưa bị quét)",
+      "method": "ict",
+      "short": "BSL 4442.89",
+      "role": "resistance",
+      "price": 4442.89,
+      "time": "2026-09-07T15:30:00Z",
+      "ref_close": 4381.36,
+      "ref_vs": "below",
+      "dist_pct": -1.385,
+      "first_close_beyond": null,
+      "extreme_since": null,
+      "forming_beyond": false,
+      "anchor_in_window": false
+     }
+    ],
+    "ref_close": {
+     "time": "2026-09-19T07:12:53Z",
+     "close": 4381.36
+    },
+    "verdict_key": "inside",
+    "verdict": "CHỜ — vẫn giữa vùng",
+    "verdict_short": "CHỜ (giữa vùng)"
+   },
+   "setup": null,
+   "last_mss": {
+    "type": "bull",
+    "i": 560,
+    "level": 4361.71,
+    "disp": false,
+    "ext": 4342.62,
+    "ext_time": "2026-09-19T02:12:53Z",
+    "origin": 4354.82,
+    "cisd": {
+     "level": 4351.5,
+     "time": "2026-09-19T01:57:53Z",
+     "confirmed": "2026-09-19T02:12:53Z"
+    },
+    "vol_mult": 0.99
+   },
+   "nearest_fvg": {
+    "type": "bull",
+    "i": 561,
+    "lo": 4364.83,
+    "hi": 4374.5,
+    "size": 9.670000000000073,
+    "ce": 4369.665,
+    "end": 575,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-18",
+    "pdh": 4399.53,
+    "pdl": 4318.4,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "15m",
+    "pch": 4382.31,
+    "pcl": 4379.44,
+    "pch_state": "swept",
+    "pcl_state": "closed_through"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 4402.45,
+     "from": 9,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 4398.14,
+     "from": 532,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 4334.21,
+     "from": 370,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 4234.94,
+     "from": 396,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [],
+   "context": {
+    "tier": "bias",
+    "style": "cfd-swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-20T00:03:44Z",
+    "window_last": "2026-09-19T04:42:54Z",
+    "last": 4376.32,
+    "last_time": "2026-09-19T04:42:53Z",
+    "lo": 4234.94,
+    "hi": 4402.45,
+    "eq": 4318.695,
+    "pct": 0.844,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bear",
+     "i": 321,
+     "level": 4340.63,
+     "disp": true,
+     "ext": 4434.62,
+     "ext_time": "2026-09-10T16:42:53Z",
+     "origin": 4340.63,
+     "cisd": {
+      "level": 4400.94,
+      "time": "2026-09-10T12:42:53Z",
+      "confirmed": "2026-09-10T16:42:53Z"
+     },
+     "vol_mult": 1.11
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 163,
+     "lo": 4085.73,
+     "hi": 4134.67,
+     "size": 48.940000000000055,
+     "ce": 4110.2,
+     "end": 359,
+     "mitigated": false
+    },
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 4383.7,
+     "pcl": 4342.62,
+     "pch_state": "swept",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": {
+     "structure": "tích lũy",
+     "phase": "C",
+     "trading_range": {
+      "high": 4340.63,
+      "high_label": "Swing kháng cự cũ 4,340.63",
+      "low": 4285.91,
+      "low_label": "Đáy sâu nhất 4H 4,285.91",
+      "from": "2026-09-10T21:00:00Z"
+     },
+     "updated": "2026-09-11T15:00:00Z"
+    },
+    "wyckoff_source": "data/live/narrative/cfd-scalping.json (context)",
+    "bias": "short",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.failed_displace",
+      {
+       "level": "PCH 4,383.70",
+       "other": "PCL 4,342.62"
+      }
+     ],
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.down",
+       "level": "4,340.63"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  },
+  "XAGUSD": {
+   "last": 66.337,
+   "last_time": "2026-09-19T07:27:54Z",
+   "lo": 66.213,
+   "hi": 66.861,
+   "eq": 66.537,
+   "pct": 0.1914,
+   "stance": "CHỜ",
+   "anchors": null,
+   "setup": null,
+   "last_mss": {
+    "type": "bull",
+    "i": 561,
+    "level": 66.436,
+    "disp": true,
+    "ext": 66.213,
+    "ext_time": "2026-09-19T03:12:54Z",
+    "origin": 66.436,
+    "cisd": {
+     "level": 66.375,
+     "time": "2026-09-19T03:12:54Z",
+     "confirmed": "2026-09-19T03:57:54Z"
+    },
+    "vol_mult": 1.14
+   },
+   "nearest_fvg": {
+    "type": "bull",
+    "i": 456,
+    "lo": 64.772,
+    "hi": 65.119,
+    "size": 0.3469999999999942,
+    "ce": 64.94550000000001,
+    "end": 575,
+    "mitigated": false
+   },
+   "prev_day": {
+    "date": "2026-09-18",
+    "pdh": 67.332,
+    "pdl": 65.147,
+    "pdh_state": "intact",
+    "pdl_state": "intact"
+   },
+   "prev_candle": {
+    "tf": "15m",
+    "pch": 66.472,
+    "pcl": 66.388,
+    "pch_state": "intact",
+    "pcl_state": "closed_through"
+   },
+   "unswept_pools": [
+    {
+     "kind": "BSL",
+     "level": 64.931,
+     "from": 350,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 62.29,
+     "from": 183,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 62.83,
+     "from": 234,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 63.417,
+     "from": 323,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "SSL",
+     "level": 66.213,
+     "from": 545,
+     "swept": -1,
+     "type": "equal"
+    },
+    {
+     "kind": "BSL",
+     "level": 67.332,
+     "from": 532,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 67.177,
+     "from": 540,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "BSL",
+     "level": 66.861,
+     "from": 569,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 65.22,
+     "from": 486,
+     "swept": -1,
+     "type": "old"
+    },
+    {
+     "kind": "SSL",
+     "level": 65.982,
+     "from": 553,
+     "swept": -1,
+     "type": "old"
+    }
+   ],
+   "events_recent": [],
+   "context": {
+    "tier": "bias",
+    "style": "cfd-swing",
+    "tf": "4h",
+    "scanned_at": "2026-09-20T00:03:44Z",
+    "window_last": "2026-09-19T04:42:54Z",
+    "last": 66.337,
+    "last_time": "2026-09-19T04:42:54Z",
+    "lo": 62.29,
+    "hi": 68.326,
+    "eq": 65.30799999999999,
+    "pct": 0.6705,
+    "stance": "CHỜ",
+    "verdict": null,
+    "verdict_short": null,
+    "last_mss": {
+     "type": "bull",
+     "i": 351,
+     "level": 64.931,
+     "disp": true,
+     "ext": 62.29,
+     "ext_time": "2026-09-17T04:42:54Z",
+     "origin": 64.931,
+     "cisd": {
+      "level": 64.758,
+      "time": "2026-09-17T00:42:54Z",
+      "confirmed": "2026-09-17T20:42:54Z"
+     },
+     "vol_mult": 1.03
+    },
+    "nearest_fvg": {
+     "type": "bull",
+     "i": 175,
+     "lo": 61.664,
+     "hi": 62.207,
+     "size": 0.5429999999999993,
+     "ce": 61.935500000000005,
+     "end": 359,
+     "mitigated": false
+    },
+    "prev_candle": {
+     "tf": "4H",
+     "pch": 66.793,
+     "pcl": 65.982,
+     "pch_state": "swept",
+     "pcl_state": "intact"
+    },
+    "anchors": [],
+    "wyckoff": null,
+    "wyckoff_source": null,
+    "bias": "neutral",
+    "basis": [
+     [
+      "ict",
+      "bias.ict.contradiction",
+      {}
+     ],
+     [
+      "ict",
+      "bias.ict.failed_displace",
+      {
+       "level": "PCH 66.79",
+       "other": "PCL 65.98"
+      }
+     ],
+     [
+      "ict",
+      "bias.ict.mss",
+      {
+       "dir_key": "dir.up",
+       "level": "64.93"
+      }
+     ]
+    ],
+    "basis_format": 2
+   }
+  }
+ }
+}

@@ -57,6 +57,22 @@ def data_path(sym, tf):
     return f"{ROOT}/data/live/{base}/ohlcv.{sym}.{tf}.json"
 
 
+def default_symbols(style):
+    """The symbols a read covers when none are given: the instruments /automation has ENABLED for the style's
+    market -- the same list scan-loop.sh scans and check-narrative.py demands -- falling back to the analysis
+    allowlist (docs/architecture/instruments.json) only if the switch's config is unreadable. Until 2026-09-20 this
+    was a hard-coded "BTCUSDT,ETHUSDT,SOLUSDT" / "XAUUSD" pair: nine crypto symbols were enabled, the checker
+    reported six of them `missing` on every full analysis, and both headless prompts had copied the three names."""
+    market = _auto.market_of_style(style)
+    try:
+        cfg, exists, _ = _auto.load()
+        if exists:
+            return list(_auto.enabled_instruments(cfg, market))
+    except Exception:
+        pass
+    return list(I.analysis(market))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("style", choices=TF.keys()); ap.add_argument("--bars", type=int, default=40)
@@ -82,12 +98,7 @@ def main():
         print(f"# /automation đang tắt ({_why}) — đọc THỦ CÔNG theo yêu cầu người dùng; không có tick nền nào chạy.")
     tf, n = TF[a.style]
     if a.symbols is None:
-        # ONE definition of which market a flat style name belongs to: automation.market_of_style -- not a second
-        # prefix test here, which is how `gold` came to mean the market in one file and the instrument in another.
-        # The `startswith` is reached ONLY when automation.py itself would not import, the same unconfigured path
-        # the gate above fails open on; it is the fallback for an unreachable source, not a second source.
-        _cfd = _auto.market_of_style(a.style) == "cfd" if _auto else a.style.startswith("cfd-")
-        a.symbols = "XAUUSD" if _cfd else "BTCUSDT,ETHUSDT,SOLUSDT"
+        a.symbols = ",".join(default_symbols(a.style))   # ONE source: /automation's enabled list (see default_symbols)
     # Freeze the scanner outputs for THIS read: the background scanner rewrites facts.json on its own
     # cadence (scalping is 15m since 2026-09-13 -- scan-loop.sh fires it at :01/:16/:31/:46, not every minute),
     # so the model must be judged against the snapshot it was given, not against whatever is newest at check time.
@@ -100,7 +111,8 @@ def main():
     for sym in syms:
         shutil.copy(data_path(sym, tf), os.path.join(snap_dir, f"ohlcv.{sym}.{tf}.json"))
     facts = json.load(open(facts_path, encoding="utf-8"))
-    print(f"# Đánh giá cục bộ · {a.style} · {tf}×{n} · dữ liệu tới {facts['window_last']} · scanner chạy {facts['scanned_at']}")
+    _scan_n = (_auto.SCAN_WINDOW.get(tf) or {}).get("bars")
+    print(f"# Đánh giá cục bộ · {a.style} · {tf}×{n} · cửa sổ scanner {tf}×{_scan_n} · mã: {', '.join(syms)} · dữ liệu tới {facts['window_last']} · scanner chạy {facts['scanned_at']}")
     print(f"SNAPSHOT: {snap_dir}  (facts + candles đã đóng băng cho lần đọc này; scanner nền vẫn cập nhật file gốc)")
     if a.events: print(f"\nSự kiện kích hoạt: {a.events}")
     print("""
@@ -149,6 +161,11 @@ def main():
           + (f"  — KHÔNG viết khối m-{', m-'.join(m for m in ('wyckoff', 'ict') if m not in _analysed)}: "
              "không có nguồn dữ liệu LIVE, khối đó sẽ bị check-model-prose.py từ chối."
              if set(("wyckoff", "ict")) - set(_analysed) else ""))
+    # The stop belongs to a method that can vote (.claude/skills/ict-skill/SKILL.md "one invalidation owner";
+    # check-narrative.py refuses any other owner). Printed on every run so the prompt's "the brief prints every
+    # rule" stays true -- on 2026-09-20 the three live narratives all named the switched-off Wyckoff as owner.
+    print(f"CHỦ SỞ HỮU VÔ HIỆU: invalidation.owner (narrative) và chủ sở hữu vô hiệu trong m-synth phải là một trong: "
+          f"{', '.join(_engaged) or '(không lớp nào)'} — scripts/check-narrative.py từ chối chủ sở hữu là lớp đang tắt trong /automation.")
     if _optional:
         # §15: "Displayed analysis != trading confluence." The model must know which of the blocks it is
         # about to write can move the verdict, or it will argue a direction from a lane that cannot vote.

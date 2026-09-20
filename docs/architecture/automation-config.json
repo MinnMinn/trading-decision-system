@@ -90,7 +90,7 @@
     "launchd_label": "com.tyme.trading.pilot.futures",
     "stopped_at": "2026-09-12T18:25:54Z"
   },
-  "last_updated": "2026-09-18T14:17:50Z",
+  "last_updated": "2026-09-20T02:31:12Z",
   "history": [
     {
       "ts": "2026-09-10T10:06:03Z",
@@ -1267,6 +1267,139 @@
       "action": "dimension wyckoff=off --market cfd",
       "detail": "drill finished; back to the pre-drill state",
       "result": "applied"
+    },
+    {
+      "ts": "2026-09-20T01:27:52Z",
+      "actor": "claude:session_01N1xD9pF1qkkdmNTzG47KzJ",
+      "action": "setup horizons",
+      "detail": "user ran /automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-20T01:27:52Z",
+      "actor": "claude:session_01N1xD9pF1qkkdmNTzG47KzJ",
+      "action": "on",
+      "detail": "user ran /automation on",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-20T01:37:28Z",
+      "actor": "tungnguyen",
+      "action": "instrument NOTAREALSYM=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T01:37:28Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T01:37:28Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T01:37:47Z",
+      "actor": "tungnguyen",
+      "action": "instrument NOTAREALSYM=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T01:37:47Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T01:37:48Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T01:57:40Z",
+      "actor": "tungnguyen",
+      "action": "instrument NOTAREALSYM=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T01:57:40Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T01:57:40Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T01:58:08Z",
+      "actor": "claude:session_01N1xD9pF1qkkdmNTzG47KzJ",
+      "action": "setup horizons",
+      "detail": "reinstall scanner plist with AbandonProcessGroup (headless model reads were SIGTERMed by launchd)",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-20T01:58:08Z",
+      "actor": "claude:session_01N1xD9pF1qkkdmNTzG47KzJ",
+      "action": "on",
+      "detail": "reinstall scanner plist with AbandonProcessGroup (headless model reads were SIGTERMed by launchd)",
+      "result": "applied"
+    },
+    {
+      "ts": "2026-09-20T02:06:40Z",
+      "actor": "tungnguyen",
+      "action": "instrument NOTAREALSYM=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T02:06:41Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T02:06:41Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T02:31:11Z",
+      "actor": "tungnguyen",
+      "action": "instrument NOTAREALSYM=on",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T02:31:12Z",
+      "actor": "tungnguyen",
+      "action": "dimension footprint=on --market cfd",
+      "detail": null,
+      "result": "refused"
+    },
+    {
+      "ts": "2026-09-20T02:31:12Z",
+      "actor": "tungnguyen",
+      "action": "real",
+      "detail": null,
+      "result": "refused"
     }
   ]
 }

@@ -1,150 +1,476 @@
 {
- "source": "Phân tích đầy đủ day-trade 11/9 11:00Z (tái xác nhận sau lần 11/9 00:15Z, nến đóng tham chiếu 10:45Z): BTC vẫn giữa SC 76,676.07–AR 77,424.98, tham chiếu 76,993 (-0.56% dưới AR, +0.69% trên đáy Spring), chưa có đóng cửa vượt AR lẫn chưa đóng cửa dưới lại Spring. ETH vẫn giữ cấu trúc trên LPS 2,435.00, tham chiếu 2,462.14 (+1.11% trên LPS, +0.72% trên AR); cực trị sau đợt tăng đã lên 2,484.62 nhưng nến đang hình thành vẫn chưa đóng cửa xác nhận SOS. SOL vẫn yếu nhất, tham chiếu 99.18, giữa SC 98.50–AR 100.37. Mốc do phân tích đầy đủ đặt, scanner chỉ so sánh.",
- "updated": "2026-09-11T11:00:00Z",
- "symbols": {
-  "BTCUSDT": {
-   "rule": {
-    "type": "range",
-    "support": "sc_low",
-    "resistance": "ar_high"
-   },
-   "levels": [
-    {
-     "name": "sc_low",
-     "label": "SC mới (Cao trào bán), khối lượng kỷ lục cửa sổ",
-     "price": 76676.07,
-     "time": "2026-09-10T12:45:00Z",
-     "role": "support",
-     "method": "wyckoff",
-     "short": "SC"
+  "style": "scalping",
+  "updated": "2026-09-20T02:30:00Z",
+  "symbols": {
+    "BTCUSDT": {
+      "levels": [
+        {
+          "name": "SC",
+          "price": 76676,
+          "method": "wyckoff",
+          "short": "SC",
+          "label": "SC"
+        },
+        {
+          "name": "AR",
+          "price": 77425,
+          "method": "wyckoff",
+          "short": "AR",
+          "label": "AR"
+        },
+        {
+          "name": "UA",
+          "price": 77534,
+          "method": "wyckoff",
+          "short": "UA",
+          "label": "UA"
+        },
+        {
+          "name": "Shakeout",
+          "price": 76423,
+          "method": "wyckoff",
+          "short": "Shakeout",
+          "label": "Shakeout"
+        },
+        {
+          "name": "BU",
+          "price": 80073,
+          "method": "wyckoff",
+          "short": "BU",
+          "label": "BU"
+        },
+        {
+          "name": "MSS",
+          "price": 81472,
+          "method": "ict",
+          "short": "MSS",
+          "label": "MSS"
+        },
+        {
+          "name": "FVG trên",
+          "price": 81716,
+          "method": "ict",
+          "short": "FVG trên",
+          "label": "FVG trên"
+        },
+        {
+          "name": "FVG dưới",
+          "price": 81602,
+          "method": "ict",
+          "short": "FVG dưới",
+          "label": "FVG dưới"
+        },
+        {
+          "name": "BSL",
+          "price": 81951,
+          "method": "ict",
+          "short": "BSL",
+          "label": "BSL"
+        },
+        {
+          "name": "BSL",
+          "price": 81330,
+          "method": "ict",
+          "short": "BSL",
+          "label": "BSL"
+        },
+        {
+          "name": "SSL",
+          "price": 77972,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL"
+        }
+      ]
     },
-    {
-     "name": "ar_high",
-     "label": "AR (Automatic Rally) — chưa có nến đóng cửa vượt",
-     "price": 77424.98,
-     "time": "2026-09-10T14:45:00Z",
-     "role": "resistance",
-     "method": "wyckoff",
-     "short": "AR"
+    "ETHUSDT": {
+      "levels": [
+        {
+          "name": "SC",
+          "price": 2405.85,
+          "method": "wyckoff",
+          "short": "SC",
+          "label": "SC"
+        },
+        {
+          "name": "AR",
+          "price": 2444.45,
+          "method": "wyckoff",
+          "short": "AR",
+          "label": "AR"
+        },
+        {
+          "name": "UA",
+          "price": 2505.14,
+          "method": "wyckoff",
+          "short": "UA",
+          "label": "UA"
+        },
+        {
+          "name": "Shakeout",
+          "price": 2387.33,
+          "method": "wyckoff",
+          "short": "Shakeout",
+          "label": "Shakeout"
+        },
+        {
+          "name": "MSS",
+          "price": 2636.0,
+          "method": "ict",
+          "short": "MSS",
+          "label": "MSS"
+        },
+        {
+          "name": "FVG trên",
+          "price": 2601.48,
+          "method": "ict",
+          "short": "FVG trên",
+          "label": "FVG trên"
+        },
+        {
+          "name": "FVG dưới",
+          "price": 2595.12,
+          "method": "ict",
+          "short": "FVG dưới",
+          "label": "FVG dưới"
+        },
+        {
+          "name": "SSL",
+          "price": 2612.21,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL"
+        },
+        {
+          "name": "SSL quét",
+          "price": 2619.5,
+          "method": "ict",
+          "short": "SSL quét",
+          "label": "SSL quét"
+        }
+      ]
     },
-    {
-     "name": "old_sos_high",
-     "label": "đỉnh SOS cũ (9/9), mốc kháng cự vĩ mô xa hơn",
-     "price": 79760.0,
-     "time": "2026-09-09T08:30:00Z",
-     "role": "resistance",
-     "method": "wyckoff",
-     "short": "SOS cũ"
+    "SOLUSDT": {
+      "levels": [
+        {
+          "name": "SC",
+          "price": 98.5,
+          "method": "wyckoff",
+          "short": "SC",
+          "label": "SC"
+        },
+        {
+          "name": "AR",
+          "price": 100.37,
+          "method": "wyckoff",
+          "short": "AR",
+          "label": "AR"
+        },
+        {
+          "name": "UA",
+          "price": 100.85,
+          "method": "wyckoff",
+          "short": "UA",
+          "label": "UA"
+        },
+        {
+          "name": "Shakeout",
+          "price": 98.06,
+          "method": "wyckoff",
+          "short": "Shakeout",
+          "label": "Shakeout"
+        },
+        {
+          "name": "BU",
+          "price": 105.82,
+          "method": "wyckoff",
+          "short": "BU",
+          "label": "BU"
+        },
+        {
+          "name": "MSS",
+          "price": 111.23,
+          "method": "ict",
+          "short": "MSS",
+          "label": "MSS"
+        },
+        {
+          "name": "FVG trên",
+          "price": 108.39,
+          "method": "ict",
+          "short": "FVG trên",
+          "label": "FVG trên"
+        },
+        {
+          "name": "FVG dưới",
+          "price": 108.09,
+          "method": "ict",
+          "short": "FVG dưới",
+          "label": "FVG dưới"
+        },
+        {
+          "name": "SSL",
+          "price": 112.88,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL"
+        }
+      ]
     },
-    {
-     "name": "spring_low",
-     "label": "Đáy Spring — xuyên xuống dưới SC rồi đóng cửa hồi phục lại vùng giao dịch",
-     "price": 76464.0,
-     "time": "2026-09-10T23:15:00Z",
-     "role": "support",
-     "method": "wyckoff",
-     "short": "Spring"
+    "ASTERUSDT": {
+      "levels": [
+        {
+          "name": "MSS",
+          "price": 0.76,
+          "method": "ict",
+          "short": "MSS",
+          "label": "MSS tăng — swing"
+        },
+        {
+          "name": "FVG",
+          "price": 0.76,
+          "method": "ict",
+          "short": "FVG",
+          "label": "FVG giảm — cạnh trên"
+        },
+        {
+          "name": "FVG",
+          "price": 0.76,
+          "method": "ict",
+          "short": "FVG",
+          "label": "FVG giảm — cạnh dưới"
+        },
+        {
+          "name": "SSL",
+          "price": 0.75,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL chưa quét"
+        },
+        {
+          "name": "SSL",
+          "price": 0.72,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL chưa quét"
+        }
+      ]
     },
-    {
-     "name": "mss_swing",
-     "label": "Điểm swing bị phá bởi đóng cửa MSS giảm gần nhất",
-     "price": 77083.17,
-     "time": "2026-09-10T19:45:00Z",
-     "role": "swing",
-     "method": "ict",
-     "short": "swing MSS"
+    "VIRTUALUSDT": {
+      "levels": [
+        {
+          "name": "MSS",
+          "price": 0.67,
+          "method": "ict",
+          "short": "MSS",
+          "label": "MSS giảm — swing"
+        },
+        {
+          "name": "FVG",
+          "price": 0.65,
+          "method": "ict",
+          "short": "FVG",
+          "label": "FVG tăng — cạnh trên"
+        },
+        {
+          "name": "FVG",
+          "price": 0.65,
+          "method": "ict",
+          "short": "FVG",
+          "label": "FVG tăng — cạnh dưới"
+        },
+        {
+          "name": "SSL",
+          "price": 0.63,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL chưa quét"
+        },
+        {
+          "name": "SSL",
+          "price": 0.66,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL chưa quét"
+        }
+      ]
+    },
+    "SUIUSDT": {
+      "levels": [
+        {
+          "name": "MSS",
+          "price": 0.85,
+          "method": "ict",
+          "short": "MSS",
+          "label": "MSS giảm — swing"
+        },
+        {
+          "name": "FVG",
+          "price": 0.86,
+          "method": "ict",
+          "short": "FVG",
+          "label": "FVG giảm — cạnh trên"
+        },
+        {
+          "name": "FVG",
+          "price": 0.86,
+          "method": "ict",
+          "short": "FVG",
+          "label": "FVG giảm — cạnh dưới"
+        },
+        {
+          "name": "SSL",
+          "price": 0.78,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL chưa quét"
+        },
+        {
+          "name": "SSL",
+          "price": 0.8,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL chưa quét"
+        }
+      ]
+    },
+    "TAOUSDT": {
+      "levels": [
+        {
+          "name": "MSS",
+          "price": 262.0,
+          "method": "ict",
+          "short": "MSS",
+          "label": "MSS giảm — swing"
+        },
+        {
+          "name": "FVG",
+          "price": 263.3,
+          "method": "ict",
+          "short": "FVG",
+          "label": "FVG giảm — cạnh trên"
+        },
+        {
+          "name": "FVG",
+          "price": 262.0,
+          "method": "ict",
+          "short": "FVG",
+          "label": "FVG giảm — cạnh dưới"
+        },
+        {
+          "name": "SSL",
+          "price": 266.2,
+          "method": "ict",
+          "short": "SSL",
+          "label": "BSL đã quét"
+        },
+        {
+          "name": "SSL",
+          "price": 247.0,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL chưa quét"
+        },
+        {
+          "name": "Entry",
+          "price": 262.0,
+          "method": "ict",
+          "short": "Entry",
+          "label": "Entry short"
+        },
+        {
+          "name": "Stop",
+          "price": 267.5,
+          "method": "ict",
+          "short": "Stop",
+          "label": "Stop short"
+        },
+        {
+          "name": "Target",
+          "price": 248.4,
+          "method": "ict",
+          "short": "Target",
+          "label": "Target short"
+        }
+      ]
+    },
+    "RENDERUSDT": {
+      "levels": [
+        {
+          "name": "MSS",
+          "price": 1.59,
+          "method": "ict",
+          "short": "MSS",
+          "label": "MSS tăng — swing"
+        },
+        {
+          "name": "FVG",
+          "price": 1.58,
+          "method": "ict",
+          "short": "FVG",
+          "label": "FVG giảm — cạnh trên"
+        },
+        {
+          "name": "FVG",
+          "price": 1.57,
+          "method": "ict",
+          "short": "FVG",
+          "label": "FVG giảm — cạnh dưới"
+        },
+        {
+          "name": "SSL",
+          "price": 1.4,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL chưa quét"
+        },
+        {
+          "name": "SSL",
+          "price": 1.49,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL chưa quét"
+        }
+      ]
+    },
+    "ONDOUSDT": {
+      "levels": [
+        {
+          "name": "MSS",
+          "price": 0.43,
+          "method": "ict",
+          "short": "MSS",
+          "label": "MSS giảm — swing"
+        },
+        {
+          "name": "FVG",
+          "price": 0.4,
+          "method": "ict",
+          "short": "FVG",
+          "label": "FVG tăng — cạnh trên"
+        },
+        {
+          "name": "FVG",
+          "price": 0.4,
+          "method": "ict",
+          "short": "FVG",
+          "label": "FVG tăng — cạnh dưới"
+        },
+        {
+          "name": "SSL",
+          "price": 0.38,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL chưa quét"
+        },
+        {
+          "name": "SSL",
+          "price": 0.39,
+          "method": "ict",
+          "short": "SSL",
+          "label": "SSL chưa quét"
+        }
+      ]
     }
-   ]
-  },
-  "ETHUSDT": {
-   "rule": {
-    "type": "range",
-    "support": "sc_low",
-    "resistance": "ar_high"
-   },
-   "levels": [
-    {
-     "name": "sc_low",
-     "label": "SC mới (Cao trào bán), khối lượng kỷ lục cửa sổ",
-     "price": 2405.85,
-     "time": "2026-09-10T13:00:00Z",
-     "role": "support",
-     "method": "wyckoff",
-     "short": "SC"
-    },
-    {
-     "name": "ar_high",
-     "label": "AR — đã đóng cửa vượt (UA khối lượng dưới chuẩn); cực trị sau đó 2,484.62",
-     "price": 2444.45,
-     "time": "2026-09-10T14:45:00Z",
-     "role": "resistance",
-     "method": "wyckoff",
-     "short": "AR"
-    },
-    {
-     "name": "old_sos_high",
-     "label": "đỉnh SOS cũ (9/9), mốc kháng cự vĩ mô xa hơn",
-     "price": 2523.3,
-     "time": "2026-09-09T08:30:00Z",
-     "role": "resistance",
-     "method": "wyckoff",
-     "short": "SOS cũ"
-    },
-    {
-     "name": "lps_low",
-     "label": "Đáy Điểm hỗ trợ cuối (LPS[C]) — kiểm tra lại sau khi đóng cửa vượt AR",
-     "price": 2435.0,
-     "time": "2026-09-10T23:15:00Z",
-     "role": "support",
-     "method": "wyckoff",
-     "short": "LPS"
-    },
-    {
-     "name": "bsl_next",
-     "label": "BSL chưa quét phía trên vùng hiện tại",
-     "price": 2479.29,
-     "time": "2026-09-10T09:00:00Z",
-     "role": "resistance",
-     "method": "ict",
-     "short": "BSL kế tiếp"
-    }
-   ]
-  },
-  "SOLUSDT": {
-   "rule": {
-    "type": "range",
-    "support": "sc_low",
-    "resistance": "ar_high"
-   },
-   "levels": [
-    {
-     "name": "sc_low",
-     "label": "SC mới (Cao trào bán), khối lượng kỷ lục cửa sổ và mạnh nhất trong ba mã",
-     "price": 98.5,
-     "time": "2026-09-10T12:45:00Z",
-     "role": "support",
-     "method": "wyckoff",
-     "short": "SC"
-    },
-    {
-     "name": "ar_high",
-     "label": "AR (Automatic Rally, khối lượng yếu) — chưa có nến đóng cửa vượt",
-     "price": 100.37,
-     "time": "2026-09-10T14:45:00Z",
-     "role": "resistance",
-     "method": "wyckoff",
-     "short": "AR"
-    },
-    {
-     "name": "old_sos_high",
-     "label": "đỉnh SOS cũ (9/9, sớm và thấp hơn BTC/ETH), mốc kháng cự vĩ mô xa hơn",
-     "price": 105.2,
-     "time": "2026-09-09T07:00:00Z",
-     "role": "resistance",
-     "method": "wyckoff",
-     "short": "SOS cũ"
-    }
-   ]
   }
- }
 }

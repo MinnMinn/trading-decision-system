@@ -23,10 +23,10 @@ hand in the config file; the order connectors and the pilot read it on every cal
 environment on policy grounds. Hard rules that stay in every environment: the instrument allowlist,
 PILOT_RISK_PCT <= 1% (clamped by the loaders).
 
-v3 shape (schema_version 3): per-MARKET config (crypto | cfd) with instruments, Confluence dimensions (§6.2) and
+v3 shape (schema_version 3): per-MARKET config (crypto | cfd | forex) with instruments, Confluence dimensions (§6.2) and
 timeframes; (market, timeframe) maps to the chart-style vocabulary (STYLE below), which is DERIVED from the three
 authored horizons (HORIZONS / HORIZON_TF: scalping 15m, day 1h, swing 4h) -- crypto keeps the bare horizon word,
-cfd takes a `cfd-` prefix. `services` records what `on` installed so `off` can remove exactly that.
+cfd takes `cfd-`, forex takes `fx-`. `services` records what `on` installed so `off` can remove exactly that.
 
 Subcommands
   status [--json]                     full effective configuration + warnings (safe any time, works with no file)
@@ -34,10 +34,10 @@ Subcommands
   demo | real                         set environment + preset + bring everything up
   on  [--who W] [--reason R]          bring everything up in the CURRENT environment
   off [--who W] [--reason R]          stop everything (persists across reboot)
-  market <crypto|cfd> <on|off>
-  timeframe <15m|1h|4h> <on|off> [--market crypto|cfd]   one scanned set, both markets (scalping|day|swing)
-  dimension <wyckoff|ict|footprint|heatmap> <on|off> [--market crypto|cfd]
-  method <preset> [--market crypto|cfd]   apply a named preset from docs/architecture/methods.json as a set of the
+  market <crypto|cfd|forex> <on|off>
+  timeframe <15m|1h|4h> <on|off> [--market crypto|cfd|forex]   one scanned set, all markets (scalping|day|swing)
+  dimension <wyckoff|ict|footprint|heatmap> <on|off> [--market crypto|cfd|forex]   footprint/heatmap: crypto only
+  method <preset> [--market crypto|cfd|forex]   apply a named preset from docs/architecture/methods.json as a set of the
                                       dimension flags; the preset is only a NAME for that set, nothing extra is
                                       stored. Presets: wyckoff | ict | wyckoff+ict | wyckoff+footprint |
                                       wyckoff+ict+footprint | full. Refuses (2) a preset whose dimensions the
@@ -50,10 +50,11 @@ Subcommands
                                       list is legal and means "no NEW entries in this market"; open positions and
                                       resting orders are still managed.
   layer <scanner|local_read|pilot> <on|off>
-  pilot <start|stop|status|adopt> [--market spot|futures] [--no-launchd]
-  pilot profile <legacy|top20>         which rule set the pilot loop runs (top20 = strategy-runner.py: selected setups, both venues)
+  pilot <start|stop|status|adopt> [--market futures] [--no-launchd]   one venue since 2026-09-13
   on|demo [setup top <N> | setup horizons]   default (no spec) = `setup horizons`: one setup per horizon (scalping/day/swing) per market,
-                                      ranked on the last 12 months; `setup top N` = N crypto + N CFD; both set the profile to top20
+                                      ranked on the last 12 months; `setup top N` = N crypto + N CFD. Both write
+                                      docs/architecture/pilot-top20.json, which the loop reads every tick; there is
+                                      no profile switch (the legacy engine was deleted 2026-09-13).
   allows <scanner|local_read|pilot> [style]     exit 0 if permitted, 2 if not (for shell gates)
   allows master                       exit 0 only if the config exists AND `enabled` is true. Fails CLOSED on a
                                       missing or corrupt file, unlike the three layer forms above, which treat
@@ -1501,7 +1502,7 @@ def main():
     al = sub.add_parser("allows"); al.add_argument("layer", choices=LAYERS + ["master"])
     al.add_argument("style", nargs="?", default=None)
     p = audited(sub.add_parser("demo")); p.add_argument("setup", nargs="*", default=[]); p = audited(sub.add_parser("real")); p.add_argument("setup", nargs="*", default=[])
-    p = audited(sub.add_parser("on")); p.add_argument("setup", nargs="*", default=[], help="optional: `setup top N` = rank the last 12 months, select N crypto + N CFD setups, switch the pilot profile to top20, then bring everything up")
+    p = audited(sub.add_parser("on")); p.add_argument("setup", nargs="*", default=[], help="optional: `setup top N` = rank the last 12 months, select N crypto + N CFD setups, then bring everything up")
     audited(sub.add_parser("off"))
     p = audited(sub.add_parser("market"))
     p.add_argument("name", choices=MARKETS); p.add_argument("value", choices=["on", "off"])

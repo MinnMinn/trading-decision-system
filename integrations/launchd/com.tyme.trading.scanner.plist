@@ -10,4 +10,9 @@
   <key>StandardOutPath</key><string>/Users/tungnguyen/TYME/Trading/data/live/scan-loop.out</string>
   <key>StandardErrorPath</key><string>/Users/tungnguyen/TYME/Trading/data/live/scan-loop.err</string>
   <key>ProcessType</key><string>Background</string>
+  <!-- scan-loop.sh detaches the model layer with `( nohup bash scripts/model-read.sh … & )` and exits within seconds.
+       Without this key launchd SIGTERMs the whole process group when the job exits (launchd.plist(5)), so every
+       headless read (layer 2 and the 07:30Z daily full) died ~1 s after spawn (2026-09-20: `Terminated: 15` in
+       data/live/model-reads.log, narrative/scalping.json frozen at 09-11). scripts/tests/test_scan_loop.py pins it. -->
+  <key>AbandonProcessGroup</key><true/>
 </dict></plist>

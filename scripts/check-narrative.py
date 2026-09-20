@@ -119,6 +119,24 @@ def phase_grammar(sym, wy, bad):
 
 
 
+def event_window(wy, win):
+    """(lo, hi) between which a Wyckoff event of `wy` may be dated. `win` is the scanner's working window
+    (facts.window_first, facts.window_last). The upper bound is always the last candle (point-in-time: no event
+    after the data). The lower bound is the START OF THE STRUCTURE when that predates the window --
+    `trading_range.from`, else the earliest phase band -- because a range that opened before the window is
+    still the range being read: 2026-09-20 the first headless daily-full could carry only Shakeout + BU for BTC
+    (SC/AR 09-10 and the UA 15 min before the window were refused), and the shortfall was blamed on the model.
+    chart.js drops what falls before its own window (idxOf -> -1), so an earlier event never draws wrongly."""
+    lo, hi = win
+    starts = []
+    tr_from = ((wy or {}).get("trading_range") or {}).get("from")
+    if tr_from: starts.append(tr_from)
+    starts += [ph.get("from") for ph in ((wy or {}).get("phases") or []) if ph.get("from")]
+    if lo and starts:
+        lo = min([lo] + starts)
+    return (lo, hi)
+
+
 def arg(flag, default=None):
     return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else default
 
@@ -176,9 +194,10 @@ def main():
             elif 'class="cite"' not in t: bad(pre + f"{m}.text_html has no <span class=\"cite\">")
         if not (d.get("synthesis_html") or "").strip(): bad(pre + "synthesis_html empty")
         wy = d.get("wyckoff") or {}
+        ew = event_window(wy, win)   # structure origin .. last candle, not the bare scanner window (see event_window)
         for e in wy.get("events", []) or []:
             if not ISO.match(e.get("time", "")): bad(pre + f"event time {e.get('time')!r} not ISO")
-            elif win[0] and not (win[0] <= e["time"] <= win[1]): bad(pre + f"event {e.get('label')!r} at {e['time']} is outside the working window {win[0]}..{win[1]}")
+            elif ew[0] and not (ew[0] <= e["time"] <= ew[1]): bad(pre + f"event {e.get('label')!r} at {e['time']} is outside the structure's span {ew[0]}..{ew[1]} (trading_range.from / first phase .. last candle)")
             if len(e.get("label", "")) > 34: bad(pre + f"event label too long for the chart: {e.get('label')!r}")
         for ph in wy.get("phases", []) or []:
             if not ISO.match(ph.get("from", "")): bad(pre + f"phase from {ph.get('from')!r} not ISO")

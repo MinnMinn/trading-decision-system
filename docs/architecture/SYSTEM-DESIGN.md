@@ -1151,10 +1151,11 @@ methodology-specific analysis on its own. `scripts/build-artifact.py` still read
 flags directly, so a page built under preset `ict` shows one lane and one matrix column.
 
 Flipping it is not a one-line change, because the page would gain a **Wyckoff column with nothing in it**.
-The layer-2 local read and the layer-3 full analysis author model blocks only for the dimensions the preset
-engages (`integrations/crons/*.md`), so showing the lane without changing what those layers author would
-render an empty column — arguably worse than not showing it. Making it real means the model reads author
-Wyckoff blocks too, which costs model work on every read tick.
+Since 2026-09-13 the layer-2 local read and the layer-3 full analysis author a block for every ANALYSED
+dimension (`scripts/local-eval-brief.py` prints `KHỐI BẮT BUỘC` from `methods.analysed_dimensions`), while
+the invalidation owner must be an ENGAGED one (`scripts/check-narrative.py`; since 2026-09-20 the brief prints
+that rule too, so a narrower preset cannot leave the stop with a switched-off read). So the lane is drawn with
+content under a narrower preset; what it costs is model work on every read tick.
 
 That is a cost and product decision, not a technical one, so it is recorded here rather than taken. Tracked
 on the §15 row of `docs/architecture/SPEC-COMPLIANCE.md`.

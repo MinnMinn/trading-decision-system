@@ -4,44 +4,115 @@
  "note": "Written by scripts/rank-setups.py --horizons. One setup per (horizon, method) per market -- every RUNNABLE method gets its own scalping/day/swing setups so any method-switch preset (strategy-runner.py allowed_methods()) still covers all 3 horizons (user decision 2026-09-11, extended 2026-09-13 for the per-method split). Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.",
  "setups": [
   {
-   "id": "cfd-swing-wyckoff-book-4h-border-b",
-   "horizon": "swing",
+   "id": "crypto-scalping-ict-15m-v1-b",
+   "horizon": "scalping",
    "rank": 1,
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "ASTERUSDT",
+    "VIRTUALUSDT",
+    "SUIUSDT",
+    "TAOUSDT",
+    "RENDERUSDT",
+    "ONDOUSDT"
+   ],
+   "tf": "15m",
+   "method": "ICT",
+   "htf": false,
+   "mgmt": "be",
+   "fee_assumed": 0.0002,
+   "execution": "futures",
+   "negative_backtest": false,
+   "backtest": {
+    "window": "1y",
+    "n": 23,
+    "ann_pct": 19.7,
+    "max_dd_pct": 3.7,
+    "q_pos_pct": 60,
+    "full_n": 64,
+    "full_ann_pct": 4.9,
+    "years_pos": "3/4",
+    "period": "2023-09-13→2026-09-11",
+    "source": "data/history/stability/crypto-crypto-personal-v1.json"
+   },
+   "rule_version": "5a53546b5bfa",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-scalping-wyckoff-book-15m-border-a",
+   "horizon": "scalping",
+   "rank": 2,
    "market": "cfd",
    "symbols": [
     "XAUUSD",
-    "XAGUSD",
-    "USOIL",
-    "UKOIL"
+    "XAGUSD"
    ],
-   "tf": "4H",
+   "tf": "15m",
    "method": "WYCKOFF-BOOK",
    "htf": false,
-   "mgmt": "be",
+   "mgmt": "none",
    "fee_assumed": 0.0005,
    "execution": "mt5",
    "negative_backtest": false,
    "backtest": {
     "window": "1y",
-    "n": 5,
-    "ann_pct": 4.4,
-    "max_dd_pct": 2.2,
-    "q_pos_pct": 20,
-    "full_n": 65,
-    "full_ann_pct": 0.1,
-    "years_pos": "7/23",
+    "n": 27,
+    "ann_pct": 0.0,
+    "max_dd_pct": 6.7,
+    "q_pos_pct": 40,
+    "full_n": 184,
+    "full_ann_pct": -1.2,
+    "years_pos": "0/2",
+    "period": "2018-03-20→2026-09-18",
+    "source": "data/history/stability/cfd-ftmo-challenge-phase1.json"
+   },
+   "rule_version": "017ad07ab5a8",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-day-wyckoff-book-1h-border-a",
+   "horizon": "day",
+   "rank": 3,
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "1H",
+   "method": "WYCKOFF-BOOK",
+   "htf": false,
+   "mgmt": "none",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "negative_backtest": false,
+   "backtest": {
+    "window": "1y",
+    "n": 15,
+    "ann_pct": 3.8,
+    "max_dd_pct": 7.4,
+    "q_pos_pct": 40,
+    "full_n": 162,
+    "full_ann_pct": -0.5,
+    "years_pos": "2/8",
     "period": "2004-06-11→2026-09-18",
     "source": "data/history/stability/cfd-ftmo-challenge-phase1.json"
    },
-   "rule_version": "2755e9d10b2c",
+   "rule_version": "caf496001f82",
    "rule_version_algo": "sha256-12"
   }
  ],
- "rank_by": "prop-pass",
+ "rank_by": "consistency",
  "research_validity": {
   "per_source": {
+   "data/history/stability/crypto-crypto-personal-v1.json": "FLAGGED",
    "data/history/stability/crypto-crypto-prop-discipline.json": "FLAGGED",
-   "data/history/stability/cfd-ftmo-challenge-phase1.json": "FLAGGED"
+   "data/history/stability/crypto-live.json": "FLAGGED",
+   "data/history/stability/crypto-pilot-binance-futures-testnet.json": "FLAGGED",
+   "data/history/stability/cfd-ftmo-challenge-phase1.json": "FLAGGED",
+   "data/history/stability/cfd-live.json": "FLAGGED"
   },
   "worst": "FLAGGED",
   "refused": [],

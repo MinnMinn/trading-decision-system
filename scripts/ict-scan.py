@@ -492,7 +492,7 @@ def main():
     _hs = _iu.spec_from_file_location("htf_context", f"{ROOT}/scripts/htf_context.py"); htf = _iu.module_from_spec(_hs); _hs.loader.exec_module(htf)
     ap = argparse.ArgumentParser()
     ap.add_argument("--tf", required=True); ap.add_argument("--n", type=int, required=True)
-    ap.add_argument("--style", required=True); ap.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT")
+    ap.add_argument("--style", required=True); ap.add_argument("--symbols", default=None, help="default: the instruments /automation enabled for the style's market (scan-loop.sh passes its own list)")
     ap.add_argument("--recent", type=int, default=4, help="bars counted as 'recent' for events")
     ap.add_argument("--state", default=None)
     ap.add_argument("--setup-lookback", type=int, default=None, help="bars in which the setup's sweep must sit (default max(12, 6*recent))")
@@ -505,6 +505,11 @@ def main():
         print(json.dumps({"skipped": f"no structural dimension engaged for style '{args.style}' "
                                      f"(/automation dimension wyckoff|ict on) — scanner did no work"}, ensure_ascii=False))
         sys.exit(0)   # 0 = "no NEW events", the same contract scan-loop.sh already handles
+    if args.symbols is None:
+        # ONE source for the symbol set (docs/architecture/instruments.json through /automation) -- the literal
+        # "BTCUSDT,ETHUSDT,SOLUSDT" here meant a manual or headless run confirmed three of nine enabled symbols.
+        _cfg, _, _ = htf._auto.load()
+        args.symbols = ",".join(htf._auto.enabled_instruments(_cfg, htf._auto.market_of_style(args.style)))
     syms = args.symbols.split(",")
     state_path = args.state or f"{ROOT}/data/live/scan-state.{args.style}.json"
     try:
