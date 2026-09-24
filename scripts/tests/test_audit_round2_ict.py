@@ -39,7 +39,9 @@ def load_git_revision(ref, name):
     return m
 
 
-PRE_ROUND2 = "HEAD"   # the commit this task's changes are diffed against (round 1 tip, before round 2's edits)
+PRE_ROUND2 = "c1ee513"   # the round-1 merge commit, before round 2's edits -- NOT "HEAD" (dispatcher review
+                          # correction: after round 2's own commit, HEAD IS the new code, so "HEAD" pinned
+                          # every regression test against itself and silently proved nothing)
 
 
 def bar(i, o, h, l, cl, v=10.0):
