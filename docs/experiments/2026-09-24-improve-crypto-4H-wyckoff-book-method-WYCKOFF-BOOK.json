@@ -1,0 +1,678 @@
+{
+ "experiment_id": "2026-09-24-improve-crypto-4H-wyckoff-book-method-WYCKOFF-BOOK",
+ "parent_trading_system_version": "v1",
+ "candidate_version": "v1-candidate-method=WYCKOFF-BOOK-2026-09-24-improve-crypto-4H-wyckoff-book",
+ "hypothesis": "Restricting/changing method=WYCKOFF-BOOK away from the baseline loss cluster (24 losses, WYCKOFF-BOOK/crypto/4H) improves the objective without a material drop in sample size.",
+ "motivation": "declared candidate override for cluster key method=WYCKOFF-BOOK: 1H WYCKOFF-BOOK B->C (HTF on) is exp -0.12R/dd 19.69% -> +0.62R/dd 7.17%, a PASS. Phase-D BU/LPS entries are the late, low-cause leg of the book engine (advance.md 2.7.4) and are dropped so the cause/effect target has room to pay for the trade.",
+ "failure_pattern": {
+  "cluster_key": {
+   "method": "WYCKOFF-BOOK",
+   "session": "off",
+   "vol_type": "None",
+   "via": "None"
+  },
+  "n": 24,
+  "states": [
+   "LOSS"
+  ],
+  "grouped_by": [
+   "method",
+   "session",
+   "vol_type",
+   "via"
+  ],
+  "source": "scripts/outcomes.py cluster()"
+ },
+ "dataset_snapshot": {
+  "snapshot_format": 1,
+  "snapshot_id": "5a51f6386435566c",
+  "created_at": "2026-09-24T12:09:30.558925Z",
+  "code_version": {
+   "git_sha": "26472d40e15d1d239c9a5d8db728bacab5a23053",
+   "dirty": true,
+   "modified_files": 133,
+   "dirty_note": "133 uncommitted file(s) at snapshot time: this run is NOT reproducible from 26472d40e15d1d239c9a5d8db728bacab5a23053 alone (CLAUDE.md §46)."
+  },
+  "preprocessing_version": 1,
+  "series": [
+   {
+    "symbol": "BTCUSDT",
+    "canonical_symbol": "BTC/USDT",
+    "market": "crypto",
+    "market_type": "SPOT",
+    "timeframe": "4H",
+    "provider": "binance_public",
+    "source_venue": "binance",
+    "aggregation_scope": "single_venue",
+    "underlying_venues": [
+     "binance"
+    ],
+    "source_identifier": "data\\live\\market-data\\ohlcv.BTCUSDT.4H.json",
+    "retrieval_state": "AVAILABLE",
+    "received_time": "2026-09-24T12:03:01Z",
+    "bars": 360,
+    "first_open": "2026-07-26T16:00:00Z",
+    "last_open": "2026-09-24T12:00:00Z",
+    "sha256": "818c7bb68ba9bb9f02c474e3f8df0ab10ee2e86ecf6b6aff1ee94b1ec2b7508b"
+   },
+   {
+    "symbol": "ETHUSDT",
+    "canonical_symbol": "ETH/USDT",
+    "market": "crypto",
+    "market_type": "SPOT",
+    "timeframe": "4H",
+    "provider": "binance_public",
+    "source_venue": "binance",
+    "aggregation_scope": "single_venue",
+    "underlying_venues": [
+     "binance"
+    ],
+    "source_identifier": "data\\live\\market-data\\ohlcv.ETHUSDT.4H.json",
+    "retrieval_state": "AVAILABLE",
+    "received_time": "2026-09-24T12:03:03Z",
+    "bars": 360,
+    "first_open": "2026-07-26T16:00:00Z",
+    "last_open": "2026-09-24T12:00:00Z",
+    "sha256": "d6ad33b32907b529adc5a5f67336b6e72db3ed679c14b115aad1240e780150a9"
+   },
+   {
+    "symbol": "SOLUSDT",
+    "canonical_symbol": "SOL/USDT",
+    "market": "crypto",
+    "market_type": "SPOT",
+    "timeframe": "4H",
+    "provider": "binance_public",
+    "source_venue": "binance",
+    "aggregation_scope": "single_venue",
+    "underlying_venues": [
+     "binance"
+    ],
+    "source_identifier": "data\\live\\market-data\\ohlcv.SOLUSDT.4H.json",
+    "retrieval_state": "AVAILABLE",
+    "received_time": "2026-09-24T12:03:05Z",
+    "bars": 360,
+    "first_open": "2026-07-26T16:00:00Z",
+    "last_open": "2026-09-24T12:00:00Z",
+    "sha256": "4c2513b89efdeb4363fed04d99a1525048781bd7ea4f08cf9bf2915f4765f51a"
+   },
+   {
+    "symbol": "ASTERUSDT",
+    "canonical_symbol": "ASTER/USDT",
+    "market": "crypto",
+    "market_type": "SPOT",
+    "timeframe": "4H",
+    "provider": "binance_public",
+    "source_venue": "binance",
+    "aggregation_scope": "single_venue",
+    "underlying_venues": [
+     "binance"
+    ],
+    "source_identifier": "data\\live\\market-data\\ohlcv.ASTERUSDT.4H.json",
+    "retrieval_state": "AVAILABLE",
+    "received_time": "2026-09-24T12:03:06Z",
+    "bars": 360,
+    "first_open": "2026-07-26T16:00:00Z",
+    "last_open": "2026-09-24T12:00:00Z",
+    "sha256": "d88d9e5e649dbc29e35b5f1c53c7d451d56b812cfe4ce23bb0293e608ae2a5bc"
+   },
+   {
+    "symbol": "VIRTUALUSDT",
+    "canonical_symbol": "VIRTUAL/USDT",
+    "market": "crypto",
+    "market_type": "SPOT",
+    "timeframe": "4H",
+    "provider": "binance_public",
+    "source_venue": "binance",
+    "aggregation_scope": "single_venue",
+    "underlying_venues": [
+     "binance"
+    ],
+    "source_identifier": "data\\live\\market-data\\ohlcv.VIRTUALUSDT.4H.json",
+    "retrieval_state": "AVAILABLE",
+    "received_time": "2026-09-24T12:03:07Z",
+    "bars": 360,
+    "first_open": "2026-07-26T16:00:00Z",
+    "last_open": "2026-09-24T12:00:00Z",
+    "sha256": "bd5aa2a69f6cc5eed477cd84c72e8d589983408d78bcdfd90ac72a204540237e"
+   },
+   {
+    "symbol": "SUIUSDT",
+    "canonical_symbol": "SUI/USDT",
+    "market": "crypto",
+    "market_type": "SPOT",
+    "timeframe": "4H",
+    "provider": "binance_public",
+    "source_venue": "binance",
+    "aggregation_scope": "single_venue",
+    "underlying_venues": [
+     "binance"
+    ],
+    "source_identifier": "data\\live\\market-data\\ohlcv.SUIUSDT.4H.json",
+    "retrieval_state": "AVAILABLE",
+    "received_time": "2026-09-24T12:03:09Z",
+    "bars": 360,
+    "first_open": "2026-07-26T16:00:00Z",
+    "last_open": "2026-09-24T12:00:00Z",
+    "sha256": "2d3c17099d51d6f2e4e06411be685f02f863019146b951f6b241bc94dedf2875"
+   },
+   {
+    "symbol": "TAOUSDT",
+    "canonical_symbol": "TAO/USDT",
+    "market": "crypto",
+    "market_type": "SPOT",
+    "timeframe": "4H",
+    "provider": "binance_public",
+    "source_venue": "binance",
+    "aggregation_scope": "single_venue",
+    "underlying_venues": [
+     "binance"
+    ],
+    "source_identifier": "data\\live\\market-data\\ohlcv.TAOUSDT.4H.json",
+    "retrieval_state": "AVAILABLE",
+    "received_time": "2026-09-24T12:03:10Z",
+    "bars": 360,
+    "first_open": "2026-07-26T16:00:00Z",
+    "last_open": "2026-09-24T12:00:00Z",
+    "sha256": "7db982973686fc5b2c2c193a4381db88c644fc60fbb1cc839ae380cd2503bd25"
+   },
+   {
+    "symbol": "RENDERUSDT",
+    "canonical_symbol": "RENDER/USDT",
+    "market": "crypto",
+    "market_type": "SPOT",
+    "timeframe": "4H",
+    "provider": "binance_public",
+    "source_venue": "binance",
+    "aggregation_scope": "single_venue",
+    "underlying_venues": [
+     "binance"
+    ],
+    "source_identifier": "data\\live\\market-data\\ohlcv.RENDERUSDT.4H.json",
+    "retrieval_state": "AVAILABLE",
+    "received_time": "2026-09-24T12:03:12Z",
+    "bars": 360,
+    "first_open": "2026-07-26T16:00:00Z",
+    "last_open": "2026-09-24T12:00:00Z",
+    "sha256": "4469144417524478dd1e59bc0995aae2c5d97c23d6961b8247d48876807b44cd"
+   },
+   {
+    "symbol": "ONDOUSDT",
+    "canonical_symbol": "ONDO/USDT",
+    "market": "crypto",
+    "market_type": "SPOT",
+    "timeframe": "4H",
+    "provider": "binance_public",
+    "source_venue": "binance",
+    "aggregation_scope": "single_venue",
+    "underlying_venues": [
+     "binance"
+    ],
+    "source_identifier": "data\\live\\market-data\\ohlcv.ONDOUSDT.4H.json",
+    "retrieval_state": "AVAILABLE",
+    "received_time": "2026-09-24T12:03:13Z",
+    "bars": 360,
+    "first_open": "2026-07-26T16:00:00Z",
+    "last_open": "2026-09-24T12:00:00Z",
+    "sha256": "1d185c00e3e0a416ca7df5aaae89eec5314e613b34d4c4a31734dda0489ddea6"
+   }
+  ],
+  "_note": "CLAUDE.md §10. Identity of the DATA a result was computed from; the CONFIGURATION that produced it is a separate block (§11). `sha256` is the version -- paths are overwritten in place by the fetcher, so a path alone does not identify bytes."
+ },
+ "configuration_snapshot": {
+  "config_format": 1,
+  "dataset_snapshot_id": null,
+  "fields": {
+   "trading_system_version": {
+    "systems": {
+     "4H": "swing"
+    },
+    "versions": {
+     "4H": "v1"
+    },
+    "source": "docs/architecture/trading-systems.json"
+   },
+   "methodology": {
+    "runner_methods": [
+     "WYCKOFF-BOOK"
+    ],
+    "note": "mechanical rule families (scripts/wyckoff_rules.py / the ICT scanner), NOT the discretionary Confluence dimensions of the same name -- methods.json `_runner_note`"
+   },
+   "methodology_mode": {
+    "not_applicable": "modes (NORMAL/ENHANCED/STRICT/SOLO) gate the /analyze Confluence path; a mechanical-rule backtest engages no dimensions and has no mode (§16)"
+   },
+   "setup": {
+    "timeframes": [
+     "4H"
+    ],
+    "configs": {},
+    "ict_target": null
+   },
+   "entry_rules": {
+    "entry": "book",
+    "combined_entry": "limit",
+    "sides": [
+     "long",
+     "short"
+    ],
+    "varied_per_config": null
+   },
+   "exit_rules": {
+    "mgmt": "none",
+    "varied_per_config": null,
+    "horizon_and_time_stop_bars": {
+     "4H": {
+      "H": 30,
+      "T": 8
+     }
+    }
+   },
+   "session": {
+    "not_applicable": "the backtest applies no session/killzone filter: the ICT sources give no killzone rule for crypto or commodity CFDs (scripts/backtest-methods.py:27, knowledge/ict/core-a.md §6), and no --sessions flag was supplied for this run"
+   },
+   "required_evidence": {
+    "per_timeframe": {
+     "4H": [
+      "candles.entry",
+      "candles.htf",
+      "event_risk.calendar",
+      "account.equity",
+      "account.profile_rules",
+      "risk.net_rr",
+      "risk.position_size",
+      "venue.reconciliation"
+     ]
+    },
+    "declared_but_not_applied_by_this_engine": [
+     "account.profile_rules",
+     "event_risk.calendar",
+     "venue.reconciliation"
+    ],
+    "source": "docs/architecture/trading-systems.json (§35)"
+   },
+   "required_analytics": {
+    "per_timeframe": {
+     "4H": [
+      "analytics.ict_scan",
+      "analytics.wyckoff_rules",
+      "analytics.htf_bias"
+     ]
+    },
+    "source": "docs/architecture/trading-systems.json (§35)"
+   },
+   "risk_model": {
+    "risk_pct_of_equity": 0.01,
+    "risk_source": "docs/architecture/risk-config.json max_risk_pct via trading_env",
+    "min_planned_rr": 2.0,
+    "min_rr_source": "docs/architecture/analysis-params.json project_defined.ict.min_rr",
+    "account_start_usd": 10000.0,
+    "ruin_fraction": 0.1
+   },
+   "account_profile": {
+    "profile_id": "pilot-binance-futures-testnet",
+    "registry_version": 1,
+    "context_type": "DEMO",
+    "venue": "futures",
+    "environment": "demo",
+    "rules": {
+     "initial_balance": null,
+     "max_daily_loss": null,
+     "max_total_drawdown": {
+      "pct": 0.15,
+      "basis": "equity_start",
+      "action": "HALT"
+     },
+     "trailing_drawdown": null,
+     "profit_target": null,
+     "min_trading_days": null,
+     "max_leverage": 3,
+     "max_risk_per_trade": null,
+     "max_positions": {
+      "mode": "full_book"
+     },
+     "consistency_rules": [],
+     "news_restrictions": null,
+     "overnight_restrictions": null,
+     "weekend_restrictions": null,
+     "session_restrictions": null,
+     "custom_failure_conditions": [
+      {
+       "id": "consecutive-losses",
+       "kind": "consecutive_losses",
+       "threshold": 5,
+       "action": "HALT",
+       "what": "Five losing trades in a row on this venue stops the account (the runner's CONSEC_LOSS_HALT)."
+      }
+     ],
+     "max_trades_per_day_per_symbol": 3
+    },
+    "derived": {
+     "max_positions": 9,
+     "tradeable_symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "ASTERUSDT",
+      "VIRTUALUSDT",
+      "SUIUSDT",
+      "TAOUSDT",
+      "RENDERUSDT",
+      "ONDOUSDT"
+     ],
+     "effective_risk_pct": 0.01,
+     "risk_source": "docs/architecture/risk-config.json max_risk_pct via trading_env"
+    },
+    "note": "no --account was supplied for this run; recorded for reference is the account the pilot trades this research under -- the backtest engine itself applies only the risk fraction and the ruin threshold (see risk_model), not any account's entry gates"
+   },
+   "news_rules": {
+    "not_applicable": "the backtest reads no news or calendar at all, so no news rule was in force (§24-§32); note this means its results contain no event-risk filtering whatsoever"
+   },
+   "custom_constraints": {
+    "types": [
+     1,
+     2,
+     3
+    ],
+    "range_touches": 0,
+    "htf": false,
+    "sloped_gate": false,
+    "st_min": null,
+    "phase_d": true,
+    "varied_per_config": null
+   },
+   "provider_selection": {
+    "see": "dataset_snapshot_id",
+    "note": "which providers supplied the bars is recorded in the §10 dataset snapshot, by provider id per series; not duplicated here"
+   },
+   "execution_assumptions": {
+    "fee_pct_per_side": 0.05,
+    "stop_buffer_pct": 0.0005,
+    "slippage": "NOT MODELLED (scripts/backtest-methods.py:44)",
+    "funding": "NOT MODELLED -- the traded crypto contract is a perpetual (SYSTEM-DESIGN.md §20.1)",
+    "fill_model": "limit fills require the gap to be complete by the MSS close (causal cut, backtest-methods.py:180 fvg_fill)"
+   },
+   "parameters": {
+    "per_timeframe": {
+     "4H": {
+      "R": 30,
+      "K": 8,
+      "T": 8,
+      "H": 30,
+      "sob": 3
+     }
+    },
+    "volume_thresholds": {
+     "low_max_ratio": 0.7,
+     "high_min_ratio": 1.5,
+     "spike_min_ratio": 2.5,
+     "_basis": "ratio to the mean volume of the previous lookback_bars completed bars",
+     "upthrust_min_ratio": 1.0,
+     "_upthrust_basis": "Spring and Upthrust are typed by DIFFERENT tables in the book: Bảng 2.1 (WMT p049, Spring) runs low->type1 / moderate->type2 / high->type3, but Bảng 2.2 (WMT p064, Upthrust) runs the other way -- type1 'increases at the touch', type2 (UTAD) 'very high', type3 (Minor UTAD) 'strong but not as high as type 2'. There is NO low-volume Upthrust in the book. `upthrust_min_ratio` is the floor at which volume counts as having 'increased at the touch'; below it the bar is not any of the book's three Upthrust types and is refused rather than relabelled. Fixed 2026-09-19 after a knowledge audit found the Spring ladder being applied to shorts (knowledge/wyckoff/modern-tools.md:55-72)."
+    },
+    "displacement": {
+     "body_min_ratio": 0.6,
+     "range_min_median_ratio": 1.2,
+     "_basis": "'displacement is an aggressive move with full-bodied candles' (knowledge/ict/core-a.md section 2.16). Read as: body >= body_min_ratio of the candle range AND range >= range_min_median_ratio x the median bar range of the window. An MSS whose breaking candle fails this is reported as 'close beyond swing without displacement'."
+    },
+    "preprocessing_version": 1
+   }
+  },
+  "_note": "CLAUDE.md §11. The CONFIGURATION behind a result; the DATA is a separate block (§10), linked by dataset_snapshot_id. Values read from mutable files are captured here BY VALUE, so a later edit to risk-config.json or analysis-params.json cannot silently change what a recorded result says it measured."
+ },
+ "account_configuration": {
+  "unavailable": "no --account was supplied for this run"
+ },
+ "risk_configuration": {
+  "risk_pct": 0.01,
+  "min_rr_floor": 2.0,
+  "source": "docs/architecture/risk-config.json via trading_env"
+ },
+ "news_configuration": {
+  "unavailable": "no --calendar was supplied for this run"
+ },
+ "session_configuration": {
+  "unavailable": "no session gate was in force for this run"
+ },
+ "parameters": {
+  "override": {
+   "htf": true,
+   "phase_d": false
+  },
+  "symbols": [
+   "BTCUSDT",
+   "ETHUSDT",
+   "SOLUSDT",
+   "ASTERUSDT",
+   "VIRTUALUSDT",
+   "SUIUSDT",
+   "TAOUSDT",
+   "RENDERUSDT",
+   "ONDOUSDT"
+  ],
+  "trader": null
+ },
+ "random_seed": 20260918,
+ "test_periods": {
+  "first": "2022-09-05T16:00:00Z",
+  "last": "2026-09-12T08:00:00Z"
+ },
+ "validation_method": {
+  "unavailable": "in-sample only: no OOS period carved out (§44) -- scripts/research_ledger.py periods() reports no untouched or holdout period"
+ },
+ "metrics": {
+  "baseline": {
+   "n": 41,
+   "win_rate": 21.951219512195124,
+   "avg_R": 0.15273170731707317,
+   "sum_R": 6.2620000000000005,
+   "pf": 1.1925761909155208,
+   "perf": {
+    "n": 41,
+    "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
+    "_assumptions": {
+     "breakeven_band_R": 0.05,
+     "risk_free_rate": 0.0,
+     "annualised": false,
+     "bootstrap": {
+      "iterations": 2000,
+      "seed": 20260918
+     }
+    },
+    "total_trades": 41,
+    "wins": 9,
+    "losses": 32,
+    "breakeven": 0,
+    "win_rate": 0.21951219512195122,
+    "expectancy": 0.1527317073170732,
+    "average_R": 0.1527317073170732,
+    "average_win_R": 4.308777777777777,
+    "average_loss_R": -1.01615625,
+    "total_R": 6.2620000000000005,
+    "profit_factor": 1.1925761909155208,
+    "consecutive_wins": 3,
+    "consecutive_losses": 9,
+    "mfe": {
+     "mean": 1.9582487667386852,
+     "n": 41,
+     "mean_on_winners": 5.438649607180759,
+     "mean_on_losers": 0.9793860303643521
+    },
+    "mae": {
+     "mean": -1.4048952732834346,
+     "n": 41,
+     "mean_on_winners": -0.4455416078976153,
+     "mean_on_losers": -1.674713491673196
+    },
+    "max_drawdown": {
+     "fraction": 0.12758686547114764,
+     "in": "account"
+    },
+    "average_drawdown": {
+     "fraction": 0.08006312057287955,
+     "episodes": 4,
+     "includes_unrecovered": true
+    },
+    "time_in_drawdown": {
+     "fraction_of_series": 0.9024390243902439,
+     "longest_stretch": 26,
+     "unit": "curve points"
+    },
+    "recovery_factor": 0.46568952774504124,
+    "sharpe": {
+     "value": 0.05311986261537341,
+     "basis": "per-trade",
+     "risk_free_rate": 0.0
+    },
+    "sortino": {
+     "value": 0.16818031181921048,
+     "basis": "per-trade",
+     "target_return": 0.0
+    },
+    "time_to_target": {
+     "median_bars": 30,
+     "mean_bars": 21.22222222222222,
+     "n_reached_target": 9,
+     "n_did_not": 32,
+     "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
+    },
+    "pnl": {
+     "value": 478.2181829434804,
+     "n_with_pnl": 41,
+     "basis": "realised, from the trades"
+    },
+    "risk_of_ruin": {
+     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "owner": "§39"
+    },
+    "account_failure_probability": {
+     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "owner": "§39"
+    },
+    "prop_pass_probability": {
+     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "owner": "§39"
+    }
+   }
+  },
+  "candidate": {
+   "n": 0,
+   "perf": {
+    "n": 0,
+    "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
+    "_assumptions": {
+     "breakeven_band_R": 0.05,
+     "risk_free_rate": 0.0,
+     "annualised": false,
+     "bootstrap": {
+      "iterations": 2000,
+      "seed": 20260918
+     }
+    },
+    "total_trades": 0,
+    "wins": 0,
+    "losses": 0,
+    "breakeven": 0,
+    "win_rate": {
+     "unavailable": "sample size 0 is below the 1 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "expectancy": {
+     "unavailable": "sample size 0 is below the 1 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "average_R": {
+     "unavailable": "sample size 0 is below the 1 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "average_win_R": {
+     "unavailable": "no winning trade",
+     "owner": "§39"
+    },
+    "average_loss_R": {
+     "unavailable": "no losing trade",
+     "owner": "§39"
+    },
+    "total_R": 0,
+    "profit_factor": {
+     "unavailable": "sample size 0 is below the 1 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "consecutive_wins": {
+     "unavailable": "sample size 0 is below the 1 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "consecutive_losses": {
+     "unavailable": "sample size 0 is below the 1 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "mfe": {
+     "unavailable": "no trade in this population records an intra-trade extreme; the backtest engine writes `mfe`/`mae` (scripts/backtest-methods.py walk()), the live journal does not yet",
+     "owner": "§39"
+    },
+    "mae": {
+     "unavailable": "no trade in this population records an intra-trade extreme; the backtest engine writes `mfe`/`mae` (scripts/backtest-methods.py walk()), the live journal does not yet",
+     "owner": "§39"
+    },
+    "max_drawdown": {
+     "unavailable": "sample size 0 is below the 1 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "average_drawdown": {
+     "unavailable": "sample size 0 is below the 1 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "time_in_drawdown": {
+     "unavailable": "sample size 0 is below the 1 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "recovery_factor": {
+     "unavailable": "sample size 0 is below the 1 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "sharpe": {
+     "unavailable": "sample size 0 is below the 8 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "sortino": {
+     "unavailable": "sample size 0 is below the 8 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "time_to_target": {
+     "unavailable": "sample size 0 is below the 1 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "pnl": {
+     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "owner": "§39"
+    },
+    "risk_of_ruin": {
+     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "owner": "§39"
+    },
+    "account_failure_probability": {
+     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "owner": "§39"
+    },
+    "prop_pass_probability": {
+     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "owner": "§39"
+    }
+   }
+  }
+ },
+ "robustness_results": {
+  "unavailable": "no walk-forward / perturbation run recorded (§45) -- improve-loop.py runs one in-sample comparison against the baseline only"
+ },
+ "decision": {
+  "decision": "PENDING",
+  "by": null
+ },
+ "timestamp": "2026-09-24T12:09:31Z",
+ "code_version": {
+  "commit": "26472d40e15d1d239c9a5d8db728bacab5a23053",
+  "dirty": true,
+  "_note": "the working tree had uncommitted changes, so this commit does NOT identify the code this experiment ran (§46)"
+ },
+ "system_version": "v1",
+ "_source": "docs/architecture/experiments.json (CLAUDE.md §42)",
+ "content_sha256": "6e40b0d54808d099934bd5a6dc35ff54f3cdcf865f50ccbd6b0d64f74b93c69e"
+}
