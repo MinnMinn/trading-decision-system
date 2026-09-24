@@ -114,4 +114,4 @@ if [ "$M" = "03" ] && [ $((10#$H % 4)) -eq 0 ]; then run_style 4H swing "${SCANW
 if [ "$H" = "07" ] && [ "$M" -ge 30 ] && [ "$M" -le 59 ]; then for st in scalping cfd-scalping; do model_read "$st" full; done; fi   # once a day; only these two have a prompt pair (integrations/headless/)
 if [ "$FORCE" = "all" ]; then run_style 15m scalping "${SCANWIN_BARS_15m:-}" "${SCANWIN_RECENT_15m:-}"; run_style 1H day "${SCANWIN_BARS_1H:-}" "${SCANWIN_RECENT_1H:-}"; run_style 4H swing "${SCANWIN_BARS_4H:-}" "${SCANWIN_RECENT_4H:-}"; run_style 15m cfd-scalping "${SCANWIN_BARS_15m:-}" "${SCANWIN_RECENT_15m:-}" "$AUTO_CFD"; run_style 1H cfd-day "${SCANWIN_BARS_1H:-}" "${SCANWIN_RECENT_1H:-}" "$AUTO_CFD"; run_style 4H cfd-swing "${SCANWIN_BARS_4H:-}" "${SCANWIN_RECENT_4H:-}" "$AUTO_CFD"; fi
 # keep the log bounded
-if [ "$(wc -l < "$LOG")" -gt 5000 ]; then tail -n 2000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"; fi
+if [ -f "$LOG" ] && [ "$(wc -l < "$LOG")" -gt 5000 ]; then tail -n 2000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"; fi
