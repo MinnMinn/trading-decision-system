@@ -247,6 +247,17 @@ def wyckoff_bias(wyckoff, facts):
         if not ph or ph == "A" or not (is_acc or is_dist):
             return "neutral", _b("bias.wy.not_established", phase=ph or "?", **sd)
         if ph in ("C", "D", "E"):
+            # P7.4 (docs/audits/2026-09-24-wyckoff-label-review.md): a structure whose Trading Range border has
+            # been closed beyond SINCE the read is no longer intact -- do not keep pointing bias through a
+            # broken range just because the stored phase/structure words have not been re-read yet. Only a
+            # completed close beyond the border counts (not a wick), matching the book's own close-based break
+            # tests elsewhere in this file (WA p85 "đóng cửa trên phạm vi giá của Trading Range").
+            tr_cde = (wyckoff.get("trading_range") or {}); hi_cde, lo_cde = tr_cde.get("high"), tr_cde.get("low")
+            last_cde = (facts or {}).get("last")
+            if is_acc and lo_cde is not None and last_cde is not None and last_cde < lo_cde:
+                return "unknown", _b("bias.wy.invalidated", phase=ph, border=_i18n.num(lo_cde), last=_i18n.num(last_cde), **sd)
+            if is_dist and hi_cde is not None and last_cde is not None and last_cde > hi_cde:
+                return "unknown", _b("bias.wy.invalidated", phase=ph, border=_i18n.num(hi_cde), last=_i18n.num(last_cde), **sd)
             if is_acc:
                 return "long", _b("bias.wy.acc_cde", phase=ph, **sd)
             return "short", _b("bias.wy.dist_cde", phase=ph, **sd)

@@ -336,39 +336,13 @@ def walk(side, entry, stop, target, H_, L_, C_, start, horizon):
                 R_planned=rp, mfe=mfe, mae=mae, bars_held=j - start + 1)
 
 
-def vtype(ratio, side="long"):
-    """The book's volume TYPE for this bar. Spring and Upthrust use DIFFERENT tables and the difference is not
-    a mirror -- it is the whole point of the 2026-09-19 knowledge audit.
-
-    Spring (long) -- Bảng 2.1, WMT p049 (knowledge/wyckoff/modern-tools.md:55-61):
-        type 1 = LOW ("no fresh selling pressure"), type 2 = MODERATE, type 3 = HIGH ("Shake Out", panic
-        selling with market-maker absorption). Ascending in volume: 1 < 2 < 3.
-
-    Upthrust (short) -- Bảng 2.2, WMT p064 (knowledge/wyckoff/modern-tools.md:66-72):
-        type 1 = volume INCREASES at the touch, type 2 = UTAD, VERY HIGH at the extreme, type 3 = Minor UTAD,
-        "strong but not as high as Type 2". Ordering is 2 > 3 >= 1 and **no Upthrust type is low-volume**.
-
-    Until 2026-09-19 this function ignored `side` and ran the Spring ladder on shorts, so a below-average bar
-    was called "type 1" and handed the most aggressive entry (`strategy-runner.setups_wyckoff`), while a
-    genuine UTAD -- the highest-volume bar, the book's type 2 -- was labelled type 3. Both labels were wrong
-    and the docstring cited p049 (the Spring page) as authority for them.
-
-    What the proxy still CANNOT do: the book separates Upthrust type 1 from type 3 by PRICE reaction (type 1
-    reverses sharply back inside the range; type 3 merely fails the prior structural high), not by volume. On
-    volume alone they share one band, so this returns 1 for that band and never 3 for a short. That is a
-    declared limit of the proxy, not a reading of the book -- `scripts/wyckoff_rules.py` is the engine that
-    reads structure.
-    """
-    if ratio is None:
-        return None
-    if side == "long":
-        return 1 if ratio < VOL["low_max_ratio"] else (3 if ratio > VOL["high_min_ratio"] else 2)
-    # short: Upthrust. Very high -> UTAD (2); increased-at-the-touch -> (1); below that the book has no type.
-    if ratio > VOL["high_min_ratio"]:
-        return 2
-    if ratio >= VOL["upthrust_min_ratio"]:
-        return 1
-    return None
+# WY-1 (docs/audits/2026-09-24-system-audit.md, 2026-09-25): this used to be its own side-aware
+# implementation with no caller outside scripts/tests/test_bias_methods.py -- the engine
+# (scripts/wyckoff_rules.py detect_accumulations/detect_distributions) kept typing every break with the
+# Spring ladder regardless of side. `vol_type` in wyckoff_rules.py is now the ONE owner of this logic (both
+# the live runner via wyckoff_fires and this backtest ask it the same question); this name stays as a thin
+# alias so callers/tests that still spell it `vtype` (with a side argument) keep working.
+vtype = W.vol_type
 
 
 def is_displacement(j, O, H, L, C, R=48):
@@ -702,7 +676,16 @@ def _fires_from(side, recs, C, Tm):
         tr = r["tr_hi"] - r["tr_lo"]; t0 = Tm[r["spring"] if r["spring"] is not None else r["sos"]]
         if r["path"] == "spring" and not r["shakeout"] and not r["abandon"] and not r["sot_too_strong"] and r["vol_type"] in OPTS["types"]:
             rec = r["reclaim"]; vt = r["vol_type"]; rr = r["rec_ratio"]
-            w_bar = rec if (OPTS["entry"] == "book" and (vt == 1 or (vt == 3 and rr is not None and rr >= VOL["high_min_ratio"]))) else r["test"]
+            # WY-1 gap (docs/audits/2026-09-24-system-audit.md): the reclaim-vs-test leg choice is Spring
+            # semantics (WA p80, Bang 2.1) and cannot be reused unchanged for a short. Upthrust type 1's
+            # confirmation is "close below resistance" (the reclaim itself) and type 2 (UTAD)'s optional
+            # "UTAD Test" retest is explicitly "not always present" (Bang 2.2, WMT p064,
+            # knowledge/wyckoff/modern-tools.md §2.7) -- so a short enters at the reclaim for either volume
+            # type instead of waiting on a test that the book itself does not require.
+            w_bar = rec if (OPTS["entry"] == "book" and (
+                (side == "long" and (vt == 1 or (vt == 3 and rr is not None and rr >= VOL["high_min_ratio"])))
+                or (side == "short" and vt in (1, 2))
+            )) else r["test"]
             # Only the last bar can be an entry -- earlier bars were earlier reads (the runner's rule, now the
             # backtest's too). An entry whose close already sits beyond its stop or target is not placeable.
             if w_bar == last:
@@ -712,7 +695,10 @@ def _fires_from(side, recs, C, Tm):
                     out.append(dict(leg="spring", t0=t0, entry=C[last], stop=stop, target=target, rec=r))
         if OPTS["phase_d"] and r["bu"] and r["bu"]["bar"] == last:
             stop = r["bu"]["low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["bu"]["low"] * (1 + STOP_BUFFER_PCT)
-            target = r["tr_hi"] + W.PARAMS["d_target_tr"] * tr if side == "long" else r["tr_lo"] - W.PARAMS["d_target_tr"] * tr
+            # WY-3 (docs/audits/2026-09-24-system-audit.md; WA p85, p88-89): the Phase-D target projects from
+            # the Phase-B ceiling (the running UA resistance), not the AR-only tr_hi -- a structure whose
+            # Phase-B excursion ran past AR before the Spring/LPS[C] has a resistance level beyond AR.
+            target = r["ceiling"] + W.PARAMS["d_target_tr"] * tr if side == "long" else r["ceiling"] - W.PARAMS["d_target_tr"] * tr
             if (side == "long" and target > C[last] > stop) or (side == "short" and target < C[last] < stop):
                 out.append(dict(leg="phase_d", t0=t0, entry=C[last], stop=stop, target=target, rec=r))
     return out

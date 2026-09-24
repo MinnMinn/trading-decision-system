@@ -338,6 +338,10 @@
       "en": "higher timeframe {structure} phase {phase} — look for UTAD/LPSY or a downward break on the lower timeframe (WA p116–119, knowledge/wyckoff/advance.md §2.8)",
       "vi": "khung lớn {structure} pha {phase} — tìm UTAD/LPSY/phá vỡ theo hướng giảm ở khung nhỏ (WA p116–119, knowledge/wyckoff/advance.md §2.8)"
     },
+    "bias.wy.invalidated": {
+      "en": "higher timeframe {structure} phase {phase} — the Trading Range border ({border}) has since closed beyond by the last read ({last}); the structure is no longer intact, bias withheld pending a fresh read (docs/audits/2026-09-24-wyckoff-label-review.md P7.4)",
+      "vi": "khung lớn {structure} pha {phase} — biên Trading Range ({border}) đã bị đóng cửa vượt qua tính đến lần đọc gần nhất ({last}); cấu trúc không còn nguyên vẹn, tạm hoãn bias chờ đọc lại (docs/audits/2026-09-24-wyckoff-label-review.md P7.4)"
+    },
     "bias.wy.b_no_tr": {
       "en": "higher timeframe {structure} phase B, but the higher-timeframe read carries no TR border (AR / SC-ST) — which edge price sits at cannot be told; no trade (WA p95–96)",
       "vi": "khung lớn {structure} pha B nhưng chưa có biên Trading Range (AR / SC-ST) trong bản đọc khung lớn — không xác định được giá đang ở biên nào; chưa giao dịch (WA p95–96)"

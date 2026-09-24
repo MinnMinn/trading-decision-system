@@ -106,6 +106,35 @@ def avg(xs, i, n):
     return sum(w) / len(w) if w else 0.0
 
 
+def vol_type(ratio, side="long"):
+    """R7 volume TYPE for a break bar. Spring (long, Bang 2.1, WMT p049) and Upthrust (short, Bang 2.2, WMT
+    p064) are typed from TWO DIFFERENT tables -- not a mirror. Moved here from backtest-methods.vtype()
+    2026-09-25 (docs/audits/2026-09-24-system-audit.md WY-1) so there is exactly ONE owner of this logic;
+    detect_accumulations/detect_distributions below are the only callers, so both the live runner
+    (via wyckoff_fires) and the backtest ask the same question the same way (CLAUDE.md Sec37).
+
+    Spring (long) -- Bang 2.1, WMT p049 (knowledge/wyckoff/modern-tools.md:55-61): type 1 = LOW ("no fresh
+    selling pressure"), type 2 = MODERATE, type 3 = HIGH ("Shake Out"). Ascending in volume: 1 < 2 < 3.
+
+    Upthrust (short) -- Bang 2.2, WMT p064 (knowledge/wyckoff/modern-tools.md:66-72): type 1 = volume
+    INCREASES at the touch, type 2 (UTAD) = VERY HIGH at the extreme, type 3 (Minor UTAD) = "strong but not
+    as high as type 2". There is NO low-volume Upthrust in the book: a ratio below `upthrust_min_ratio` is
+    refused (returns None) rather than relabelled as a low-volume type, per
+    analysis-params.json project_defined.volume._upthrust_basis. The book also separates Upthrust type 1
+    from type 3 by PRICE reaction, not volume -- on volume alone both bands look the same, so this never
+    returns 3 for a short; that is a declared limit of a volume-only proxy, not a reading of the book.
+    """
+    if ratio is None:
+        return None
+    if side == "long":
+        return 1 if ratio < VOL["low_max_ratio"] else (3 if ratio > VOL["high_min_ratio"] else 2)
+    if ratio > VOL["high_min_ratio"]:
+        return 2
+    if ratio >= VOL["upthrust_min_ratio"]:
+        return 1
+    return None
+
+
 def volume_profile(H, L, V, a, b, bins):
     """Volume profile of bars a..b (inclusive): each bar's volume spread evenly over the bins it covers. Returns (lo, step, hist)."""
     lo = min(L[a:b + 1]); hi = max(H[a:b + 1])
@@ -160,9 +189,13 @@ def bump(k):
     STATS[k] = STATS.get(k, 0) + 1
 
 
-def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded"):
+def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="long"):
     """Walk the series and return every accumulation structure that reaches a Spring candidate, with all rule outputs.
-    Each record: dict(sc, ar, st, tr_lo, tr_hi, st_pct, chobev_bars, phase_b_swings, sloped, spring=dict(...), ...)."""
+    Each record: dict(sc, ar, st, tr_lo, tr_hi, st_pct, chobev_bars, phase_b_swings, sloped, spring=dict(...), ...).
+
+    `side`: "long" for a genuine accumulation/Spring read (Bang 2.1), "short" when called from
+    detect_distributions on inverted prices, so the break bar is typed against the Upthrust table
+    (Bang 2.2) instead of the Spring table (WY-1, docs/audits/2026-09-24-system-audit.md)."""
     n = len(C); k = P["pivot"]; sw = swings(H, L, k); out = []
     lb = P["lookback"]
     spread = [h - l for h, l in zip(H, L)]
@@ -226,9 +259,22 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded"):
             continue
         # walk bars from the CHoCH for the first break below the TR low
         start = max(choch_bar, st[0]) + 1; b_lows = [st[2]]
-        b_swings = 0; spring = None; sloped = False; sot_lows = [lows[-2][2], sc_low, st[2]]; lpsc_sos = None
+        b_swings = 0; spring = None; sloped = False; sot_lows = [lows[-2][2], sc_low, st[2]]; lpsc_sos = None; lpsc_sos_bar = None
         b_tests = {"upper": 0, "lower": 0}     # đối nhãn Dấu hiệu 2 (R3b, WA p154)
-        for b in range(start, n - COMMIT):
+        # WY-3 (docs/audits/2026-09-24-system-audit.md; WA p85, p88-89): `tr_hi` stays the AR/Phase-A border
+        # (used for the đối nhãn thirds and st_pct only, per the fix critique). `ceiling` tracks the highest
+        # CONFIRMED Phase-B swing high seen so far -- the running UA resistance -- and is what SOS, the BU
+        # zone and the Phase-D target are actually measured against, so a close above AR but still below a
+        # Phase-B UA high stays inside the range instead of reading as strength (WA p85: SOS = "vượt qua khỏi
+        # những điểm cao nhất trong Trading Range"; the XAUUSD/MATIC worked examples break the UA, not the AR).
+        ceiling = tr_hi
+        # WY-2 (docs/audits/2026-09-24-system-audit.md): this used to stop at `n - COMMIT`, a bound meant only
+        # for the LPS[C] commitment look-ahead below. That silently made every Spring/reclaim within the last
+        # COMMIT bars of the window invisible -- including same-bar reclaims exactly on the last bar, so the
+        # book's type-1 "enter at the reclaim" leg (WA p80, Bảng 2.1) could never fire in `wyckoff_fires`'s
+        # per-window read. The break search itself only ever looks at bar `b`; COMMIT is a LPS[C]-only
+        # look-ahead and is now guarded locally (`b + COMMIT - 1 < n`) instead of truncating this whole loop.
+        for b in range(start, n):
             # count swings completed so far in Phase B
             while b_swings < len(after) and after[b_swings][0] + k <= b:
                 s = after[b_swings]
@@ -236,8 +282,10 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded"):
                     b_lows.append(s[2]); sot_lows.append(s[2])
                     if s[2] <= tr_lo + third * tr:
                         b_tests["lower"] += 1
-                elif s[2] >= tr_lo + 2 * third * tr:
-                    b_tests["upper"] += 1
+                else:
+                    if s[2] >= tr_lo + 2 * third * tr:
+                        b_tests["upper"] += 1
+                    ceiling = max(ceiling, s[2])   # WY-3: a confirmed Phase-B swing high raises the ceiling
                 b_swings += 1
             if L[b] < tr_lo:
                 if b_swings < P["min_phase_b_swings"]:
@@ -245,9 +293,12 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded"):
                 if max(b_lows) - min(b_lows) > P["slope_max_tr"] * tr:
                     sloped = True
                 spring = b; break
-            # Phase C without Spring = LPS[C] (WA p81–83): the structure breaks out directly with an SOS
-            if b_swings >= P["min_phase_b_swings"] and C[b] > tr_hi and spread[b] >= avg(spread, b, lb) and V[b] >= avg(V, b, lb) and all(C[b + m] > tr_hi for m in range(1, COMMIT)):
-                lpsc_sos = b + COMMIT - 1; break
+            # Phase C without Spring = LPS[C] (WA p81–83): the structure breaks out directly with an SOS.
+            # WY-3: gated on `ceiling`, not the AR-only `tr_hi`. WY-2: guard the COMMIT look-ahead locally so
+            # the outer loop can run to n-1.
+            if (b_swings >= P["min_phase_b_swings"] and C[b] > ceiling and spread[b] >= avg(spread, b, lb)
+                    and V[b] >= avg(V, b, lb) and b + COMMIT - 1 < n and all(C[b + m] > ceiling for m in range(1, COMMIT))):
+                lpsc_sos_bar = b; lpsc_sos = b + COMMIT - 1; break
             if H[b] > tr_hi + tr:              # ran away without a Phase C test: not our setup
                 bump("4_ran_away"); break
         if spring is None and lpsc_sos is None:
@@ -255,17 +306,21 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded"):
         bump("5_spring" if spring is not None else "5_lps_c")
         if spring is None:                     # LPS[C] path: only the Phase D entry exists
             used_until = lpsc_sos
+            # WY-5: compare the pullback's volume to the BREAKOUT bar (lpsc_sos_bar, the bar that actually
+            # passed the V>=avg effort test), not the follow-through/confirmation bar (lpsc_sos).
             bu = None; pull = None
             for q in range(lpsc_sos + 1, min(lpsc_sos + 1 + P["phase_d_window"], n)):
-                if L[q] <= tr_hi + 0.1 * tr and L[q] >= tr_lo + 0.5 * tr and V[q] < V[lpsc_sos]:
+                if L[q] <= ceiling + 0.1 * tr and L[q] >= tr_lo + 0.5 * tr and V[q] < V[lpsc_sos_bar]:
                     pull = q
-                if pull is not None and q > pull and C[q] > O[q] and C[q] > tr_hi:
-                    bu = dict(low=min(L[pull:q + 1]), bar=q); break
-            out.append(dict(sc=sc_i, ar=ar[0], st=st[0], choch=choch_bar, tr_lo=tr_lo, tr_hi=tr_hi, st_pct=round(st_pct, 2), st_sign=st_sign, volume_kind=volume_kind, phase_b_swings=b_swings,
+                if pull is not None and q > pull and C[q] > O[q] and C[q] > ceiling:
+                    # WY-4: stop under the WHOLE pullback (from the breakout, not just the last qualifying
+                    # bar) -- min(L[sos+1:entry+1]), per the fix critique's timing-neutral formula.
+                    bu = dict(low=min(L[lpsc_sos + 1:q + 1]), bar=q); break
+            out.append(dict(sc=sc_i, ar=ar[0], st=st[0], choch=choch_bar, tr_lo=tr_lo, tr_hi=tr_hi, ceiling=ceiling, st_pct=round(st_pct, 2), st_sign=st_sign, volume_kind=volume_kind, phase_b_swings=b_swings,
                         phase_b_tests=dict(b_tests), phase_b_sign=("supports" if b_tests["upper"] > b_tests["lower"] else ("contradicts" if b_tests["lower"] > b_tests["upper"] else "neutral")),
                             sloped=(max(b_lows) - min(b_lows) > P["slope_max_tr"] * tr), spring=None, reclaim=None, shakeout=False, spring_low=None, vol_ratio=None,
                             vol_type=None, rec_ratio=None, sot_pushes=0, sot=False, sot_too_strong=False, vpoc=None, vah=None, val=None, lvn=None, abandon=False,
-                            test=None, sos=lpsc_sos, bu=bu, path="lps_c"))
+                            test=None, sos=lpsc_sos, sos_bar=lpsc_sos_bar, bu=bu, path="lps_c"))
             continue
         used_until = spring
         # --- Spring vs Shakeout (R6) ---
@@ -273,9 +328,10 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded"):
         rec = next((q for q in range(spring, min(spring + P["spring_max_bars_outside"] + 1, n)) if C[q] > tr_lo), None)
         shakeout = rec is None or len(outside) > (rec - spring + 1) / 2
         spring_low = min(L[spring:(rec if rec is not None else spring) + 1])
-        # --- volume type (R7) ---
+        # --- volume type (R7 / WY-1): Spring table on the long side, Upthrust table on the short side --
+        # see vol_type() above. `side` comes from the caller (detect_distributions passes "short"). ---
         av = avg(V, spring, lb); ratio = V[spring] / av if av else None
-        vt = None if ratio is None else (1 if ratio < VOL["low_max_ratio"] else (3 if ratio > VOL["high_min_ratio"] else 2))
+        vt = vol_type(ratio, side)
         rec_ratio = (V[rec] / av) if (rec is not None and av) else None
         # --- SOT into the low (R9) ---
         pushes = sot_pushes(sot_lows + [spring_low])
@@ -295,36 +351,42 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded"):
                     break
                 if L[q] <= tr_lo + P["test_zone_tr"] * tr and V[q] < V[spring] and C[q] >= L[q] + 0.5 * (H[q] - L[q]):
                     test = q; break
-        # --- Phase D: SOS then BU/LPS (R11) ---
-        sos = bu = None
+        # --- Phase D: SOS then BU/LPS (R11) --- WY-3: gated on `ceiling` (the Phase-B extreme), not the
+        # AR-only `tr_hi`, so a close between AR and the running Phase-B UA high stays inside the range.
+        sos = sos_bar = bu = None
         if rec is not None:
             anchor = test if test is not None else rec
             for q in range(anchor + 1, min(anchor + 1 + P["phase_d_window"], n - COMMIT)):
                 if L[q] < spring_low:
                     break
-                if C[q] > tr_hi and spread[q] >= avg(spread, q, lb) and V[q] >= avg(V, q, lb) and all(C[q + m] > tr_hi for m in range(1, COMMIT)):
-                    sos = q + COMMIT - 1; break
+                if C[q] > ceiling and spread[q] >= avg(spread, q, lb) and V[q] >= avg(V, q, lb) and all(C[q + m] > ceiling for m in range(1, COMMIT)):
+                    sos_bar = q; sos = q + COMMIT - 1; break
             if sos is not None:
+                # WY-5: compare against the breakout bar's volume (sos_bar), not the follow-through bar's (sos).
                 pull = None
                 for q in range(sos + 1, min(sos + 1 + P["phase_d_window"], n)):
-                    if L[q] <= tr_hi + 0.1 * tr and L[q] >= tr_lo + 0.5 * tr and V[q] < V[sos]:
+                    if L[q] <= ceiling + 0.1 * tr and L[q] >= tr_lo + 0.5 * tr and V[q] < V[sos_bar]:
                         pull = q
-                    if pull is not None and q > pull and C[q] > O[q] and C[q] > tr_hi:
-                        bu = dict(low=min(L[pull:q + 1]), bar=q); break
-        out.append(dict(sc=sc_i, ar=ar[0], st=st[0], choch=choch_bar, tr_lo=tr_lo, tr_hi=tr_hi, st_pct=round(st_pct, 2), st_sign=st_sign, volume_kind=volume_kind, phase_b_swings=b_swings,
+                    if pull is not None and q > pull and C[q] > O[q] and C[q] > ceiling:
+                        # WY-4: stop under the whole pullback since the breakout, not just the last qualifying bar.
+                        bu = dict(low=min(L[sos + 1:q + 1]), bar=q); break
+        out.append(dict(sc=sc_i, ar=ar[0], st=st[0], choch=choch_bar, tr_lo=tr_lo, tr_hi=tr_hi, ceiling=ceiling, st_pct=round(st_pct, 2), st_sign=st_sign, volume_kind=volume_kind, phase_b_swings=b_swings,
                         phase_b_tests=dict(b_tests), phase_b_sign=("supports" if b_tests["upper"] > b_tests["lower"] else ("contradicts" if b_tests["lower"] > b_tests["upper"] else "neutral")),
                         sloped=sloped, spring=spring, reclaim=rec, shakeout=shakeout, spring_low=spring_low, vol_ratio=(round(ratio, 2) if ratio else None),
                         vol_type=vt, rec_ratio=rec_ratio, sot_pushes=pushes, sot=(SOT_MIN <= pushes <= SOT_MAX), sot_too_strong=pushes > SOT_MAX,
-                        vpoc=vpoc, vah=vah, val=val, lvn=lvn, abandon=abandon, test=test, sos=sos, bu=bu, path="spring"))
+                        vpoc=vpoc, vah=vah, val=val, lvn=lvn, abandon=abandon, test=test, sos=sos, sos_bar=sos_bar, bu=bu, path="spring"))
     return out
 
 
 def detect_distributions(O, H, L, C, V, P=PARAMS, volume_kind="traded"):
-    """Mirror: run the accumulation detector on inverted prices (WA p101 schematics are mirror images) and map prices back."""
+    """Mirror: run the accumulation detector on inverted prices (WA p101 schematics are mirror images) and map
+    prices back. side="short" (WY-1, docs/audits/2026-09-24-system-audit.md) so the break bar is typed with the
+    Upthrust table (Bang 2.2), not the Spring table -- detect_accumulations no longer assumes it is always
+    reading a Spring."""
     inv = lambda xs: [-x for x in xs]
-    recs = detect_accumulations(inv(O), inv(L), inv(H), inv(C), V, P, volume_kind)
+    recs = detect_accumulations(inv(O), inv(L), inv(H), inv(C), V, P, volume_kind, side="short")
     for r in recs:
-        for key in ("tr_lo", "tr_hi", "spring_low", "vpoc", "vah", "val", "lvn"):
+        for key in ("tr_lo", "tr_hi", "spring_low", "vpoc", "vah", "val", "lvn", "ceiling"):
             if r.get(key) is not None:
                 r[key] = -r[key]
         r["tr_lo"], r["tr_hi"] = r["tr_hi"], r["tr_lo"]
