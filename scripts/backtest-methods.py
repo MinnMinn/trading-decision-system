@@ -422,7 +422,7 @@ def fvg_fill(side, mss, edge, far, stop, H, L, K, n):
       * "filled"             -- the limit filled and that same bar did not also reach the stop.
       * "filled_and_stopped" -- the SAME bar that reached the near edge also reached the stop.
 
-    ICT-8 (docs/audits/2026-09-24-system-audit.md; knowledge/ict/core-a.md §3.6 R22 / core-b R21: a setup is
+    ICT-8 (docs/audits/2026-09-24-system-audit.md; project conservatism, CLAUDE.md §38 -- OHLC cannot order intra-bar events; no single book rule states this: a setup is
     invalid once its stop level is traded). For a long, stop < edge always (risk = entry-stop > 0), so ANY bar
     whose low reaches the stop has, in that same bar, already reached the edge -- there is no ordering of
     "filled" vs "invalidated" inside one OHLC bar. Checking the stop FIRST (as this function did before

@@ -170,7 +170,7 @@ class IctParityAchieved(unittest.TestCase):
     # 6000, not 3000 (2026-09-19): after the fill fix ICT fires 6 times in the last 30 000 BTCUSDT 15m bars, the
     # nearest 2 919 and 5 036 bars from the end, and the live scanner needs its 576-bar window before either --
     # so 3000 bars held zero trades and the parity test proved agreement on nothing. 6000 holds two.
-    WINDOW = 6000
+    WINDOW = 8000   # 2026-09-24: 6000 held no setup after the ICT-1 fix removed two false sweeps (docs/audits review, round 2)
 
     def setUp(self):
         self.full = json.load(open(os.path.join(ROOT, "data", "history", "ohlcv.BTCUSDT.15m.json")))["candles"][-self.WINDOW:]

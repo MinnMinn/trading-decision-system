@@ -64,8 +64,8 @@ rejected_alternatives:
   backtest's fill-search window was anchored on the bar the setup became DETECTABLE (`i`), not on the setup's
   own MSS bar, so it could stay open `i - mss_i` bars longer than the live runner's own `mss_i + K` expiry
   (`ict_live_setups`'s `bars_left`); `ict_setups_live` now anchors both the pre-check and the fill search on
-  `mss_i` and refuses outright when `i > mss_i + K`, matching live exactly (knowledge/ict/core-a.md §3.6 R22,
-  core-b R21).
+  `mss_i` and refuses outright when `i > mss_i + K`, matching live exactly (project conservatism under CLAUDE.md §38; the earlier citation of
+  core-a §3.6 R22 / core-b R21 was wrong -- those rules cover stop placement and OB close-invalidation).
 
 ## Refuted, not touched
 
