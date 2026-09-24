@@ -1395,6 +1395,25 @@ def revalidate_fill(sym, pos, planned_risk_usd, entry_order_type):
     return breaches
 
 
+def _safe_revalidate_fill(sym, pos, planned_risk_usd, entry_order_type):
+    """Code review fix round 1 (DEC-5, BLOCKING): `revalidate_fill` itself only swallows `RM.RiskRefused`
+    (a known, expected refusal). Any OTHER exception -- a KeyError on a malformed `pos`, a connector hiccup
+    inside `RM.net_r`'s config read, anything unforeseen -- used to propagate straight out of `place_market()`
+    AFTER the entry (and its protective stop, already placed by `open_position`) had already filled and been
+    protected on the exchange. `place_market()` would then never reach its own `return pos`, so the caller in
+    `tick()` would never add the position to `s["positions"]` -- an already-protected, already-real position
+    silently dropped from the runner's own bookkeeping. Disclosure (DEC-5's whole point) must never be able to
+    cost the runner its record of a position that is already safely opened.
+    """
+    try:
+        return revalidate_fill(sym, pos, planned_risk_usd, entry_order_type)
+    except Exception as exc:
+        log("fill_revalidate_error", venue=pos.get("execution"), symbol=sym, msg=str(exc)[:200],
+            note="revalidate_fill() raised after the entry and its protective stop were already placed -- "
+                 "the position is kept (this is a disclosure step, not a gate) and the failure is only logged")
+        return None
+
+
 def place_market(sym, st, sig, equity, risk_mult, live, expectations=None, entry_bar_time=None):
     """Wyckoff entry at the close of the entry bar: MARKET order, then the protective orders (futures) / SL+TP attached (MT5).
 
@@ -1424,7 +1443,7 @@ def place_market(sym, st, sig, equity, risk_mult, live, expectations=None, entry
         _rec("provider_acknowledgement", _ack)
         pos = open_position(sym, pend, float(o.get("volume") or lots), float(o.get("price") or sig["entry"]), live, position_ticket=o.get("ticket"), entry_bar_time=entry_bar_time)
         if pos is not None:
-            revalidate_fill(sym, pos, risk_usd, "taker")
+            _safe_revalidate_fill(sym, pos, risk_usd, "taker")
         return pos
     # Wyckoff enters at the bar close (market/taker); size() prices the exit as taker regardless.
     qty, risk_usd = size(equity, sig["entry"], sig["stop"], risk_mult, entry_order_type="taker")
@@ -1453,7 +1472,7 @@ def place_market(sym, st, sig, equity, risk_mult, live, expectations=None, entry
     # order's fill is learned on a later tick's reconcile and is transport-bound by construction.
     pos = open_position(sym, pend, filled, avg_px, live, entry_bar_time=entry_bar_time)
     if pos is not None:
-        revalidate_fill(sym, pos, risk_usd, "taker")
+        _safe_revalidate_fill(sym, pos, risk_usd, "taker")
     return pos
 
 
@@ -1575,11 +1594,14 @@ def close_record(sym, pos, px, via, qty, pnl=None):
     computed = pnl is None
     if computed:
         try:
+            # Code review fix round 1 (nit): mreg.scan_of() raises KeyError for a method name the registry
+            # does not declare -- not RM.RiskRefused -- so it must be inside the same catch as the fee read
+            # below, or an unknown/renamed method breaks the close path outright instead of falling back.
             entry_type = "maker" if mreg.scan_of(pos["method"]) == "ict" else "taker"
             fee_entry = RM.costs(pos["execution"], entry_type)["fee_pct_per_side"]
             fee_exit = RM.costs(pos["execution"], "taker")["fee_pct_per_side"]
             pnl = gross - (pos["entry"] * fee_entry + px * fee_exit) * float(qty)
-        except RM.RiskRefused:
+        except (RM.RiskRefused, KeyError):
             pnl = gross          # an unreadable fee must not block recording the close; it is disclosed via
                                  # the absent `pnl_gross`-vs-`pnl` gap rather than assumed to be zero
     rec = dict(symbol=sym, side=pos["side"], strategy=pos["strategy"], tf=pos["tf"], execution=pos["execution"], exit=px, via=via, pnl=round(pnl, 2),
@@ -1612,12 +1634,24 @@ def manage_pending(sym, pend, live, bars_elapsed, t=None):
     when = t or now()
     why = event_blackout(when, sym) or event_blackout(when + datetime.timedelta(seconds=TF_SEC[pend["tf"]]), sym)
     if why:
+        # Code review fix round 1 (DEC-1, BLOCKING): the cancel and the fill can race -- the venue may have
+        # already matched this order in the instant before the cancel reaches it. Returning "gone" here
+        # unconditionally used to let _tick() delete the pending entry believing nothing happened, while a
+        # real, now-untracked, STOP-LESS position sat on the exchange. Re-check order status AFTER the cancel,
+        # exactly like the expiry-cancel branches below, and route a filled/partially-filled order through the
+        # normal "filled" return so _tick() calls open_position() (which places the stop) instead of dropping it.
         if pend["execution"] == "mt5":
             mt5_json("cancel", str(pend["order_id"]))
-        else:
-            sh(ORDER, "cancel-order", sym, str(pend["order_id"]), check=False)
-        log("event_cancel_pending", venue=pend["execution"], symbol=sym, order_id=pend["order_id"], why=why)
-        return "gone", None, None, None
+            st = mt5_json("order-status", str(pend["order_id"]))
+            log("event_cancel_pending", venue="mt5", symbol=sym, order_id=pend["order_id"], why=why,
+                fill_state=st.get("state"))
+            if st.get("state") == "filled":
+                return "filled", float(st.get("volume") or pend["qty"]), float(st.get("price") or pend["price"]), st.get("position_ticket")
+            return "gone", None, None, None
+        sh(ORDER, "cancel-order", sym, str(pend["order_id"]), check=False)
+        st = order_json("order-status", sym, str(pend["order_id"])); ex = float(st.get("executedQty") or 0)
+        log("event_cancel_pending", venue=pend["execution"], symbol=sym, order_id=pend["order_id"], why=why, executed=ex)
+        return ("filled", ex, float(st.get("avgPrice") or pend["price"]), None) if ex > 0 else ("gone", None, None, None)
     if pend["execution"] == "mt5":
         st = mt5_json("order-status", str(pend["order_id"]))
         if st.get("state") == "filled":

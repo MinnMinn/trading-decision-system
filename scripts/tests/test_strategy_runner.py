@@ -1917,15 +1917,20 @@ class DEC1_EventRiskCancelsARestingOrder(unittest.TestCase):
         return dict(execution=execution, order_id="o1", tf=tf, price="100", qty="1", stop="99", tp="103",
                     expires_bar_left=5, bars_waited=0)
 
-    def test_an_active_blackout_cancels_a_resting_futures_limit_without_checking_fill_status(self):
+    def test_cancel_succeeds_not_filled_returns_gone(self):
+        """Code review fix round 1 (DEC-1a): the cancel-then-recheck must actually RE-QUERY order status
+        (not just trust the cancel) -- order_json is wired to answer BOTH the cancel-order call and a
+        subsequent order-status call, and the latter says NEW/unfilled."""
         old_blackout, old_sh, old_log, old_oj = sr.event_blackout, sr.sh, sr.log, sr.order_json
-        sh_calls, logs = [], []
+        sh_calls, oj_calls, logs = [], [], []
         sr.event_blackout = lambda t, sym: "HIGH event window active"
         sr.sh = lambda *a, **k: sh_calls.append((a, k)) or ""
+
+        def order_json_fn(*a, **k):
+            oj_calls.append(a)
+            return {"status": "CANCELED", "executedQty": "0"}
+        sr.order_json = order_json_fn
         sr.log = lambda *a, **k: logs.append((a, k))
-        # order_json is deliberately NOT given a working implementation: if the fix reached the normal
-        # order-status branch (it must not, once a blackout is found) this raises instead of silently passing.
-        sr.order_json = None
         try:
             state, qty, px, pt = sr.manage_pending("BTCUSDT", self._pend(), live=True, bars_elapsed=1, t=sr.now())
         finally:
@@ -1935,7 +1940,108 @@ class DEC1_EventRiskCancelsARestingOrder(unittest.TestCase):
         args, kwargs = sh_calls[0]
         self.assertEqual(args[1], "cancel-order")
         self.assertEqual(kwargs.get("check"), False)
+        self.assertEqual(oj_calls, [("order-status", "BTCUSDT", "o1")],
+                         "manage_pending must re-query order status AFTER the cancel, not assume it worked")
         self.assertEqual([a[0] for a, _ in logs], ["event_cancel_pending"])
+
+    def test_filled_before_cancel_returns_filled_not_gone(self):
+        """Code review fix round 1 (DEC-1b, BLOCKING): the venue may have matched the order in the instant
+        before the cancel reached it. manage_pending() must report this as a FILL (so _tick()'s existing
+        'state == filled' branch calls open_position(), which places the protective stop), never as 'gone' --
+        'gone' makes _tick() delete the pending entry as if nothing happened, leaving a real, unprotected,
+        untracked position on the exchange."""
+        old_blackout, old_sh, old_log, old_oj = sr.event_blackout, sr.sh, sr.log, sr.order_json
+        sr.event_blackout = lambda t, sym: "HIGH event window active"
+        sr.sh = lambda *a, **k: ""
+        sr.order_json = lambda *a, **k: {"status": "FILLED", "executedQty": "1", "avgPrice": "100.5"}
+        sr.log = lambda *a, **k: None
+        try:
+            state, qty, px, pt = sr.manage_pending("BTCUSDT", self._pend(), live=True, bars_elapsed=1, t=sr.now())
+        finally:
+            sr.event_blackout, sr.sh, sr.log, sr.order_json = old_blackout, old_sh, old_log, old_oj
+        self.assertEqual((state, qty, px, pt), ("filled", 1.0, 100.5, None))
+
+    def test_partial_fill_before_cancel_protects_only_the_filled_quantity(self):
+        """Code review fix round 1 (DEC-1c): a partial fill (executedQty > 0 but status not FILLED, e.g. the
+        cancel raced a partial match) must still be reported as a fill for the EXECUTED quantity -- exactly
+        the same shape the pre-existing expiry-cancel branch already uses for this case (line ~1645)."""
+        old_blackout, old_sh, old_log, old_oj = sr.event_blackout, sr.sh, sr.log, sr.order_json
+        sr.event_blackout = lambda t, sym: "HIGH event window active"
+        sr.sh = lambda *a, **k: ""
+        sr.order_json = lambda *a, **k: {"status": "CANCELED", "executedQty": "0.4", "avgPrice": "100.25"}
+        sr.log = lambda *a, **k: None
+        try:
+            state, qty, px, pt = sr.manage_pending("BTCUSDT", self._pend(), live=True, bars_elapsed=1, t=sr.now())
+        finally:
+            sr.event_blackout, sr.sh, sr.log, sr.order_json = old_blackout, old_sh, old_log, old_oj
+        self.assertEqual((state, qty, px, pt), ("filled", 0.4, 100.25, None))
+
+    def test_a_full_tick_opens_a_protected_position_when_the_fill_races_the_cancel(self):
+        """End-to-end (DEC-1b): a full sr.tick(live=True) with a resting pending order, an active blackout,
+        and a venue that reports the order FILLED when re-checked after the cancel -- the position must land
+        in state with its protective stop already placed, exactly like any other fill."""
+        cfg = {"enabled": True, "layers": {"pilot": True},
+               "markets": {"crypto": {"enabled": True, "instruments": ["BTCUSDT"]}, "cfd": {"enabled": True, "instruments": []}},
+               "execution": {"environment": "demo"}}
+        state = {"started": "2026-01-01T00:00:00Z", "positions": {}, "day": None, "trades_today": {}, "errors": 0,
+                 "halted": None, "last_tick": None, "seen": [], "equity_basis": "equity",
+                 "pending": {"BTCUSDT": dict(symbol="BTCUSDT", side="LONG", strategy="x", tf="15m", method="ICT",
+                                             execution="futures", mgmt="be", leverage=3, qty="1", price="100",
+                                             stop="99", tp="103", order_id="1", client_id="c1",
+                                             placed_at="2026-01-01T00:00:00Z", bars_waited=0, expires_bar_left=5,
+                                             htf_pass=True, sweep_time=None, mss_time=None)},
+                 "venues": {v: {"equity_start": 10000.0, "closed": [], "consec_losses": 0} for v in sr.VENUES}}
+        cfg_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(cfg, cfg_tmp); cfg_tmp.close()
+        sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump({"setups": []}, sel_tmp); sel_tmp.close()
+        state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); json.dump(state, state_tmp); state_tmp.close()
+        stop_path = state_tmp.name + ".STOP"; global_stop_path = state_tmp.name + ".GLOBAL_STOP"  # guaranteed absent
+
+        old = dict(cfg=sr.AUTOMATION_CONFIG, sel=sr.SELECTION, state=sr.STATE, gate=sr.automation_gate,
+                  order_json=sr.order_json, mt5_json=sr.mt5_json, fetch_candles=sr.fetch_candles, log=sr.log,
+                  manage_position=sr.manage_position, event_blackout=sr.event_blackout, sh=sr.sh,
+                  stop=sr.STOP, global_stop=sr.GLOBAL_STOP)
+        sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = cfg_tmp.name, sel_tmp.name, state_tmp.name
+        sr.STOP, sr.GLOBAL_STOP = stop_path, global_stop_path
+        sr.automation_gate = lambda: None
+        sr.event_blackout = lambda t, sym: "HIGH event window active"
+        sr.sh = lambda *a, **k: ""
+        _BALANCE_ROW = {"asset": "USDT", "balance": "10000.00", "crossUnPnl": "0.00", "availableBalance": "10000.00"}
+
+        def order_json_fn(*a, **k):
+            cmd = a[0] if a else None
+            if cmd == "balance":
+                return [_BALANCE_ROW]
+            if cmd == "order-status":
+                return {"status": "FILLED", "executedQty": "1", "avgPrice": "100.5"}
+            if cmd == "stop-market":
+                return {"orderId": 501}
+            if cmd == "take-profit-market":
+                return {"orderId": 502}
+            if cmd in ("position-risk", "open-orders"):
+                return []
+            return {}
+        sr.order_json = order_json_fn
+        sr.mt5_json = lambda *a, **k: {}
+        sr.fetch_candles = lambda *a, **k: []
+        sr.log = lambda *a, **k: None
+        sr.manage_position = lambda *a, **k: None
+        try:
+            sr.tick(live=True, tick_time=sr.now(), ignore_gate=False)
+            out = json.load(open(state_tmp.name))
+        finally:
+            sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = old["cfg"], old["sel"], old["state"]
+            sr.STOP, sr.GLOBAL_STOP = old["stop"], old["global_stop"]
+            sr.automation_gate, sr.order_json, sr.mt5_json = old["gate"], old["order_json"], old["mt5_json"]
+            sr.fetch_candles, sr.log, sr.manage_position = old["fetch_candles"], old["log"], old["manage_position"]
+            sr.event_blackout, sr.sh = old["event_blackout"], old["sh"]
+            os.unlink(cfg_tmp.name); os.unlink(sel_tmp.name); os.unlink(state_tmp.name)
+            for p in (stop_path, global_stop_path):
+                if os.path.exists(p):
+                    os.unlink(p)
+        self.assertNotIn("BTCUSDT", out["pending"], "the fill must clear the pending entry, not leave it stuck")
+        self.assertIn("BTCUSDT", out["positions"], "a real fill discovered after the cancel must become a tracked position")
+        self.assertEqual(out["positions"]["BTCUSDT"]["stop_order"], 501,
+                         "the protective stop must have been placed -- this is the whole point of DEC-1b")
 
     def test_an_active_blackout_cancels_a_resting_mt5_order(self):
         old_blackout, old_mj, old_log = sr.event_blackout, sr.mt5_json, sr.log
@@ -2117,6 +2223,37 @@ class DEC5_RevalidateFill(unittest.TestCase):
             sr.order_json, sr.log, sr.min_notional, sr.market_fill, sr.revalidate_fill, sr.sh, sr.order = (
                 old["oj"], old["log"], old["mn"], old["mf"], old["rf"], old["sh"], old["ordr"])
         self.assertTrue(calls, "place_market must re-validate risk/R:R against the actual fill")
+
+    def test_a_generic_exception_from_revalidate_fill_does_not_lose_the_position(self):
+        """Code review fix round 1 (DEC-5, BLOCKING): revalidate_fill() used to be called unguarded; any
+        exception OTHER than RM.RiskRefused (a KeyError, a connector hiccup, anything unforeseen) propagated
+        out of place_market() AFTER the entry and its protective stop were already placed on the exchange, so
+        place_market() never reached `return pos` -- the caller in tick() never adds an already-protected,
+        already-real position to s['positions']. place_market() must still return the position."""
+        old = dict(oj=sr.order_json, log=sr.log, mn=sr.min_notional, mf=sr.market_fill, rf=sr.revalidate_fill,
+                  sh=sr.sh, ordr=sr.order)
+        logs = []
+        sr.order = lambda *a: "1"
+        sr.min_notional = lambda sym: 0.0
+        sr.sh = lambda *a, **k: ""
+        sr.order_json = lambda *a, **k: {"orderId": "1"}
+        sr.market_fill = lambda sym, o, qty_r, **k: (100.5, 1.0)
+        sr.log = lambda *a, **k: logs.append((a, k))
+
+        def raising_revalidate(*a, **k):
+            raise KeyError("some_unexpected_field")
+        sr.revalidate_fill = raising_revalidate
+        try:
+            sig = dict(side="long", entry=100.0, stop=99.0, target=103.0, time="t", mss_time="t", bars_left=0,
+                      r_planned=3.0, htf_pass=True)
+            st = dict(execution="futures", id="s1", tf="15m", method="WYCKOFF-BOOK", mgmt="be")
+            pos = sr.place_market("BTCUSDT", st, sig, 10_000.0, 1.0, live=True)
+        finally:
+            sr.order_json, sr.log, sr.min_notional, sr.market_fill, sr.revalidate_fill, sr.sh, sr.order = (
+                old["oj"], old["log"], old["mn"], old["mf"], old["rf"], old["sh"], old["ordr"])
+        self.assertIsNotNone(pos, "an already-protected position must never be lost because a disclosure step raised")
+        self.assertAlmostEqual(pos["entry"], 100.5)
+        self.assertEqual([a[0] for a, _ in logs if a[0] == "fill_revalidate_error"], ["fill_revalidate_error"])
 
 
 class DEC6_UnresolvableAccountRuleBlocksEntriesNotHalt(unittest.TestCase):
