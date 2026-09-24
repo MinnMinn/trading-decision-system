@@ -206,7 +206,11 @@ def ict_bias(facts):
     if lo_dir and not draw:
         draw, draw_why = lo_dir, lo_why
 
-    m = (facts or {}).get("last_mss") or None
+    # ICT-5 (docs/audits/2026-09-24-system-audit.md; knowledge/ict/core-a.md §2.17, core-b.md §2.2): the
+    # "STRUCTURAL FALSIFICATION" must be a real MSS (displacement), never a liquidity grab that merely closed
+    # past a swing. `last_mss` is the newest close-beyond-swing record regardless of displacement (ict-scan.py
+    # keeps it for display); `last_displaced_mss` is the last one that actually had displacement.
+    m = (facts or {}).get("last_displaced_mss") or None
     mss_dir = ("long" if m.get("type") == "bull" else "short") if m else None
     mss_why = _b("bias.ict.mss", dir_key="dir.up" if mss_dir == "long" else "dir.down", level=_i18n.num(m.get("level"))) if m else None
 

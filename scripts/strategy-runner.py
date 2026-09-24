@@ -842,10 +842,16 @@ def ict_live_setups(side, candles, tf, sym):
     complete + pd_ok, gate on bt.bias_allows(live_rules.bias_at(...)[0], side). The one difference from
     bt.ict_setups_live: that function decides whether the LIMIT eventually filled (a completed BACKTEST trade,
     via bt.fvg_fill); this one decides whether the LIMIT is STILL working as of the last closed bar (a NEW
-    order for the runner to place) -- same fvg_fill call, opposite reading of its result: fvg_fill returning a
-    bar index means the limit ALREADY triggered on an earlier bar (an earlier tick should already have placed
-    and filled it -- not a new signal); still within its K-bar expiry with no fill and no stop-hit means it is
-    still a working, placeable order.
+    order for the runner to place) -- same fvg_fill call, opposite reading of its result: fvg_fill returning
+    non-None (a (bar, outcome) pair) means the limit ALREADY triggered on an earlier bar (an earlier tick
+    should already have placed and filled it -- not a new signal); still within its K-bar expiry with no
+    trigger at all means it is still a working, placeable order.
+
+    ICT-8 (docs/audits/2026-09-24-system-audit.md): a bar that reaches the stop necessarily also reaches the
+    FVG near edge first (for a long, stop < edge always), so fvg_fill now reports that bar as a trigger too
+    (outcome "filled_and_stopped") instead of the pre-2026-09-24 behaviour of returning None. `fill is not
+    None` below therefore already refuses to offer this as a NEW order once its own invalidation level has
+    traded since mss_i -- no separate stop-touch check is needed here.
 
     `sym` resolves which bias-reading dimensions are engaged for this symbol's market (bt.resolve_methods --
     htf_context.engaged_methods_for_market via /automation), exactly as the backtest does -- never a hardcoded

@@ -33,6 +33,7 @@ import argparse, json, os, sys, datetime
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import instruments as I  # noqa: E402
+import normalized as N  # noqa: E402 -- ICT-2: the one availability rule (CLAUDE.md §8), shared with strategy-runner.drop_forming
 
 CITE = {
     "liq": "docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/ict/core-a.md §2.6–2.7",
@@ -80,6 +81,20 @@ def load(sym, tf):
         return json.load(f)["candles"]
 
 
+def causal_window(c_full, tf, now):
+    """ICT-2 (docs/audits/2026-09-24-system-audit.md; CLAUDE.md §8 availableTime <= decisionTime): the trailing
+    window `analyze()`/`setup_candidate()` may read, with a still-forming last bar dropped. A body close cannot
+    be judged on a candle that has not closed yet (knowledge/ict/core-a.md §2.17, §3.2 R6/R7). Uses the same
+    availability rule as strategy-runner.drop_forming() (normalized.available_time), rather than importing
+    strategy-runner.py itself -- that would create an import cycle: ict-scan.py is loaded BY strategy-runner.py's
+    backtest path via live_rules.py. `anchor_facts()` keeps its own separate ref_i=n-2 mechanism unchanged (it
+    already reads the forming bar for display only, via `forming_beyond`), so callers should give it `c_full`,
+    not this function's result."""
+    if c_full and N.available_time(c_full[-1], tf) > now:
+        return c_full[:-1]
+    return c_full
+
+
 def load_anchors(style):
     try:
         return json.load(open(f"{ROOT}/data/live/anchors.{style}.json", encoding="utf-8"))
@@ -125,11 +140,27 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
         # second liquidity type below. The order is safe: the dedupe compares kind and level only.
         if any(p["kind"] == kind and abs(p["level"] - level) <= tol for p in pools):
             return
-        first, last = min(idxs), max(idxs); swept = -1
+        # ICT-1 (docs/audits/2026-09-24-system-audit.md; knowledge/ict/core-a.md §4 pattern table: "Wick trades
+        # below the previous low; body closes at or above it | MUST NOT: Body close below"; §3.2 R6: a level
+        # traded through with body closes is "a draw that was reached" -- continuation, not a sweep; R25: a
+        # grab is invalidated by a later body close beyond the same level). Walk bar by bar from last+1 and
+        # STOP at the first body close beyond the level: that bar is "closed_through" (the level was consumed
+        # by continuation), never "swept". Only a wick-beyond/close-back that happens BEFORE any close-through
+        # counts as a sweep. Before this fix, the scan looked only for the wick+close-back pattern and never
+        # checked intervening bars for a body close, so a level already closed through was later recorded as
+        # "swept" by an unrelated rally/decline candle many bars afterward.
+        first, last = min(idxs), max(idxs); swept = -1; state = "intact"; closed_at = None
         for j in range(last + 1, n):
-            if kind == "BSL" and H[j] > level and C[j] < level: swept = j; break
-            if kind == "SSL" and L[j] < level and C[j] > level: swept = j; break
-        pools.append({"kind": kind, "level": level, "from": first, "swept": swept, "type": ptype})
+            if kind == "BSL" and C[j] > level:
+                state, closed_at = "closed_through", j; break
+            if kind == "SSL" and C[j] < level:
+                state, closed_at = "closed_through", j; break
+            if kind == "BSL" and H[j] > level and C[j] < level:
+                swept, state = j, "swept"; break
+            if kind == "SSL" and L[j] < level and C[j] > level:
+                swept, state = j, "swept"; break
+        pools.append({"kind": kind, "level": level, "from": first, "swept": swept, "type": ptype,
+                      "state": state, "closed_at": closed_at})
     # The deck enumerates TWO types of liquidity (knowledge/ict/core-a.md §2.7) and both rest on the same two
     # lines: "A Swing High at the top of the range will have stop losses from short positions (buy stops). This
     # is called buyside liquidity" (§2.6).
@@ -158,6 +189,23 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
     def is_disp(j):
         rg = H[j] - L[j]
         return rg > 0 and abs(C[j] - O[j]) >= DISP["body_min_ratio"] * rg and rg >= DISP["range_min_median_ratio"] * med
+    # ICT-4 (docs/audits/2026-09-24-system-audit.md; knowledge/ict/core-a.md §2.16: "Displacement is an
+    # aggressive move with full-bodied candles. This can form in a single candle or in multiple candles.
+    # Generally, displacement candle(s) have FVG present."). is_disp(j) alone only ever looked at the single
+    # breaking candle, so a multi-candle displacement whose smaller, final candle does the breaking was scored
+    # non-displaced. leg_disp checks the CONTIGUOUS same-direction run of candles ending at j (bounded at the
+    # leg extreme `ext`, per the fix critique: "too loose" to scan the whole ext..j span) for EITHER a
+    # single-candle displacement OR a same-direction FVG left inside that run.
+    def leg_disp(ext, j, bull):
+        is_dir = (lambda q: C[q] >= O[q]) if bull else (lambda q: C[q] <= O[q])
+        q = j
+        while q > ext and is_dir(q - 1):
+            q -= 1
+        lo_r, hi_r = q, j
+        if any(is_disp(k) for k in range(lo_r, hi_r + 1)):
+            return True
+        want = "bull" if bull else "bear"
+        return any(f["type"] == want and lo_r <= f["i"] <= hi_r for f in fvgs)
     def run_start(e, down):
         k = e
         if (C[k] >= O[k]) if down else (C[k] <= O[k]): k -= 1
@@ -180,20 +228,30 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
                 frm = lastL or 0; e = min(range(frm, j), key=lambda q: L[q]); oi = max(range(lastH if lastH <= e else frm, e + 1), key=lambda q: H[q])
                 r = run_start(e, True)
                 cisd = {"level": O[r], "time": T[r], "confirmed": next((T[q] for q in range(r + 1, n) if C[q] > O[r]), None)} if r is not None else None
-                mss.append({"type": "bull", "i": j, "level": H[lastH], "disp": is_disp(j), "ext": L[e], "ext_time": T[e], "origin": H[oi], "cisd": cisd,
-                            "vol_mult": round(V[j] / avgv, 2) if avgv else None}); bias = 0; break
+                disp = leg_disp(e, j, True)
+                mss.append({"type": "bull", "i": j, "level": H[lastH], "disp": disp, "ext": L[e], "ext_time": T[e], "origin": H[oi], "cisd": cisd,
+                            "vol_mult": round(V[j] / avgv, 2) if avgv else None})
+                if not disp:
+                    continue   # ICT-4/ICT-5: a grab, not an MSS -- keep scanning (bias stays -1) for a LATER displaced close through the SAME swing
+                bias = 0; break
             if bias == 1 and lastL is not None and C[j] < L[lastL]:
                 frm = lastH or 0; e = max(range(frm, j), key=lambda q: H[q]); oi = min(range(lastL if lastL <= e else frm, e + 1), key=lambda q: L[q])
                 r = run_start(e, False)
                 cisd = {"level": O[r], "time": T[r], "confirmed": next((T[q] for q in range(r + 1, n) if C[q] < O[r]), None)} if r is not None else None
-                mss.append({"type": "bear", "i": j, "level": L[lastL], "disp": is_disp(j), "ext": H[e], "ext_time": T[e], "origin": L[oi], "cisd": cisd,
-                            "vol_mult": round(V[j] / avgv, 2) if avgv else None}); bias = 0; break
+                disp = leg_disp(e, j, False)
+                mss.append({"type": "bear", "i": j, "level": L[lastL], "disp": disp, "ext": H[e], "ext_time": T[e], "origin": L[oi], "cisd": cisd,
+                            "vol_mult": round(V[j] / avgv, 2) if avgv else None})
+                if not disp:
+                    continue   # ICT-4/ICT-5: a grab, not an MSS -- keep scanning (bias stays 1) for a LATER displaced close through the SAME swing
+                bias = 0; break
 
     last = C[-1]
     # dealing range = nearest unswept BSL above / SSL below the last close (knowledge/ict/core-a.md §2.18); fallback = window extremes, reported as such
+    # ICT-1 fix critique: a "closed_through" pool must ALSO leave this set, or the range keeps using a level
+    # that has already been taken by continuation (R6) as if it were still resting liquidity.
     wlo, whi = lo, hi
-    above = [p["level"] for p in pools if p["swept"] < 0 and p["kind"] == "BSL" and p["level"] > last]
-    below = [p["level"] for p in pools if p["swept"] < 0 and p["kind"] == "SSL" and p["level"] < last]
+    above = [p["level"] for p in pools if p["swept"] < 0 and p["state"] != "closed_through" and p["kind"] == "BSL" and p["level"] > last]
+    below = [p["level"] for p in pools if p["swept"] < 0 and p["state"] != "closed_through" and p["kind"] == "SSL" and p["level"] < last]
     hi = min(above) if above else whi; lo = max(below) if below else wlo; eq = (lo + hi) / 2
     dr_source = "pools" if (above and below) else ("mixed" if (above or below) else "window")
     pct = (last - lo) / (hi - lo) if hi > lo else 0.5
@@ -235,13 +293,24 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
 
     open_fvgs = [f for f in fvgs if not f["mitigated"]]
     nearest_fvg = min(open_fvgs, key=lambda f: min(abs(last - f["lo"]), abs(last - f["hi"])), default=None)
-    unswept = [p for p in pools if p["swept"] < 0]
+    # ICT-1: a level already closed through by a body close is neither "swept" (it is a draw ALREADY reached,
+    # R6) nor still-resting liquidity -- it must leave `unswept` too, or setup_candidate's target search
+    # (a["unswept"]) and the dealing range above would both still treat it as a pristine pool.
+    unswept = [p for p in pools if p["swept"] < 0 and p["state"] != "closed_through"]
+    closed_through = [p for p in pools if p["state"] == "closed_through"]   # kept visible (R6: "traded through"), never a sweep/target
     return {
         "last": last, "lo": lo, "hi": hi, "eq": eq, "pct": pct, "dr_source": dr_source, "window_lo": wlo, "window_hi": whi,
         "prev_day": prev_day, "prev_candle": prev_candle,
         "med_range": med, "last_time": T[-1], "avgv": avgv,
-        "pools": pools, "unswept": unswept, "mss": mss[-3:], "fvgs_all": fvgs, "fvgs_open": open_fvgs[-4:], "nearest_fvg": nearest_fvg,
+        "pools": pools, "unswept": unswept, "closed_through": closed_through,
+        "mss": mss[-3:], "fvgs_all": fvgs, "fvgs_open": open_fvgs[-4:], "nearest_fvg": nearest_fvg,
         "events": events, "last_mss": mss[-1] if mss else None,
+        # ICT-5 (docs/audits/2026-09-24-system-audit.md; knowledge/ict/core-a.md §2.17 / core-b.md §2.2:
+        # displacement is what makes an MSS a "STRUCTURAL FALSIFICATION"; without it the event is a grab).
+        # `last_mss` above is the newest close-beyond-swing record REGARDLESS of displacement (kept for
+        # display -- prelim_html/setup_candidate already render a grab differently via `disp`). Bias-reading
+        # code (htf_context.ict_bias) must use only a genuine MSS, so it reads this field instead.
+        "last_displaced_mss": next((m for m in reversed(mss) if m.get("disp")), None),
     }
 
 
@@ -302,10 +371,14 @@ def setup_candidate(a, c, lookback):
     elif s["kind"] == "BSL" and m["type"] == "bear": side = "short"
     else: return None
     O = [x["open"] for x in c]; Cc = [x["close"] for x in c]
-    pd_ok = (a["pct"] < 0.5) if side == "long" else (a["pct"] > 0.5)   # longs in discount, shorts in premium (knowledge/ict/core-a.md §3.4 R13)
+    # ICT-3 (docs/audits/2026-09-24-system-audit.md; knowledge/ict/core-a.md §3.4 R13: "require entry in the
+    # discount (below 0.5)"; R14/§2.19: PD arrays are framed by the ENTRY, not the latest close). This
+    # provisional, close-based reading is only ever surfaced when the candidate is INCOMPLETE (no entry price
+    # exists yet); the final `pd_ok` below overrides it with the real, entry-based gate once `entry` is known.
+    pd_ok_provisional = (a["pct"] < 0.5) if side == "long" else (a["pct"] > 0.5)
     base = {"side": side, "sweep": {"pool": s["kind"], "level": s["level"], "time": T[s["swept"]]},
             "mss": {"level": m["level"], "time": T[m["i"]], "vol_mult": m.get("vol_mult"), "displacement": m.get("disp"), "cisd": m.get("cisd")},
-            "in_discount": a["pct"] < 0.5, "pd_ok": pd_ok, "dr_source": a["dr_source"]}
+            "in_discount": a["pct"] < 0.5, "pd_ok": pd_ok_provisional, "dr_source": a["dr_source"]}
     if not m.get("disp"):
         base.update({"complete": False, "missing": "displacement trên nến phá swing (thân nến nhỏ / biên độ nhỏ — chưa phải MSS theo knowledge/ict/core-a.md §2.16)"}); return base
     fv = [f for f in a["fvgs_all"] if f["i"] > s["swept"] and f["type"] == ("bull" if side == "long" else "bear")]
@@ -362,9 +435,18 @@ def setup_candidate(a, c, lookback):
             return None
         risk, reward = stop - entry, entry - target
     R = round(reward / risk, 2) if risk > 0 else None
+    # ICT-3: the REAL premium/discount gate reads the ENTRY price's position in the dealing range, not the
+    # latest close -- the order is a LIMIT at the FVG near edge (`entry`), and by the time a displaced MSS has
+    # formed the close is usually far from it. Clamped to [0,1] for display only (an entry outside the range's
+    # own lo/hi is still unambiguously in its half; the clamp only keeps the printed percentage sane).
+    rng = a["hi"] - a["lo"]
+    entry_pct = (entry - a["lo"]) / rng if rng > 0 else 0.5
+    entry_pct_disp = max(0.0, min(1.0, entry_pct))
+    pd_ok = (entry_pct < 0.5) if side == "long" else (entry_pct > 0.5)
     base.update({"complete": True, "fvg": {"lo": f["lo"], "hi": f["hi"], "ce": f["ce"], "time": T[f["i"]], "mitigated": f["mitigated"]}, "ob": ob,
                  "entry": entry, "entry_models": entries, "stop": stop, "stop_owner": "sweep_extreme", "stop_options": stops,
-                 "target": target, "target_kind": tk, "objective": objective, "std_targets": std, "R": R, "rr_ok": (R is not None and MIN_RR is not None and R >= MIN_RR), "min_rr": MIN_RR})
+                 "target": target, "target_kind": tk, "objective": objective, "std_targets": std, "R": R, "rr_ok": (R is not None and MIN_RR is not None and R >= MIN_RR), "min_rr": MIN_RR,
+                 "pd_ok": pd_ok, "entry_pct": round(entry_pct_disp, 4)})
     return base
 
 
@@ -373,9 +455,12 @@ def facts_entry(a, stance, an, su, ctx):
     htf_context, the checkers and the page builder. Extracted from main() so what it carries is testable: the draw
     levels (prev_day) were computed in analyze() and then dropped here, which is why ICT had no bias of its own."""
     return {"last": a["last"], "last_time": a["last_time"], "lo": a["lo"], "hi": a["hi"], "eq": a["eq"], "pct": round(a["pct"], 4),
-            "stance": stance, "anchors": an, "setup": su, "last_mss": a["last_mss"], "nearest_fvg": a["nearest_fvg"],
+            "stance": stance, "anchors": an, "setup": su, "last_mss": a["last_mss"],
+            "last_displaced_mss": a["last_displaced_mss"],   # ICT-5: the STRUCTURAL FALSIFICATION htf_context.ict_bias reads must be a real MSS, never a grab
+            "nearest_fvg": a["nearest_fvg"],
             "prev_day": a["prev_day"], "prev_candle": a["prev_candle"],
-            "unswept_pools": a["unswept"], "events_recent": a["events"],
+            "unswept_pools": a["unswept"], "closed_through_pools": a.get("closed_through", []),   # ICT-1: kept visible (R6), never a sweep/target
+            "events_recent": a["events"],
             "context": ctx}   # HTF context: giảm khung (knowledge/wyckoff/advance.md §2.7, WA p93–96)
 
 
@@ -406,7 +491,11 @@ def facts_table(sym, a, an, su):
     if su:
         if su.get("complete"):
             ci = su["mss"].get("cisd"); ci_s = f" · CISD {f(ci['level'])} ({'đã đóng qua' if ci.get('confirmed') else 'chưa đóng qua'})" if ci else ""
-            rows.append(("Setup ứng viên", f"{su['side'].upper()} · quét {su['sweep']['pool']} {f(su['sweep']['level'])} ({su['sweep']['time'][11:16]}Z) → MSS có displacement {f(su['mss']['level'])} ({su['mss']['time'][11:16]}Z, vol {su['mss']['vol_mult']}×){ci_s} → FVG {f(su['fvg']['lo'])}–{f(su['fvg']['hi'])} (CE {f(su['fvg']['ce'])}){' (đã lấp)' if su['fvg']['mitigated'] else ''}{'' if su['pd_ok'] else ' · SAI NỬA RANGE (long phải ở discount, short ở premium)'}"))
+            # ICT-6 (docs/audits/2026-09-24-system-audit.md; knowledge/ict/core-a.md §2.23 IOFED: "price merely
+            # touches the edge and continues" -- a near-edge touch is the book's entry model, not a failure/fill.
+            # "đã lấp" (filled) wrongly implied the gap had failed; "đã chạm biên gần (IOFED)" names what
+            # actually happened (a touch of the near edge), leaving true far-edge fill/inversion for future work.
+            rows.append(("Setup ứng viên", f"{su['side'].upper()} · quét {su['sweep']['pool']} {f(su['sweep']['level'])} ({su['sweep']['time'][11:16]}Z) → MSS có displacement {f(su['mss']['level'])} ({su['mss']['time'][11:16]}Z, vol {su['mss']['vol_mult']}×){ci_s} → FVG {f(su['fvg']['lo'])}–{f(su['fvg']['hi'])} (CE {f(su['fvg']['ce'])}){' (đã chạm biên gần — IOFED)' if su['fvg']['mitigated'] else ''}{'' if su['pd_ok'] else ' · SAI NỬA RANGE (long phải ở discount, short ở premium)'}"))
             em = su["entry_models"]; so = su["stop_options"]; ob = su.get("ob")
             rows.append(("Entry (3 mô hình FVG)", f"IOFED {f(em['iofed'])} · CE {f(em['ce'])} · lấp đầy {f(em['fill'])}" + (f" · OB open {f(ob['open'])} / 0.5 MT {f(ob['mt'])}" if ob else "")))
             rows.append(("Stop (chủ sở hữu = cực trị cú quét)", " · ".join(f"{k} {f(v)}" for k, v in so.items() if v is not None)))
@@ -447,7 +536,9 @@ def prelim_html(sym, a, tf, style, an=None, su=None):
                      f"<span class=\"cite\">{CITE['mss']}</span>")
     if a["nearest_fvg"]:
         g = a["nearest_fvg"]
-        lines.append(f"FVG chưa lấp gần giá nhất: {'tăng' if g['type']=='bull' else 'giảm'} {f(g['lo'])}–{f(g['hi'])}. "
+        # ICT-6: "chưa chạm" (not yet touched) instead of "chưa lấp" (not yet filled) -- these are open_fvgs
+        # (never touched at their near edge), so "touch" is the correct vocabulary, matching the setup label above.
+        lines.append(f"FVG chưa chạm gần giá nhất: {'tăng' if g['type']=='bull' else 'giảm'} {f(g['lo'])}–{f(g['hi'])}. "
                      f"<span class=\"cite\">{CITE['fvg']}</span>")
     vol = [e for e in a["events"] if e["kind"] == "volume"]
     if vol:
@@ -519,11 +610,13 @@ def main():
     out_dir = f"{ROOT}/data/live/prelim"; os.makedirs(out_dir, exist_ok=True)
     anchors = load_anchors(args.style) or {}
     result, new_events, facts = {}, [], {}
+    now = datetime.datetime.now(datetime.timezone.utc)
     for sym in syms:
-        c = load(sym, args.tf)[-args.n:]
+        c_full = load(sym, args.tf)[-args.n:]
+        c = causal_window(c_full, args.tf, now)   # ICT-2: analyze()/setup_candidate() never see a still-forming bar
         a = analyze(c, args.recent, tf=args.tf, methods=scan_methods)
         spec = (anchors.get("symbols") or {}).get(sym)
-        an = anchor_facts(c, {**spec, "source": anchors.get("source"), "updated": anchors.get("updated")}) if spec else None
+        an = anchor_facts(c_full, {**spec, "source": anchors.get("source"), "updated": anchors.get("updated")}) if spec else None
         su = setup_candidate(a, c, args.setup_lookback or max(12, args.recent * 6))
         html, stance = prelim_html(sym, a, args.tf, args.style, an, su)
         tmp = f"{out_dir}/.{args.style}.{sym}.html.tmp"
