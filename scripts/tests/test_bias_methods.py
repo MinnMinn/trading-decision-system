@@ -27,8 +27,11 @@ def load(name):
 
 
 def facts(pch_state="intact", pcl_state="intact", mss=None, tf="1h", last=100.0):
-    """A tier's facts.json entry, trimmed to what bias_of reads."""
-    return {"last": last, "last_mss": mss,
+    """A tier's facts.json entry, trimmed to what bias_of reads. `mss` here always represents a genuine,
+    displaced MSS (these tests are about bias interpretation, not about ICT-4/5's displacement filtering,
+    which scripts/tests/test_audit_round2_ict.py covers directly) -- so it is set on BOTH `last_mss` (display,
+    ict-scan.py) and `last_displaced_mss` (the field ict_bias actually reads since ICT-5)."""
+    return {"last": last, "last_mss": mss, "last_displaced_mss": mss,
             "prev_candle": {"tf": tf, "pch": 110.0, "pcl": 90.0, "pch_state": pch_state, "pcl_state": pcl_state}}
 
 

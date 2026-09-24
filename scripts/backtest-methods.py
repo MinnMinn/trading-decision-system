@@ -416,18 +416,30 @@ def find_ict(side, i, rec, H, L, C, K, n, PH, PL, O):
 
 
 def fvg_fill(side, mss, edge, far, stop, H, L, K, n):
-    """First bar after the MSS whose range reaches the FVG near edge without first hitting the stop. Returns bar index or None."""
+    """First bar after the MSS (within the K-bar window anchored on `mss`) whose range reaches the FVG near
+    edge -- the resting LIMIT. Returns None if the order never triggers in the window. Otherwise returns
+    (bar_index, outcome):
+      * "filled"             -- the limit filled and that same bar did not also reach the stop.
+      * "filled_and_stopped" -- the SAME bar that reached the near edge also reached the stop.
+
+    ICT-8 (docs/audits/2026-09-24-system-audit.md; knowledge/ict/core-a.md §3.6 R22 / core-b R21: a setup is
+    invalid once its stop level is traded). For a long, stop < edge always (risk = entry-stop > 0), so ANY bar
+    whose low reaches the stop has, in that same bar, already reached the edge -- there is no ordering of
+    "filled" vs "invalidated" inside one OHLC bar. Checking the stop FIRST (as this function did before
+    2026-09-24) returned None for that bar and every caller read None as "never triggered": the backtest
+    silently dropped a real -1R loss, and the live runner (strategy-runner.ict_live_setups) could offer the
+    setup as a brand-new order even though its own invalidation level had already traded. Checking the edge
+    first and reporting BOTH conditions on the same bar fixes both paths from the one shared function (CLAUDE.md
+    §37): the backtest now books the pessimistic/conservative -1R loss instead of dropping the trade (§38), and
+    "fill is not None" already means "already triggered, including by invalidation" for the live caller, so no
+    live-side special case is needed."""
     for j in range(mss + 1, min(mss + 1 + K, n)):
         if side == "long":
-            if L[j] <= stop:
-                return None
-            if L[j] <= edge:
-                return j
+            hit_edge, hit_stop = L[j] <= edge, L[j] <= stop
         else:
-            if H[j] >= stop:
-                return None
-            if H[j] >= edge:
-                return j
+            hit_edge, hit_stop = H[j] >= edge, H[j] >= stop
+        if hit_edge:
+            return j, ("filled_and_stopped" if hit_stop else "filled")
     return None
 
 
@@ -566,15 +578,33 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
         # bias-agreeing at 12:00, FVG near edge reached WITHIN 12:00. The old rule booked a 2.06R trade the
         # live runner refuses; that is §38's "unrealistic execution assumptions" and it is what made the
         # replay parity check fail once the check itself was repaired to use the live window.
-        if fvg_fill(su["side"], mss_i, entry, far, stop, H, L, P[tf]["K"], i + 1) is not None:
+        #
+        # ICT-8/PAR-7 (docs/audits/2026-09-24-system-audit.md): both fvg_fill calls below are anchored on
+        # `mss_i`, matching the live runner's own expiry (strategy-runner.ict_live_setups: bars_left = mss_i +
+        # K - (n-1)). The old (2) scanned mss_i+1..i+K -- i.e. i-mss_i bars LONGER than live's own window -- so
+        # the backtest could still book a fill live would already have expired. A setup detected after its own
+        # window has already closed is refused outright, exactly as live refuses a `bars_left < 0` order.
+        K = P[tf]["K"]
+        if i > mss_i + K:
+            continue              # ICT-8/PAR-7: already expired by the time the setup is even detectable -- live would never place this order
+        if fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, i + 1) is not None:
             continue             # the runner would refuse this as already triggered -- so neither may this
-        fill = fvg_fill(su["side"], i, entry, far, stop, H, L, P[tf]["K"], n)
-        if fill is None:         # the limit never filled: live would hold an unfilled order, not a position
+        fill = fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, n)
+        if fill is None:         # the limit never filled within its K-bar window: live would hold/expire an unfilled order, not a position
             continue
-        w = walk(su["side"], entry, stop, target, H, L, C, fill + 1, HZ)
+        fill_bar, outcome = fill
+        if outcome == "filled_and_stopped":
+            # ICT-8: same-bar fill+stop is unknowable from OHLC. Book the pessimistic -1R loss instead of the
+            # pre-2026-09-24 behaviour (fvg_fill returned None here and the trade silently vanished from the
+            # backtest -- §38 "unrealistic execution assumptions").
+            out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], entry=entry, entry_time=Tm[fill_bar],
+                            stop=stop, target=target, exit_time=Tm[fill_bar], vol_type=None,
+                            outcome="loss", R=-1.0, R_planned=su.get("R"), exit=fill_bar, mfe=0.0, mae=-1.0, bars_held=1))
+            continue
+        w = walk(su["side"], entry, stop, target, H, L, C, fill_bar + 1, HZ)
         if not w:
             continue
-        out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], entry=entry, entry_time=Tm[fill],
+        out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], entry=entry, entry_time=Tm[fill_bar],
                         stop=stop, target=target, exit_time=Tm[w["exit"]], vol_type=None, **w))
     return out
 
@@ -754,7 +784,10 @@ def scan(sym, tf, only=None):
                         if ict:
                             mss, edge, far = ict
                             fill = fvg_fill(side, mss, edge, far, f["stop"], H, L, K, n)
-                            e_bar, e_px = (fill, edge) if fill is not None else (mss, C[mss])
+                            # fvg_fill returns (bar, outcome) or None (ICT-8, 2026-09-24); COMBINED-BOOK is
+                            # runnable=false (INT-3) and out of this fix's scope, so the outcome tag is unused
+                            # here -- only the bar index, unchanged from before.
+                            e_bar, e_px = (fill[0], edge) if fill is not None else (mss, C[mss])
                             if e_bar < last:
                                 continue
                             cw = walk(side, e_px, f["stop"], f["target"], H, L, C, e_bar + 1, HZ)

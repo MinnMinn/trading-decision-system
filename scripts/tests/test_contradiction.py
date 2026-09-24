@@ -35,7 +35,11 @@ def htf():
 
 
 ACC = {"structure": "tích lũy", "phase": "C", "trading_range": {"low": 1, "high": 2}}
-BEAR_MSS = {"last_mss": {"type": "bear", "level": 100}, "prev_candle": {}}
+# ICT-5 (docs/audits/2026-09-24-system-audit.md): htf_context.ict_bias reads `last_displaced_mss`, not the raw
+# `last_mss` (which may be an undisplaced grab) -- kept on both here since this fixture represents a genuine,
+# displaced MSS, not a grab (see scripts/tests/test_audit_round2_ict.py for the grab-vs-real-MSS distinction).
+BEAR_MSS = {"last_mss": {"type": "bear", "level": 100}, "last_displaced_mss": {"type": "bear", "level": 100},
+            "prev_candle": {}}
 
 
 class DisagreementIsRaisedNotResolved(unittest.TestCase):
