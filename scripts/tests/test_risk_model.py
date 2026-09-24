@@ -243,13 +243,29 @@ class SizingRefusesRatherThanProducingANumber(unittest.TestCase):
             RM.size(10000.0, 100.0, 99.0, 1.5)
         self.assertIn("fraction", str(cm.exception))
 
-    def test_the_arithmetic_is_unchanged_from_the_runners_own_size(self):
-        """This migration moved the calculation; it must not have moved the number."""
+    def test_the_risk_usd_target_is_unchanged_from_the_runners_own_size(self):
+        """DEC-4 (2026-09-24): strategy-runner.size() now sizes on the ALL-IN loss (price distance AND the
+        round-trip fee), not price distance alone -- this module's own size() still prices distance only, so
+        the two functions' `qty` are now EXPECTED to diverge (see the next test). What must stay identical is
+        the TARGET risk_usd itself (equity x risk_pct x risk_mult): DEC-4 changes how much of that risk a unit
+        of price distance costs, not how much risk the trade is allowed to take.
+
+        Code review fix round 1 (nit 3): risk_mult=1.0 with entry=100/stop=99/leverage=3 hits the notional
+        cap (equity x NOTIONAL_CAP_PCT x leverage = 10000 x 0.25 x 3 = 7500) in BOTH the old and new sizing --
+        the cap, not the fee, decided `qty` in both, so the test passed without ever exercising the fee
+        arithmetic it names. risk_mult=0.1 keeps risk_usd (10.0) and both qtys (9.095 / 10.0, notional
+        909.5 / 1000.0) well under the 7500 cap, so the divergence asserted below is actually the fee, and the
+        notional_capped preconditions make that explicit rather than assumed."""
         sr = _load("sr", "strategy-runner.py")
-        qty, risk_usd = sr.size(10000.0, 100.0, 99.0, 1.0, leverage=3)
-        mine = RM.size(10000.0, 100.0, 99.0, sr.RISK_PCT, leverage=3, notional_cap_pct=sr.NOTIONAL_CAP_PCT)
-        self.assertAlmostEqual(mine["qty"], qty, places=9)
+        qty, risk_usd = sr.size(10000.0, 100.0, 99.0, 0.1, leverage=3)
+        mine = RM.size(10000.0, 100.0, 99.0, sr.RISK_PCT, leverage=3, notional_cap_pct=sr.NOTIONAL_CAP_PCT, risk_mult=0.1)
+        self.assertFalse(mine["notional_capped"], "precondition: the cap must not bind, or this test proves nothing about fees")
+        self.assertLess(qty * 100.0, 10000.0 * sr.NOTIONAL_CAP_PCT * 3, "precondition: the runner's own qty must not be capped either")
         self.assertAlmostEqual(mine["risk_usd"], risk_usd, places=9)
+        # DEC-4: sizing on the all-in loss (distance + fee) means a SMALLER qty than distance alone for the
+        # same target risk -- the whole point of the fix (distance-only sizing let the fee push the realised
+        # loss at the stop past the risk ceiling).
+        self.assertLess(qty, mine["qty"])
 
     def test_the_notional_cap_binds(self):
         s = RM.size(10000.0, 100.0, 99.9, 0.01, leverage=3, notional_cap_pct=0.25)

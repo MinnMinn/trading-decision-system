@@ -200,6 +200,19 @@ def profile(venue):
     return _PROFILES[venue]
 
 
+def _account_survival_block(prof, facts):
+    """DEC-6 (CLAUDE.md §20/§33): a declared account-survival rule (max_daily_loss, trailing_drawdown, a
+    custom failure condition, a consistency rule) whose basis fact this runner does not supply reports
+    UNKNOWN from AP.account_state() -- and AP.halt_check() only ever HALTS on HALT/HUMAN/BLOCK_ENTRY, never
+    on UNKNOWN, by design (an unmeasurable account is not a proven breach). That left such a rule silently
+    unenforced in EITHER direction: not halted (correct) and, until this fix, not blocking new entries either
+    (wrong -- §20 forbids treating an unresolved UNKNOWN as a pass). Returns a reason string to block NEW
+    ENTRIES with, or None. Never call this for a HALT decision -- see the docstring above.
+    """
+    unknown = [f for f in AP.account_state(prof, facts) if f["state"] == AP.UNKNOWN]
+    return "; ".join(f"{f['rule']}: {f['why']}" for f in unknown) if unknown else None
+
+
 def futures_leverage():
     """Leverage for the crypto venue, from its account profile (was the literal `LEVERAGE = 3`)."""
     return AP.max_leverage(profile("futures"))
@@ -238,6 +251,15 @@ def iso(t):
 
 def parse_t(s):
     return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+
+
+def bar_open_time(iso_ts, tf):
+    """PAR-1: floor `iso_ts` down to the open time of the `tf` bar it falls in -- epoch-aligned, the same grid
+    the candle cache's own bars are stamped on. Used to anchor a position's entry to the BAR it filled in,
+    never to the wall-clock minute of the tick that noticed the fill (see `manage_position`'s `since`)."""
+    sec = TF_SEC[tf]
+    epoch = int(parse_t(iso_ts).timestamp())
+    return iso(datetime.datetime.fromtimestamp(epoch - (epoch % sec), tz=datetime.timezone.utc))
 
 
 # Per-venue log destination, keyed by execution alias rather than by an `if venue == "mt5"` (CLAUDE.md §4).
@@ -300,6 +322,11 @@ def log(kind, venue="futures", **kw):
 
 
 def sh(*args, check=True, env=None):
+    # Windows cannot exec a .sh file directly (WinError 193: %1 is not a valid Win32
+    # application) -- there is no shebang interpreter lookup outside a POSIX exec().
+    # Route through bash (Git Bash on this platform) so the connector scripts run unchanged.
+    if os.name == "nt" and args and str(args[0]).endswith(".sh"):
+        args = ("bash",) + args
     r = subprocess.run(args, capture_output=True, text=True, env=env)
     if check and r.returncode != 0:
         raise RuntimeError(f"{os.path.basename(args[0])} {' '.join(args[1:3])} failed: {r.stderr.strip()[:300]}")
@@ -428,7 +455,30 @@ def event_blackout(t=None, sym=None):
     except ER.CalendarUnavailable as exc:
         return f"{exc.reason} -> configured fail-safe: {exc.action}"
     hit, why = ER.blocked(sym, at=when, cal=cal)
-    return why if hit else None
+    if hit:
+        return why
+    # DEC-7 (CLAUDE.md §25 'UNKNOWN: never silently treated as LOW'): `ER.windows()` only gates an
+    # UNKNOWN-impact event when the caller passes mode='STRICT' (test_event_risk.py pins this: NORMAL must
+    # NOT restrict on UNKNOWN, only LOW does that in the code's own vocabulary -- see
+    # test_unknown_is_not_low_strict_mode_treats_it_as_no_trade). This runner has no Trading-System
+    # methodology-mode concept to pass (§16 mode is a separate, unbuilt dimension), so `mode` here is always
+    # None and `policy.by_impact.UNKNOWN.strict_no_trade: true` (event-calendar.json) can never take effect --
+    # the exact defect DEC-7 names. Fixing that requires threading a real mode, which is out of round-1 scope.
+    # What IS in scope, and what the fix critique asks for as the minimal compliant step: a relevant
+    # UNKNOWN-impact event inside its own would-be window must not look IDENTICAL to genuine "no news" --
+    # `ER.windows(..., mode="STRICT")` asks the same calendar "would this gate under the configured
+    # strict_no_trade flag", purely to DISCLOSE the answer in a decision-record log line. It does not change
+    # whether this function blocks (still None below), so it cannot make NORMAL behave like STRICT.
+    for _a, _b, evs in ER.windows(sym, cal=cal, decision_time=when, mode="STRICT"):
+        if _a <= when <= _b and any((e.get("impact") or "UNKNOWN").upper() == "UNKNOWN" for e in evs):
+            names = ", ".join(e.get("name", e.get("id", "?")) for e in evs)
+            log("unknown_event_disclosed", venue=venue_of(sym), symbol=sym, at=iso(when), events=names,
+                note="an UNKNOWN-impact event is inside its restricted window right now; the calendar's own "
+                     "strict_no_trade=true would block this entry in STRICT mode, but this runner has no "
+                     "methodology-mode input to engage it, so the entry proceeds -- disclosed, not silently "
+                     "treated as a LOW-impact 'no news' clear (CLAUDE.md §25)")
+            break
+    return None
 
 
 EQUITY_BASIS = "equity"  # value of state["equity_basis"] once equity_start is captured from usdt_equity()/mt5_equity()
@@ -904,9 +954,16 @@ def rr_reason(sig, venue, floor=None):
     # to a net floor admitted trades the evidence rejected, and by more the tighter the stop: at 0.05 %/side a
     # 1 % stop costs 0.10R and a 0.2 % stop costs 0.50R. The order type is not a guess either -- `entry_now`
     # means a MARKET order at the bar close (taker); everything else rests a post-only GTX limit (maker).
+    #
+    # DEC-3/PAR-2 (2026-09-24): the EXIT is priced separately from the entry, and is ALWAYS taker -- every
+    # exit on this venue is a STOP_MARKET / TAKE_PROFIT_MARKET (or a market close for the time stop), never a
+    # resting maker order, regardless of how the entry was placed. Pricing both sides at the entry's order
+    # type understated the round-trip cost for every ICT signal (maker entry, taker exit): the gate admitted
+    # net-R:R numbers the real fill would not have cleared. On MT5 maker == taker (risk-config.json), so this
+    # is a no-op there.
     try:
         r = RM.net_r(sig["entry"], sig["stop"], sig["target"], venue,
-                     "taker" if sig.get("entry_now") else "maker")
+                     "taker" if sig.get("entry_now") else "maker", exit_order_type="taker")
     except (RM.RiskRefused, KeyError, TypeError, ValueError) as exc:
         return f"không tính được R/R sau phí: {exc}"
     eff = MIN_RR if floor is None else max(MIN_RR, floor)
@@ -1111,19 +1168,45 @@ def drill_refusal(drill, *, live, env_name, config_env, gate_reason, setups_know
     return None
 
 
-def size(equity, entry, stop, risk_mult, leverage=None):
+def size(equity, entry, stop, risk_mult, leverage=None, *, entry_order_type="taker", exit_order_type="taker",
+         venue="futures"):
+    """qty so that the loss AT THE STOP -- price distance AND the round-trip fee -- equals risk_usd.
+
+    DEC-4 (CLAUDE.md §34 'fees, slippage'): sizing on price distance alone understates the realised loss at
+    the stop by the round-trip fee, so it exceeds the 1 % ceiling (worse the tighter the stop). Every exit on
+    this venue is a STOP_MARKET/TAKE_PROFIT_MARKET (taker); `entry_order_type` is the setup's own -- ICT
+    rests a maker limit, WYCKOFF-BOOK enters at market/taker -- and callers pass it accordingly. Fails the
+    same way `min_notional`/`mt5_symbol` do (RM.RiskRefused) rather than silently sizing on a guessed fee.
+
+    Round-4 note: the backtest's own sizing (backtest-methods.py simulate(), PAR-4) still sizes on price
+    distance alone, so this is a LIVE-ONLY fix and widens the existing live/backtest sizing mismatch PAR-4
+    already tracks -- not fixed here (scripts/backtest-methods.py is out of round-1 scope).
+    """
     leverage = futures_leverage() if leverage is None else leverage
-    r = abs(entry - stop); risk_usd = equity * RISK_PCT * risk_mult; qty = risk_usd / r
+    r = abs(entry - stop); risk_usd = equity * RISK_PCT * risk_mult
+    entry_fee = RM.costs(venue, entry_order_type)["fee_pct_per_side"]
+    exit_fee = RM.costs(venue, exit_order_type)["fee_pct_per_side"]
+    per_unit = r + entry * entry_fee + stop * exit_fee
+    qty = risk_usd / per_unit
     cap = equity * NOTIONAL_CAP_PCT * leverage
     if qty * entry > cap:
         qty = cap / entry
     return qty, risk_usd
 
 
-def mt5_lots(sym, equity, entry, stop, risk_mult):
-    """Lots so that the stop distance loses risk_usd: risk / (ticks in the stop x tick_value). Rounded DOWN to volume_step."""
+def mt5_lots(sym, equity, entry, stop, risk_mult, *, entry_order_type="taker", exit_order_type="taker"):
+    """Lots so that the stop distance AND the round-trip fee lose risk_usd (DEC-4, same reasoning as `size`
+    above): risk / ((ticks in the all-in loss) x tick_value). Rounded DOWN to volume_step.
+
+    On MT5, maker_pct_per_side == taker_pct_per_side (risk-config.json: the broker prices in the spread, not
+    a side-dependent commission), so `entry_order_type`/`exit_order_type` do not change the number today --
+    they exist so a future asymmetric MT5 cost model does not need a second call site change."""
     info = mt5_symbol(sym); risk_usd = equity * RISK_PCT * risk_mult
-    ticks = abs(entry - stop) / float(info["tick_size"]); per_lot = ticks * float(info["tick_value"])
+    entry_fee = RM.costs("mt5", entry_order_type)["fee_pct_per_side"]
+    exit_fee = RM.costs("mt5", exit_order_type)["fee_pct_per_side"]
+    value_per_price_unit = float(info["tick_value"]) / float(info["tick_size"])
+    per_unit = abs(entry - stop) + entry * entry_fee + stop * exit_fee
+    per_lot = per_unit * value_per_price_unit
     lots = risk_usd / per_lot if per_lot > 0 else 0.0
     step = float(info["volume_step"]); lots = int(lots / step) * step
     lots = min(lots, float(info["volume_max"]))
@@ -1151,7 +1234,8 @@ def risk_precheck(sym, st, sig, equity, risk_mult):
                 return (f"không đủ khối lượng: {lots:g} lot < volume_min {info['volume_min']} "
                         f"(rủi ro quá nhỏ so với khoảng stop)")
         else:
-            qty, _risk_usd = size(equity, sig["entry"], sig["stop"], risk_mult)
+            qty, _risk_usd = size(equity, sig["entry"], sig["stop"], risk_mult,
+                                  entry_order_type="taker" if sig.get("entry_now") else "maker")
             floor = min_notional(sym)
             if qty * sig["entry"] < floor:
                 return f"giá trị lệnh {qty * sig['entry']:.2f} < tối thiểu sàn {floor}"
@@ -1214,7 +1298,8 @@ def place_limit(sym, st, sig, equity, risk_mult, live, expectations=None):
         _rec("provider_acknowledgement", _ack)
         log("limit_placed", venue="mt5", **pend)
         return pend
-    qty, risk_usd = size(equity, sig["entry"], sig["stop"], risk_mult)
+    # A post-only GTX limit is a MAKER entry; every exit is still taker (DEC-4, size()'s own docstring).
+    qty, risk_usd = size(equity, sig["entry"], sig["stop"], risk_mult, entry_order_type="maker")
     qty_r = order("round-qty", sym, f"{qty:.8f}").strip(); px_r = order("round-price", sym, f"{sig['entry']:.8f}").strip()
     stop_r = order("round-price", sym, f"{sig['stop']:.8f}").strip(); tp_r = order("round-price", sym, f"{sig['target']:.8f}").strip()
     plan = plan_of(sym, st, sig, qty_r, px_r, stop_r, tp_r, min(risk_usd, float(qty_r) * abs(float(px_r) - float(stop_r))), expectations=expectations)
@@ -1276,8 +1361,68 @@ def market_fill(sym, o, qty_r, *, polls=FILL_POLLS, sleep=0.4):
                        f"(avgPrice={avg}, executedQty={qty}); refusing to record the planned price as the fill")
 
 
-def place_market(sym, st, sig, equity, risk_mult, live, expectations=None):
-    """Wyckoff entry at the close of the entry bar: MARKET order, then the protective orders (futures) / SL+TP attached (MT5)."""
+FILL_RISK_TOLERANCE = 0.10  # DEC-5: how far the realised loss-at-stop may exceed the PLANNED risk_usd
+                            # before it is disclosed as a breach. Not a new risk ceiling -- RISK_CEILING is
+                            # that -- this is only how sensitive the disclosure is to ordinary fill noise.
+
+
+def revalidate_fill(sym, pos, planned_risk_usd, entry_order_type):
+    """CLAUDE.md §34 'Risk must be validated before execution' / §51 'Before execution validate: ... risk';
+    §55 adversarial 'stale price / changed market' -- DEC-5.
+
+    A MARKET order is sized and R:R-checked (steps 12-13) against the last bar's CLOSE; the venue can fill
+    away from that price, and nothing re-checked the ACTUAL fill until now. This cannot undo a fill already
+    booked -- the only safe unwind is a second order against the book, and the DEC-5 fix critique is explicit
+    that this needs its own design decision, not one made inside a risk-revalidation helper -- so it
+    DISCLOSES a breach (a `fill_risk_breach` log line) rather than silently recording a plan that was never
+    true of the trade that was actually taken.
+    """
+    breaches = []
+    if planned_risk_usd and pos["risk_usd"] > planned_risk_usd * (1 + FILL_RISK_TOLERANCE):
+        breaches.append({"check": "risk_usd", "planned": round(planned_risk_usd, 2), "actual": round(pos["risk_usd"], 2)})
+    try:
+        rr = RM.net_r(pos["entry"], pos["stop"], pos["tp"], pos["execution"], entry_order_type, exit_order_type="taker")
+        if MIN_RR is not None and rr["net_r"] < MIN_RR:
+            breaches.append({"check": "net_rr", "actual_net_r": round(rr["net_r"], 3), "floor": MIN_RR})
+    except RM.RiskRefused:
+        pass          # the pre-submit check already required a computable R:R; a refusal recomputing it at
+                      # the fill price is not new information worth a second refusal on an open position
+    if breaches:
+        log("fill_risk_breach", venue=pos["execution"], symbol=sym, fill_price=pos["entry"], breaches=breaches,
+            note="the fill differed enough from the planned entry that the risk or R:R this trade was "
+                 "approved under no longer holds at the actual fill price (DEC-5); the position is already "
+                 "open, so this is a disclosure for human review, not a block")
+    return breaches
+
+
+def _safe_revalidate_fill(sym, pos, planned_risk_usd, entry_order_type):
+    """Code review fix round 1 (DEC-5, BLOCKING): `revalidate_fill` itself only swallows `RM.RiskRefused`
+    (a known, expected refusal). Any OTHER exception -- a KeyError on a malformed `pos`, a connector hiccup
+    inside `RM.net_r`'s config read, anything unforeseen -- used to propagate straight out of `place_market()`
+    AFTER the entry (and its protective stop, already placed by `open_position`) had already filled and been
+    protected on the exchange. `place_market()` would then never reach its own `return pos`, so the caller in
+    `tick()` would never add the position to `s["positions"]` -- an already-protected, already-real position
+    silently dropped from the runner's own bookkeeping. Disclosure (DEC-5's whole point) must never be able to
+    cost the runner its record of a position that is already safely opened.
+    """
+    try:
+        return revalidate_fill(sym, pos, planned_risk_usd, entry_order_type)
+    except Exception as exc:
+        log("fill_revalidate_error", venue=pos.get("execution"), symbol=sym, msg=str(exc)[:200],
+            note="revalidate_fill() raised after the entry and its protective stop were already placed -- "
+                 "the position is kept (this is a disclosure step, not a gate) and the failure is only logged")
+        return None
+
+
+def place_market(sym, st, sig, equity, risk_mult, live, expectations=None, entry_bar_time=None):
+    """Wyckoff entry at the close of the entry bar: MARKET order, then the protective orders (futures) / SL+TP attached (MT5).
+
+    `entry_bar_time` (PAR-1): the open time of the bar whose CLOSE is this entry -- wyckoff_fires() only fires
+    on the last bar of the window it was given, so the caller (tick(), which holds that window) passes its
+    open time straight through to open_position(); `sig["time"]` cannot be used for this because it carries
+    the structure's Spring/SOS bar (or, for a Phase D fire, that time with a literal "-D" suffix appended --
+    a dedup key, not a timestamp), not the entry bar.
+    """
     long = sig["side"] == "long"; venue = st["execution"]
     if venue == "mt5":
         info = mt5_symbol(sym); d = int(info.get("digits", 2))
@@ -1296,8 +1441,12 @@ def place_market(sym, st, sig, equity, risk_mult, live, expectations=None):
             log("rejected", venue="mt5", note=f"MT5 retcode {o.get('retcode')} {o.get('comment')}", **plan); return None
         pend = dict(plan, order_id=o["ticket"], client_id=cid, placed_at=iso(now()), bars_waited=0, price=f"{float(o.get('price') or sig['entry']):.{d}f}")
         _rec("provider_acknowledgement", _ack)
-        return open_position(sym, pend, float(o.get("volume") or lots), float(o.get("price") or sig["entry"]), live, position_ticket=o.get("ticket"))
-    qty, risk_usd = size(equity, sig["entry"], sig["stop"], risk_mult)
+        pos = open_position(sym, pend, float(o.get("volume") or lots), float(o.get("price") or sig["entry"]), live, position_ticket=o.get("ticket"), entry_bar_time=entry_bar_time)
+        if pos is not None:
+            _safe_revalidate_fill(sym, pos, risk_usd, "taker")
+        return pos
+    # Wyckoff enters at the bar close (market/taker); size() prices the exit as taker regardless.
+    qty, risk_usd = size(equity, sig["entry"], sig["stop"], risk_mult, entry_order_type="taker")
     qty_r = order("round-qty", sym, f"{qty:.8f}").strip(); px_r = order("round-price", sym, f"{sig['entry']:.8f}").strip()
     stop_r = order("round-price", sym, f"{sig['stop']:.8f}").strip(); tp_r = order("round-price", sym, f"{sig['target']:.8f}").strip()
     plan = plan_of(sym, st, sig, qty_r, px_r, stop_r, tp_r, min(risk_usd, float(qty_r) * abs(float(px_r) - float(stop_r))), expectations=expectations); plan["order_type"] = "market"
@@ -1321,7 +1470,10 @@ def place_market(sym, st, sig, equity, risk_mult, live, expectations=None):
     _rec("provider_acknowledgement", _ack)
     # §40 `fill`: a MARKET order is filled at acknowledgement, so the venue's own fill is known here. A LIMIT
     # order's fill is learned on a later tick's reconcile and is transport-bound by construction.
-    return open_position(sym, pend, filled, avg_px, live)
+    pos = open_position(sym, pend, filled, avg_px, live, entry_bar_time=entry_bar_time)
+    if pos is not None:
+        _safe_revalidate_fill(sym, pos, risk_usd, "taker")
+    return pos
 
 
 class UnprotectedPositionError(RuntimeError):
@@ -1344,7 +1496,7 @@ def _emergency_close(sym):
         return False, str(e)[:300]
 
 
-def open_position(sym, pend, filled_qty, avg_px, live, position_ticket=None):
+def open_position(sym, pend, filled_qty, avg_px, live, position_ticket=None, entry_bar_time=None):
     """PILOT-13 (2026-09-13): placing the protective stop is part of opening a position, not a step after it.
     A stop-market failure here used to raise straight out of this function AFTER the entry had already filled
     on the exchange -- leaving a naked position while callers' state bookkeeping (pending/positions) never ran.
@@ -1376,10 +1528,27 @@ def open_position(sym, pend, filled_qty, avg_px, live, position_ticket=None):
                 note="stop is already in place and bounds the loss -- a missing take-profit only forgoes an "
                      "automatic exit at the target, so the position is left open, not unwound")
     r = abs(avg_px - float(pend["stop"]))
+    # DEC-2: for MT5, `filled_qty` is LOTS, not units -- risk_usd = price distance x lots silently drops the
+    # contract multiplier (per_lot = tick_value/tick_size), so the recorded R-multiple was wrong by that
+    # factor on every MT5 exit (close_record divides pnl by this risk_usd). Futures `filled_qty` is already
+    # in the instrument's own units, so price distance x qty is correct there unchanged.
+    if venue == "mt5":
+        info = mt5_symbol(sym)
+        risk_usd = r * (float(info["tick_value"]) / float(info["tick_size"])) * filled_qty
+    else:
+        risk_usd = r * filled_qty
+    # PAR-1 (CLAUDE.md §37): the bar the entry actually filled in -- never the wall-clock minute of the tick
+    # that noticed it, which is what `manage_position`'s `since` used to anchor on and which excludes the
+    # first bar after entry forever (that bar's OPEN is always earlier than the detecting tick's minute).
+    # Callers that know the entry bar (place_market, from the same window it detected the signal on) pass it;
+    # a caller that does not (a limit fill, only known when a later tick's reconcile discovers it) falls back
+    # to flooring "now" to this tf's grid -- an approximation, not exact to the fill minute, but no longer
+    # excludes the correct bar by a full period the way the wall-clock anchor did.
+    entry_bar_time = entry_bar_time or bar_open_time(iso(now()), pend["tf"])
     pos = dict(side=pend["side"], strategy=pend["strategy"], tf=pend["tf"], method=pend["method"], execution=venue, mgmt=pend["mgmt"],
                qty=f"{filled_qty:.8f}".rstrip("0").rstrip("."), entry=avg_px, entry_order=pend["order_id"], client_id=pend.get("client_id"),
                position_ticket=position_ticket, stop=float(pend["stop"]), tp=float(pend["tp"]), stop_order=sl.get("orderId"), tp_order=tp.get("orderId"),
-               leverage=pend["leverage"], opened_at=iso(now()), bars=0, risk_usd=round(r * filled_qty, 2), be=False, be_level=(avg_px + r) if long else (avg_px - r),
+               leverage=pend["leverage"], opened_at=iso(now()), entry_bar_time=entry_bar_time, bars=0, risk_usd=round(risk_usd, 2), be=False, be_level=(avg_px + r) if long else (avg_px - r),
                htf_pass=pend["htf_pass"], sweep_time=pend["sweep_time"], mss_time=pend["mss_time"], risk_pct=RISK_PCT,
                # §0.6: carried from the plan (already to_json()'d expectation.create() records, step 11), not
                # rebuilt -- log("entry", ..., **pos) is what scripts/journal.py sync_pilot reads `expectations` from.
@@ -1413,18 +1582,76 @@ def mt5_close(ticket, *, polls=5, sleep=0.4):
 
 
 def close_record(sym, pos, px, via, qty, pnl=None):
+    """DEC-8 (CLAUDE.md §37/§39): when no caller supplies the venue's own realised P&L -- true for every
+    futures exit today; MT5's `pnl` is always passed in already net of commission/swap, see `mt5_close` --
+    this used to compute GROSS P&L from prices only, while the backtest that selected these setups books NET
+    of the round-trip fee (backtest-methods.py:1016, net_R = R - fee_R). Live-vs-backtest comparisons were
+    biased in the live pilot's favour, and a fee-losing breakeven exit (gross P&L ~= 0) was never counted as
+    a loss for consec_losses. `pnl`/`r` below are now NET for a computed close; `pnl_gross` keeps the
+    price-only figure that used to be the whole story, so nothing here is a silent number change."""
     sign = 1 if pos["side"] == "LONG" else -1
-    if pnl is None:
-        pnl = (px - pos["entry"]) * float(qty) * sign
-    return dict(symbol=sym, side=pos["side"], strategy=pos["strategy"], tf=pos["tf"], execution=pos["execution"], exit=px, via=via, pnl=round(pnl, 2),
+    gross = (px - pos["entry"]) * float(qty) * sign
+    computed = pnl is None
+    if computed:
+        try:
+            # Code review fix round 1 (nit): mreg.scan_of() raises KeyError for a method name the registry
+            # does not declare -- not RM.RiskRefused -- so it must be inside the same catch as the fee read
+            # below, or an unknown/renamed method breaks the close path outright instead of falling back.
+            entry_type = "maker" if mreg.scan_of(pos["method"]) == "ict" else "taker"
+            fee_entry = RM.costs(pos["execution"], entry_type)["fee_pct_per_side"]
+            fee_exit = RM.costs(pos["execution"], "taker")["fee_pct_per_side"]
+            pnl = gross - (pos["entry"] * fee_entry + px * fee_exit) * float(qty)
+        except (RM.RiskRefused, KeyError):
+            pnl = gross          # an unreadable fee must not block recording the close; it is disclosed via
+                                 # the absent `pnl_gross`-vs-`pnl` gap rather than assumed to be zero
+    rec = dict(symbol=sym, side=pos["side"], strategy=pos["strategy"], tf=pos["tf"], execution=pos["execution"], exit=px, via=via, pnl=round(pnl, 2),
                 r=round(pnl / pos["risk_usd"], 2) if pos["risk_usd"] else None, entry=pos["entry"], qty=qty, opened_at=pos["opened_at"], closed_at=iso(now()),
                 htf_pass=pos["htf_pass"], be=pos["be"])
+    if computed:
+        rec["pnl_gross"] = round(gross, 2)
+    return rec
 
 
-def manage_pending(sym, pend, live, bars_elapsed):
-    """('filled', qty, px, position_ticket) | ('waiting', ...) | ('gone', ...)."""
+def manage_pending(sym, pend, live, bars_elapsed, t=None):
+    """('filled', qty, px, position_ticket) | ('waiting', ...) | ('gone', ...).
+
+    DEC-1 (CLAUDE.md §24/§31/§32): a RESTING order must not be allowed to fill inside an event-risk blackout.
+    Before this fix, event_blackout() was checked ONLY at placement (the decision-engine step 14 in tick());
+    once resting, a limit could keep working through a blackout that opened after it was placed and fill
+    inside the ±10 minute NEW ENTRY window §24 forbids. Checked here, every tick this order is still pending,
+    with a one-bar (this order's own timeframe) look-ahead so a window opening between two ticks is still
+    very likely caught before it is missed entirely -- cancelled the same way the STOP kill switch cancels a
+    working order (_tick()'s halted() branch, 'stop_cancel_pending').
+
+    Residual gap the fix critique names and this does not close: the look-ahead is one bar of THIS order's
+    own timeframe, not the runner's actual tick cadence (which this function has no way to read), so a
+    restricted window shorter than the gap between two real ticks could still open and close between them
+    unseen. The default window is >=20 minutes (pre_minutes + post_minutes); the fastest configured setups in
+    this pilot are 15m, well inside that margin.
+    """
     if not live:
         return "waiting", None, None, None
+    when = t or now()
+    why = event_blackout(when, sym) or event_blackout(when + datetime.timedelta(seconds=TF_SEC[pend["tf"]]), sym)
+    if why:
+        # Code review fix round 1 (DEC-1, BLOCKING): the cancel and the fill can race -- the venue may have
+        # already matched this order in the instant before the cancel reaches it. Returning "gone" here
+        # unconditionally used to let _tick() delete the pending entry believing nothing happened, while a
+        # real, now-untracked, STOP-LESS position sat on the exchange. Re-check order status AFTER the cancel,
+        # exactly like the expiry-cancel branches below, and route a filled/partially-filled order through the
+        # normal "filled" return so _tick() calls open_position() (which places the stop) instead of dropping it.
+        if pend["execution"] == "mt5":
+            mt5_json("cancel", str(pend["order_id"]))
+            st = mt5_json("order-status", str(pend["order_id"]))
+            log("event_cancel_pending", venue="mt5", symbol=sym, order_id=pend["order_id"], why=why,
+                fill_state=st.get("state"))
+            if st.get("state") == "filled":
+                return "filled", float(st.get("volume") or pend["qty"]), float(st.get("price") or pend["price"]), st.get("position_ticket")
+            return "gone", None, None, None
+        sh(ORDER, "cancel-order", sym, str(pend["order_id"]), check=False)
+        st = order_json("order-status", sym, str(pend["order_id"])); ex = float(st.get("executedQty") or 0)
+        log("event_cancel_pending", venue=pend["execution"], symbol=sym, order_id=pend["order_id"], why=why, executed=ex)
+        return ("filled", ex, float(st.get("avgPrice") or pend["price"]), None) if ex > 0 else ("gone", None, None, None)
     if pend["execution"] == "mt5":
         st = mt5_json("order-status", str(pend["order_id"]))
         if st.get("state") == "filled":
@@ -1456,7 +1683,17 @@ def manage_pending(sym, pend, live, bars_elapsed):
 def manage_position(sym, pos, candles, live, bars_elapsed):
     """Exit detection, breakeven on a closed candle, time stop. Returns a close record or None."""
     horizon = bt.P[pos["tf"]]["H"]; venue = pos["execution"]; long = pos["side"] == "LONG"
-    since = [x for x in candles if x["time"] >= pos["opened_at"][:16] + ":00Z"]
+    # PAR-1 (CLAUDE.md §37): anchored on the ENTRY BAR's own open time, strictly after it -- not on the
+    # wall-clock minute of the tick that noticed the fill. `opened_at` is that wall clock, and it is always
+    # AFTER the entry bar's close (the fill is discovered on a LATER tick than the bar that produced it), so
+    # filtering on it excluded the first bar after entry forever: the backtest arms breakeven starting on that
+    # exact bar (walk() runs from entry_bar+1) and never on the entry/fill bar itself, which is why this is a
+    # strict `>` against `entry_bar_time`, not `>=`. A position opened before this fix has no `entry_bar_time`
+    # on disk; falling back to the old wall-clock anchor there is the ONLY safe choice -- guessing a bar time
+    # for a position already this runner does not know precisely would be inventing history, not recovering it.
+    since_anchor = pos.get("entry_bar_time") or (pos["opened_at"][:16] + ":00Z")
+    cmp = (lambda t: t > since_anchor) if pos.get("entry_bar_time") else (lambda t: t >= since_anchor)
+    since = [x for x in candles if cmp(x["time"])]
     if venue == "mt5":
         if live:
             st = mt5_json("position-status", str(pos["position_ticket"] or pos["entry_order"]))
@@ -1615,9 +1852,12 @@ def _tick(live, tick_time=None, ignore_gate=False, drill=None):
         # declared failure conditions, all evaluated by the profile rather than by a constant in this file. A
         # rule whose input is missing reports UNKNOWN and is NOT treated as passed -- but UNKNOWN does not
         # write the kill switch either, because "I could not read the balance" is not "the account is down".
-        act, why = AP.halt_check(profile(v), {"equity": equity[v],
-                                              "equity_start": s["venues"][v]["equity_start"],
-                                              "consec_losses": s["venues"][v]["consec_losses"]})
+        # DEC-6: it MUST still block new entries, the same as a resolved BLOCK_ENTRY would -- see
+        # `_account_survival_block` below, which is what actually enforces the "not treated as passed" half
+        # of that sentence (halt_check() alone only ever returns HALT/HUMAN/BLOCK_ENTRY, never UNKNOWN).
+        facts_v = {"equity": equity[v], "equity_start": s["venues"][v]["equity_start"],
+                  "consec_losses": s["venues"][v]["consec_losses"]}
+        act, why = AP.halt_check(profile(v), facts_v)
         if act == AP.HALT:
             halt(s, f"{v}: {why}"); save_state(s); return
         if act is not None:
@@ -1625,6 +1865,10 @@ def _tick(live, tick_time=None, ignore_gate=False, drill=None):
             # stops, reconciliation -- and leaving an open position unmanaged is not the conservative outcome
             # (§31: news-style restrictions apply to new entries; open positions are governed separately).
             account_block[v] = why; log("account-rule", venue=v, action=act, msg=why)
+        else:
+            block_why = _account_survival_block(profile(v), facts_v)
+            if block_why:
+                account_block[v] = block_why; log("account-rule", venue=v, action=AP.UNKNOWN, msg=block_why)
     last = parse_t(s["last_tick"]) if s.get("last_tick") else None
     bars_elapsed = {tf: (max(1, int((t - last).total_seconds() // TF_SEC[tf])) if last else 1) for tf in TF_SEC}
     need = set()
@@ -1673,7 +1917,7 @@ def _tick(live, tick_time=None, ignore_gate=False, drill=None):
     for sym in list(s["pending"]):
         pend = s["pending"][sym]
         try:
-            state, qty, px, pt = manage_pending(sym, pend, live, bars_elapsed[pend["tf"]])
+            state, qty, px, pt = manage_pending(sym, pend, live, bars_elapsed[pend["tf"]], t=t)
         except Exception as e:
             s["errors"] += 1; log("error", venue=pend["execution"], where=f"pending {sym}", msg=str(e)[:200]); continue
         if state == "filled":
@@ -1691,13 +1935,22 @@ def _tick(live, tick_time=None, ignore_gate=False, drill=None):
     # Re-checked here, after this tick's closes have been booked, because a trade that just lost can be the
     # one that trips the account's failure condition. Same profile, same evaluator as the equity block above.
     for v in venues_used:
-        act, why = AP.halt_check(profile(v), {"equity": equity.get(v),
-                                              "equity_start": s["venues"][v]["equity_start"],
-                                              "consec_losses": s["venues"][v]["consec_losses"]})
+        facts_v = {"equity": equity.get(v), "equity_start": s["venues"][v]["equity_start"],
+                  "consec_losses": s["venues"][v]["consec_losses"]}
+        act, why = AP.halt_check(profile(v), facts_v)
         if act == AP.HALT:
             halt(s, f"{v}: {why}"); save_state(s); return
         if act is not None and v not in account_block:
             account_block[v] = why; log("account-rule", venue=v, action=act, msg=why)
+        elif live and v not in account_block:
+            # LIVE ONLY, same reasoning as the equity block above: `equity_start` (and any other basis fact)
+            # is never captured for a dry run, so an UNKNOWN here is "we do not run a real account in dry
+            # mode", not DEC-6's "the runner can never supply this fact" -- blocking a dry tick's decision
+            # record on it would be a false positive on every dry run and every fixture that does not bother
+            # seeding venues.equity_start, not a real DEC-6 case.
+            block_why = _account_survival_block(profile(v), facts_v)
+            if block_why:
+                account_block[v] = block_why; log("account-rule", venue=v, action=AP.UNKNOWN, msg=block_why)
     if s["errors"] >= ERROR_HALT:
         halt(s, f"{ERROR_HALT} consecutive connector errors"); save_state(s); return
     # Event risk is evaluated PER INSTRUMENT, further down, not once per tick: CLAUDE.md §26 says an event
@@ -1970,7 +2223,10 @@ def _tick(live, tick_time=None, ignore_gate=False, drill=None):
                     _log_signal()
                     try:
                         if sig.get("entry_now"):
-                            pos = place_market(sym, st, sig, sizing_equity.get(venue, 10000.0), risk_mult, live, expectations=exp_records)
+                            # PAR-1: the entry bar is the last bar of the exact window setups_wyckoff() fired
+                            # on (wyckoff_fires() only ever fires on candles[-1] of what it is given).
+                            pos = place_market(sym, st, sig, sizing_equity.get(venue, 10000.0), risk_mult, live, expectations=exp_records,
+                                              entry_bar_time=c_for_setups[-1]["time"])
                             if pos:
                                 s["positions"][sym] = pos; s["trades_today"][sym] = s["trades_today"].get(sym, 0) + 1
                             pend = None
