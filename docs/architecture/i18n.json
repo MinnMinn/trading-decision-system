@@ -850,6 +850,14 @@
       "en": "invalidated: {rule} {level} · owner {owner}",
       "vi": "vô hiệu: {rule} {level} · chủ sở hữu {owner}"
     },
+    "l3.invalidated_badge": {
+      "en": "({date}, invalidated)",
+      "vi": "({date}, hết hiệu lực)"
+    },
+    "l3.invalidated_chip": {
+      "en": "invalidated {date}",
+      "vi": "đã vô hiệu {date}"
+    },
     "l3.lookback": {
       "en": "Looking back",
       "vi": "Nhìn lại"
@@ -977,6 +985,18 @@
     "chart.invalidation": {
       "en": "invalidated",
       "vi": "vô hiệu"
+    },
+    "chart.wyckoff.invalidated_suffix": {
+      "en": "invalidated {date}",
+      "vi": "hết hiệu lực {date}"
+    },
+    "chart.wyckoff.invalidation_fired": {
+      "en": "triggered {date}",
+      "vi": "đã kích hoạt {date}"
+    },
+    "chart.wyckoff.invalidation_mark": {
+      "en": "invalidated: close {close}",
+      "vi": "vô hiệu: đóng {close}"
     },
     "chart.phase.before_entry": {
       "en": "before entry",
