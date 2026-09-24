@@ -115,7 +115,7 @@ def load_rows(paths, market, *, require_stamped=False):
     rows = []
     for p in paths:
         d = json.load(open(p, encoding="utf-8"))
-        rel = os.path.relpath(p, ROOT)
+        rel = os.path.relpath(p, ROOT).replace(os.sep, "/")    # repo paths are POSIX in every written artifact
         try:
             block = RV.read(d, where=rel)
             # UNVERIFIED is allowed: it means nothing fired but some §38 conditions have no detector yet

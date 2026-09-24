@@ -17,7 +17,7 @@
 //| needs fixing.                                                      |
 //+------------------------------------------------------------------+
 #property copyright "Institutional Trading System MT5 Bridge"
-#property version   "1.01"
+#property version   "1.02"
 
 input int InpBarsToExport     = 600;  // How many recent bars to export per timeframe (>= 576 for the 6-day 15m / 48h M5 windows)
 input int InpExportIntervalSec = 60;  // Seconds between timer-driven exports
@@ -118,7 +118,7 @@ void ExportOne(ENUM_TIMEFRAMES tf, string timeframeLabel)
 
    json += "  ],\n";
    json += "  \"last_updated\": \"" + IsoTime(TimeCurrent()) + "\",\n";
-   json += "  \"_server_utc_offset_sec\": " + IntegerToString((long)(TimeCurrent() - TimeGMT())) + ",\n";
+   json += "  \"_server_utc_offset_sec\": " + IntegerToString((long)ServerUtcOffset()) + ",\n";
    json += "  \"_source\": \"mt5_bridge_live\",\n";
    json += "  \"_volume_caveat\": \"tick_volume, not real traded volume -- see comment in ExportOHLCV.mq5\"\n";
    json += "}\n";
@@ -138,9 +138,18 @@ void ExportOne(ENUM_TIMEFRAMES tf, string timeframeLabel)
 // Bar times from CopyRates and TimeCurrent() are BROKER SERVER time (often UTC+2/+3), not UTC.
 // Convert with the live server-vs-GMT offset before labelling the string "Z", so these files
 // line up with the Binance connector's genuine UTC timestamps.
+// TimeGMT() is derived from the PC clock, so TimeCurrent() - TimeGMT() carries the PC's clock error (a PC
+// 4 s slow gave 10804 and every bar landed at :29:56 instead of :30:00). Real UTC offsets are whole
+// multiples of 15 minutes, so round the measurement to the nearest 900 s.
+long ServerUtcOffset()
+{
+   long raw = (long)(TimeCurrent() - TimeGMT());
+   return (long)MathRound(raw / 900.0) * 900;
+}
+
 string IsoTime(datetime serverTime)
 {
-   datetime offset = TimeCurrent() - TimeGMT();
+   datetime offset = (datetime)ServerUtcOffset();
    datetime t = serverTime - offset;
    MqlDateTime dt;
    TimeToStruct(t, dt);

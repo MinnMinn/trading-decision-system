@@ -71,8 +71,27 @@ Test-only environment overrides (never set these in normal use):
                                        write and do NOT create it (a real STOP file kills a human's running loop).
   AUTOMATION_PILOT_PGREP_PATTERN=...   pattern used to detect already-running pilot loops.
 """
-import argparse, datetime, fcntl, json, os, re, shutil, subprocess, sys
+import argparse, datetime, json, os, re, shutil, subprocess, sys
 import importlib.util
+
+try:                                    # POSIX
+    import fcntl
+
+    def _lock(f):
+        fcntl.flock(f, fcntl.LOCK_EX)
+
+    def _unlock(f):
+        fcntl.flock(f, fcntl.LOCK_UN)
+except ImportError:                     # Windows has no fcntl (docs/plans/2026-09-20-windows-migration.md)
+    import msvcrt
+
+    def _lock(f):
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)    # blocking; raises after ~10 s of contention
+
+    def _unlock(f):
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
@@ -84,6 +103,13 @@ SCANNER_LABEL = "com.tyme.trading.scanner"
 PILOT_LABEL = {"futures": "com.tyme.trading.pilot.futures"}
 PLIST_SRC = {"scanner": os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.scanner.plist"),
              "pilot": os.path.join(ROOT, "integrations", "launchd", "com.tyme.trading.pilot.futures.plist")}
+
+# Windows: Task Scheduler / SetThreadExecutionState / CIM stand in for launchd / caffeinate / pgrep. The
+# decisions below stay here; scripts/win_services.py only answers the OS questions (migration plan step 11).
+WIN = os.name == "nt"
+if WIN:
+    _wspec = importlib.util.spec_from_file_location("win_services", os.path.join(ROOT, "scripts", "win_services.py"))
+    win_services = importlib.util.module_from_spec(_wspec); _wspec.loader.exec_module(win_services)
 
 _tspec = importlib.util.spec_from_file_location("trading_env", os.path.join(ROOT, "scripts", "trading_env.py"))
 trading_env = importlib.util.module_from_spec(_tspec); _tspec.loader.exec_module(trading_env)
@@ -416,7 +442,7 @@ def save(cfg):
     os.makedirs(os.path.dirname(CONFIG), exist_ok=True)
     lock = CONFIG + ".lock"
     with open(lock, "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
+        _lock(lf)
         try:
             tmp = CONFIG + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
@@ -426,7 +452,7 @@ def save(cfg):
                 os.fsync(f.fileno())
             os.replace(tmp, CONFIG)
         finally:
-            fcntl.flock(lf, fcntl.LOCK_UN)
+            _unlock(lf)
 
 
 # ---------- readers used by scan-loop.sh / local-eval-brief.py ----------
@@ -479,6 +505,8 @@ def allows(layer, style=None):
 
 # ---------- pilot process ----------
 def alive(pid):
+    if WIN:                 # os.kill(pid, 0) is TerminateProcess on Windows -- it would kill what it probes
+        return win_services.alive(pid)
     try:
         os.kill(int(pid), 0)
         return True
@@ -502,6 +530,12 @@ def running_pilots():
     """[(pid, market)] for every live scripts/pilot-loop.sh, whether or not this config knows about it.
     A pilot the human started in their own terminal is invisible to pilot_process -- it must still block a
     second start, otherwise /automation would silently duplicate a live TESTNET loop."""
+    if WIN:
+        pids = win_services.pilot_pids()
+        if pids is None:    # could not enumerate processes: say so loudly rather than report "none running"
+            raise RuntimeError("cannot enumerate processes (PowerShell Get-CimInstance failed); refusing to "
+                               "assume no pilot loop is running")
+        return [(p, _pilot_market()) for p in pids]
     try:
         out = subprocess.run(["pgrep", "-f", PGREP_PATTERN], capture_output=True, text=True, timeout=10).stdout
         own = {os.getpid(), os.getppid()}  # never count this process or the shell that launched it
@@ -689,13 +723,24 @@ def _launchctl(*args, check=False):
 
 
 def _agent_loaded(label):
+    if WIN:
+        return win_services.task_loaded(label)
     rc, out = _launchctl("print", f"gui/{_uid()}/{label}")
     return rc == 0
 
 
+def _role(label):
+    return "scanner" if label == SCANNER_LABEL else "pilot"
+
+
 def _install_agent(label, src, env_overrides=None):
     """Copy the plist into ~/Library/LaunchAgents (rewriting Label / EnvironmentVariables as needed) and bootstrap it.
+    On Windows: a per-user scheduled task running scripts/win_services.py <role> (PILOT_END=never is set there).
     Returns (ok, note)."""
+    if WIN:
+        if dryrun():
+            return True, f"DRY RUN: would install scheduled task {win_services.task_name(label)}"
+        return win_services.install_task(label, _role(label))
     os.makedirs(LAUNCH_AGENTS, exist_ok=True)
     dst = os.path.join(LAUNCH_AGENTS, f"{label}.plist")
     txt = open(src, encoding="utf-8").read()
@@ -724,6 +769,10 @@ def _install_agent(label, src, env_overrides=None):
 
 
 def _remove_agent(label):
+    if WIN:
+        if dryrun():
+            return f"DRY RUN: would delete scheduled task {win_services.task_name(label)}"
+        return win_services.remove_task(label, _role(label))
     dst = os.path.join(LAUNCH_AGENTS, f"{label}.plist")
     if dryrun():
         return f"DRY RUN: would bootout gui/{_uid()}/{label} and remove {dst}"
@@ -740,6 +789,13 @@ def _start_keepawake(cfg):
         return f"keep-awake already running (pid {pid})"
     if dryrun():
         return "DRY RUN: would start `caffeinate -dims`"
+    if WIN:
+        try:
+            pid = win_services.start_keepawake()
+            cfg.setdefault("services", {})["keepawake_pid"] = pid
+            return f"keep-awake started (SetThreadExecutionState, pid {pid}) -- the pilot loop needs the host awake"
+        except Exception as e:
+            return f"keep-awake NOT started ({e}); set Windows power options so the PC does not sleep"
     try:
         p = subprocess.Popen(["caffeinate", "-dims"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL, start_new_session=True)
@@ -752,8 +808,11 @@ def _start_keepawake(cfg):
 def _stop_keepawake(cfg):
     pid = (cfg.get("services") or {}).get("keepawake_pid")
     if pid and alive(pid) and not dryrun():
+        if WIN:
+            win_services.kill_tree(pid)
         try:
-            os.kill(int(pid), 15)
+            if not WIN:
+                os.kill(int(pid), 15)
         except OSError:
             pass
     cfg.setdefault("services", {})["keepawake_pid"] = None
@@ -1336,7 +1395,7 @@ def pilot_start(a, cfg=None, embedded=False):
     d = pilot_dir(market)
     os.makedirs(d, exist_ok=True)
     lp = log_path(market)
-    use_launchd = not getattr(a, "no_launchd", False) and not dryrun() and shutil.which("launchctl")
+    use_launchd = not getattr(a, "no_launchd", False) and not dryrun() and (WIN or shutil.which("launchctl"))
     if use_launchd:
         ok, note = _install_agent(PILOT_LABEL[market], PLIST_SRC["pilot"], {"PILOT_END": "never"})
         if not ok:
@@ -1353,7 +1412,8 @@ def pilot_start(a, cfg=None, embedded=False):
                    f"  kill switch: {rel(sp)} (or `/automation pilot stop`). launchd KeepAlive restarts the loop "
                    f"after a crash and at login while the agent stays installed; `/automation off` removes it.")
     env = dict(os.environ, PILOT_MARKET=market, PILOT_END="never")
-    cmd = ["sleep", "30"] if dryrun() else ["bash", os.path.join(ROOT, "scripts", "pilot-loop.sh")]
+    cmd = [sys.executable, "-c", "import time; time.sleep(30)"] if dryrun() \
+        else ["bash", os.path.join(ROOT, "scripts", "pilot-loop.sh")]
     with open(lp, "a") as lf:
         lf.write(f"--- {'DRY RUN placeholder' if dryrun() else 'pilot loop'} started by "
                  f"scripts/automation.py at {now()} ---\n")

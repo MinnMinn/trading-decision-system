@@ -140,7 +140,16 @@ def clock(iso, lang):
 def stamp(iso, lang, fmt="%d/%m %H:%M"):
     """A displayed date+time, always carrying its zone name. No rollover suffix is needed: the date is present."""
     d = shift(iso, lang)
-    return "—" if d is None else f"{d.strftime(fmt)} {tz_of(lang)[0]}"
+    return "—" if d is None else f"{_strftime(d, fmt)} {tz_of(lang)[0]}"
+
+
+def _strftime(d, fmt):
+    """strftime with the glibc/BSD no-padding flag (`%-d`, `%-m`, ...) on every platform. Windows' C runtime
+    rejects `%-` with "Invalid format string", so the unpadded fields are substituted before strftime sees them."""
+    for code in "dmHIMSj":
+        if f"%-{code}" in fmt:
+            fmt = fmt.replace(f"%-{code}", str(int(d.strftime(f"%{code}"))))
+    return d.strftime(fmt)
 
 
 # --------------------------------------------------------------------------------------------- messages
