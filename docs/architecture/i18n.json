@@ -990,6 +990,10 @@
       "en": "invalidated {date}",
       "vi": "hết hiệu lực {date}"
     },
+    "chart.wyckoff.invalidated_note": {
+      "en": "Analysis {updated} invalidated {date} — awaiting a new read",
+      "vi": "Phân tích {updated} hết hiệu lực {date} — chờ phân tích lại"
+    },
     "chart.wyckoff.invalidation_fired": {
       "en": "triggered {date}",
       "vi": "đã kích hoạt {date}"

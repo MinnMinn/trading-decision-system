@@ -100,6 +100,67 @@ class DoiNhanAndSpringChecks(unittest.TestCase):
         msgs = _check(CN.doi_nhan_and_spring_checks, "SYM", wy, rows, "")
         self.assertFalse(msgs, "a close above TR high in the same bar must not be a hard failure")
 
+    def test_event_class_disagreeing_with_the_label_token_is_refused(self):
+        rows = [bar("2026-01-01T00:00:00Z", 101, 101.5, 99.0, 101.2, 30)]
+        wy = {"trading_range": {"low": 100.0, "high": 110.0},
+              "events": [{"time": "2026-01-01T00:00:00Z", "label": "Spring[C] 99.00", "volume_type": 2, "event_class": "Shakeout"}],
+              "doi_nhan": {"st_sign": "neutral"}, "alternative": "x"}
+        msgs = _check(CN.doi_nhan_and_spring_checks, "SYM", wy, rows, "")
+        self.assertTrue(any("event_class" in m and "does not match" in m for m in msgs), msgs)
+
+    def test_event_class_agreeing_with_the_label_token_is_accepted(self):
+        rows = [bar("2026-01-01T00:00:00Z", 101, 101.5, 99.0, 101.2, 30)]
+        wy = {"trading_range": {"low": 100.0, "high": 110.0},
+              "events": [{"time": "2026-01-01T00:00:00Z", "label": "Spring[C] 99.00", "volume_type": 2, "event_class": "Spring"}],
+              "doi_nhan": {"st_sign": "neutral"}, "alternative": "x"}
+        msgs = _check(CN.doi_nhan_and_spring_checks, "SYM", wy, rows, "")
+        self.assertFalse([m for m in msgs if "event_class" in m], msgs)
+
+    def test_volume_kind_disagreeing_with_the_real_feed_is_refused(self):
+        """XAUUSD is an MT5/tick-volume symbol (scripts/instruments.py TICK_VOLUME_MARKETS) -- claiming 'traded'
+        for it must be refused."""
+        rows = [bar("2026-01-01T00:00:00Z", 101, 101.5, 99.0, 101.2, 30)]
+        wy = {"trading_range": {"low": 100.0, "high": 110.0},
+              "events": [{"time": "2026-01-01T00:00:00Z", "label": "Spring[C] 99.00", "volume_type": 2, "volume_kind": "traded"}],
+              "doi_nhan": {"st_sign": "neutral"}, "alternative": "x"}
+        msgs = _check(CN.doi_nhan_and_spring_checks, "XAUUSD", wy, rows, "")
+        self.assertTrue(any("volume_kind" in m and "does not match this symbol's actual feed" in m for m in msgs), msgs)
+
+    def test_volume_kind_agreeing_with_the_real_feed_is_accepted(self):
+        rows = [bar("2026-01-01T00:00:00Z", 101, 101.5, 99.0, 101.2, 30)]
+        wy = {"trading_range": {"low": 100.0, "high": 110.0},
+              "events": [{"time": "2026-01-01T00:00:00Z", "label": "Spring[C] 99.00", "volume_type": 2, "volume_kind": "tick"}],
+              "doi_nhan": {"st_sign": "neutral"}, "alternative": "x"}
+        msgs = _check(CN.doi_nhan_and_spring_checks, "XAUUSD", wy, rows, "")
+        self.assertFalse([m for m in msgs if "volume_kind" in m], msgs)
+
+        rows2 = [bar("2026-01-01T00:00:00Z", 101, 101.5, 99.0, 101.2, 30)]
+        wy2 = {"trading_range": {"low": 100.0, "high": 110.0},
+               "events": [{"time": "2026-01-01T00:00:00Z", "label": "Spring[C] 99.00", "volume_type": 2, "volume_kind": "traded"}],
+               "doi_nhan": {"st_sign": "neutral"}, "alternative": "x"}
+        msgs2 = _check(CN.doi_nhan_and_spring_checks, "BTCUSDT", wy2, rows2, "")
+        self.assertFalse([m for m in msgs2 if "volume_kind" in m], msgs2)
+
+    def test_phase_b_sign_required_once_phase_b_is_declared(self):
+        wy = {"phases": [{"from": "2026-01-01T00:00:00Z", "label": "Phase A"},
+                          {"from": "2026-01-01T01:00:00Z", "label": "Phase B"}],
+              "events": [], "doi_nhan": {"st_sign": "neutral"}, "alternative": "x"}
+        msgs = _check(CN.doi_nhan_and_spring_checks, "SYM", wy, [], "")
+        self.assertTrue(any("doi_nhan.phase_b_sign missing" in m for m in msgs), msgs)
+
+    def test_phase_b_sign_not_required_before_phase_b_exists(self):
+        wy = {"phases": [{"from": "2026-01-01T00:00:00Z", "label": "Phase A"}],
+              "events": [], "doi_nhan": {"st_sign": "neutral"}, "alternative": "x"}
+        msgs = _check(CN.doi_nhan_and_spring_checks, "SYM", wy, [], "")
+        self.assertFalse([m for m in msgs if "phase_b_sign" in m], msgs)
+
+    def test_phase_b_sign_present_and_valid_is_accepted(self):
+        wy = {"phases": [{"from": "2026-01-01T00:00:00Z", "label": "Phase A"},
+                          {"from": "2026-01-01T01:00:00Z", "label": "Phase B"}],
+              "events": [], "doi_nhan": {"st_sign": "neutral", "phase_b_sign": "supports"}, "alternative": "x"}
+        msgs = _check(CN.doi_nhan_and_spring_checks, "SYM", wy, [], "")
+        self.assertFalse([m for m in msgs if "phase_b_sign" in m], msgs)
+
     def test_missing_doi_nhan_st_sign_is_refused(self):
         wy = {"phases": [{"from": "2026-01-01T00:00:00Z", "label": "Phase C"}], "events": []}
         msgs = _check(CN.doi_nhan_and_spring_checks, "SYM", wy, [], "")
@@ -133,6 +194,26 @@ class DoiNhanAndSpringChecks(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------------------------- P1.2
+
+
+class EventPriceSkipsRatiosBeforeThePrice(unittest.TestCase):
+    """Fix round 3b/1, item 4: event_price() took the FIRST number in the label, which is wrong once a volume
+    ratio is printed before the price (e.g. 'KL 2.78x Spring[C] 4,289.57')."""
+
+    def test_price_after_a_ratio_is_still_found(self):
+        self.assertEqual(CN.event_price("KL 2.78x Spring[C] 4,289.57"), 4289.57)
+
+    def test_price_after_a_ratio_with_the_multiplication_sign_is_still_found(self):
+        self.assertEqual(CN.event_price("KL 2.78× Spring[C] 4,289.57"), 4289.57)
+
+    def test_price_before_a_ratio_is_unaffected(self):
+        self.assertEqual(CN.event_price("Spring[C] 4,289.57 · KL 2.78x"), 4289.57)
+
+    def test_only_a_ratio_present_returns_none(self):
+        self.assertIsNone(CN.event_price("KL 2.78x"))
+
+    def test_no_number_at_all_returns_none(self):
+        self.assertIsNone(CN.event_price("Spring[C]"))
 
 
 class ContextSpringMustBreachTheContextRange(unittest.TestCase):
@@ -263,6 +344,65 @@ class ContextContradictionMustBeNamed(unittest.TestCase):
     def test_wyckoff_nesting_field_required_when_context_read_exists(self):
         wy = {"nesting": ""}
         self.assertFalse((wy.get("nesting") or "").strip())
+
+
+class TheContextBiasDictCarriesTheNarrativesUpdatedField(unittest.TestCase):
+    """Fix round 3b/1, item 1: cw_wy (the dict check-narrative.py's P4.1/P4.2 block passes to
+    htf_context.wyckoff_bias) must carry "updated", mirroring htf_context.load_tier's own construction of the
+    identical dict (~line 381, "updated": n_own.get("updated")) -- round 3a's P7.4 invalidation-aware bias reads
+    this field to tell whether the CONTEXT read itself has since been closed beyond. Goes through the real
+    scripts/check-narrative.py main() end to end (sys.argv, --narrative/--facts/--ctx-facts pointed at temp
+    copies of a real, tracked narrative -- crypto "scalping", never mt5-bridge/live-CFD paths, so this test
+    needs no live feed and never touches data/live), not a direct htf_context call -- a direct call would not
+    have caught the bug (the bug was in the CALLER's dict construction, not in wyckoff_bias itself)."""
+
+    def test_cw_wy_passed_to_wyckoff_bias_carries_updated(self):
+        import shutil
+        import sys as _sys
+        import tempfile
+
+        style = "scalping"
+        with tempfile.TemporaryDirectory() as tmp:
+            narrative_src = os.path.join(ROOT, "data", "live", "narrative", f"{style}.json")
+            facts_src = os.path.join(ROOT, "data", "live", "prelim", f"{style}.facts.json")
+            ctx_style = CN.CTX_STYLE.get(style)
+            ctx_facts_src = os.path.join(ROOT, "data", "live", "prelim", f"{ctx_style}.facts.json")
+            narrative_tmp = os.path.join(tmp, "narrative.json")
+            facts_tmp = os.path.join(tmp, "facts.json")
+            ctx_facts_tmp = os.path.join(tmp, "ctx_facts.json")
+            shutil.copy(narrative_src, narrative_tmp)
+            shutil.copy(facts_src, facts_tmp)
+            shutil.copy(ctx_facts_src, ctx_facts_tmp)
+            narrative = json.load(open(narrative_tmp, encoding="utf-8"))
+            expected_updated = narrative.get("updated")
+            self.assertTrue(expected_updated, "fixture narrative has no updated field -- test is pinning nothing")
+
+            captured = []
+            real_bias = CN.htf.wyckoff_bias
+
+            def spy(wyckoff, facts):
+                captured.append(wyckoff)
+                return real_bias(wyckoff, facts)
+
+            argv = _sys.argv
+            bias_fn = CN.htf.wyckoff_bias
+            try:
+                CN.htf.wyckoff_bias = spy
+                _sys.argv = ["check-narrative.py", style, "--narrative", narrative_tmp,
+                            "--facts", facts_tmp, "--ctx-facts", ctx_facts_tmp]
+                try:
+                    CN.main()
+                except SystemExit:
+                    pass   # main() always sys.exit()s with a status; only the captured calls matter here
+            finally:
+                CN.htf.wyckoff_bias = bias_fn
+                _sys.argv = argv
+
+            self.assertTrue(captured, "htf.wyckoff_bias was never called for the P4.1/P4.2 context block -- "
+                                      "the fixture no longer exercises this code path, update it")
+            for wyckoff in captured:
+                self.assertIn("updated", wyckoff, wyckoff)
+                self.assertEqual(wyckoff["updated"], expected_updated, wyckoff)
 
 
 # ---------------------------------------------------------------------------------------------- P5.1
@@ -479,6 +619,107 @@ process.stdout.write(JSON.stringify(S));
         line = next(s for s in out if s["kind"] == "hseg")
         self.assertEqual(line["i2"], 5.5, line)
         self.assertNotIn("99.5", line["label"])   # relabelled, the raw level no longer appears in the fired label
+
+    # ---- fix round 3b/1, item 2: P7.2 item 4, the out-of-window case ----
+
+    def test_wyckoff_shapes_draw_nothing_from_a_read_dead_before_the_window(self):
+        """Fix round 1: invalidated_at precedes rows[0] entirely (the window starts AFTER the break) --
+        wyckoffShapes must draw NOTHING from the dead structure (no TR rect, no phase band, no event flag),
+        only the generic 'now' price dot plus one muted note."""
+        rows = _rows(10, base_iso_hour=10)   # 10:00Z .. 19:00Z
+        wy = {"phases": [{"from": "2026-01-01T00:00:00Z", "to": None, "label": "Phase D", "status": "tested"}],
+              "tr": {"high": 110, "low": 95, "from": "2026-01-01T00:00:00Z"},
+              "events": [{"time": "2026-01-01T00:00:00Z", "label": "SC 100.00"}]}
+        out = _node(f"""
+const T=require({CHART!r});
+const rows={json.dumps(rows)};
+const wy={json.dumps(wy)};
+const S=T.wyckoffShapes(rows, wy, {{compact:false, fmt:v=>String(v), invalidatedAt:'2026-01-01T05:00:00Z', narrativeUpdated:'2026-01-01T00:00:00Z'}});
+process.stdout.write(JSON.stringify(S));
+""")
+        self.assertFalse([s for s in out if s["kind"] == "rect"], out)       # no TR/phase band
+        self.assertFalse([s for s in out if s["kind"] == "flag"], out)      # no event flag
+        self.assertFalse([s for s in out if s["kind"] == "mark" and s.get("glyph") == "x"], out)  # no break-mark (off-window)
+        self.assertTrue(any(s["kind"] == "mark" and s.get("glyph") == "dot" for s in out), out)    # the generic "now" dot survives
+        # L() has no injected catalog under plain node (no DOM/i18n.js_catalog wiring here), so it falls back to
+        # the raw key -- this still pins the literal key test_i18n.py's runtime-key scanner requires, and that
+        # the shape is a price-anchored label rather than a TR/phase/event shape.
+        note = next(s for s in out if s["kind"] == "label")
+        self.assertEqual(note["text"], "chart.wyckoff.invalidated_note", note)
+        self.assertEqual(note["color"], "muted", note)
+
+    def test_wyckoff_shapes_draw_normally_when_the_break_is_not_yet_reached(self):
+        """The OTHER -1 case (replay before the break) must not be confused with 'before the window': here
+        invalidatedAt is AFTER the last row, i.e. simply not reached yet in this (replay-sliced) view -- draw
+        normally, per item 5."""
+        rows = _rows(5, base_iso_hour=0)   # 00:00Z .. 04:00Z
+        wy = {"phases": [{"from": "2026-01-01T00:00:00Z", "to": None, "label": "Phase D", "status": "tested"}],
+              "tr": {"high": 110, "low": 95, "from": "2026-01-01T00:00:00Z"}, "events": []}
+        out = _node(f"""
+const T=require({CHART!r});
+const rows={json.dumps(rows)};
+const wy={json.dumps(wy)};
+const S=T.wyckoffShapes(rows, wy, {{compact:false, fmt:v=>String(v), invalidatedAt:'2026-01-01T09:00:00Z'}});
+process.stdout.write(JSON.stringify(S));
+""")
+        band = next(s for s in out if s["kind"] == "rect")
+        self.assertEqual(band["i2"], 4.5, band)   # n-0.5, drawn as if not invalidated (not reached yet)
+
+    def test_level_shapes_suppress_wyckoff_anchors_dead_before_the_window(self):
+        rows = _rows(10, base_iso_hour=10)
+        levels = [{"price": 100.0, "time": "2026-01-01T00:00:00Z", "method": "wyckoff", "short": "SC"},
+                  {"price": 105.0, "time": "2026-01-01T00:00:00Z", "method": "ict", "short": "FVG"}]
+        out = _node(f"""
+const T=require({CHART!r});
+const rows={json.dumps(rows)};
+const levels={json.dumps(levels)};
+const S=T.levelShapes(rows, levels, 'wyckoff', v=>String(v), '2026-01-01T05:00:00Z');
+process.stdout.write(JSON.stringify(S));
+""")
+        self.assertEqual(out, [], out)   # the wyckoff-lane call must drop the wyckoff anchor entirely
+
+    def test_level_shapes_ict_lane_is_unaffected_by_wyckoff_invalidation(self):
+        rows = _rows(10, base_iso_hour=10)
+        levels = [{"price": 105.0, "time": "2026-01-01T00:00:00Z", "method": "ict", "short": "FVG"}]
+        out = _node(f"""
+const T=require({CHART!r});
+const rows={json.dumps(rows)};
+const levels={json.dumps(levels)};
+const S=T.levelShapes(rows, levels, 'ict', v=>String(v), '2026-01-01T05:00:00Z');
+process.stdout.write(JSON.stringify(S));
+""")
+        self.assertEqual(len(out), 1, out)
+
+    def test_invalidation_line_relabels_even_when_the_break_is_off_window(self):
+        """Fix round 1, item 2 (the exact bug reported): the label must say 'fired', never fall back to the
+        original live-looking form, when invalidated_at exists but idxOf cannot resolve it because the break
+        predates the visible window."""
+        rows = _rows(10, base_iso_hour=10)
+        out = _node(f"""
+const T=require({CHART!r});
+const rows={json.dumps(rows)};
+const inv={{owner:'wyckoff', level:99.5, invalidated_at:'2026-01-01T05:00:00Z'}};
+const S=T.planShapes(rows, [], inv, {{fmt:v=>String(v)}});
+process.stdout.write(JSON.stringify(S));
+""")
+        line = next(s for s in out if s["kind"] == "hseg")
+        self.assertNotIn("99.5", line["label"], line)   # must be the fired label, not the live-looking one
+        self.assertEqual(line["i1"], -0.5, line)
+        self.assertEqual(line["i2"], -0.5, line)          # zero-width body -- nothing drawn in the visible window
+
+    def test_invalidation_state_classifies_before_in_live(self):
+        rows = _rows(10, base_iso_hour=10)
+        out = _node(f"""
+const T=require({CHART!r});
+const rows={json.dumps(rows)};
+process.stdout.write(JSON.stringify([
+  T.invalidationState(rows, '2026-01-01T05:00:00Z'),
+  T.invalidationState(rows, '2026-01-01T12:00:00Z'),
+  T.invalidationState(rows, '2026-01-02T00:00:00Z'),
+  T.invalidationState(rows, null),
+]));
+""")
+        self.assertEqual(out, ["before", "in", "live", "live"], out)
 
 
 if __name__ == "__main__":

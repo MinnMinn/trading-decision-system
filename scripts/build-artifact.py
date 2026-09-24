@@ -1575,6 +1575,10 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                             # lane's chart overlay is no longer locked to the trading-selection preset.
                             analysed=[m for m, _ in LANES if dims[m]["analysed"]],
                             tiers=tiers_js, plans=trade_plans(sym),
+                            # P7.2 item 4: the entry tier's own narrative `updated` date, for the muted
+                            # "Analysis <updated> invalidated <date>" note chart.js draws when the whole read
+                            # died before the visible window even starts.
+                            updated=(n3 or {}).get("_updated_iso"),
                             invalidation=(dict((n3 or {}).get("invalidation") or {}, **{"invalidated_at": inv_at["time"], "invalidated_close": inv_at["close"]})
                                           if inv_at else (n3 or {}).get("invalidation")))
         rows_store[key] = {**{tn: rows_js(tier_rows[tn], S["tiers"][tn]["lbl"]) for tn in tier_rows}, "entry": rows_js(rows, S["lbl"])}

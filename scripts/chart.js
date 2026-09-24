@@ -176,6 +176,20 @@ function rangePctSeries(rows, ict){
 const rangePctEqShape = () => ({kind:'hseg', i1:null, i2:null, price:50, stroke:'faint', sw:1, dash:[4,3], label:'EQ 50%', labelAt:'axis'});
 const idxOf=(rows,iso)=>{ if(!iso)return -1; let best=-1; for(let i=0;i<rows.length;i++){ if(rows[i][ISO]<=iso)best=i; else break; } return best>=0&&rows[best][ISO]===iso?best:(best>=0&&rows[best][ISO].slice(0,13)===iso.slice(0,13)?best:-1); };
 const spanOf=(rows,iso)=>{ if(!iso)return -1; for(let i=0;i<rows.length;i++){ if(rows[i][ISO]>=iso)return i; } return rows.length; };
+// §7 P7.2 item 4 (docs/audits/2026-09-24-wyckoff-label-review.md): idxOf alone cannot tell "the break has not
+// happened yet in this (possibly replay-sliced) view" from "the whole read was already dead before this view
+// even starts" -- both return -1. Both cases exist and must render differently: the first draws normally
+// (item 5, replay point-in-time), the second must draw NOTHING from the dead read (P7.2 item 4) rather than
+// silently falling back to a live-looking overlay, which is exactly the bug this classifier exists to prevent.
+//   'live'   no invalidation, or the break has not been reached yet in these rows
+//   'in'     the breaking candle is inside these rows -- truncate/fade at its index
+//   'before' the read was already dead before these rows even start -- the caller must suppress the dead
+//            read's own overlays and (for the entry tier) show one muted note instead
+const invalidationState = (rows, invalidatedAt) => {
+  if(!invalidatedAt || !rows.length) return 'live';
+  if(rows[0][ISO] > invalidatedAt) return 'before';
+  return idxOf(rows, invalidatedAt) >= 0 ? 'in' : 'live';
+};
 
 // =============================================================================================== pure: shapes
 // Every overlay is a record in (bar index, price) space. Colours are TOKENS (names of CSS variables in artifact_theme.py)
@@ -227,7 +241,20 @@ const ictShapes = (rows, ict, cfg) => {
 // without any extra cursor plumbing here.
 const wyckoffShapes = (rows, wy, cfg) => {
   const S=[], n=rows.length, compact=!!cfg.compact, fmt=cfg.fmt||(v=>String(v)); wy=wy||{};
-  const invAt=cfg.invalidatedAt||null, endIdx=invAt?idxOf(rows,invAt):-1, invalidated=endIdx>=0;
+  const invAt=cfg.invalidatedAt||null, state=invalidationState(rows,invAt);
+  // P7.2 item 4: the whole read was already dead before this window even starts -- draw NOTHING from it (no
+  // TR, no phase bands, no event flags: every one of them belongs to the same dead structure) and show ONE
+  // muted note instead. The "now" price dot is not part of the dead read (every lane draws it) and survives.
+  if(state==='before'){
+    const li=n-1;
+    S.push({kind:'mark',i:li,price:rows[li][CLOSE],glyph:'dot',color:'ink',r:3,ring:true});
+    if(!compact){
+      const hi=rows.reduce((m,r)=>Math.max(m,r[HIGH]),-Infinity);
+      S.push({kind:'label',i:Math.floor(n/2),price:hi,text:L('chart.wyckoff.invalidated_note',{updated:dateShort(cfg.narrativeUpdated),date:dateShort(invAt)}),color:'muted',anchor:'middle',dx:0,dy:-8,bold:true});
+    }
+    return S;
+  }
+  const endIdx=state==='in'?idxOf(rows,invAt):-1, invalidated=endIdx>=0;
   const suffix=invalidated?(' · '+L('chart.wyckoff.invalidated_suffix',{date:dateShort(invAt)})):'';
   (wy.phases||[]).forEach(ph=>{ let a=spanOf(rows,ph.from), b=ph.to?spanOf(rows,ph.to):n; if(a>=n||b<=0)return;
     const lbl=String(ph.label||'').replace(/^pha(se)?\s*/i,'').slice(0,2).trim();   // `(pha|phase)` matched the SHORTER branch first, so "Phase C" lost 3 chars and rendered "se" on every phase band (user report 2026-09-19); kept as its own `const` -- scripts/tests/test_build_artifact.py PhaseBandLabelsAreTheLetterNotSe re-runs this exact expression under node, so P6.2/§7's extra text below builds a SEPARATE `dispLbl`, never mutates this one.
@@ -273,10 +300,19 @@ const windowShape = (rows, fromIso) => { const a=spanOf(rows,fromIso); if(a>=row
 // invalidated read truncates at `invalidatedAt` and fades, same as the TR/phase lines in wyckoffShapes -- an ICT
 // anchor is untouched (invalidation here is a Wyckoff-owned concept; ICT levels carry their own swept/through
 // marks already, see ictShapes lvl()).
-const levelShapes = (rows, levels, lane, fmt, invalidatedAt) => (levels||[]).filter(lv=>lv.method===lane||lv.method==='neutral').map(lv=>{
-  const a=Math.max(0,spanOf(rows,lv.time)-0.5), endIdx=(lane==='wyckoff'&&invalidatedAt)?idxOf(rows,invalidatedAt):-1, dead=endIdx>=0;
-  return {kind:'hseg',i1:a,i2:dead?endIdx+0.5:null,price:lv.price,stroke:dead?'muted':(lv.method==='neutral'?'muted':lane==='ict'?'i':'w'),sw:dead?0.9:1.2,
-    dash:[6,4],alpha:dead?0.4:1,label:(lv.short||'')+' '+fmt(lv.price)+(dead?(' · '+L('chart.wyckoff.invalidated_suffix',{date:dateShort(invalidatedAt)})):''),labelAt:'axis'}; });
+const levelShapes = (rows, levels, lane, fmt, invalidatedAt) => {
+  const wyState = lane==='wyckoff' ? invalidationState(rows, invalidatedAt) : 'live';
+  return (levels||[]).filter(lv=>lv.method===lane||lv.method==='neutral')
+    // P7.2 item 4: the whole wyckoff read was already dead before this window starts -- its own anchor lines
+    // (SC/AR/Spring/SOS/...) draw nothing here, same as wyckoffShapes; a 'neutral' anchor is not wyckoff-owned
+    // and is left alone.
+    .filter(lv=>!(wyState==='before' && lv.method==='wyckoff'))
+    .map(lv=>{
+      const a=Math.max(0,spanOf(rows,lv.time)-0.5), endIdx=wyState==='in'?idxOf(rows,invalidatedAt):-1, dead=endIdx>=0;
+      return {kind:'hseg',i1:a,i2:dead?endIdx+0.5:null,price:lv.price,stroke:dead?'muted':(lv.method==='neutral'?'muted':lane==='ict'?'i':'w'),sw:dead?0.9:1.2,
+        dash:[6,4],alpha:dead?0.4:1,label:(lv.short||'')+' '+fmt(lv.price)+(dead?(' · '+L('chart.wyckoff.invalidated_suffix',{date:dateShort(invalidatedAt)})):''),labelAt:'axis'};
+    });
+};
 
 // Trade plans from trades/index.jsonl (PLANNED/OPEN records for this instrument; read-only) + the narrative's invalidation level.
 // Risk box entry↔stop, reward box entry↔target1, every target a line; R:R from planned_rr or computed.
@@ -293,14 +329,19 @@ const planShapes = (rows, plans, inv, cfg) => {
     const rr=p.planned_rr!=null?p.planned_rr:(t1!=null?Math.abs(t1-p.entry)/risk:null);
     S.push({kind:'label',i:from,price:p.entry,text:(long?'LONG ':'SHORT ')+tag+(rr!=null?' · R:R '+rr.toFixed(2):'')+' · '+(p.status||''),color:'ink',anchor:'start',dx:4,dy:long?-8:9,bold:true}); });
   if(inv&&inv.level!=null){
-    // §7 P7.2 items 1+3 (docs/audits/2026-09-24-wyckoff-label-review.md): once the level has actually been
+    // §7 P7.2 items 1+3+4 (docs/audits/2026-09-24-wyckoff-label-review.md): once the level has actually been
     // closed beyond (invalidated_at set by build-artifact.py invalidated_at(), P7.1), relabel the line from
-    // "chart.invalidation · owner level" to "chart.invalidation · chart.wyckoff.invalidation_fired" and
-    // truncate it there -- it is drawn on the ENTRY chart at the price axis regardless of the chart's own time
-    // window, so it stays a visible signal even when every event/band from the dead read has scrolled off
-    // (§7 P7.2 item 4's out-of-window case).
-    const endIdx=inv.invalidated_at?idxOf(rows,inv.invalidated_at):-1, fired=endIdx>=0;
-    S.push({kind:'hseg',i1:null,i2:fired?endIdx+0.5:null,price:inv.level,stroke:'warn',sw:1.2,dash:[3,3],alpha:fired?0.5:1,
+    // "chart.invalidation · owner level" to "chart.invalidation · chart.wyckoff.invalidation_fired" -- `fired`
+    // depends ONLY on invalidated_at being SET, never on whether idxOf can resolve it against these rows: a
+    // break that predates the visible window must never fall back to the ORIGINAL live-looking label just
+    // because idxOf returns -1 for "before" the same as it does for "not yet reached" (state disambiguates the
+    // two). The axis label renders from `price` alone regardless of i1/i2 (see the renderer's axis-label
+    // grouping), so it stays a visible signal even when state is 'before' and the line BODY draws nothing in
+    // the visible window -- P7.2 item 4's out-of-window case.
+    const state=invalidationState(rows, inv.invalidated_at), fired=state!=='live';
+    const endIdx=state==='in'?idxOf(rows,inv.invalidated_at):null;
+    const span=state==='in'?{i1:null,i2:endIdx+0.5}:(state==='before'?{i1:-0.5,i2:-0.5}:{i1:null,i2:null});
+    S.push({kind:'hseg',i1:span.i1,i2:span.i2,price:inv.level,stroke:'warn',sw:1.2,dash:[3,3],alpha:fired?0.5:1,
       label:fired?(L('chart.invalidation')+' · '+L('chart.wyckoff.invalidation_fired',{date:dateShort(inv.invalidated_at)}))
                  :(L('chart.invalidation')+' · '+(inv.owner||'?')+' '+fmt(inv.level)),labelAt:'axis'});
   }
@@ -352,7 +393,7 @@ const rulerShapes = (entry, stop, i1, i2, fmt) => {
   return S;
 };
 
-const api = {ictAnalyze, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, expectationShapes, rulerShapes, unix, dateShort};
+const api = {ictAnalyze, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, invalidationState, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, expectationShapes, rulerShapes, unix, dateShort};
 if(!root || typeof document==='undefined') return api;   // node: pure API only
 
 // =============================================================================================== browser: rendering
@@ -523,7 +564,7 @@ function applyLane(h, lane, P){
   // it applies only to the 'entry' tier's own Wyckoff overlay, never to the bias/structure tiers, which read a
   // DIFFERENT (higher-timeframe) narrative with its own separate invalidation state (out of scope here, P7.4).
   const invalidatedAt=(t.key==='entry'&&d.invalidation)?d.invalidation.invalidated_at:null;
-  const compact=!!t.compact, cfgS={compact,fmt,invalidatedAt};
+  const compact=!!t.compact, cfgS={compact,fmt,invalidatedAt,narrativeUpdated:t.key==='entry'?d.updated:null};
   candlesData(h);
   const wy=h.cursor==null?(t.wy||{}):{...(t.wy||{}), events:((t.wy||{}).events||[]).filter(e=>idxOf(rows,e.time)<=h.cursor), phases:((t.wy||{}).phases||[]).filter(p=>spanOf(rows,p.from)<=h.cursor)};
   let S=[]; if(t.window) S=S.concat(windowShape(rowsV,t.window.from));

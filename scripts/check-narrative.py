@@ -62,16 +62,22 @@ PHASE_OPENING_EVENTS = {"C": {"SPRING", "SHAKEOUT", "TEST", "LPS", "UTAD"}, "D":
 
 
 def event_price(label):
-    """First number in an event label -- the price the model wrote, e.g. 'Spring[C] 4,289.57' -> 4289.57.
-    Used where a check compares the model's OWN number against a declared border, with no candle lookup needed
-    (P1.2: a context Spring must sit beyond the context trading_range, using the narrative's own two numbers)."""
-    m = PRICE_RE.search(label)
-    if not m:
-        return None
-    try:
-        return float(m.group(1).replace(",", ""))
-    except ValueError:
-        return None
+    """First PRICE (not ratio) in an event label -- e.g. 'Spring[C] 4,289.57' -> 4289.57. A number immediately
+    followed by 'x'/'×' (a volume ratio, e.g. 'KL 2.78× 4,289.57' or the reverse order 'Spring[C] 4,289.57 ·
+    KL 2.78x') is skipped -- fix round 3b/1 item 4: the first number in a label is not always the price once a
+    ratio can appear before it. Used where a check compares the model's OWN number against a declared border,
+    with no candle lookup needed (P1.2: a context Spring must sit beyond the context trading_range, using the
+    narrative's own two numbers)."""
+    label = str(label or "")
+    for m in PRICE_RE.finditer(label):
+        tail = label[m.end():m.end() + 3].lstrip()
+        if tail[:1] in ("x", "X", "×"):
+            continue
+        try:
+            return float(m.group(1).replace(",", ""))
+        except ValueError:
+            continue
+    return None
 
 
 def _avg(xs, i, n):
@@ -272,6 +278,24 @@ def doi_nhan_and_spring_checks(sym, wy, rows, synthesis_html, bad):
             bad(pre + f"event {lbl!r} needs volume_type (1/2/3, WMT Bảng 2.1 p049) — method.md A6 requires both "
                       f"the WA event class and the WMT volume type, recorded, not collapsed "
                       f"(docs/audits/2026-09-24-wyckoff-label-review.md P1.1)")
+        ec = e.get("event_class")
+        if ec is not None and str(ec).strip().upper() != tok:
+            bad(pre + f"event {lbl!r}: event_class {ec!r} does not match the event token the label itself starts "
+                      f"with ({tok!r}) — method.md A6 records the WA event and the WMT volume type as two "
+                      f"separate answers to two separate questions, not two disagreeing labels for the same bar "
+                      f"(docs/audits/2026-09-24-wyckoff-label-review.md P1.1)")
+        vk = e.get("volume_kind")
+        if vk is not None:
+            try:
+                true_kind = "tick" if _ba.I.is_tick_volume(sym) else "traded"
+            except KeyError:
+                true_kind = None   # sym not on any analysis list (e.g. a test fixture) -- nothing to compare against
+            if true_kind is not None and vk != true_kind:
+                bad(pre + f"event {lbl!r}: volume_kind {vk!r} does not match this symbol's actual feed "
+                          f"({true_kind!r}, scripts/instruments.py is_tick_volume) — WMT p131-133 flags tick-based "
+                          f"volume as unreliable precisely because it is NOT traded volume; recording the wrong "
+                          f"kind hides that caveat rather than stating it "
+                          f"(docs/audits/2026-09-24-wyckoff-label-review.md P1.1/P5.1)")
         etime = e.get("time")
         if etime in times:
             i = times.index(etime)
@@ -314,6 +338,11 @@ def doi_nhan_and_spring_checks(sym, wy, rows, synthesis_html, bad):
                           "distribution) but the phase has advanced past C without wyckoff.alternative naming the "
                           "competing reading AND the synthesis stating the contradiction "
                           "(docs/audits/2026-09-24-wyckoff-label-review.md P1.1, P6.1; CLAUDE.md §19)")
+        has_phase_b = any(re.match(r"\s*(?:pha|phase)?\s*B\b", str(ph.get("label", "")), re.I) for ph in (wy.get("phases") or []))
+        if has_phase_b and doi_nhan.get("phase_b_sign") not in DOI_NHAN_SIGNS:
+            bad(pre + "wyckoff.doi_nhan.phase_b_sign missing — once a Phase B band is declared, where its tests sit "
+                      "against the TR's thirds must be recorded (WA p154-159, đối nhãn Dấu hiệu 2; "
+                      "docs/audits/2026-09-24-wyckoff-label-review.md P1.1)")
 
 
 def confirmation_grammar(sym, wy, rows, updated, bad):
@@ -529,7 +558,12 @@ def main():
                     bad(pre + "wyckoff.nesting missing — where the working-timeframe range sits inside the "
                               "higher-timeframe one must be recorded whenever a context read exists (WA2-19/20; "
                               "docs/audits/2026-09-24-wyckoff-label-review.md P4.2)")
-                cw_wy = {"structure": cw.get("structure"), "phase": cw.get("phase"), "trading_range": cw.get("trading_range")}
+                # "updated" mirrors htf_context.load_tier's own construction of this exact dict (~line 381:
+                # "updated": n_own.get("updated") for the "this style's own narrative.context" branch, which is
+                # what cw IS here) -- round 3a's P7.4 invalidation-aware wyckoff_bias() needs this field to tell
+                # whether the context read itself has since been closed beyond; without it, a checker-computed
+                # bias would silently disagree with the page's own load_tier-derived bias the moment P7.4 lands.
+                cw_wy = {"structure": cw.get("structure"), "phase": cw.get("phase"), "trading_range": cw.get("trading_range"), "updated": n.get("updated")}
                 wy_ctx_bias, _ = htf.wyckoff_bias(cw_wy, ctx_facts_sym)
                 ict_ctx_bias, _ = htf.ict_bias(ctx_facts_sym)
                 if wy_ctx_bias in ("long", "short") and ict_ctx_bias in ("long", "short") and wy_ctx_bias != ict_ctx_bias:
