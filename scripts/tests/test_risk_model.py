@@ -243,13 +243,20 @@ class SizingRefusesRatherThanProducingANumber(unittest.TestCase):
             RM.size(10000.0, 100.0, 99.0, 1.5)
         self.assertIn("fraction", str(cm.exception))
 
-    def test_the_arithmetic_is_unchanged_from_the_runners_own_size(self):
-        """This migration moved the calculation; it must not have moved the number."""
+    def test_the_risk_usd_target_is_unchanged_from_the_runners_own_size(self):
+        """DEC-4 (2026-09-24): strategy-runner.size() now sizes on the ALL-IN loss (price distance AND the
+        round-trip fee), not price distance alone -- this module's own size() still prices distance only, so
+        the two functions' `qty` are now EXPECTED to diverge (see the next test). What must stay identical is
+        the TARGET risk_usd itself (equity x risk_pct x risk_mult): DEC-4 changes how much of that risk a unit
+        of price distance costs, not how much risk the trade is allowed to take."""
         sr = _load("sr", "strategy-runner.py")
         qty, risk_usd = sr.size(10000.0, 100.0, 99.0, 1.0, leverage=3)
         mine = RM.size(10000.0, 100.0, 99.0, sr.RISK_PCT, leverage=3, notional_cap_pct=sr.NOTIONAL_CAP_PCT)
-        self.assertAlmostEqual(mine["qty"], qty, places=9)
         self.assertAlmostEqual(mine["risk_usd"], risk_usd, places=9)
+        # DEC-4: sizing on the all-in loss (distance + fee) means a SMALLER qty than distance alone for the
+        # same target risk -- the whole point of the fix (distance-only sizing let the fee push the realised
+        # loss at the stop past the risk ceiling).
+        self.assertLess(qty, mine["qty"])
 
     def test_the_notional_cap_binds(self):
         s = RM.size(10000.0, 100.0, 99.9, 0.01, leverage=3, notional_cap_pct=0.25)

@@ -689,7 +689,7 @@ class GrandfatherBehavioral(unittest.TestCase):
 
         def recording_manage_position(sym, pos, candles, live, bars_elapsed):
             calls["position"].append(sym); return None
-        def recording_manage_pending(sym, pend, live, bars_elapsed):
+        def recording_manage_pending(sym, pend, live, bars_elapsed, t=None):
             calls["pending"].append(sym); return "waiting", None, None, None
         sr.manage_position = recording_manage_position
         sr.manage_pending = recording_manage_pending
@@ -983,7 +983,7 @@ class ProtectiveOrderFailure(unittest.TestCase):
         sr.fetch_candles = lambda *a, **k: []
         sr.log = lambda kind, **kw: logs.append((kind, kw))
         sr.manage_position = lambda *a, **k: None
-        sr.manage_pending = lambda sym, pend, live, bars_elapsed: ("filled", 1.0, 100.0, None)
+        sr.manage_pending = lambda sym, pend, live, bars_elapsed, t=None: ("filled", 1.0, 100.0, None)
         try:
             sr.tick(live=True, tick_time=sr.now(), ignore_gate=False)
             out = json.load(open(state_tmp.name)); stop_written = os.path.exists(stop_path)
@@ -1902,3 +1902,392 @@ class TheTerminalMustBeTheAccountWeThinkItIs(unittest.TestCase):
         src = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
         i = src.index("def mt5_equity()")
         self.assertIn("mt5_assert_identity()", src[i:i + 700])
+
+
+# ==================================================================================================
+# 2026-09-24 system audit, round 1 (docs/audits/2026-09-24-system-audit.md): live order safety and fees.
+# ==================================================================================================
+
+
+class DEC1_EventRiskCancelsARestingOrder(unittest.TestCase):
+    """A RESTING order must not be allowed to keep working into an event-risk blackout that opened AFTER it
+    was placed (CLAUDE.md §24/§31/§32). Before this fix, manage_pending() never consulted event risk at all."""
+
+    def _pend(self, execution="futures", tf="15m"):
+        return dict(execution=execution, order_id="o1", tf=tf, price="100", qty="1", stop="99", tp="103",
+                    expires_bar_left=5, bars_waited=0)
+
+    def test_an_active_blackout_cancels_a_resting_futures_limit_without_checking_fill_status(self):
+        old_blackout, old_sh, old_log, old_oj = sr.event_blackout, sr.sh, sr.log, sr.order_json
+        sh_calls, logs = [], []
+        sr.event_blackout = lambda t, sym: "HIGH event window active"
+        sr.sh = lambda *a, **k: sh_calls.append((a, k)) or ""
+        sr.log = lambda *a, **k: logs.append((a, k))
+        # order_json is deliberately NOT given a working implementation: if the fix reached the normal
+        # order-status branch (it must not, once a blackout is found) this raises instead of silently passing.
+        sr.order_json = None
+        try:
+            state, qty, px, pt = sr.manage_pending("BTCUSDT", self._pend(), live=True, bars_elapsed=1, t=sr.now())
+        finally:
+            sr.event_blackout, sr.sh, sr.log, sr.order_json = old_blackout, old_sh, old_log, old_oj
+        self.assertEqual((state, qty, px, pt), ("gone", None, None, None))
+        self.assertTrue(sh_calls, "the resting order must be cancelled the way the STOP kill switch cancels one")
+        args, kwargs = sh_calls[0]
+        self.assertEqual(args[1], "cancel-order")
+        self.assertEqual(kwargs.get("check"), False)
+        self.assertEqual([a[0] for a, _ in logs], ["event_cancel_pending"])
+
+    def test_an_active_blackout_cancels_a_resting_mt5_order(self):
+        old_blackout, old_mj, old_log = sr.event_blackout, sr.mt5_json, sr.log
+        mj_calls, logs = [], []
+        sr.event_blackout = lambda t, sym: "HIGH event window active"
+        sr.mt5_json = lambda *a, **k: mj_calls.append(a) or {}
+        sr.log = lambda *a, **k: logs.append((a, k))
+        try:
+            state, *_ = sr.manage_pending("XAUUSD", self._pend(execution="mt5"), live=True, bars_elapsed=1, t=sr.now())
+        finally:
+            sr.event_blackout, sr.mt5_json, sr.log = old_blackout, old_mj, old_log
+        self.assertEqual(state, "gone")
+        self.assertEqual(mj_calls[0][0], "cancel")
+        self.assertEqual([a[0] for a, _ in logs], ["event_cancel_pending"])
+
+    def test_no_blackout_falls_through_to_the_ordinary_fill_check(self):
+        old_blackout, old_oj, old_log = sr.event_blackout, sr.order_json, sr.log
+        sr.event_blackout = lambda t, sym: None
+        sr.order_json = lambda *a, **k: {"status": "NEW", "executedQty": "0"}
+        sr.log = lambda *a, **k: None
+        try:
+            state, *_ = sr.manage_pending("BTCUSDT", self._pend(), live=True, bars_elapsed=1, t=sr.now())
+        finally:
+            sr.event_blackout, sr.order_json, sr.log = old_blackout, old_oj, old_log
+        self.assertEqual(state, "waiting")
+
+    def test_a_dry_run_never_asks_event_risk(self):
+        """--dry-run never touches a venue; manage_pending's existing `if not live` short-circuit must stay
+        first, or a dry tick would start asking a live question."""
+        old_blackout = sr.event_blackout
+        asked = []
+        sr.event_blackout = lambda t, sym: asked.append(sym) or None
+        try:
+            state, *_ = sr.manage_pending("BTCUSDT", self._pend(), live=False, bars_elapsed=1, t=sr.now())
+        finally:
+            sr.event_blackout = old_blackout
+        self.assertEqual(state, "waiting")
+        self.assertEqual(asked, [])
+
+
+class DEC2_MT5RiskUsdIncludesContractSize(unittest.TestCase):
+    """The MT5 position record's risk_usd must include the contract multiplier (tick_value/tick_size), or
+    every recorded MT5 R-multiple is wrong by that factor (close_record divides pnl by risk_usd)."""
+
+    def test_open_position_risk_usd_uses_the_contract_multiplier(self):
+        sr._MT5_SYMBOLS["XAUUSD"] = dict(tick_size=0.01, tick_value=1.0, volume_min=0.01, volume_max=10.0,
+                                         volume_step=0.01, digits=2)
+        pend = dict(execution="mt5", side="LONG", strategy="x", tf="15m", method="WYCKOFF-BOOK", mgmt="be",
+                    order_id="t1", client_id="c1", stop=4304.15, tp=4400.0, leverage=1, htf_pass=True,
+                    sweep_time=None, mss_time=None, expectations=[])
+        old_log = sr.log; sr.log = lambda *a, **k: None
+        try:
+            pos = sr.open_position("XAUUSD", pend, filled_qty=1.0, avg_px=4354.27, live=False)
+        finally:
+            sr.log = old_log
+        # r = |4354.27 - 4304.15| = 50.12 price units; value per price unit = tick_value/tick_size = 100 $/unit.
+        expected = round(abs(4354.27 - 4304.15) * (1.0 / 0.01) * 1.0, 2)
+        self.assertGreater(expected, 4000, "sanity: the contract-aware figure must be far larger than the "
+                                          "price-distance-only 50.12 the audit found")
+        self.assertAlmostEqual(pos["risk_usd"], expected, places=2)
+
+    def test_futures_risk_usd_is_unaffected_price_distance_times_qty(self):
+        pend = dict(execution="futures", side="LONG", strategy="x", tf="15m", method="ICT", mgmt="be",
+                    order_id="t1", client_id="c1", stop=99.0, tp=110.0, leverage=3, htf_pass=True,
+                    sweep_time=None, mss_time=None, expectations=[])
+        old_log = sr.log; sr.log = lambda *a, **k: None
+        try:
+            pos = sr.open_position("BTCUSDT", pend, filled_qty=2.0, avg_px=100.0, live=False)
+        finally:
+            sr.log = old_log
+        self.assertAlmostEqual(pos["risk_usd"], round(1.0 * 2.0, 2))
+
+
+class DEC3_PAR2_ExitFeeIsAlwaysTaker(unittest.TestCase):
+    """The ICT net-R gate must price the exit at TAKER even for a maker (resting limit) entry -- every exit on
+    this venue is a STOP_MARKET/TAKE_PROFIT_MARKET (or a market close for the time stop)."""
+
+    def test_rr_reason_passes_exit_order_type_taker_for_a_resting_ict_limit(self):
+        seen = {}
+        old_net_r = sr.RM.net_r
+
+        def spy(entry, stop, target, venue, order_type="taker", cfg=None, exit_order_type=None):
+            seen["order_type"] = order_type; seen["exit_order_type"] = exit_order_type
+            return old_net_r(entry, stop, target, venue, order_type, cfg=cfg, exit_order_type=exit_order_type)
+        sr.RM.net_r = spy
+        try:
+            sig = dict(entry=100.0, stop=99.8, target=100.65, entry_now=False, r_planned=3.25)   # resting limit -> maker entry
+            sr.rr_reason(sig, "futures")
+        finally:
+            sr.RM.net_r = old_net_r
+        self.assertEqual(seen["order_type"], "maker")
+        self.assertEqual(seen["exit_order_type"], "taker")
+
+    def test_a_maker_priced_net_r_that_only_clears_the_floor_at_the_maker_exit_rate_now_fails(self):
+        """DEC-3 evidence shape: a setup whose net R clears MIN_RR when BOTH sides are priced maker must now
+        fail once the exit is correctly priced taker (real round-trip cost is higher)."""
+        old_min_rr = sr.MIN_RR
+        try:
+            both_maker = sr.RM.net_r(100.0, 99.8, 100.65, "futures", "maker", exit_order_type="maker")
+            sr.MIN_RR = round(both_maker["net_r"] - 0.001, 3)   # a floor the both-maker price would just clear
+            sig = dict(entry=100.0, stop=99.8, target=100.65, entry_now=False, r_planned=3.25)
+            why = sr.rr_reason(sig, "futures")
+        finally:
+            sr.MIN_RR = old_min_rr
+        self.assertIsNotNone(why, "pricing the exit as maker would have passed this floor; taker must not")
+
+
+class DEC4_SizingIncludesRoundTripFee(unittest.TestCase):
+    """Position size must include the round-trip fee so the loss AT THE STOP does not exceed risk_usd."""
+
+    def test_size_all_in_loss_does_not_exceed_risk_usd(self):
+        qty, risk_usd = sr.size(10_000.0, 100.0, 99.8, 1.0, leverage=100, entry_order_type="maker")
+        entry_fee = sr.RM.costs("futures", "maker")["fee_pct_per_side"]
+        exit_fee = sr.RM.costs("futures", "taker")["fee_pct_per_side"]
+        all_in_loss = qty * (abs(100.0 - 99.8) + 100.0 * entry_fee + 99.8 * exit_fee)
+        self.assertLessEqual(all_in_loss, risk_usd + 1e-9)
+        # distance-only sizing (the pre-fix arithmetic) would have overshot risk_usd once fees are paid:
+        distance_only_qty = risk_usd / abs(100.0 - 99.8)
+        self.assertLess(qty, distance_only_qty)
+
+    def test_mt5_lots_all_in_loss_does_not_exceed_risk_usd(self):
+        sr._MT5_SYMBOLS["XAUUSD"] = dict(tick_size=0.01, tick_value=1.0, volume_min=0.0, volume_max=100.0,
+                                         volume_step=0.01, digits=2)
+        lots, risk_usd, per_lot = sr.mt5_lots("XAUUSD", 10_000.0, 2000.0, 1990.0, 1.0)
+        self.assertLessEqual(lots * per_lot, risk_usd + 1e-9)
+        entry_fee = sr.RM.costs("mt5", "taker")["fee_pct_per_side"]
+        exit_fee = entry_fee
+        all_in_price_units = abs(2000.0 - 1990.0) + 2000.0 * entry_fee + 1990.0 * exit_fee
+        self.assertAlmostEqual(per_lot, all_in_price_units * (1.0 / 0.01), places=6)
+
+
+class DEC5_RevalidateFill(unittest.TestCase):
+    """Nothing re-checked risk/R:R after a MARKET fill before this fix; a fill materially away from the
+    planned entry must now be DISCLOSED (the position is already open, so this cannot be a refusal)."""
+
+    def _pos(self, entry, stop=99.0, tp=110.0, risk_usd=100.0):
+        return dict(entry=entry, stop=stop, tp=tp, execution="futures", risk_usd=risk_usd)
+
+    def test_a_fill_far_from_the_planned_entry_discloses_a_risk_breach(self):
+        logs = []
+        old_log = sr.log; sr.log = lambda *a, **k: logs.append((a, k))
+        try:
+            # Planned risk 100 at |entry-stop|=1; actual fill moved the distance to 5 -> ~5x the planned risk.
+            pos = self._pos(entry=104.0, stop=99.0, risk_usd=500.0)
+            breaches = sr.revalidate_fill("BTCUSDT", pos, planned_risk_usd=100.0, entry_order_type="taker")
+        finally:
+            sr.log = old_log
+        self.assertTrue(breaches)
+        self.assertEqual([a[0] for a, _ in logs], ["fill_risk_breach"])
+
+    def test_a_fill_close_to_the_planned_entry_discloses_nothing(self):
+        old_log = sr.log; logs = []
+        sr.log = lambda *a, **k: logs.append((a, k))
+        try:
+            pos = self._pos(entry=100.0, stop=99.0, tp=110.0, risk_usd=100.0)
+            breaches = sr.revalidate_fill("BTCUSDT", pos, planned_risk_usd=100.0, entry_order_type="taker")
+        finally:
+            sr.log = old_log
+        self.assertEqual(breaches, [])
+        self.assertEqual(logs, [])
+
+    def test_place_market_calls_revalidate_fill_after_a_futures_market_fill(self):
+        calls = []
+        old = dict(oj=sr.order_json, log=sr.log, mn=sr.min_notional, mf=sr.market_fill, rf=sr.revalidate_fill,
+                  sh=sr.sh, ordr=sr.order)
+        sr.order = lambda *a: "1"
+        sr.min_notional = lambda sym: 0.0
+        sr.sh = lambda *a, **k: ""
+        sr.order_json = lambda *a, **k: {"orderId": "1"}
+        sr.market_fill = lambda sym, o, qty_r, **k: (100.5, 1.0)
+        sr.log = lambda *a, **k: None
+        sr.revalidate_fill = lambda *a, **k: calls.append(a) or []
+        try:
+            sig = dict(side="long", entry=100.0, stop=99.0, target=103.0, time="t", mss_time="t", bars_left=0,
+                      r_planned=3.0, htf_pass=True)
+            st = dict(execution="futures", id="s1", tf="15m", method="WYCKOFF-BOOK", mgmt="be")
+            sr.place_market("BTCUSDT", st, sig, 10_000.0, 1.0, live=True)
+        finally:
+            sr.order_json, sr.log, sr.min_notional, sr.market_fill, sr.revalidate_fill, sr.sh, sr.order = (
+                old["oj"], old["log"], old["mn"], old["mf"], old["rf"], old["sh"], old["ordr"])
+        self.assertTrue(calls, "place_market must re-validate risk/R:R against the actual fill")
+
+
+class DEC6_UnresolvableAccountRuleBlocksEntriesNotHalt(unittest.TestCase):
+    """A declared account-survival rule whose basis fact this runner cannot supply must block NEW ENTRIES
+    (never HALT) -- CLAUDE.md §20 forbids treating that UNKNOWN as a pass."""
+
+    def _profile(self, **rules_over):
+        rules = {k: None for k in sr.AP.RULE_KEYS}
+        rules.update(rules_over)
+        return {"id": "test-prop", "rules": rules}
+
+    def test_a_rule_whose_basis_the_runner_never_supplies_blocks_entries(self):
+        prof = self._profile(max_daily_loss={"pct": 0.05, "basis": "day_start_equity", "action": "HALT"})
+        facts = {"equity": 9000.0, "equity_start": 10000.0, "consec_losses": 0}   # no day_start_equity
+        why = sr._account_survival_block(prof, facts)
+        self.assertIsNotNone(why)
+        self.assertIn("max_daily_loss", why)
+
+    def test_a_fully_supplied_rule_that_has_not_breached_blocks_nothing(self):
+        prof = self._profile(max_daily_loss={"pct": 0.05, "basis": "day_start_equity", "action": "HALT"})
+        facts = {"equity": 9990.0, "equity_start": 10000.0, "consec_losses": 0, "day_start_equity": 10000.0}
+        self.assertIsNone(sr._account_survival_block(prof, facts))
+
+    def test_a_profile_with_no_rules_declared_blocks_nothing(self):
+        prof = self._profile()
+        self.assertIsNone(sr._account_survival_block(prof, {"equity": 100.0}))
+
+
+class DEC7_UnknownImpactEventIsDisclosedNotSilentlyClear(unittest.TestCase):
+    """CLAUDE.md §25: UNKNOWN must never be silently treated as LOW. `event_blackout` must not BLOCK on a
+    non-strict UNKNOWN event (test_event_risk.py pins that `ER.windows(mode='NORMAL')` stays empty for
+    UNKNOWN), but it must DISCLOSE one that the calendar's own strict_no_trade flag would gate in STRICT mode."""
+
+    def _cal(self, when):
+        return {
+            "snapshot": {"id": "test-cal"},
+            "policy": {"pre_minutes": 10, "post_minutes": 10,
+                      "by_impact": {"HIGH": {"restricted": True}, "MEDIUM": {"restricted": False},
+                                    "LOW": {"restricted": False},
+                                    "UNKNOWN": {"restricted": False, "strict_no_trade": True}}},
+            "relevance": {"global_keyword": "GLOBAL"},
+            "events": [{"id": "e1", "name": "Unscheduled release", "impact": "UNKNOWN", "status": "released",
+                       "currencies": ["GLOBAL"], "scheduled_event_time": when,
+                       "available_time": "2026-01-01T00:00:00Z"}],
+        }
+
+    def test_an_unknown_event_in_window_is_disclosed_but_not_blocked(self):
+        when = "2026-06-01T12:00:00Z"
+        cal = self._cal(when)
+        old_load, old_tighten, old_log = sr.ER.load, sr.AP.tighten_calendar, sr.log
+        logs = []
+        sr.ER.load = lambda **k: cal
+        sr.AP.tighten_calendar = lambda prof, c: c
+        sr.log = lambda *a, **k: logs.append((a, k))
+        try:
+            why = sr.event_blackout(sr.parse_t(when), "BTCUSDT")
+        finally:
+            sr.ER.load, sr.AP.tighten_calendar, sr.log = old_load, old_tighten, old_log
+        self.assertIsNone(why, "a non-strict UNKNOWN event must not block -- disclosure only")
+        self.assertEqual([a[0] for a, _ in logs], ["unknown_event_disclosed"])
+
+    def test_outside_the_window_nothing_is_disclosed(self):
+        cal = self._cal("2026-06-01T12:00:00Z")
+        old_load, old_tighten, old_log = sr.ER.load, sr.AP.tighten_calendar, sr.log
+        logs = []
+        sr.ER.load = lambda **k: cal
+        sr.AP.tighten_calendar = lambda prof, c: c
+        sr.log = lambda *a, **k: logs.append((a, k))
+        try:
+            why = sr.event_blackout(sr.parse_t("2026-06-01T09:00:00Z"), "BTCUSDT")
+        finally:
+            sr.ER.load, sr.AP.tighten_calendar, sr.log = old_load, old_tighten, old_log
+        self.assertIsNone(why)
+        self.assertEqual(logs, [])
+
+
+class DEC8_CloseRecordIsNetOfFeesForFutures(unittest.TestCase):
+    """Futures exits (no venue P&L passed in) must record P&L/R NET of the round-trip fee, matching the
+    backtest's own net_R = R - fee_R -- gross alone overstated live expectancy vs. the evidence it is
+    compared against, and hid a fee-losing breakeven exit from consec_losses."""
+
+    def test_a_futures_exit_with_no_venue_pnl_is_net_of_fees(self):
+        pos = dict(side="LONG", strategy="x", tf="15m", execution="futures", htf_pass=True, be=False,
+                  entry=100.0, opened_at="2026-01-01T00:00:00Z", risk_usd=1.0, method="WYCKOFF-BOOK")
+        rec = sr.close_record("BTCUSDT", pos, px=100.0, via="BE", qty=1.0)   # gross P&L is exactly 0 (BE)
+        self.assertEqual(rec["pnl_gross"], 0.0)
+        self.assertLess(rec["pnl"], 0.0, "a breakeven exit still pays the round-trip fee and must show a loss")
+        self.assertLess(rec["r"], 0.0)
+
+    def test_an_mt5_exit_with_a_venue_pnl_is_unaffected(self):
+        pos = dict(side="LONG", strategy="x", tf="15m", execution="mt5", htf_pass=True, be=False,
+                  entry=100.0, opened_at="2026-01-01T00:00:00Z", risk_usd=100.0, method="WYCKOFF-BOOK")
+        rec = sr.close_record("XAUUSD", pos, px=100.0, via="BE", qty=1.0, pnl=-5.0)
+        self.assertEqual(rec["pnl"], -5.0)
+        self.assertNotIn("pnl_gross", rec, "a venue-supplied pnl is already net; there is no gross figure to add")
+
+
+class PAR1_BreakevenCountsTheFirstBarAfterEntry(unittest.TestCase):
+    """Live breakeven must arm from the FIRST bar after the entry bar, strictly excluding the entry/fill bar
+    itself -- matching the backtest's walk(start=entry_bar+1). Anchoring on wall-clock `opened_at` (the tick
+    that noticed the fill, always later than the entry bar's own open) used to exclude that first bar forever."""
+
+    def test_plus_one_r_on_the_first_bar_after_entry_arms_breakeven(self):
+        pos = dict(side="LONG", strategy="x", tf="30m", method="ICT", execution="futures", mgmt="be", qty="1",
+                  entry=100.0, stop=99.0, tp=103.0, stop_order=None, tp_order=None,
+                  opened_at="2026-01-01T01:05:00Z",     # wall-clock: well AFTER the 00:30 entry bar's open
+                  entry_bar_time="2026-01-01T00:30:00Z", bars=0, risk_usd=1.0, be=False, be_level=101.0,
+                  htf_pass=True)
+        # The bar strictly after the entry bar (01:00) touches +1R; under the old wall-clock anchor this bar
+        # is EXCLUDED (01:00:00Z < opened_at's minute 01:05), so breakeven would never arm on it.
+        candles = [dict(time="2026-01-01T01:00:00Z", high=101.2, low=100.1, close=100.9)]
+        old_log = sr.log; sr.log = lambda *a, **k: None
+        try:
+            rec = sr.manage_position("BTCUSDT", pos, candles, live=False, bars_elapsed=1)
+        finally:
+            sr.log = old_log
+        self.assertIsNone(rec)
+        self.assertTrue(pos["be"], "breakeven must arm on the first bar after entry, not the second")
+        self.assertAlmostEqual(pos["stop"], 100.0)
+
+    def test_the_entry_bar_itself_never_arms_breakeven(self):
+        """The backtest never arms BE on the fill bar itself; the live filter must exclude it too."""
+        pos = dict(side="LONG", strategy="x", tf="30m", method="ICT", execution="futures", mgmt="be", qty="1",
+                  entry=100.0, stop=99.0, tp=103.0, stop_order=None, tp_order=None,
+                  opened_at="2026-01-01T00:35:00Z", entry_bar_time="2026-01-01T00:30:00Z", bars=0,
+                  risk_usd=1.0, be=False, be_level=101.0, htf_pass=True)
+        candles = [dict(time="2026-01-01T00:30:00Z", high=101.2, low=99.9, close=100.9)]   # the entry bar itself
+        old_log = sr.log; sr.log = lambda *a, **k: None
+        try:
+            sr.manage_position("BTCUSDT", pos, candles, live=False, bars_elapsed=1)
+        finally:
+            sr.log = old_log
+        self.assertFalse(pos["be"], "the entry/fill bar itself must never arm breakeven")
+
+    def test_a_position_with_no_entry_bar_time_falls_back_to_the_old_wall_clock_anchor(self):
+        """Positions already open under the pre-fix state file have no entry_bar_time on disk; guessing one
+        would invent history. The pre-fix wall-clock anchor is the only safe fallback for them."""
+        pos = dict(side="LONG", strategy="x", tf="30m", method="ICT", execution="futures", mgmt="be", qty="1",
+                  entry=100.0, stop=99.0, tp=103.0, stop_order=None, tp_order=None,
+                  opened_at="2026-01-01T00:00:00Z", bars=0, risk_usd=1.0, be=False, be_level=101.0, htf_pass=True)
+        candles = [dict(time="2026-01-01T00:30:00Z", high=100.5, low=99.5, close=100.2),
+                  dict(time="2026-01-01T01:00:00Z", high=101.2, low=100.1, close=100.9)]
+        old_log = sr.log; sr.log = lambda *a, **k: None
+        try:
+            rec = sr.manage_position("BTCUSDT", pos, candles, live=False, bars_elapsed=1)
+        finally:
+            sr.log = old_log
+        self.assertIsNone(rec); self.assertTrue(pos["be"]); self.assertAlmostEqual(pos["stop"], 100.0)
+
+
+class PAR1_EntryBarTimeIsRecorded(unittest.TestCase):
+    def test_open_position_stores_the_entry_bar_time_when_given(self):
+        pend = dict(execution="futures", side="LONG", strategy="x", tf="15m", method="WYCKOFF-BOOK", mgmt="be",
+                    order_id="t1", client_id="c1", stop=99.0, tp=103.0, leverage=1, htf_pass=True,
+                    sweep_time=None, mss_time=None, expectations=[])
+        old_log = sr.log; sr.log = lambda *a, **k: None
+        try:
+            pos = sr.open_position("BTCUSDT", pend, 1.0, 100.0, live=False, entry_bar_time="2026-01-01T00:00:00Z")
+        finally:
+            sr.log = old_log
+        self.assertEqual(pos["entry_bar_time"], "2026-01-01T00:00:00Z")
+
+    def test_a_limit_fill_with_no_explicit_entry_bar_time_floors_now_to_the_tf_grid(self):
+        pend = dict(execution="futures", side="LONG", strategy="x", tf="15m", method="ICT", mgmt="be",
+                    order_id="t1", client_id="c1", stop=99.0, tp=103.0, leverage=1, htf_pass=True,
+                    sweep_time=None, mss_time=None, expectations=[])
+        old_log, old_now = sr.log, sr.now
+        sr.log = lambda *a, **k: None
+        sr.now = lambda: sr.parse_t("2026-01-01T00:07:23Z")
+        try:
+            pos = sr.open_position("BTCUSDT", pend, 1.0, 100.0, live=False)
+        finally:
+            sr.log, sr.now = old_log, old_now
+        self.assertEqual(pos["entry_bar_time"], "2026-01-01T00:00:00Z")

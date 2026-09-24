@@ -88,14 +88,23 @@ def costs(venue, order_type="taker", cfg=None):
             "slippage": UNKNOWN if slip is None else "MODELLED"}
 
 
-def cost_r(entry, stop, venue, order_type="taker", cfg=None):
-    """Round-turn cost expressed in R -- the same formula the backtest charges (backtest-methods.py:517).
+def cost_r(entry, stop, venue, order_type="taker", cfg=None, exit_order_type=None):
+    """Round-turn cost expressed in R -- the same formula the backtest charges (backtest-methods.py:517)
+    when the entry and exit pay the SAME order type; `exit_order_type` prices the two legs separately.
 
-    `dist` is the stop distance as a fraction of entry, so the cost in R is `2 * fee / dist`: two sides, and
-    the tighter the stop the more of the trade's R the fee eats. This is why it cannot be ignored on a
-    scalping timeframe, where stops are tight by construction.
+    `dist` is the stop distance as a fraction of entry, so the cost in R is `(fee_entry + fee_exit) / dist`:
+    two sides, and the tighter the stop the more of the trade's R the fee eats. This is why it cannot be
+    ignored on a scalping timeframe, where stops are tight by construction.
+
+    DEC-3/PAR-2 (CLAUDE.md §34 'fees'): `order_type` alone used to price BOTH sides at the ENTRY's order
+    type. ICT rests a maker limit to enter, but every exit on this venue is a STOP_MARKET / TAKE_PROFIT_
+    MARKET (or a market close for the time stop) -- taker, regardless of how the entry was placed. Passing
+    `exit_order_type` separately (default: same as `order_type`, so a caller that does not know about the
+    split gets the old symmetric formula unchanged) prices what the venue actually charges on each leg.
     """
-    c = costs(venue, order_type, cfg=cfg)
+    exit_order_type = exit_order_type or order_type
+    entry_c = costs(venue, order_type, cfg=cfg)
+    exit_c = entry_c if exit_order_type == order_type else costs(venue, exit_order_type, cfg=cfg)
     entry, stop = float(entry), float(stop)
     if entry <= 0:
         raise RiskRefused(f"entry {entry} is not a positive price.")
@@ -103,20 +112,22 @@ def cost_r(entry, stop, venue, order_type="taker", cfg=None):
     if dist <= 0:
         raise RiskRefused("stop distance is zero: entry and stop are the same price, so risk per unit is zero "
                           "and position size would be unbounded.")
-    return 2.0 * c["fee_pct_per_side"] / dist, c
+    return (entry_c["fee_pct_per_side"] + exit_c["fee_pct_per_side"]) / dist, entry_c
 
 
-def net_r(entry, stop, target, venue, order_type="taker", cfg=None):
+def net_r(entry, stop, target, venue, order_type="taker", cfg=None, exit_order_type=None):
     """Planned R:R after execution costs -- an UPPER BOUND, because slippage is unmodelled.
 
     Returns gross and net side by side on purpose: the gross number is what the chart shows and what every
     pre-2026-09-18 log line recorded, so a reader comparing the two can see exactly what the cost took.
+    `exit_order_type` -- see `cost_r` -- defaults to `order_type` (symmetric round trip).
     """
-    cr, c = cost_r(entry, stop, venue, order_type, cfg=cfg)
+    cr, c = cost_r(entry, stop, venue, order_type, cfg=cfg, exit_order_type=exit_order_type)
     entry, stop, target = float(entry), float(stop), float(target)
     gross = abs(target - entry) / abs(entry - stop)
     return {"gross_r": gross, "cost_r": cr, "net_r": gross - cr,
             "fee_pct_per_side": c["fee_pct_per_side"], "venue": venue, "order_type": order_type,
+            "exit_order_type": exit_order_type or order_type,
             "slippage": c["slippage"],
             "net_is_upper_bound": c["slippage"] == UNKNOWN}
 
