@@ -640,11 +640,16 @@ def reason_text(reason, lang):
     return T(key, lang, **{k: (v[lang] if isinstance(v, dict) else v) for k, v in params.items()})
 
 
-def matrix(sym_key, kind, l1, l2, l3, dims, newest=None):
+def matrix(sym_key, kind, l1, l2, l3, dims, newest=None, inv_at=None):
     """The read matrix: rows = layers, columns = methods engaged + synthesis.
 
     The grid places its cells with grid-template-columns, so the CELLS are never duplicated per locale -- only
     their contents are. Duplicating a cell would add a column.
+
+    `inv_at` (P7.2 item 6, docs/audits/2026-09-24-wyckoff-label-review.md §7): when the scanner's own facts show
+    the level closed beyond after `updated` (build-artifact.py invalidated_at()), the layer-3 verdict chip and
+    structure badges render as a HISTORICAL read of that date, never as if it were still current -- the model's
+    own prose stays untouched (CLAUDE.md §17), only the surrounding chrome says the read is dead.
     """
     # §15: the READ matrix shows every ANALYSED lane, not only the traded one -- "the system may continue
     # analyzing all available methodologies", and the user should "see methodology-specific analysis
@@ -708,6 +713,9 @@ def matrix(sym_key, kind, l1, l2, l3, dims, newest=None):
         badges = [b for b in (structure_badge(wy.get("structure")),
                               (DUAL(lambda l: T("l3.phase", l, phase=wy["phase"])) if wy.get("phase") else None),
                               structure_badge(wy.get("regime"))) if b]
+        if inv_at and badges:
+            # P7.2 item 6: "(11/09, hết hiệu lực)" -- the structure badges stay, marked as a historical read.
+            badges = [b + " " + DUAL(lambda l: T("l3.invalidated_badge", l, date=dmy(inv_at["time"], l))) for b in badges]
         if badges:
             wcell += '<div class="badges">' + "".join(f'<span class="badge">{b}</span>' for b in badges) + "</div>"
         if tr:
@@ -728,7 +736,14 @@ def matrix(sym_key, kind, l1, l2, l3, dims, newest=None):
                 txt = (l3.get(m) or {}).get("text_html", "")
                 cells[m] = vi_source(txt, block=True) if txt else ""
         inv = l3.get("invalidation") or {}
-        synth = f'<div class="cell-verdict">{chip(l3.get("verdict") or "—")}'
+        # P7.2 item 6: once invalidated_at exists, the layer-3 verdict chip renders as the HISTORICAL verdict --
+        # struck through, with "đã vô hiệu <date>" beside it -- rather than silently looking current; "the
+        # current state comes from the scanner (verdict_of), which already says PHÁ DƯỚI" (§7). The chip's own
+        # text (the model's verdict word) is untouched, per CLAUDE.md §17 -- only the wrapper marks it historical.
+        chip_html = f'<s>{chip(l3.get("verdict") or "—")}</s>' if inv_at else chip(l3.get("verdict") or "—")
+        synth = f'<div class="cell-verdict">{chip_html}'
+        if inv_at:
+            synth += f' <span class="inv invalidated-chip">{DUAL(lambda l: T("l3.invalidated_chip", l, date=when(inv_at["time"], l)))}</span>'
         if inv:
             # `rule` is model prose ("đóng cửa dưới"); `owner` is a dimension id, locale-invariant.
             synth += (f' <span class="inv">{DUAL(lambda l: T("l3.invalidation", l, rule=vi_source(esc(inv.get("rule", ""))), level=fmtn(inv.get("level"), kind), owner=f"<b>{esc(inv.get("owner", "?"))}</b>"))}</span>')
@@ -1026,12 +1041,38 @@ def glossary(engaged):
             f'<span class="muted">({i18n.tx("gloss.open_hint")})</span></summary><div class="gl-grid">{out}</div></details></section>')
 
 
+def invalidated_at(n3, fsym):
+    """P7.1 (docs/audits/2026-09-24-wyckoff-label-review.md §7): derive the invalidation time from the
+    scanner's own facts -- never store it in the narrative, and never let a close at or before the narrative's
+    own `updated` invalidate it (CLAUDE.md §8 point-in-time: the label was valid when it was written).
+
+    `n3["invalidation"]["level"]` is matched by PRICE against `fsym["anchors"]["levels"][*]["price"]` (the
+    scanner's own anchor list, data/live/prelim/<style>.facts.json symbols.<SYM>.anchors.levels) -- that anchor's
+    own `first_close_beyond` (scripts/ict-scan.py anchor_facts(), first COMPLETED close beyond the level,
+    `ref_i = n-2` never lets the forming candle confirm a break) is the invalidation time, when it exists and
+    postdates `updated`. Returns {"time", "close"} or None (not invalidated, or nothing to compare)."""
+    inv = (n3 or {}).get("invalidation") or {}
+    level = inv.get("level")
+    updated = (n3 or {}).get("_updated_iso")
+    if level is None or not updated:
+        return None
+    for L in ((fsym or {}).get("anchors") or {}).get("levels", []) or []:
+        if L.get("price") == level:
+            fcb = L.get("first_close_beyond")
+            if fcb and fcb.get("time") and fcb["time"] > updated:
+                return {"time": fcb["time"], "close": fcb.get("close")}
+            return None
+    return None
+
+
 def wy_json(wy):
-    """Narrative wyckoff -> the chart overlay (TR, events, phases), addressed by candle time."""
+    """Narrative wyckoff -> the chart overlay (TR, events, phases), addressed by candle time.
+    `status` (P6.2, docs/audits/2026-09-24-wyckoff-label-review.md) rides through so chart.js can draw a
+    'hypothesis' band differently from a 'tested' one (WA p166: do not label mechanically)."""
     tr = (wy or {}).get("trading_range") or None
     return dict(tr=(dict(high=tr.get("high"), low=tr.get("low"), high_label=tr.get("high_label", "AR"), low_label=tr.get("low_label", "SC")) | {"from": tr.get("from")} if tr else None),
                 events=[dict(time=e.get("time"), label=e.get("label", ""), up=bool(e.get("up"))) for e in (wy or {}).get("events", [])],
-                phases=[{"from": p.get("from"), "to": p.get("to"), "label": p.get("label", "")} for p in (wy or {}).get("phases", [])])
+                phases=[{"from": p.get("from"), "to": p.get("to"), "label": p.get("label", ""), "status": p.get("status")} for p in (wy or {}).get("phases", [])])
 
 
 BIAS_CLS = {"long": "long", "short": "short", "neutral": "wait", "unknown": "wait"}
@@ -1500,6 +1541,9 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
         for L in ((anchors.get("symbols") or {}).get(sym) or {}).get("levels", []):
             m = anchor_method(L)
             levels.append(dict(price=L["price"], time=L.get("time"), method=("neutral" if m in ("mixed", "neutral") else m), short=esc((L.get("short") or L.get("name", "")).replace("_", " ")[:14])))
+        # P7.1 (docs/audits/2026-09-24-wyckoff-label-review.md §7): computed at build time from the scanner's own
+        # facts, never stored in the narrative -- the narrative file stays exactly as written (CLAUDE.md §17).
+        inv_at = invalidated_at(n3, fsym)
         wy_js = wy_json((n3 or {}).get("wyckoff"))
         # Wyckoff overlay per tier: the tier style's own full analysis (one read per candle series, two pages never disagree);
         # the gate tier falls back to this style's narrative.context when that style has no page yet
@@ -1530,7 +1574,13 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                             # written about) -- chart.js `drawnFor` gates on THIS set, not `engaged`, so a
                             # lane's chart overlay is no longer locked to the trading-selection preset.
                             analysed=[m for m, _ in LANES if dims[m]["analysed"]],
-                            tiers=tiers_js, plans=trade_plans(sym), invalidation=(n3 or {}).get("invalidation"))
+                            tiers=tiers_js, plans=trade_plans(sym),
+                            # P7.2 item 4: the entry tier's own narrative `updated` date, for the muted
+                            # "Analysis <updated> invalidated <date>" note chart.js draws when the whole read
+                            # died before the visible window even starts.
+                            updated=(n3 or {}).get("_updated_iso"),
+                            invalidation=(dict((n3 or {}).get("invalidation") or {}, **{"invalidated_at": inv_at["time"], "invalidated_close": inv_at["close"]})
+                                          if inv_at else (n3 or {}).get("invalidation")))
         rows_store[key] = {**{tn: rows_js(tier_rows[tn], S["tiers"][tn]["lbl"]) for tn in tier_rows}, "entry": rows_js(rows, S["lbl"])}
         # section html: header (one price, one verdict), the ladder (three tiers, both methods), three charts top-down
         lo, hi = min(r["low"] for r in rows), max(r["high"] for r in rows); last = rows[-1]["close"]
@@ -1565,7 +1615,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                         f'<span class="zoom"><span class="muted">{DUAL(lambda l: T("chart.hint", l, n=len(LANES)))}</span>{zoom_buttons(full=True)}</span></div>'
                         f'<div class="chart-wrap"><div class="chart" id="chart-entry-{key}"></div><div class="tip"></div></div><div class="mode-status" hidden></div><div class="lane-status" hidden></div></div>')
         legend = f'<div class="legend" id="legend-{key}"></div>'
-        sections.append(f'<section class="symbol" id="sec-{key}">{head}{ladder_html}<div class="charts"{UI.attr("actual-path")}>{charts_html}{legend}</div>{matrix(key, kind, l1, l2, n3, dims, newest=rows[-1]["time"])}{timeline((n3 or {}).get("timeline"), dims)}</section>')
+        sections.append(f'<section class="symbol" id="sec-{key}">{head}{ladder_html}<div class="charts"{UI.attr("actual-path")}>{charts_html}{legend}</div>{matrix(key, kind, l1, l2, n3, dims, newest=rows[-1]["time"], inv_at=inv_at)}{timeline((n3 or {}).get("timeline"), dims)}</section>')
 
     if purity:
         print("PURITY VIOLATIONS (one method, one vocabulary):", file=sys.stderr)

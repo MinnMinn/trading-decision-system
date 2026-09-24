@@ -34,6 +34,10 @@ const KZ_WEIGHT = {crypto:{london:'reduced',ny_am:'reduced',ny_pm:'none',asia:'n
 // lets the page render the same candle as 14:30 UTC or 21:30 VNT without shipping two copies of anything.
 const utcDate = iso => new Date(/Z$/.test(iso)?iso:iso+'Z');
 const unix = iso => Math.floor(utcDate(iso).getTime()/1000);
+// A short, locale-agnostic UTC stamp for an overlay LABEL (not a price -- `fmt` in this file always means the
+// number formatter, so a date never goes through it). MM-DD HH:MM, unambiguous in either language and matching
+// the ISO the narrative/facts already store -- §7 P7.2 (docs/audits/2026-09-24-wyckoff-label-review.md).
+const dateShort = iso => iso ? iso.slice(5,16).replace('T',' ') : '';
 const localHour = (iso,tz) => { const parts=new Intl.DateTimeFormat('en-GB',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(utcDate(iso)); let h=0,m=0; parts.forEach(q=>{ if(q.type==='hour')h=(+q.value)%24; if(q.type==='minute')m=+q.value; }); return h+m/60; };
 const weekKey = iso => { const d=utcDate(iso); const dow=(d.getUTCDay()+6)%7; return new Date(d.getTime()-dow*86400000).toISOString().slice(0,10); };
 // =============================================================================================== language
@@ -172,6 +176,20 @@ function rangePctSeries(rows, ict){
 const rangePctEqShape = () => ({kind:'hseg', i1:null, i2:null, price:50, stroke:'faint', sw:1, dash:[4,3], label:'EQ 50%', labelAt:'axis'});
 const idxOf=(rows,iso)=>{ if(!iso)return -1; let best=-1; for(let i=0;i<rows.length;i++){ if(rows[i][ISO]<=iso)best=i; else break; } return best>=0&&rows[best][ISO]===iso?best:(best>=0&&rows[best][ISO].slice(0,13)===iso.slice(0,13)?best:-1); };
 const spanOf=(rows,iso)=>{ if(!iso)return -1; for(let i=0;i<rows.length;i++){ if(rows[i][ISO]>=iso)return i; } return rows.length; };
+// §7 P7.2 item 4 (docs/audits/2026-09-24-wyckoff-label-review.md): idxOf alone cannot tell "the break has not
+// happened yet in this (possibly replay-sliced) view" from "the whole read was already dead before this view
+// even starts" -- both return -1. Both cases exist and must render differently: the first draws normally
+// (item 5, replay point-in-time), the second must draw NOTHING from the dead read (P7.2 item 4) rather than
+// silently falling back to a live-looking overlay, which is exactly the bug this classifier exists to prevent.
+//   'live'   no invalidation, or the break has not been reached yet in these rows
+//   'in'     the breaking candle is inside these rows -- truncate/fade at its index
+//   'before' the read was already dead before these rows even start -- the caller must suppress the dead
+//            read's own overlays and (for the entry tier) show one muted note instead
+const invalidationState = (rows, invalidatedAt) => {
+  if(!invalidatedAt || !rows.length) return 'live';
+  if(rows[0][ISO] > invalidatedAt) return 'before';
+  return idxOf(rows, invalidatedAt) >= 0 ? 'in' : 'live';
+};
 
 // =============================================================================================== pure: shapes
 // Every overlay is a record in (bar index, price) space. Colours are TOKENS (names of CSS variables in artifact_theme.py)
@@ -215,13 +233,59 @@ const ictShapes = (rows, ict, cfg) => {
   return S;
 };
 
+// §7 P7.2 (docs/audits/2026-09-24-wyckoff-label-review.md): `cfg.invalidatedAt` is the ISO time of the first
+// COMPLETED close beyond the invalidation level, computed at build time from the scanner's own facts
+// (build-artifact.py invalidated_at(), never stored in the narrative). `endIdx` is looked up against the ROWS
+// THIS CALL ACTUALLY RECEIVED -- in replay those are already sliced to the cursor (applyLane's `rowsV`), so
+// idxOf returns -1 (draw normally) until the reader's own cursor reaches the break: replay stays point-in-time
+// without any extra cursor plumbing here.
 const wyckoffShapes = (rows, wy, cfg) => {
   const S=[], n=rows.length, compact=!!cfg.compact, fmt=cfg.fmt||(v=>String(v)); wy=wy||{};
-  (wy.phases||[]).forEach(ph=>{ const a=spanOf(rows,ph.from), b=ph.to?spanOf(rows,ph.to):n; if(a>=n||b<=0)return; const lbl=String(ph.label||'').replace(/^pha(se)?\s*/i,'').slice(0,2).trim();   // `(pha|phase)` matched the SHORTER branch first, so "Phase C" lost 3 chars and rendered "se" on every phase band (user report 2026-09-19)
-    S.push({kind:'rect',i1:Math.max(0,a)-0.5,i2:Math.min(n,b)-0.5,p1:null,p2:null,fill:'w',alpha:0.07,stroke:'w',sw:1,dash:[2,4],strokeAlpha:0.6,leftOnly:true,label:lbl||null,labelColor:'w',labelPos:'tl',labelBold:true}); });
+  const invAt=cfg.invalidatedAt||null, state=invalidationState(rows,invAt);
+  // P7.2 item 4: the whole read was already dead before this window even starts -- draw NOTHING from it (no
+  // TR, no phase bands, no event flags: every one of them belongs to the same dead structure) and show ONE
+  // muted note instead. The "now" price dot is not part of the dead read (every lane draws it) and survives.
+  if(state==='before'){
+    const li=n-1;
+    S.push({kind:'mark',i:li,price:rows[li][CLOSE],glyph:'dot',color:'ink',r:3,ring:true});
+    if(!compact){
+      const hi=rows.reduce((m,r)=>Math.max(m,r[HIGH]),-Infinity);
+      S.push({kind:'label',i:Math.floor(n/2),price:hi,text:L('chart.wyckoff.invalidated_note',{updated:dateShort(cfg.narrativeUpdated),date:dateShort(invAt)}),color:'muted',anchor:'middle',dx:0,dy:-8,bold:true});
+    }
+    return S;
+  }
+  const endIdx=state==='in'?idxOf(rows,invAt):-1, invalidated=endIdx>=0;
+  const suffix=invalidated?(' · '+L('chart.wyckoff.invalidated_suffix',{date:dateShort(invAt)})):'';
+  (wy.phases||[]).forEach(ph=>{ let a=spanOf(rows,ph.from), b=ph.to?spanOf(rows,ph.to):n; if(a>=n||b<=0)return;
+    const lbl=String(ph.label||'').replace(/^pha(se)?\s*/i,'').slice(0,2).trim();   // `(pha|phase)` matched the SHORTER branch first, so "Phase C" lost 3 chars and rendered "se" on every phase band (user report 2026-09-19); kept as its own `const` -- scripts/tests/test_build_artifact.py PhaseBandLabelsAreTheLetterNotSe re-runs this exact expression under node, so P6.2/§7's extra text below builds a SEPARATE `dispLbl`, never mutates this one.
+    let dispLbl=lbl;
+    // P6.2: a phase whose own confirming event is still unconfirmed is a HYPOTHESIS, not a tested read (WA p166
+    // warns against labelling mechanically) -- drawn at lower weight with a '?' on the band letter, book usage
+    // (WA p93, p161). Missing `status` (an older narrative written before P6.2) defaults to hypothesis: an
+    // unverified claim shown at full weight is the wrong default per CLAUDE.md priority 1-3 (safety over
+    // convenience), not a rendering nicety.
+    const hypothesis = ph.status!=='tested';
+    if(hypothesis) dispLbl = dispLbl?(dispLbl+'?'):null;
+    const dead = invalidated && a<=endIdx;
+    if(dead){ b=Math.min(b,endIdx+1); dispLbl = (dispLbl||'') + suffix; }
+    S.push({kind:'rect',i1:Math.max(0,a)-0.5,i2:Math.min(n,b)-0.5,p1:null,p2:null,
+      fill: dead?'muted':'w', alpha: dead?0.035:(hypothesis?0.045:0.07),
+      stroke: dead?'muted':'w', sw:1, dash:[2,4], strokeAlpha: dead?0.35:(hypothesis?0.45:0.6),
+      leftOnly:true, label:dispLbl||null, labelColor: dead?'muted':'w', labelPos:'tl', labelBold:!hypothesis}); });
   if(wy.tr){ const a=Math.max(0,spanOf(rows,wy.tr.from));
-    [[wy.tr.high,wy.tr.high_label||'AR'],[wy.tr.low,wy.tr.low_label||'SC']].forEach(([v,lb])=>{ if(v==null)return; S.push({kind:'hseg',i1:a-0.4,i2:null,price:v,stroke:'w',sw:1.6,dash:[5,3],label:lb+' '+fmt(v),labelAt:'axis'}); }); }
-  (wy.events||[]).map(f=>({f,i:idxOf(rows,f.time)})).filter(o=>o.i>=0).sort((a,b)=>a.i-b.i).forEach(({f,i})=>{ const c=rows[i]; S.push({kind:'flag',i,price:f.up?c[HIGH]:c[LOW],text:compact?String(f.label||'').split(' · ')[0]:String(f.label||''),up:!!f.up,color:'w'}); });
+    // +0.5: idxOf(rows,invalidatedAt) is the BREAKING candle's own index (WA/scripts/ict-scan.py's first
+    // completed close beyond the level) -- it is the last bar the structure was still valid over, so the line
+    // must run THROUGH it, matching the phase band's `b=endIdx+1` (-> i2=b-0.5=endIdx+0.5) above.
+    const dead=invalidated && a<=endIdx, i2=dead?endIdx+0.5:null;
+    [[wy.tr.high,wy.tr.high_label||'AR'],[wy.tr.low,wy.tr.low_label||'SC']].forEach(([v,lb])=>{ if(v==null)return;
+      S.push({kind:'hseg',i1:a-0.4,i2,price:v,stroke:dead?'muted':'w',sw:dead?1:1.6,dash:[5,3],alpha:dead?0.4:1,
+        label:lb+' '+fmt(v)+(dead?suffix:''),labelAt:'axis'}); }); }
+  (wy.events||[]).map(f=>({f,i:idxOf(rows,f.time)})).filter(o=>o.i>=0).sort((a,b)=>a.i-b.i).forEach(({f,i})=>{ const c=rows[i];
+    const faded=invalidated && i<=endIdx;
+    S.push({kind:'flag',i,price:f.up?c[HIGH]:c[LOW],text:compact?String(f.label||'').split(' · ')[0]:String(f.label||''),up:!!f.up,color:faded?'muted':'w'}); });
+  if(invalidated){ const c=rows[endIdx];   // P7.2 item 3: mark the breaking candle itself
+    S.push({kind:'mark',i:endIdx,price:c[CLOSE],glyph:'x',color:'warn',r:4});
+    if(!compact) S.push({kind:'label',i:endIdx,price:c[CLOSE],text:L('chart.wyckoff.invalidation_mark',{close:fmt(c[CLOSE])}),color:'warn',anchor:'start',dx:4,dy:10,bold:true}); }
   const li=n-1; S.push({kind:'mark',i:li,price:rows[li][CLOSE],glyph:'dot',color:'ink',r:3,ring:true});
   return S;
 };
@@ -232,7 +296,23 @@ const wyckoffShapes = (rows, wy, cfg) => {
 const windowShape = (rows, fromIso) => { const a=spanOf(rows,fromIso); if(a>=rows.length) return []; return [{kind:'rect',i1:a-0.5,i2:rows.length-0.5,p1:null,p2:null,fill:'accent',alpha:0.10,label:L('chart.entry_window'),labelColor:'accent',labelPos:'tl'}]; };
 
 // Named levels (anchors) for the active lane: a dashed line from its time to the right edge, labelled on the price axis.
-const levelShapes = (rows, levels, lane, fmt) => (levels||[]).filter(lv=>lv.method===lane||lv.method==='neutral').map(lv=>({kind:'hseg',i1:Math.max(0,spanOf(rows,lv.time))-0.5,i2:null,price:lv.price,stroke:lv.method==='neutral'?'muted':lane==='ict'?'i':'w',sw:1.2,dash:[6,4],label:(lv.short||'')+' '+fmt(lv.price),labelAt:'axis'}));
+// §7 P7.2 item 1 (docs/audits/2026-09-24-wyckoff-label-review.md): a Wyckoff-method anchor line from an
+// invalidated read truncates at `invalidatedAt` and fades, same as the TR/phase lines in wyckoffShapes -- an ICT
+// anchor is untouched (invalidation here is a Wyckoff-owned concept; ICT levels carry their own swept/through
+// marks already, see ictShapes lvl()).
+const levelShapes = (rows, levels, lane, fmt, invalidatedAt) => {
+  const wyState = lane==='wyckoff' ? invalidationState(rows, invalidatedAt) : 'live';
+  return (levels||[]).filter(lv=>lv.method===lane||lv.method==='neutral')
+    // P7.2 item 4: the whole wyckoff read was already dead before this window starts -- its own anchor lines
+    // (SC/AR/Spring/SOS/...) draw nothing here, same as wyckoffShapes; a 'neutral' anchor is not wyckoff-owned
+    // and is left alone.
+    .filter(lv=>!(wyState==='before' && lv.method==='wyckoff'))
+    .map(lv=>{
+      const a=Math.max(0,spanOf(rows,lv.time)-0.5), endIdx=wyState==='in'?idxOf(rows,invalidatedAt):-1, dead=endIdx>=0;
+      return {kind:'hseg',i1:a,i2:dead?endIdx+0.5:null,price:lv.price,stroke:dead?'muted':(lv.method==='neutral'?'muted':lane==='ict'?'i':'w'),sw:dead?0.9:1.2,
+        dash:[6,4],alpha:dead?0.4:1,label:(lv.short||'')+' '+fmt(lv.price)+(dead?(' · '+L('chart.wyckoff.invalidated_suffix',{date:dateShort(invalidatedAt)})):''),labelAt:'axis'};
+    });
+};
 
 // Trade plans from trades/index.jsonl (PLANNED/OPEN records for this instrument; read-only) + the narrative's invalidation level.
 // Risk box entry↔stop, reward box entry↔target1, every target a line; R:R from planned_rr or computed.
@@ -248,7 +328,23 @@ const planShapes = (rows, plans, inv, cfg) => {
     (p.targets||[]).forEach((t,k)=>{ S.push({kind:'hseg',i1:from,i2:null,price:t,stroke:'up',sw:1,dash:[4,3],label:'T'+(k+1)+' '+fmt(t),labelAt:'axis'}); });
     const rr=p.planned_rr!=null?p.planned_rr:(t1!=null?Math.abs(t1-p.entry)/risk:null);
     S.push({kind:'label',i:from,price:p.entry,text:(long?'LONG ':'SHORT ')+tag+(rr!=null?' · R:R '+rr.toFixed(2):'')+' · '+(p.status||''),color:'ink',anchor:'start',dx:4,dy:long?-8:9,bold:true}); });
-  if(inv&&inv.level!=null) S.push({kind:'hseg',i1:null,i2:null,price:inv.level,stroke:'warn',sw:1.2,dash:[3,3],label:L('chart.invalidation')+' · '+(inv.owner||'?')+' '+fmt(inv.level),labelAt:'axis'});
+  if(inv&&inv.level!=null){
+    // §7 P7.2 items 1+3+4 (docs/audits/2026-09-24-wyckoff-label-review.md): once the level has actually been
+    // closed beyond (invalidated_at set by build-artifact.py invalidated_at(), P7.1), relabel the line from
+    // "chart.invalidation · owner level" to "chart.invalidation · chart.wyckoff.invalidation_fired" -- `fired`
+    // depends ONLY on invalidated_at being SET, never on whether idxOf can resolve it against these rows: a
+    // break that predates the visible window must never fall back to the ORIGINAL live-looking label just
+    // because idxOf returns -1 for "before" the same as it does for "not yet reached" (state disambiguates the
+    // two). The axis label renders from `price` alone regardless of i1/i2 (see the renderer's axis-label
+    // grouping), so it stays a visible signal even when state is 'before' and the line BODY draws nothing in
+    // the visible window -- P7.2 item 4's out-of-window case.
+    const state=invalidationState(rows, inv.invalidated_at), fired=state!=='live';
+    const endIdx=state==='in'?idxOf(rows,inv.invalidated_at):null;
+    const span=state==='in'?{i1:null,i2:endIdx+0.5}:(state==='before'?{i1:-0.5,i2:-0.5}:{i1:null,i2:null});
+    S.push({kind:'hseg',i1:span.i1,i2:span.i2,price:inv.level,stroke:'warn',sw:1.2,dash:[3,3],alpha:fired?0.5:1,
+      label:fired?(L('chart.invalidation')+' · '+L('chart.wyckoff.invalidation_fired',{date:dateShort(inv.invalidated_at)}))
+                 :(L('chart.invalidation')+' · '+(inv.owner||'?')+' '+fmt(inv.level)),labelAt:'axis'});
+  }
   return S;
 };
 
@@ -297,7 +393,7 @@ const rulerShapes = (entry, stop, i1, i2, fmt) => {
   return S;
 };
 
-const api = {ictAnalyze, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, expectationShapes, rulerShapes, unix};
+const api = {ictAnalyze, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, invalidationState, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, expectationShapes, rulerShapes, unix, dateShort};
 if(!root || typeof document==='undefined') return api;   // node: pure API only
 
 // =============================================================================================== browser: rendering
@@ -464,12 +560,16 @@ function viewFor(h){ if(h.cursor==null) return {ict:Object.assign({n:h.rows.leng
 
 function applyLane(h, lane, P){
   h.lane=lane; h.P=P; const {rows,d,t,C,fmt}=h; const rowsV=h.cursor==null?rows:rows.slice(0,h.cursor+1); h.view=viewFor(h);
-  const compact=!!t.compact, cfgS={compact,fmt};
+  // §7 P7.1/P7.2: the invalidation belongs to THIS symbol's own working-timeframe narrative (d.invalidation) --
+  // it applies only to the 'entry' tier's own Wyckoff overlay, never to the bias/structure tiers, which read a
+  // DIFFERENT (higher-timeframe) narrative with its own separate invalidation state (out of scope here, P7.4).
+  const invalidatedAt=(t.key==='entry'&&d.invalidation)?d.invalidation.invalidated_at:null;
+  const compact=!!t.compact, cfgS={compact,fmt,invalidatedAt,narrativeUpdated:t.key==='entry'?d.updated:null};
   candlesData(h);
   const wy=h.cursor==null?(t.wy||{}):{...(t.wy||{}), events:((t.wy||{}).events||[]).filter(e=>idxOf(rows,e.time)<=h.cursor), phases:((t.wy||{}).phases||[]).filter(p=>spanOf(rows,p.from)<=h.cursor)};
   let S=[]; if(t.window) S=S.concat(windowShape(rowsV,t.window.from));
   if(lane==='ict') S=S.concat(ictShapes(rowsV,h.view.ict,cfgS)); else S=S.concat(wyckoffShapes(rowsV,wy,cfgS));
-  S=S.concat(levelShapes(rowsV,t.levels,lane,fmt));
+  S=S.concat(levelShapes(rowsV,t.levels,lane,fmt,invalidatedAt));
   if(!compact&&h.cursor==null) S=S.concat(planShapes(rows,d.plans,d.invalidation,cfgS));
   if(!compact&&h.cursor==null) S=S.concat(expectationShapes(rows,d.plans,lane,fmt));
   if(h.ruler&&h.ruler.entry!=null&&h.ruler.stop!=null) S=S.concat(rulerShapes(h.ruler.entry,h.ruler.stop,h.ruler.i1,h.ruler.i2,fmt));

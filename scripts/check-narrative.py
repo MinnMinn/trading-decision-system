@@ -18,6 +18,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import method_purity as mp          # noqa: E402
 import numbers_guard as ng          # noqa: E402
+import wyckoff_rules as wr          # noqa: E402  -- reused deterministically (never re-derived by eye), per
+                                     # docs/audits/2026-09-24-wyckoff-label-review.md P1.1/P2.1: "Values are
+                                     # computed deterministically from the snapshot candles by reusing the
+                                     # wyckoff_rules.py functions. They are not trusted from the model."
 _spec = importlib.util.spec_from_file_location("build_artifact", os.path.join(ROOT, "scripts", "build-artifact.py"))
 _ba = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_ba)
 STYLES = _ba.STYLES
@@ -42,6 +46,96 @@ EVENT_VOCAB = {  # canonical event token -> allowed phases (accumulation / distr
 }
 EVENT_TOKEN = re.compile(r"^(PS|SC|AR|ST|UA|mSOW|mSOS|Spring|Shakeout|Test|LPS|SOS|BU|PSY|BC|BCLX|UT|UTAD|SOW|LPSY|CHoBEV|CHoCH)\b", re.I)
 KL_RE = re.compile(r"KL\s*([0-9]+(?:[.,][0-9]+)?)\s*[x×]", re.I)
+PRICE_RE = re.compile(r"(\d[\d,]*\.?\d*)")
+RATIO_RE = re.compile(r"\d+(?:[.,]\d+)?\s*[x×]", re.I)
+SOLE_VOLUME_RE = re.compile(r"(hợp lệ[^.<]*?(khối lượng|KL)\b|(khối lượng|KL)\b[^.<]*?hợp lệ|valid[^.<]*\bvolume\b|\bvolume\b[^.<]*valid)", re.I)
+
+# đối nhãn (WA p150–159) records where ST[A] and the Phase-B tests sit in the TR's thirds -- see wyckoff_rules.py R3/R3b.
+DOI_NHAN_SIGNS = ("supports", "neutral", "contradicts")
+# P1.1/P2.1/P3.1 (docs/audits/2026-09-24-wyckoff-label-review.md): tokens whose confirming bar must exist in the
+# candles up to `updated` (point-in-time, CLAUDE.md §8) before the label may drop its "?" candidate marker.
+CONFIRM_TOKENS = ("SOS", "SOW", "LPS", "BU", "LPSY", "TEST")
+# Phase C's / Phase D's own defining test event, mirroring the hard membership rule already enforced below
+# (phase_grammar "Phase C has no test event" / "Phase D has no SOS/LPS/BU"). Kept as one named table so the two
+# checks -- "member of the phase" and "confirmed enough to OPEN the phase" -- read the same vocabulary.
+PHASE_OPENING_EVENTS = {"C": {"SPRING", "SHAKEOUT", "TEST", "LPS", "UTAD"}, "D": {"SOS", "SOW", "LPS", "LPSY", "BU"}}
+
+
+def event_price(label):
+    """First PRICE (not ratio) in an event label -- e.g. 'Spring[C] 4,289.57' -> 4289.57. A number immediately
+    followed by 'x'/'×' (a volume ratio, e.g. 'KL 2.78× 4,289.57' or the reverse order 'Spring[C] 4,289.57 ·
+    KL 2.78x') is skipped -- fix round 3b/1 item 4: the first number in a label is not always the price once a
+    ratio can appear before it. Used where a check compares the model's OWN number against a declared border,
+    with no candle lookup needed (P1.2: a context Spring must sit beyond the context trading_range, using the
+    narrative's own two numbers)."""
+    label = str(label or "")
+    for m in PRICE_RE.finditer(label):
+        tail = label[m.end():m.end() + 3].lstrip()
+        if tail[:1] in ("x", "X", "×"):
+            continue
+        try:
+            return float(m.group(1).replace(",", ""))
+        except ValueError:
+            continue
+    return None
+
+
+def _avg(xs, i, n):
+    w = xs[max(0, i - n):i]
+    return sum(w) / len(w) if w else 0.0
+
+
+def _label_confirmed(label):
+    return not str(label or "").rstrip().endswith("?")
+
+
+def sos_confirmed(rows, tr_hi, event_time, lookback=None, commit=None):
+    """R11-style SOS/SOW confirmation (WA p83-85; scripts/wyckoff_rules.py R11), restricted by the caller to
+    candles at or before the narrative's own `updated` (CLAUDE.md §8: never let a later candle confirm an
+    earlier label). True = confirmed, False = refused (the candles up to `updated` disprove it), None = not
+    enough completed candles yet past the event bar to know either way."""
+    if tr_hi is None or not rows:
+        return None
+    lookback = wr.PARAMS["lookback"] if lookback is None else lookback
+    commit = wr.COMMIT if commit is None else commit
+    times = [r["time"] for r in rows]
+    if event_time not in times:
+        return None
+    i = times.index(event_time)
+    closes = [r["close"] for r in rows]; highs = [r["high"] for r in rows]; lows = [r["low"] for r in rows]; vols = [r.get("volume", 0) for r in rows]
+    spread = [h - l for h, l in zip(highs, lows)]
+    if closes[i] <= tr_hi or spread[i] < _avg(spread, i, lookback) or vols[i] < _avg(vols, i, lookback):
+        return False
+    for j in range(i, min(i + commit, len(closes))):
+        if closes[j] <= tr_hi:
+            return False
+    if i + commit > len(closes):
+        return None
+    return True
+
+
+def pullback_confirmed(rows, event_time, bearish=False):
+    """Project simplification of R8/R11's pullback reclaim for LPS/BU/LPSY/Test (WA p84-85: the last supply
+    'được hấp thụ mạnh và đẩy giá lên lại' -- demand pushes price back beyond the event bar). This is NOT a
+    replica of wyckoff_rules.py R8/R11 (those need the SOS's own volume and the pullback zone test, which a
+    single narrative event does not carry) -- it is a narrative-validation proxy: confirmed once a later
+    candle's close moves back beyond the event bar's own high (accumulation-side: LPS/BU/Test) or low
+    (distribution-side: LPSY, and a Test written on the short side)."""
+    if not rows:
+        return None
+    times = [r["time"] for r in rows]
+    if event_time not in times:
+        return None
+    i = times.index(event_time)
+    highs = [r["high"] for r in rows]; lows = [r["low"] for r in rows]; closes = [r["close"] for r in rows]
+    for j in range(i + 1, len(closes)):
+        if bearish:
+            if closes[j] < lows[i]:
+                return True
+        else:
+            if closes[j] > highs[i]:
+                return True
+    return None if i == len(closes) - 1 else False
 
 
 def phase_grammar(sym, wy, bad):
@@ -74,12 +168,17 @@ def phase_grammar(sym, wy, bad):
                 cur = L
         return cur
     seen = {}
+    # P3.1 (docs/audits/2026-09-24-wyckoff-label-review.md; WA p93/p161 own "?" notation): a "?"-suffixed event
+    # is a CANDIDATE, not a confirmed one -- seen_confirmed excludes it, so it cannot by itself open Phase C/D.
+    seen_confirmed = {}
     for e in wy.get("events") or []:
         lbl = str(e.get("label", "")); m = EVENT_TOKEN.match(lbl.strip())
         if not m:
             bad(pre + f"event label {lbl!r} does not start with a Wyckoff event name (PS/SC/AR/ST/UA/Spring/Shakeout/Test/LPS/SOS/BU · PSY/BC/UT/UTAD/SOW/LPSY · CHoBEV/CHoCH — knowledge/wyckoff/advance.md §2.6–2.8)"); continue
         tok = m.group(1).upper(); L = phase_at(e.get("time", ""))
         seen.setdefault(L, set()).add(tok)
+        if _label_confirmed(lbl):
+            seen_confirmed.setdefault(L, set()).add(tok)
         # An event OUTSIDE every phase band was silently unchecked: phase_at returns None, so the vocabulary
         # rule below never ran and the chart drew it anyway, as part of a structure it does not belong to.
         # Found 2026-09-19 from a reader's comment on the BTC bias chart: SOS 2026-09-03, ST 2026-09-04 and
@@ -99,10 +198,16 @@ def phase_grammar(sym, wy, bad):
         if tok in ("SOS", "SOW") and km and float(km.group(1).replace(",", ".")) < 1.0:
             bad(pre + f"event {lbl!r}: an {tok} is 'mở rộng chênh lệch giá và tăng khối lượng' (WA p83–84, knowledge/wyckoff/advance.md §2.7.4); on below-average "
                       f"volume a break above AR inside the range is UA (bull trap, WA p78/p88) — relabel, do not call it SOS")
-    if "C" in letters and not (seen.get("C", set()) & {"SPRING", "SHAKEOUT", "TEST", "LPS", "UTAD"}):
+    if "C" in letters and not (seen.get("C", set()) & PHASE_OPENING_EVENTS["C"]):
         bad(pre + "Phase C has no test event (Spring / Shakeout / Test / LPS[C] · UTAD) — Phase C is that test (knowledge/wyckoff/advance.md §2.7.3, WA p79–83)")
-    if "D" in letters and not (seen.get("D", set()) | seen.get("E", set())) & {"SOS", "SOW", "LPS", "LPSY", "BU"}:
+    elif "C" in letters and not (seen_confirmed.get("C", set()) & PHASE_OPENING_EVENTS["C"]):
+        bad(pre + "Phase C's only test event is an unconfirmed '?' candidate — a '?' event cannot open a phase "
+                  "(WA p93/p161 '?' notation; docs/audits/2026-09-24-wyckoff-label-review.md P3.1)")
+    if "D" in letters and not (seen.get("D", set()) | seen.get("E", set())) & PHASE_OPENING_EVENTS["D"]:
         bad(pre + "Phase D has no SOS/LPS/BU (or SOW/LPSY) event — Phase D is 'cầu áp đảo cung' shown by SOS then LPS (knowledge/wyckoff/advance.md §2.7.4)")
+    elif "D" in letters and not ((seen_confirmed.get("D", set()) | seen_confirmed.get("E", set())) & PHASE_OPENING_EVENTS["D"]):
+        bad(pre + "Phase D's only qualifying event is an unconfirmed '?' candidate (e.g. 'SOS[D]?') — a '?' event "
+                  "cannot open a phase (WA p93/p161 '?' notation; docs/audits/2026-09-24-wyckoff-label-review.md P3.1)")
     if "A" in letters and not (seen.get("A", set()) & {"SC", "BC", "BCLX"}):
         bad(pre + "Phase A has no SC (or BC) event — Phase A is the stopping action SC→AR→ST (knowledge/wyckoff/advance.md §2.7.1)")
     # The trading range and the phases must describe ONE structure. A range that starts before the structure
@@ -117,6 +222,218 @@ def phase_grammar(sym, wy, bad):
                   f"a range cannot predate the stopping action it is drawn from "
                   f"(knowledge/wyckoff/advance.md §2.7.1)")
 
+
+def context_spring_checks(sym, cw, bad):
+    """P1.2 (docs/audits/2026-09-24-wyckoff-label-review.md): a Spring/UTAD in the CONTEXT (higher-timeframe)
+    read must actually breach the context trading_range border (WA p80 'giá dưới mức thấp nhất của Trading
+    Range'). Checked from the narrative's own two numbers -- the event price and the declared border -- with no
+    candle lookup: this is exactly the critique's concrete case (4H 'Spring 4,289.57' against a 4H TR low of
+    4,285.91 the label itself never crosses)."""
+    pre = f"{sym} (context): "
+    tr = cw.get("trading_range") or {}
+    lo, hi = tr.get("low"), tr.get("high")
+    for e in cw.get("events") or []:
+        lbl = str(e.get("label", "")); m = EVENT_TOKEN.match(lbl.strip())
+        if not m:
+            continue
+        tok = m.group(1).upper(); px = event_price(lbl)
+        if px is None:
+            continue
+        if tok == "SPRING" and lo is not None and px >= lo:
+            bad(pre + f"event {lbl!r}: a context-timeframe Spring must trade below the context trading_range low "
+                      f"({lo}) — WA p80; this bar's own recorded price never crosses it "
+                      f"(docs/audits/2026-09-24-wyckoff-label-review.md P1.2)")
+        if tok == "UTAD" and hi is not None and px <= hi:
+            bad(pre + f"event {lbl!r}: a context-timeframe UTAD must trade above the context trading_range high "
+                      f"({hi}) — WA p101 mirror of WA p80 (docs/audits/2026-09-24-wyckoff-label-review.md P1.2)")
+
+
+def doi_nhan_and_spring_checks(sym, wy, rows, synthesis_html, bad):
+    """P1.1 (docs/audits/2026-09-24-wyckoff-label-review.md): every Spring/Shakeout event carries a volume_type
+    (1/2/3) that AGREES with the ratio computed from candles (method.md A6: "Values are computed
+    deterministically ... not trusted from the model"); wyckoff.doi_nhan.st_sign is recorded (WA p150, Dấu hiệu
+    1); when it 'contradicts' (ST below SC), the phase may not sit past C without wyckoff.alternative (P6.1) AND
+    the synthesis naming the contradiction; the Spring event bar's own close sits back above trading_range.low
+    (WA p80's "đảo chiều để đóng trong Trading Range") -- a close still below it is refused (real invalidation
+    at write time, not a rendering question), a close above trading_range.high in the SAME bar is a WARNING
+    only (the book has no rule for a one-bar Spring-plus-breakout, docs/audits/2026-09-24-wyckoff-label-review.md
+    §1(c) point 3)."""
+    pre = f"{sym}: "
+    tr = wy.get("trading_range") or {}
+    tr_lo, tr_hi = tr.get("low"), tr.get("high")
+    times = [r["time"] for r in rows] if rows else []
+    closes = [r["close"] for r in rows] if rows else []
+    vols = [r.get("volume", 0) for r in rows] if rows else []
+    lookback = wr.PARAMS["lookback"]
+
+    for e in wy.get("events") or []:
+        lbl = str(e.get("label", "")); m = EVENT_TOKEN.match(lbl.strip())
+        if not m:
+            continue
+        tok = m.group(1).upper()
+        if tok not in ("SPRING", "SHAKEOUT"):
+            continue
+        vt = e.get("volume_type")
+        if vt not in (1, 2, 3):
+            bad(pre + f"event {lbl!r} needs volume_type (1/2/3, WMT Bảng 2.1 p049) — method.md A6 requires both "
+                      f"the WA event class and the WMT volume type, recorded, not collapsed "
+                      f"(docs/audits/2026-09-24-wyckoff-label-review.md P1.1)")
+        ec = e.get("event_class")
+        if ec is not None and str(ec).strip().upper() != tok:
+            bad(pre + f"event {lbl!r}: event_class {ec!r} does not match the event token the label itself starts "
+                      f"with ({tok!r}) — method.md A6 records the WA event and the WMT volume type as two "
+                      f"separate answers to two separate questions, not two disagreeing labels for the same bar "
+                      f"(docs/audits/2026-09-24-wyckoff-label-review.md P1.1)")
+        vk = e.get("volume_kind")
+        if vk is not None:
+            try:
+                true_kind = "tick" if _ba.I.is_tick_volume(sym) else "traded"
+            except KeyError:
+                true_kind = None   # sym not on any analysis list (e.g. a test fixture) -- nothing to compare against
+            if true_kind is not None and vk != true_kind:
+                bad(pre + f"event {lbl!r}: volume_kind {vk!r} does not match this symbol's actual feed "
+                          f"({true_kind!r}, scripts/instruments.py is_tick_volume) — WMT p131-133 flags tick-based "
+                          f"volume as unreliable precisely because it is NOT traded volume; recording the wrong "
+                          f"kind hides that caveat rather than stating it "
+                          f"(docs/audits/2026-09-24-wyckoff-label-review.md P1.1/P5.1)")
+        etime = e.get("time")
+        if etime in times:
+            i = times.index(etime)
+            av = _avg(vols, i, lookback)
+            if av:
+                ratio = vols[i] / av
+                computed = 1 if ratio < wr.VOL["low_max_ratio"] else (3 if ratio > wr.VOL["high_min_ratio"] else 2)
+                if vt in (1, 2, 3) and vt != computed:
+                    bad(pre + f"event {lbl!r}: volume_type {vt} does not match the ratio computed from candles "
+                              f"({ratio:.2f}× → type {computed}, WMT Bảng 2.1 p049) — not trusted from the model")
+            if tr_lo is not None:
+                close = closes[i]
+                if close <= tr_lo:
+                    bad(pre + f"event {lbl!r}: the Spring/Shakeout bar's own close ({close}) never came back above "
+                              f"trading_range.low ({tr_lo}) — WA p80 requires the reversal to close back inside the "
+                              f"range; this is not a Spring by definition at write time "
+                              f"(docs/audits/2026-09-24-wyckoff-label-review.md P1.1)")
+                elif tr_hi is not None and close > tr_hi:
+                    print(f"{sym}: WARNING event {lbl!r} closed above trading_range.high ({tr_hi}) in the same bar "
+                          f"— Spring and breakout in one bar, Phase C with no Test; the book has no rule for this "
+                          f"case, so it is a warning, not a failure (docs/audits/2026-09-24-wyckoff-label-review.md §1(c))")
+
+    doi_nhan = wy.get("doi_nhan") or {}
+    st_sign = doi_nhan.get("st_sign")
+    if wy.get("phases") or wy.get("events"):
+        if st_sign not in DOI_NHAN_SIGNS:
+            bad(pre + "wyckoff.doi_nhan.st_sign missing — ST[A] position against the SC/AR border must be "
+                      "recorded (WA p150, đối nhãn Dấu hiệu 1; docs/audits/2026-09-24-wyckoff-label-review.md P1.1)")
+        elif st_sign == "contradicts":
+            phases = wy.get("phases") or []
+            last_letter = None
+            for ph in phases:
+                mm = re.match(r"\s*(?:pha|phase)?\s*([A-Ea-e])\b", str(ph.get("label", "")), re.I)
+                if mm:
+                    last_letter = mm.group(1).upper()
+            plain_syn = re.sub(r"<[^>]+>", " ", synthesis_html or "").lower()
+            names_contradiction = any(k in plain_syn for k in ("mâu thuẫn", "contradiction"))
+            if last_letter in ("D", "E") and not ((wy.get("alternative") or "").strip() and names_contradiction):
+                bad(pre + "doi_nhan.st_sign is 'contradicts' (ST below SC, WA p150 — early sign of redistribution/"
+                          "distribution) but the phase has advanced past C without wyckoff.alternative naming the "
+                          "competing reading AND the synthesis stating the contradiction "
+                          "(docs/audits/2026-09-24-wyckoff-label-review.md P1.1, P6.1; CLAUDE.md §19)")
+        has_phase_b = any(re.match(r"\s*(?:pha|phase)?\s*B\b", str(ph.get("label", "")), re.I) for ph in (wy.get("phases") or []))
+        if has_phase_b and doi_nhan.get("phase_b_sign") not in DOI_NHAN_SIGNS:
+            bad(pre + "wyckoff.doi_nhan.phase_b_sign missing — once a Phase B band is declared, where its tests sit "
+                      "against the TR's thirds must be recorded (WA p154-159, đối nhãn Dấu hiệu 2; "
+                      "docs/audits/2026-09-24-wyckoff-label-review.md P1.1)")
+
+
+def confirmation_grammar(sym, wy, rows, updated, bad):
+    """P2.1/P3.1 (docs/audits/2026-09-24-wyckoff-label-review.md): an SOS/SOW must pass the R11-style
+    deterministic test (sos_confirmed) and an LPS/BU/LPSY/Test must pass its pullback-reclaim proxy
+    (pullback_confirmed), both computed ONLY from candles at or before `updated` (CLAUDE.md §8 point-in-time —
+    never let a later candle confirm an earlier label). A token that fails, or cannot yet be told either way,
+    must be written as a '?' candidate (WA p93/p161's own notation) or the check refuses it."""
+    pre = f"{sym}: "
+    if not rows:
+        return
+    rows_pit = [r for r in rows if r.get("time", "") <= updated]
+    tr = wy.get("trading_range") or {}
+    for e in wy.get("events") or []:
+        lbl = str(e.get("label", "")); m = EVENT_TOKEN.match(lbl.strip())
+        if not m:
+            continue
+        tok = m.group(1).upper()
+        if tok not in CONFIRM_TOKENS:
+            continue
+        marked_unconfirmed = not _label_confirmed(lbl)
+        if tok in ("SOS", "SOW"):
+            ok = sos_confirmed(rows_pit, tr.get("high"), e.get("time"))
+        else:
+            ok = pullback_confirmed(rows_pit, e.get("time"), bearish=(tok == "LPSY"))
+        if ok is False and not marked_unconfirmed:
+            bad(pre + f"event {lbl!r} does not pass its confirmation test on the candles up to {updated} — write it "
+                      f"as a candidate ending in '?' (WA p93/p161 '?' convention; "
+                      f"docs/audits/2026-09-24-wyckoff-label-review.md P2.1/P3.1), or correct the read")
+        elif ok is None and not marked_unconfirmed:
+            bad(pre + f"event {lbl!r}: not enough completed candles since it printed to confirm it at {updated} — "
+                      f"write it as a candidate ending in '?' until the confirming bars exist "
+                      f"(docs/audits/2026-09-24-wyckoff-label-review.md P2.1/P3.1)")
+
+
+def alternative_and_status_checks(sym, wy, bad):
+    """P6.1/P6.2 (docs/audits/2026-09-24-wyckoff-label-review.md): wyckoff.alternative is a required short cited
+    paragraph naming the competing reading (WA2-27: prepare BOTH scenarios at a border break); every phases[]
+    item carries status 'tested' | 'hypothesis', and 'tested' requires that phase's own confirming event (per
+    PHASE_OPENING_EVENTS) to exist AND be confirmed (no trailing '?') — anything else is a hypothesis
+    (method.md A4: "a phase call that has not been tested ... must be reported as one")."""
+    pre = f"{sym}: "
+    if wy.get("phases") or wy.get("events"):
+        if not (wy.get("alternative") or "").strip():
+            bad(pre + "wyckoff.alternative missing — a short cited paragraph naming the competing reading is "
+                      "required at every border read (WA2-27; docs/audits/2026-09-24-wyckoff-label-review.md P6.1)")
+    events = wy.get("events") or []
+    for ph in wy.get("phases") or []:
+        status = ph.get("status")
+        if status not in ("tested", "hypothesis"):
+            bad(pre + f"phase {ph.get('label')!r} needs status 'tested' or 'hypothesis' (WA p166 warns against "
+                      f"labelling mechanically; docs/audits/2026-09-24-wyckoff-label-review.md P6.2)")
+            continue
+        m = re.match(r"\s*(?:pha|phase)?\s*([A-Ea-e])\b", str(ph.get("label", "")), re.I)
+        L = m.group(1).upper() if m else None
+        required = PHASE_OPENING_EVENTS.get(L)
+        if status == "tested" and required is not None:
+            frm, to = ph.get("from", ""), ph.get("to")
+            in_phase = [e for e in events if frm <= e.get("time", "") and (not to or e["time"] < to)]
+            confirmed_tokens = set()
+            for e in in_phase:
+                mm = EVENT_TOKEN.match(str(e.get("label", "")).strip())
+                if mm and _label_confirmed(e.get("label", "")):
+                    confirmed_tokens.add(mm.group(1).upper())
+            if not (confirmed_tokens & required):
+                bad(pre + f"phase {ph.get('label')!r} is marked status 'tested' but its confirming event "
+                          f"({'/'.join(sorted(required))}) is missing or still an unconfirmed '?' candidate "
+                          f"(docs/audits/2026-09-24-wyckoff-label-review.md P6.2)")
+
+
+def tick_volume_checks(sym, wy, cw, is_tick, bad):
+    """P5.1 (docs/audits/2026-09-24-wyckoff-label-review.md): on a tick-volume feed, volume may not be the SOLE
+    stated validator of an event ('hợp lệ vì khối lượng ...'), and every printed ratio must carry a tick marker
+    so a reader cannot mistake it for real traded volume (WMT p131-133 flags tick-based Delta as unreliable;
+    method.md §4.1/§6.3 extend the caution to plain volume on this project's tick feeds)."""
+    if not is_tick:
+        return
+    pre = f"{sym}: "
+    for label, text in ((f"wyckoff.text_html", wy.get("text_html", "")), (f"context.wyckoff.text_html", cw.get("text_html", ""))):
+        if not text:
+            continue
+        if SOLE_VOLUME_RE.search(text):
+            bad(pre + f"{label} validates an event by volume alone ('hợp lệ vì khối lượng ...') on a tick-volume "
+                      f"feed — volume may be reported but must not be the sole deciding criterion "
+                      f"(WMT p131-133; docs/audits/2026-09-24-wyckoff-label-review.md P5.1)")
+        plain = re.sub(r"<[^>]+>", " ", text)
+        for m in RATIO_RE.finditer(plain):
+            window = plain[m.end():m.end() + 12]
+            if "tick" not in window.lower():
+                bad(pre + f"{label}: volume ratio {m.group(0)!r} has no '(tick)' marker on a tick-volume feed "
+                          f"(docs/audits/2026-09-24-wyckoff-label-review.md P5.1)")
 
 
 def event_window(wy, win):
@@ -205,6 +522,12 @@ def main():
         cw = ((d.get("context") or {}).get("wyckoff") or {})
         if cw.get("phases") or cw.get("events"):
             phase_grammar(sym + " (context)", cw, bad)
+            context_spring_checks(sym, cw, bad)   # P1.2
+        rows_full = candles(sym, S["tf"], S["n"])
+        doi_nhan_and_spring_checks(sym, wy, rows_full, d.get("synthesis_html", ""), bad)   # P1.1
+        confirmation_grammar(sym, wy, rows_full, n.get("updated", ""), bad)                 # P2.1 / P3.1
+        alternative_and_status_checks(sym, wy, bad)                                          # P6.1 / P6.2
+        tick_volume_checks(sym, wy, cw, _ba.I.is_tick_volume(sym), bad)                       # P5.1
         # giảm khung (knowledge/wyckoff/advance.md §2.7, WA p93–96): the context read is mandatory when a context window exists, and the
         # working-timeframe verdict must respect the higher-timeframe structure
         if ctx_style:
@@ -226,6 +549,32 @@ def main():
             if "ict" in analysed and not (ci.get("text_html") or "").strip():
                 bad(pre + "context.ict.text_html missing — the higher-timeframe ICT read is mandatory")
             ctx_facts_sym = ((ctx_facts.get("symbols") or {}).get(sym) or {})
+            # P4.1/P4.2 (docs/audits/2026-09-24-wyckoff-label-review.md): the two HTF readings are checked
+            # SEPARATELY here (unlike the ENGAGED-only bias_of() a few lines below, which is what the verdict is
+            # graded against) so a disagreement between the two ANALYSED context lanes is never silently
+            # dropped just because only one of them is engaged for this style's market.
+            if "wyckoff" in analysed and "ict" in analysed and (cw.get("text_html") or "").strip() and (ci.get("text_html") or "").strip():
+                if not (wy.get("nesting") or "").strip():
+                    bad(pre + "wyckoff.nesting missing — where the working-timeframe range sits inside the "
+                              "higher-timeframe one must be recorded whenever a context read exists (WA2-19/20; "
+                              "docs/audits/2026-09-24-wyckoff-label-review.md P4.2)")
+                # "updated" mirrors htf_context.load_tier's own construction of this exact dict (~line 381:
+                # "updated": n_own.get("updated") for the "this style's own narrative.context" branch, which is
+                # what cw IS here) -- round 3a's P7.4 invalidation-aware wyckoff_bias() needs this field to tell
+                # whether the context read itself has since been closed beyond; without it, a checker-computed
+                # bias would silently disagree with the page's own load_tier-derived bias the moment P7.4 lands.
+                cw_wy = {"structure": cw.get("structure"), "phase": cw.get("phase"), "trading_range": cw.get("trading_range"), "updated": n.get("updated")}
+                wy_ctx_bias, _ = htf.wyckoff_bias(cw_wy, ctx_facts_sym)
+                ict_ctx_bias, _ = htf.ict_bias(ctx_facts_sym)
+                if wy_ctx_bias in ("long", "short") and ict_ctx_bias in ("long", "short") and wy_ctx_bias != ict_ctx_bias:
+                    plain_syn = re.sub(r"<[^>]+>", " ", d.get("synthesis_html", "") or "").lower()
+                    names_both = "wyckoff" in plain_syn and "ict" in plain_syn
+                    names_contradiction = any(k in plain_syn for k in ("mâu thuẫn", "contradiction"))
+                    if not (names_both and names_contradiction):
+                        bad(pre + f"context Wyckoff ({wy_ctx_bias}) and ICT ({ict_ctx_bias}) bias disagree but the "
+                                  f"synthesis does not name both methods and state the Contradiction "
+                                  f"(CLAUDE.md §19; method.md §4.2 item 3; "
+                                  f"docs/audits/2026-09-24-wyckoff-label-review.md P4.1)")
             # ENGAGED, deliberately -- the bias this verdict is checked against must rest on the methods that
             # may qualify a trade, never on the wider analysed set (§18). The two sets are named apart here so
             # a future edit cannot swap one for the other by accident.
@@ -246,7 +595,7 @@ def main():
         if res:
             status = max(status, 3); print(f"{sym}: PURITY\n{mp.report(res)}")
         # numbers
-        allowed_sym = set(allowed) | ng.candle_numbers(candles(sym, S["tf"], S["n"]))
+        allowed_sym = set(allowed) | ng.candle_numbers(rows_full)
         for _t in (S["tiers"] or {}).values():
             if not _t: continue
             try: allowed_sym |= ng.candle_numbers(candles(sym, _t["tf"], _t["n"]))
