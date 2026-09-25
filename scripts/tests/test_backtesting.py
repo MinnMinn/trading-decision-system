@@ -178,15 +178,18 @@ class TheRealEngineIsPointInTime(unittest.TestCase):
         self._probe("WYCKOFF-BOOK", 20000, min_checked=1)
 
     def test_combined_book_entries_do_not_read_the_future(self):
-        """Fixture moved off BTCUSDT 15m (2026-09-19): under the causal window-by-window Wyckoff read
-        (bt.wyckoff_fires) COMBINED-BOOK's spring-leg structures almost never fire on the bar they are
-        identified, and a hunt over every non-15m history found exactly ONE causal COMBINED-BOOK trade -- XAGUSD
-        1H, entered 2018-04-05T13:00Z, ~50 000 bars from the end. A 4 000-bar slice around it keeps the probe's
-        5 engine runs at seconds, with the entry well before the 70 % cut and the 300-bar window before it intact."""
-        full, _src = self.bt.load("XAGUSD", "1H")
-        if not full or len(full) < 52500:
-            raise unittest.SkipTest("no XAGUSD 1H history on this machine")
-        self._probe("COMBINED-BOOK", 4000, min_checked=1, sym="XAGUSD", tf="1H", series=full[-52500:-48500])
+        """Fixture re-hunted 2026-09-25 (round 4a, INT-3): the XAGUSD 1H trade this test used to pin
+        (entered 2018-04-05T13:00Z) was a hindsight market-close entry (`via="mss"`, price never actually
+        retraced to the FVG) -- exactly the INT-3 defect this round removes, so it no longer fires at all.
+        A fresh hunt over every symbol/timeframe's full history for a `via="fvg"` (genuinely causal) COMBINED-
+        BOOK trade found BTCUSDT 1H, entered 2024-02-20T19:00Z, ~22 400 bars from the end. A 4 000-bar slice
+        around it (1 000 bars before the spring/structure bar for its own causal detection window, 3 000
+        after) keeps the probe's 5 engine runs fast, with the entry well before the 70 % cut and the 300-bar
+        detection window before it intact (verified: this slice alone still reproduces the same trade)."""
+        full, _src = self.bt.load("BTCUSDT", "1H")
+        if not full or len(full) < 23403:
+            raise unittest.SkipTest("no BTCUSDT 1H history on this machine")
+        self._probe("COMBINED-BOOK", 4000, min_checked=1, sym="BTCUSDT", tf="1H", series=full[-23403:-19403])
 
     def test_the_pivot_helper_is_causal_by_construction(self):
         """`last_pivot` is the one place a 3-bar pivot could leak: a pivot at i is only confirmed at i+3."""

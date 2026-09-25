@@ -358,13 +358,21 @@ class LegacyEngineIsGone(unittest.TestCase):
 class IctTargetComesFromLiveSetupCandidate(unittest.TestCase):
     """After the ict_target() removal, bt.scan's ICT branch (ict_setups_live) is the ONLY source of an ICT
     trade's target: su["target"] from live_rules.ict_scan.setup_candidate. The invariant is that this path
-    reads NOTHING from bt.OPTS -- so no OPTS key, present or future, can move an ICT target.
+    reads NOTHING from bt.OPTS *that the ICT rules themselves do not own* -- so no OPTS key from the deleted
+    target-model switch (or any future unrelated key) can move an ICT target.
 
-    Rewritten twice on 2026-09-19. It used to vary ict_disp / ict_pd / std_origin, the three knobs that fed
-    the deleted target-model switch; all three were removed from OPTS that day (knowledge audit finding 11),
-    so setting them now just inserts keys nothing reads -- which is a weaker test, not a passing one. And its
-    fixture (BTCUSDT 4H) went to ZERO ICT trades when the fill window was corrected to the live one, which
-    would have made the comparison vacuous rather than failing.
+    INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md, 2026-09-25) narrowed this invariant on purpose:
+    OPTS["htf"] is no longer one of the "unrelated" keys. Before that fix the ICT branch never read
+    OPTS["htf"] at all, which is exactly why config C's ICT rows were byte-identical to config B's -- the
+    backtest measured a filter live's htf:true setups are actually gated by nothing. `htf` is now the ONE
+    OPTS key the ICT path DELIBERATELY reads (via `htf_bias_gate`, shared with the WYCKOFF-BOOK/COMBINED-BOOK
+    branch), so it is excluded from this test's "must not move the target" sweep and checked separately.
+
+    Rewritten twice on 2026-09-19 (before this round). It used to vary ict_disp / ict_pd / std_origin, the
+    three knobs that fed the deleted target-model switch; all three were removed from OPTS that day (knowledge
+    audit finding 11), so setting them now just inserts keys nothing reads -- which is a weaker test, not a
+    passing one. And its fixture (BTCUSDT 4H) went to ZERO ICT trades when the fill window was corrected to
+    the live one, which would have made the comparison vacuous rather than failing.
 
     Fixture: XAUUSD 15m, measured 2026-09-19 as the densest surviving ICT series (17 trades over full
     history, against BTCUSDT 15m 15, BTCUSDT 1H 2, and 0 on every 4H series tested).
@@ -373,7 +381,7 @@ class IctTargetComesFromLiveSetupCandidate(unittest.TestCase):
     def setUp(self):
         self.bt = load("backtest-methods.py")
 
-    def test_no_opts_key_can_move_an_ict_target(self):
+    def test_no_unrelated_opts_key_can_move_an_ict_target(self):
         sym, tf = "XAUUSD", "15m"
         base = dict(self.bt.OPTS)
         try:
@@ -381,14 +389,31 @@ class IctTargetComesFromLiveSetupCandidate(unittest.TestCase):
             self.assertGreater(len(baseline), 0,
                                f"no ICT trades on {sym} {tf} -- the fixture has gone empty and this check "
                                f"would pass vacuously; pick a series that still has trades")
-            # Every OPTS key the ICT path could plausibly be tempted to read, moved off its default at once.
-            self.bt.OPTS.update(types=(1,), range_touches=5, htf=True, entry="test", mgmt="none",
+            # Every OPTS key the ICT path could plausibly be tempted to read, moved off its default at once --
+            # EXCEPT `htf`, which it now deliberately reads (INT-6/PAR-3, see class docstring).
+            self.bt.OPTS.update(types=(1,), range_touches=5, entry="test", mgmt="none",
                                 sloped_gate=True, st_gate=True, phase_b_gate=True, st_min=0.9,
                                 phase_d=False, combined_entry="market")
             varied = self.bt.scan(sym, tf, only=("ICT",))["trades"]["ICT"]
             self.assertEqual(baseline, varied,
                              "ICT trades changed when unrelated OPTS changed -- the live ICT path must be "
-                             "independent of bt.OPTS; its rules come from scripts/ict-scan.py")
+                             "independent of bt.OPTS (aside from OPTS['htf'], INT-6/PAR-3); its rules come "
+                             "from scripts/ict-scan.py")
+        finally:
+            self.bt.OPTS.clear(); self.bt.OPTS.update(base)
+
+    def test_htf_true_can_move_or_narrow_the_ict_trades(self):
+        """INT-6/PAR-3: the one OPTS key this class's OTHER test excludes on purpose. htf=True must at least
+        be CONSULTED (the trades set may narrow, since htf_bias_gate can now refuse a setup) -- it must never
+        be silently ignored the way it was before this fix."""
+        sym, tf = "XAUUSD", "15m"
+        base = dict(self.bt.OPTS)
+        try:
+            baseline = self.bt.scan(sym, tf, only=("ICT",))["trades"]["ICT"]
+            self.bt.OPTS["htf"] = True
+            gated = self.bt.scan(sym, tf, only=("ICT",))["trades"]["ICT"]
+            self.assertLessEqual(len(gated), len(baseline), "htf=True may only NARROW the ICT trades set, "
+                                                            "never add a setup htf=False did not already find")
         finally:
             self.bt.OPTS.clear(); self.bt.OPTS.update(base)
 
@@ -441,11 +466,13 @@ class ScanOnlySkipsUnwantedWork(unittest.TestCase):
         spy.assert_called()
 
     def test_only_filters_unwanted_methods_out_of_the_trades_dict(self):
-        # XAGUSD 1H, not BTCUSDT 4H: under the causal window-by-window Wyckoff read (2026-09-19, bt.wyckoff_fires)
-        # COMBINED-BOOK's spring-leg structures almost never fire on the bar they are identified, and a hunt over
-        # every non-15m history found exactly one causal COMBINED-BOOK trade -- this one. BTCUSDT 4H's single
-        # trade was one the runner could never have placed.
-        res = self.bt.scan("XAGUSD", "1H", only=("COMBINED-BOOK",))
+        # BTCUSDT 1H, not XAGUSD 1H (re-hunted 2026-09-25, round 4a INT-3): the XAGUSD 1H trade this test used
+        # to pin was a hindsight market-close entry (via="mss", price never actually retraced to the FVG) --
+        # exactly the INT-3 defect this round removes, so it no longer fires. A fresh hunt over every full
+        # history for a via="fvg" (genuinely causal) COMBINED-BOOK trade found BTCUSDT 1H, entered
+        # 2024-02-20T19:00Z. Full history (not a slice) so this stays a faithful "does `only` ever silently
+        # drop the method's real trades" check, matching this class's sibling tests' own full-history style.
+        res = self.bt.scan("BTCUSDT", "1H", only=("COMBINED-BOOK",))
         self.assertTrue(set(res["trades"].keys()) <= {"COMBINED-BOOK"}, res["trades"].keys())
         self.assertGreater(len(res["trades"]["COMBINED-BOOK"]), 0, "fixture must exercise a real COMBINED-BOOK trade")
 
