@@ -65,8 +65,11 @@ rejected_alternatives:
   `htf_position`), keyed on the structure's Spring/SOS time rather than the entry decision time. Fixed: a new
   `htf_bias_gate(sym, tf, side, decision_time, methods)` — the SAME `bias_allows(lr.bias_at(...))` function
   `strategy-runner.htf_pass()` calls live — is now shared by BOTH `scan()` branches, keyed on the LTF decision
-  bar's own close time (`Tm[last]` for Wyckoff, `Tm[i]` for ICT). The legacy `htf_allows`/`htf_position`
-  functions are kept, unused by this gate, only because scripts/tests/test_backtesting.py and
+  bar's own CLOSE time (`normalized.available_time(c[last], tf)` for Wyckoff, `available_time(c[i], tf)` for
+  ICT — NOT `Tm[last]`/`Tm[i]`, which are the bar's OPEN time; code review of this commit found both call
+  sites still passing the open time, silently misjudging the HTF bar for any LTF bar whose open falls inside
+  an HTF bar that is still forming, fixed in a follow-up commit the same day). The legacy `htf_allows`/
+  `htf_position` functions are kept, unused by this gate, only because scripts/tests/test_backtesting.py and
   scripts/tests/test_live_rules.py still exercise them directly as standalone regression tests.
 
 - **INT-7** — ICT trade records carried no `event` id at all (`t.get("event")` was always `None`), so

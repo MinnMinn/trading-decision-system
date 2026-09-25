@@ -519,6 +519,15 @@ def htf_bias_gate(sym, tf, side, decision_time, methods):
     of this tick" -- here, with the FULL stored history in hand, that same bar has to be found explicitly by
     `decision_time`.
 
+    `decision_time` MUST be the LTF decision bar's own CLOSE -- `normalized.available_time(bar, tf)`, an
+    ISO string with the same "+00:00"->"Z" normalisation `_HTF_TIMES` itself uses -- NEVER the bar's raw
+    `"time"` field (its OPEN). `_HTF_TIMES` is built from `available_time()` too (line below), so comparing
+    an LTF bar's OPEN against HTF CLOSE timestamps is an apples-to-oranges bisect: it silently selects an
+    HTF bar one rung too early whenever the LTF bar's open falls inside the HTF bar that is STILL forming,
+    which both scan() call sites did before round-4a fix round 1 (code review of a746ffc) -- measured at
+    551/2000 boundary bars on BTCUSDT, diverging from what live's own htf_pass() (strategy-runner.py) reads
+    at the same tick.
+
     Returns True (agrees), False (judged and refused), or None (structurally unable to judge -- htf_tf has no
     live scan window, or there is no HTF bar closed yet). Callers must refuse on anything other than an
     explicit True (`is not True`), matching strategy-runner.py's own fail-closed htf_pass() caller -- None is
@@ -579,11 +588,20 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
             continue
         # INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): the SAME htf gate function live uses
         # (strategy-runner.htf_pass -> bt.bias_allows(bt.lr.bias_at(...))), keyed on the HTF bar closed at or
-        # before THIS bar's own decision time (Tm[i]) -- not the Wyckoff engine's legacy percentile proxy, and
-        # not "no gate at all", which is what the ICT path had before this fix. Only evaluated when a run asked
+        # before THIS bar's own decision time -- not the Wyckoff engine's legacy percentile proxy, and not
+        # "no gate at all", which is what the ICT path had before this fix. Only evaluated when a run asked
         # for the HTF filter at all (OPTS["htf"]) -- an untouched run (OPTS["htf"]=False, the default) is
         # unaffected, matching the live runner's own `st.get("htf")` per-setup opt-in.
-        if OPTS["htf"] and htf_bias_gate(sym, tf, su["side"], Tm[i], methods) is not True:
+        #
+        # Round-4a fix round 1 (code review of a746ffc): `decision_time` must be bar i's own CLOSE
+        # (normalized.available_time), not `Tm[i]` (its OPEN, per normalized.py:118) -- `_HTF_TIMES` is built
+        # from `available_time` too, so comparing an LTF OPEN against HTF CLOSE timestamps silently misjudged
+        # every LTF bar whose open time falls inside the HTF bar that is STILL forming (551/2000 measured
+        # boundary bars on BTCUSDT), diverging from live htf_pass() (strategy-runner.py), which reads the last
+        # HTF bar closed as of the tick, not one keyed on an open timestamp.
+        if OPTS["htf"] and htf_bias_gate(sym, tf, su["side"],
+                                         _N.available_time(c[i], tf).isoformat().replace("+00:00", "Z"),
+                                         methods) is not True:
             continue
         key = (su["side"], su["sweep"]["time"], su["mss"]["time"])
         if key in seen:          # the same setup stays visible for many bars; take it once, at its first bar
@@ -842,13 +860,19 @@ def scan(sym, tf, only=None, opts=None):
                     r = f["rec"]; t0 = f["t0"]
                     # INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): the SAME htf gate function live
                     # uses for every method (bt.bias_allows(bt.lr.bias_at(...)), strategy-runner.htf_pass),
-                    # keyed on the LTF DECISION bar's own close time (Tm[last] -- the bar the structure fires
-                    # on, matching live's "at the entry tick"), not the legacy rolling-percentile proxy
-                    # (`htf_allows`/`htf_position`, kept below only for their own standalone regression tests --
+                    # keyed on the LTF DECISION bar's own close time (the bar the structure fires on, matching
+                    # live's "at the entry tick"), not the legacy rolling-percentile proxy (`htf_allows`/
+                    # `htf_position`, kept below only for their own standalone regression tests --
                     # scripts/tests/test_backtesting.py, scripts/tests/test_live_rules.py -- and no longer
                     # wired into this gate) and not `t0` (the Spring/SOS time, which for a Phase-D leg can be
                     # many bars before the actual BU/entry decision).
-                    if OPTS["htf"] and htf_bias_gate(sym, tf, side, Tm[last], methods) is not True:
+                    #
+                    # Round-4a fix round 1 (code review of a746ffc): `decision_time` must be bar `last`'s own
+                    # CLOSE (normalized.available_time), not `Tm[last]` (its OPEN) -- see the matching fix in
+                    # ict_setups_live() above for the measured divergence from live htf_pass().
+                    if OPTS["htf"] and htf_bias_gate(sym, tf, side,
+                                                     _N.available_time(c[last], tf).isoformat().replace("+00:00", "Z"),
+                                                     methods) is not True:
                         continue
                     base = dict(symbol=sym, tf=tf, side=side, time=t0, event=f"{sym}-{side}-book-{t0}", support=r["tr_lo"], resistance=r["tr_hi"], vol_type=r["vol_type"], vol_ratio=r["vol_ratio"],
                                 volume_kind=r["volume_kind"], st_sign=r["st_sign"], phase_b_sign=r["phase_b_sign"],
@@ -1085,6 +1109,17 @@ def _venue_for_symbol(sym):
 #: leverage from, per market, so `_risk_scale` models the SAME notional cap strategy-runner.futures_leverage()
 #: does (AP.max_leverage(profile("futures"))) without importing strategy-runner.py itself (strategy-runner.py
 #: already imports this module as `bt`; the reverse import would be circular).
+#:
+#: Round-4a fix round 1 (code review of a746ffc), nit #5: these ids are a HAND-COPIED restatement of what
+#: `account_profile.for_venue(venue, "demo")` resolves live (`for_venue("futures", "demo")["id"] ==
+#: "pilot-binance-futures-testnet"`, `for_venue("mt5", "demo")["id"] == "pilot-mt5-demo"`, verified at the
+#: time of writing) -- NOT a call to `for_venue` itself, because `for_venue` refuses outright the moment a
+#: SECOND demo profile exists on a venue (docs/plans/2026-09-19-multi-account.md), and this backtest engine
+#: has no `--account`-style venue selector to disambiguate with the way `strategy-runner.py --account <id>`
+#: does. If the demo profile for either venue is ever renamed, or a second demo profile is added on either
+#: venue, this dict silently stops matching what live actually sizes against and must be updated by hand --
+#: scripts/tests/test_audit_round4_integrity.py::SizingProfileMatchesLiveForVenue pins the match so that
+#: drift fails a test instead of silently mis-sizing a backtest.
 _SIZING_PROFILE = {"crypto": "pilot-binance-futures-testnet", "cfd": "pilot-mt5-demo"}
 NOTIONAL_CAP_PCT = 0.25   # == strategy-runner.NOTIONAL_CAP_PCT (a literal there too, not sourced from config)
 
@@ -1215,7 +1250,14 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
         curve.append((t2["exit_time"], equity))
 
     def _flush_through(bound):
-        while pending and pending[0][0] <= bound:
+        # Round-4a fix round 1 (code review of a746ffc): STRICT `<`, not `<=`. An exit whose exit_time
+        # EQUALS the new trade's own entry_time is a same-timestamp tie -- OHLC cannot order two events at
+        # the same instant (the same reasoning ICT-8 already applies to a same-bar fill+stop). Treating the
+        # tie as "already realised" let a same-timestamp exit's future outcome inflate the equity a new
+        # trade is sized against -- reviewer repro: A exits +50R at 01:00, B enters at 01:00 -> B was sized
+        # against the POST-A equity (-150.30) instead of the pre-A equity (-100.0), exactly the INT-2 leak
+        # this fix closes for every OTHER ordering. Only exits STRICTLY BEFORE the new entry are realised.
+        while pending and pending[0][0] < bound:
             _, _, item = heapq.heappop(pending)
             _realise(item)
 
@@ -1301,15 +1343,28 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
             size = t.get("size", 1.0)
         pnl = equity * RISK * size * net_R
         heapq.heappush(pending, (t["exit_time"], heap_seq, (dict(t), pnl, net_R))); heap_seq += 1
-    # Every admitted-but-not-yet-realised trade still resolves: its ENTRY already happened (a causal decision),
-    # and its EXIT is a future observation of price action, which CLAUDE.md §37 explicitly allows ("future
-    # market movement may determine stop hit, target hit ... but may not influence entry"). This also completes
-    # the curve/pnl bookkeeping for trades that were still open when an account-failure `break` above ended
-    # further ADMISSION -- their outcome does not change whether/when the account failed (that was already
-    # decided from realised-only equity), it only finishes recording what those already-open trades did.
-    while pending:
-        _, _, item = heapq.heappop(pending)
-        _realise(item)
+    post_ruin = []
+    if not stopped:
+        # Every admitted-but-not-yet-realised trade still resolves: its ENTRY already happened (a causal
+        # decision), and its EXIT is a future observation of price action, which CLAUDE.md §37 explicitly
+        # allows ("future market movement may determine stop hit, target hit ... but may not influence
+        # entry"). This is the ordinary end-of-history drain, not a post-ruin one.
+        while pending:
+            _, _, item = heapq.heappop(pending)
+            _realise(item)
+    else:
+        # Round-4a fix round 1 (code review of a746ffc), should-fix #4: a failed/ruined account does not
+        # keep trading. Before this, every still-open admitted trade's future P&L was ALSO drained into
+        # `equity`/`curve`/`taken` after the `stopped` break above -- so the reported FINAL equity and
+        # drawdown reflected price action that happened AFTER the account was already declared failed,
+        # which could make a failed run look better (or worse) than the equity it actually failed at. The
+        # reported `equity`/`curve`/`taken` are now PINNED at the failure point: nothing below advances
+        # `equity` or appends to `curve`/`taken`. Already-admitted-but-not-yet-realised trades are recorded
+        # separately, as a diagnostic only (SIM_LAST["post_ruin"]) -- what they WOULD have done, never
+        # folded into the numbers a caller reads as "the result of this run".
+        while pending:
+            _, _, (t2, pnl, net_R) = heapq.heappop(pending)
+            post_ruin.append(dict(t2, net_R=round(net_R, 3), pnl=pnl))
     curve.sort()
     if equity <= RUIN_FRAC * START and ruin is None:
         ruin = curve[-1][0]
@@ -1320,12 +1375,15 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
     SIM_LAST["rules_not_applicable"] = sorted(UNAPPLICABLE_ACCOUNT_FACTS) if account else []
     SIM_LAST["refused"] = {"news": refused_news, "session": refused_session}
     SIM_LAST["trader"] = trader
+    SIM_LAST["post_ruin"] = post_ruin
     return equity, curve, taken
 
 
 SIM_LAST = {"ruin": None, "failed_by": None, "account": None, "rules_not_applicable": [],
-           "refused": {"news": 0, "session": 0}, "trader": None}   # how the last simulate() ended, under
-           # whose account rules and whose §0.9 trader constraints
+           "refused": {"news": 0, "session": 0}, "trader": None, "post_ruin": []}   # how the last simulate()
+           # ended, under whose account rules and whose §0.9 trader constraints. `post_ruin` (round-4a fix
+           # round 1, should-fix #4): trades that were admitted before the account failed but never got to
+           # realise -- a diagnostic only, never folded into the returned equity/curve/taken.
 
 
 def period_returns(curve, first, last, key):

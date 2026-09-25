@@ -25,6 +25,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 PRE_ROUND4A = "cd78200"  # the round-3b merge commit -- NOT "HEAD" (see module docstring)
+PRE_ROUND4A_FIX1 = "a746ffc"  # the round-4a commit THIS review found issues in -- the INT-2 tie and the
+                              # post-ruin drain (below) were introduced BY round 4a's own INT-2 fix, so their
+                              # "pre-fix" state does not exist at cd78200 at all (the heap/pending mechanism
+                              # itself is new); it exists only at a746ffc, before this review's own fix round.
 
 
 def load(name):
@@ -233,7 +237,12 @@ def _ict_fixture(mss_i=5, detect_i=6, fill_bar=8, n=40, tf="15m"):
     established, reused here so the sibling-module version of live_rules/ict-scan.py is irrelevant to what is
     under test (see this module's own docstring)."""
     H = [200.0] * n; L = [200.0] * n; C = [200.0] * n; O = [200.0] * n
-    Tm = [f"2026-01-01T{i:02d}:00:00Z" for i in range(n)]
+    # Round-4a fix round 1 (code review of a746ffc): wrap hours across days -- htf_bias_gate's call sites now
+    # parse this bar's own time via normalized.available_time (datetime.fromisoformat), which raises for an
+    # hour >= 24; the old `f"...T{i:02d}:00:00Z"` (valid only for i < 24) silently worked before because
+    # available_time() was never actually called on these bars (the pre-review call sites passed Tm[i]
+    # unparsed).
+    Tm = [f"2026-01-{1 + i // 24:02d}T{i % 24:02d}:00:00Z" for i in range(n)]
     L[fill_bar] = 100.0
     c = [{"time": Tm[i], "open": O[i], "high": H[i], "low": L[i], "close": C[i], "volume": 10.0} for i in range(n)]
     entry, stop, target = 101.0, 50.0, 200.0
@@ -572,12 +581,20 @@ class INT6PAR3UnifiedHtfGate(unittest.TestCase):
         self.assertEqual(len(out), 1, "the setup must still fire when the htf filter is off")
 
     def test_the_wyckoff_branch_calls_the_same_shared_gate_function(self):
+        # Round-4a fix round 1 (code review of a746ffc), BLOCKING #2: both call sites now pass
+        # `_N.available_time(bar, tf)` (the bar's CLOSE) rather than `Tm[...]` (its OPEN) as decision_time --
+        # see PAR3HtfGateBoundaryMatchesLive for the full behavioural regression.
         src = open(os.path.join(ROOT, "scripts", "backtest-methods.py"), encoding="utf-8").read()
-        self.assertIn('htf_bias_gate(sym, tf, side, Tm[last], methods)', src,
+        self.assertIn('htf_bias_gate(sym, tf, side,\n', src,
                      "the WYCKOFF-BOOK/COMBINED-BOOK per-fire block must call the SAME htf_bias_gate the ICT "
-                     "branch calls, keyed on the LTF decision bar Tm[last] -- not the legacy htf_allows/"
-                     "htf_position pair (kept below only for their own standalone regression tests)")
-        self.assertIn('htf_bias_gate(sym, tf, su["side"], Tm[i], methods)', src)
+                     "branch calls -- not the legacy htf_allows/htf_position pair (kept below only for their "
+                     "own standalone regression tests)")
+        self.assertIn('_N.available_time(c[last], tf)', src,
+                     "the WYCKOFF-BOOK/COMBINED-BOOK call site must key the gate on bar `last`'s own CLOSE, "
+                     "not its OPEN (Tm[last])")
+        self.assertIn('htf_bias_gate(sym, tf, su["side"],\n', src)
+        self.assertIn('_N.available_time(c[i], tf)', src,
+                     "the ICT call site must key the gate on bar `i`'s own CLOSE, not its OPEN (Tm[i])")
 
     def test_config_c_rows_are_no_longer_identical_between_methods_by_construction(self):
         """The observable symptom the audit measured: ICT config-B and config-C rows were byte-identical
@@ -657,6 +674,220 @@ class PAR8CfdRankingExcludesUnexecutedTimeframes(unittest.TestCase):
         pre = subprocess.check_output(["git", "show", f"{PRE_ROUND4A}:scripts/rank-setups.py"],
                                       cwd=ROOT, text=True)
         self.assertIn('CFD_TFS = {"15m", "1H", "4H"}', pre)
+
+
+class INT2SameTimestampTieIsConservative(unittest.TestCase):
+    """Round-4a fix round 1 (code review of a746ffc), BLOCKING #1: `_flush_through`'s bound comparison was
+    `pending[0][0] <= bound` -- a NON-STRICT tie -- so an exit whose exit_time EQUALS a new trade's own
+    entry_time was realised BEFORE that trade was sized, even though same-timestamp events cannot be
+    ordered (the same reasoning ICT-8 already applies to a same-bar fill+stop). Reviewer repro: A exits
+    +50R at 01:00, B enters at 01:00 -- B was sized against equity already inflated by A's same-instant
+    win (-150.30 instead of -100.0). Fixed: `_flush_through` now uses STRICT `<`, so a same-timestamp exit
+    is treated as NOT YET realised as of the new entry -- the conservative reading, since OHLC/timestamp
+    granularity cannot prove otherwise."""
+
+    def setUp(self):
+        self.bt = load("backtest-methods.py")
+
+    def same_symbol_scenario(self):
+        a = dict(symbol="ETHUSDT", side="long", entry=100.0, stop=99.0, target=5100.0, R=50.0, R_planned=99.0,
+                 entry_time="2026-01-01T00:00:00Z", exit_time="2026-01-01T01:00:00Z", event="a")
+        b = dict(symbol="ETHUSDT", side="long", entry=100.0, stop=99.0, target=101.0, R=-1.0, R_planned=99.0,
+                 entry_time="2026-01-01T01:00:00Z", exit_time="2026-01-01T02:00:00Z", event="b")
+        return [a, b]
+
+    def cross_symbol_scenario(self):
+        a = dict(symbol="ETHUSDT", side="long", entry=100.0, stop=99.0, target=5100.0, R=50.0, R_planned=99.0,
+                 entry_time="2026-01-01T00:00:00Z", exit_time="2026-01-01T01:00:00Z", event="a")
+        b = dict(symbol="SOLUSDT", side="long", entry=100.0, stop=99.0, target=101.0, R=-1.0, R_planned=99.0,
+                 entry_time="2026-01-01T01:00:00Z", exit_time="2026-01-01T02:00:00Z", event="b")
+        return [a, b]
+
+    def test_pre_this_fix_the_tie_inflates_bs_sizing_same_symbol(self):
+        old = load_git_revision(PRE_ROUND4A_FIX1, "backtest-methods.py")
+        trades = self.same_symbol_scenario()
+        _eq, _curve, taken = old.simulate(trades, 0.00001)
+        b_taken = next(t for t in taken if t["net_R"] < 0)
+        baseline = -(old.START * old.RISK)
+        self.assertLess(b_taken["pnl"], baseline * 1.2,
+                        "pre-this-fix: the same-timestamp tie let A's +50R realise before B was sized")
+
+    def test_pre_this_fix_the_tie_inflates_bs_sizing_cross_symbol(self):
+        old = load_git_revision(PRE_ROUND4A_FIX1, "backtest-methods.py")
+        trades = self.cross_symbol_scenario()
+        _eq, _curve, taken = old.simulate(trades, 0.00001)
+        b_taken = next(t for t in taken if t["symbol"] == "SOLUSDT")
+        baseline = -(old.START * old.RISK)
+        self.assertLess(b_taken["pnl"], baseline * 1.2,
+                        "pre-this-fix: the same-timestamp tie let A's +50R realise before B was sized "
+                        "(cross-symbol -- the account is shared across symbols)")
+
+    def test_post_fix_the_tie_does_not_inflate_bs_sizing_same_symbol(self):
+        trades = self.same_symbol_scenario()
+        _eq, _curve, taken = self.bt.simulate(trades, 0.00001)
+        b_taken = next(t for t in taken if t["net_R"] < 0)
+        expected = -(self.bt.START * self.bt.RISK)
+        self.assertAlmostEqual(b_taken["pnl"], expected, delta=abs(expected) * 0.05,
+                               msg="post-fix: a same-timestamp exit must NOT be treated as already realised")
+
+    def test_post_fix_the_tie_does_not_inflate_bs_sizing_cross_symbol(self):
+        trades = self.cross_symbol_scenario()
+        _eq, _curve, taken = self.bt.simulate(trades, 0.00001)
+        b_taken = next(t for t in taken if t["symbol"] == "SOLUSDT")
+        expected = -(self.bt.START * self.bt.RISK)
+        self.assertAlmostEqual(b_taken["pnl"], expected, delta=abs(expected) * 0.05,
+                               msg="post-fix: a same-timestamp exit on a DIFFERENT symbol must also not be "
+                                   "treated as already realised")
+
+
+class PAR3HtfGateBoundaryMatchesLive(unittest.TestCase):
+    """Round-4a fix round 1 (code review of a746ffc), BLOCKING #2: both `htf_bias_gate` call sites passed
+    `Tm[...]` (the LTF bar's OPEN, normalized.py:118) as `decision_time`, but `_HTF_TIMES` is built from
+    `normalized.available_time` (the CLOSE) -- an apples-to-oranges bisect that silently selected an HTF
+    bar one rung too early for any LTF bar whose OPEN falls inside an HTF bar still forming (measured:
+    551/2000 BTCUSDT boundary bars differed from live). The reviewer's own boundary case: the 15m bar
+    opening at :45 past the hour is the LAST 15m bar before the hourly close -- its OPEN is comfortably
+    inside the still-forming HTF hour, but its CLOSE (available_time) is exactly the hourly close. Fixed:
+    both call sites now pass `normalized.available_time(bar, tf)`. This drives the backtest gate AND live's
+    own `strategy-runner.htf_pass()` (on the SAME causal HTF prefix a live tick would have seen) on real
+    :45 15m bars and asserts they agree."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.bt = load("backtest-methods.py")
+        cls.sr = load("strategy-runner.py")
+        c15, _ = cls.bt.load("BTCUSDT", "15m")
+        c1h, _ = cls.bt.load("BTCUSDT", "1H")
+        if not c15 or not c1h:
+            raise unittest.SkipTest("no BTCUSDT 15m/1H history on this machine")
+        cls.c15, cls.c1h = c15, c1h
+        cls.methods = cls.bt.resolve_methods("BTCUSDT")
+
+    def _boundary_bars(self, n=15):
+        """Indices of :45 15m bars (the last 15m bar before an hourly close), far enough into the series
+        that a full live scan window and an HTF prefix both exist."""
+        out = []
+        for i, x in enumerate(self.c15):
+            if i < 500:
+                continue
+            if x["time"][14:16] == "45":
+                out.append(i)
+            if len(out) >= n:
+                break
+        return out
+
+    def _htf_prefix_as_of(self, decision_time):
+        """The causal HTF candles a live tick at `decision_time` would have seen -- every 1H bar whose OWN
+        close (available_time) is <= decision_time -- mirrors strategy-runner.fetch_candles/drop_forming's
+        causal window."""
+        return [x for x in self.c1h
+               if self.bt._N.available_time(x, "1H").isoformat().replace("+00:00", "Z") <= decision_time]
+
+    def test_backtest_gate_agrees_with_live_htf_pass_on_boundary_bars(self):
+        bt, sr = self.bt, self.sr
+        boundary = self._boundary_bars()
+        self.assertGreater(len(boundary), 0, "fixture must contain at least one :45 15m boundary bar")
+        checked = 0
+        mismatches = []
+        for i in boundary:
+            decision_time = bt._N.available_time(self.c15[i], "15m").isoformat().replace("+00:00", "Z")
+            htf_prefix = self._htf_prefix_as_of(decision_time)
+            if not htf_prefix:
+                continue
+            for side in ("long", "short"):
+                checked += 1
+                backtest_gate = bt.htf_bias_gate("BTCUSDT", "15m", side, decision_time, self.methods)
+                live_gate = sr.htf_pass("BTCUSDT", side, htf_prefix, "1H")
+                if backtest_gate != live_gate:
+                    mismatches.append((self.c15[i]["time"], side, backtest_gate, live_gate))
+        self.assertGreater(checked, 0, "fixture must yield at least one comparable boundary case")
+        self.assertEqual(mismatches, [], f"backtest htf_bias_gate disagreed with live htf_pass on "
+                                         f"{len(mismatches)}/{checked} boundary case(s): {mismatches[:5]}")
+
+    def test_pre_this_fix_the_open_time_reading_actually_differs_on_these_bars(self):
+        """Pins the defect this fix closes: on the SAME boundary bars, keying the gate on the bar's OPEN
+        time (the pre-this-fix call-site argument) disagrees with keying it on the bar's CLOSE (this fix)
+        for at least one real case -- otherwise this suite would not be exercising the boundary at all."""
+        bt = self.bt
+        boundary = self._boundary_bars()
+        disagreements = 0
+        for i in boundary:
+            open_time = self.c15[i]["time"]
+            close_time = bt._N.available_time(self.c15[i], "15m").isoformat().replace("+00:00", "Z")
+            for side in ("long", "short"):
+                using_open = bt.htf_bias_gate("BTCUSDT", "15m", side, open_time, self.methods)
+                using_close = bt.htf_bias_gate("BTCUSDT", "15m", side, close_time, self.methods)
+                if using_open != using_close:
+                    disagreements += 1
+        self.assertGreater(disagreements, 0, "the boundary fixture must contain at least one case where "
+                                             "the open-time reading and the close-time reading disagree -- "
+                                             "otherwise this test cannot demonstrate the pre-fix defect")
+        # The call sites themselves are pinned by INT6PAR3UnifiedHtfGate's own sibling test
+        # (test_the_wyckoff_branch_calls_the_same_shared_gate_function) -- not duplicated here.
+
+
+class PostRuinTradesDoNotInflateOrDeflateTheReportedResult(unittest.TestCase):
+    """Round-4a fix round 1 (code review of a746ffc), should-fix #4: a failed/ruined account does not keep
+    trading, so an already-admitted-but-not-yet-realised trade's FUTURE P&L must not be folded into the
+    reported final equity/curve/taken. Before this fix, `simulate()` drained every still-pending trade into
+    `equity`/`curve`/`taken` even after a `stopped` break, so the reported result could look better (or
+    worse) than the equity the account actually failed at."""
+
+    def setUp(self):
+        self.bt = load("backtest-methods.py")
+
+    def scenario(self):
+        # A: opens first and stays open a LONG time (exits well after the ruin below) -- a big win, so if
+        # it were (wrongly) drained post-ruin the reported final equity would look much healthier than the
+        # equity the account actually failed at.
+        a = dict(symbol="ETHUSDT", side="long", entry=100.0, stop=99.0, target=1000.0, R=20.0, R_planned=99.0,
+                 entry_time="2026-01-01T00:00:00Z", exit_time="2026-06-01T00:00:00Z", event="a")
+        # B: a catastrophic loss (-95R) that realises BEFORE C is admitted, dropping equity under RUIN_FRAC.
+        b = dict(symbol="SOLUSDT", side="long", entry=100.0, stop=99.0, target=101.0, R=-95.0, R_planned=99.0,
+                 entry_time="2026-01-01T01:00:00Z", exit_time="2026-01-01T02:00:00Z", event="b")
+        # C: entry AFTER B's exit (so B is realised first) -- its own admission is what discovers the ruin.
+        c = dict(symbol="SOLUSDT", side="long", entry=100.0, stop=99.0, target=101.0, R=-1.0, R_planned=99.0,
+                 entry_time="2026-01-01T03:00:00Z", exit_time="2026-01-01T04:00:00Z", event="c")
+        return [a, b, c]
+
+    def test_final_equity_is_pinned_at_the_ruin_point(self):
+        bt = self.bt
+        eq, curve, taken = bt.simulate(self.scenario(), 0.00001)
+        self.assertIsNotNone(bt.SIM_LAST["ruin"], "the scenario must actually ruin the account")
+        self.assertLess(eq, bt.START * bt.RUIN_FRAC * 1.5,
+                        "the reported final equity must reflect the ruin point, not A's future +20R win")
+
+    def test_the_still_open_trade_is_excluded_from_taken(self):
+        bt = self.bt
+        _eq, _curve, taken = bt.simulate(self.scenario(), 0.00001)
+        self.assertNotIn("ETHUSDT", {t["symbol"] for t in taken},
+                         "A (still open when the account failed) must not appear in the reported `taken`")
+
+    def test_the_still_open_trade_is_recorded_as_a_separate_diagnostic(self):
+        bt = self.bt
+        bt.simulate(self.scenario(), 0.00001)
+        self.assertIn("ETHUSDT", {t["symbol"] for t in bt.SIM_LAST["post_ruin"]},
+                     "the still-open trade must be visible as a diagnostic, just not folded into the "
+                     "returned equity/curve/taken")
+
+    def test_pre_this_fix_the_still_open_trade_was_drained_into_the_result(self):
+        old = load_git_revision(PRE_ROUND4A_FIX1, "backtest-methods.py")
+        _eq, _curve, taken = old.simulate(self.scenario(), 0.00001)
+        self.assertIn("ETHUSDT", {t["symbol"] for t in taken},
+                     "pre-this-fix: the still-open A was drained into `taken` after the account had "
+                     "already failed")
+
+
+class SizingProfileMatchesLiveForVenue(unittest.TestCase):
+    """Round-4a fix round 1 (code review of a746ffc), nit #5: `_SIZING_PROFILE`'s ids are a hand-copied
+    restatement of what `account_profile.for_venue(venue, "demo")` resolves live. Pinned here so a rename
+    or a second demo profile on either venue fails this test instead of silently mis-sizing a backtest."""
+
+    def test_sizing_profile_matches_for_venue_for_the_demo_environment(self):
+        bt = load("backtest-methods.py")
+        import account_profile as AP
+        self.assertEqual(bt._SIZING_PROFILE["crypto"], AP.for_venue("futures", "demo")["id"])
+        self.assertEqual(bt._SIZING_PROFILE["cfd"], AP.for_venue("mt5", "demo")["id"])
 
 
 if __name__ == "__main__":

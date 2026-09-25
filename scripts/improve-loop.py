@@ -229,8 +229,17 @@ def main():
     first = min(s["first"] for s in scans)
     last = max(s["last"] for s in scans)
     base_trades = [dict(t, method=method) for s in scans for t in s["trades"].get(method, [])]
+    # Round-4a fix round 1 (code review of a746ffc), should-fix #3: this run's own economics must match
+    # stability-report.py's -- entry priced by THIS method's own declared entry (maker for a resting limit,
+    # taker for a market order, docs/architecture/methods.json), exit always taker, and sizing that respects
+    # the same notional-cap/loss-throttle/fee-in-budget formula strategy-runner.size() applies live
+    # (INT-4/PAR-2, PAR-4/DEC-4). Before this, /improve measured a candidate's economics under the OLD flat
+    # fee_pct/uncapped-sizing convention, which is not the system stability-report.py (and therefore
+    # rank-setups.py) would actually rank it against.
+    entry_order_type = "maker" if bt._M.RUNNER_METHODS[method]["entry"] == "limit" else "taker"
     base_eq, base_curve, base_taken = bt.simulate(base_trades, fee, account=account, calendar=calendar,
-                                                   sessions=sessions_, trader=a.trader)
+                                                   sessions=sessions_, trader=a.trader,
+                                                   entry_order_type=entry_order_type, live_parity_sizing=True)
     base_stats = bt.summarize(base_taken, curve=base_curve, account=account)
 
     ledger = RL.periods()
@@ -302,7 +311,8 @@ def main():
                 if s:
                     cand_trades_all += [dict(t, method=method) for t in s["trades"].get(method, [])]
         c_eq, c_curve, c_taken = bt.simulate(cand_trades_all, fee, account=account, calendar=calendar,
-                                             sessions=cand_sessions, trader=a.trader)
+                                             sessions=cand_sessions, trader=a.trader,
+                                             entry_order_type=entry_order_type, live_parity_sizing=True)
         c_stats = bt.summarize(c_taken, curve=c_curve, account=account)
         cluster0 = dict(entry["clusters"][0], first=first, last=last)
         sealed, path = _seal_candidate(
