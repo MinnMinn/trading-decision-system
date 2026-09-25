@@ -54,6 +54,23 @@ def config_fee(cfg, market):
         raise SystemExit(f"risk-config.json declares no costs for venue {venue!r} ({market}); refusing to "
                          f"price a backtest at a guessed fee")
     return costs[venue][f"{cfg['side']}_pct_per_side"]
+
+
+def entry_order_type_for(cfg, method):
+    """INT-4/PAR-2 (docs/audits/2026-09-24-system-audit.md): the ENTRY order type `simulate()` should price
+    for this (config, method) pair -- and it is no longer simply `cfg["side"]`.
+
+    Config A prices every method taker/taker on purpose (the "raw rule" baseline, unaffected by how any method
+    actually enters). Configs B/C used to price EVERY method "maker" on both sides, which is right for ICT (a
+    resting limit) but wrong for WYCKOFF-BOOK/COMBINED-BOOK (methods.json runner_methods[method].entry ==
+    "market", i.e. taker) -- a CFD/crypto WYCKOFF-BOOK row in B/C was priced at the maker rate on both legs
+    though its real entry is a market order and its exit (this file's own `simulate()` call) is ALWAYS taker.
+    So for B/C the entry side comes from the METHOD's own declared entry, never from the config letter; only
+    the EXIT side (always "taker", applied inside `simulate()` itself) is unconditional.
+    """
+    if cfg["side"] == "taker":
+        return "taker"
+    return "maker" if bt._M.RUNNER_METHODS[method]["entry"] == "limit" else "taker"
 MIN_TRADES = 30
 
 
@@ -119,18 +136,23 @@ def main():
             since = (datetime.date.fromisoformat(last[:10]) - datetime.timedelta(days=365)).isoformat() + "T00:00:00Z"
             for m in METHODS:
                 tr = [t for s in scans for t in s["trades"][m]]
-                final, curve, taken = bt.simulate(tr, fee, account=account)
+                # INT-4/PAR-2, PAR-4/DEC-4 (docs/audits/2026-09-24-system-audit.md): entry priced by THIS
+                # method's own declared entry (never blindly "maker" for every method in configs B/C), exit
+                # always taker (inside simulate() itself); sizing matches strategy-runner's own fee-aware,
+                # notional-cap-aware, loss-throttled formula.
+                entry_type = entry_order_type_for(cfg, m)
+                final, curve, taken = bt.simulate(tr, fee, account=account, entry_order_type=entry_type, live_parity_sizing=True)
                 failed_by, acct_id = bt.SIM_LAST["failed_by"], bt.SIM_LAST["account"]
                 # The same trades WITHOUT the account's stop, so the §39 probabilities have the whole
                 # population to resample (see metrics() -- the account's rules still gate every path).
-                f_full, c_full, t_full = (bt.simulate(tr, fee) if account else (final, curve, taken))
+                f_full, c_full, t_full = (bt.simulate(tr, fee, entry_order_type=entry_type, live_parity_sizing=True) if account else (final, curve, taken))
                 row = dict(tf=tf, cfg=cname, method=m, first=first[:10], last=last[:10],
                            failed_by=failed_by, account=acct_id,
                            **metrics(curve, first, last, taken, final, bt.max_dd(curve), account=account,
                                      full_taken=t_full, full_curve=c_full))
                 # last-365-day window (user decision 2026-09-11: `/automation on setup top N` ranks on the most recent year)
                 tr1 = [t for t in tr if t["entry_time"] >= since]
-                f1, c1, tk1 = bt.simulate(tr1, fee, account=account)
+                f1, c1, tk1 = bt.simulate(tr1, fee, account=account, entry_order_type=entry_type, live_parity_sizing=True)
                 w = metrics(c1, max(first, since), last, tk1, f1, bt.max_dd(c1)); w.pop("years", None); w.pop("quarters", None)
                 row["w1y"] = dict(w, since=since[:10])
                 rows.append(row)

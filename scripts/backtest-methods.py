@@ -47,7 +47,7 @@ ACCOUNT — RISK of current equity risked per trade, compounding, one open posit
           RISK is one number, set below and equal to strategy-runner.RISK_CEILING -- do NOT restate it as a literal in prose here or in the report title; it read "1%" for the whole day after the ceiling moved to 3%.
           Monthly / quarterly / yearly returns are equity-curve returns (closed trades booked at exit time).
 """
-import argparse, bisect, collections, importlib.util, datetime, json, os, statistics, sys
+import argparse, bisect, collections, heapq, importlib.util, datetime, json, os, statistics, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -64,6 +64,8 @@ import instruments as _I         # the ONE allowlist; also names the market a sy
 import methods as _M             # RUNNER_METHODS[method]["requires"]: which methodology dimension(s) a
                                   # method reads, so a --trader constraint applies to the RIGHT method only (§17)
 import trader_constraints as _TC  # CLAUDE.md §0.9: per-trader, per-methodology constraints, tighten-only
+import providers as _P           # §4: which venue a market's orders go to (INT-4/PAR-2, PAR-4/DEC-4 fee/sizing)
+import risk_model as _RM         # CLAUDE.md §34: THE fee/cost source (risk-config.json), shared with strategy-runner
 P = {"5m": dict(R=60, K=18, T=20, H=120, sob=8), "15m": dict(R=48, K=16, T=16, H=96, sob=6), "30m": dict(R=48, K=14, T=14, H=84, sob=5), "1H": dict(R=48, K=12, T=12, H=72, sob=4),
      "2H": dict(R=36, K=10, T=10, H=48, sob=3), "4H": dict(R=30, K=8, T=8, H=30, sob=3), "1D": dict(R=20, K=6, T=6, H=20, sob=2)}  # sob = bars a Spring may stay outside the TR (wyckoff_rules R6)
 VOL = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"]["volume"]
@@ -101,6 +103,18 @@ OPTS["min_rr"] = MIN_RR
 # The floor is ON by default (user decision 2026-09-13). It used to default to 0.0, which meant every caller that
 # did not pass --min-rr measured a trade population the live gate would now refuse: 38 % of last year's setups
 # planned under 2R. A caller that genuinely wants the unfiltered population (a flag sweep, say) must now say so.
+
+# OPTS isolation (docs/audits/2026-09-24-system-audit.md, "OPTS isolation" round-4a finding): the canonical
+# baseline, frozen the instant every module-level default (including MIN_RR) is in place. `scan(..., opts=...)`
+# and `reset_opts()` build FROM this, never from whatever the mutable module global OPTS happens to hold at
+# call time -- OPTS is a single module-level dict every scan-path function reads as a free variable
+# (scan_for_trader's own docstring says so), and before this fix nothing stopped one caller's leftover mutation
+# (a config sweep, a --trader overlay, a prior scan_for_trader() call that raised before its `finally` restored
+# OPTS, or simply two callers in the same process using different keys) from silently becoming the NEXT
+# caller's starting point. Measured in round 3: a stale OPTS["sides"] left over from an earlier tightened call
+# produced a false "0 trades" result for an unrelated, later scan() call in the same process -- the two calls
+# looked independent from their own call sites but were not, because both read the one global.
+_OPTS_BASE = dict(OPTS)
 
 
 # CLAUDE.md §38: "A research run must be flagged or invalidated when there is evidence of ... corrupted
@@ -491,6 +505,54 @@ def bias_allows(bias, side):
     return bias == side
 
 
+#: (sym, htf) -> list of available_time strings, one per HTF bar, cached per history identity -- see
+#: `htf_bias_gate` below. Recomputing normalized.available_time() for every HTF bar on every LTF decision
+#: would be O(bars) per call in a loop that runs O(bars) times.
+_HTF_TIMES = {}
+
+
+def htf_bias_gate(sym, tf, side, decision_time, methods):
+    """INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): THE htf gate, shared by every RUNNER_METHODS
+    branch in `scan()` -- exactly the function strategy-runner.htf_pass() calls live
+    (`bt.bias_allows(bt.lr.bias_at(candles_htf, len(candles_htf)-1, htf_tf, methods))`), except `candles_htf`
+    there is already causal (fetch_candles/drop_forming), so its last element IS "the last HTF bar closed as
+    of this tick" -- here, with the FULL stored history in hand, that same bar has to be found explicitly by
+    `decision_time`.
+
+    `decision_time` MUST be the LTF decision bar's own CLOSE -- `normalized.available_time(bar, tf)`, an
+    ISO string with the same "+00:00"->"Z" normalisation `_HTF_TIMES` itself uses -- NEVER the bar's raw
+    `"time"` field (its OPEN). `_HTF_TIMES` is built from `available_time()` too (line below), so comparing
+    an LTF bar's OPEN against HTF CLOSE timestamps is an apples-to-oranges bisect: it silently selects an
+    HTF bar one rung too early whenever the LTF bar's open falls inside the HTF bar that is STILL forming,
+    which both scan() call sites did before round-4a fix round 1 (code review of a746ffc) -- measured at
+    551/2000 boundary bars on BTCUSDT, diverging from what live's own htf_pass() (strategy-runner.py) reads
+    at the same tick.
+
+    Returns True (agrees), False (judged and refused), or None (structurally unable to judge -- htf_tf has no
+    live scan window, or there is no HTF bar closed yet). Callers must refuse on anything other than an
+    explicit True (`is not True`), matching strategy-runner.py's own fail-closed htf_pass() caller -- None is
+    not permission.
+    """
+    h = HTF_OF.get(tf)
+    if not h:
+        return None
+    c, _ = load(sym, h)
+    if not c:
+        return None
+    key = (sym, h, len(c), c[0]["time"], c[-1]["time"])
+    if key not in _HTF_TIMES:
+        _HTF_TIMES[key] = [_N.available_time(x, h).isoformat().replace("+00:00", "Z") for x in c]
+    times = _HTF_TIMES[key]
+    i = bisect.bisect_right(times, decision_time) - 1
+    if i < 0:
+        return None
+    try:
+        bias, _ = lr.bias_at(c, i, h, methods)
+    except (IndexError, KeyError):
+        return None
+    return bias_allows(bias, side)
+
+
 def resolve_methods(sym):
     """The bias-reading methods engaged for `sym`, resolved from /automation the same way live does --
     htf_context.engaged_methods_for_market(automation.market_of(sym)). OPTS["methods"] holds an explicit
@@ -523,6 +585,23 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
             continue
         bias, _ = lr.bias_at(c, i, tf, methods, facts=a)      # facts reused: no second analyze()
         if not bias_allows(bias, su["side"]):
+            continue
+        # INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): the SAME htf gate function live uses
+        # (strategy-runner.htf_pass -> bt.bias_allows(bt.lr.bias_at(...))), keyed on the HTF bar closed at or
+        # before THIS bar's own decision time -- not the Wyckoff engine's legacy percentile proxy, and not
+        # "no gate at all", which is what the ICT path had before this fix. Only evaluated when a run asked
+        # for the HTF filter at all (OPTS["htf"]) -- an untouched run (OPTS["htf"]=False, the default) is
+        # unaffected, matching the live runner's own `st.get("htf")` per-setup opt-in.
+        #
+        # Round-4a fix round 1 (code review of a746ffc): `decision_time` must be bar i's own CLOSE
+        # (normalized.available_time), not `Tm[i]` (its OPEN, per normalized.py:118) -- `_HTF_TIMES` is built
+        # from `available_time` too, so comparing an LTF OPEN against HTF CLOSE timestamps silently misjudged
+        # every LTF bar whose open time falls inside the HTF bar that is STILL forming (551/2000 measured
+        # boundary bars on BTCUSDT), diverging from live htf_pass() (strategy-runner.py), which reads the last
+        # HTF bar closed as of the tick, not one keyed on an open timestamp.
+        if OPTS["htf"] and htf_bias_gate(sym, tf, su["side"],
+                                         _N.available_time(c[i], tf).isoformat().replace("+00:00", "Z"),
+                                         methods) is not True:
             continue
         key = (su["side"], su["sweep"]["time"], su["mss"]["time"])
         if key in seen:          # the same setup stays visible for many bars; take it once, at its first bar
@@ -567,18 +646,25 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
         if fill is None:         # the limit never filled within its K-bar window: live would hold/expire an unfilled order, not a position
             continue
         fill_bar, outcome = fill
+        # INT-7 (docs/audits/2026-09-24-system-audit.md): every ICT trade record needs an `event` id, or
+        # simulate()'s one-position-per-symbol rule (`t.get("event") != ev`, both None for two different ICT
+        # trades) compares None != None -- False -- and never skips an overlapping ICT trade on the same
+        # symbol, contradicting EXECUTION_ASSUMPTIONS["one_position_per_symbol"]. Built from the setup's own
+        # sweep+MSS identity (the same tuple `key` above), so two DIFFERENT ICT setups never collide, and the
+        # SAME setup detected again would (it cannot reach here twice -- `seen` dedupes it first).
+        event = f"{sym}-{su['side']}-ict-{su['sweep']['time']}-{su['mss']['time']}"
         if outcome == "filled_and_stopped":
             # ICT-8: same-bar fill+stop is unknowable from OHLC. Book the pessimistic -1R loss instead of the
             # pre-2026-09-24 behaviour (fvg_fill returned None here and the trade silently vanished from the
             # backtest -- §38 "unrealistic execution assumptions").
-            out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], entry=entry, entry_time=Tm[fill_bar],
+            out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], event=event, entry=entry, entry_time=Tm[fill_bar],
                             stop=stop, target=target, exit_time=Tm[fill_bar], vol_type=None,
                             outcome="loss", R=-1.0, R_planned=su.get("R"), exit=fill_bar, mfe=0.0, mae=-1.0, bars_held=1))
             continue
         w = walk(su["side"], entry, stop, target, H, L, C, fill_bar + 1, HZ)
         if not w:
             continue
-        out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], entry=entry, entry_time=Tm[fill_bar],
+        out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], event=event, entry=entry, entry_time=Tm[fill_bar],
                         stop=stop, target=target, exit_time=Tm[w["exit"]], vol_type=None, **w))
     return out
 
@@ -704,7 +790,15 @@ def _fires_from(side, recs, C, Tm):
     return out
 
 
-def scan(sym, tf, only=None):
+def reset_opts():
+    """Restore module OPTS to the canonical baseline (`_OPTS_BASE`) -- for a caller (or a test) that mutated
+    OPTS.update(...) directly and needs a known-clean starting point without going through `scan(..., opts=)`.
+    OPTS isolation, docs/audits/2026-09-24-system-audit.md."""
+    global OPTS
+    OPTS = dict(_OPTS_BASE)
+
+
+def scan(sym, tf, only=None, opts=None):
     """`only`: which of RUNNER_METHODS to compute; None (default) computes all three. A caller that needs exactly
     one method's trades should pass e.g. only=("ICT",) so scan() SKIPS the other methods' work rather than
     computing and discarding it -- in particular so it never calls the live ICT scanner (ict_setups_live, one
@@ -712,7 +806,22 @@ def scan(sym, tf, only=None):
     a time across 9 symbols; before this, it paid the full live-scanner cost for ICT on every call regardless
     (code-quality review, 2026-09-13). NOT the same axis as OPTS["methods"] -- that key holds the wyckoff/ict BIAS
     DIMENSIONS the live rules read (resolve_methods/engaged_methods_for_market); `only` here names RUNNER methods
-    (WYCKOFF-BOOK, ICT, COMBINED-BOOK). Deliberately a different name (`only`, not `methods`) so the two never collide."""
+    (WYCKOFF-BOOK, ICT, COMBINED-BOOK). Deliberately a different name (`only`, not `methods`) so the two never collide.
+
+    `opts` (OPTS isolation, docs/audits/2026-09-24-system-audit.md): an explicit dict of OPTS overrides for THIS
+    call only, applied on top of the frozen `_OPTS_BASE` -- never on top of whatever the mutable module-level
+    OPTS happens to hold when this is called. `opts=None` (the default) leaves OPTS exactly as the caller left
+    it, unchanged from before this parameter existed (main()'s own OPTS.update(...) CLI wiring keeps working).
+    Passing `opts={}` still isolates: it runs the call against the clean baseline with no overrides at all,
+    which is the fix for the "stale OPTS leaks into an unrelated call" defect this parameter exists to close."""
+    if opts is not None:
+        global OPTS
+        saved = OPTS
+        OPTS = dict(_OPTS_BASE, **opts)
+        try:
+            return scan(sym, tf, only=only, opts=None)
+        finally:
+            OPTS = saved
     want = set(RUNNER_METHODS) if only is None else set(only)
     c, src = load(sym, tf)
     if not c:
@@ -720,7 +829,10 @@ def scan(sym, tf, only=None):
     p = P[tf]; R, K, T, HZ = p["R"], p["K"], p["T"], p["H"]
     H = [x["high"] for x in c]; L = [x["low"] for x in c]; C = [x["close"] for x in c]; V = [x.get("volume", 0) for x in c]; Tm = [x["time"] for x in c]; O = [x["open"] for x in c]
     n = len(c); trades = collections.defaultdict(list); PH = all_pivots(H, "high"); PL = all_pivots(L, "low")
-    htf = htf_position(sym, tf) if OPTS["htf"] else None
+    # INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): `methods` resolved ONCE, reused by both the
+    # WYCKOFF-BOOK/COMBINED-BOOK htf gate below and the ICT branch's own htf gate (ict_setups_live), so the two
+    # methods can never be asked the giảm-khung question with different bias-reading dimensions in the same run.
+    methods = resolve_methods(sym)
     # ---------- WYCKOFF-BOOK / COMBINED-BOOK (scripts/wyckoff_rules.py: CHoCH gate, TR from SC/AR, Phase B, Spring vs Shakeout, VP veto, Test, Phase D) ----------
     if want & {"WYCKOFF-BOOK", "COMBINED-BOOK"}:
         # Window by window, exactly the live read -- wyckoff_fires() says why. A structure fires once per leg, at
@@ -746,7 +858,21 @@ def scan(sym, tf, only=None):
                         continue
                     seen.add(key)
                     r = f["rec"]; t0 = f["t0"]
-                    if htf is not None and not htf_allows(htf, t0, side):
+                    # INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): the SAME htf gate function live
+                    # uses for every method (bt.bias_allows(bt.lr.bias_at(...)), strategy-runner.htf_pass),
+                    # keyed on the LTF DECISION bar's own close time (the bar the structure fires on, matching
+                    # live's "at the entry tick"), not the legacy rolling-percentile proxy (`htf_allows`/
+                    # `htf_position`, kept below only for their own standalone regression tests --
+                    # scripts/tests/test_backtesting.py, scripts/tests/test_live_rules.py -- and no longer
+                    # wired into this gate) and not `t0` (the Spring/SOS time, which for a Phase-D leg can be
+                    # many bars before the actual BU/entry decision).
+                    #
+                    # Round-4a fix round 1 (code review of a746ffc): `decision_time` must be bar `last`'s own
+                    # CLOSE (normalized.available_time), not `Tm[last]` (its OPEN) -- see the matching fix in
+                    # ict_setups_live() above for the measured divergence from live htf_pass().
+                    if OPTS["htf"] and htf_bias_gate(sym, tf, side,
+                                                     _N.available_time(c[last], tf).isoformat().replace("+00:00", "Z"),
+                                                     methods) is not True:
                         continue
                     base = dict(symbol=sym, tf=tf, side=side, time=t0, event=f"{sym}-{side}-book-{t0}", support=r["tr_lo"], resistance=r["tr_hi"], vol_type=r["vol_type"], vol_ratio=r["vol_ratio"],
                                 volume_kind=r["volume_kind"], st_sign=r["st_sign"], phase_b_sign=r["phase_b_sign"],
@@ -770,15 +896,35 @@ def scan(sym, tf, only=None):
                         if ict:
                             mss, edge, far = ict
                             fill = fvg_fill(side, mss, edge, far, f["stop"], H, L, K, n)
-                            # fvg_fill returns (bar, outcome) or None (ICT-8, 2026-09-24); COMBINED-BOOK is
-                            # runnable=false (INT-3) and out of this fix's scope, so the outcome tag is unused
-                            # here -- only the bar index, unchanged from before.
-                            e_bar, e_px = (fill[0], edge) if fill is not None else (mss, C[mss])
-                            if e_bar < last:
+                            # INT-3 (docs/audits/2026-09-24-system-audit.md): before this fix, a `fill is None`
+                            # (price never returned to the FVG edge within the K-bar window) fell back to a
+                            # MARKET entry at the MSS close (`mss, C[mss]`) -- a decision that could only be
+                            # made by looking K bars into the future to see whether the retrace happened, since
+                            # "fill is None" is itself only known after scanning mss+1..mss+K. Runaway moves got
+                            # the favourable MSS-close price and retracing ones got the FVG price: hindsight,
+                            # exactly what assess_run()'s own look_ahead check already assumed this path could
+                            # no longer produce. COMBINED-BOOK's entry model is the SAME return-to-FVG LIMIT ICT
+                            # uses (this leg IS the ICT confirmation, methods.json's COMBINED-BOOK.entry=
+                            # "market" describes the WYCKOFF leg, not this one) -- an order that never fills is
+                            # not a trade, exactly as ict_setups_live() already treats it. runnable=false, so
+                            # this cannot reach pilot-top20 either way; fixed per CLAUDE.md §37 regardless.
+                            if fill is None:
                                 continue
-                            cw = walk(side, e_px, f["stop"], f["target"], H, L, C, e_bar + 1, HZ)
+                            e_bar, outcome = fill
+                            if e_bar < last:
+                                continue          # already triggered on an earlier window -- not a NEW firing here
+                            if outcome == "filled_and_stopped":
+                                # ICT-8, applied to the same shared fvg_fill(): same-bar fill+stop is unknowable
+                                # from OHLC -- book the pessimistic -1R loss rather than silently dropping it.
+                                stop_dist = abs(edge - f["stop"])
+                                rp = abs(f["target"] - edge) / stop_dist if stop_dist else None
+                                trades["COMBINED-BOOK"].append(dict(base, entry=edge, entry_time=Tm[e_bar], stop=f["stop"], target=f["target"],
+                                                                    exit_time=Tm[e_bar], via="fvg", outcome="loss", R=-1.0, R_planned=rp,
+                                                                    exit=e_bar, mfe=0.0, mae=-1.0, bars_held=1))
+                                continue
+                            cw = walk(side, edge, f["stop"], f["target"], H, L, C, e_bar + 1, HZ)
                             if cw:
-                                trades["COMBINED-BOOK"].append(dict(base, entry=e_px, entry_time=Tm[e_bar], stop=f["stop"], target=f["target"], exit_time=Tm[cw["exit"]], via="fvg" if fill is not None else "mss", **cw))
+                                trades["COMBINED-BOOK"].append(dict(base, entry=edge, entry_time=Tm[e_bar], stop=f["stop"], target=f["target"], exit_time=Tm[cw["exit"]], via="fvg", **cw))
     # ---------- ICT only ----------
     # The LIVE scanner (scripts/ict-scan.py + scripts/htf_context.py, via scripts/live_rules.py) decides every
     # structure -- pivot, sweep, MSS, FVG, dealing range, bias -- so the backtest measures the system actually
@@ -789,7 +935,7 @@ def scan(sym, tf, only=None):
     # measured and legacy blew the account up twice where live never did), so the second implementation is dead
     # weight. Skipped entirely (never calls the live scanner) when "ICT" is not in `only` -- see scan()'s docstring.
     if "ICT" in want:
-        trades["ICT"] = ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, resolve_methods(sym))
+        trades["ICT"] = ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods)
     return dict(symbol=sym, tf=tf, source=src, bars=n, first=Tm[0], last=Tm[-1], trades=trades)
 
 
@@ -808,13 +954,18 @@ def scan_for_trader(sym, tf, trader_id, only=None):
     could call either function interchangeably.
 
     Implementation note: `OPTS` is a module-level dict every scan-path function reads as a free variable, so
-    tightening it PER METHOD means reassigning the module global around each method's own `scan(..., only=
-    (method,))` call and restoring it in a `finally` -- there is no concurrency in this script, so the
-    reassign/restore is safe and is the only way to give each of the three methods a different OPTS in one process
-    without threading a parameter through every function scan() already has (`walk`, `find_ict`, `vtype`, ...
-    all read the module global directly)."""
-    global OPTS
+    tightening it PER METHOD means giving each method's own `scan(..., only=(method,))` call its OWN isolated
+    OPTS via `scan(..., opts=tightened)` -- OPTS isolation (docs/audits/2026-09-24-system-audit.md): before
+    this, the per-method OPTS was assigned to the bare module global and restored by hand in a `finally`, which
+    is exactly the "one caller's mutation becomes the next caller's silent starting point" shape the round-4a
+    OPTS-isolation finding is about, just written out at this call site instead of inside scan() itself.
+    scan()'s own `opts=` parameter now owns the save/restore, so this call site no longer needs to."""
     want = set(RUNNER_METHODS) if only is None else set(only)
+    # `base` is deliberately the CURRENT module OPTS (main()'s CLI wiring runs OPTS.update(...) once before
+    # scanning starts, and that IS this run's chosen configuration -- unlike scan(opts=...)'s isolation, which
+    # exists for a caller that must NOT inherit an unrelated earlier call's leftover state). Per-method
+    # tightening below still runs through scan(..., opts=tightened) so each method's own call is isolated from
+    # the OTHER methods' tightened OPTS in this same loop (OPTS isolation, docs/audits/2026-09-24-system-audit.md).
     base = dict(OPTS)
     combined = None
     all_trades = {}
@@ -824,12 +975,7 @@ def scan_for_trader(sym, tf, trader_id, only=None):
         tightened = base
         for dim in _dims_for(method):
             tightened = _TC.overlay(tightened, trader_id, dim)
-        saved = OPTS
-        OPTS = tightened
-        try:
-            r = scan(sym, tf, only=(method,))
-        finally:
-            OPTS = saved
+        r = scan(sym, tf, only=(method,), opts=tightened)
         if r is None:
             return None
         if combined is None:
@@ -945,7 +1091,85 @@ def _account_stop(profile, equity, peak, day_start, day, realised_today, consec_
     return why if act in _AP.BLOCKING else None
 
 
-def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader=None):
+def _venue_for_symbol(sym):
+    """The unattended execution venue alias for `sym`'s market ("futures" | "mt5"), or None when the symbol's
+    market has no declared unattended venue -- see scripts/providers.py unattended_venue_for. Wrapped so a
+    symbol this engine has no venue model for degrades to "no venue-specific model" rather than raising out of
+    a hot per-trade loop (INT-4/PAR-2, PAR-4/DEC-4 both key their fee/sizing model off this)."""
+    market = _I.market_of(sym)
+    if market is None:
+        return None
+    try:
+        return _P.unattended_venue_for(market)
+    except ValueError:
+        return None
+
+
+#: PAR-4/DEC-4 (docs/audits/2026-09-24-system-audit.md): which account-profiles.json profile this engine reads
+#: leverage from, per market, so `_risk_scale` models the SAME notional cap strategy-runner.futures_leverage()
+#: does (AP.max_leverage(profile("futures"))) without importing strategy-runner.py itself (strategy-runner.py
+#: already imports this module as `bt`; the reverse import would be circular).
+#:
+#: Round-4a fix round 1 (code review of a746ffc), nit #5: these ids are a HAND-COPIED restatement of what
+#: `account_profile.for_venue(venue, "demo")` resolves live (`for_venue("futures", "demo")["id"] ==
+#: "pilot-binance-futures-testnet"`, `for_venue("mt5", "demo")["id"] == "pilot-mt5-demo"`, verified at the
+#: time of writing) -- NOT a call to `for_venue` itself, because `for_venue` refuses outright the moment a
+#: SECOND demo profile exists on a venue (docs/plans/2026-09-19-multi-account.md), and this backtest engine
+#: has no `--account`-style venue selector to disambiguate with the way `strategy-runner.py --account <id>`
+#: does. If the demo profile for either venue is ever renamed, or a second demo profile is added on either
+#: venue, this dict silently stops matching what live actually sizes against and must be updated by hand --
+#: scripts/tests/test_audit_round4_integrity.py::SizingProfileMatchesLiveForVenue pins the match so that
+#: drift fails a test instead of silently mis-sizing a backtest.
+_SIZING_PROFILE = {"crypto": "pilot-binance-futures-testnet", "cfd": "pilot-mt5-demo"}
+NOTIONAL_CAP_PCT = 0.25   # == strategy-runner.NOTIONAL_CAP_PCT (a literal there too, not sourced from config)
+
+
+def _risk_scale(sym, entry, stop, equity, risk_mult, entry_order_type, exit_order_type):
+    """PAR-4/DEC-4 (docs/audits/2026-09-24-system-audit.md): the fraction of the intended risk
+    (equity * RISK * risk_mult) this trade can ACTUALLY risk once the same constraints
+    strategy-runner.size()/mt5_lots() apply are modelled here too:
+
+      * DEC-4 -- the round-trip fee sits INSIDE the risk budget (risk_usd / (stop_distance + entry*entry_fee +
+        stop*exit_fee)), not added on top of it, exactly like strategy-runner.size()'s `per_unit`.
+      * PAR-4 -- the futures notional cap (NOTIONAL_CAP_PCT of equity x the account's own declared leverage)
+        scales the position down on a tight stop, exactly as it does live; CFD/MT5 has no notional cap
+        (mt5_lots only rounds to the broker's lot step), so only futures is capped here, matching live.
+
+    `risk_mult` already carries the 2-consecutive-loss halving (the caller's own `consec_losses`, mirroring
+    strategy-runner's `risk_mult = 0.5 if consec_losses >= 2 else 1.0`) -- this function only adds the
+    fee-and-cap adjustment on TOP of that multiplier, it does not compute the loss throttle itself.
+
+    Returns `risk_mult` unchanged (no fee/cap adjustment) for a market/venue this engine has no cost or
+    leverage model for -- an unmodelled market is no WORSE off than before this fix, only the markets this DOES
+    model change."""
+    venue = _venue_for_symbol(sym)
+    if venue is None:
+        return risk_mult
+    try:
+        entry_fee = _RM.costs(venue, entry_order_type)["fee_pct_per_side"]
+        exit_fee = _RM.costs(venue, exit_order_type)["fee_pct_per_side"]
+    except _RM.RiskRefused:
+        return risk_mult
+    per_unit = abs(entry - stop) + entry * entry_fee + stop * exit_fee
+    if per_unit <= 0:
+        return risk_mult
+    risk_usd = equity * RISK * risk_mult
+    if risk_usd <= 0:
+        return risk_mult
+    qty = risk_usd / per_unit
+    market = _I.market_of(sym)
+    profile_id = _SIZING_PROFILE.get(market)
+    leverage = _AP.max_leverage(_AP.get(profile_id)) if profile_id else None
+    if leverage:
+        cap = equity * NOTIONAL_CAP_PCT * float(leverage)
+        if qty * entry > cap:
+            qty = cap / entry
+    effective_risk_usd = qty * per_unit
+    return risk_mult * (effective_risk_usd / risk_usd)
+
+
+def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader=None, entry_order_type=None,
+             live_parity_sizing=False):
     """Chronological RISK-per-trade compounding account (a trade's own `size` field scales its risk, default
     1.0 -- no current runnable method sets it below 1.0; kept generic rather than hard-coded so a future
     multi-leg method is not a second copy of this loop); one open position per symbol (a trade whose entry
@@ -968,6 +1192,32 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
     constraints already narrowed `trades` (via `scan_for_trader()` / `trader_sessions_for()`, applied by the
     CALLER before this function runs -- `simulate()` itself does not resolve trader constraints, only records
     which trader's run this was, exactly as `account` records which account's rules applied).
+
+    `entry_order_type` (INT-4/PAR-2, docs/audits/2026-09-24-system-audit.md): "maker" | "taker" | None
+    (default). When given, the round-trip cost is priced per side -- `entry_order_type` on the entry leg,
+    ALWAYS "taker" on the exit leg (every exit on this venue is a STOP_MARKET/TAKE_PROFIT_MARKET or a market
+    close for the time stop, never a resting maker order, regardless of how the entry was placed) -- via
+    `risk_model.cost_r`, keyed on the trade's own symbol's venue. `None` (unchanged from before this
+    parameter existed) keeps the single flat `fee_pct` charged on both sides, so every existing caller that
+    does not pass it measures exactly what it measured before.
+
+    `live_parity_sizing` (PAR-4/DEC-4): when True, `size` is scaled by `_risk_scale` (the fee-aware,
+    notional-cap-aware, loss-throttled sizing strategy-runner.size()/mt5_lots() apply) instead of the bare
+    `t.get("size", 1.0)`. False (the default, unchanged from before this parameter existed) keeps every
+    existing caller's sizing exactly as it was.
+
+    INT-2 (docs/audits/2026-09-24-system-audit.md): trades are still ADMITTED in entry_time order (the R:R
+    floor, the news/session refusal, the account-survival check and the one-position-per-symbol rule are all
+    genuinely causal decisions that may only see what already happened by `entry_time`) -- but a trade's P&L
+    is no longer added to `equity` the instant it is admitted. Every admitted trade is queued and its P&L is
+    booked at its own EXIT time, in EXIT order, so a later trade's sizing and the account-survival check see
+    only equity that has actually been REALISED by that trade's own entry_time, never the outcome of a trade
+    that is still open. Before this fix, `equity += pnl` ran in entry order, immediately, so a later trade
+    (possibly on a different symbol -- the account is shared across symbols, see the module docstring) was
+    sized from an EARLIER trade's already-known future outcome, and `max_dd`/the equity curve were built from
+    entry-order cumulative values stamped at EXIT timestamps -- a path that never existed. Sizing on the
+    equity a trade's own entry_time had ACTUALLY realised is what `equity * RISK * size * net_R` was always
+    supposed to mean; this fix makes that true when positions overlap, not just when they happen not to.
     """
     eff_cal = calendar
     if account is not None and calendar is not None:
@@ -984,7 +1234,39 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
     peak = START; day_start = START; day = None; failed_by = None
     realised_today = 0.0; consec_losses = 0
     profit_by_day, profit_by_symbol = {}, {}
+    pending = []   # INT-2: admitted-but-not-yet-realised (trade_dict, pnl, net_R), a min-heap on exit_time
+    heap_seq = 0
+
+    def _realise(pnl_item):
+        nonlocal equity, peak, realised_today, consec_losses
+        t2, pnl, net_R = pnl_item
+        equity += pnl
+        peak = max(peak, equity)
+        realised_today += pnl
+        consec_losses = consec_losses + 1 if net_R < 0 else 0
+        profit_by_day[t2["exit_time"][:10]] = profit_by_day.get(t2["exit_time"][:10], 0.0) + pnl
+        profit_by_symbol[t2["symbol"]] = profit_by_symbol.get(t2["symbol"], 0.0) + pnl
+        taken.append(dict(t2, net_R=round(net_R, 3), pnl=pnl))
+        curve.append((t2["exit_time"], equity))
+
+    def _flush_through(bound):
+        # Round-4a fix round 1 (code review of a746ffc): STRICT `<`, not `<=`. An exit whose exit_time
+        # EQUALS the new trade's own entry_time is a same-timestamp tie -- OHLC cannot order two events at
+        # the same instant (the same reasoning ICT-8 already applies to a same-bar fill+stop). Treating the
+        # tie as "already realised" let a same-timestamp exit's future outcome inflate the equity a new
+        # trade is sized against -- reviewer repro: A exits +50R at 01:00, B enters at 01:00 -> B was sized
+        # against the POST-A equity (-150.30) instead of the pre-A equity (-100.0), exactly the INT-2 leak
+        # this fix closes for every OTHER ordering. Only exits STRICTLY BEFORE the new entry are realised.
+        while pending and pending[0][0] < bound:
+            _, _, item = heapq.heappop(pending)
+            _realise(item)
+
+    stopped = False
     for t in ts:
+        # INT-2: realise every exit that had ALREADY happened by this trade's own entry_time BEFORE using
+        # `equity`/`peak`/`consec_losses` to admit or size it -- so every downstream decision below sees only
+        # outcomes that had actually occurred, never one still open.
+        _flush_through(t["entry_time"])
         # CLAUDE.md §37: "the backtest must execute the same logical Trading System and Decision Engine
         # semantics used by live decisions wherever practical." The R:R floor is one of those semantics, and
         # until 2026-09-18 the two paths applied it to DIFFERENT quantities: §34 moved the live gate to R
@@ -998,7 +1280,19 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
         # produced before this date was computed under the gross convention and is NOT comparable to a run
         # after it. They are deliberately not regenerated here -- see SYSTEM-DESIGN.md §45.
         dist = abs(t["entry"] - t["stop"]) / t["entry"]
-        fee_R = 2 * fee_pct / dist
+        if entry_order_type is not None:
+            # INT-4/PAR-2: entry and exit priced SEPARATELY -- the entry pays this run's own order type, the
+            # exit ALWAYS pays taker (every exit on this venue is a market-on-trigger order).
+            venue = _venue_for_symbol(t["symbol"])
+            if venue is not None:
+                try:
+                    fee_R, _ = _RM.cost_r(t["entry"], t["stop"], venue, entry_order_type, exit_order_type="taker")
+                except _RM.RiskRefused:
+                    fee_R = 2 * fee_pct / dist
+            else:
+                fee_R = 2 * fee_pct / dist
+        else:
+            fee_R = 2 * fee_pct / dist
         if t.get("R_planned", 99) - fee_R < OPTS["min_rr"]:
             continue
         # §24-§32 / §21 admission-time refusal, PIT on entry_time alone. Refused candidates never reach the
@@ -1022,27 +1316,55 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
             if stop:
                 failed_by = failed_by or stop
                 ruin = ruin or (curve[-1][0] if curve else t["entry_time"])
+                stopped = True
                 break
         if equity <= RUIN_FRAC * START:
             ruin = ruin or (curve[-1][0] if curve else t["entry_time"])
             failed_by = failed_by or (f"equity <= {RUIN_FRAC:.0%} of the starting balance (no account "
                                       f"profile supplied, so the only loss condition is a blown account)")
+            stopped = True
             break
         until, ev = open_pos.get(t["symbol"], ("", None))
         if t["entry_time"] < until and t.get("event") != ev:
             continue
         open_pos[t["symbol"]] = (max(until, t["exit_time"]) if t.get("event") == ev else t["exit_time"], t.get("event"))
         net_R = t["R"] - fee_R
-        size = t.get("size", 1.0)
+        if live_parity_sizing:
+            # PAR-4/DEC-4: sized on equity as REALISED at this trade's own entry_time (INT-2), with the same
+            # loss-throttled, fee-aware, notional-cap-aware formula strategy-runner.size()/mt5_lots() use. A
+            # trade's own declared `size` field (a future multi-leg method) still scales on TOP of this, exactly
+            # as it scaled on top of the flat 1.0 before this parameter existed.
+            risk_mult = 0.5 if consec_losses >= 2 else 1.0
+            scale = _risk_scale(t["symbol"], t["entry"], t["stop"], equity, risk_mult,
+                                entry_order_type or "taker", "taker")
+            size = t.get("size", 1.0) * scale
+        else:
+            # Unchanged from before this parameter existed: no loss throttle, no fee/cap adjustment.
+            size = t.get("size", 1.0)
         pnl = equity * RISK * size * net_R
-        equity += pnl
-        peak = max(peak, equity)
-        realised_today += pnl
-        consec_losses = consec_losses + 1 if net_R < 0 else 0
-        profit_by_day[t["exit_time"][:10]] = profit_by_day.get(t["exit_time"][:10], 0.0) + pnl
-        profit_by_symbol[t["symbol"]] = profit_by_symbol.get(t["symbol"], 0.0) + pnl
-        taken.append(dict(t, net_R=round(net_R, 3), pnl=pnl))
-        curve.append((t["exit_time"], equity))
+        heapq.heappush(pending, (t["exit_time"], heap_seq, (dict(t), pnl, net_R))); heap_seq += 1
+    post_ruin = []
+    if not stopped:
+        # Every admitted-but-not-yet-realised trade still resolves: its ENTRY already happened (a causal
+        # decision), and its EXIT is a future observation of price action, which CLAUDE.md §37 explicitly
+        # allows ("future market movement may determine stop hit, target hit ... but may not influence
+        # entry"). This is the ordinary end-of-history drain, not a post-ruin one.
+        while pending:
+            _, _, item = heapq.heappop(pending)
+            _realise(item)
+    else:
+        # Round-4a fix round 1 (code review of a746ffc), should-fix #4: a failed/ruined account does not
+        # keep trading. Before this, every still-open admitted trade's future P&L was ALSO drained into
+        # `equity`/`curve`/`taken` after the `stopped` break above -- so the reported FINAL equity and
+        # drawdown reflected price action that happened AFTER the account was already declared failed,
+        # which could make a failed run look better (or worse) than the equity it actually failed at. The
+        # reported `equity`/`curve`/`taken` are now PINNED at the failure point: nothing below advances
+        # `equity` or appends to `curve`/`taken`. Already-admitted-but-not-yet-realised trades are recorded
+        # separately, as a diagnostic only (SIM_LAST["post_ruin"]) -- what they WOULD have done, never
+        # folded into the numbers a caller reads as "the result of this run".
+        while pending:
+            _, _, (t2, pnl, net_R) = heapq.heappop(pending)
+            post_ruin.append(dict(t2, net_R=round(net_R, 3), pnl=pnl))
     curve.sort()
     if equity <= RUIN_FRAC * START and ruin is None:
         ruin = curve[-1][0]
@@ -1053,12 +1375,15 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
     SIM_LAST["rules_not_applicable"] = sorted(UNAPPLICABLE_ACCOUNT_FACTS) if account else []
     SIM_LAST["refused"] = {"news": refused_news, "session": refused_session}
     SIM_LAST["trader"] = trader
+    SIM_LAST["post_ruin"] = post_ruin
     return equity, curve, taken
 
 
 SIM_LAST = {"ruin": None, "failed_by": None, "account": None, "rules_not_applicable": [],
-           "refused": {"news": 0, "session": 0}, "trader": None}   # how the last simulate() ended, under
-           # whose account rules and whose §0.9 trader constraints
+           "refused": {"news": 0, "session": 0}, "trader": None, "post_ruin": []}   # how the last simulate()
+           # ended, under whose account rules and whose §0.9 trader constraints. `post_ruin` (round-4a fix
+           # round 1, should-fix #4): trades that were admitted before the account failed but never got to
+           # realise -- a diagnostic only, never folded into the returned equity/curve/taken.
 
 
 def period_returns(curve, first, last, key):
@@ -1205,7 +1530,13 @@ def main():
         res = {}
         for m in methods:
             tr = [t for s in scans for t in s["trades"][m]]
-            eq, curve, taken = simulate(tr, fee, account=account, calendar=calendar, sessions=sessions, trader=a.trader)
+            # INT-4/PAR-2, PAR-4/DEC-4 (docs/audits/2026-09-24-system-audit.md): the entry order type comes from
+            # THIS method's own declared entry (docs/architecture/methods.json runner_methods[m].entry), never
+            # from a config letter -- "maker" for a resting limit (ICT), "taker" for a market order
+            # (WYCKOFF-BOOK, COMBINED-BOOK). The exit is always taker inside simulate() itself.
+            entry_order_type = "maker" if _M.RUNNER_METHODS[m]["entry"] == "limit" else "taker"
+            eq, curve, taken = simulate(tr, fee, account=account, calendar=calendar, sessions=sessions, trader=a.trader,
+                                        entry_order_type=entry_order_type, live_parity_sizing=True)
             res[m] = dict(final=eq, curve=curve, taken=taken, stats=summarize(taken, curve=curve), dd=max_dd(curve), ruin=SIM_LAST["ruin"], failed_by=SIM_LAST["failed_by"],
                           refused=dict(SIM_LAST["refused"]),
                           months=period_returns(curve, first, last, month_key), quarters=period_returns(curve, first, last, quarter_key), years=period_returns(curve, first, last, year_key))

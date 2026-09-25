@@ -299,7 +299,15 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
             if (b_swings >= P["min_phase_b_swings"] and C[b] > ceiling and spread[b] >= avg(spread, b, lb)
                     and V[b] >= avg(V, b, lb) and b + COMMIT - 1 < n and all(C[b + m] > ceiling for m in range(1, COMMIT))):
                 lpsc_sos_bar = b; lpsc_sos = b + COMMIT - 1; break
-            if H[b] > tr_hi + tr:              # ran away without a Phase C test: not our setup
+            # WY-3 follow-up (docs/audits/2026-09-24-system-audit.md, fix critique: "Check whether [the ran-away
+            # guard] should use the Phase-B ceiling too, or UA-heavy structures will be discarded differently"):
+            # gated on `ceiling` (the running Phase-B UA high), not the AR-only `tr_hi`. WA p88-89's own worked
+            # examples run a UA well past the AR before the eventual SOS breaks the UA itself, not the AR
+            # (advance.md: XAUUSD UA 1744->1750 makes "new resistance 1744-1750", SOS at 1754 "breaking the UA
+            # resistance"; MATIC "SOS breaking UA 0.820000") -- a structure whose Phase-B excursion is itself a
+            # legitimate (if large) UA must not be discarded here for the same reason SOS is no longer measured
+            # against the AR alone above.
+            if H[b] > ceiling + tr:            # ran away past the running UA ceiling without a Phase C test
                 bump("4_ran_away"); break
         if spring is None and lpsc_sos is None:
             bump("4_no_phase_c"); continue
