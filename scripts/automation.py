@@ -983,7 +983,7 @@ def apply_setup_spec(cfg, a):
             return 0, [f"keeps the selection `{cfg['execution']['setup_spec']}` ({rel(sel)}); `on setup horizons` re-selects per horizon"]
         spec = ["setup", "horizons"]
     if spec == ["setup", "horizons"]:
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "rank-setups.py"), "--horizons", "--window", "1y", "--select", sel, "--out", out,
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "rank-setups.py"), "--horizons", "--window", "oos6m", "--select", sel, "--out", out,
                             "--crypto-symbols", crypto_syms, "--cfd-symbols", cfd_syms], capture_output=True, text=True)
         if r.returncode != 0:
             return 2, [f"rank-setups.py --horizons failed: {r.stderr.strip()[:300]}"]
@@ -991,17 +991,18 @@ def apply_setup_spec(cfg, a):
             setups = json.load(open(sel, encoding="utf-8"))["setups"]
         except Exception as e:
             return 2, [f"selection file unreadable after ranking: {e}"]
-        cfg["execution"]["setup_spec"] = "horizons (1y)"
+        cfg["execution"]["setup_spec"] = "horizons (oos6m)"   # INT-5: in-sample selection + 6-month OOS holdout
         record(cfg, a, "setup horizons", "applied")
-        lines = [f"SETUP HORIZONS: {len(setups)} setups (scalping / day / swing per market, ranked on the last 12 months) -> {rel(sel)} (table {rel(out)})"]
+        lines = [f"SETUP HORIZONS: {len(setups)} setups (scalping / day / swing per market, chosen in-sample and enabled only if profitable on the held-out last 6 months) -> {rel(sel)} (table {rel(out)})"]
         for st in setups:
             b = st.get("backtest", {})
-            lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['horizon']} {st['tf']} {st['method']} htf={st.get('htf')} exec={st['execution']} | 1y: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
+            lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['horizon']} {st['tf']} {st['method']} htf={st.get('htf')} exec={st['execution']} | in-sample: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
+                         + (f" | OOS: n={b['oos'].get('n')} expR={b['oos'].get('expectancy_R')} P&L={b['oos'].get('net_pnl')}" if isinstance(b.get("oos"), dict) else "")
                          + ("  [BACKTEST ÂM]" if st.get("negative_backtest") else ""))
         for m in ("crypto", "cfd"):
             missing = [h for h in ("scalping", "day", "swing") if not any(st["market"] == m and st["horizon"] == h for st in setups)]
             if missing:
-                lines.append(f"  ! {m}: no {', '.join(missing)} setup met the minimum trade count -- that horizon will not be traded")
+                lines.append(f"  ! {m}: no {', '.join(missing)} setup was enabled (none met the in-sample gates, or the pick failed OOS -- see the table) -- that horizon will not be traded")
         return 0, lines
     if len(spec) != 3 or spec[0] != "setup" or spec[1] != "top" or not spec[2].isdigit() or not (1 <= int(spec[2]) <= 10):
         return 1, [f"usage: on|demo [setup top <1..10> | setup horizons]  (got: {' '.join(spec)})"]

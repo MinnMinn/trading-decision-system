@@ -73,6 +73,83 @@ def entry_order_type_for(cfg, method):
     return "maker" if bt._M.RUNNER_METHODS[method]["entry"] == "limit" else "taker"
 MIN_TRADES = 30
 
+# INT-5 (docs/audits/2026-09-24-system-audit.md): setups used to be SELECTED on the same last-365-day window
+# they were then judged on, so the pilot's "evidence" was the window the choice was fitted to. Every row now
+# also carries an in-sample / out-of-sample split around a cutoff DERIVED FROM THE DATA (never typed):
+#   cutoff     = the dataset's last bar DATE minus OOS_MONTHS calendar months, at 00:00Z
+#   in-sample  = trades whose ENTRY is in [cutoff - IS_LOOKBACK_DAYS, cutoff)  -- what selection may read
+#   OOS        = trades whose ENTRY is on/after the cutoff                      -- what selection is judged on
+# A trade opened before the cutoff belongs to in-sample even when it closes after it: membership is decided
+# by the moment the decision was made (CLAUDE.md §8), never by an outcome. IS_LOOKBACK_DAYS keeps the
+# in-sample basis the same length as the `--window 1y` ranking it replaces, shifted back to end at the cutoff.
+# Each side is simulated as its OWN fresh START account (as `w1y` already was), so an OOS number never carries
+# equity -- or a ruin -- earned in-sample. Consumer: scripts/rank-setups.py --window oos6m.
+OOS_MONTHS = 6
+IS_LOOKBACK_DAYS = 365
+
+
+def months_before(d, months):
+    """`d` minus `months` CALENDAR months, clamped to the target month's last day (Aug 31 - 6 -> Feb 28/29)."""
+    y, m = d.year, d.month - months
+    while m <= 0:
+        m += 12; y -= 1
+    import calendar as _cal
+    return datetime.date(y, m, min(d.day, _cal.monthrange(y, m)[1]))
+
+
+def oos_cutoff(last_bar_time, months=OOS_MONTHS):
+    """The OOS cutoff for a dataset whose last bar is `last_bar_time` (ISO string): its DATE minus `months`
+    calendar months, as the same 'YYYY-MM-DDT00:00:00Z' string form the engine's bar times compare against."""
+    return months_before(datetime.date.fromisoformat(last_bar_time[:10]), months).isoformat() + "T00:00:00Z"
+
+
+def is_since_for(cutoff, lookback_days=IS_LOOKBACK_DAYS):
+    return (datetime.date.fromisoformat(cutoff[:10]) - datetime.timedelta(days=lookback_days)).isoformat() + "T00:00:00Z"
+
+
+def split_in_out(trades, cutoff, is_since=None):
+    """(in_sample, oos) by ENTRY time only: in-sample = is_since <= entry < cutoff; OOS = entry >= cutoff.
+    A trade exactly AT the cutoff is OOS; one opened before and closed after is in-sample."""
+    ins = [t for t in trades if t["entry_time"] < cutoff and (is_since is None or t["entry_time"] >= is_since)]
+    oos = [t for t in trades if t["entry_time"] >= cutoff]
+    return ins, oos
+
+
+def dataset_last_bar(symbols, tfs):
+    """(last bar time across every series this run reads, [(sym, tf) actually present]). The cutoff is derived
+    from THIS, so it moves with the data and is never a typed date."""
+    last, present = None, []
+    for tf in tfs:
+        for sym in symbols:
+            c, _src = bt.load(sym, tf)
+            if not c:
+                continue
+            present.append((sym, tf))
+            if last is None or c[-1]["time"] > last:
+                last = c[-1]["time"]
+    return last, present
+
+
+def _plain(v):
+    """A §39 value as a plain float, or None when it is an unavailable() marker (never a fake 0)."""
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, dict) and "unavailable" not in v:
+        for k in ("value", "fraction"):
+            if isinstance(v.get(k), (int, float)):
+                return float(v[k])
+    return None
+
+
+def window_block(trades, fee, account, entry_type, since, until):
+    """One side of the IS/OOS split: simulated as a fresh START account, summarised with the same metrics()
+    the `w1y` block uses, plus the four numbers the OOS gate reads, as plain values."""
+    f, c, tk = bt.simulate(trades, fee, account=account, entry_order_type=entry_type, live_parity_sizing=True)
+    w = metrics(c, since, until, tk, f, bt.max_dd(c)); w.pop("years", None); w.pop("quarters", None)
+    w.update(since=since[:10], until=until[:10], net_pnl=f - bt.START,
+             expectancy_R=_plain(w["perf"].get("expectancy")), profit_factor=_plain(w["perf"].get("profit_factor")))
+    return w
+
 
 def metrics(curve, first, last, taken, final, dd, account=None, full_taken=None, full_curve=None):
     q = [v for _, v in bt.period_returns(curve, first, last, bt.quarter_key)]
@@ -125,6 +202,12 @@ def main():
     if market is None:
         raise SystemExit(f"{a.symbols.split(',')[0]} is not on the instrument allowlist; refusing to guess a "
                          f"market, a venue, or a fee")
+    last_bar, present_series = dataset_last_bar(a.symbols.split(","), a.tf.split(","))
+    if last_bar is None:
+        raise SystemExit("no history for any requested (symbol, timeframe); nothing to measure")
+    cutoff = oos_cutoff(last_bar); is_since = is_since_for(cutoff)
+    print(f"OOS holdout (INT-5): dataset last bar {last_bar} -> cutoff {cutoff}; in-sample from {is_since}",
+          file=sys.stderr)
     for tf in a.tf.split(","):
         for cname, cfg in CONFIGS.items():
             fee = config_fee(cfg, market)
@@ -155,6 +238,11 @@ def main():
                 f1, c1, tk1 = bt.simulate(tr1, fee, account=account, entry_order_type=entry_type, live_parity_sizing=True)
                 w = metrics(c1, max(first, since), last, tk1, f1, bt.max_dd(c1)); w.pop("years", None); w.pop("quarters", None)
                 row["w1y"] = dict(w, since=since[:10])
+                # INT-5: the in-sample / OOS split around the data-derived cutoff (see OOS_MONTHS above).
+                t_in, t_out = split_in_out(tr, cutoff, is_since)
+                row["oos6m"] = dict(cutoff=cutoff, dataset_last_bar=last_bar, split="entry_time",
+                                    in_sample=window_block(t_in, fee, account, entry_type, max(first, is_since), cutoff),
+                                    oos=window_block(t_out, fee, account, entry_type, max(first, cutoff), last))
                 rows.append(row)
             print(f"{tf} {cname} done", file=sys.stderr)
     ok = [r for r in rows if r["n"] >= MIN_TRADES]
@@ -187,9 +275,14 @@ def main():
         # is unaffected) and best-effort: a research run must not FAIL because a snapshot could not be taken,
         # but it must never silently claim one, so the failure is recorded in place of the snapshot.
         try:
-            snap = snapshot.dataset_snapshot([(sym, tf) for tf in a.tf.split(",")
-                                              for sym in a.symbols.split(",")],
-                                             base=os.path.join(ROOT, "data", "history"))
+            # Only the series that EXIST (and were therefore read): a requested (symbol, timeframe) with no
+            # history file -- USOIL/UKOIL have no 15m -- used to make the whole snapshot fail with
+            # FileNotFoundError, leaving the CFD runs with no dataset identity at all. The requested-but-absent
+            # pairs are listed beside it, so the omission is recorded rather than silent.
+            snap = snapshot.dataset_snapshot(present_series, base=os.path.join(ROOT, "data", "history"))
+            absent = [f"{s}:{t}" for t in a.tf.split(",") for s in a.symbols.split(",") if (s, t) not in present_series]
+            if absent:
+                snap["requested_but_absent"] = absent
         except (OSError, ValueError, KeyError) as exc:
             snap = {"snapshot_error": f"{type(exc).__name__}: {exc}",
                     "_note": "CLAUDE.md §10: this run's dataset could not be identified; treat the result as "
@@ -218,8 +311,13 @@ def main():
         # execution assumptions and the configuration snapshot above; it is not a second opinion about them.
         validity = bt.assess_run(cfg_snap, run=f"stability-report {a.symbols} {a.tf} target={a.ict_target}")
         print(validity.describe(), file=sys.stderr)
-        json.dump(dict(generated=today, dataset_snapshot=snap, config_snapshot=cfg_snap,
-                       research_validity=validity.stamp(), rows=rows),
+        run_params = dict(symbols=a.symbols, tf=a.tf, ict_target=a.ict_target, account=a.account,
+                          account_file=a.account_file, live_parity_sizing=True, entry_pricing="per-method (INT-4/PAR-2)")
+        oos_meta = dict(months=OOS_MONTHS, dataset_last_bar=last_bar, cutoff=cutoff, in_sample_since=is_since,
+                        in_sample_lookback_days=IS_LOOKBACK_DAYS, split="entry_time: entry < cutoff -> in-sample, "
+                        "entry >= cutoff -> OOS; each side a fresh account", source="scripts/stability-report.py (INT-5)")
+        json.dump(dict(generated=today, run_params=run_params, oos_holdout=oos_meta, dataset_snapshot=snap,
+                       config_snapshot=cfg_snap, research_validity=validity.stamp(), rows=rows),
                   open(a.json, "w"), ensure_ascii=False, indent=1)
 
 

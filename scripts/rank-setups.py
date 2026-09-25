@@ -184,6 +184,17 @@ def solvent(r, window=None):
     Why here rather than in main_horizons(): every caller of rank() -- the top-N mode and the horizons mode --
     picks rules that will place real orders. A rule that loses money should not be selectable from either.
     """
+    if window == "oos6m":
+        # INT-5: judged on the IN-SAMPLE side only -- the window that ends at the cutoff. Nothing on or after
+        # the cutoff may make a row selectable (that is what the OOS side is for).
+        m = (r.get("oos6m") or {}).get("in_sample")
+        if not m:
+            return False
+        try:
+            days = (datetime.date.fromisoformat(m["until"][:10]) - datetime.date.fromisoformat(m["since"][:10])).days
+        except (ValueError, KeyError, TypeError):
+            return False
+        return days >= MIN_WINDOW_DAYS and m.get("ruin") is None and m.get("ann", 0) > 0
     m = r["w1y"] if window == "1y" else r
     start = r["w1y"]["since"] if window == "1y" and r.get("w1y", {}).get("since") else r["first"]
     try:
@@ -279,6 +290,12 @@ def rank(rows, min_trades, window=None, rank_by="consistency"):
         # no matter how consistent its quarters were.
         ok = [r for r in rows if r.get("n", 0) >= min_trades and r.get("failed_by") is None]
         ok.sort(key=prop_key, reverse=True)
+    elif window == "oos6m":
+        # Same ordering as `1y`, read from the in-sample block ONLY. The OOS block is never consulted here:
+        # ranking on it would be selecting on the holdout (INT-5).
+        ok = [r for r in rows if r["oos6m"]["in_sample"]["n"] >= min_trades]
+        ok.sort(key=lambda r: (r["oos6m"]["in_sample"]["ruin"] is None, r["oos6m"]["in_sample"]["q_pos"],
+                               r["oos6m"]["in_sample"]["ann"], r["oos6m"]["in_sample"]["q_worst"]), reverse=True)
     elif window == "1y":
         ok = [r for r in rows if r.get("w1y") and r["w1y"]["n"] >= min_trades]
         ok.sort(key=lambda r: (r["w1y"]["ruin"] is None, r["w1y"]["q_pos"], r["w1y"]["ann"], r["w1y"]["q_worst"]), reverse=True)
@@ -318,7 +335,11 @@ def main():
     ap.add_argument("--crypto-symbols", default=",".join(_I.backtested("crypto")))
     ap.add_argument("--cfd-symbols", default=",".join(_I.execution("cfd")))
     ap.add_argument("--horizons", action="store_true", help="select the best rule per horizon (scalping/day/swing) per market instead of the top N overall")
-    ap.add_argument("--window", choices=["all", "1y"], default="all", help="1y = rank on the last 365 days of each row (`/automation on setup top N`)")
+    ap.add_argument("--window", choices=["all", "1y", "oos6m"], default="all",
+                    help="1y = rank on the last 365 days of each row (`/automation on setup top N`). oos6m (with "
+                         "--horizons; the `/automation on` default since round 4b / INT-5) = rank on the 365 days "
+                         "BEFORE a cutoff derived from the data (last bar date - 6 months), then enable a pick "
+                         "only if its held-out last 6 months are profitable; a failed pick leaves its slot EMPTY")
     ap.add_argument("--rank-by", choices=["consistency", "prop-pass"], default="consistency",
                     help="consistency = share of positive quarters first (account-blind, the pre-2026-09-19 "
                          "rule). prop-pass = rank by whether THIS account's challenge is passed: survived the "
@@ -330,6 +351,12 @@ def main():
                          "when --rank-by prop-pass.")
     ap.add_argument("--require-stamped", action="store_true", help="CLAUDE.md §38: refuse stability files that carry no research-validity verdict (default: use them, marked UNSTAMPED)")
     a = ap.parse_args(); today = datetime.date.today().isoformat()
+    if a.window == "oos6m":
+        if not a.horizons:
+            ap.error("--window oos6m is implemented for --horizons selection only")
+        if a.rank_by != "consistency":
+            ap.error("--window oos6m ranks by consistency on the in-sample window; --rank-by prop-pass is not supported with it")
+        return main_horizons_oos(a, today)
     if a.horizons:
         if a.window == "1y":
             if a.min_trades_crypto == 100: a.min_trades_crypto = 30
@@ -472,6 +499,280 @@ def main_horizons(a, today):
         selection = finalize(selection, a.select)
         selection["research_validity"] = validity_note()
         json.dump(selection, open(a.select, "w", encoding="utf-8"), indent=1, ensure_ascii=False); print(f"-> {a.select} ({len(selection['setups'])} setups)")
+
+
+# ---------------------------------------------------------------- INT-5: OOS-holdout selection (--window oos6m)
+#
+# docs/audits/2026-09-24-system-audit.md INT-5: `--horizons --window 1y` selected setups on the same window it
+# then reported them on -- no out-of-sample evidence at all. Here selection reads ONLY each row's in-sample
+# block (the 365 days that END at a data-derived cutoff, written by stability-report.py), and the in-sample
+# winner of each (market, horizon, method) slot is then judged on the held-out months after the cutoff:
+#   ENABLED       OOS net expectancy > 0 R AND OOS net P&L > 0 (both after costs)
+#   REJECTED_OOS  otherwise -- the slot is left EMPTY. There is NO fallback to the in-sample runner-up: picking
+#                 the next row BECAUSE the first failed the holdout would be selecting on the holdout.
+#   EMPTY         no row passed the in-sample gates at all (as in the other modes)
+# Every rejected pick stays on the record (selection file `rejected_oos`, and the report) with its numbers.
+# Once this has run, the OOS window has influenced which setups trade, so it is EXPOSED (CLAUDE.md §44) and
+# is recorded as such; it may not later be described as untouched validation data.
+OOS_MIN_TRADES = {"scalping": 20, "day": 15, "swing": 6}   # in-sample minimums: the same as --horizons --window 1y
+ENABLED, REJECTED_OOS, EMPTY = "ENABLED", "REJECTED_OOS", "EMPTY"
+
+
+def require_oos_blocks(rows):
+    """Every row must carry stability-report.py's `oos6m` block; a file written before INT-5 cannot be used."""
+    missing = sorted({r["file"] for r in rows if not (r.get("oos6m") or {}).get("in_sample")})
+    if missing:
+        raise SystemExit("--window oos6m: no in-sample/OOS split in " + ", ".join(missing) + " -- regenerate "
+                         "with the current scripts/stability-report.py (it writes the `oos6m` block)")
+
+
+def market_cutoff(rows, market):
+    """The ONE cutoff every row of this market was split at. Candidates judged on different holdouts are not
+    comparable, so a mixture is refused rather than resolved."""
+    cuts = sorted({r["oos6m"]["cutoff"] for r in rows})
+    if len(cuts) != 1:
+        raise SystemExit(f"--window oos6m: {market} rows were split at {len(cuts)} different cutoffs {cuts}; "
+                         f"regenerate the {market} stability files from the same dataset")
+    return cuts[0]
+
+
+def oos_verdict(r):
+    """(passed, reason) for the in-sample pick `r`, from its OOS block alone."""
+    o = r["oos6m"]["oos"]
+    if not o.get("n"):
+        return False, "no trades in the OOS window: profitability is unmeasured, not assumed"
+    ex, pnl = o.get("expectancy_R"), o.get("net_pnl")
+    why = []
+    if ex is None:
+        why.append("OOS expectancy unavailable")
+    elif not ex > 0:
+        why.append(f"OOS net expectancy {ex:+.3f} R <= 0")
+    if pnl is None or not pnl > 0:
+        why.append(f"OOS net P&L {'n/a' if pnl is None else f'{pnl:+,.2f}'} <= 0")
+    if o.get("ruin"):
+        why.append(f"account failed in the OOS window ({o['ruin'][:10]})")
+    return (not why), ("; ".join(why) if why else f"OOS net expectancy {ex:+.3f} R > 0 and net P&L {pnl:+,.2f} > 0")
+
+
+def select_oos(rows, market):
+    """Pure: the slot decisions and the experiment budget for one market. Never reads an OOS number before
+    the in-sample winner of a slot is fixed."""
+    budget = dict(candidate_rows=0, rankable_in_sample=0, slots=0, selected_in_sample=0, passed_oos=0,
+                  rejected_oos=0, empty_in_sample=0)
+    slots = []
+    for hz, tf in HORIZONS.items():
+        mn = OOS_MIN_TRADES[hz]
+        for method in sorted(RUNNABLE):
+            cands = [r for r in rows if r["tf"] == tf and r["method"] == method and (market == "crypto" or tf in CFD_TFS)]
+            budget["slots"] += 1; budget["candidate_rows"] += len(cands)
+            budget["rankable_in_sample"] += sum(1 for r in cands if solvent(r, "oos6m") and r["oos6m"]["in_sample"]["n"] >= mn)
+            ranked = rank(cands, mn, "oos6m")
+            slot = dict(market=market, horizon=hz, tf=tf, method=method, min_trades_in_sample=mn, candidates=len(cands))
+            if not ranked:
+                budget["empty_in_sample"] += 1
+                slots.append(dict(slot, status=EMPTY, pick=None,
+                                  reason=f"no candidate passed the in-sample gates (>= {MIN_WINDOW_DAYS} days, not "
+                                         f"ruined, profitable, >= {mn} trades)"))
+                continue
+            pick = ranked[0]                      # FIXED here, before any OOS number is looked at
+            budget["selected_in_sample"] += 1
+            passed, why = oos_verdict(pick)
+            budget["passed_oos" if passed else "rejected_oos"] += 1
+            slots.append(dict(slot, status=ENABLED if passed else REJECTED_OOS, pick=pick, reason=why))
+    return slots, budget
+
+
+def _setup_id(market, hz, r):
+    return f"{market}-{hz}-{r['method'].lower()}-{r['tf'].lower()}-{r['target']}-{r['cfg'].lower()}"
+
+
+def _side(b):
+    """The five reported numbers of one IS/OOS block, rounded for the written artifacts."""
+    return dict(n=b["n"], expectancy_R=(None if b.get("expectancy_R") is None else round(b["expectancy_R"], 4)),
+                profit_factor=(None if b.get("profit_factor") is None else round(b["profit_factor"], 3)),
+                net_pnl=round(b["net_pnl"], 2), max_dd_pct=round(b["dd"], 2), ann_pct=round(b["ann"], 1),
+                q_pos_pct=round(b["q_pos"]), ruin=b.get("ruin"), since=b["since"], until=b["until"])
+
+
+def _source_meta(paths):
+    """Per stability file: when it was generated, from which data and code, and its split."""
+    out = {}
+    for p in sorted(paths):
+        try:
+            d = json.load(open(p, encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        ds = d.get("dataset_snapshot") or {}
+        out[os.path.relpath(p, ROOT).replace(os.sep, "/")] = dict(
+            generated=d.get("generated"), dataset_snapshot_id=ds.get("snapshot_id"),
+            snapshot_error=ds.get("snapshot_error"), code_version=ds.get("code_version"),
+            requested_but_absent=ds.get("requested_but_absent"), oos_holdout=d.get("oos_holdout"),
+            run_params=d.get("run_params"), research_validity=(d.get("research_validity") or {}).get("verdict"))
+    return out
+
+
+def _fmt_num(v, f):
+    return "n/a" if v is None else format(v, f)
+
+
+def main_horizons_oos(a, today):
+    import snapshot as _snap
+    code = _snap.code_version()
+    prev_exposure = {}
+    if a.select and os.path.exists(a.select):
+        try:
+            with open(a.select, encoding="utf-8") as fh:
+                prev_exposure = json.load(fh).get("oos_holdout") or {}
+        except (OSError, ValueError):
+            prev_exposure = {}
+    selection = dict(generated=today, mode="horizons-oos6m", rank_by="consistency",
+                     note="Written by scripts/rank-setups.py --horizons --window oos6m (INT-5). One setup per "
+                          "(horizon, method) per market, chosen on the 365 days BEFORE a data-derived cutoff and "
+                          "ENABLED only if profitable on the held-out months after it; failed picks are listed in "
+                          "`rejected_oos` and their slot is left empty (no runner-up fallback). Crypto = Binance "
+                          "futures testnet, CFD = MT5 demo via the file order bridge.",
+                     setups=[], rejected_oos=[], empty_slots=[], oos_holdout={}, experiment_budget={},
+                     code_version=code)
+    all_slots, totals = [], {}
+    sources = {}
+    for market, paths, syms in (("crypto", a.crypto, a.crypto_symbols.split(",")), ("cfd", a.cfd, a.cfd_symbols.split(","))):
+        rows = load_rows(sorted(paths), market, require_stamped=a.require_stamped)
+        sources.update(_source_meta(paths))
+        if not rows:
+            selection["oos_holdout"][market] = dict(status="NO_DATA"); continue
+        require_oos_blocks(rows)
+        cutoff = market_cutoff(rows, market)
+        last_bar = max(r["oos6m"]["dataset_last_bar"] for r in rows)
+        slots, budget = select_oos(rows, market)
+        for k, v in budget.items():
+            totals[k] = totals.get(k, 0) + v
+        selection["experiment_budget"][market] = budget
+        uses = list(((prev_exposure.get(market) or {}).get("uses")) or [])
+        prior_same = [u for u in uses if u.get("cutoff") == cutoff]
+        uses.append(dict(date=today, cutoff=cutoff, by="rank-setups.py --horizons --window oos6m"))
+        selection["oos_holdout"][market] = dict(
+            cutoff=cutoff, dataset_last_bar=last_bar, oos_period=f"{cutoff[:10]} -> {last_bar[:10]}",
+            in_sample_period=f"{rows[0]['oos6m']['in_sample']['since']} -> {cutoff[:10]}" if rows else None,
+            status="EXPOSED",
+            exposure=("this window has now decided which setups are enabled (CLAUDE.md §44): it is EXPOSED "
+                      "and may not be called pristine/untouched validation data again"),
+            times_used_for_selection=len(prior_same) + 1, uses=uses)
+        for s in slots:
+            s["symbols"] = syms
+            all_slots.append(s)
+            r = s["pick"]
+            if s["status"] == EMPTY:
+                selection["empty_slots"].append(dict(market=market, horizon=s["horizon"], tf=s["tf"], method=s["method"],
+                                                     candidates=s["candidates"], reason=s["reason"]))
+                continue
+            cfg = CFG_DESC[r["cfg"]]
+            bt_block = dict(window="oos6m", cutoff=cutoff, source=r["file"],
+                            in_sample=_side(r["oos6m"]["in_sample"]), oos=_side(r["oos6m"]["oos"]),
+                            # the keys /automation prints (automation.py apply_setup_spec) -- IN-SAMPLE values,
+                            # since those are what the choice was made on; the OOS block sits beside them.
+                            n=r["oos6m"]["in_sample"]["n"], ann_pct=round(r["oos6m"]["in_sample"]["ann"], 1),
+                            max_dd_pct=round(r["oos6m"]["in_sample"]["dd"], 1), q_pos_pct=round(r["oos6m"]["in_sample"]["q_pos"]),
+                            full_n=r["n"], full_ann_pct=round(r["ann"], 1), years_pos=f"{r['y_pos']}/{r['y_n']}",
+                            period=f"{r['first']}→{r['last']}")
+            entry = dict(id=_setup_id(market, s["horizon"], r), horizon=s["horizon"], market=market, symbols=syms,
+                         tf=r["tf"], method=r["method"], htf=cfg["htf"], mgmt=cfg["mgmt"],
+                         fee_assumed=fee_assumed_for(r["cfg"], market),
+                         execution="futures" if market == "crypto" else "mt5", backtest=bt_block,
+                         oos_decision=s["status"], oos_reason=s["reason"])
+            if s["status"] == ENABLED:
+                entry = dict(entry, rank=len(selection["setups"]) + 1, negative_backtest=False)
+                selection["setups"].append(entry)
+            else:
+                selection["rejected_oos"].append(entry)
+    selection["experiment_budget"]["total"] = totals
+    selection["experiment_budget"]["_note"] = (
+        "CLAUDE.md §43. candidate_rows = every (timeframe, method, configuration, target/account file) row "
+        "considered for a slot; rankable_in_sample = those that passed the in-sample gates; selected_in_sample = "
+        "slots with an in-sample winner (at most one per slot); passed_oos + rejected_oos = selected_in_sample. "
+        "Configurations A/B/C and the account-conditioned files are each a candidate, so this is the number of "
+        "hypotheses the holdout was asked to adjudicate among, not the number of rules.")
+    selection["sources"] = sources
+    selection["research_validity"] = validity_note()
+    md = oos_markdown(selection, all_slots, today)
+    print(md)
+    if a.out:
+        os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
+        with open(a.out, "w", encoding="utf-8") as fh:
+            fh.write(md)
+    if a.select:
+        selection = finalize(selection, a.select)
+        # §47: rejected candidates stay traceable -- versioned exactly like the enabled ones.
+        SV.stamp({"setups": selection["rejected_oos"]}, _global_rule_params)
+        with open(a.select, "w", encoding="utf-8") as fh:
+            json.dump(selection, fh, indent=1, ensure_ascii=False)
+        print(f"-> {a.select} ({len(selection['setups'])} enabled, {len(selection['rejected_oos'])} rejected by OOS, "
+              f"{len(selection['empty_slots'])} empty)")
+    return selection
+
+
+def oos_markdown(selection, slots, today):
+    code = selection.get("code_version") or {}
+    L = [f"# OOS-holdout setup selection (horizons, oos6m) — {today}", "",
+         "_`scripts/rank-setups.py --horizons --window oos6m` — audit round 4b, finding INT-5 "
+         "(docs/audits/2026-09-24-system-audit.md). Selection reads ONLY the in-sample window (the 365 days "
+         "ending at the cutoff); the in-sample winner of each (market, horizon, method) slot is ENABLED only if "
+         "its held-out months after the cutoff have net expectancy > 0 R AND net P&L > 0 after costs. A pick that "
+         "fails is REJECTED and its slot stays EMPTY — no fallback to the runner-up (that would select on the "
+         "holdout). Trades are assigned by ENTRY time: entry < cutoff → in-sample (even if it closes after), "
+         "entry ≥ cutoff → OOS. Each side is simulated as its own fresh $10,000 account with live-parity sizing "
+         "and per-method entry pricing (round 4a). Every number is a code proxy over research history._", "",
+         "## Holdout", ""]
+    for m, h in selection["oos_holdout"].items():
+        if h.get("status") == "NO_DATA":
+            L.append(f"- **{m}**: no stability rows"); continue
+        L.append(f"- **{m}**: cutoff **{h['cutoff']}** (dataset last bar {h['dataset_last_bar']} − 6 calendar "
+                 f"months, derived from the data); in-sample {h['in_sample_period']}; OOS {h['oos_period']}.")
+    L += ["", "**The OOS period is now EXPOSED** (CLAUDE.md §44): it has decided which setups are enabled, so it may "
+          "not later be described as pristine or untouched validation data. "
+          + " ".join(f"{m}: used for selection {h.get('times_used_for_selection', '?')} time(s) at this cutoff."
+                     for m, h in selection["oos_holdout"].items() if h.get("cutoff")), "",
+          "## Provenance", "",
+          f"- Code version (rank-setups run): `{code.get('git_sha')}`" + (f" — dirty: {code.get('dirty_note')}" if code.get("dirty") else ""),
+          "- Stability sources (dataset snapshot id · generated · stability-report code SHA · §38 verdict):"]
+    for rel, s in selection.get("sources", {}).items():
+        cv = s.get("code_version") or {}
+        L.append(f"  - `{rel}` · snapshot `{s.get('dataset_snapshot_id') or s.get('snapshot_error')}` · {s.get('generated')} · "
+                 f"`{(cv.get('git_sha') or '?')[:12]}`{' (dirty)' if cv.get('dirty') else ''} · {s.get('research_validity')}"
+                 + (f" · absent series: {', '.join(s['requested_but_absent'])}" if s.get("requested_but_absent") else ""))
+    L += ["", "## Experiment budget (CLAUDE.md §43)", "",
+          "| Market | Slots | Candidate rows | Rankable in-sample | Selected in-sample | Passed OOS | Rejected by OOS | Empty (no in-sample winner) |",
+          "|---|---|---|---|---|---|---|---|"]
+    for m, b in selection["experiment_budget"].items():
+        if m.startswith("_"):
+            continue
+        L.append(f"| {m} | {b['slots']} | {b['candidate_rows']} | {b['rankable_in_sample']} | {b['selected_in_sample']} | "
+                 f"{b['passed_oos']} | {b['rejected_oos']} | {b['empty_in_sample']} |")
+    L += ["", "_" + selection["experiment_budget"]["_note"] + "_", "",
+          "## Per slot: in-sample vs OOS", "",
+          "| Market | Horizon | TF | Method | Pick (target · cfg) | IS n | IS exp R | IS PF | IS net P&L | IS max DD | OOS n | OOS exp R | OOS PF | OOS net P&L | OOS max DD | Decision | Reason |",
+          "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    for s in slots:
+        r = s["pick"]
+        if r is None:
+            L.append(f"| {s['market']} | {s['horizon']} | {s['tf']} | {s['method']} | — | | | | | | | | | | | **EMPTY** | {s['reason']} |")
+            continue
+        i, o = _side(r["oos6m"]["in_sample"]), _side(r["oos6m"]["oos"])
+        cells = []
+        for b in (i, o):
+            cells += [str(b["n"]), _fmt_num(b["expectancy_R"], "+.3f"), _fmt_num(b["profit_factor"], ".2f"),
+                      f"${b['net_pnl']:+,.0f}", f"−{b['max_dd_pct']:.1f}%"]
+        dec = "**ENABLED**" if s["status"] == ENABLED else "**REJECTED**"
+        L.append(f"| {s['market']} | {s['horizon']} | {s['tf']} | {s['method']} | {r['target']} · {r['cfg']} (`{r['file'].rsplit('/', 1)[-1]}`) | "
+                 + " | ".join(cells) + f" | {dec} | {s['reason']} |")
+    en = [x["id"] for x in selection["setups"]]
+    L += ["", f"**Enabled ({len(en)}):** " + (", ".join(f"`{x}`" for x in en) if en else "none"),
+          f"**Rejected by OOS ({len(selection['rejected_oos'])}):** "
+          + (", ".join(f"`{x['id']}`" for x in selection["rejected_oos"]) if selection["rejected_oos"] else "none"),
+          "", "_Limitations: each side is a fresh account, so a position opened in-sample does not block an OOS entry "
+          "on the same symbol (the one-position rule is applied within each side only). OOS P&L is simulated, not "
+          "realised; the §38 flags of the source files (unmodelled slippage/spread/funding, required inputs the "
+          "engine never consults) apply to both sides._", "", validity_markdown()]
+    return "\n".join(L) + "\n"
 
 
 if __name__ == "__main__":

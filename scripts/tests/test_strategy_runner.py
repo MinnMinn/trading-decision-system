@@ -576,7 +576,7 @@ class SetupSpec(unittest.TestCase):
         self.assertEqual(rc, 1); self.assertEqual(cfg["history"], [])
 
     def test_plain_on_selects_per_horizon(self):
-        """No spec = `setup horizons` (user decision 2026-09-11): rank-setups is called with --horizons --window 1y; a `top N` spec in force is kept."""
+        """No spec = `setup horizons` (user decision 2026-09-11): rank-setups is called with --horizons --window oos6m (INT-5, round 4b: was 1y); a `top N` spec in force is kept."""
         from unittest import mock
         au = load("au", os.path.join(ROOT, "scripts", "automation.py"))
         cfg = json.loads(json.dumps(au.DEFAULTS)); calls = []
@@ -584,7 +584,7 @@ class SetupSpec(unittest.TestCase):
             calls.append(args); return type("R", (), {"returncode": 0, "stderr": ""})()
         with mock.patch.object(au.subprocess, "run", fake_run):
             rc, lines = au.apply_setup_spec(cfg, type("A", (), {"setup": [], "cmd": "on", "who": None, "reason": None})())
-        self.assertEqual(rc, 0); self.assertIn("--horizons", calls[0]); self.assertIn("1y", calls[0])
+        self.assertEqual(rc, 0); self.assertIn("--horizons", calls[0]); self.assertIn("oos6m", calls[0]); self.assertNotIn("1y", calls[0])
         cfg["execution"]["setup_spec"] = "top 3 (1y)"; calls.clear()
         with mock.patch.object(au.subprocess, "run", fake_run):
             rc, lines = au.apply_setup_spec(cfg, type("A", (), {"setup": [], "cmd": "on", "who": None, "reason": None})())
