@@ -564,3 +564,14 @@ severity, a gate and a verification step; prior rules are cited (PILOT-28/29/33)
 no secrets, keys or PII in this document; credential stores were not read.
 
 Last updated: 2026-09-26.
+
+## 9. Owner answers (2026-09-26, recorded verbatim in substance)
+
+| Question | Answer | Consequence |
+|---|---|---|
+| Q1 — Binance keys in Bookmap? | "Tao chưa kết nối key vào Bookmap" — no key entered; the Binance Futures connection is data-only via the Bookmap Global subscription. | BMREC-07 satisfied as of this date. Adding any key later stops H1 until re-review; only read-only keys are acceptable. |
+| Q2 — backup target | Drive D: (separate physical HDD in the same PC). | BMREC-23 satisfied for H1 with an on-machine, different-disk backup. Residual risk: not off-site; an off-site copy (cloud/external) remains recommended. |
+| Q3 — USDⓈ-M or COIN-M | Determined from Bookmap logs, not asked: instruments `BTCUSDT@BNF`/`ETHUSDT@BNF`, host `fapi.binance.com` → USDⓈ-M. | BMREC-26 allowed host = `fapi.binance.com`. |
+| Q5 — other Windows accounts | Determined via `net user`: only the owner's interactive account (`nguye`) plus built-in system accounts. | BMREC-19/34 still apply (defence in depth) but no second human account exists today. |
+| Q6 — licence permits storing recorded depth for personal research | Owner confirms it is permitted. | Recording may proceed. |
+| Q7 — recording folder | `C:\TradingData\bookmap-recordings` (SSD, outside every git worktree). | BMREC-18 location fixed; backup mirrors to a folder on D: outside the repo. |
