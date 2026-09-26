@@ -254,7 +254,7 @@ module's API surface changes; BMREC-01..03 MUST be re-derived and this review re
 re-review. Established without reading any credential store.**
 - **Current state (satisfied, by attestation):** the owner stated on 2026-09-26 that no Binance API key/secret has
   been entered into Bookmap; the Binance Futures connection is data-only via the Bookmap Global subscription. Before
-  the first recording, record this as a dated owner attestation in the repo (research ledger or the ADR 0008 draft),
+  the first recording, record this as a dated owner attestation in the repo (research ledger or the ADR 0009 draft),
   stating "no key" and the source (Bookmap connection settings UI). Never read `keys.db` or Credential Manager to
   "confirm" it.
 - **If a key is ever added to Bookmap:** recording under H1 MUST stop (or not start) until this threat model is
@@ -267,7 +267,7 @@ re-review. Established without reading any credential store.**
   At session start the recorder logs the connection's login events as enumerated states (BMREC-06). The owner
   checks, at each re-attestation, that the connection shows no key fields filled in.
 *Closes:* 3.2 S. *Verify:* the dated attestation line exists in the repo with outcome "no key"; no secret material in it
-(`git grep -nE "[A-Za-z0-9]{64}"` over the entry → none); the re-review trigger is written in ADR 0008 when it is
+(`git grep -nE "[A-Za-z0-9]{64}"` over the entry → none); the re-review trigger is written in ADR 0009 when it is
 drafted (H2).
 
 **BMREC-08 (HIGH, A08) · ops + recorder · BLOCKING-H1 — know what else runs in the JVM.**

@@ -6,7 +6,7 @@
     H1 changes.
   - Awaiting the owner's Heatmap/Bookmap source material for H3.
 - **Governing decisions:** ADR 0007 (build order; methodologies extended, never altered), CLAUDE.md §4, §6-§8,
-  §10, §20, §23, §31, §36-§40, §47, §51-§53, §57. A new ADR 0008 (Bookmap integration and Heatmap scope) is
+  §10, §20, §23, §31, §36-§40, §47, §51-§53, §57. A new ADR 0009 (Bookmap integration and Heatmap scope) is
   required before H2 merges.
 - **Owner priority (2026-09-26):** analysis accuracy first. A fast decision on a wrong analysis is worthless, so
   no stage may trade correctness for speed.
@@ -148,13 +148,13 @@ Each stage ends with a review.
   - Every "to verify" fact in §0 is answered.
   - A lossless record→replay round trip is a necessary check, not the correctness exit.
 
-### H2 — `bookmap_bridge` provider, normalization and ADR 0008
+### H2 — `bookmap_bridge` provider, normalization and ADR 0009
 - Normalization: price = level × `pips`, size = size / `sizeMultiplier`. `pips` must equal the exchange tick from
   `exchangeInfo` or the stream is refused. `pips` is part of the dataset identity, because recordings made with
   different `pips` are not comparable.
 - Capabilities use existing vocabulary ids only (`orderbook_depth`, `trades_raw`; §6). No other capability is
   claimed.
-- **ADR 0008** records how Bookmap relates to the existing `heatmap` dimension (`docs/architecture/methods.json`,
+- **ADR 0009** records how Bookmap relates to the existing `heatmap` dimension (`docs/architecture/methods.json`,
   which today means CoinGlass aggregated liquidation/orderbook heatmaps) and to Footprint, which `trades_raw`
   makes live-capable. This is a scope decision, not a silent swap of data source (ADR 0007).
 - Quality states FRESH/STALE/MISSING/PARTIAL/INVALID/UNKNOWN are driven by §1 items 3-5.
@@ -224,7 +224,7 @@ Each stage ends with a review.
 ## 3. Ordering
 
 ```
-H1 recorder (now, parallel to round 4b) ──> H2 provider + ADR 0008 ──┐
+H1 recorder (now, parallel to round 4b) ──> H2 provider + ADR 0009 ──┐
 H3 methodology (when the owner's material arrives) ──────────────────┼──> H5 research ──> H4 live path ──> H6 pilot
 ADR 0007 stage (c) ledger + gates (after the speed round) ───────────┘
 ```
