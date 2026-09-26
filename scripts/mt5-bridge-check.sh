@@ -4,6 +4,8 @@ set -euo pipefail
 SYMBOL="${1:-XAUUSD}"; MAX_AGE_SEC="${2:-900}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; DIR="$ROOT/data/live/mt5-bridge"
 [ -d "$DIR" ] || { echo "BRIDGE UNAVAILABLE: $DIR missing"; exit 1; }
+# PAR-5: EA v1.03 writes raw server time to ohlcv.<SYM>.<TF>.server.json; convert before reading (no-op for an older EA).
+python3 "$ROOT/scripts/mt5_time.py" sync --symbols "$SYMBOL" >/dev/null || echo "CONVERSION REFUSED: see the reason above; the .json files were left as they were"
 now=$(date -u +%s); rc=0
 for tf in 1W 1D 4H 1H 15m 5m; do
   f="$DIR/ohlcv.${SYMBOL}.${tf}.json"

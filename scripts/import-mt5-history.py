@@ -11,8 +11,9 @@ file uses, so `backtest-methods.load()` reads it with no change.
 
 WHY THIS IS A SEPARATE SCRIPT AND NOT PART OF THE EXPORT
 --------------------------------------------------------
-`ExportOHLCV.mq5` converts bars with `TimeCurrent() - TimeGMT()` -- the offset *right now*. That is correct
-for a 600-bar live window and wrong for years of history: an EET broker runs UTC+2 in winter and UTC+3 in
+`ExportOHLCV.mq5` up to v1.02 converted bars with `TimeCurrent() - TimeGMT()` -- the offset *right now*. That
+is wrong for any bar across a DST change (audit PAR-5 found it wrong even inside the 600-bar live window, so
+v1.03 exports raw server time too and scripts/mt5_time.py converts both), and badly wrong for years of history: an EET broker runs UTC+2 in winter and UTC+3 in
 summer, so September's offset applied to a bar from January shifts it by an hour. MQL5 cannot report the
 offset that was in force for a historical bar. So the export writes the server's own numbers and the
 conversion happens here, where real tzdata exists -- the same machinery `docs/architecture/sessions.json`
@@ -45,12 +46,11 @@ import glob
 import json
 import os
 import sys
-import zoneinfo
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import instruments as I      # noqa: E402
-import providers as P        # noqa: E402
+import mt5_time as MT        # noqa: E402
 import quality as Q          # noqa: E402
 
 SRC_DIR = os.path.join(ROOT, "data", "live", "mt5-bridge")
@@ -59,50 +59,12 @@ RAW_MARKER = "mt5_bridge_history"
 OUT_MARKER = "mt5_bridge_history_utc"
 
 
-class Refused(Exception):
-    """An import that must not happen, carrying the reason a human needs to act on."""
-
-
-def _zone():
-    prov = P.provider("mt5_bridge")
-    name = prov.get("server_timezone")
-    if not name:
-        raise Refused(
-            "docs/architecture/providers.json mt5_bridge declares no `server_timezone`. The export writes RAW "
-            "server time, so without the zone there is nothing to convert it with -- and a default here would "
-            "be a guess that reads as a fact in every bar it touches.")
-    if "/" not in name:
-        raise Refused(f"mt5_bridge.server_timezone is {name!r}. A real IANA zone is Region/City; an "
-                      f"abbreviation like 'EET' is a permanent offset with no daylight saving, which is the "
-                      f"exact error this script exists to prevent.")
-    try:
-        return name, zoneinfo.ZoneInfo(name)
-    except Exception as exc:
-        raise Refused(f"mt5_bridge.server_timezone {name!r} is not a zone this system can load ({exc}).")
-
-
-def _to_utc(stamp, zone, zone_name, where):
-    """One server-local timestamp -> an aware UTC datetime, or a refusal naming the bar."""
-    if stamp.endswith("Z") or "+" in stamp:
-        raise Refused(
-            f"{where}: timestamp {stamp!r} already claims a UTC offset. ExportHistory.mq5 writes server time "
-            f"with NO `Z` precisely so this conversion is made once, here. A file that makes the claim itself "
-            f"came from a different exporter and must not be converted a second time.")
-    naive = datetime.datetime.fromisoformat(stamp)
-    local = naive.replace(tzinfo=zone)
-    # PEP 495. Both a NONEXISTENT local time (spring-forward gap) and an AMBIGUOUS one (autumn fall-back)
-    # have two different `fold` offsets, so the offsets alone cannot tell them apart -- and `utcoffset()`
-    # never returns None for a ZoneInfo, so the obvious check silently never fires. The round trip does
-    # separate them: a nonexistent time comes back as a DIFFERENT wall clock, an ambiguous one comes back
-    # unchanged. Both are refusals rather than choices -- see refusal 4 in the module docstring.
-    if local.astimezone(datetime.timezone.utc).astimezone(zone).replace(tzinfo=None) != naive:
-        raise Refused(f"{where}: local time {stamp} does not exist in {zone_name} (spring-forward gap).")
-    if local.utcoffset() != local.replace(fold=1).utcoffset():
-        raise Refused(
-            f"{where}: local time {stamp} happens twice in {zone_name} (autumn fall-back). This should be "
-            f"impossible for a broker whose transition falls on a Sunday with the market closed; the "
-            f"assumption is wrong, so stopping is the only honest move.")
-    return local.astimezone(datetime.timezone.utc)
+# The zone lookup, the server check and the server-time -> UTC conversion live in scripts/mt5_time.py, shared
+# with the live converter (audit PAR-5, ADR 0006) so the same bar gets the same UTC stamp on both paths. This
+# importer uses the STRICT conversion (`to_utc`): refusal 4 above is its documented choice.
+Refused = MT.Refused
+_zone = MT.server_zone
+_to_utc = MT.to_utc
 
 
 def read_export(path):
@@ -112,13 +74,7 @@ def read_export(path):
     if raw.get("_source") != RAW_MARKER:
         raise Refused(f"{name}: `_source` is {raw.get('_source')!r}, not {RAW_MARKER!r}. Only the one-shot "
                       f"ExportHistory script's output is convertible here.")
-    prov = P.provider("mt5_bridge")
-    declared = prov.get("server")
-    if declared and raw.get("_server") != declared:
-        raise Refused(
-            f"{name}: exported from server {raw.get('_server')!r}, but providers.json declares "
-            f"{declared!r} and its `server_timezone` is a claim about THAT server only. Applying one broker's "
-            f"zone to another's timestamps is a silent one-hour error in every bar.")
+    MT.check_server(raw.get("_server"), name)
     sym, tf = raw.get("symbol"), raw.get("timeframe")
     if sym not in I.analysis(I.market_of(sym) or ""):
         raise Refused(f"{name}: {sym!r} is not on the instrument allowlist "
@@ -160,7 +116,7 @@ def series(raw, sym, tf, candles, zone_name, now=None):
         "_source": OUT_MARKER,
         "_server": raw.get("_server"),
         "_server_timezone": zone_name,
-        "_server_timezone_source": "docs/architecture/providers.json mt5_bridge.server_timezone",
+        "_server_timezone_source": MT.ZONE_SOURCE,
         "_exported_at_utc": raw.get("_exported_at_utc"),
         "_bars": len(candles),
         "_volume_caveat": "tick_volume, not real traded volume -- the broker counts price changes",
