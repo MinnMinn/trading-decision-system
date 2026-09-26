@@ -462,6 +462,9 @@ class TestSessionProcessing(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(rd, "a.bmrec")))
         with self.assertRaises(SystemExit):
             BRC.record_deletion(cfg, "run1/a.bmrec", "", path=ledger)
+        for bad in ("../outside.bmrec", "run1/../../outside.bmrec", os.path.abspath(ledger)):
+            with self.assertRaises(SystemExit, msg=bad):
+                BRC.record_deletion(cfg, bad, "traversal", path=ledger)
 
     def test_live_clock_drift_marks_stream_invalid(self):
         r = self._accepted()
@@ -567,6 +570,20 @@ class TestFiles(unittest.TestCase):
         ok, lines = BS.verify_run(d)
         self.assertFalse(ok)
         self.assertTrue(lines[0].startswith("HASH_MISMATCH"))
+
+    def test_manifest_entry_outside_run_dir_is_refused(self):
+        """A manifest line naming ../x or an absolute path is not followed out of the run folder."""
+        root = tmpdir(self)
+        d = os.path.join(root, "run1")
+        os.makedirs(d)
+        p, sha, size = self.write_file(root)
+        m = BS.JsonLines(os.path.join(d, "manifest.jsonl"))
+        m.append({"kind": "file_closed", "file": "../" + os.path.basename(p), "sha256": sha, "bytes": size})
+        m.append({"kind": "file_closed", "file": p, "sha256": sha, "bytes": size})
+        m.close()
+        ok, lines = BS.verify_run(d)
+        self.assertFalse(ok)
+        self.assertEqual([ln.split()[0] for ln in lines], ["OUTSIDE_RUN_DIR", "OUTSIDE_RUN_DIR"])
 
     def test_manifest_has_no_absolute_paths(self):
         """BMREC-22 over a real session's manifest and event log."""

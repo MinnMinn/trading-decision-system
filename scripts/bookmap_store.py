@@ -244,6 +244,15 @@ def decode_note(payload):
 # ---------------------------------------------------------------- manifest verification (BMREC-21)
 
 
+def contained_path(root, rel):
+    """root/rel, or None when rel is absolute or climbs out of root (manifest lines and CLI arguments are data)."""
+    if os.path.isabs(rel) or os.path.splitdrive(rel)[0]:
+        return None
+    base = os.path.realpath(root)
+    p = os.path.realpath(os.path.join(base, rel))
+    return p if os.path.commonpath([base, p]) == base and p != base else None
+
+
 def verify_run(run_dir):
     """Recompute every closed file's SHA-256 against the manifest. Returns (ok, lines)."""
     man = os.path.join(run_dir, "manifest.jsonl")
@@ -251,7 +260,11 @@ def verify_run(run_dir):
     lines, ok = [], True
     closed = [e for e in entries if e.get("kind") in ("file_closed", "recovered_close")]
     for e in closed:
-        p = os.path.join(run_dir, e["file"])
+        p = contained_path(run_dir, e["file"])
+        if p is None:
+            ok = False
+            lines.append(f"OUTSIDE_RUN_DIR {e['file']}")
+            continue
         if not os.path.exists(p):
             ok = False
             lines.append(f"MISSING {e['file']}")

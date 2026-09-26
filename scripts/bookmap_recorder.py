@@ -1173,7 +1173,9 @@ def record_deletion(cfg, rel_file, reason, path=MANIFEST_LEDGER):
     deletes anything: deletion stays a manual owner action, at whole-file granularity, and is a research event."""
     if not reason:
         raise SystemExit("--reason is required: dropping recorded data is a selection event (CLAUDE.md §9, §43)")
-    p = os.path.join(cfg["recordings_root"], rel_file)
+    p = BS.contained_path(cfg["recordings_root"], rel_file)
+    if p is None:
+        raise SystemExit(f"not a path under the recordings root: {rel_file}")
     if not os.path.isfile(p):
         raise SystemExit(f"no such recording file: {rel_file}")
     entry = {"kind": "deletion", "file": rel_file.replace("\\", "/"), "sha256": BS.sha256_file(p),
