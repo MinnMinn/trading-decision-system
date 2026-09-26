@@ -744,7 +744,8 @@ def fetch_candles(sym, tf, market, t, at=None, window=None):
     else:
         src_tf = {"2H": "1H", "30m": "15m"}.get(tf, tf)          # the export EA writes 5m/15m/1H/4H/1D/1W; 30m and 2H are aggregated
         p = f"{MT5_DIR}/ohlcv.{sym}.{src_tf}.json"
-        MT5T.sync_live(MT5_DIR, symbols={sym}, timeframes={src_tf}, log=lambda m: log("note", why=m))   # PAR-5: .server.json -> .json (no-op for a pre-v1.03 EA)
+        with _span("provider_receive"):   # §40: the PAR-5 conversion is part of receiving the export, so it is timed with it
+            MT5T.sync_live(MT5_DIR, symbols={sym}, timeframes={src_tf}, log=lambda m: log("note", why=m))   # PAR-5: .server.json -> .json (no-op for a pre-v1.03 EA)
         if not os.path.exists(p):
             raise RuntimeError(f"no MT5 export for {sym} {src_tf}")
         with _span("provider_receive"):
