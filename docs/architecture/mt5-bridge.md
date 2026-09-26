@@ -15,7 +15,7 @@ MetaQuotes' official `MetaTrader5` Python package only works on **Windows** — 
 
 ## Components
 
-1. **`integrations/mt5/ExportOHLCV.mq5`** — an Expert Advisor you attach to one chart of the instrument you want (e.g. XAUUSD, any timeframe). It exports **six** timeframes (1W/1D/4H/1H/15m/5m — 5m and 1W added 2026-09-11 for the CFD scalping page and the swing context chart; recompile in MetaEditor and re-attach after pulling that change) for that symbol on a timer and on every new bar close, into files named `ohlcv.<SYMBOL>.<TIMEFRAME>.json` in MT5's shared "Common\Files" folder — the *exact same field shape* as the Binance connector's output, so Skills don't need to know or care which venue the data came from.
+1. **`integrations/mt5/ExportOHLCV.mq5`** — an Expert Advisor you attach to one chart of the instrument you want (e.g. XAUUSD, any timeframe). It exports **six** timeframes (1W/1D/4H/1H/15m/5m — 5m and 1W added 2026-09-11 for the CFD scalping page and the swing context chart; recompile in MetaEditor and re-attach after pulling that change) for that symbol on a timer and on every new bar close, into files named `ohlcv.<SYMBOL>.<TIMEFRAME>.json` in MT5's shared "Common\Files" folder (since v1.03 the EA writes `ohlcv.<SYMBOL>.<TIMEFRAME>.server.json` in raw server time and `scripts/mt5_time.py` produces the `.json` — see "Live file format (EA v1.03)") — the *exact same field shape* as the Binance connector's output, so Skills don't need to know or care which venue the data came from.
 
    **Status: written, not yet tested against a real MT5 terminal.** Install it, attach it to a chart, check the Experts/Journal log tab for errors or the printed "Common data folder" path, and tell me what happens — I'll fix anything that doesn't work first try.
 
@@ -34,13 +34,42 @@ MetaQuotes' official `MetaTrader5` Python package only works on **Windows** — 
    - `integrations/mt5/startup-ExportOHLCV.ini` + `ExportOHLCV.set` (also copied into the terminal's `config\` and `MQL5\Presets\`) auto-attach the EA to XAUUSD H1 when the terminal is started with `/config:startup-ExportOHLCV.ini`.
    Still required by hand (GUI): compile the EA once in MetaEditor (F7) and attach it to a chart; the EA is untested until that first run.
 
-   **Timestamp caveat (fixed in EA v1.01):** `CopyRates` times and `TimeCurrent()` are broker *server* time, not UTC. The EA now subtracts the live `TimeCurrent() - TimeGMT()` offset before writing the `...Z` strings and records `_server_utc_offset_sec` in each file, so bridge timestamps line up with the Binance connector's UTC.
+   **Timestamp caveat — superseded by EA v1.03 (audit PAR-5, 2026-09-25, [ADR 0006](../adr/0006-2026-09-25-mt5-live-time-conversion.md)).** `CopyRates` times and `TimeCurrent()` are broker *server* time, not UTC. v1.01/v1.02 subtracted *today's* `TimeCurrent() - TimeGMT()` from every bar, which is an hour wrong for every bar on the other side of a DST change (216 of 596 XAUUSD D1 bars disagreed with `data/history/`), and stamped `last_updated` from the PC clock, so a frozen quote stream still looked fresh. See "Live file format (EA v1.03)" below for what replaced it.
 
 3. **Where this system reads from**: `data/live/mt5-bridge/ohlcv.<SYMBOL>.<TIMEFRAME>.json` (mirrors `data/live/market-data/` for crypto). `/analyze` and `/status` check this path's freshness before falling back to `UNAVAILABLE`.
+
+## Live file format (EA v1.03, audit PAR-5)
+
+The EA no longer writes `ohlcv.<SYM>.<TF>.json`. It writes **`ohlcv.<SYM>.<TF>.server.json`** (temp file + `FileMove`, so a reader never sees half a file):
+
+| field | meaning |
+|---|---|
+| `candles[].time_server` | bar open in **raw broker server time**, no `Z` (the field name differs from `time` so no reader can mistake it for UTC) |
+| `_time_basis` | `"server"` — the converter refuses any file that does not say so |
+| `_server` | `AccountInfoString(ACCOUNT_SERVER)`; must equal `providers.json mt5_bridge.server` or the conversion refuses |
+| `last_quote_server` | the symbol's last tick time (`SymbolInfoTick`), raw server time — **this is the freshness fact** |
+| `_exported_at_utc` | `TimeGMT()` when the EA wrote the file: a heartbeat for diagnosis only, never freshness |
+| `_source`, `_ea_version`, `_volume_caveat` | `mt5_bridge_live`, `1.03`, tick-volume caveat |
+
+`scripts/mt5_time.py` converts each `.server.json` into the unchanged `ohlcv.<SYM>.<TF>.json` shape every reader already consumes: every bar's `time` is true UTC via `zoneinfo` with the zone from `providers.json mt5_bridge.server_timezone` (the same helper `scripts/import-mt5-history.py` uses, so a live bar and a history bar get the same stamp), `last_updated` is `last_quote_server` in UTC, `_source` stays `mt5_bridge_live`, and the file adds `_server`, `_server_timezone`, `_time_basis_converted_from: "server"` and `_dst_ambiguous_resolved`. It refuses — and leaves the old `.json` untouched, so it ages into STALE — on a missing or non-IANA zone, another server, a stamp that already carries `Z`, a missing `last_quote_server`, a last quote after the export itself, or a spring-forward local time that cannot exist. A duplicated fall-back hour is resolved by bar order (first occurrence = earlier instant). The write is a temp file + `os.replace`, and the output's mtime is set to the source's, so "already converted" is `mtime(.json) >= mtime(.server.json)` and the file age still means "when the EA last exported" (what `automation.py mt5_freshness` reads).
+
+**When the conversion runs:** at the start of `strategy-runner.py`'s CFD candle load, in `scan-loop.sh` before it checks the bridge for a symbol's file, and in `mt5-bridge-check.sh`. It is idempotent and cheap: only a `.server.json` newer than its `.json` is rewritten. Manually: `python3 scripts/mt5_time.py sync [--symbols XAUUSD]`.
+
+**Transition.** Until the EA is recompiled and re-attached, the old v1.02 keeps writing the UTC `.json` directly and no `.server.json` exists — the converter then does nothing and leaves that file alone, so the legacy path keeps working (with the old DST and staleness faults). If both exist, the `.server.json`-derived output wins only when the `.server.json` is newer.
+
+**Deploying v1.03 (manual, in MetaTrader):**
+1. Copy `integrations/mt5/ExportOHLCV.mq5` over `MQL5/Experts/ExportOHLCV.mq5` in the terminal's data folder (File → Open Data Folder).
+2. Open it in MetaEditor and compile (F7); expect 0 errors (the EA is still untested in a live terminal — report anything in the Errors tab).
+3. On every chart running ExportOHLCV (one per symbol: XAUUSD, XAGUSD), remove the EA and attach it again (or restart the terminal) so the v1.03 build is loaded; the Experts tab must print `ExportOHLCV v1.03: attached to <SYM> on server <SERVER>`.
+4. Check `<Common>\Files` now holds `ohlcv.<SYM>.<TF>.server.json` and that `<SERVER>` equals `providers.json mt5_bridge.server` (`MetaQuotes-Demo` today); if not, the conversion refuses by design.
+5. Run `python3 scripts/mt5_time.py sync` then `bash scripts/mt5-bridge-check.sh XAUUSD`: every timeframe AVAILABLE on a weekday while quotes flow.
+6. Optional cleanup: the v1.02 `_server_utc_offset_sec` field is gone; nothing reads it.
 
 ## Staleness rule
 
 Same as the crypto contract: `now − last_updated > 1.5× the timeframe's own bar interval` → `STALE`, not `AVAILABLE`. Since the EA only writes when the terminal is running and connected, a stale file usually just means the terminal was closed — report it plainly rather than serving old data as current.
+
+**Since EA v1.03 `last_updated` is the last real quote**, not the EA's timer: the runner's own MT5 rule (`strategy-runner.py:756` (`MT5 export for {sym} {src_tf} is stale`)) — stale when `now − last_updated > 2 × TF + 900 s` — now fires when the quote stream freezes (terminal disconnected, server down). **Weekends read as STALE, correctly**: between Friday's close and Monday's open there is no live quote, and the CFD styles wait rather than trade from Friday's state. The EA's timer still runs then, which is exactly why its heartbeat (`_exported_at_utc`) must never be read as freshness.
 
 ## Hard caveat: `volume` here is NOT real traded volume
 
