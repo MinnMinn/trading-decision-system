@@ -575,3 +575,11 @@ Last updated: 2026-09-26.
 | Q5 — other Windows accounts | Determined via `net user`: only the owner's interactive account (`nguye`) plus built-in system accounts. | BMREC-19/34 still apply (defence in depth) but no second human account exists today. |
 | Q6 — licence permits storing recorded depth for personal research | Owner confirms it is permitted. | Recording may proceed. |
 | Q7 — recording folder | `C:\TradingData\bookmap-recordings` (SSD, outside every git worktree). | BMREC-18 location fixed; backup mirrors to a folder on D: outside the repo. |
+
+### 9.1 Owner decisions after H1 implementation (2026-09-26) — accepted risks
+
+| Topic | Owner decision | Consequence |
+|---|---|---|
+| BMREC-08 — third-party add-ons (`trading-to-win`, `ttw-mvp`, `volumeflow`, plugin `multi-account-trading`) enabled in the same JVM | Used regularly; they stay enabled while recording. | **Risk accepted by owner**: BMREC-08's "only bundled modules + recorder enabled" is waived. The jar inventory + SHA-256 in every session header and the change-event stay mandatory — that is now the only control on this path. Because `multi-account-trading` can reach order APIs, BMREC-07 (no key in Bookmap) becomes load-bearing: entering any key stops recording until re-review. |
+| BMREC-34/19 — `Users` has write on `C:\Program Files\Bookmap` and `C:\Bookmap` | No tightening: only the owner and the assistant use this PC. | **Risk accepted by owner** (single-account PC, see Q5). Re-open if a second account is created. |
+| One symbol per recorder (pipe max instances = 1, BMREC-11) | Allow recording several symbols now; security review of that change may come later. | Multi-symbol is scoped as a follow-up (H1.1) that keeps BMREC-11 intact: several instruments multiplexed over the single authenticated connection, each frame tagged with its instrument, rather than more pipe instances. Its security review is **deferred by owner decision**; until it is done, H1.1 recordings are marked `security_review: pending` in the manifest. |
