@@ -33,6 +33,16 @@ auto-re-enables after a restart, and whether the admin listener is reachable fro
 
 ## 1. Architecture principles
 
+0. **Heatmap is not a candle model (owner, 2026-09-26, with a Bookmap screenshot).**
+   - Heatmap trades a continuous **time × price** picture: resting liquidity per price level over time (the heat
+     map), executed trades as bubbles sized by volume and coloured by aggressor, the current order book (COB), and
+     the session volume profile (SVP).
+   - Recording, features, the H5 research engine and the H4 decision path for Heatmap are therefore
+     **event-driven on raw book and trade events**. They never aggregate into OHLC bars, and no Heatmap decision
+     waits for a bar close.
+   - **Footprint is the only order-flow methodology traded on candles**: trades → aggressor classification →
+     per-bar, per-price bid/ask aggregation (CLAUDE.md §22). It is built from the same recorded trades.
+
 1. **Recording first, and read-only.** The book history cannot be downloaded later, so recording starts as soon as
    H1 passes its Security review. It is not gated on audit round 4b or on the owner's material.
 2. **One feature implementation.** Heatmap features and analytics are computed once, in Python, from normalized
