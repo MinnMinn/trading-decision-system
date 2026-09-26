@@ -66,6 +66,7 @@ import trader_constraints as TC  # plan §0.9: a trader's own, tighten-only cons
 import sessions as SESS          # CLAUDE.md §21: the one session reader (the trader `sessions` constraint needs it)
 import latency as LAT          # CLAUDE.md §40: the ten stamps the live path must record, and p50/p95/p99/max
 import feed_health as FH       # CLAUDE.md §52: the faults that only exist BETWEEN polls
+import mt5_time as MT5T         # audit PAR-5: EA v1.03 exports raw server time; convert with the declared IANA zone
 # Provider identity is DATA, not a path typed here (CLAUDE.md §2: "Binance must NOT become the architectural
 # center"). These three constants used to be literal script paths, which meant choosing a different venue or a
 # different market-data source required editing this file -- the live order engine -- rather than a registry.
@@ -743,6 +744,7 @@ def fetch_candles(sym, tf, market, t, at=None, window=None):
     else:
         src_tf = {"2H": "1H", "30m": "15m"}.get(tf, tf)          # the export EA writes 5m/15m/1H/4H/1D/1W; 30m and 2H are aggregated
         p = f"{MT5_DIR}/ohlcv.{sym}.{src_tf}.json"
+        MT5T.sync_live(MT5_DIR, symbols={sym}, timeframes={src_tf}, log=lambda m: log("note", why=m))   # PAR-5: .server.json -> .json (no-op for a pre-v1.03 EA)
         if not os.path.exists(p):
             raise RuntimeError(f"no MT5 export for {sym} {src_tf}")
         with _span("provider_receive"):

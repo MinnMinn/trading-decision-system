@@ -3,13 +3,21 @@
 //| MT5 file-bridge connector for the institutional trading system.   |
 //| Attach this Expert Advisor to ANY ONE chart of the instrument you |
 //| want to feed the system (e.g. XAUUSD, any timeframe) -- it        |
-//| exports 1D/4H/1H/15m candle files for that symbol regardless of   |
-//| which chart it's running on, refreshed on a timer and on every    |
+//| exports 1W/1D/4H/1H/15m/5m candle files for that symbol regardless|
+//| of which chart it's running on, refreshed on a timer and on every |
 //| new bar close.                                                    |
 //|                                                                     |
 //| Design doc: docs/architecture/mt5-bridge.md                       |
-//| Output shape matches docs/architecture/data-sources.md's crypto   |
-//| market-data contract exactly, so Skills read both identically.    |
+//|                                                                     |
+//| v1.03 (audit PAR-5, ADR 0006): this EA writes RAW BROKER SERVER    |
+//| TIME -- no "Z", no offset arithmetic -- into                       |
+//| ohlcv.<SYM>.<TF>.server.json, plus the server name and the symbol's|
+//| last tick time. scripts/mt5_time.py converts it to UTC with the    |
+//| IANA zone declared in docs/architecture/providers.json and writes  |
+//| the ohlcv.<SYM>.<TF>.json every reader consumes. v1.02 applied     |
+//| TODAY's server offset to every bar (an hour wrong across a DST     |
+//| change) and stamped last_updated from the PC clock (a frozen quote |
+//| stream still looked fresh). This EA no longer writes the .json.    |
 //|                                                                     |
 //| UNTESTED IN A REAL MT5 TERMINAL -- written from MQL5 language      |
 //| knowledge, not verified by running it. Attach it, check the        |
@@ -17,7 +25,7 @@
 //| needs fixing.                                                      |
 //+------------------------------------------------------------------+
 #property copyright "Institutional Trading System MT5 Bridge"
-#property version   "1.02"
+#property version   "1.03"
 
 input int InpBarsToExport     = 600;  // How many recent bars to export per timeframe (>= 576 for the 6-day 15m / 48h M5 windows)
 input int InpExportIntervalSec = 60;  // Seconds between timer-driven exports
@@ -31,10 +39,10 @@ int OnInit()
 
    // TERMINAL_COMMONDATA_PATH is the reliable way to find where FILE_COMMON writes,
    // since the exact path varies by OS/broker/install and should never be hard-guessed.
-   PrintFormat("ExportOHLCV: attached to %s. Common data folder = %s",
-               g_symbol, TerminalInfoString(TERMINAL_COMMONDATA_PATH));
+   PrintFormat("ExportOHLCV v1.03: attached to %s on server %s. Common data folder = %s",
+               g_symbol, AccountInfoString(ACCOUNT_SERVER), TerminalInfoString(TERMINAL_COMMONDATA_PATH));
    PrintFormat("ExportOHLCV: files will appear under that folder's \\Files\\ subdirectory, "
-               "named ohlcv.%s.<TIMEFRAME>.json", g_symbol);
+               "named ohlcv.%s.<TIMEFRAME>.server.json (raw server time; scripts/mt5_time.py converts them)", g_symbol);
 
    EventSetTimer(InpExportIntervalSec);
    ExportAllTimeframes();
@@ -88,9 +96,23 @@ void ExportOne(ENUM_TIMEFRAMES tf, string timeframeLabel)
       return;
    }
 
+   // Freshness = the symbol's LAST TICK (server time), not this EA's timer. When the quote stream freezes
+   // (terminal disconnected, weekend) this stops moving and the Python side reads the file as STALE.
+   MqlTick tick;
+   string lastQuote = "null";
+   if(SymbolInfoTick(g_symbol, tick) && tick.time > 0)
+      lastQuote = "\"" + IsoServer(tick.time) + "\"";
+
    string json = "{\n";
    json += "  \"symbol\": \"" + g_symbol + "\",\n";
    json += "  \"timeframe\": \"" + timeframeLabel + "\",\n";
+   json += "  \"_source\": \"mt5_bridge_live\",\n";
+   json += "  \"_time_basis\": \"server\",\n";
+   json += "  \"_server\": \"" + AccountInfoString(ACCOUNT_SERVER) + "\",\n";
+   json += "  \"_ea_version\": \"1.03\",\n";
+   json += "  \"last_quote_server\": " + lastQuote + ",\n";
+   json += "  \"_exported_at_utc\": \"" + IsoGmt(TimeGMT()) + "\",\n";
+   json += "  \"_volume_caveat\": \"tick_volume, not real traded volume -- see comment in ExportOHLCV.mq5\",\n";
    json += "  \"candles\": [\n";
 
    // rates[0] is the most recent bar (ArraySetAsSeries true); write oldest-first
@@ -98,7 +120,7 @@ void ExportOne(ENUM_TIMEFRAMES tf, string timeframeLabel)
    for(int i = copied - 1; i >= 0; i--)
    {
       json += "    {";
-      json += "\"time\": \"" + IsoTime(rates[i].time) + "\", ";
+      json += "\"time_server\": \"" + IsoServer(rates[i].time) + "\", ";
       json += "\"open\": " + DoubleToString(rates[i].open, _Digits) + ", ";
       json += "\"high\": " + DoubleToString(rates[i].high, _Digits) + ", ";
       json += "\"low\": " + DoubleToString(rates[i].low, _Digits) + ", ";
@@ -116,41 +138,38 @@ void ExportOne(ENUM_TIMEFRAMES tf, string timeframeLabel)
       json += "\n";
    }
 
-   json += "  ],\n";
-   json += "  \"last_updated\": \"" + IsoTime(TimeCurrent()) + "\",\n";
-   json += "  \"_server_utc_offset_sec\": " + IntegerToString((long)ServerUtcOffset()) + ",\n";
-   json += "  \"_source\": \"mt5_bridge_live\",\n";
-   json += "  \"_volume_caveat\": \"tick_volume, not real traded volume -- see comment in ExportOHLCV.mq5\"\n";
+   json += "  ]\n";
    json += "}\n";
 
-   string filename = "ohlcv." + g_symbol + "." + timeframeLabel + ".json";
-   int handle = FileOpen(filename, FILE_WRITE | FILE_TXT | FILE_COMMON | FILE_ANSI);
+   // Write a temp file, then move it over the real name, so the Python converter never reads half a file.
+   string filename = "ohlcv." + g_symbol + "." + timeframeLabel + ".server.json";
+   string tmpname  = filename + ".tmp";
+   int handle = FileOpen(tmpname, FILE_WRITE | FILE_TXT | FILE_COMMON | FILE_ANSI);
    if(handle == INVALID_HANDLE)
    {
-      PrintFormat("ExportOHLCV: FileOpen failed for %s, error=%d", filename, GetLastError());
+      PrintFormat("ExportOHLCV: FileOpen failed for %s, error=%d", tmpname, GetLastError());
       return;
    }
    FileWriteString(handle, json);
    FileClose(handle);
+   if(!FileMove(tmpname, FILE_COMMON, filename, FILE_REWRITE | FILE_COMMON))
+      PrintFormat("ExportOHLCV: FileMove %s -> %s failed, error=%d", tmpname, filename, GetLastError());
 }
 
 //+------------------------------------------------------------------+
-// Bar times from CopyRates and TimeCurrent() are BROKER SERVER time (often UTC+2/+3), not UTC.
-// Convert with the live server-vs-GMT offset before labelling the string "Z", so these files
-// line up with the Binance connector's genuine UTC timestamps.
-// TimeGMT() is derived from the PC clock, so TimeCurrent() - TimeGMT() carries the PC's clock error (a PC
-// 4 s slow gave 10804 and every bar landed at :29:56 instead of :30:00). Real UTC offsets are whole
-// multiples of 15 minutes, so round the measurement to the nearest 900 s.
-long ServerUtcOffset()
+// Bar times from CopyRates and tick times are BROKER SERVER time. They are written exactly as the server
+// reports them, with NO "Z": the offset in force for a past bar depends on daylight saving, which MQL5 cannot
+// report, so the conversion happens in scripts/mt5_time.py with the IANA zone the provider registry declares.
+string IsoServer(datetime t)
 {
-   long raw = (long)(TimeCurrent() - TimeGMT());
-   return (long)MathRound(raw / 900.0) * 900;
+   MqlDateTime dt;
+   TimeToStruct(t, dt);
+   return StringFormat("%04d-%02d-%02dT%02d:%02d:%02d", dt.year, dt.mon, dt.day, dt.hour, dt.min, dt.sec);
 }
 
-string IsoTime(datetime serverTime)
+// TimeGMT() comes from the PC clock: recorded as a diagnostic heartbeat only, never as freshness.
+string IsoGmt(datetime t)
 {
-   datetime offset = (datetime)ServerUtcOffset();
-   datetime t = serverTime - offset;
    MqlDateTime dt;
    TimeToStruct(t, dt);
    return StringFormat("%04d-%02d-%02dT%02d:%02d:%02dZ", dt.year, dt.mon, dt.day, dt.hour, dt.min, dt.sec);

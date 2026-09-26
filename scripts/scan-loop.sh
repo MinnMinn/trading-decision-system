@@ -82,7 +82,7 @@ run_style() { # tf style bars recent [symbols]   (bars/recent are the caller's S
   else
     # The MT5 EA is per-chart: a CFD symbol only has data once a chart running ExportOHLCV is open for it
     # (SYSTEM-DESIGN.md §12 item 6). Drop the symbols with no export rather than abandoning the whole style.
-    keep=""
+    keep=""; python3 scripts/mt5_time.py sync --symbols "$syms" >/dev/null 2>>"$LOG" || echo "$(now) $style: MT5 server-time conversion refused (reason above) -- bridge .json left as it was, it will read STALE" >>"$LOG"   # PAR-5: EA v1.03 .server.json -> .json; no-op for an older EA
     for s in ${syms//,/ }; do
       if [ -s "data/live/mt5-bridge/ohlcv.$s.$tf.json" ]; then keep="${keep:+$keep,}$s"
       else echo "$(now) $style: no bridge file for $s $tf -- symbol skipped" >>"$LOG"; fi
