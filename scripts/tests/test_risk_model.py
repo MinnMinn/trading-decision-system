@@ -348,10 +348,10 @@ class MinNotionalNoLongerGuesses(unittest.TestCase):
 
 class LiveAndResearchPriceTheSameTradeTheSameWay(unittest.TestCase):
     def test_every_selected_setups_assumed_fee_is_declared_for_its_venue(self):
-        """`pilot-top20.json` records the fee each ranking run ASSUMED. If a setup was validated at a fee the
+        """`pilot-selection.json` records the fee each ranking run ASSUMED. If a setup was validated at a fee the
         account does not pay, its evidence is about a different trade -- so the two must be reconciled rather
         than each carrying its own number."""
-        sel = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top20.json"), encoding="utf-8"))
+        sel = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-selection.json"), encoding="utf-8"))
         cfg = RM._config()["costs"]
         mismatched = []
         for s in sel["setups"]:

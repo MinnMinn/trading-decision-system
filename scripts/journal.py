@@ -52,8 +52,8 @@ TRADES = os.path.join(ROOT, "trades")
 INDEX = os.path.join(TRADES, "index.jsonl")
 PILOT = {"spot": os.path.join(ROOT, "data", "live", "pilot", "log.jsonl"),
          "futures": os.path.join(ROOT, "data", "live", "pilot-futures", "log.jsonl"),
-         "futures-top20": os.path.join(ROOT, "data", "live", "pilot-futures", "top20-log.jsonl"),   # scripts/strategy-runner.py (profile top20, crypto testnet)
-         "cfd-mt5": os.path.join(ROOT, "data", "live", "pilot-futures", "top20-mt5-log.jsonl")}  # scripts/strategy-runner.py (profile top20, CFD on the MT5 demo account)
+         "futures-selection": os.path.join(ROOT, "data", "live", "pilot-futures", "pilot-selection-log.jsonl"),   # scripts/strategy-runner.py (the pilot, crypto testnet)
+         "cfd-mt5": os.path.join(ROOT, "data", "live", "pilot-futures", "pilot-selection-mt5-log.jsonl")}  # scripts/strategy-runner.py (the pilot, CFD on the MT5 demo account)
 SCHEMA = json.load(open(os.path.join(ROOT, "docs", "architecture", "schemas", "trade-file.schema.json"), encoding="utf-8"))
 FIELD_ORDER = list(SCHEMA["properties"].keys())
 
@@ -234,10 +234,10 @@ def sync_pilot(market):
         else:
             date = opened[:10]; seq = next_seq(date, sym); tid = f"{date}-{sym}-{seq:02d}"
             path = os.path.join(TRADES, f"{tid}.md"); n_new += 1
-            strat = e.get("strategy")            # profile top20 records (scripts/strategy-runner.py) carry strategy/tf/htf_pass
+            strat = e.get("strategy")            # pilot records (scripts/strategy-runner.py) carry strategy/tf/htf_pass
             _pm, _pd = _pilot_mode_and_dims(sym, e.get("method"))
             fm = {"id": tid, "instrument": sym, "date_opened": opened,
-                  "setup_type": (f"Top20 {strat}: {'sweep SSL' if side=='LONG' else 'sweep BSL'} → MSS → limit tại mép FVG" + (" (Spring/Upthrust proxy làm bối cảnh)" if strat and strat.startswith("combined") else "")) if strat else
+                  "setup_type": (f"Pilot {strat}: {'sweep SSL' if side=='LONG' else 'sweep BSL'} → MSS → limit tại mép FVG" + (" (Spring/Upthrust proxy làm bối cảnh)" if strat and strat.startswith("combined") else "")) if strat else
                                 f"Pilot rules: {'SSL' if side=='LONG' else 'BSL'} sweep → MSS → FVG ({'discount' if side=='LONG' else 'premium'})",
                   "direction": side, "methodology_mode": _pm or "NORMAL", "market_regime": "UNCLEAR", "rehearsal_mode": False,
                   "confluence_score": None, "dimensions_used": _pd or ["wyckoff", "ict"], "entry": entry, "stop_loss": stop, "targets": [tp],
@@ -252,13 +252,13 @@ def sync_pilot(market):
                   "risk_pct": _risk_pct(e), "position_size": float(e["qty"]), "status": "OPEN",
                   "market": e.get("market", mk), "source": src, "timeframe": e.get("tf", "15m"), "session": session_of(opened),
                   "leverage": e.get("leverage", 1), "planned_rr": planned_rr, "confidence": None, "followed_plan": True,
-                  "tags": ["pilot", market, side.lower()] + ([strat, "top20", "htf_pass" if e.get("htf_pass") else "htf_fail"] + (["mt5"] if market == "cfd-mt5" else []) if strat else []),
+                  "tags": ["pilot", market, side.lower()] + ([strat, "pilot-selection", "htf_pass" if e.get("htf_pass") else "htf_fail"] + (["mt5"] if market == "cfd-mt5" else []) if strat else []),
                   **({"strategy": strat, "htf_pass": bool(e.get("htf_pass"))} if strat else {}),
                   # CLAUDE.md §14: the setup NAME is reused across rule changes, so the version is what
                   # actually ties this trade to the rules it was taken under (scripts/setup_version.py).
                   **({"setup_version": e["setup_version"]} if e.get("setup_version") else {}),
                   "exchange_refs": {"entry_order": e.get("entry_order"), "tp_order": e.get("tp_order"), "stop_order": e.get("stop_order"), "oco_list": e.get("oco_list")},
-                  "thesis": ((f"Luật top20 `{strat}` (scripts/strategy-runner.py = scripts/backtest-methods.py, không có model quyết định): quét pivot {'SSL' if side=='LONG' else 'BSL'} "
+                  "thesis": ((f"Luật pilot `{strat}` (scripts/strategy-runner.py = scripts/backtest-methods.py, không có model quyết định): quét pivot {'SSL' if side=='LONG' else 'BSL'} "
                               f"lúc {e.get('sweep_time')}, MSS đóng thân lúc {e.get('mss_time')}, lệnh limit post-only tại mép FVG, stop {stop}, TP {tp}, hoà vốn tại +1R; "
                               f"lọc khung lớn 2H: {'đạt' if e.get('htf_pass') else 'không đạt'}. Rủi ro {risk_usd} USDT.") if strat else
                              (f"Luật pilot (không có model quyết định): {'quét SSL/ERL-low trong 8 nến, MSS tăng trong 3 nến, FVG tăng sau cú quét, giá ở discount' if side=='LONG' else 'quét BSL/ERL-high trong 8 nến, MSS giảm trong 3 nến, FVG giảm sau cú quét, giá ở premium'}, "
@@ -377,14 +377,14 @@ def review(tid, sets):
 
 def main():
     ap = argparse.ArgumentParser(); sub = ap.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("sync-pilot"); s.add_argument("--market", choices=["spot", "futures", "futures-top20", "cfd-mt5", "both"], default="both")
+    s = sub.add_parser("sync-pilot"); s.add_argument("--market", choices=["spot", "futures", "futures-selection", "cfd-mt5", "both"], default="both")
     r = sub.add_parser("review"); r.add_argument("id"); r.add_argument("--set", nargs="+", required=True)
     sub.add_parser("index"); sub.add_parser("views"); sub.add_parser("all")
     st = sub.add_parser("stats"); st.add_argument("--json", action="store_true")
     rd = sub.add_parser("render"); rd.add_argument("--out", default=os.path.join(ROOT, "data", "live", ".journal-vi.html"))
     a = ap.parse_args()
     if a.cmd == "sync-pilot":
-        for m in (["spot", "futures", "futures-top20", "cfd-mt5"] if a.market == "both" else [a.market]): sync_pilot(m)
+        for m in (["spot", "futures", "futures-selection", "cfd-mt5"] if a.market == "both" else [a.market]): sync_pilot(m)
         build_index()
     elif a.cmd == "review": review(a.id, a.set); build_index()
     elif a.cmd == "index": build_index()
@@ -393,7 +393,7 @@ def main():
         s_ = stats(build_index()); print(json.dumps(s_, ensure_ascii=False, indent=1) if a.json else "\n".join(f"{k}: {v}" for k, v in s_.items() if not k.startswith("by_")))
     elif a.cmd == "render": render(build_index(), a.out)
     elif a.cmd == "all":
-        for m in ("spot", "futures", "futures-top20", "cfd-mt5"): sync_pilot(m)
+        for m in ("spot", "futures", "futures-selection", "cfd-mt5"): sync_pilot(m)
         rows = build_index(); views(rows); render(rows, os.path.join(ROOT, "data", "live", ".journal-vi.html"))
 
 

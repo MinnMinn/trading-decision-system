@@ -204,9 +204,9 @@ class LiveGate(unittest.TestCase):
 
     def test_no_decision_path_pins_the_floor_to_zero(self):
         """Every script whose output a live order eventually depends on must measure the population the live gate
-        actually takes. stability-report feeds rank-setups, which writes pilot-top20.json. (scripts/ict-flags-1y.py
+        actually takes. stability-report feeds rank-setups, which writes pilot-selection.json. (scripts/ict-flags-1y.py
         used to be a third decision path here -- it wrote ict_disp/ict_pd/std_origin straight into
-        pilot-top20.json. It was deleted 2026-09-19 with those three flags: none of them could change an ICT
+        pilot-selection.json. It was deleted 2026-09-19 with those three flags: none of them could change an ICT
         setup, so the year it tuned them measured noise. See docs/audits/2026-09-19-knowledge-fidelity.md.)
 
         A script that genuinely wants the unfiltered population may still pass --min-rr 0 on the command line;
@@ -276,7 +276,7 @@ class OneFloorReaderForBothOrderPaths(unittest.TestCase):
 
     def test_the_runner_gate_fails_closed_on_an_unreadable_floor(self):
         """demo-pilot got this branch on the first pass; the runner did not, and the runner is the path that
-        actually runs under the current top20 profile."""
+        actually runs under the current pilot."""
         saved = self.sr.MIN_RR
         try:
             self.sr.MIN_RR = None

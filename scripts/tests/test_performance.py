@@ -450,10 +450,13 @@ class NoUniversalScore(unittest.TestCase):
             P.refuse_universal_score({"win_rate": 0.5})
         self.assertIn("lexicographic", str(cm.exception))
 
-    def test_the_ranking_consumer_still_sorts_on_a_tuple_of_named_metrics(self):
+    def test_the_selection_consumer_is_not_a_score(self):
         # §39's second rule is about the consumer, so it is checked there too.
         src = open(os.path.join(ROOT, "scripts", "rank-setups.py"), encoding="utf-8").read()
-        self.assertIn('key=lambda r: (r["ruin"] is None, r["q_pos"]', src)
+        # ADR 0008: the pilot selection is no longer a ranking at all -- every system is judged alone against
+        # absolute criteria, so there is no sort key and no blended score to become.
+        self.assertIn("SC.evaluate(", src)
+        self.assertNotIn(".sort(", src)
 
 
 class WiredWhereTheNumbersAreProduced(unittest.TestCase):

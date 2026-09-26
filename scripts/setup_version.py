@@ -5,7 +5,7 @@
 
 §14 requires setup logic to be *explicit, independently testable, versioned, explainable*. Three of the four
 held; **versioned did not**. A setup's `id` encodes its parameters -- `crypto-scalping-combined-15m-border-b`
--- but not a version, and `scripts/rank-setups.py` rewrites `docs/architecture/pilot-top20.json` in place. So a
+-- but not a version, and `scripts/rank-setups.py` rewrites `docs/architecture/pilot-selection.json` in place. So a
 rule change that keeps the same (market, horizon, method, timeframe, target, config) produces the *same id
 with different behaviour*, and `trade-file.schema.json` records `strategy` as exactly that id. A closed trade
 therefore points at an identifier whose meaning may have changed since the trade was taken, with nothing to

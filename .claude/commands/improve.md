@@ -18,7 +18,7 @@ python3 scripts/improve-loop.py --market <market> --tf <tf> --symbols <symbols> 
 This clusters repeated LOSSES from the baseline, runs every DECLARED candidate override
 (`docs/architecture/improve-candidates.json`) against the same data, and seals one
 `docs/experiments/<id>.json` record per candidate run (`decision: PENDING`) — the artifact §42 requires and
-this repo did not produce before. It never touches `pilot-top20.json`, `methods.json`, or
+this repo did not produce before. It never touches `pilot-selection.json`, `methods.json`, or
 `trading-systems.json`.
 
 **Step 2 — reason over the report, do not re-derive it.** Dispatch **learning-agent** for the `/improve`
@@ -34,5 +34,5 @@ the recommendation is built on. If the proposal touches a safety-critical rule (
 allowlist, invalidation requirements, Analysis≠Execution separation), say so explicitly and stop — do not edit
 `docs/architecture/SYSTEM-DESIGN.md` or `risk-config.json` yourself even if the user says "sounds good,"
 without their explicit follow-up instruction to make that specific edit. Adopting a candidate (editing
-`pilot-top20.json` / `methods.json` / `trading-systems.json`) is always this human decision, never an automatic
+`pilot-selection.json` / `methods.json` / `trading-systems.json`) is always this human decision, never an automatic
 step of `/improve` or of `scripts/improve-loop.py`.

@@ -610,7 +610,7 @@ class INT3CombinedBookNoHindsightEntry(unittest.TestCase):
     fvg_fill(...) returned None (price never retraced to the FVG edge within the window) -- a decision that
     can only be made by looking K bars into the future to see whether the retrace happened. Fixed: an unfilled
     limit is not a trade, matching ICT's own live-limit semantics (ict_setups_live already treats a None fill
-    this way). runnable=false so this can never reach pilot-top20 either way; fixed per CLAUDE.md §37
+    this way). runnable=false so this can never reach the pilot selection either way; fixed per CLAUDE.md §37
     regardless."""
 
     def test_pre_fix_a_none_fill_still_produced_a_market_entry_at_the_mss_close(self):

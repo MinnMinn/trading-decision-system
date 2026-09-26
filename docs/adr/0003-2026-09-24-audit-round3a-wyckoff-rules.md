@@ -77,7 +77,7 @@ round 4 to reconcile.
 
 ## Round 4 must handle
 
-- Regenerate the stability files / ranking (`docs/architecture/*stability*`, pilot-top20 evidence) that were
+- Regenerate the stability files / ranking (`docs/architecture/*stability*`, pilot selection evidence) that were
   built under the pre-round-3a rules — WY-2 and WY-3 in particular change which structures fire and which bars
   are read as SOS, so any BTCUSDT/ETHUSDT/SOLUSDT WYCKOFF-BOOK trade counts measured before this commit are
   stale in the same way ADR 0002 flagged for ICT.

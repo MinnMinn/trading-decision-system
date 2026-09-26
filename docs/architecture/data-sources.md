@@ -28,7 +28,7 @@ Used for: price/candles, market structure, timeframes, technical context. **Real
 
 Mock fixtures remain at `mock/market-data/ohlcv.<SYMBOL>.<TIMEFRAME>.json` for rehearsal/testing when you deliberately want to exercise the pipeline without hitting the network.
 
-**Pilot-private copies (2026-09-11).** `scripts/fetch-binance-klines.sh` honours `KLINES_OUT_DIR`; `scripts/strategy-runner.py` (pilot profile `top20`) fetches 30m / 1H / 2H × 300 into `data/live/pilot-futures/candles/` and drops the forming candle, so the launchd scanner stays the single writer of `data/live/market-data/` and the pilot never reads a half-formed bar. 30m and 2H are pilot data only — no chart style, no local read, no artifact.
+**Pilot-private copies (2026-09-11).** `scripts/fetch-binance-klines.sh` honours `KLINES_OUT_DIR`; `scripts/strategy-runner.py` (the pilot) fetches 30m / 1H / 2H × 300 into `data/live/pilot-futures/candles/` and drops the forming candle, so the launchd scanner stays the single writer of `data/live/market-data/` and the pilot never reads a half-formed bar. 30m and 2H are pilot data only — no chart style, no local read, no artifact.
 
 **Research history for CFD backtests (2026-09-11).** `scripts/fetch-history-cfd.py` pulls Yahoo Finance front-month futures (GC=F, SI=F, CL=F, BZ=F) into `data/history/ohlcv.<XAUUSD|XAGUSD|USOIL|UKOIL>.<1H|2H|4H|1D>.json` — 1H for ~2.4 years, 1D for 10 years, 2H/4H aggregated. Research input only (the launchd scanner never touches it): exchange session hours, real contract volume and a futures basis, unlike the CFD quotes and tick volume the MT5 bridge trades on. Every CFD ranking built on it says so.
 

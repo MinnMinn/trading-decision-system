@@ -77,13 +77,13 @@ MIN_TRADES = 30
 # they were then judged on, so the pilot's "evidence" was the window the choice was fitted to. Every row now
 # also carries an in-sample / out-of-sample split around a cutoff DERIVED FROM THE DATA (never typed):
 #   cutoff     = the dataset's last bar DATE minus OOS_MONTHS calendar months, at 00:00Z
-#   in-sample  = trades whose ENTRY is in [cutoff - IS_LOOKBACK_DAYS, cutoff)  -- what selection may read
-#   OOS        = trades whose ENTRY is on/after the cutoff                      -- what selection is judged on
+#   in-sample  = trades whose ENTRY is in [cutoff - IS_LOOKBACK_DAYS, cutoff)  -- selection gate 1 (ADR 0008 criteria)
+#   OOS        = trades whose ENTRY is on/after the cutoff                      -- selection gate 2 (same criteria, held out)
 # A trade opened before the cutoff belongs to in-sample even when it closes after it: membership is decided
 # by the moment the decision was made (CLAUDE.md §8), never by an outcome. IS_LOOKBACK_DAYS keeps the
 # in-sample basis the same length as the `--window 1y` ranking it replaces, shifted back to end at the cutoff.
 # Each side is simulated as its OWN fresh START account (as `w1y` already was), so an OOS number never carries
-# equity -- or a ruin -- earned in-sample. Consumer: scripts/rank-setups.py --window oos6m.
+# equity -- or a ruin -- earned in-sample. Consumer: scripts/rank-setups.py (ADR 0008 criteria selection).
 OOS_MONTHS = 6
 IS_LOOKBACK_DAYS = 365
 
@@ -268,7 +268,7 @@ def main():
                            failed_by=failed_by, account=acct_id,
                            **metrics(curve, first, last, taken, final, bt.max_dd(curve), account=account,
                                      full_taken=t_full, full_curve=c_full))
-                # last-365-day window (user decision 2026-09-11: `/automation on setup top N` ranks on the most recent year)
+                # last-365-day window (reported only; the 1-year ranking that read it was removed by ADR 0008)
                 tr1 = [t for t in tr if t["entry_time"] >= since]
                 f1, c1, tk1 = bt.simulate(tr1, fee, account=account, entry_order_type=entry_type, live_parity_sizing=True)
                 w = metrics(c1, max(first, since), last, tk1, f1, bt.max_dd(c1)); w.pop("years", None); w.pop("quarters", None)

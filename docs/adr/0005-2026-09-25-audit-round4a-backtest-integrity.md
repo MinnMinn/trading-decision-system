@@ -14,13 +14,13 @@ reason: Same reasoning as ADR 0001/0002/0003. trading_system.py's version reader
 consequences: |
   Every routable live style keeps its current version through round 4b; its configuration snapshot (trading_system.py snapshot(), §11) names that version for any decision made after this commit even though six backtest-integrity/parity defects are now fixed, so a reader comparing pre- and post-round-4a research results under the same version label must consult this ADR and the round 1-4 commit history, not the version field alone.
 
-  INT-2 changes EVERY multi-symbol stability run: any run whose trades overlap across symbols (the account is shared across a timeframe's whole symbol set, per backtest-methods.py's own module docstring) had its equity curve, drawdown and account-survival trace computed from entry-order-cumulative values stamped at exit timestamps -- a path that never existed. Every existing `docs/architecture/*stability*` file and every `pilot-top20.json` backtest block is stale in this same sense ADR 0002/0003 already flagged for ICT/Wyckoff; round 4b regenerates them.
+  INT-2 changes EVERY multi-symbol stability run: any run whose trades overlap across symbols (the account is shared across a timeframe's whole symbol set, per backtest-methods.py's own module docstring) had its equity curve, drawdown and account-survival trace computed from entry-order-cumulative values stamped at exit timestamps -- a path that never existed. Every existing `docs/architecture/*stability*` file and every `pilot-selection.json` backtest block is stale in this same sense ADR 0002/0003 already flagged for ICT/Wyckoff; round 4b regenerates them.
 
   INT-4/PAR-2 changes every config-B/C row's net R for WYCKOFF-BOOK (previously priced maker on both legs though its real entry is a market order) and understates cost for every ICT config-B/C row less severely than before (maker entry was already correct there; only the exit leg was wrong). PAR-4/DEC-4's `live_parity_sizing` is now available but is an OPT-IN parameter on `simulate()` -- `scripts/backtest-methods.py main()` and `scripts/stability-report.py` now pass it, but any other caller (`scripts/improve-loop.py`, ad hoc scripts) that calls `bt.simulate()` directly without it keeps the pre-round-4a sizing, and must adopt it before its own results are comparable to a run after this commit.
 
   INT-6/PAR-3 removes the "config C is identical to config B" defect for ICT (previously config C measured nothing config B did not) and moves WYCKOFF-BOOK/COMBINED-BOOK's HTF gate off the legacy percentile proxy onto the live bias read; any existing config-C row for either method is measuring a filter no live setup with `htf:true` was ever actually gated by, in ICT's case, or a different filter than the live one, in Wyckoff's case.
 
-  INT-3's fix reduces (never increases) COMBINED-BOOK's already-near-zero trade count, since COMBINED-BOOK is `runnable=false` (docs/architecture/methods.json) and cannot reach `pilot-top20.json` either way -- no routable setup is affected, but any backtest-only research into COMBINED-BOOK predating this commit measured a partly-hindsight population.
+  INT-3's fix reduces (never increases) COMBINED-BOOK's already-near-zero trade count, since COMBINED-BOOK is `runnable=false` (docs/architecture/methods.json) and cannot reach `pilot-selection.json` either way -- no routable setup is affected, but any backtest-only research into COMBINED-BOOK predating this commit measured a partly-hindsight population.
 
   INT-7 can only ever REDUCE ICT's admitted trade count (a previously-admitted overlapping trade is now correctly skipped), so any prior ICT row's trade count is an upper bound on what a re-run now admits.
 rejected_alternatives:
@@ -45,7 +45,7 @@ rejected_alternatives:
   never retraced to the FVG edge within the K-bar window) — a decision knowable only by having scanned the
   entire window, i.e. the future. Fixed: an unfilled limit is not a trade, matching ICT's own live-limit
   semantics (`ict_setups_live` already treats a `None` fill this way). `runnable=false` so this cannot reach
-  `pilot-top20.json` either way, but fixed per CLAUDE.md §37 regardless. The ICT-8 `fvg_fill` contract (a bar
+  `pilot-selection.json` either way, but fixed per CLAUDE.md §37 regardless. The ICT-8 `fvg_fill` contract (a bar
   reaching both the edge and the stop returns `"filled_and_stopped"`, booked as a pessimistic -1R) is now also
   honoured on this leg, which previously read the outcome tag but never consulted it.
 
@@ -123,7 +123,7 @@ rejected_alternatives:
 - **ICT-8/PAR-7** (fvg_fill's same-bar fill+stop contract, and the ICT backtest fill window anchored on the
   setup's own MSS bar) were found ALREADY FIXED before this round started, both dated 2026-09-24/25 in the
   current code's own comments and already covered by `scripts/tests/test_audit_round2_ict.py`.
-- Regenerating `docs/architecture/*stability*` and re-selecting `pilot-top20.json` from this fixed engine is
+- Regenerating `docs/architecture/*stability*` and re-selecting `pilot-selection.json` from this fixed engine is
   round 4b's job, not this round's — this ADR's "consequences" section names exactly which prior research
   results are now stale for round 4b to regenerate.
 

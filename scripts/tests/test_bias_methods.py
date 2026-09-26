@@ -592,7 +592,7 @@ class VolumeProvenanceReachesEveryRecord(unittest.TestCase):
 
 class DeadIctSwitchesAreGone(unittest.TestCase):
     """finding 11: --ict-pd and --std-origin were declared, printed in report headers, written into
-    pilot-top20.json and tuned for a year by scripts/ict-flags-1y.py -- and read by nothing. Both rules they
+    pilot-selection.json and tuned for a year by scripts/ict-flags-1y.py -- and read by nothing. Both rules they
     named are real deck rules already enforced elsewhere, which is why the fix is deletion, not wiring."""
 
     @classmethod

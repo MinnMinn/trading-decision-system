@@ -924,7 +924,7 @@ def scan(sym, tf, only=None, opts=None):
                             # uses (this leg IS the ICT confirmation, methods.json's COMBINED-BOOK.entry=
                             # "market" describes the WYCKOFF leg, not this one) -- an order that never fills is
                             # not a trade, exactly as ict_setups_live() already treats it. runnable=false, so
-                            # this cannot reach pilot-top20 either way; fixed per CLAUDE.md §37 regardless.
+                            # this cannot reach the pilot selection either way; fixed per CLAUDE.md §37 regardless.
                             if fill is None:
                                 continue
                             e_bar, outcome = fill
@@ -1293,7 +1293,7 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
         # the floor once the venue's own fee is charged. A backtest that admits 5 % of trades its own live
         # system would decline is not measuring that system.
         #
-        # RESEARCH-SEMANTICS CHANGE (§59): every stability report and every `pilot-top20.json` backtest block
+        # RESEARCH-SEMANTICS CHANGE (§59): every stability report and every `pilot-selection.json` backtest block
         # produced before this date was computed under the gross convention and is NOT comparable to a run
         # after it. They are deliberately not regenerated here -- see SYSTEM-DESIGN.md §45.
         dist = abs(t["entry"] - t["stop"]) / t["entry"]

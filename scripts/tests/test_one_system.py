@@ -62,7 +62,7 @@ class LegacyEngineIsGone(unittest.TestCase):
 
     def test_the_profile_subcommand_is_not_still_accepted(self):
         """Deleting the handler but leaving the argparse choice is worse than leaving both: `automation.py pilot
-        profile top20` then exits 0 and prints the status block, so a user who types it believes they changed
+        profile <name>` then exits 0 and prints the status block, so a user who types it believes they changed
         something. A removed command must REFUSE, not fall through."""
         src = open(os.path.join(SCRIPTS, "automation.py"), encoding="utf-8").read()
         for line in src.splitlines():
@@ -167,7 +167,7 @@ class OneStyleVocabulary(unittest.TestCase):
             self.assertNotIn(gone, self.auto.TIMEFRAMES, f"{gone} is still a selectable timeframe")
 
     def test_no_gold_prefixed_names_survive(self):
-        """The cfd market is distinguished by a `cfd-` prefix now, the way pilot-top20.json uses a market field.
+        """The cfd market is distinguished by a `cfd-` prefix now, the way pilot-selection.json uses a market field.
 
         This asserted `re.search(r'"gold(-[a-z0-9]+)?"')` until the 2026-09-13 review: requiring DOUBLE QUOTES
         around the token meant it matched none of the places the name actually lived -- not
@@ -307,7 +307,7 @@ class FlatStyleConsumersFollowTheVocabulary(unittest.TestCase):
 class RankSetupsAgreesWithTheOneVocabulary(unittest.TestCase):
     """rank-setups.HORIZONS held timeframe SETS that ranged over timeframes the scanner no longer runs -- the
     scalping set also named the retired five-minute rung, day also named 30m/2H, swing also named 1D. It writes
-    pilot-top20.json, which selects what the live engine trades, so a horizon that can select a 30m setup the
+    pilot-selection.json, which selects what the live engine trades, so a horizon that can select a 30m setup the
     scanner never scans is a selection nothing can execute."""
 
     def setUp(self):

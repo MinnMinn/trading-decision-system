@@ -3,7 +3,7 @@
 §14 asks for four properties: explicit, independently testable, versioned, explainable. Three held. Versioned
 did not, and the failure is specific: a setup's `id` encodes its parameters
 (`crypto-scalping-combined-15m-border-b`) but not a version, `scripts/rank-setups.py` rewrites
-`docs/architecture/pilot-top20.json` in place, and `trade-file.schema.json` records `strategy` as that id. So a
+`docs/architecture/pilot-selection.json` in place, and `trade-file.schema.json` records `strategy` as that id. So a
 rule change produces the SAME id with DIFFERENT behaviour, and every past trade filed under it silently
 re-points at rules it was never taken under.
 
@@ -132,7 +132,7 @@ class WiredIntoTheWritePath(unittest.TestCase):
         """`finalize()` exists so a fourth write path cannot forget: carry the switches, THEN version --
         in that order, since a carried switch changes the rules."""
         src = open(os.path.join(ROOT, "scripts", "rank-setups.py"), encoding="utf-8").read()
-        self.assertEqual(src.count("selection = finalize(selection, a.select)"), 3)
+        self.assertEqual(src.count("selection = finalize(selection, a.select)"), 1)   # ADR 0008: one write path (was 3 modes)
         self.assertEqual(src.count("carry_flags(selection, a.select)"), 0,
                          "a write path still calls carry_flags directly and would ship unversioned setups")
 

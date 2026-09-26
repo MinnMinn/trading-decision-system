@@ -16,7 +16,7 @@ def plan_row(**kw):
     kw.setdefault("targets", [77500.0, 78000.0])
     kw.setdefault("direction", "LONG")
     kw.setdefault("date_opened", "2026-09-17T18:00:00Z")
-    kw.setdefault("setup_type", "Top20 ict: sweep SSL -> MSS -> limit tại mép FVG")
+    kw.setdefault("setup_type", "Pilot ict: sweep SSL -> MSS -> limit tại mép FVG")
     return dict(kw)
 
 

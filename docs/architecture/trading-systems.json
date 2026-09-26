@@ -158,7 +158,7 @@
     },
     "research.ranking": {
       "kind": "research",
-      "produced_by": "scripts/rank-setups.py -> docs/architecture/pilot-top20.json",
+      "produced_by": "scripts/rank-setups.py -> docs/architecture/pilot-selection.json",
       "baseline_role": "RESEARCH_ONLY",
       "why": "Ranking selects which setups exist; once written, the runner reads the rows, not the ranking run."
     },

@@ -51,10 +51,10 @@ Subcommands
                                       resting orders are still managed.
   layer <scanner|local_read|pilot> <on|off>
   pilot <start|stop|status|adopt> [--market futures] [--no-launchd]   one venue since 2026-09-13
-  on|demo [setup top <N> | setup horizons]   default (no spec) = `setup horizons`: one setup per horizon (scalping/day/swing) per market,
-                                      ranked on the last 12 months; `setup top N` = N crypto + N CFD. Both write
-                                      docs/architecture/pilot-top20.json, which the loop reads every tick; there is
-                                      no profile switch (the legacy engine was deleted 2026-09-13).
+  on|demo                             re-select the pilot's systems by ADR 0008's criteria (scripts/rank-setups.py
+                                      enables every system passing docs/architecture/selection-criteria.json on its
+                                      in-sample AND OOS window; a horizon with none trades nothing) and write
+                                      docs/architecture/pilot-selection.json, which the loop reads every tick.
   allows <scanner|local_read|pilot> [style]     exit 0 if permitted, 2 if not (for shell gates)
   allows master                       exit 0 only if the config exists AND `enabled` is true. Fails CLOSED on a
                                       missing or corrupt file, unlike the three layer forms above, which treat
@@ -971,60 +971,39 @@ def session_cron_block(on):
 
 # ---------- mutating subcommands ----------
 def apply_setup_spec(cfg, a):
-    """`setup top N` (user decision 2026-09-11): rank the last 365 days with scripts/rank-setups.py, write docs/architecture/pilot-top20.json
-    with N crypto + N CFD setups. Returns (rc, lines). `setup` absent -> no change."""
+    """ADR 0008 (owner decision 2026-09-26): `on`/`demo`/`real` re-select the pilot's systems by the absolute
+    per-horizon criteria in docs/architecture/selection-criteria.json -- scripts/rank-setups.py enables every
+    stability row that passes every criterion of its horizon on its in-sample AND its OOS window, and nothing
+    else, writing docs/architecture/pilot-selection.json. There is no other selection mode: the former top-N
+    and one-per-slot specs were removed with ADR 0008, so any `setup ...` words are a usage error.
+    Returns (rc, lines)."""
     spec = [x.lower() for x in (getattr(a, "setup", None) or [])]
-    sel = os.path.join(ROOT, "docs", "architecture", "pilot-top20.json"); out = os.path.join(ROOT, "docs", "backtests", "top-setups-latest.md")
+    if spec:
+        return 1, [f"usage: on|demo|real  (selection specs were removed by ADR 0008: the pilot enables every system "
+                   f"that meets docs/architecture/selection-criteria.json; got: {' '.join(spec)})"]
+    sel = os.path.join(ROOT, "docs", "architecture", "pilot-selection.json")
+    out = os.path.join(ROOT, "docs", "backtests", "pilot-selection-latest.md")
     cfd_syms = ",".join(cfg["markets"]["cfd"]["instruments"] or ["XAUUSD"]); crypto_syms = ",".join(cfg["markets"]["crypto"]["instruments"] or MARKET_INSTRUMENTS["crypto"])
-    if not spec:
-        # user decision 2026-09-11 (night): plain `on`/`demo` runs scalping + day + swing for crypto AND CFD -- one setup per horizon per
-        # market, ranked on the last 12 months -- unless a `setup top N` selection is in force (execution.setup_spec starts with "top").
-        if (cfg["execution"].get("setup_spec") or "").startswith("top") and os.path.exists(sel):
-            return 0, [f"keeps the selection `{cfg['execution']['setup_spec']}` ({rel(sel)}); `on setup horizons` re-selects per horizon"]
-        spec = ["setup", "horizons"]
-    if spec == ["setup", "horizons"]:
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "rank-setups.py"), "--horizons", "--window", "oos6m", "--select", sel, "--out", out,
-                            "--crypto-symbols", crypto_syms, "--cfd-symbols", cfd_syms], capture_output=True, text=True)
-        if r.returncode != 0:
-            return 2, [f"rank-setups.py --horizons failed: {r.stderr.strip()[:300]}"]
-        try:
-            setups = json.load(open(sel, encoding="utf-8"))["setups"]
-        except Exception as e:
-            return 2, [f"selection file unreadable after ranking: {e}"]
-        cfg["execution"]["setup_spec"] = "horizons (oos6m)"   # INT-5: in-sample selection + 6-month OOS holdout
-        record(cfg, a, "setup horizons", "applied")
-        lines = [f"SETUP HORIZONS: {len(setups)} setups (scalping / day / swing per market, chosen in-sample and enabled only if profitable on the held-out last 6 months) -> {rel(sel)} (table {rel(out)})"]
-        for st in setups:
-            b = st.get("backtest", {})
-            lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['horizon']} {st['tf']} {st['method']} htf={st.get('htf')} exec={st['execution']} | in-sample: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
-                         + (f" | OOS: n={b['oos'].get('n')} expR={b['oos'].get('expectancy_R')} P&L={b['oos'].get('net_pnl')}" if isinstance(b.get("oos"), dict) else "")
-                         + ("  [BACKTEST ÂM]" if st.get("negative_backtest") else ""))
-        for m in ("crypto", "cfd"):
-            missing = [h for h in ("scalping", "day", "swing") if not any(st["market"] == m and st["horizon"] == h for st in setups)]
-            if missing:
-                lines.append(f"  ! {m}: no {', '.join(missing)} setup was enabled (none met the in-sample gates, or the pick failed OOS -- see the table) -- that horizon will not be traded")
-        return 0, lines
-    if len(spec) != 3 or spec[0] != "setup" or spec[1] != "top" or not spec[2].isdigit() or not (1 <= int(spec[2]) <= 10):
-        return 1, [f"usage: on|demo [setup top <1..10> | setup horizons]  (got: {' '.join(spec)})"]
-    n = int(spec[2])
-    r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "rank-setups.py"), "--window", "1y", "--n", str(n), "--select", sel, "--out", out,
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "rank-setups.py"), "--select", sel, "--out", out,
                         "--crypto-symbols", crypto_syms, "--cfd-symbols", cfd_syms], capture_output=True, text=True)
     if r.returncode != 0:
-        return 2, [f"rank-setups.py failed: {r.stderr.strip()[:300]}"]
+        return 2, [f"rank-setups.py failed, selection unchanged: {r.stderr.strip()[:300]}"]
     try:
-        setups = json.load(open(sel, encoding="utf-8"))["setups"]
+        with open(sel, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        setups = doc["setups"]
     except Exception as e:
-        return 2, [f"selection file unreadable after ranking: {e}"]
-    cfg["execution"]["setup_spec"] = f"top {n} (1y)"
-    record(cfg, a, f"setup top {n}", "applied")
-    lines = [f"SETUP TOP {n}: {len(setups)} setups selected on the last 12 months -> {rel(sel)} (table {rel(out)})"]
-    for st in setups:
-        b = st.get("backtest", {})
-        lines.append(f"  {st['rank']}. {st['id']}: {st['market']} {st['tf']} {st['method']} htf={st.get('htf')} exec={st['execution']} | 1y: n={b.get('n')} {b.get('ann_pct')}% DD -{b.get('max_dd_pct')}% quarters+ {b.get('q_pos_pct')}%"
-                     + ("  [BACKTEST ÂM]" if st.get("negative_backtest") else ""))
-    missing = [m for m in ("crypto", "cfd") if not any(st["market"] == m for st in setups)]
-    if missing:
-        lines.append(f"  ! no {', '.join(missing)} setup met the minimum trade count in the last year -- that market will not be traded")
+        return 2, [f"selection file unreadable after selection: {e}"]
+    cfg["execution"]["setup_spec"] = "criteria (oos6m)"   # ADR 0008: every system passing its horizon's criteria on IS and OOS
+    record(cfg, a, "selection criteria", "applied")
+    lines = [f"SELECTION (ADR 0008 criteria, in-sample AND OOS): {len(setups)} system(s) enabled -> {rel(sel)} (table {rel(out)})"]
+    for i, st in enumerate(setups, 1):
+        b = st.get("backtest", {}); bi, bo = b.get("in_sample") or {}, b.get("oos") or {}
+        lines.append(f"  {i}. {st['id']}: {st['market']} {st.get('horizon')} {st['tf']} {st['method']} htf={st.get('htf')} exec={st['execution']}"
+                     f" | IS: n={bi.get('n')} mean/month {bi.get('m_mean_geo_pct')}% losing months {bi.get('m_losing')} DD -{bi.get('max_dd_pct')}%"
+                     f" | OOS: n={bo.get('n')} mean/month {bo.get('m_mean_geo_pct')}% losing months {bo.get('m_losing')} DD -{bo.get('max_dd_pct')}%")
+    for h in doc.get("horizons_without_system") or []:
+        lines.append(f"  ! {h.get('market')} {h.get('horizon')}: no system enabled -- this horizon trades nothing ({h.get('reason')})")
     return 0, lines
 
 
@@ -1563,7 +1542,7 @@ def main():
     al = sub.add_parser("allows"); al.add_argument("layer", choices=LAYERS + ["master"])
     al.add_argument("style", nargs="?", default=None)
     p = audited(sub.add_parser("demo")); p.add_argument("setup", nargs="*", default=[]); p = audited(sub.add_parser("real")); p.add_argument("setup", nargs="*", default=[])
-    p = audited(sub.add_parser("on")); p.add_argument("setup", nargs="*", default=[], help="optional: `setup top N` = rank the last 12 months, select N crypto + N CFD setups, then bring everything up")
+    p = audited(sub.add_parser("on")); p.add_argument("setup", nargs="*", default=[], help=argparse.SUPPRESS)   # any words here are refused (ADR 0008 removed selection specs)
     audited(sub.add_parser("off"))
     p = audited(sub.add_parser("market"))
     p.add_argument("name", choices=MARKETS); p.add_argument("value", choices=["on", "off"])
@@ -1585,7 +1564,7 @@ def main():
     p = audited(sub.add_parser("pilot"))
     # `profile` was removed with the second engine (2026-09-13): one engine means a profile can only select
     # "the engine" or "nothing", and layers.pilot already expresses the second. Dropped from `choices` as well
-    # as from the handler -- leaving it accepted made `pilot profile top20` exit 0 and print the status block,
+    # as from the handler -- leaving it accepted made `pilot profile <name>` exit 0 and print the status block,
     # so a user who typed it would believe they had changed something.
     p.add_argument("action", choices=["start", "stop", "status", "adopt"])
     p.add_argument("--market", choices=PILOT_MARKETS, default=None)

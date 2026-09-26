@@ -16,7 +16,7 @@ are the guardrail this script is built around, not a decoration on top of it:
     "AI may: discover patterns, identify repeated failure clusters, generate hypotheses, propose candidate
     changes, analyze experiment results. AI must NEVER silently rewrite the production Trading System."
 
-So this script never writes `docs/architecture/pilot-top20.json`, `docs/architecture/methods.json`, or
+So this script never writes `docs/architecture/pilot-selection.json`, `docs/architecture/methods.json`, or
 `docs/architecture/trading-systems.json` -- adopting a candidate is §41 stage 11 (human decision), and it
 happens outside this script entirely, by a human reading the report and, if they approve, making that
 registry edit themselves. Every candidate this script runs is one DECLARED in
@@ -52,7 +52,7 @@ CANDIDATES_PATH = os.path.join(ROOT, "docs", "architecture", "improve-candidates
 
 # Forbidden write targets (CLAUDE.md §41). This script's source is grepped for these three paths by
 # scripts/tests/test_improve_loop.py -- they must appear only in comments/read paths, never on a write.
-_PILOT_TOP20 = os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")   # never written
+_PILOT_SELECTION = os.path.join(ROOT, "docs", "architecture", "pilot-selection.json")   # never written
 _METHODS_JSON = os.path.join(ROOT, "docs", "architecture", "methods.json")   # never written
 _TRADING_SYSTEMS = os.path.join(ROOT, "docs", "architecture", "trading-systems.json")   # never written
 
@@ -380,7 +380,7 @@ def _report(a, run_id, method, symbols, first, last, base_stats, base_curve, bas
     L = [f"# Vòng lặp cải tiến có kiểm soát — {method} {a.market} {a.tf} — {run_id}", "",
         f"_`scripts/improve-loop.py` -- CLAUDE.md §41 stages 1-4 (Trading Outcomes -> Failure Pattern -> "
         f"Hypothesis -> Candidate) + §42 (mỗi ứng viên là một experiment.Record niêm phong dưới "
-        f"`docs/experiments/`). Không tự ý sửa pilot-top20.json / methods.json / trading-systems.json — "
+        f"`docs/experiments/`). Không tự ý sửa pilot-selection.json / methods.json / trading-systems.json — "
         f"stage 11 (§41) là quyết định của con người, không phải của script này._", "",
         f"**Baseline** ({', '.join(symbols)}, {first[:10]} → {last[:10]}): n={base_stats['n']}, "
         f"expectancy={_num(base_stats)}, PF={base_stats.get('pf')}, "
@@ -435,7 +435,7 @@ def _report(a, run_id, method, symbols, first, last, base_stats, base_curve, bas
     L.append("---")
     L.append("**Con người quyết định (§41 stage 11).** Báo cáo này chỉ là bằng chứng: mọi bản ghi "
              "experiment ở trên đều `decision: PENDING`. Không ứng viên nào được tự động áp dụng; việc đưa "
-             "một ứng viên vào `pilot-top20.json` / `methods.json` / `trading-systems.json` là một sửa đổi "
+             "một ứng viên vào `pilot-selection.json` / `methods.json` / `trading-systems.json` là một sửa đổi "
              "registry do một người thực hiện sau khi đọc báo cáo này, không phải hành động của "
              "`scripts/improve-loop.py`.")
     return "\n".join(L) + "\n"
