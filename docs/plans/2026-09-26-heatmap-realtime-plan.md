@@ -1,7 +1,10 @@
 # Plan: real-time Heatmap trading (Bookmap) and a seconds-capable decision path
 
-- **Date:** 2026-09-26 · **Status:** DRAFT v2. Revised after an adversarial review (5 critical, 7 high, 6 medium
-  findings, all resolved below). Awaiting the owner's Heatmap/Bookmap source material for H3.
+- **Date:** 2026-09-26 · **Status:** DRAFT v3. Revised after two adversarial review rounds:
+  - Round 1 (C1-C5, H1-H7, M1-M6) was addressed in v2.
+  - Round 2 found six partial fixes and ten new problems (N1-N10); v3 addresses them, mainly through §1.8 and the
+    H1 changes.
+  - Awaiting the owner's Heatmap/Bookmap source material for H3.
 - **Governing decisions:** ADR 0007 (build order; methodologies extended, never altered), CLAUDE.md §4, §6-§8,
   §10, §20, §23, §31, §36-§40, §47, §51-§53, §57. A new ADR 0008 (Bookmap integration and Heatmap scope) is
   required before H2 merges.
@@ -63,6 +66,19 @@ auto-re-enables after a restart, and whether the admin listener is reachable fro
    - **Estimated budget (to be replaced by measurements):** feed hop <5 ms; features and rules ~1-10 ms; order to
      exchange ~50-300 ms.
    - **Out of scope:** millisecond HFT.
+8. **Python owns everything outside Bookmap, from day 1 (resolves N1, N2, N7).**
+   - **Add-on (Java):** capture + bounded queue + forward, and nothing else. It makes no network calls and writes no
+     files.
+   - **Recorder (Python, long-running):** owns the named pipe and sets its ACL (Java has no native named-pipe
+     server, so Python must be the server — to be confirmed in the Security review). It stamps the Python arrival
+     time, writes the recording files, and makes all outbound calls (REST depth cross-check, `aggTrades`
+     reconciliation, `exchangeInfo` tick size, Binance server-time clock offset).
+   - **Consequence:** every recording carries the Python arrival time that §1.3's availableTime needs, including
+     the very first one.
+   - Later, the H4 live consumer reads the same stream. The recorder's own receive path is the one tested in H1.
+9. **The clock-drift check (§1.4) runs in LIVE mode only**, and is defined against the recorded lag metric
+   (Python arrival − add-on receive), so legitimate backpressure is measured rather than misread as clock
+   error (N8).
 
 ## 2. Stages
 
@@ -70,15 +86,23 @@ Each stage ends with a review.
 
 ### H1 — Recorder add-on (read-only). Runs in parallel with audit round 4b, before any owner material.
 - **Security review first** (new vendor = trust boundary):
-  - The add-on must never call `sendOrder`, `updateOrder` or `getProvider` (except the audited admin listener).
-    A build-time check enforces this, and the add-on is never annotated `@Layer1TradingStrategy`.
+  - The add-on must never call `sendOrder` or `updateOrder`, and is never annotated `@Layer1TradingStrategy`.
+  - `getProvider` is allowed at exactly **one call site**: a single audited class whose only action is registering
+    the connection (admin) listener. The build-time check enforces both the single call site and the absence of
+    the order calls (N7).
+  - **If the admin listener turns out to be unreachable from the Simplified wrapper**, the add-on moves to the full
+    Level1 API (`@Layer1Attachable`) for connection events. Until that is solved, recordings carry
+    `connection_state=UNKNOWN`: acceptable for research, and a blocker for H4 live use.
+  - The add-on makes no outbound network calls. Only the Python recorder does (§1.8).
   - Bookmap's own exchange connection uses no API keys, or read-only keys.
   - The add-on jar's hash is pinned and checked at load.
 - **Capture:** depth, trades (with aggressor), Bookmap time, mode, connection events, and `InstrumentInfo`
   (including `pips`, `sizeMultiplier`, `dataDelay`, `isFullDepth`, `recordingTag`, `isApiProtected`) plus the
   Bookmap version.
-- **Writer:**
-  - Callbacks go into a bounded queue drained by a writer thread, so Bookmap's callback thread never blocks.
+- **Forwarding and writing (split per §1.8):**
+  - In the add-on, callbacks go into a bounded queue drained by a forwarder thread, so Bookmap's callback thread
+    never blocks. The forwarder sends to the Python recorder's pipe.
+  - The Python recorder writes the files. If the recorder is down, the add-on queue overflows and a gap is marked.
   - An overflow is recorded as a gap and marks the stream INVALID. Nothing is dropped silently.
   - Queue depth and lag are recorded as quality inputs.
   - A timer-driven heartbeat runs even when the market is quiet.
@@ -91,9 +115,23 @@ Each stage ends with a review.
 - **Storage:**
   - A **git-ignored** directory outside tracked `data/`, with a test that it stays ignored.
   - A storage estimate, a retention policy and an off-disk backup, because the data is irreplaceable.
+- **First hour gate (N3):**
+  - Compare `pips` with the exchange tick from `exchangeInfo`, and `sizeMultiplier` with the step size.
+  - A mismatch aborts recording.
+  - The exchange tick is written into **every** file header, because Binance can change `tickSize`.
+- **Pre-registration at H1 start, not at H5 (N4):**
+  - The in-sample / holdout calendar for all future recorded weeks is entered in the research ledger before the
+    first recording.
+  - Automated quality metrics do not expose a week. Any human or feature-design look at a week's market content
+    does, and is logged as exposure.
+- **Numeric tolerances, fixed in the H1 design review before coding (N2):**
+  - Levels compared.
+  - Time-alignment window (the book has no sequence ids, so REST snapshots align by time only).
+  - Size tolerance per level.
+  - Failure thresholds.
 - **Exit:**
   - 24 h of continuous LIVE recording.
-  - The book reconciles with Binance REST snapshots within tolerance.
+  - The book reconciles with Binance REST snapshots within the pre-set numeric tolerance.
   - Trades reconcile with Binance `aggTrades` (downloadable).
   - Every connection loss is visible in the manifest.
   - Bookmap CPU/RAM overhead is measured.
@@ -129,14 +167,20 @@ Each stage ends with a review.
   - Back-of-queue entry; the queue is decremented only by trades at that level, not by cancels.
   - Order arrival = decision availableTime + sampled measured latency (p99 for stress).
   - Taker fees, spread and order-rate limits are included.
-- **Stops:** live stops use `workingType=MARK_PRICE`. Either the mark price is recorded, or the Heatmap Trading
-  System uses contract-price stops as an explicit, versioned choice (§47).
+- **Stops:** live stops use `workingType=MARK_PRICE`. There are two options:
+  - The mark price is recorded from a declared source. A mark-price capability must first be added to
+    `docs/architecture/providers.json` (§6, N9).
+  - Or the Heatmap Trading System uses contract-price stops as an explicit, versioned choice (§47).
+- **Holdout:** the calendar comes from the H1 pre-registration. H5 only reads it.
 - **Exit:** a candidate is net-positive after costs on untouched holdout weeks, with its sample size shown and a
   minimum calendar span and regime coverage. At seconds scale most candidates are expected to die here, which is
   the purpose of the stage.
 
 ### H4 — Seconds-capable live path (only after H5 has a surviving candidate; §57)
-- A new event-driven core for this path, reusing the Decision Engine's ordering and gates. The existing
+- **One set of gates, two drivers (N5):** the shared gate functions (data quality, event risk, session, account,
+  risk, final eligibility) are extracted so that the 15m loop and the event-driven path call the **same** code.
+  Both must pass a conformance test generated from `docs/architecture/decision-order.json`. There is no second
+  implementation of the §36 ordering. The existing
   15m/1H/4H path is **not** refactored now. It migrates later only with byte-identical stability rows as the
   acceptance test (ADR 0007 stage b).
 - Exchange calls go through an in-process client, not a bash spawn per order.
@@ -156,14 +200,25 @@ Each stage ends with a review.
 - **In parallel, testnet orders for mechanics only** (placement, stops, cancels, rate limits).
 - Latency SLOs are enforced: p99 over budget or a non-FRESH feed stops entries.
 - Paper results are compared with a replay of the same recorded period. A divergence beyond the fill model's
-  tolerance is a defect.
+  tolerance is a defect. This tests **determinism only**, not realism (N6).
+- **Known residual risk:**
+  - The fill model is never validated against real fills: testnet cannot validate them (§1.6) and mainnet is
+    excluded.
+  - The only real validation is a separate, human-approved, minimal mainnet order study under §51.
+  - Until then, every result is labelled "fill model unvalidated".
+- **The first Heatmap Trading System is registered as v1** in `docs/architecture/trading-systems.json` when it is
+  created, with its dependencies classified (§35, §47).
 - The 1% risk ceiling, news blocks and account rules are unchanged. Any real-money use is a separate, explicit
   human decision (§51).
 
 ## 3. Ordering
 
-H1 (starts now, parallel to round 4b) → H2 + ADR 0008 → H3 (needs the owner's material) → ADR 0007 stage (c) →
-H5 → H4 → H6.
+```
+H1 recorder (now, parallel to round 4b) ──> H2 provider + ADR 0008 ──┐
+H3 methodology (when the owner's material arrives) ──────────────────┼──> H5 research ──> H4 live path ──> H6 pilot
+ADR 0007 stage (c) ledger + gates (after the speed round) ───────────┘
+```
+Three independent tracks join at H5 (N10). H5 cannot start until all three are merged.
 
 ## 4. What the owner provides
 
