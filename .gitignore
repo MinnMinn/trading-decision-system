@@ -81,3 +81,12 @@ __pycache__/
 
 # .playwright-mcp/ (browser-verification screenshots and snapshots) and .goal/ (the session goal record) are
 # TRACKED since 2026-09-19 by user decision ("push everything that was ignored, except sensitive files").
+
+# Stage H1 Bookmap recorder (docs/security/2026-09-26-bookmap-recorder-h1.md BMREC-18): recordings NEVER live in
+# the repo (C:\TradingData\bookmap-recordings, outside every worktree). The only recorder artefact written inside
+# the repo is the add-on build output; it is reproducible from source + integrations/bookmap/addon-pin.json.
+integrations/bookmap/dist/
+!docs/contracts/
+!docs/contracts/**
+!docs/research/
+!docs/research/**
