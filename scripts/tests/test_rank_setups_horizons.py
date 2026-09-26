@@ -36,8 +36,8 @@ def _row(tf, method, cfg="A", target="live", is_kw=None, oos_kw=None):
     return {"tf": tf, "cfg": cfg, "method": method, "target": target if method == "ICT" else "border",
             "file": "test-fixture.json", "first": "2023-01-01", "last": "2026-09-11",
             "oos6m": {"cutoff": "2026-03-11T00:00:00Z", "dataset_last_bar": "2026-09-11T00:00:00Z",
-                      "in_sample": _blk("2025-03-11", "2026-03-11", **(is_kw or {})),
-                      "oos": _blk("2026-03-11", "2026-09-11", **dict(dict(n=20), **(oos_kw or {})))}}
+                      "in_sample": _blk(**{"since": "2025-03-11", "until": "2026-03-11", **(is_kw or {})}),
+                      "oos": _blk(**{"since": "2026-03-11", "until": "2026-09-11", "n": 20, **(oos_kw or {})})}}
 
 
 def _enabled(rows, market="crypto"):
