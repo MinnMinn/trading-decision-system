@@ -1,0 +1,527 @@
+{
+ "jar_sha256": "d0667aab18e68ed4db4fa8463aa0f3cf7ca0047df7687ed99a602ab20e384e3d",
+ "code_sha256": "4713829d3b4aeb86674db28e0d15956cb39a60316498efc1756cad6062460ff6",
+ "source_sha256": "09e75ce595a1b8dfe30b30132e20225f612f5ab6e80bbdcfef44f497a78242bc",
+ "jdk": "javac 21.0.12.1",
+ "check": {
+  "result": "PASS",
+  "checker_sha256": "ded6824dcd84a67e1fc70564db2b8a8d9be94005daf5ee25000f63a458d848c5",
+  "fixtures_sha256": "9865579cc34fe362c87472d3df85e392e376146cbc1bcd2aeea27266f6a60f27",
+  "allowlist_sha256": "f2f8f5bb1aa16d749a320ae8275eb38719fff399a593ec908b2c89a07fb62673",
+  "must_fail_fixtures": 62,
+  "must_fail_failed_as_expected": 62,
+  "clean_passed": true,
+  "getprovider_site": [
+   "tds/bookmap/recorder/AdminConnectionHook",
+   "apply"
+  ],
+  "pipe_site": [
+   "tds/bookmap/recorder/Forwarder",
+   "openPipe"
+  ]
+ },
+ "built_at_utc": "2026-09-26T09:43:58Z",
+ "fixtures": [
+  {
+   "name": "CLEAN(real add-on jar)",
+   "ok": true,
+   "first_violation": null
+  },
+  {
+   "name": "api_sendOrder",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_api_sendOrder: type velox/api/layer1/data/OrderSendParameters is not on the allowlist"
+   ]
+  },
+  {
+   "name": "api_updateOrder",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_api_updateOrder: type velox/api/layer1/data/OrderUpdateParameters is not on the allowlist"
+   ]
+  },
+  {
+   "name": "provider_sendOrder",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_provider_sendOrder: type velox/api/layer1/data/OrderSendParameters is not on the allowlist"
+   ]
+  },
+  {
+   "name": "trading_provider_sendOrder",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_trading_provider_sendOrder: type velox/api/layer1/Layer1ApiTradingProvider is not on the allowlist"
+   ]
+  },
+  {
+   "name": "provider_updateOrder",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_provider_updateOrder: type velox/api/layer1/data/OrderUpdateParameters is not on the allowlist"
+   ]
+  },
+  {
+   "name": "provider_login",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_provider_login: type velox/api/layer1/data/LoginData is not on the allowlist"
+   ]
+  },
+  {
+   "name": "provider_sendUserMessage",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_provider_sendUserMessage: member velox/api/layer1/Layer1ApiProvider.sendUserMessage(Ljava/lang/Object;)Ljava/lang/Object; is not on the allowlist"
+   ]
+  },
+  {
+   "name": "provider_close",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_provider_close: member velox/api/layer1/Layer1ApiProvider.close()V is not on the allowlist"
+   ]
+  },
+  {
+   "name": "admin_provider_login",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_admin_provider_login: type velox/api/layer1/Layer1ApiAdminProvider is not on the allowlist"
+   ]
+  },
+  {
+   "name": "api_sendUserMessage",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_api_sendUserMessage: member velox/api/layer1/simplified/Api.sendUserMessage(Ljava/lang/Object;)V is not on the allowlist"
+   ]
+  },
+  {
+   "name": "trading_listener",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_trading_listener: type velox/api/layer1/Layer1ApiTradingListener is not on the allowlist"
+   ]
+  },
+  {
+   "name": "trading_listenable",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_trading_listenable: type velox/api/layer1/Layer1ApiTradingListenable is not on the allowlist"
+   ]
+  },
+  {
+   "name": "orders_listener",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_orders_listener: type velox/api/layer1/simplified/OrdersListener is not on the allowlist"
+   ]
+  },
+  {
+   "name": "position_listener",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_position_listener: type velox/api/layer1/simplified/PositionListener is not on the allowlist"
+   ]
+  },
+  {
+   "name": "balance_listener",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_balance_listener: type velox/api/layer1/simplified/BalanceListener is not on the allowlist"
+   ]
+  },
+  {
+   "name": "orders_adapter",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_orders_adapter: type velox/api/layer1/simplified/OrdersAdapter is not on the allowlist"
+   ]
+  },
+  {
+   "name": "position_adapter",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_position_adapter: type velox/api/layer1/simplified/PositionAdapter is not on the allowlist"
+   ]
+  },
+  {
+   "name": "balance_adapter",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_balance_adapter: type velox/api/layer1/simplified/BalanceAdapter is not on the allowlist"
+   ]
+  },
+  {
+   "name": "api_addOrdersListeners",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_api_addOrdersListeners: type velox/api/layer1/simplified/OrdersListener is not on the allowlist"
+   ]
+  },
+  {
+   "name": "trading_strategy_annotation",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_trading_strategy_annotation: type velox/api/layer1/annotations/Layer1TradingStrategy is not on the allowlist"
+   ]
+  },
+  {
+   "name": "unrestricted_data_annotation",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_unrestricted_data_annotation: type velox/api/layer1/annotations/UnrestrictedData is not on the allowlist"
+   ]
+  },
+  {
+   "name": "register_indicator",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_register_indicator: type velox/api/layer1/messages/indicators/Layer1ApiUserMessageModifyIndicator is not on the allowlist"
+   ]
+  },
+  {
+   "name": "register_indicator_modifiable",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_register_indicator_modifiable: type velox/api/layer1/messages/indicators/Layer1ApiUserMessageModifyIndicator is not on the allowlist"
+   ]
+  },
+  {
+   "name": "getprovider_stored_in_field",
+   "ok": true,
+   "first_violation": [
+    "BMREC-02",
+    "tds/bookmap/recorder/Fx_getprovider_stored_in_field.held: field of provider type velox/api/layer1/Layer1ApiProvider"
+   ]
+  },
+  {
+   "name": "getprovider_passed_to_method",
+   "ok": true,
+   "first_violation": [
+    "BMREC-02",
+    "tds/bookmap/recorder/Fx_getprovider_passed_to_method.f(Lvelox/api/layer1/simplified/Api;)V@1: getProvider() result must go straight into a local variable (astore) and nowhere else"
+   ]
+  },
+  {
+   "name": "getprovider_trading_overload",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_getprovider_trading_overload: type velox/api/layer1/Layer1ApiTradingListener is not on the allowlist"
+   ]
+  },
+  {
+   "name": "getprovider_second_site",
+   "ok": true,
+   "first_violation": [
+    "BMREC-02",
+    "Api.getProvider must be invoked at exactly one site; found 2: [('tds/bookmap/recorder/AdminConnectionHook', 'apply', 1), ('tds/bookmap/recorder/Fx_getprovider_second_site', 'f', 1)]"
+   ]
+  },
+  {
+   "name": "getprovider_returned",
+   "ok": true,
+   "first_violation": [
+    "BMREC-02",
+    "tds/bookmap/recorder/Fx_getprovider_returned.f(Lvelox/api/layer1/simplified/Api;)Lvelox/api/layer1/Layer1ApiProvider;: method descriptor carries provider type velox/api/layer1/Layer1ApiProvider (passed or returned)"
+   ]
+  },
+  {
+   "name": "provider_cast",
+   "ok": true,
+   "first_violation": [
+    "BMREC-02",
+    "tds/bookmap/recorder/Fx_provider_cast.f(Ljava/lang/Object;)V@1: checkcast to velox type velox/api/layer1/Layer1ApiProvider"
+   ]
+  },
+  {
+   "name": "getprovider_other_method",
+   "ok": true,
+   "first_violation": [
+    "BMREC-01",
+    "tds/bookmap/recorder/Fx_getprovider_other_method: member velox/api/layer1/Layer1ApiProvider.getCurrentTime()J is not on the allowlist"
+   ]
+  },
+  {
+   "name": "getprovider_wrong_class",
+   "ok": true,
+   "first_violation": [
+    "BMREC-02",
+    "Api.getProvider must be invoked at exactly one site; found 2: [('tds/bookmap/recorder/AdminConnectionHook', 'apply', 1), ('tds/bookmap/recorder/Fx_getprovider_wrong_class', 'f', 1)]"
+   ]
+  },
+  {
+   "name": "reflection_method",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_reflection_method: type java/lang/Class is not on the allowlist"
+   ]
+  },
+  {
+   "name": "method_handles_lookup",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_method_handles_lookup: type java/lang/Class is not on the allowlist"
+   ]
+  },
+  {
+   "name": "class_forName",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_class_forName: type java/lang/Class is not on the allowlist"
+   ]
+  },
+  {
+   "name": "classloader_subclass",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_classloader_subclass: type java/lang/ClassLoader is not on the allowlist"
+   ]
+  },
+  {
+   "name": "url_classloader",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_url_classloader: type java/net/URL is not on the allowlist"
+   ]
+  },
+  {
+   "name": "service_loader",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_service_loader: type java/lang/Class is not on the allowlist"
+   ]
+  },
+  {
+   "name": "sun_misc_unsafe",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_sun_misc_unsafe: type sun/misc/Unsafe is not on the allowlist"
+   ]
+  },
+  {
+   "name": "thread_context_classloader",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_thread_context_classloader: type java/lang/ClassLoader is not on the allowlist"
+   ]
+  },
+  {
+   "name": "system_loadLibrary",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_system_loadLibrary: member java/lang/System.loadLibrary(Ljava/lang/String;)V is not on the allowlist"
+   ]
+  },
+  {
+   "name": "system_load",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_system_load: member java/lang/System.load(Ljava/lang/String;)V is not on the allowlist"
+   ]
+  },
+  {
+   "name": "native_method",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_native_method.f()V: native method"
+   ]
+  },
+  {
+   "name": "runtime_exec",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_runtime_exec: type java/lang/Exception is not on the allowlist"
+   ]
+  },
+  {
+   "name": "process_builder",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_process_builder: type java/lang/Exception is not on the allowlist"
+   ]
+  },
+  {
+   "name": "system_exit",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_system_exit: member java/lang/System.exit(I)V is not on the allowlist"
+   ]
+  },
+  {
+   "name": "net_socket",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_net_socket: type java/net/Socket is not on the allowlist"
+   ]
+  },
+  {
+   "name": "net_url",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_net_url: type java/io/InputStream is not on the allowlist"
+   ]
+  },
+  {
+   "name": "net_http_client",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_net_http_client: type java/net/http/HttpClient is not on the allowlist"
+   ]
+  },
+  {
+   "name": "socket_channel",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_socket_channel: type java/lang/Exception is not on the allowlist"
+   ]
+  },
+  {
+   "name": "object_output_stream",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_object_output_stream: type java/io/ObjectOutputStream is not on the allowlist"
+   ]
+  },
+  {
+   "name": "object_input_stream",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_object_input_stream: type java/io/InputStream is not on the allowlist"
+   ]
+  },
+  {
+   "name": "files_write",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_files_write: type java/lang/Exception is not on the allowlist"
+   ]
+  },
+  {
+   "name": "file_writer",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_file_writer: type java/io/FileWriter is not on the allowlist"
+   ]
+  },
+  {
+   "name": "fos_non_pipe_path",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_fos_non_pipe_path: type java/lang/Exception is not on the allowlist"
+   ]
+  },
+  {
+   "name": "fos_second_pipe_site",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_fos_second_pipe_site: type java/lang/Exception is not on the allowlist"
+   ]
+  },
+  {
+   "name": "fos_dynamic_path",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_fos_dynamic_path: type java/lang/Exception is not on the allowlist"
+   ]
+  },
+  {
+   "name": "fos_one_arg_ctor",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_fos_one_arg_ctor: type java/lang/Exception is not on the allowlist"
+   ]
+  },
+  {
+   "name": "indy_switch_bootstrap",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_indy_switch_bootstrap: type java/lang/invoke/CallSite is not on the allowlist"
+   ]
+  },
+  {
+   "name": "pipe_read_file_input_stream",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_pipe_read_file_input_stream: type java/io/FileInputStream is not on the allowlist"
+   ]
+  },
+  {
+   "name": "pipe_read_random_access_file",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_pipe_read_random_access_file: type java/io/RandomAccessFile is not on the allowlist"
+   ]
+  },
+  {
+   "name": "pipe_get_channel",
+   "ok": true,
+   "first_violation": [
+    "BMREC-03",
+    "tds/bookmap/recorder/Fx_pipe_get_channel: type java/nio/channels/FileChannel is not on the allowlist"
+   ]
+  },
+  {
+   "name": "jar_foreign_package",
+   "ok": true,
+   "first_violation": [
+    "BMREC-31",
+    "jar entry outside the project package: tdsfixture/other/Fx_jar_foreign_package.class"
+   ]
+  }
+ ]
+}

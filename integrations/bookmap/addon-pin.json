@@ -1,0 +1,38 @@
+{
+  "_source": "BMREC-30 pin. Written only by integrations/bookmap/build.py --update-pin, committed with the check result. The recorder recomputes the SHA-256 of the jar at its load location and compares it with jar_sha256, and compares the hello's code/source SHA with this file.",
+  "jar_file": "tds-h1-recorder.jar",
+  "jar_sha256": "d0667aab18e68ed4db4fa8463aa0f3cf7ca0047df7687ed99a602ab20e384e3d",
+  "code_sha256": "4713829d3b4aeb86674db28e0d15956cb39a60316498efc1756cad6062460ff6",
+  "source_sha256": "09e75ce595a1b8dfe30b30132e20225f612f5ab6e80bbdcfef44f497a78242bc",
+  "addon_version": "h1-1",
+  "jdk": "javac 21.0.12.1",
+  "compile_classpath": [
+    {
+      "jar": "bm-simplified-api-wrapper.jar",
+      "sha256": "ca8980ab44c5cc6d2096ace787c971099c27faa6e5e1b2b0518c65178aea4c58"
+    },
+    {
+      "jar": "bm-l1api.jar",
+      "sha256": "7f447b3e1055f4805616bd6e5b662500aa1c85702ac57cfaffdfcf0fbae53692"
+    }
+  ],
+  "check": {
+    "result": "PASS",
+    "checker_sha256": "ded6824dcd84a67e1fc70564db2b8a8d9be94005daf5ee25000f63a458d848c5",
+    "fixtures_sha256": "9865579cc34fe362c87472d3df85e392e376146cbc1bcd2aeea27266f6a60f27",
+    "allowlist_sha256": "f2f8f5bb1aa16d749a320ae8275eb38719fff399a593ec908b2c89a07fb62673",
+    "must_fail_fixtures": 62,
+    "must_fail_failed_as_expected": 62,
+    "clean_passed": true,
+    "getprovider_site": [
+      "tds/bookmap/recorder/AdminConnectionHook",
+      "apply"
+    ],
+    "pipe_site": [
+      "tds/bookmap/recorder/Forwarder",
+      "openPipe"
+    ]
+  },
+  "built_at_utc": "2026-09-26T09:43:58Z",
+  "built_from_commit": "9f0c9165fc0bf8f03d27883617d4bfefa6f460ed"
+}

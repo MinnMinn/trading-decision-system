@@ -1,0 +1,17 @@
+{
+  "_source": "H1 recorder configuration (scripts/bookmap_recorder.py). Paths were determined on this machine on 2026-09-26: Bookmap runs as C:\\Program Files\\Bookmap\\Bookmap.exe (no separate javaw process), Bookmap loads manually-added add-on jars in place from wherever the owner picks them, and plugin-manager add-ons live in C:\\Bookmap\\API\\Layer1ApiModules. No path here contains a user name.",
+  "pipe_name": "\\\\.\\pipe\\tds-bookmap-recorder-h1",
+  "recordings_root": "C:\\TradingData\\bookmap-recordings",
+  "backup_root": "D:\\TradingData-backup\\bookmap-recordings",
+  "pinned_client_exe": "C:\\Program Files\\Bookmap\\Bookmap.exe",
+  "addon_jar_path": "C:\\TradingData\\bookmap-addon\\tds-h1-recorder.jar",
+  "pin_file": "integrations/bookmap/addon-pin.json",
+  "holdout_calendar": "docs/research/bookmap-holdout-calendar.json",
+  "bookmap_jar": "C:\\Program Files\\Bookmap\\Bookmap.jar",
+  "addon_inventory_dirs": [
+    {"label": "bookmap-plugin-modules", "path": "C:\\Bookmap\\API\\Layer1ApiModules"},
+    {"label": "owner-manual-addons", "path": "D:\\Trading\\Bookmap\\add-ons"},
+    {"label": "h1-recorder-addon", "path": "C:\\TradingData\\bookmap-addon"}
+  ],
+  "rest_enabled": true
+}
