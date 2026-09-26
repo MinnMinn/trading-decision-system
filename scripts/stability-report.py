@@ -148,7 +148,42 @@ def window_block(trades, fee, account, entry_type, since, until):
     w = metrics(c, since, until, tk, f, bt.max_dd(c)); w.pop("years", None); w.pop("quarters", None)
     w.update(since=since[:10], until=until[:10], net_pnl=f - bt.START,
              expectancy_R=_plain(w["perf"].get("expectancy")), profit_factor=_plain(w["perf"].get("profit_factor")))
+    w.update(monthly_block(c, since, until, f))
     return w
+
+
+def calendar_months(since, until):
+    """Every calendar month 'YYYY-MM' touched by [since, until], in order -- including months with no trade."""
+    y, m = int(since[:4]), int(since[5:7]); ey, em = int(until[:4]), int(until[5:7]); out = []
+    while (y, m) <= (ey, em):
+        out.append(f"{y:04d}-{m:02d}"); m += 1
+        if m == 13:
+            y, m = y + 1, 1
+    return out
+
+
+def monthly_block(curve, since, until, final):
+    """ADR 0008 / selection-criteria.json inputs for one window. Each CALENDAR month's return is the equity at
+    that month's last booked point vs the previous month's, so a month with no trade is a 0% month, never a
+    missing one (period_returns() skips such months). The first and last months are partial when the window does
+    not start/end on a month boundary, and are flagged. `m_mean_geo` is the geometric mean monthly return over the
+    window's exact length (30.4375-day months), so partial months cannot distort it."""
+    eq_end = {}
+    for t, e in curve:
+        eq_end[t[:7]] = e
+    months, prev = [], bt.START
+    for k in calendar_months(since, until):
+        e = eq_end.get(k, prev)
+        months.append(dict(month=k, ret_pct=round((e / prev - 1) * 100, 4))); prev = e
+    if months:
+        months[0]["partial"] = since[8:10] != "01"
+        months[-1]["partial"] = True  # a window ends at a cutoff or at the dataset's last bar, never on a month end we can assert
+    days = max((datetime.date.fromisoformat(until[:10]) - datetime.date.fromisoformat(since[:10])).days, 1)
+    rets = [x["ret_pct"] for x in months]
+    return dict(months=months,
+                m_mean_geo=((final / bt.START) ** (30.4375 / days) - 1) * 100,
+                m_losing=sum(1 for v in rets if v < 0),
+                m_worst=min(rets) if rets else 0.0)
 
 
 def metrics(curve, first, last, taken, final, dd, account=None, full_taken=None, full_curve=None):

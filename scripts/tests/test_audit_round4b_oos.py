@@ -286,3 +286,40 @@ class DefaultPathUsesOos(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MonthlyBlockForSelectionCriteria(unittest.TestCase):
+    """ADR 0008: the selection gate reads calendar-month returns per window; a no-trade month is 0%, not missing."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util, os
+        p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "stability-report.py")
+        spec = importlib.util.spec_from_file_location("stability_report_mb", p)
+        cls.sr = importlib.util.module_from_spec(spec); spec.loader.exec_module(cls.sr)
+        cls.START = cls.sr.bt.START
+
+    def test_a_month_with_no_trade_is_a_zero_month(self):
+        S = self.START
+        curve = [("2026-01-10T00:00:00Z", S * 1.10), ("2026-03-05T00:00:00Z", S * 1.10 * 0.95)]
+        b = self.sr.monthly_block(curve, "2026-01-01T00:00:00Z", "2026-03-31T00:00:00Z", S * 1.10 * 0.95)
+        self.assertEqual([m["month"] for m in b["months"]], ["2026-01", "2026-02", "2026-03"])
+        self.assertAlmostEqual(b["months"][1]["ret_pct"], 0.0)
+        self.assertAlmostEqual(b["months"][0]["ret_pct"], 10.0, places=6)
+        self.assertAlmostEqual(b["months"][2]["ret_pct"], -5.0, places=6)
+        self.assertEqual(b["m_losing"], 1)
+        self.assertAlmostEqual(b["m_worst"], -5.0, places=6)
+
+    def test_partial_first_and_last_months_are_flagged(self):
+        S = self.START
+        b = self.sr.monthly_block([], "2026-03-11T00:00:00Z", "2026-09-11T00:00:00Z", S)
+        self.assertTrue(b["months"][0]["partial"]); self.assertTrue(b["months"][-1]["partial"])
+        self.assertNotIn("partial", b["months"][1])
+        self.assertEqual(len(b["months"]), 7)
+        self.assertAlmostEqual(b["m_mean_geo"], 0.0)
+
+    def test_geometric_mean_matches_compounded_window_return(self):
+        S = self.START
+        final = S * 1.05 ** 6
+        b = self.sr.monthly_block([("2026-06-30T00:00:00Z", final)], "2026-01-01T00:00:00Z", "2026-07-01T00:00:00Z", final)
+        self.assertAlmostEqual(b["m_mean_geo"], 5.0, delta=0.1)
