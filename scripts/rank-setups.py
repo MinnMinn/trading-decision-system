@@ -69,6 +69,7 @@ import setup_version as SV      # CLAUDE.md §14: a setup carries the version of
 import research_validity as RV  # CLAUDE.md §38: a selection may not be made from invalid research
 import instruments as _I        # the ONE allowlist: a symbol set typed here would outlive the registry
 import selection_criteria as SC  # ADR 0008: the ONE reader of docs/architecture/selection-criteria.json
+import account_profile as AP     # which account the pilot trades on each venue (docs/architecture/account-profiles.json)
 _mspec = importlib.util.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py"))
 mreg = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(mreg)
 # backtest-methods holds the resolved detection parameters a setup's rule version is computed over
@@ -86,6 +87,14 @@ CFD_TFS = {"15m", "1H", "4H"}
 # names are the keys of selection-criteria.json `horizons`.
 HORIZONS = {"scalping": "15m", "day": "1H", "swing": "4H"}
 HORIZON_OF_TF = {tf: hz for hz, tf in HORIZONS.items()}
+VENUE_OF_MARKET = {"crypto": "futures", "cfd": "mt5"}   # the pilot's execution venue per market
+
+
+def pilot_account(market):
+    """The account the pilot trades this market on. Selection is judged ONLY on stability rows measured under this
+    account's rules (owner decision 2026-09-27, ADR 0008 addendum): the criteria are account-level, and the same
+    system measured under another account is a different measurement, reported but never gating."""
+    return AP.for_venue(VENUE_OF_MARKET[market], "demo")["id"]
 # The config table has ONE author: scripts/stability-report.py, which is what produced the rows being judged.
 # This file used to keep its own copy with the fees written out -- 0.0005 / 0.0002 / 0.0002 -- and on
 # 2026-09-18 that copy stamped `fee_assumed: 0.0002` onto two CFD setups whose MT5 account pays 0.0005 on both
@@ -153,10 +162,13 @@ def load_rows(paths, market, *, require_stamped=False):
         except RV.InvalidResearch as exc:
             REFUSED.append((rel, str(exc))); print(f"§38 REFUSED {exc}", file=_sys.stderr); continue
         SOURCE_VALIDITY[rel] = block
-        target = os.path.basename(p).rsplit("-", 1)[1].rsplit(".", 1)[0]    # crypto-std25.json / crypto-scalp-std25.json -> std25
+        rp = d.get("run_params") or {}
+        # The ICT target model the run used. Files written before run_params existed named it in the file name
+        # (crypto-std25.json -> std25); a file whose name is an account (crypto-pilot-...-testnet.json) does not.
+        target = rp.get("ict_target") or os.path.basename(p).rsplit("-", 1)[1].rsplit(".", 1)[0]
         for r in d["rows"]:
             rows.append(dict(r, market=market, target=(target if r["method"] == "ICT" else "border"),
-                             file=rel, research_validity=block["verdict"]))
+                             file=rel, research_validity=block["verdict"], account=rp.get("account")))
     return rows
 
 
@@ -271,15 +283,24 @@ def _same_numbers(a, b):
            (a.get("oos6m") or {}).get("oos") == (b.get("oos6m") or {}).get("oos")
 
 
-def select_criteria(rows, market, crit):
+def select_criteria(rows, market, crit, *, pilot_account):
     """Pure: the decision for every row of one market, and the experiment budget. Every candidate is judged on
-    its own numbers only -- no row's decision depends on another row's (so no ranking, no substitution)."""
+    its own numbers only -- no row's decision depends on another row's (so no ranking, no substitution).
+
+    Only rows measured under `pilot_account` are candidates; a row from any other account (or from a run with no
+    account rules) is reported only. Every row lands in exactly one budget bucket, and the sum is checked."""
     hzs = list(HORIZONS)
-    budget = dict(rows=len(rows), candidate_rows=0, not_candidates=0, duplicate_rows=0, passed_in_sample=0,
-                  passed_oos=0, enabled=0, disabled=0,
+    budget = dict(rows=len(rows), candidate_rows=0, not_candidates=0, reported_only_rows=0, duplicate_rows=0,
+                  conflicting_rows=0, passed_in_sample=0, passed_oos=0, enabled=0, disabled=0,
+                  pilot_account=pilot_account,
                   by_horizon={hz: dict(candidates=0, enabled=0) for hz in hzs})
     judged, others, seen = [], [], {}
     for r in rows:
+        if r.get("account") != pilot_account:
+            budget["reported_only_rows"] += 1
+            others.append(dict(row=r, reason=f"measured under account {r.get('account') or 'none (no account rules)'}"
+                                             f", not the pilot's account {pilot_account}: reported only"))
+            continue
         hz, why_not = candidacy(r, market)
         if hz is None:
             budget["not_candidates"] += 1
@@ -296,6 +317,8 @@ def select_criteria(rows, market, crit):
                     j["decision"] = DISABLED; budget["enabled"] -= 1; budget["disabled"] += 1
                     budget["by_horizon"][hz]["enabled"] -= 1
                 j["reasons"].append(f"conflicting duplicate rows for {sid} ({prev['row']['file']} vs {r['file']})")
+            budget["conflicting_rows"] += 1
+            others.append(dict(row=r, reason=f"conflicting duplicate of {sid} ({prev['row']['file']}); neither is enabled"))
             continue
         j = dict(judge(r, hz, crit), id=sid, horizon=hz, market=market, row=r)
         seen[sid] = j
@@ -307,6 +330,9 @@ def select_criteria(rows, market, crit):
         else:
             budget["disabled"] += 1
         judged.append(j)
+    parts = ("candidate_rows", "not_candidates", "reported_only_rows", "duplicate_rows", "conflicting_rows")
+    if sum(budget[k] for k in parts) != budget["rows"]:
+        raise AssertionError(f"experiment budget does not reconcile (§43): {budget}")
     return judged, others, budget
 
 
@@ -404,9 +430,10 @@ def run(a, today):
         require_oos_blocks(rows)
         cutoff = market_cutoff(rows, market)
         last_bar = max(r["oos6m"]["dataset_last_bar"] for r in rows)
-        judged, others, budget = select_criteria(rows, market, crit)
+        acct = pilot_account(market)
+        judged, others, budget = select_criteria(rows, market, crit, pilot_account=acct)
         for k, v in budget.items():
-            if k != "by_horizon":
+            if k not in ("by_horizon", "pilot_account"):
                 totals[k] = totals.get(k, 0) + v
         selection["experiment_budget"][market] = budget
         uses = list(((prev_exposure.get(market) or {}).get("uses")) or [])
@@ -419,12 +446,15 @@ def run(a, today):
             exposure=("this window has now decided which systems are enabled (CLAUDE.md §44): it is EXPOSED "
                       "and may not be called pristine/untouched validation data again"),
             times_used_for_selection=len(prior_same) + 1, uses=uses)
+        has_pilot_file = any(r.get("account") == acct for r in rows)
         for hz in HORIZONS:
             if not budget["by_horizon"][hz]["enabled"]:
                 selection["horizons_without_system"].append(dict(
                     market=market, horizon=hz,
-                    reason=f"0 of {budget['by_horizon'][hz]['candidates']} candidates met every criterion on "
-                           f"in-sample and OOS -- this horizon trades nothing"))
+                    reason=(f"0 of {budget['by_horizon'][hz]['candidates']} candidates met every criterion on "
+                            f"in-sample and OOS -- this horizon trades nothing") if has_pilot_file else
+                           (f"no stability file measured under the pilot account {acct} -- nothing can be "
+                            f"judged, this horizon trades nothing")))
         for j in judged:
             r = j["row"]
             cfg = CFG_DESC[r["cfg"]]
@@ -432,7 +462,8 @@ def run(a, today):
             entry = dict(id=j["id"], horizon=j["horizon"], market=market, symbols=syms, tf=r["tf"], method=r["method"],
                          htf=cfg["htf"], mgmt=cfg["mgmt"], fee_assumed=fee_assumed_for(r["cfg"], market),
                          execution="futures" if market == "crypto" else "mt5",
-                         backtest=dict(window="oos6m", cutoff=cutoff, source=r["file"], in_sample=ins, oos=oos,
+                         backtest=dict(window="oos6m", cutoff=cutoff, source=r["file"], account=r.get("account"),
+                                       in_sample=ins, oos=oos,
                                        full_n=r.get("n"), full_ann_pct=_r(r.get("ann"), 1),
                                        period=f"{r.get('first')}→{r.get('last')}"),
                          criteria_result=dict(in_sample=_checks(j["in_sample"]), oos=_checks(j["oos"]),
@@ -447,7 +478,11 @@ def run(a, today):
         "CLAUDE.md §43. candidate_rows = every (timeframe, method, configuration, source file) row at a pilot "
         "horizon with a RUNNABLE method; each was judged on in-sample AND on OOS, so the OOS window adjudicated "
         "among all of them. passed_in_sample / passed_oos count each side independently; enabled needs both plus "
-        "the preconditions. duplicate_rows = identical re-measurements of one system (counted once).")
+        "the preconditions. duplicate_rows = identical re-measurements of one system (counted once). "
+        "reported_only_rows = rows measured under an account other than the pilot's (pilot_account); reported, "
+        "never judged. conflicting_rows = a second measurement of one system with different numbers (neither is "
+        "enabled). rows = the sum of candidate_rows, not_candidates, reported_only_rows, duplicate_rows and "
+        "conflicting_rows.")
     selection["sources"] = sources
     selection["research_validity"] = validity_note()
     md = criteria_markdown(selection, judged_all, others_all, today)
@@ -519,12 +554,14 @@ def criteria_markdown(selection, judged, others, today):
                  f"`{(cv.get('git_sha') or '?')[:12]}`{' (dirty)' if cv.get('dirty') else ''} · {s.get('research_validity')}"
                  + (f" · absent series: {', '.join(s['requested_but_absent'])}" if s.get("requested_but_absent") else ""))
     L += ["", "## Experiment budget (CLAUDE.md §43)", "",
-          "| Market | Rows | Candidates | Not candidates | Duplicates | Passed IS | Passed OOS | Enabled | Disabled |",
-          "|---|---|---|---|---|---|---|---|---|"]
+          "| Market | Pilot account | Rows | Candidates | Not candidates | Reported only | Duplicates | Conflicting | "
+          "Passed IS | Passed OOS | Enabled | Disabled |",
+          "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for m, b in selection["experiment_budget"].items():
         if m.startswith("_") or m == "total":
             continue
-        L.append(f"| {m} | {b['rows']} | {b['candidate_rows']} | {b['not_candidates']} | {b['duplicate_rows']} | "
+        L.append(f"| {m} | {b['pilot_account']} | {b['rows']} | {b['candidate_rows']} | {b['not_candidates']} | "
+                 f"{b['reported_only_rows']} | {b['duplicate_rows']} | {b['conflicting_rows']} | "
                  f"{b['passed_in_sample']} | {b['passed_oos']} | {b['enabled']} | {b['disabled']} |")
     L += ["", "_" + selection["experiment_budget"]["_note"] + "_"]
     for market in ("crypto", "cfd"):

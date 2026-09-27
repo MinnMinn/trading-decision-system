@@ -59,15 +59,15 @@ def oos_blk(**kw):
 
 
 def row(tf="15m", method="ICT", cfg="A", *, is_kw=None, oos_kw=None, file="data/history/stability/crypto-live.json",
-        target="live", market="crypto"):
+        target="live", market="crypto", account=None):
     return dict(tf=tf, cfg=cfg, method=method, first="2023-09-13", last=LAST, n=200, ann=5.0, market=market,
-                target=target, file=file, research_validity="FLAGGED",
+                target=target, file=file, research_validity="FLAGGED", account=account or RS.pilot_account(market),
                 oos6m=dict(cutoff=CUT, dataset_last_bar=LAST + "T05:45:00Z", split="entry_time",
                            in_sample=blk(**(is_kw or {})), oos=oos_blk(**(oos_kw or {}))))
 
 
 def decisions(rows, market="crypto"):
-    judged, _others, budget = RS.select_criteria(rows, market, CRIT)
+    judged, _others, budget = RS.select_criteria(rows, market, CRIT, pilot_account=RS.pilot_account(market))
     return {j["id"]: j for j in judged}, budget
 
 
@@ -231,6 +231,51 @@ class EveryPassingRowIsEnabled(unittest.TestCase):
         self.assertEqual(j["decision"], RS.DISABLED)
         self.assertTrue(any("conflicting duplicate" in x for x in j["reasons"]))
         self.assertEqual(bud["enabled"], 0)
+        self.assertEqual(bud["conflicting_rows"], 1, "the second row is counted, not dropped (§43)")
+
+
+class OnlyThePilotAccountGates(unittest.TestCase):
+    """Owner decision 2026-09-27 (review of round 4c): a system is judged on the stability file measured under the
+    account the pilot trades (account_profile.for_venue(venue, "demo")); every other account's file is reported
+    only. Before this, the same system measured under two accounts collided and was disabled for a reason that is
+    not in selection-criteria.json."""
+
+    def test_the_pilot_accounts_are_the_demo_profiles_of_each_venue(self):
+        self.assertEqual(RS.pilot_account("crypto"), "pilot-binance-futures-testnet")
+        self.assertEqual(RS.pilot_account("cfd"), "pilot-mt5-demo")
+
+    def test_a_passing_row_from_another_account_is_reported_not_enabled(self):
+        other = row("1H", "WYCKOFF-BOOK", "A", target="border", account="crypto-personal-v1",
+                    file="data/history/stability/crypto-crypto-personal-v1.json")
+        d, b = decisions([other])
+        self.assertEqual(d, {}); self.assertEqual(b["enabled"], 0); self.assertEqual(b["reported_only_rows"], 1)
+
+    def test_another_accounts_numbers_never_disable_the_pilot_row(self):
+        pilot = row("1H", "WYCKOFF-BOOK", "A", target="border",
+                    file="data/history/stability/crypto-pilot-binance-futures-testnet.json")
+        other = row("1H", "WYCKOFF-BOOK", "A", target="border", account="crypto-personal-v1",
+                    file="data/history/stability/crypto-crypto-personal-v1.json", oos_kw=dict(m_mean_geo=-9.0))
+        for rows in ([pilot, other], [other, pilot]):
+            d, b = decisions(rows)
+            self.assertEqual(d["crypto-day-wyckoff-book-1h-border-a"]["decision"], RS.ENABLED)
+            self.assertEqual((b["enabled"], b["reported_only_rows"], b["conflicting_rows"]), (1, 1, 0))
+
+    def test_an_unconditioned_row_is_not_the_pilot_account(self):
+        live = row(account="none"); live["account"] = None
+        d, b = decisions([live])
+        self.assertEqual(d, {}); self.assertEqual(b["reported_only_rows"], 1)
+
+    def test_the_budget_always_reconciles(self):
+        rows = [row(), row(cfg="B"), row(cfg="B"),                                   # one duplicate
+                row("30m"),                                                          # not a candidate
+                row(account="crypto-prop-discipline"),                               # reported only
+                row("1H", "WYCKOFF-BOOK", "A", target="border"),
+                row("1H", "WYCKOFF-BOOK", "A", target="border", oos_kw=dict(m_mean_geo=9.0))]   # conflicting
+        _d, b = decisions(rows)
+        self.assertEqual(b["rows"], b["candidate_rows"] + b["not_candidates"] + b["duplicate_rows"]
+                         + b["conflicting_rows"] + b["reported_only_rows"])
+        self.assertEqual((b["duplicate_rows"], b["not_candidates"], b["reported_only_rows"], b["conflicting_rows"]),
+                         (1, 1, 1, 1))
 
 
 class TargetIsReportedNotGating(unittest.TestCase):
@@ -265,13 +310,14 @@ class Preconditions(unittest.TestCase):
 class EndToEnd(unittest.TestCase):
     """Synthetic stability file -> selection JSON + report, through RS.run()."""
 
-    def _run(self, rows, tmp, sel=None):
+    def _run(self, rows, tmp, sel=None, account=None, ict_target="live"):
         for r in rows:
-            for k in ("market", "target", "file", "research_validity"):
+            for k in ("market", "target", "file", "research_validity", "account"):
                 r.pop(k, None)
         crypto = os.path.join(tmp, "crypto-live.json")
         with open(crypto, "w", encoding="utf-8") as fh:
             json.dump(dict(generated="2026-09-26", oos_holdout=dict(cutoff=CUT),
+                           run_params=dict(account=account or RS.pilot_account("crypto"), ict_target=ict_target),
                            dataset_snapshot={"snapshot_id": "abc"}, rows=rows), fh)
         sel = sel or os.path.join(tmp, "sel.json"); out = os.path.join(tmp, "report.md")
         ns = type("A", (), dict(crypto=[crypto], cfd=[], select=sel, out=out, criteria=SC.PATH,
@@ -316,6 +362,19 @@ class EndToEnd(unittest.TestCase):
         # a second run at the same cutoff counts a second use of the exposed window
         d2, _, _ = self._run([row("1H", "ICT", "A")], tmp, sel=sel)
         self.assertEqual(d2["oos_holdout"]["crypto"]["times_used_for_selection"], 2)
+
+    def test_no_file_from_the_pilot_account_trades_nothing_and_says_why(self):
+        tmp = tempfile.mkdtemp(dir=os.environ.get("TMP"))
+        d, md, _ = self._run([row("1H", "ICT", "A")], tmp, account="crypto-personal-v1")
+        self.assertEqual(d["setups"], [])
+        reasons = {h["reason"] for h in d["horizons_without_system"] if h["market"] == "crypto"}
+        self.assertTrue(reasons and all("pilot-binance-futures-testnet" in r for r in reasons), reasons)
+
+    def test_the_ict_target_label_comes_from_the_run_not_the_file_name(self):
+        tmp = tempfile.mkdtemp(dir=os.environ.get("TMP"))
+        d, _md, _ = self._run([row("1H", "ICT", "A")], tmp, ict_target="range")   # the file is crypto-live.json
+        self.assertEqual([s["id"] for s in d["setups"]], ["crypto-day-ict-1h-range-a"])
+        self.assertEqual(d["setups"][0]["backtest"]["account"], "pilot-binance-futures-testnet")
 
     def test_nothing_passes_nothing_is_enabled(self):
         tmp = tempfile.mkdtemp(dir=os.environ.get("TMP"))

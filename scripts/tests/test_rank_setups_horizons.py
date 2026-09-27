@@ -35,13 +35,14 @@ def _blk(since, until, **kw):
 def _row(tf, method, cfg="A", target="live", is_kw=None, oos_kw=None):
     return {"tf": tf, "cfg": cfg, "method": method, "target": target if method == "ICT" else "border",
             "file": "test-fixture.json", "first": "2023-01-01", "last": "2026-09-11",
+            "account": RS.pilot_account("crypto"),
             "oos6m": {"cutoff": "2026-03-11T00:00:00Z", "dataset_last_bar": "2026-09-11T00:00:00Z",
                       "in_sample": _blk(**{"since": "2025-03-11", "until": "2026-03-11", **(is_kw or {})}),
                       "oos": _blk(**{"since": "2026-03-11", "until": "2026-09-11", "n": 20, **(oos_kw or {})})}}
 
 
 def _enabled(rows, market="crypto"):
-    judged, _o, _b = RS.select_criteria(rows, market, CRIT)
+    judged, _o, _b = RS.select_criteria(rows, market, CRIT, pilot_account=RS.pilot_account(market))
     return [j for j in judged if j["decision"] == RS.ENABLED]
 
 

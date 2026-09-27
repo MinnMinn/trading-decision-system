@@ -30,6 +30,8 @@ rejected_alternatives:
   - One best setup per (horizon, method) slot that must also pass -- rejected; it caps eligible systems at one per slot for no stated reason and keeps the ranking concept the owner asked to remove.
   - Rewriting the contents of historical records -- rejected by §17/§42 immutability; the live files are renamed once with their contents unchanged, and a historical value is read as opaque data.
   - A compatibility alias map for the old names -- rejected by the owner (2026-09-26) -- it keeps code that knows the removed name alive forever; the system stays lean and git history is the trace.
+  - Judging a system on every account-conditioned stability file at once (addendum 2026-09-27) -- rejected by the owner; the same system measured under two accounts collided as a "conflicting duplicate" and was disabled for a reason outside selection-criteria.json. Also rejected: requiring a pass on every account's file, and judging on the account-free *-live file.
+  - Shortening the in-sample window to 6 months to match the criteria's wording (addendum 2026-09-27) -- rejected by the owner; the 12-month in-sample window is the stricter reading and needs no regeneration.
 ---
 
 ## Owner's instruction (2026-09-26)
@@ -40,3 +42,16 @@ Còn day/swing thì số phần trăm có thể điều chỉnh lại để phù
 vững cho thời gian dài." Clarified by choice the same day: scalping = mean monthly >= 5%; day/swing = the
 "capital preservation" profile. (The quoted name is elided in the square brackets because the same instruction
 removes it from every tracked file.)
+
+## Addendum (2026-09-27, owner decisions on the round 4c review)
+
+1. **Which measurement is judged.** A system is judged only on the stability file measured under the account the
+   pilot trades that market on -- `account_profile.for_venue(venue, "demo")`: crypto = `pilot-binance-futures-testnet`
+   (`data/history/stability/crypto-pilot-binance-futures-testnet.json`), CFD = `pilot-mt5-demo`
+   (`data/history/stability/cfd-pilot-mt5-demo.json`). Rows from every other account's file, and from runs with no
+   account rules (`*-live.json`), are reported only (`reported_only_rows`) and never enable or disable anything.
+   A market with no file for its pilot account trades nothing, and the selection file says why. Every stability
+   row lands in exactly one experiment-budget bucket and the buckets must sum to `rows` (§43).
+2. **In-sample window length.** The in-sample side stays the 365 days before the OOS cutoff (round 4b), judged
+   against thresholds the owner stated for 6 months. That is the stricter reading (more months can only add losing
+   months and drawdown), accepted as is.
