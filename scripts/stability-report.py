@@ -11,7 +11,7 @@ Configurations (all long AND short):
   B  maker fee 0.02 % (limit entries), breakeven at +1R (WMT p272)  (book-style management)
   C  as B + higher-timeframe boundary filter (htf_context rule)     (giảm khung)
 """
-import argparse, datetime, importlib.util, json, os, statistics, sys
+import argparse, concurrent.futures, datetime, importlib.util, json, os, statistics, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 spec = importlib.util.spec_from_file_location("bt", os.path.join(ROOT, "scripts", "backtest-methods.py")); bt = importlib.util.module_from_spec(spec); spec.loader.exec_module(bt)
@@ -40,6 +40,103 @@ METHODS = bt.RUNNER_METHODS   # ONE source (scripts/backtest-methods.py); WYCKOF
 CONFIGS = {"A": dict(side="taker", mgmt="none", htf=False),
            "B": dict(side="maker", mgmt="be", htf=False),
            "C": dict(side="maker", mgmt="be", htf=True)}
+
+
+def config_opts(cfg, ict_target):
+    """The full `bt.OPTS` overlay one CONFIGS entry applies -- ONE definition, used both to actually run a
+    config (main()'s `bt.OPTS.update(**config_opts(...))`, replacing the inline dict literal that used to be
+    typed out at the call site) and, before anything runs, to recognise which configs will make `bt.scan()`
+    produce the same trades (see `_scan_cache_key` below). `combined_entry`/`range_touches`/`ict_target` are
+    included even though `scan()` never reads them, so this dict is always the complete, honest overlay a
+    config applies -- not a hand-picked subset that could quietly drift from what `bt.OPTS.update()` sets."""
+    return dict(mgmt=cfg["mgmt"], htf=cfg["htf"], sides=("long", "short"), types=(1, 2, 3), range_touches=0,
+                entry="book", sloped_gate=False, st_gate=False, phase_b_gate=False, st_min=None, phase_d=True,
+                combined_entry="limit", ict_target=ict_target)
+
+
+# scan()-relevant keys: everything `bt.scan()` / `ict_setups_live()` / `_fires_from()` / `walk()` actually read
+# from `bt.OPTS`, audited against scripts/backtest-methods.py 2026-09-27 (grep `OPTS\[` there before trusting
+# this list again -- if a future change makes another key scan()-relevant and it is not added here, two
+# configs that should produce DIFFERENT trades would collide in the scan cache and silently share one wrong
+# answer). `min_rr`/`combined_entry`/`ict_target` are simulate()-only or dead and stay excluded.
+#
+# `mgmt` belongs here even though it READS like a simulate()-only trade-management knob: `walk()` (called from
+# both the WYCKOFF-BOOK/COMBINED-BOOK leg and ict_setups_live(), i.e. from inside scan() itself) applies the
+# breakeven-at-+1R rule to the bar-by-bar outcome (backtest-methods.py:364) BEFORE the trade record ever
+# reaches simulate() -- R, outcome and exit_time all depend on it. First cut of this file omitted `mgmt` on
+# the mistaken belief that it was simulate()-only, which the acceptance run (D:/tmp-tests/speed/accept.log)
+# caught immediately: CONFIGS' A/B/C rows differ in (mgmt, htf) on every one of the three pairs (A: none/False,
+# B: be/False, C: be/True), so for THIS CONFIGS matrix no two configs actually share a scan() -- the dedup in
+# build_scan_tasks() is correct infrastructure that currently happens to be a no-op for these three rows, and
+# the real, unaffected speed win is the parallel pool across the (now three, not two) distinct scans.
+_SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "sloped_gate", "st_min", "types", "entry", "phase_d")
+
+
+def _hashable(v):
+    return tuple(v) if isinstance(v, list) else v
+
+
+def _scan_cache_key(sym, tf, overlay, methods):
+    """The cache key two (sym, tf, config) calls share iff `bt.scan(sym, tf)` would produce byte-identical
+    trades for both -- see `_SCAN_RELEVANT_KEYS`'s docstring for what "relevant" means here and why the list
+    must be re-audited whenever scan()'s own OPTS reads change. `methods` is `bt.resolve_methods(sym)`'s
+    result, passed in rather than recomputed here so every caller derives it the same one way."""
+    return (sym, tf) + tuple(_hashable(overlay[k]) for k in _SCAN_RELEVANT_KEYS) + (methods,)
+
+
+def _worker_scan(sym, tf, overlay):
+    """One (symbol, timeframe, config-overlay) scan, run in a `ProcessPoolExecutor` worker. Windows has no
+    fork(): each worker is a fresh interpreter that re-imports this file as `__main__` (the `if __name__ ==
+    "__main__"` guard at the bottom stops it from recursing into main() again, but every top-level statement
+    above that guard -- including the `bt = importlib.util.module_from_spec(...)` a few lines up -- still runs,
+    so the worker already has its OWN independent `bt` module by the time this function is called; no separate
+    per-worker import is needed). `opts=overlay` is `bt.scan()`'s own OPTS-isolation parameter
+    (docs/audits/2026-09-24-system-audit.md "OPTS isolation"), so this call depends on nothing the worker's
+    global `bt.OPTS` happens to hold and mutates nothing either -- required for correctness here since nothing
+    in this process ever calls `bt.OPTS.update()` before dispatching work to the pool."""
+    return bt.scan(sym, tf, opts=overlay)
+
+
+def build_scan_tasks(tfs, syms, cfg_overlays, methods_by_sym):
+    """Every (symbol, timeframe, config) this run needs a `bt.scan()` for, DEDUPED to the distinct scans that
+    will actually differ (see `_scan_cache_key`/`_SCAN_RELEVANT_KEYS`) -- computed BEFORE any scan runs, so a
+    caller can dispatch every distinct one in parallel instead of the main loop discovering cache hits one at
+    a time. Deterministic order (tf outer, config middle -- `cfg_overlays` must be an ordered mapping, i.e. a
+    plain dict in CONFIGS' own iteration order -- symbol inner, first-occurrence wins a repeated key): given
+    the same three arguments this always returns the same list in the same order, which is what makes it
+    unit-testable without running any scan at all. Returns a list of (sym, tf, overlay, key) tuples."""
+    tasks, seen = [], set()
+    for tf in tfs:
+        for overlay in cfg_overlays.values():
+            for sym in syms:
+                key = _scan_cache_key(sym, tf, overlay, methods_by_sym[sym])
+                if key in seen:
+                    continue
+                seen.add(key); tasks.append((sym, tf, overlay, key))
+    return tasks
+
+
+def run_scans(tasks, workers, executor_cls=concurrent.futures.ProcessPoolExecutor):
+    """Execute every (sym, tf, overlay, key) in `tasks` (from `build_scan_tasks`), in parallel across
+    `executor_cls` when `workers > 1` and there is more than one task, sequentially in THIS process otherwise
+    (same `bt.scan(sym, tf, opts=overlay)` call either way -- see `_worker_scan`'s docstring for why the
+    isolated call is required for correctness, not just for the parallel path). `executor_cls` defaults to
+    `ProcessPoolExecutor` for real runs; tests inject `ThreadPoolExecutor` so pool-merge-order can be exercised
+    in-process, deterministically, without OS process spawn.
+
+    Returns {key: scan result}. Correct regardless of the ORDER results complete in: each future is looked up
+    by the key captured at SUBMISSION time (`futures = {ex.submit(...): key for ...}`), never by completion
+    order or position, so a fast task finishing after a slow one cannot land under the wrong key."""
+    cache = {}
+    if workers > 1 and len(tasks) > 1:
+        with executor_cls(max_workers=workers) as ex:
+            futures = {ex.submit(_worker_scan, sym, tf, overlay): key for sym, tf, overlay, key in tasks}
+            for fut in futures:
+                cache[futures[fut]] = fut.result()
+    else:
+        for sym, tf, overlay, key in tasks:
+            cache[key] = bt.scan(sym, tf, opts=overlay)
+    return cache
 
 
 def config_fee(cfg, market):
@@ -222,6 +319,14 @@ def main():
     ap.add_argument("--account-file", help="a JSON profile to EVALUATE against without shipping it as "
                                            "configuration -- for asking 'what would this look like under my "
                                            "prop firm's rules?' when no such account exists here (§57)")
+    # Speed-only (CLAUDE.md §57: no new services/queues, stdlib concurrent.futures only): how many OS
+    # processes may run bt.scan() calls in parallel. Bounded to len(distinct scans) at the call site below, so
+    # a small run never pays pool-startup cost for workers it cannot use. Default is conservative (not
+    # os.cpu_count()) because this machine's RAM is flaky under heavy parallel load; raise it explicitly on a
+    # box known to have headroom. --workers 1 disables the pool and runs every scan in this process, exactly
+    # as before this option existed.
+    ap.add_argument("--workers", type=int, default=min(4, os.cpu_count() or 1),
+                    help="parallel bt.scan() worker processes (default: min(4, cpu_count)); 1 = sequential, in-process")
     a = ap.parse_args(); today = datetime.date.today().isoformat(); rows = []
     # THE one loader (A3, docs/plans/2026-09-18-close-feature-gaps.md §0.3): this used to be five lines
     # duplicated inline here and again in backtest-methods.py main(); `bt.load_account` is now the only place
@@ -243,11 +348,22 @@ def main():
     cutoff = oos_cutoff(last_bar); is_since = is_since_for(cutoff)
     print(f"OOS holdout (INT-5): dataset last bar {last_bar} -> cutoff {cutoff}; in-sample from {is_since}",
           file=sys.stderr)
-    for tf in a.tf.split(","):
+    tfs = a.tf.split(","); syms = a.symbols.split(",")
+    # bt.resolve_methods(sym) only depends on /automation (never on --account, --ict-target or any CONFIGS
+    # key) -- resolved once per symbol here rather than once per (tf, config, symbol) call below.
+    methods_by_sym = {sym: bt.resolve_methods(sym) for sym in syms}
+    cfg_overlays = {cname: config_opts(cfg, a.ict_target) for cname, cfg in CONFIGS.items()}
+    scan_tasks = build_scan_tasks(tfs, syms, cfg_overlays, methods_by_sym)
+    workers = max(1, min(a.workers, os.cpu_count() or 1, len(scan_tasks) or 1))
+    print(f"scan plan: {len(scan_tasks)} distinct scan(s) across {len(tfs)} timeframe(s) x {len(cfg_overlays)} "
+          f"config(s) x {len(syms)} symbol(s), {workers} worker process(es)", file=sys.stderr)
+    scan_cache = run_scans(scan_tasks, workers)
+    for tf in tfs:
         for cname, cfg in CONFIGS.items():
             fee = config_fee(cfg, market)
-            bt.OPTS.update(mgmt=cfg["mgmt"], htf=cfg["htf"], sides=("long", "short"), types=(1, 2, 3), range_touches=0, entry="book", sloped_gate=False, st_gate=False, phase_b_gate=False, st_min=None, phase_d=True, combined_entry="limit", ict_target=a.ict_target)
-            scans = [s for s in (bt.scan(sym, tf) for sym in a.symbols.split(",")) if s]
+            overlay = cfg_overlays[cname]
+            bt.OPTS.update(overlay)
+            scans = [s for s in (scan_cache[_scan_cache_key(sym, tf, overlay, methods_by_sym[sym])] for sym in syms) if s]
             if not scans:
                 continue
             first = min(s["first"] for s in scans); last = max(s["last"] for s in scans)
