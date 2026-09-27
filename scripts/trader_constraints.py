@@ -44,6 +44,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 
 import sessions as _S
 import trading_env as _TE
@@ -145,7 +146,7 @@ def for_trader(trader_id):
     trader id -- a typo in `--trader` must fail loudly, not silently apply no constraints (CLAUDE.md: no
     silent fallback)."""
     if trader_id not in TRADERS:
-        raise NotDeclared(f"no trader {trader_id!r} in {os.path.relpath(PATH, ROOT)}; declared traders are "
+        raise NotDeclared(f"no trader {trader_id!r} in {repo_rel(PATH, ROOT)}; declared traders are "
                           f"{sorted(TRADERS)}")
     return {m: [dict(it) for it in items] for m, items in TRADERS[trader_id]["per_methodology"].items()}
 
@@ -188,7 +189,7 @@ def overlay(opts, trader_id, methodology):
 
 if __name__ == "__main__":
     print(f"CLAUDE.md §0.9 -- {len(TRADERS)} trader(s) declared in "
-         f"{os.path.relpath(PATH, ROOT)}")
+         f"{repo_rel(PATH, ROOT)}")
     for tid, per in load().items():
         for methodology, items in per.items():
             for item in items:

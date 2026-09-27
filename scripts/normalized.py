@@ -35,6 +35,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import instruments as I
 import providers as P
 
@@ -162,7 +163,7 @@ def provenance(raw, symbol, timeframe, source_identifier, now=None):
         # who and where
         "provider": provider,
         "source_venue": P.venue_of(provider) if provider else None,
-        "source_identifier": os.path.relpath(source_identifier, ROOT),
+        "source_identifier": repo_rel(source_identifier, ROOT),
         "aggregation_scope": P.provider(provider)["aggregation_scope"] if provider else None,
         "underlying_venues": list(P.provider(provider)["underlying_venues"]) if provider else [],
         # what

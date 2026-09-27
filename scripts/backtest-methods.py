@@ -51,6 +51,7 @@ import argparse, bisect, collections, heapq, importlib.util, datetime, json, os,
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import wyckoff_rules as W
 import quality as _quality   # CLAUDE.md §20: the six data-quality states this loader flags its history against
 import research_validity as _RV
@@ -196,10 +197,10 @@ def load(sym, tf):
         _ASSESSED[(sym, tf)] = state
         if state not in ("FRESH", "STALE", "UNKNOWN"):
             QUALITY_FLAGS.append({"symbol": sym, "tf": tf, "state": state, "reason": why,
-                                  "source": os.path.relpath(p, ROOT)})
+                                  "source": repo_rel(p, ROOT)})
             print(f"DATA-QUALITY FLAG (CLAUDE.md §20/§38): {sym} {tf} history is {state}: {why}",
                   file=sys.stderr)
-    return list(d["candles"]), os.path.relpath(p, ROOT)  # a fresh list: the cached one is never handed out
+    return list(d["candles"]), repo_rel(p, ROOT)  # a fresh list: the cached one is never handed out
 
 
 # CLAUDE.md §38 "unrealistic execution assumptions", as DATA rather than as a paragraph of Vietnamese prose at

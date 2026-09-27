@@ -28,8 +28,23 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import decision_order as DO
 import trading_system as TS
 
+from live_write_isolation import redirect as _redirect_writes
+
 RUNNER_SRC = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
 CLAUDE_MD = open(os.path.join(ROOT, "CLAUDE.md"), encoding="utf-8").read()
+
+_RESTORE_WRITES = None
+
+
+def setUpModule():
+    # The one setUpClass below loads strategy-runner.py fresh; anything that reaches sr.tick() through it
+    # would otherwise append a real trace to data/live/latency/ (scripts/tests/live_write_isolation.py).
+    global _RESTORE_WRITES
+    _RESTORE_WRITES = _redirect_writes()
+
+
+def tearDownModule():
+    _RESTORE_WRITES()
 
 
 def _raw():

@@ -35,6 +35,7 @@ import os
 import re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from repo_paths import repo_rel
 PATH = os.path.join(ROOT, "docs", "architecture", "i18n.json")
 
 _DOC = json.load(open(PATH, encoding="utf-8"))
@@ -159,7 +160,7 @@ def t(key, lang, **params):
     try:
         entry = _MSG[key]
     except KeyError:
-        raise KeyError(f"i18n: no message {key!r} in {os.path.relpath(PATH, ROOT)}") from None
+        raise KeyError(f"i18n: no message {key!r} in {repo_rel(PATH, ROOT)}") from None
     try:
         s = entry[lang]
     except KeyError:
@@ -361,7 +362,7 @@ def switch_js(title_key=None):
     cat = js_catalog("ui.")
     if title_key:
         if title_key not in _MSG:
-            raise KeyError(f"i18n.switch_js: title key {title_key!r} is not in {os.path.relpath(PATH, ROOT)}")
+            raise KeyError(f"i18n.switch_js: title key {title_key!r} is not in {repo_rel(PATH, ROOT)}")
         cat[title_key] = {l: t(title_key, l) for l in LOCALES}
     return ("<script>(function(){var L=" + json.dumps(list(LOCALES)) + ",D=" + json.dumps(DEFAULT) +
             ",C=" + json.dumps(cat) + ",T=" + tk + ","

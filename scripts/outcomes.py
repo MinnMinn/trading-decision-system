@@ -35,6 +35,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 
 PATH = os.path.join(ROOT, "docs", "architecture", "outcomes.json")
 
@@ -248,13 +249,13 @@ def ingest(logs=PILOT_LOGS, journal=JOURNAL):
     """Every §41 outcome the repo can currently produce, from the live log and the trade journal."""
     out = []
     for p in logs:
-        rel = os.path.relpath(p, ROOT)
+        rel = repo_rel(p, ROOT)
         for row in _read_jsonl(p):
             rec = _from_log_row(row, rel)
             if rec:
                 out.append(rec)
     for row in _read_jsonl(journal):
-        rec = _from_trade(row, os.path.relpath(journal, ROOT))
+        rec = _from_trade(row, repo_rel(journal, ROOT))
         if rec:
             out.append(rec)
     out.sort(key=lambda r: r["at"] or "")

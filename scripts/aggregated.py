@@ -36,6 +36,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import providers as P
 
 # §23's own list, in its own order.
@@ -60,14 +61,14 @@ def load(path, symbol=None):
     marker = raw.get("_source")
     if not marker:
         raise ValueError(
-            f"{os.path.relpath(path, ROOT)} carries no `_source` marker, so the provider that wrote it cannot "
+            f"{repo_rel(path, ROOT)} carries no `_source` marker, so the provider that wrote it cannot "
             f"be identified -- and with it neither can its aggregation scope. CLAUDE.md §23 requires an "
             f"aggregate to preserve its scope and underlying venues; a file that cannot name its provider "
             f"cannot preserve either, and defaulting to single_venue would be exactly the misattribution §23 "
             f"forbids.")
     provider = P.by_source_marker(marker)
     if provider is None:
-        raise ValueError(f"{os.path.relpath(path, ROOT)} declares `_source: {marker!r}`, which no provider in "
+        raise ValueError(f"{repo_rel(path, ROOT)} declares `_source: {marker!r}`, which no provider in "
                          f"docs/architecture/providers.json claims. Add it to that provider's "
                          f"`source_markers` rather than teaching this reader a second spelling.")
     p = P.provider(provider)
@@ -76,7 +77,7 @@ def load(path, symbol=None):
         "aggregation_scope": p["aggregation_scope"],
         "underlying_venues": list(p["underlying_venues"]),
         "timestamp": raw.get("last_updated") or raw.get("snapshot_time"),
-        "source_identifier": os.path.relpath(path, ROOT),
+        "source_identifier": repo_rel(path, ROOT),
         "symbol": symbol or raw.get("symbol"),
         "is_mock": bool(raw.get("_mock")),
         "payload": raw,

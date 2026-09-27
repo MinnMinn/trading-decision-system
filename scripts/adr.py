@@ -28,6 +28,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from repo_paths import repo_rel
 DIR = os.path.join(ROOT, "docs", "adr")
 
 #: CLAUDE.md §53's own list, in §53's order. A record missing any of these is not an ADR.
@@ -95,7 +96,7 @@ def _validate(fm, path):
 def read(path):
     fm, body = _parse(open(path, encoding="utf-8").read(), path)
     fm = _validate(fm, path)
-    fm["_path"] = os.path.relpath(path, ROOT)
+    fm["_path"] = repo_rel(path, ROOT)
     fm["_body"] = body
     fm["id"] = os.path.basename(path).split("-", 1)[0]
     return fm
@@ -190,7 +191,7 @@ if __name__ == "__main__":
     if a.cmd == "index":
         os.makedirs(DIR, exist_ok=True)
         open(a.out, "w", encoding="utf-8").write(index())
-        print(f"-> {os.path.relpath(a.out, ROOT)}")
+        print(f"-> {repo_rel(a.out, ROOT)}")
     elif a.cmd == "rejected":
         for r in rejected_alternatives():
             print(f"  [{r['adr']}] {r['alternative']}")

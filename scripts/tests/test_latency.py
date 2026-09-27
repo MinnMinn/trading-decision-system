@@ -27,9 +27,25 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import latency as L
 
+from live_write_isolation import redirect as _redirect_writes
+
 REGISTRY = os.path.join(ROOT, "docs", "architecture", "latency-model.json")
 RUNNER_SRC = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
 LOOP_SRC = open(os.path.join(ROOT, "scripts", "pilot-loop.sh"), encoding="utf-8").read()
+
+_RESTORE_WRITES = None
+
+
+def setUpModule():
+    # Every class below either calls L.tick() directly (TheRecorder) or loads strategy-runner.py fresh and
+    # calls sr.tick() / runs it as a --dry-run subprocess (TheLiveOrderPathIsInstrumented) -- all of which
+    # otherwise append a real trace to data/live/latency/ (scripts/tests/live_write_isolation.py).
+    global _RESTORE_WRITES
+    _RESTORE_WRITES = _redirect_writes()
+
+
+def tearDownModule():
+    _RESTORE_WRITES()
 
 
 def _spec_section(title, until):
@@ -225,8 +241,10 @@ class TheLiveOrderPathIsInstrumented(unittest.TestCase):
                 if st["method"] in sr.allowed_methods(st["market"])]
 
     def test_a_real_dry_tick_records_the_stages_it_reached(self):
-        # The end-to-end check: run the actual runner and read the file it wrote.
-        out = os.path.join(ROOT, "data", "live", "latency")
+        # The end-to-end check: run the actual runner and read the file it wrote. `L.DIR` rather than the
+        # repo path directly: setUpModule() redirects it (and the TRADING_TEST_LATENCY_DIR the subprocess
+        # below inherits) away from data/live/latency, per scripts/tests/live_write_isolation.py.
+        out = L.DIR
         before = set(os.listdir(out)) if os.path.isdir(out) else set()
         r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "strategy-runner.py"),
                             "--dry-run", "--ignore-gate"],
@@ -378,6 +396,34 @@ class PerformanceRegressionBenchmarks(unittest.TestCase):
         for stage in L.REGRESSION_STAGES:
             slug = stage.lower().replace(" ", "_").replace("-", "_")
             self.assertTrue(any(slug in h for h in have), f"no benchmark for §40 stage {stage!r}")
+
+
+class ATestRunMustNotDirtyTheRepositoriesLiveData(unittest.TestCase):
+    """The regression for scripts/tests/live_write_isolation.py: before that module existed, every
+    `L.tick(...)` call above (TheRecorder) and every `sr.tick(...)` reached through a freshly-loaded
+    strategy-runner.py appended a REAL trace to data/live/latency/<UTC date>.jsonl -- exactly what
+    `git status --porcelain` shows dirty after running this file. This class fails on that code and passes
+    once setUpModule() redirects latency.DIR (see the top of this file)."""
+
+    REAL_DIR = os.path.join(ROOT, "data", "live", "latency")
+
+    def test_latency_dir_no_longer_points_at_the_repo(self):
+        self.assertNotEqual(os.path.normcase(os.path.normpath(L.DIR)),
+                             os.path.normcase(os.path.normpath(self.REAL_DIR)),
+                             "latency.DIR still points at the repo's own data/live/latency -- a tick during "
+                             "this test run would append a real trace there")
+
+    def test_a_tick_during_this_run_leaves_the_repos_git_status_unchanged(self):
+        # Ground truth: this is literally how the defect was found (git status --porcelain after a test run).
+        # `.git` is a FILE, not a directory, inside a worktree -- so its mere presence (either shape) is the
+        # right check, not os.path.isdir().
+        from live_write_isolation import assert_live_untouched
+
+        def one_tick():
+            with L.tick("regression-guard", sink=[]) as tr:
+                with tr.span("normalization"):
+                    pass
+        assert_live_untouched(self, one_tick)
 
 
 if __name__ == "__main__":

@@ -49,6 +49,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import instruments as I      # noqa: E402
 import mt5_time as MT        # noqa: E402
 import quality as Q          # noqa: E402
@@ -164,7 +165,7 @@ def main():
 
     rows = plan(set(a.symbols) or None)
     if not rows:
-        print(f"no history.*.json in {os.path.relpath(SRC_DIR, ROOT)} -- run integrations/mt5/ExportHistory.mq5 "
+        print(f"no history.*.json in {repo_rel(SRC_DIR, ROOT)} -- run integrations/mt5/ExportHistory.mq5 "
               f"in MetaTrader first (docs/architecture/mt5-history-export.md)")
         return 1
 

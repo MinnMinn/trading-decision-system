@@ -27,6 +27,7 @@ import argparse, datetime, html, json, os, re, shutil, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import method_purity as mp  # noqa: E402
 import artifact_theme as theme  # noqa: E402
 import instruments as I  # noqa: E402
@@ -343,7 +344,7 @@ def candles(sym, tf, n, snap=None):
         # Exit 1, deliberately NOT 2: exit 2 means one thing in this script -- a method-purity violation --
         # and the publish tick reads it that way. A missing source is a different fact and must not wear
         # the same code.
-        sys.exit(f"no data for {sym} {tf}: {os.path.relpath(src, ROOT)} does not exist.\n"
+        sys.exit(f"no data for {sym} {tf}: {repo_rel(src, ROOT)} does not exist.\n"
                  f"  {how}.\n"
                  f"  Nothing is wrong with the page: a chart drawn from no candles would be a fabrication.")
     d = json.load(open(src, encoding="utf-8"))
@@ -1737,7 +1738,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
     if snap:
         json.dump({"style": style, "built": built, "out": out, "facts_scanned_at": facts.get("scanned_at"), "narrative_updated": (narrative or {}).get("updated"),
                    "sources": src_notes}, open(os.path.join(snap, "build-manifest.json"), "w"), ensure_ascii=False, indent=1)
-    print(f"BUILD OK -> {os.path.relpath(out, ROOT) if out.startswith(ROOT) else out} ({len(page) // 1024} KB) · layer1 {facts.get('scanned_at', '—')} · layer3 {(narrative or {}).get('updated', '—')}")
+    print(f"BUILD OK -> {repo_rel(out, ROOT) if out.startswith(ROOT) else out} ({len(page) // 1024} KB) · layer1 {facts.get('scanned_at', '—')} · layer3 {(narrative or {}).get('updated', '—')}")
 
 
 def main():

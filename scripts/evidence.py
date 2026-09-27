@@ -34,6 +34,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import normalized as N
 import pit
 
@@ -242,7 +243,7 @@ if __name__ == "__main__":
     a = ap.parse_args()
     path = os.path.join(ROOT, "data", "live", "prelim", f"{a.style}.facts.json")
     if not os.path.exists(path):
-        print(f"no facts on disk: {os.path.relpath(path, ROOT)}", file=sys.stderr)
+        print(f"no facts on disk: {repo_rel(path, ROOT)}", file=sys.stderr)
         sys.exit(2)
     with open(path, encoding="utf-8") as fh:
         facts = json.load(fh)

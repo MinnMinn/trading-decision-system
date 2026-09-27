@@ -35,7 +35,23 @@ import automation as A
 import methods as M
 import trading_system as TS
 
+from live_write_isolation import redirect as _redirect_writes
+
 RUNNER_SRC = open(os.path.join(ROOT, "scripts", "strategy-runner.py"), encoding="utf-8").read()
+
+_RESTORE_WRITES = None
+
+
+def setUpModule():
+    # Several classes below load strategy-runner.py (or backtest-methods.py, which shares its `bt`) fresh;
+    # anything that reaches sr.tick() through it would otherwise append a real trace to data/live/latency/
+    # (scripts/tests/live_write_isolation.py).
+    global _RESTORE_WRITES
+    _RESTORE_WRITES = _redirect_writes()
+
+
+def tearDownModule():
+    _RESTORE_WRITES()
 
 
 def _raw():

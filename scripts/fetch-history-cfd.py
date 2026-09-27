@@ -13,6 +13,7 @@ Usage: fetch-history-cfd.py [XAUUSD XAGUSD USOIL UKOIL]
 import json, os, sys, time, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from repo_paths import repo_rel
 # Symbol -> Yahoo ticker. This is a PROVIDER mapping, not an allowlist copy: the four keys happen to be the
 # cfd list today, but the values are Yahoo's own contract codes and only Yahoo can say what they are. A symbol
 # with no entry is refused below rather than guessed -- fetching the wrong contract would write plausible,
@@ -53,7 +54,7 @@ def save(sym, tf, candles):
     p = f"{ROOT}/data/history/ohlcv.{sym}.{tf}.json"
     json.dump(dict(symbol=sym, timeframe=tf, candles=candles, last_updated=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                    _source=f"yahoo_finance_{MAP[sym]}_research_only"), open(p, "w"))
-    print(f"{sym} {tf}: {len(candles)} candles {candles[0]['time'][:10]} .. {candles[-1]['time'][:10]} -> {os.path.relpath(p, ROOT)}")
+    print(f"{sym} {tf}: {len(candles)} candles {candles[0]['time'][:10]} .. {candles[-1]['time'][:10]} -> {repo_rel(p, ROOT)}")
 
 
 def main():

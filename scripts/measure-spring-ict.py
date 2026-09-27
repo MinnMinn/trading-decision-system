@@ -28,6 +28,7 @@ import argparse, datetime, json, os, statistics, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import instruments as I  # noqa: E402
 # Feed directory comes from instruments.py (I.data_dir), keyed by market -- was a hard-coded symbol set.
 P = {"15m": dict(R=48, K=16, H=96), "4H": dict(R=30, K=8, H=30), "1D": dict(R=20, K=6, H=20), "1H": dict(R=48, K=12, H=72), "5m": dict(R=60, K=18, H=120)}
@@ -39,7 +40,7 @@ def load(sym, tf):
     for base in ("history", f"live/{I.data_dir(sym)}"):
         p = f"{ROOT}/data/{base}/ohlcv.{sym}.{tf}.json"
         if os.path.exists(p):
-            return json.load(open(p))["candles"], os.path.relpath(p, ROOT)
+            return json.load(open(p))["candles"], repo_rel(p, ROOT)
     return None, None
 
 

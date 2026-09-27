@@ -32,6 +32,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 
 # scripts/backtest-methods.py has a hyphen in its filename -- cannot be `import`ed directly. Same pattern
 # scripts/stability-report.py already uses (module alias "bt").
@@ -327,7 +328,7 @@ def main():
              "expectancy": _num(c_stats), "pf": c_stats.get("pf"),
              "dd": bt.max_dd(c_curve), "failed_by": bt.SIM_LAST["failed_by"],
              "refused": dict(bt.SIM_LAST["refused"]), "experiment_id": sealed["experiment_id"],
-             "record_path": os.path.relpath(path, ROOT)},
+             "record_path": repo_rel(path, ROOT)},
             **_ranking_keys(c_stats, bt.SIM_LAST)))
 
     # ---- 5. report

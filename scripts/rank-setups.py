@@ -65,6 +65,7 @@ def finalize(selection, path):
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 import sys as _sys; _sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import setup_version as SV      # CLAUDE.md §14: a setup carries the version of the rules it IS
 import research_validity as RV  # CLAUDE.md §38: a selection may not be made from invalid research
 import instruments as _I        # the ONE allowlist: a symbol set typed here would outlive the registry
@@ -111,19 +112,6 @@ def fee_assumed_for(cfg_name, market):
 
 
 UNSTAMPED = "UNSTAMPED"     # a stability file written before 2026-09-18, when §38 verdicts did not exist
-def repo_rel(p):
-    """Repo-relative POSIX path for a file in the repo; a file outside it (another drive, a temp dir) keeps its
-    absolute POSIX path -- a `../..` walk out of the repo names nothing a reader can open."""
-    a = os.path.abspath(p)
-    try:
-        rel = os.path.relpath(a, ROOT)
-    except ValueError:                      # Windows: different drive from the repo
-        rel = None
-    if rel is None or rel == os.pardir or rel.startswith(os.pardir + os.sep):
-        return a.replace(os.sep, "/")
-    return rel.replace(os.sep, "/")
-
-
 SOURCE_VALIDITY = {}        # relpath -> the §38 block of each file this process read (for the written artifacts)
 REFUSED = []                # (relpath, reason) for every file §38 would not let this selection use
 
@@ -145,7 +133,7 @@ def load_rows(paths, market, *, require_stamped=False):
     rows = []
     for p in paths:
         d = json.load(open(p, encoding="utf-8"))
-        rel = repo_rel(p)    # repo paths are POSIX in every written artifact
+        rel = repo_rel(p, ROOT)    # repo paths are POSIX in every written artifact
         try:
             block = RV.read(d, where=rel)
             # UNVERIFIED is allowed: it means nothing fired but some §38 conditions have no detector yet
@@ -366,7 +354,7 @@ def _source_meta(paths):
         except (OSError, ValueError):
             continue
         ds = d.get("dataset_snapshot") or {}
-        out[repo_rel(p)] = dict(
+        out[repo_rel(p, ROOT)] = dict(
             generated=d.get("generated"), dataset_snapshot_id=ds.get("snapshot_id"),
             snapshot_error=ds.get("snapshot_error"), code_version=ds.get("code_version"),
             requested_but_absent=ds.get("requested_but_absent"), oos_holdout=d.get("oos_holdout"),
@@ -406,7 +394,7 @@ def run(a, today):
                 prev_exposure = json.load(fh).get("oos_holdout") or {}
         except (OSError, ValueError):
             prev_exposure = {}
-    crit_rel = repo_rel(a.criteria)
+    crit_rel = repo_rel(a.criteria, ROOT)
     selection = dict(generated=today, mode="criteria-oos6m",
                      note="Written by scripts/rank-setups.py (ADR 0008). A system is ENABLED only if it passes every "
                           "criterion of its horizon (selection-criteria.json) on its in-sample window AND its "

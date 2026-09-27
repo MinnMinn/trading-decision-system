@@ -36,6 +36,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import trading_system as TS
 import account_profile as AP       # noqa: E402
 import performance as P           # noqa: E402
@@ -365,7 +366,7 @@ def main():
     out = os.path.join(a.out_dir, ".vi-system-ranking.html")
     with open(out, "w", encoding="utf-8") as fh:
         fh.write(render(all_rows))
-    print(f"wrote {len(all_rows)} row(s) -> {os.path.relpath(out, ROOT)}")
+    print(f"wrote {len(all_rows)} row(s) -> {repo_rel(out, ROOT)}")
     return 0
 
 

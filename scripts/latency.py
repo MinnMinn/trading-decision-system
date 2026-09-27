@@ -41,7 +41,11 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PATH = os.path.join(ROOT, "docs", "architecture", "latency-model.json")
-DIR = os.path.join(ROOT, "data", "live", "latency")
+# Test-only environment override (never set this in normal use): TRADING_TEST_LATENCY_DIR redirects the
+# append-only sink below so a test process -- or a `strategy-runner.py --dry-run` subprocess it shells out to
+# -- never appends to the repo's own data/live/latency/. See scripts/tests/live_write_isolation.py, the one
+# place this is set.
+DIR = os.environ.get("TRADING_TEST_LATENCY_DIR") or os.path.join(ROOT, "data", "live", "latency")
 
 HOT, TRANSPORT = "hot", "transport_bound"
 
