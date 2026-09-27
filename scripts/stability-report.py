@@ -17,6 +17,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 spec = importlib.util.spec_from_file_location("bt", os.path.join(ROOT, "scripts", "backtest-methods.py")); bt = importlib.util.module_from_spec(spec); spec.loader.exec_module(bt)
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import snapshot          # CLAUDE.md §10: every research run identifies the dataset it read
+import isolated_pool as _pool  # one process per scan: a hardware crash costs that scan, not the batch
 import instruments as _I  # §35: the run's own symbols name the market, and (market, tf) names the system
 import performance as _perf  # CLAUDE.md §39: the ONE computer for the twenty-three metrics
 import providers as _P       # §4: which venue this market's orders go to -- and therefore what a fill costs
@@ -166,8 +167,8 @@ def build_scan_tasks(tfs, syms, cfg_overlays, methods_by_sym):
     return tasks
 
 
-def run_scans(tasks, workers, executor_cls=concurrent.futures.ProcessPoolExecutor, max_retries=2,
-              max_pool_rebuilds=6):
+def run_scans(tasks, workers, executor_cls=_pool.IsolatedExecutor, max_retries=2,
+              max_pool_rebuilds=6, max_crashes_per_task=5):
     """Execute every (sym, tf, overlay, key) in `tasks` (from `build_scan_tasks`), in parallel across
     `executor_cls` when `workers > 1` and there is more than one task, sequentially in THIS process otherwise
     (same `bt.scan(sym, tf, opts=overlay)` call either way -- see `_worker_scan`'s docstring for why the
@@ -205,9 +206,16 @@ def run_scans(tasks, workers, executor_cls=concurrent.futures.ProcessPoolExecuto
     EVERY pending future of that pool broken, so charging it to each task spent all 27 tasks' retries on three
     unrelated hardware events (observed: D:/tmp-tests/speed-full/run2.attempt1.log, 27 x "attempt 2/3" and the
     run died). A broken pool is charged once to the RUN (`max_pool_rebuilds`), its unfinished tasks are
-    resubmitted without spending their own budget, and past that budget the run fails loudly."""
+    resubmitted without spending their own budget, and past that budget the run fails loudly.
+
+    The default executor is `isolated_pool.IsolatedExecutor` (one process per task), where a hardware crash
+    fails only the crashed task's future with `WorkerCrashed`. That is charged to THAT task
+    (`max_crashes_per_task`, default 5 -- generous, because on this machine a crash says nothing about the
+    task) and it is resubmitted; a task that crashes every time is a deterministic fault, and after five it
+    ends the run loudly rather than looping forever."""
     cache = {}
     pool_breaks = 0
+    crashes = {t[3]: 0 for t in tasks}
     remaining = list(tasks)
     attempts = {t[3]: 0 for t in tasks}
     round_num = 0
@@ -224,6 +232,14 @@ def run_scans(tasks, workers, executor_cls=concurrent.futures.ProcessPoolExecuto
                         cache[key] = fut.result()
                     except concurrent.futures.process.BrokenProcessPool as exc:
                         broken = exc                        # charged to the run below, not to this task
+                        still_remaining.append((sym, tf, overlay, key))
+                    except _pool.WorkerCrashed as exc:
+                        crashes[key] += 1
+                        if crashes[key] > max_crashes_per_task:
+                            raise
+                        print(f"run_scans: {sym} {tf} worker crashed ({exc}); crash {crashes[key]}/"
+                              f"{max_crashes_per_task} for this task -- retrying in a fresh process",
+                              file=sys.stderr)
                         still_remaining.append((sym, tf, overlay, key))
                     except Exception as exc:
                         attempts[key] += 1
