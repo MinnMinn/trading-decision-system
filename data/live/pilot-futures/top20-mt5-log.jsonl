@@ -104,3 +104,9 @@
 {"t": "2026-09-19T09:33:56Z", "kind": "error", "where": "candles XAUUSD 15m", "msg": "MT5 export for XAUUSD 15m is stale (2026-09-19T08:42:51Z)"}
 {"t": "2026-09-19T18:15:39Z", "kind": "error", "where": "candles XAGUSD 4H", "msg": "MT5 export for XAGUSD 4H is stale (2026-09-19T08:42:52Z)"}
 {"t": "2026-09-19T18:15:39Z", "kind": "error", "where": "candles XAUUSD 4H", "msg": "MT5 export for XAUUSD 4H is stale (2026-09-19T08:42:51Z)"}
+{"t": "2026-09-24T12:27:05Z", "kind": "error", "where": "candles XAGUSD 15m", "msg": "MT5 export for XAGUSD 15m is stale (2026-09-24T11:35:50Z)"}
+{"t": "2026-09-24T12:27:05Z", "kind": "error", "where": "candles XAUUSD 15m", "msg": "MT5 export for XAUUSD 15m is stale (2026-09-24T11:36:32Z)"}
+{"t": "2026-09-24T12:42:29Z", "kind": "error", "where": "candles XAGUSD 15m", "msg": "MT5 export for XAGUSD 15m is stale (2026-09-24T11:35:50Z)"}
+{"t": "2026-09-24T12:42:29Z", "kind": "error", "where": "candles XAUUSD 15m", "msg": "MT5 export for XAUUSD 15m is stale (2026-09-24T11:36:32Z)"}
+{"t": "2026-09-24T12:57:41Z", "kind": "error", "where": "candles XAGUSD 15m", "msg": "XAGUSD 15m candles are PARTIAL -> BLOCK_ENTRY (CLAUDE.md §20): 300 bars, updated 0 min ago; feed health (§52): PARTIAL"}
+{"t": "2026-09-24T12:57:41Z", "kind": "error", "where": "candles XAUUSD 15m", "msg": "XAUUSD 15m candles are PARTIAL -> BLOCK_ENTRY (CLAUDE.md §20): 300 bars, updated 1 min ago; feed health (§52): PARTIAL"}

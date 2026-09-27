@@ -8,14 +8,14 @@
   "crypto-scalping-ict-15m-live-b-BTCUSDT-long-2026-09-18T13:45:00Z",
   "cfd-swing-wyckoff-4h-border-a-XAUUSD-long-2026-09-18T09:00:00Z"
  ],
- "day": "2026-09-19",
+ "day": "2026-09-24",
  "trades_today": {},
  "errors": 0,
  "halted": {
   "at": "2026-09-12T16:56:47Z",
   "why": "futures: equity 3750.48 <= 85% of start 5000.00"
  },
- "last_tick": "2026-09-19T18:15:39Z",
+ "last_tick": "2026-09-24T12:57:37Z",
  "venues": {
   "futures": {
    "equity_start": 4990.81699458,
