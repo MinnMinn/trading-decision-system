@@ -11,7 +11,7 @@ Configurations (all long AND short):
   B  maker fee 0.02 % (limit entries), breakeven at +1R (WMT p272)  (book-style management)
   C  as B + higher-timeframe boundary filter (htf_context rule)     (giảm khung)
 """
-import argparse, concurrent.futures, datetime, importlib.util, json, os, statistics, sys
+import argparse, concurrent.futures, contextlib, datetime, importlib.util, io, json, os, statistics, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 spec = importlib.util.spec_from_file_location("bt", os.path.join(ROOT, "scripts", "backtest-methods.py")); bt = importlib.util.module_from_spec(spec); spec.loader.exec_module(bt)
@@ -69,6 +69,11 @@ def config_opts(cfg, ict_target):
 # B: be/False, C: be/True), so for THIS CONFIGS matrix no two configs actually share a scan() -- the dedup in
 # build_scan_tasks() is correct infrastructure that currently happens to be a no-op for these three rows, and
 # the real, unaffected speed win is the parallel pool across the (now three, not two) distinct scans.
+#
+# `methods` (the bias-reading dimensions `bt.resolve_methods(sym)` resolves) is scan()-relevant too but is
+# carried as `_scan_cache_key()`'s own separate parameter, not a member of this tuple: it comes from
+# /automation per-SYMBOL, not from a CONFIGS overlay, so it has no `overlay[k]` to read here -- folding it into
+# this list would make every lookup site pass a fake key into `overlay` just to satisfy the loop.
 _SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "sloped_gate", "st_min", "types", "entry", "phase_d")
 
 
@@ -93,8 +98,51 @@ def _worker_scan(sym, tf, overlay):
     per-worker import is needed). `opts=overlay` is `bt.scan()`'s own OPTS-isolation parameter
     (docs/audits/2026-09-24-system-audit.md "OPTS isolation"), so this call depends on nothing the worker's
     global `bt.OPTS` happens to hold and mutates nothing either -- required for correctness here since nothing
-    in this process ever calls `bt.OPTS.update()` before dispatching work to the pool."""
-    return bt.scan(sym, tf, opts=overlay)
+    in this process ever calls `bt.OPTS.update()` before dispatching work to the pool.
+
+    INVARIANT this relies on (see `dataset_last_bar()`'s own docstring for the other half): `bt.QUALITY_FLAGS`
+    / `bt.assess_run()` correctness under `--workers > 1` depends ENTIRELY on `dataset_last_bar()` having
+    already called `bt.load()` for every requested (symbol, timeframe) in the MAIN process before any task is
+    dispatched here -- a worker's own `bt.load()` call (inside `bt.scan()`) always re-runs the §20/§38 quality
+    assessment fresh, because this is a SEPARATE process with an empty `bt._ASSESSED` cache, but the result
+    only needs to reach the MAIN process's `bt.QUALITY_FLAGS` once, and it already did.
+
+    What is suppressed here, and why it is safe to suppress: the worker's OWN `print(..., file=sys.stderr)`
+    inside `bt.load()` -- never the assessment itself (`bt._ASSESSED`/`bt.QUALITY_FLAGS` inside the WORKER'S
+    OWN process still run normally; only that process's copy is ever discarded, exactly as it already was
+    before this function existed). Without suppression, a single flagged (sym, tf) prints once per WORKER that
+    happens to scan it (baseline, one process, prints it exactly once) -- observed as 1 line in the sequential
+    run vs 4 in a 3-worker run for crypto_1h_noacct (D:/tmp-tests/speed/accept.log fix-round-1 note). Anything
+    else a worker call ever writes to stderr (there is nothing else on scan()'s call path today, per the
+    `OPTS\\[` audit `_SCAN_RELEVANT_KEYS` cites -- this stays a filter, not a blanket redirect, so a FUTURE
+    stderr write on that path is not silently swallowed) passes through unchanged.
+
+    Returns `(scan result, loads)`: `loads` is every (symbol, timeframe) `bt.load()` was first asked for during
+    this scan, in call order -- including series the scan reaches on its own (the HTF companion
+    `htf_bias_gate()` loads for `htf=True`), which `dataset_last_bar()` never loaded. The main process replays
+    exactly these `bt.load()` calls at the point in its loop where the sequential engine would have run this
+    scan (see `_scan_for()` in main), so `bt.QUALITY_FLAGS`, `bt.PROVIDERS_SEEN` and the DATA-QUALITY stderr
+    lines end up with the same content in the same order as a one-process run -- the §38 verdict does not
+    depend on which process happened to scan a series.
+    """
+    loads, seen, real_load = [], set(), bt.load
+
+    def traced(s, t):
+        if (s, t) not in seen:
+            seen.add((s, t)); loads.append((s, t))
+        return real_load(s, t)
+
+    buf = io.StringIO()
+    bt.load = traced          # scan() and everything it calls reach load() through bt's module globals
+    try:
+        with contextlib.redirect_stderr(buf):
+            result = bt.scan(sym, tf, opts=overlay)
+    finally:
+        bt.load = real_load
+    for line in buf.getvalue().splitlines(keepends=True):
+        if not line.startswith("DATA-QUALITY FLAG"):
+            sys.stderr.write(line)
+    return result, loads
 
 
 def build_scan_tasks(tfs, syms, cfg_overlays, methods_by_sym):
@@ -116,26 +164,74 @@ def build_scan_tasks(tfs, syms, cfg_overlays, methods_by_sym):
     return tasks
 
 
-def run_scans(tasks, workers, executor_cls=concurrent.futures.ProcessPoolExecutor):
+def run_scans(tasks, workers, executor_cls=concurrent.futures.ProcessPoolExecutor, max_retries=2):
     """Execute every (sym, tf, overlay, key) in `tasks` (from `build_scan_tasks`), in parallel across
     `executor_cls` when `workers > 1` and there is more than one task, sequentially in THIS process otherwise
     (same `bt.scan(sym, tf, opts=overlay)` call either way -- see `_worker_scan`'s docstring for why the
     isolated call is required for correctness, not just for the parallel path). `executor_cls` defaults to
-    `ProcessPoolExecutor` for real runs; tests inject `ThreadPoolExecutor` so pool-merge-order can be exercised
-    in-process, deterministically, without OS process spawn.
+    `ProcessPoolExecutor` for real runs; tests inject a stand-in so pool-merge-order AND retry-after-failure
+    can be exercised in-process, deterministically, without OS process spawn.
 
     Returns {key: scan result}. Correct regardless of the ORDER results complete in: each future is looked up
     by the key captured at SUBMISSION time (`futures = {ex.submit(...): key for ...}`), never by completion
-    order or position, so a fast task finishing after a slow one cannot land under the wrong key."""
+    order or position, so a fast task finishing after a slow one cannot land under the wrong key.
+
+    RETRY (this machine's RAM is documented as flaky -- a worker can segfault/get OOM-killed mid-scan and take
+    the WHOLE pool down with it: the observed failure was `_wyckoff_candidates` -> `scan()` ->
+    `_worker_scan()` dying inside a real 27-task run, D:/tmp-tests/speed-full/run.attempt1.log). `bt.scan()` is
+    a deterministic, side-effect-free function of (sym, tf, opts) and the on-disk history files, which do not
+    change for the duration of one run -- a retried task therefore produces the IDENTICAL result, so retrying
+    is recovering from a hardware/OS event, never masking a correctness bug (contrast: CLAUDE.md §38 governs
+    what to do about a RESULT that looks wrong, which this is not). On any exception from a future's
+    `.result()` -- `BrokenProcessPool` (the whole pool died) or an ordinary exception from one worker -- the
+    task is left OUT of the returned cache, logged to stderr, and retried against a FRESH pool (a new
+    `executor_cls(...)` instance; a pool that lost a worker cannot be reused). Every OTHER task in the same
+    batch that already produced a real result keeps it -- only tasks without one are resubmitted. A task still
+    failing after `max_retries` retries (default 2, i.e. 3 total attempts) re-raises its last exception and
+    the run fails loudly, exactly as an unretried failure always has.
+
+    A RETRY round always goes back through `executor_cls`, even when exactly one task remains (the common
+    shape of the failure this exists for: N-1 of N tasks already succeeded, 1 needs retrying) -- `round_num`
+    below tracks this: only the very FIRST round (round_num == 0) may take the no-pool shortcut for a single
+    task, matching the existing "a one-task RUN never pays pool-startup cost" behaviour for the ordinary,
+    nothing-failed case, while every subsequent round honours "recreate the pool and resubmit" for a retry
+    even down to a single straggler."""
     cache = {}
-    if workers > 1 and len(tasks) > 1:
-        with executor_cls(max_workers=workers) as ex:
-            futures = {ex.submit(_worker_scan, sym, tf, overlay): key for sym, tf, overlay, key in tasks}
-            for fut in futures:
-                cache[futures[fut]] = fut.result()
-    else:
-        for sym, tf, overlay, key in tasks:
-            cache[key] = bt.scan(sym, tf, opts=overlay)
+    remaining = list(tasks)
+    attempts = {t[3]: 0 for t in tasks}
+    round_num = 0
+    while remaining:
+        if workers > 1 and (len(remaining) > 1 or round_num > 0):
+            still_remaining = []
+            with executor_cls(max_workers=min(workers, len(remaining))) as ex:
+                futures = {ex.submit(_worker_scan, sym, tf, overlay): (sym, tf, overlay, key)
+                          for sym, tf, overlay, key in remaining}
+                for fut in futures:
+                    sym, tf, overlay, key = futures[fut]
+                    try:
+                        cache[key] = fut.result()
+                    except Exception as exc:
+                        attempts[key] += 1
+                        if attempts[key] > max_retries:
+                            raise
+                        print(f"run_scans: {sym} {tf} failed (attempt {attempts[key]}/{max_retries + 1}): "
+                              f"{type(exc).__name__}: {exc} -- retrying against a fresh pool", file=sys.stderr)
+                        still_remaining.append((sym, tf, overlay, key))
+            remaining = still_remaining
+        else:
+            still_remaining = []
+            for sym, tf, overlay, key in remaining:
+                try:
+                    cache[key] = _worker_scan(sym, tf, overlay)
+                except Exception as exc:
+                    attempts[key] += 1
+                    if attempts[key] > max_retries:
+                        raise
+                    print(f"run_scans: {sym} {tf} failed (attempt {attempts[key]}/{max_retries + 1}): "
+                          f"{type(exc).__name__}: {exc} -- retrying", file=sys.stderr)
+                    still_remaining.append((sym, tf, overlay, key))
+            remaining = still_remaining
+        round_num += 1
     return cache
 
 
@@ -214,7 +310,23 @@ def split_in_out(trades, cutoff, is_since=None):
 
 def dataset_last_bar(symbols, tfs):
     """(last bar time across every series this run reads, [(sym, tf) actually present]). The cutoff is derived
-    from THIS, so it moves with the data and is never a typed date."""
+    from THIS, so it moves with the data and is never a typed date.
+
+    INVARIANT (relied on by `run_scans()`/`_worker_scan()` -- see their own docstrings for the other half):
+    this loop calls `bt.load()`, in the MAIN process, for every REQUESTED (symbol, timeframe) BEFORE any
+    `--workers > 1` scan is dispatched. `bt.load()` is where CLAUDE.md §20/§38 data-quality assessment happens
+    (`bt._ASSESSED`/`bt.QUALITY_FLAGS`, module-level state), so by the time `main()` later builds `cfg_snap`/
+    `validity = bt.assess_run(...)`, the MAIN process's own `bt.QUALITY_FLAGS` already carries every flag any
+    requested series would produce -- regardless of whether the ACTUAL trade-detection scan for that series
+    later runs here or in a worker process (whose own copy of that state is discarded when the worker
+    returns; only its `bt.scan()` RESULT is ever collected, never its module globals). Without this call
+    happening first, `assess_run()`'s §38 verdict would silently miss any quality fault whose series was only
+    ever loaded inside a worker. This is NOT a general guarantee for every possible (sym, tf) `bt.scan()` can
+    reach internally (e.g. an HTF companion series `htf_bias_gate()` loads only when a config sets
+    `htf=True`) -- only for the REQUESTED set this function iterates. `--tf`/`--symbols` runs that cover the
+    same rungs their own HTF companions live on (the common case: the default `--tf 15m,30m,1H,2H,4H,1D`
+    ladder) are fully covered; a narrower ad hoc subset is covered for everything this function itself loads.
+    """
     last, present = None, []
     for tf in tfs:
         for sym in symbols:
@@ -357,13 +469,23 @@ def main():
     workers = max(1, min(a.workers, os.cpu_count() or 1, len(scan_tasks) or 1))
     print(f"scan plan: {len(scan_tasks)} distinct scan(s) across {len(tfs)} timeframe(s) x {len(cfg_overlays)} "
           f"config(s) x {len(syms)} symbol(s), {workers} worker process(es)", file=sys.stderr)
-    scan_cache = run_scans(scan_tasks, workers)
+    # --workers 1 is the old engine, call for call: scans run lazily inside the loop exactly where they always
+    # did, so its output (JSON, markdown AND stderr order) is the reference the parallel path is judged against.
+    scan_cache = run_scans(scan_tasks, workers) if workers > 1 else None
+
+    def _scan_for(sym, tf, overlay):
+        if scan_cache is None:
+            return bt.scan(sym, tf)
+        result, loads = scan_cache[_scan_cache_key(sym, tf, overlay, methods_by_sym[sym])]
+        for s, t in loads:    # replay, in this process and at this point, the loads the worker's scan made
+            bt.load(s, t)
+        return result
     for tf in tfs:
         for cname, cfg in CONFIGS.items():
             fee = config_fee(cfg, market)
             overlay = cfg_overlays[cname]
             bt.OPTS.update(overlay)
-            scans = [s for s in (scan_cache[_scan_cache_key(sym, tf, overlay, methods_by_sym[sym])] for sym in syms) if s]
+            scans = [s for s in (_scan_for(sym, tf, overlay) for sym in syms) if s]
             if not scans:
                 continue
             first = min(s["first"] for s in scans); last = max(s["last"] for s in scans)

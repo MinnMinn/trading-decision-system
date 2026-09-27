@@ -21,14 +21,24 @@ edit cannot silently reintroduce the dropped-`mgmt` bug:
   * `run_scans()` merges results by the KEY captured at submission time, not by completion order -- exercised
     with a deliberately out-of-order ThreadPoolExecutor stand-in so a fast task finishing after a slow one
     cannot land under the wrong key
-  * `_worker_scan()` calls bt.scan() with `opts=`, never touching the module-global bt.OPTS
+  * `run_scans()` RETRIES a task that raised (BrokenProcessPool or an ordinary worker exception) against a
+    fresh pool, up to `max_retries` times, leaving already-succeeded sibling tasks alone -- fix round 1, after
+    a real segfault took down a 27-task run mid-flight (D:/tmp-tests/speed-full/run.attempt1.log)
+  * `_worker_scan()` calls bt.scan() with `opts=`, never touching the module-global bt.OPTS, and suppresses
+    the "DATA-QUALITY FLAG ..." line a worker's own bt.load() would otherwise reprint (fix round 1: the main
+    process's dataset_last_bar() already printed it once -- see that function's own docstring for the
+    invariant) while passing any OTHER stderr line through unchanged
 
 No history file is read and no real scan() runs in this file -- bt.scan is monkeypatched throughout, so this
 is a fast, hermetic test of the call-site plumbing, not of scan()'s own trade-detection logic (that is
 scan()/ict_setups_live()'s own test files' job).
 """
 import concurrent.futures
+import concurrent.futures.process
+import contextlib
+import functools
 import importlib.util
+import io
 import os
 import sys
 import time
@@ -218,6 +228,164 @@ class WorkerScanIsOptsIsolated(unittest.TestCase):
             SR._worker_scan("BTCUSDT", "1H", {"htf": True, "sides": ("long", "short")})
         scan_mock.assert_called_once_with("BTCUSDT", "1H", opts={"htf": True, "sides": ("long", "short")})
         self.assertEqual(before, dict(SR.bt.OPTS))
+
+
+class WorkerScanSuppressesDuplicateQualityFlag(unittest.TestCase):
+    """Fix round 1: baseline (one sequential process) prints "DATA-QUALITY FLAG ..." exactly once per
+    (sym, tf); before this fix, every worker re-ran bt.load()'s §20/§38 assessment fresh (empty bt._ASSESSED
+    in its own process) and reprinted it -- 4 lines instead of 1 for crypto_1h_noacct's 3-config run
+    (D:/tmp-tests/speed/accept.log). See dataset_last_bar()'s and _worker_scan()'s own docstrings for the
+    invariant that makes suppressing the PRINT (not the assessment) safe."""
+
+    def test_data_quality_flag_lines_are_suppressed_other_lines_pass_through(self):
+        def fake_scan(sym, tf, opts=None):
+            print("DATA-QUALITY FLAG (CLAUDE.md §20/§38): BTCUSDT 1H history is PARTIAL: 1 bar(s) missing",
+                  file=sys.stderr)
+            print("some unrelated stderr line", file=sys.stderr)
+            return {"trades": {}}
+
+        captured = io.StringIO()
+        with mock.patch.object(SR.bt, "scan", side_effect=fake_scan):
+            with contextlib.redirect_stderr(captured):
+                SR._worker_scan("BTCUSDT", "1H", {})
+        out = captured.getvalue()
+        self.assertNotIn("DATA-QUALITY FLAG", out)
+        self.assertIn("some unrelated stderr line", out)
+
+    def test_no_stderr_output_is_fine_too(self):
+        with mock.patch.object(SR.bt, "scan", return_value={"trades": {}}):
+            captured = io.StringIO()
+            with contextlib.redirect_stderr(captured):
+                result = SR._worker_scan("BTCUSDT", "1H", {})
+        self.assertEqual(result, ({"trades": {}}, []))
+        self.assertEqual(captured.getvalue(), "")
+
+
+class _FlakyExecutor:
+    """Stand-in for ProcessPoolExecutor exercising run_scans()'s retry path (fix round 1, after a real
+    segfault took down a 27-task run mid-flight: D:/tmp-tests/speed-full/run.attempt1.log). `fail_counts` maps
+    (sym, tf) -> how many times submitting that task should raise a simulated BrokenProcessPool before it
+    succeeds. A plain dict passed in by the test and mutated IN PLACE, so the remaining-failure count persists
+    correctly across run_scans() recreating a fresh executor instance each retry round -- exactly mirroring
+    why a real broken pool cannot simply be reused."""
+
+    def __init__(self, fail_counts, max_workers=None):
+        self.fail_counts = fail_counts
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def submit(self, fn, sym, tf, overlay):
+        fut = concurrent.futures.Future()
+        key = (sym, tf)
+        if self.fail_counts.get(key, 0) > 0:
+            self.fail_counts[key] -= 1
+            fut.set_exception(concurrent.futures.process.BrokenProcessPool("simulated dead worker"))
+        else:
+            fut.set_result(fn(sym, tf, overlay))
+        return fut
+
+
+class RunScansRetriesOnFailure(unittest.TestCase):
+    def test_retries_and_recovers_within_budget(self):
+        fail_counts = {("BTCUSDT", "1H"): 1}  # fails once, succeeds on the 1st retry
+        factory = functools.partial(_FlakyExecutor, fail_counts)
+        with mock.patch.object(SR, "_worker_scan", side_effect=lambda sym, tf, overlay: {"symbol": sym, "tf": tf}):
+            tasks = [("BTCUSDT", "1H", {}, "k1"), ("ETHUSDT", "1H", {}, "k2")]
+            cache = SR.run_scans(tasks, workers=2, executor_cls=factory)
+        self.assertEqual(cache["k1"], {"symbol": "BTCUSDT", "tf": "1H"})
+        self.assertEqual(cache["k2"], {"symbol": "ETHUSDT", "tf": "1H"})
+
+    def test_a_genuinely_successful_sibling_task_is_not_recomputed(self):
+        """Only the task WITHOUT a result is resubmitted -- a sibling that already succeeded must not be
+        recomputed (bt.scan() is exactly the expensive call this optimization exists to avoid repeating)."""
+        fail_counts = {("BTCUSDT", "1H"): 1}
+        factory = functools.partial(_FlakyExecutor, fail_counts)
+        calls = []
+
+        def recording_worker(sym, tf, overlay):
+            calls.append((sym, tf))
+            return {"symbol": sym}
+
+        with mock.patch.object(SR, "_worker_scan", side_effect=recording_worker):
+            tasks = [("BTCUSDT", "1H", {}, "k1"), ("ETHUSDT", "1H", {}, "k2")]
+            SR.run_scans(tasks, workers=2, executor_cls=factory)
+        self.assertEqual(calls.count(("ETHUSDT", "1H")), 1)
+        self.assertEqual(calls.count(("BTCUSDT", "1H")), 1)
+
+    def test_logs_each_retry_to_stderr(self):
+        fail_counts = {("BTCUSDT", "1H"): 1}
+        factory = functools.partial(_FlakyExecutor, fail_counts)
+        captured = io.StringIO()
+        with mock.patch.object(SR, "_worker_scan", side_effect=lambda sym, tf, overlay: {"symbol": sym}):
+            with contextlib.redirect_stderr(captured):
+                SR.run_scans([("BTCUSDT", "1H", {}, "k1"), ("ETHUSDT", "1H", {}, "k2")], workers=2,
+                            executor_cls=factory)
+        self.assertIn("retrying", captured.getvalue())
+        self.assertIn("BTCUSDT", captured.getvalue())
+
+    def test_succeeds_exactly_at_the_retry_boundary(self):
+        fail_counts = {("BTCUSDT", "1H"): 2}  # fails twice; the 3rd attempt (1 + max_retries=2) succeeds
+        factory = functools.partial(_FlakyExecutor, fail_counts)
+        with mock.patch.object(SR, "_worker_scan", side_effect=lambda sym, tf, overlay: {"symbol": sym}):
+            tasks = [("BTCUSDT", "1H", {}, "k1"), ("ETHUSDT", "1H", {}, "k2")]
+            cache = SR.run_scans(tasks, workers=2, executor_cls=factory, max_retries=2)
+        self.assertIn("k1", cache)
+
+    def test_exceeds_retry_budget_fails_loudly(self):
+        fail_counts = {("BTCUSDT", "1H"): 99}  # never succeeds
+        factory = functools.partial(_FlakyExecutor, fail_counts)
+        with mock.patch.object(SR, "_worker_scan", side_effect=lambda sym, tf, overlay: {"symbol": sym}):
+            tasks = [("BTCUSDT", "1H", {}, "k1"), ("ETHUSDT", "1H", {}, "k2")]
+            with self.assertRaises(concurrent.futures.process.BrokenProcessPool):
+                SR.run_scans(tasks, workers=2, executor_cls=factory, max_retries=2)
+
+    def test_sequential_fallback_also_retries(self):
+        """When only one task remains (or workers==1), run_scans() takes the sequential bt.scan() branch --
+        that branch must retry too, not just the pooled one."""
+        attempts = {"n": 0}
+
+        def flaky_scan(sym, tf, opts=None):
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise RuntimeError("simulated transient failure")
+            return {"trades": {}}
+
+        with mock.patch.object(SR.bt, "scan", side_effect=flaky_scan):
+            tasks = [("BTCUSDT", "1H", {}, "k1")]
+            cache = SR.run_scans(tasks, workers=1)
+        self.assertIn("k1", cache)
+        self.assertEqual(attempts["n"], 2)
+
+
+class WorkerScanReportsEveryLoadForReplay(unittest.TestCase):
+    """The §38 half of the parallel path: a series a scan loads ON ITS OWN (e.g. the HTF companion) must be
+    reported back so the main process can replay its bt.load() -- otherwise its quality flag would exist only
+    in a worker's discarded memory and the run's verdict would read clean."""
+
+    def test_loads_are_reported_once_in_first_call_order_and_bt_load_is_restored(self):
+        real = SR.bt.load
+
+        def fake_scan(sym, tf, opts=None):
+            SR.bt.load(sym, tf); SR.bt.load(sym, "4H"); SR.bt.load(sym, tf)
+            return {"trades": {}}
+
+        with mock.patch.object(SR.bt, "scan", side_effect=fake_scan), \
+                mock.patch.object(SR.bt, "_read_history", return_value={"candles": []}), \
+                mock.patch.object(SR.bt.os.path, "exists", return_value=True):
+            _result, loads = SR._worker_scan("BTCUSDT", "1H", {})
+        self.assertEqual(loads, [("BTCUSDT", "1H"), ("BTCUSDT", "4H")])
+        self.assertIs(SR.bt.load, real)
+
+    def test_bt_load_is_restored_even_when_the_scan_raises(self):
+        real = SR.bt.load
+        with mock.patch.object(SR.bt, "scan", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                SR._worker_scan("BTCUSDT", "1H", {})
+        self.assertIs(SR.bt.load, real)
 
 
 if __name__ == "__main__":
