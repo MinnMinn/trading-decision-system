@@ -137,12 +137,14 @@ def _worker_scan(sym, tf, overlay):
     try:
         with contextlib.redirect_stderr(buf):
             result = bt.scan(sym, tf, opts=overlay)
+        return result, loads
     finally:
+        # In `finally`, so whatever the scan printed before an exception still reaches stderr -- the failed
+        # attempt's diagnostics are exactly what a run that exhausts its retries needs to be explainable.
         bt.load = real_load
-    for line in buf.getvalue().splitlines(keepends=True):
-        if not line.startswith("DATA-QUALITY FLAG"):
-            sys.stderr.write(line)
-    return result, loads
+        for line in buf.getvalue().splitlines(keepends=True):
+            if not line.startswith("DATA-QUALITY FLAG"):
+                sys.stderr.write(line)
 
 
 def build_scan_tasks(tfs, syms, cfg_overlays, methods_by_sym):

@@ -380,6 +380,19 @@ class WorkerScanReportsEveryLoadForReplay(unittest.TestCase):
         self.assertEqual(loads, [("BTCUSDT", "1H"), ("BTCUSDT", "4H")])
         self.assertIs(SR.bt.load, real)
 
+    def test_stderr_printed_before_an_exception_still_surfaces(self):
+        def dying_scan(sym, tf, opts=None):
+            print("diagnostic line printed BEFORE the crash", file=sys.stderr)
+            print("DATA-QUALITY FLAG (CLAUDE.md §20/§38): suppressed as always", file=sys.stderr)
+            raise RuntimeError("boom")
+
+        captured = io.StringIO()
+        with mock.patch.object(SR.bt, "scan", side_effect=dying_scan), contextlib.redirect_stderr(captured):
+            with self.assertRaises(RuntimeError):
+                SR._worker_scan("BTCUSDT", "1H", {})
+        self.assertIn("diagnostic line printed BEFORE the crash", captured.getvalue())
+        self.assertNotIn("DATA-QUALITY FLAG", captured.getvalue())
+
     def test_bt_load_is_restored_even_when_the_scan_raises(self):
         real = SR.bt.load
         with mock.patch.object(SR.bt, "scan", side_effect=RuntimeError("boom")):
