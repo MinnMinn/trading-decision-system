@@ -1,8 +1,8 @@
 # Full-universe stability regeneration (owner, 2026-09-27): every crypto execution symbol, every MT5 CFD
-# execution symbol (metals + index CFDs; USOIL/UKOIL dropped -- the MT5 account carries neither), and the
-# forex majors. Separate from research.yml, which stays pinned to the committed files' symbol sets so the
+# execution symbol (metals + index CFDs; USOIL/UKOIL removed -- the MT5 account carries neither). Forex was
+# removed from the system by the owner the same day. Separate from research.yml, which stays pinned to the committed files' symbol sets so the
 # engine can be accepted byte-for-byte. One market per file: stability-report prices a run by the market of
-# its first symbol, so CFD and forex are never mixed in one run.
+# its first symbol, so markets are never mixed in one run.
 name: stability-full
 
 on:
@@ -20,7 +20,6 @@ permissions:
 env:
   CRYPTO: "BTCUSDT,ETHUSDT,SOLUSDT,ASTERUSDT,VIRTUALUSDT,SUIUSDT,TAOUSDT,RENDERUSDT,ONDOUSDT"
   CFD: "XAUUSD,XAGUSD,US500,US30,USTEC,DE40,FRA40,AUS200"
-  FOREX: "EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD"
 
 jobs:
   stability:
@@ -39,8 +38,6 @@ jobs:
           - {name: cfd-ftmo-challenge-phase1, set: CFD, account: ftmo-challenge-phase1}
           - {name: cfd-the5ers-high-stakes-step1, set: CFD, account: the5ers-high-stakes-step1}
           - {name: cfd-pilot-mt5-demo, set: CFD, account: pilot-mt5-demo}
-          # Forex rows are added once MT5 deep history for the seven pairs is imported into data/history
-          # (none exists today; a job would only fail on missing series).
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
