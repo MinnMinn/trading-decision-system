@@ -38,12 +38,29 @@ there is nothing observed to redirect there.
 """
 import os
 import shutil
+import subprocess
 import tempfile
 
 import latency
 
 LATENCY_ENV = "TRADING_TEST_LATENCY_DIR"
 PILOT_ENV = "TRADING_TEST_PILOT_DIR"
+
+
+def assert_live_untouched(tc, fn):
+    """Run `fn()` and fail `tc` if `git status` under the repo's data/live changed -- the check the leak
+    probe used. Skips outside a git checkout."""
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if not os.path.exists(os.path.join(root, ".git")):          # a worktree's .git is a file
+        tc.skipTest("not a git checkout")
+    git = ["git", "status", "--porcelain", "--untracked-files=all", "--", "data/live"]
+    before = subprocess.run(git, capture_output=True, text=True, cwd=root)
+    if before.returncode != 0:
+        tc.skipTest(f"git status failed here: {before.stderr.strip()[:200]}")
+    fn()
+    after = subprocess.run(git, capture_output=True, text=True, cwd=root).stdout
+    tc.assertEqual(before.stdout, after, "this test run changed `git status` under data/live -- tests must "
+                                         "never mutate the repository's own live data")
 
 
 def redirect():

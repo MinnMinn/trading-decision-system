@@ -97,6 +97,8 @@ GLOBAL_STOP = os.path.join(ROOT, "data", "live", "STOP")   # halts EVERY account
 # branch re-reads the SAME override, so the two computations never disagree. See
 # scripts/tests/live_write_isolation.py, the one place this is set.
 PILOT_DIR = os.environ.get("TRADING_TEST_PILOT_DIR") or os.path.join(ROOT, "data", "live", "pilot-futures")
+#: The test-only redirects main() refuses to run live with (latency.py reads the first one).
+TEST_REDIRECT_ENV = ("TRADING_TEST_LATENCY_DIR", "TRADING_TEST_PILOT_DIR")
 # SHARED across every account, deliberately, and NOT rebound by bind_account(). Candles are public market
 # data: BTCUSDT 15m is the same bytes for every customer, so giving each account its own copy would multiply
 # the feed load by N for no difference in content -- 26 provider calls per tick becomes 26N, and the market-
@@ -2383,6 +2385,15 @@ def main():
                     help="DEMO ONLY, needs --live: replace setup detection for ONE (setup, symbol, side) with a synthetic 3R market "
                          "signal at the last closed bar and run the whole decision walk + venue submit for real (plan §0.11)")
     a = ap.parse_args()
+    # A TRADING_TEST_* redirect left in the environment (a test run killed before its tearDownModule, in the
+    # same shell) would move this process's state, logs and -- the dangerous part -- its STOP file into a temp
+    # directory, so `touch data/live/pilot-futures/STOP` and `/automation off` would no longer halt it. The
+    # redirect exists for dry runs a test shells out to; anything that can place, cancel or close an order
+    # refuses instead of running on silently moved paths (CLAUDE.md §51: no unsafe execution).
+    leaked = [k for k in TEST_REDIRECT_ENV if os.environ.get(k)]
+    if leaked and ((a.live and not a.dry_run) or a.flatten or a.drill):
+        sys.exit(f"refusing to run: test-only path redirect {', '.join(leaked)} is set in the environment, so "
+                 f"the kill switch this run would watch is not data/live/pilot-futures/STOP. Unset it and retry.")
     # Bind BEFORE anything reads a path: load_state, log and the kill-switch check all resolve through the
     # module globals bind_account() rewrites (plan §0.3 item 2).
     bind_account(a.account)

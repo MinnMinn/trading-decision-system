@@ -417,20 +417,13 @@ class ATestRunMustNotDirtyTheRepositoriesLiveData(unittest.TestCase):
         # Ground truth: this is literally how the defect was found (git status --porcelain after a test run).
         # `.git` is a FILE, not a directory, inside a worktree -- so its mere presence (either shape) is the
         # right check, not os.path.isdir().
-        if not os.path.exists(os.path.join(ROOT, ".git")):
-            self.skipTest("not a git checkout")
-        git = ["git", "status", "--porcelain", "--untracked-files=all", "--", "data/live"]
-        before = subprocess.run(git, capture_output=True, text=True, cwd=ROOT)
-        if before.returncode != 0:
-            self.skipTest(f"git status failed here: {before.stderr.strip()[:200]}")
-        sink = []
-        with L.tick("regression-guard", sink=sink) as tr:
-            with tr.span("normalization"):
-                pass
-        after = subprocess.run(git, capture_output=True, text=True, cwd=ROOT).stdout
-        self.assertEqual(before.stdout, after,
-                          "a tick during this test run changed `git status` under data/live -- tests must "
-                          "never mutate the repository's own live data")
+        from live_write_isolation import assert_live_untouched
+
+        def one_tick():
+            with L.tick("regression-guard", sink=[]) as tr:
+                with tr.span("normalization"):
+                    pass
+        assert_live_untouched(self, one_tick)
 
 
 if __name__ == "__main__":

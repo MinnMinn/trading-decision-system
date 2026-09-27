@@ -62,5 +62,10 @@ class OutsideTheRepo(unittest.TestCase):
         self.assertEqual(got, "D:/tmp-tests/whatever.json")
 
 
+class ADotDotNamedFileInsideTheRepoIsStillInside(unittest.TestCase):
+    def test_dotdot_prefixed_name(self):
+        self.assertEqual(repo_rel(os.path.join(ROOT, "..x", "f.json"), ROOT), "..x/f.json")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

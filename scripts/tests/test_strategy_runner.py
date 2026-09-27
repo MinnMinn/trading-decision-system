@@ -8,27 +8,44 @@ def load(name, path):
     spec = importlib.util.spec_from_file_location(name, path); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
 
 
+# The redirect runs HERE, before `sr` is loaded, not in setUpModule: `sr` is loaded once at import, and its
+# module-level PILOT_DIR is evaluated at that moment -- redirecting afterwards left PILOT_DIR on the repo while
+# bind_account(None) (which re-reads the override) pointed at the temp dir, and the two disagreed
+# (PerAccountScope.test_binding_none_restores_the_houses_paths_exactly). See scripts/tests/live_write_isolation.py.
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from live_write_isolation import redirect as _redirect_writes, assert_live_untouched
+
+_RESTORE_WRITES = _redirect_writes()
+
 sr = load("sr", os.path.join(ROOT, "scripts", "strategy-runner.py"))
 bt = sr.bt
-
-# strategy-runner.py's own `sys.path.insert(0, .../scripts)` (run above, as part of loading `sr`) is what
-# makes this resolvable -- see scripts/tests/live_write_isolation.py for why this ONE file only needs the
-# `latency.DIR` half of that helper: every class here that reaches a real sr.tick() already monkeypatches
-# sr.log itself (see e.g. HtfGateFailsClosed._run, Drill.test_a_drill_tick_...), so STATE/LOG/MT5_LOG never
-# see a real write in this file; latency.DIR (a sys.modules singleton `sr.LAT` shares) is the one write path
-# nothing here redirects on its own.
-from live_write_isolation import redirect as _redirect_writes
-
-_RESTORE_WRITES = None
-
-
-def setUpModule():
-    global _RESTORE_WRITES
-    _RESTORE_WRITES = _redirect_writes()
 
 
 def tearDownModule():
     _RESTORE_WRITES()
+
+
+class TheRealPilotDirectoryIsNeverWritten(unittest.TestCase):
+    """Regression for the leak probe of 2026-09-27: the runner's own writers (log, save_state, halt) called
+    with NO per-test override must land in the redirect, never in the repo's data/live."""
+
+    def test_the_house_paths_are_redirected(self):
+        real = os.path.normcase(os.path.join(ROOT, "data", "live"))
+        for p in (sr.PILOT_DIR, sr.STATE, sr.LOG, sr.MT5_LOG, sr.STOP):
+            self.assertFalse(os.path.normcase(os.path.abspath(p)).startswith(real), p)
+
+    def test_unpatched_writers_leave_the_repos_live_data_unchanged(self):
+        def write():
+            s = sr.load_state()
+            sr.log("leak-probe", note="regression guard")
+            sr.save_state(s)
+        assert_live_untouched(self, write)
+
+    def test_a_live_run_refuses_while_a_test_redirect_is_set(self):
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "strategy-runner.py"), "--live"],
+                           capture_output=True, text=True, cwd=ROOT, timeout=300)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("refusing to run: test-only path redirect", r.stderr)
 
 
 def synthetic(n=400, seed=7):
