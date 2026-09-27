@@ -11,6 +11,25 @@ def load(name, path):
 sr = load("sr", os.path.join(ROOT, "scripts", "strategy-runner.py"))
 bt = sr.bt
 
+# strategy-runner.py's own `sys.path.insert(0, .../scripts)` (run above, as part of loading `sr`) is what
+# makes this resolvable -- see scripts/tests/live_write_isolation.py for why this ONE file only needs the
+# `latency.DIR` half of that helper: every class here that reaches a real sr.tick() already monkeypatches
+# sr.log itself (see e.g. HtfGateFailsClosed._run, Drill.test_a_drill_tick_...), so STATE/LOG/MT5_LOG never
+# see a real write in this file; latency.DIR (a sys.modules singleton `sr.LAT` shares) is the one write path
+# nothing here redirects on its own.
+from live_write_isolation import redirect as _redirect_writes
+
+_RESTORE_WRITES = None
+
+
+def setUpModule():
+    global _RESTORE_WRITES
+    _RESTORE_WRITES = _redirect_writes()
+
+
+def tearDownModule():
+    _RESTORE_WRITES()
+
 
 def synthetic(n=400, seed=7):
     import random

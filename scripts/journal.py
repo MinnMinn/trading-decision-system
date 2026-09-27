@@ -22,6 +22,7 @@ import argparse, datetime, glob, html, json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import methods as _M      # CLAUDE.md §16/§59: the mode and the dimensions come from the registry, not literals
 import performance as _perf  # CLAUDE.md §39: the ONE computer for the twenty-three performance metrics
 
@@ -288,7 +289,7 @@ def build_index():
         fm = {k: v for k, v in fm.items() if not k.startswith("_")}; rows.append(fm)
     with open(INDEX, "w", encoding="utf-8") as f:
         for r in rows: f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    print(f"index: {len(rows)} trades → {os.path.relpath(INDEX, ROOT)}")
+    print(f"index: {len(rows)} trades → {repo_rel(INDEX, ROOT)}")
     return rows
 
 

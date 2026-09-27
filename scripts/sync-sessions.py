@@ -26,6 +26,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import sessions as S
 
 TRADE_SCHEMA = os.path.join(ROOT, "docs", "architecture", "schemas", "trade-file.schema.json")
@@ -74,10 +75,10 @@ def main():
     field = doc["properties"]["session"]
     want_enum, want_desc = session_enum(), session_description()
     if field.get("enum") != want_enum:
-        drift.append(f"{os.path.relpath(TRADE_SCHEMA, ROOT)} session.enum is {field.get('enum')}, "
+        drift.append(f"{repo_rel(TRADE_SCHEMA, ROOT)} session.enum is {field.get('enum')}, "
                      f"registry says {want_enum}")
     if field.get("description") != want_desc:
-        drift.append(f"{os.path.relpath(TRADE_SCHEMA, ROOT)} session.description does not match the registry")
+        drift.append(f"{repo_rel(TRADE_SCHEMA, ROOT)} session.description does not match the registry")
     if a.write:
         field["enum"], field["description"] = want_enum, want_desc
 

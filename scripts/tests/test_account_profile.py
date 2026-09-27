@@ -31,6 +31,24 @@ import account_profile as AP
 import instruments as I
 import trading_env as TE
 
+from live_write_isolation import redirect as _redirect_writes
+
+_RESTORE_WRITES = None
+
+
+def setUpModule():
+    # RunnerWiring and AccountLimitsOnTheOrderPath both load strategy-runner.py fresh and drive a real
+    # sr.tick() (the latter's whole point is proving the account gate is consulted ON the order path, not
+    # just in a unit test of the evaluator) -- which otherwise appends a real trace to data/live/latency/
+    # (scripts/tests/live_write_isolation.py). sr.log itself is monkeypatched by every such test already, so
+    # only the latency writer needs this.
+    global _RESTORE_WRITES
+    _RESTORE_WRITES = _redirect_writes()
+
+
+def tearDownModule():
+    _RESTORE_WRITES()
+
 
 def _registry(profiles):
     return {"version": 1, "context_types": list(AP.CONTEXT_TYPES), "profiles": profiles}

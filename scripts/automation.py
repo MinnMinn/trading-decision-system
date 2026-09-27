@@ -94,6 +94,7 @@ except ImportError:                     # Windows has no fcntl (docs/plans/2026-
         msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from repo_paths import repo_rel
 CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
 SCHEMA_VERSION = 3
 ENV_NAMES = ["demo", "real"]
@@ -272,7 +273,7 @@ PILOT_STOP = [stop_path(m) for m in PILOT_MARKETS]
 
 
 def rel(p):
-    return os.path.relpath(p, ROOT)
+    return repo_rel(p, ROOT)
 
 
 def now():

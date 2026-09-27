@@ -10,6 +10,7 @@ import collections, datetime, html, json, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import artifact_theme as theme  # noqa: E402
 # CLAUDE.md §50: the journal is the only page where a trade has an ACTUAL path, and the only one that can say
 # whose account rules and which risk ceiling the numbers below were produced under. Which fields it owes is
@@ -393,4 +394,4 @@ def render(rows, st, out, closed_real):
 """
     with open(out, "w", encoding="utf-8") as fh:
         fh.write(page)
-    print(f"render: {os.path.relpath(out, ROOT)} ({len(rows)} trades)")
+    print(f"render: {repo_rel(out, ROOT)} ({len(rows)} trades)")

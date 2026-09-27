@@ -49,6 +49,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import pit  # noqa: E402  -- CLAUDE.md §8 has ONE reader and this is it
 import instruments as I
 
@@ -102,10 +103,10 @@ def load(path=None, at=None):
         with open(p, encoding="utf-8") as fh:
             cal = json.load(fh)
     except FileNotFoundError:
-        raise CalendarUnavailable(f"{os.path.relpath(p, ROOT)} does not exist -- CLAUDE.md §32 forbids "
+        raise CalendarUnavailable(f"{repo_rel(p, ROOT)} does not exist -- CLAUDE.md §32 forbids "
                                   f"reading a missing calendar as 'no news'", default_action)
     except (OSError, ValueError) as exc:
-        raise CalendarUnavailable(f"{os.path.relpath(p, ROOT)} is unreadable or malformed ({exc}); an "
+        raise CalendarUnavailable(f"{repo_rel(p, ROOT)} is unreadable or malformed ({exc}); an "
                                   f"unparseable calendar is not an empty one", default_action)
 
     action = ((cal.get("policy") or {}).get("fail_safe") or {}).get("action", default_action)

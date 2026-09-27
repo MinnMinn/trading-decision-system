@@ -21,6 +21,7 @@ import argparse, json, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import methods as M
 
 SCHEMA = os.path.join(ROOT, "docs", "architecture", "schemas", "automation-config.schema.json")
@@ -117,13 +118,13 @@ def main():
 
     if a.check:
         for m in drift:
-            print(f"DRIFT: {os.path.relpath(SCHEMA, ROOT)} markets.{m}.dimensions does not match "
+            print(f"DRIFT: {repo_rel(SCHEMA, ROOT)} markets.{m}.dimensions does not match "
                   f"docs/architecture/methods.json (expected {M.dimensions(m)})")
         if ndrift:
-            print(f"DRIFT: {os.path.relpath(NARRATIVE_SCHEMA, ROOT)} invalidation.owner.enum does not match "
+            print(f"DRIFT: {repo_rel(NARRATIVE_SCHEMA, ROOT)} invalidation.owner.enum does not match "
                   f"docs/architecture/methods.json (expected {owners})")
         for path in mode_drift:
-            print(f"DRIFT: {os.path.relpath(path, ROOT)} methodology_mode.enum does not match "
+            print(f"DRIFT: {repo_rel(path, ROOT)} methodology_mode.enum does not match "
                   f"docs/architecture/methods.json modes (expected {modes})")
         return 1 if (drift or ndrift or mode_drift) else 0
 
@@ -131,17 +132,17 @@ def main():
         with open(SCHEMA, "w", encoding="utf-8") as f:
             json.dump(doc, f, indent=2, ensure_ascii=False)
             f.write("\n")
-        print(f"wrote {os.path.relpath(SCHEMA, ROOT)}: {', '.join(drift)}")
+        print(f"wrote {repo_rel(SCHEMA, ROOT)}: {', '.join(drift)}")
     if ndrift:
         with open(NARRATIVE_SCHEMA, "w", encoding="utf-8") as f:
             json.dump(ndoc, f, indent=2, ensure_ascii=False)
             f.write("\n")
-        print(f"wrote {os.path.relpath(NARRATIVE_SCHEMA, ROOT)}: invalidation.owner.enum = {owners}")
+        print(f"wrote {repo_rel(NARRATIVE_SCHEMA, ROOT)}: invalidation.owner.enum = {owners}")
     for path in mode_drift:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(mode_docs[path], f, indent=2, ensure_ascii=False)
             f.write("\n")
-        print(f"wrote {os.path.relpath(path, ROOT)}: methodology_mode.enum = {modes}")
+        print(f"wrote {repo_rel(path, ROOT)}: methodology_mode.enum = {modes}")
     if not drift and not ndrift and not mode_drift:
         print("no drift; nothing to write")
     return 0

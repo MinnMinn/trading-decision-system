@@ -18,6 +18,7 @@ markets.<market>.enabled AND markets.<market>.timeframes.<timeframe>. Nothing he
 import json, os, sys, glob
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from repo_paths import repo_rel
 TPL_DIR = os.path.join(ROOT, "integrations", "crons")
 CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
 TAG = "[trading-cron:{name}] "
@@ -34,7 +35,7 @@ def parse(path):
             k, _, v = line.partition(":")
             meta[k.strip()] = v.strip().strip('"')
     meta.setdefault("name", os.path.basename(path)[:-3])
-    meta["path"] = os.path.relpath(path, ROOT)
+    meta["path"] = repo_rel(path, ROOT)
     return meta, body.strip("\n")
 
 

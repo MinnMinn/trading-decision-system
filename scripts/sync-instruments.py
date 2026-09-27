@@ -15,6 +15,7 @@ import argparse, json, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import instruments as I
 
 SCHEMAS = os.path.join(ROOT, "docs", "architecture", "schemas")
@@ -58,7 +59,7 @@ def main():
         docs.setdefault(path, json.load(open(path, encoding="utf-8")))
         have = _dig(docs[path], ptr)
         if have != want:
-            drift.append(f"{os.path.relpath(path, ROOT)} :: {'.'.join(ptr)}\n    is:     {have}\n    should: {want}")
+            drift.append(f"{repo_rel(path, ROOT)} :: {'.'.join(ptr)}\n    is:     {have}\n    should: {want}")
             if a.write:
                 _set(docs[path], ptr, want)
                 touched.add(path)

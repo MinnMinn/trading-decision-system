@@ -28,6 +28,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BRIDGE = os.path.join(ROOT, "data", "live", "mt5-bridge",
                       os.environ.get("MT5_BRIDGE_SUBDIR", "bridge"))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import instruments as I  # noqa: E402
 
 # The EXECUTION allowlist for every market this bridge serves -- i.e. every market whose feed IS MetaTrader
@@ -47,7 +48,7 @@ def refuse(msg, code=2):
 
 def call(action, **fields):
     if not os.path.isdir(os.path.dirname(BRIDGE)):
-        refuse(f"MT5 bridge folder missing: {os.path.relpath(os.path.dirname(BRIDGE), ROOT)} (symlink to Common/Files, docs/architecture/mt5-bridge.md)")
+        refuse(f"MT5 bridge folder missing: {repo_rel(os.path.dirname(BRIDGE), ROOT)} (symlink to Common/Files, docs/architecture/mt5-bridge.md)")
     os.makedirs(BRIDGE, exist_ok=True)
     cid = uuid.uuid4().hex[:12]
     body = {"id": cid, "action": action, **{k: str(v) for k, v in fields.items()}}

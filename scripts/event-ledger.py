@@ -20,6 +20,7 @@ import argparse, datetime, glob, importlib.util, json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import instruments as I  # noqa: E402
 import htf_context as htf
 _spec = importlib.util.spec_from_file_location("bt", os.path.join(ROOT, "scripts", "backtest-methods.py")); bt = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(bt)
@@ -84,7 +85,7 @@ def cmd_append(styles):
                 with open(LEDGER, "a", encoding="utf-8") as f:
                     f.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 seen.add((style, sym, e["time"], tok)); added += 1
-    print(f"event ledger: +{added} events -> {os.path.relpath(LEDGER, ROOT)} ({len(seen)} total)")
+    print(f"event ledger: +{added} events -> {repo_rel(LEDGER, ROOT)} ({len(seen)} total)")
 
 
 def candles_for(sym, tf):

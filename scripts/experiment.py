@@ -43,6 +43,7 @@ import types
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 
 PATH = os.path.join(ROOT, "docs", "architecture", "experiments.json")
 STORE = os.path.join(ROOT, "docs", "experiments")
@@ -228,7 +229,7 @@ def write(sealed, *, store=None):
     os.makedirs(d, exist_ok=True)
     p = os.path.join(d, f"{sealed['experiment_id']}.json")
     if os.path.exists(p):
-        raise Immutable(f"{os.path.relpath(p, ROOT)} already exists. A §42 record is immutable: file a "
+        raise Immutable(f"{repo_rel(p, ROOT)} already exists. A §42 record is immutable: file a "
                         f"successor that names this one as its predecessor rather than replacing it.")
     with open(p, "x", encoding="utf-8") as fh:            # "x": the filesystem enforces it too
         json.dump(dict(sealed), fh, ensure_ascii=False, indent=1, default=str)
@@ -247,7 +248,7 @@ def load(eid, *, store=None):
     want = d.get("content_sha256")
     got = _digest({k: d.get(k) for k in ORDER})
     if want != got:
-        raise Tampered(f"{os.path.relpath(p, ROOT)} does not match the hash it was sealed with "
+        raise Tampered(f"{repo_rel(p, ROOT)} does not match the hash it was sealed with "
                        f"({want} != {got}). CLAUDE.md §42: experiment records are immutable, and this one has "
                        f"been changed since it was filed.")
     return types.MappingProxyType(d)
@@ -316,6 +317,6 @@ if __name__ == "__main__":
     for fid in ORDER:
         print(f"  {fid:<32} {FIELDS[fid]['kind']}")
     recs = all_records()
-    print(f"\nstore: {len(recs)} record(s) under {os.path.relpath(STORE, ROOT)}")
+    print(f"\nstore: {len(recs)} record(s) under {repo_rel(STORE, ROOT)}")
     for r in recs:
         print("  " + describe(r))

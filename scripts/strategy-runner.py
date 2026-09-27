@@ -46,6 +46,7 @@ import argparse, contextlib, datetime, hashlib, importlib.util, json, os, re, su
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 _spec = importlib.util.spec_from_file_location("bt", os.path.join(ROOT, "scripts", "backtest-methods.py")); bt = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(bt)
 import wyckoff_rules as W
 _tspec = importlib.util.spec_from_file_location("trading_env", os.path.join(ROOT, "scripts", "trading_env.py")); trading_env = importlib.util.module_from_spec(_tspec); _tspec.loader.exec_module(trading_env)
@@ -90,7 +91,12 @@ FETCH = P.market_data_adapter("binance_public")
 # once at startup is the whole requirement.
 ACCOUNT = None
 GLOBAL_STOP = os.path.join(ROOT, "data", "live", "STOP")   # halts EVERY account; see bind_account()
-PILOT_DIR = os.path.join(ROOT, "data", "live", "pilot-futures")
+# Test-only environment override (never set this in normal use): TRADING_TEST_PILOT_DIR redirects the
+# single-account (ACCOUNT is None) pilot directory so a test run -- or a `--dry-run` subprocess it shells out
+# to -- never writes into the repo's own data/live/pilot-futures/. bind_account()'s `account_id is None`
+# branch re-reads the SAME override, so the two computations never disagree. See
+# scripts/tests/live_write_isolation.py, the one place this is set.
+PILOT_DIR = os.environ.get("TRADING_TEST_PILOT_DIR") or os.path.join(ROOT, "data", "live", "pilot-futures")
 # SHARED across every account, deliberately, and NOT rebound by bind_account(). Candles are public market
 # data: BTCUSDT 15m is the same bytes for every customer, so giving each account its own copy would multiply
 # the feed load by N for no difference in content -- 26 provider calls per tick becomes 26N, and the market-
@@ -283,12 +289,14 @@ def bind_account(account_id):
     customer -- and a customer's own failure stops that customer alone.
 
     Passing None restores the house's single-account paths exactly, which is what every existing test and the
-    running pilot rely on.
+    running pilot rely on -- byte-identical, INCLUDING the TRADING_TEST_PILOT_DIR override the module-level
+    default already honours (see that constant's comment), so a test that binds an account and then unbinds
+    it lands back on whatever this process started with, redirected or not.
     """
     global ACCOUNT, PILOT_DIR, STATE, LOG, MT5_LOG, STOP, VENUE_LOG
     ACCOUNT = account_id
     if account_id is None:
-        PILOT_DIR = os.path.join(ROOT, "data", "live", "pilot-futures")
+        PILOT_DIR = os.environ.get("TRADING_TEST_PILOT_DIR") or os.path.join(ROOT, "data", "live", "pilot-futures")
     else:
         if account_id not in AP.PROFILES:
             raise SystemExit(f"--account {account_id!r} is not in {AP.PATH}. An order path must not guess "
@@ -1764,7 +1772,7 @@ def halt(s, why):
     s["halted"] = dict(at=iso(now()), why=why)
     os.makedirs(PILOT_DIR, exist_ok=True)
     open(STOP, "a").write(f"{iso(now())} strategy-runner halt: {why}\n")
-    log("halt", why=why, stop_file=os.path.relpath(STOP, ROOT))
+    log("halt", why=why, stop_file=repo_rel(STOP, ROOT))
 
 
 def venue_of(sym):
