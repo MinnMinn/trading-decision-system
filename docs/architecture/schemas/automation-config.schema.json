@@ -204,7 +204,13 @@
                   "XAUUSD",
                   "XAGUSD",
                   "USOIL",
-                  "UKOIL"
+                  "UKOIL",
+                  "US500",
+                  "US30",
+                  "USTEC",
+                  "DE40",
+                  "FRA40",
+                  "AUS200"
                 ]
               },
               "description": "Subset of the commodities allowlist. The EA is per-chart (g_symbol = _Symbol), so a symbol only has data once a chart running ExportOHLCV is open for it -- today that is XAUUSD alone (section 12 item 6). Enabling a symbol with no export on disk sets a flag, not a source; /automation says so."
