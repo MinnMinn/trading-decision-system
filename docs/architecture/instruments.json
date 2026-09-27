@@ -229,7 +229,13 @@
     ],
     "cfd": [
       "XAUUSD",
-      "XAGUSD"
+      "XAGUSD",
+      "US500",
+      "US30",
+      "USTEC",
+      "DE40",
+      "FRA40",
+      "AUS200"
     ],
     "forex": [
       "EURUSD",
@@ -255,6 +261,11 @@
     "forex": []
   },
   "history": [
+    {
+      "date": "2026-09-27",
+      "change": "execution.cfd: + US500, US30, USTEC, DE40, FRA40, AUS200 (XAUUSD, XAGUSD -> XAUUSD, XAGUSD, US500, US30, USTEC, DE40, FRA40, AUS200). USOIL/UKOIL stay analysis-only.",
+      "reason": "Owner request 2026-09-27 ('cập nhật danh sách đặt lệnh cho toàn bộ'). All six are live on the MT5 account (the EA exports them: data/live/mt5-bridge/ohlcv.<SYM>.*.json) and have MT5 deep history (commit 617ddac). USOIL/UKOIL are NOT added: the account still carries no such symbol (no bridge export, history is Yahoo futures only), so declaring them orderable would be an invented capability (CLAUDE.md §6) -- see the 2026-09-18 entry. backtested.cfd is unchanged: none of the six has a validated edge yet."
+    },
     {
       "date": "2026-09-27",
       "change": "analysis.cfd: + US500, US30, USTEC, DE40, FRA40, AUS200 (research only; execution.cfd unchanged).",
