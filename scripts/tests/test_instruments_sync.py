@@ -139,61 +139,67 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class ForexIsWiredEndToEnd(unittest.TestCase):
-    """The 7 majors went onto BOTH allowlists on 2026-09-17 (user decision, lifting the blanket prohibition).
+class ForexWasRemovedCleanly(unittest.TestCase):
+    """The 7 majors went onto BOTH allowlists on 2026-09-17 (user decision, lifting the blanket prohibition)
+    and were removed 2026-09-27 (owner decision, "xoa han"): in its whole ten days on the registry, `forex`
+    fed no candle (no MetaTrader chart was ever attached for any pair), so its removal is a registry edit
+    with nothing live to migrate -- see docs/architecture/instruments.json history for both entries.
 
-    A market is only "added" once every router agrees. These assert the four places where a third market could
-    have been half-added and nothing would have failed: the style vocabulary, the dimension routing, the order
-    venue and the order-path allowlist."""
+    Was ForexIsWiredEndToEnd, asserting the four places a third market could have been half-ADDED and nothing
+    would have failed. These assert the same four places could not have been half-REMOVED: a stale `forex`
+    entry anywhere in the style vocabulary, the dimension routing, the order venue or the order-path allowlist
+    would raise at import/load time, not linger as a silent copy."""
     MAJORS = ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"]
 
-    def test_the_majors_are_on_both_lists(self):
-        self.assertEqual(I.analysis("forex"), self.MAJORS)
-        self.assertEqual(I.execution("forex"), self.MAJORS)
+    def test_forex_is_gone_from_the_market_registry(self):
+        self.assertNotIn("forex", I.MARKETS)
+        with self.assertRaises(KeyError):
+            I.analysis("forex")
+        with self.assertRaises(KeyError):
+            I.execution("forex")
+        with self.assertRaises(KeyError):
+            I.backtested("forex")
 
-    def test_no_forex_symbol_claims_a_backtest(self):
-        """The safety envelope that makes execution permission survivable: rank-setups.py selects the pilot's
-        setups from backtests, pilot-selection.json holds no forex setup, and backtested.forex is empty -- so the
-        pilot cannot pick a pair even though it is allowed to order one."""
-        self.assertEqual(I.backtested("forex"), [])
+    def test_no_major_has_a_canonical_id_or_a_market(self):
+        for sym in self.MAJORS:
+            with self.assertRaises(KeyError):
+                I.canonical(sym)
+            self.assertIsNone(I.market_of(sym))
 
-    def test_forex_ships_disabled_because_it_has_no_data(self):
-        self.assertFalse(I.default_enabled("forex"))
-        self.assertTrue(I.default_enabled("crypto"))
-        self.assertFalse(_load("automation", "automation.py").DEFAULTS["markets"]["forex"]["enabled"])
-
-    def test_every_forex_style_routes_to_the_forex_market(self):
-        """market_of_style tested a `cfd-` prefix and returned "crypto" for everything else, so every fx- style
-        would have obeyed CRYPTO's dimension flags -- picking up footprint and heatmap, which have no forex
-        source at all. It is a table lookup now."""
+    def test_no_style_routes_to_forex(self):
+        """market_of_style tested a `cfd-` prefix and returned "crypto" for everything else, so a surviving
+        fx- style would have quietly obeyed CRYPTO's dimension flags rather than raising. It is a table
+        lookup now, and the table has no fx- entries left at all."""
         auto = _load("automation", "automation.py")
         fx = [s for (m, _tf), s in auto.STYLE.items() if m == "forex"]
-        self.assertEqual(sorted(fx), ["fx-day", "fx-scalping", "fx-swing"])
-        for style in fx:
-            self.assertEqual(auto.market_of_style(style), "forex")
-        with self.assertRaises(KeyError):
-            auto.market_of_style("fx-nonsense")
+        self.assertEqual(fx, [])
+        for style in ("fx-day", "fx-scalping", "fx-swing"):
+            self.assertNotIn(style, auto.STYLE.values())
+            with self.assertRaises(KeyError):
+                auto.market_of_style(style)
 
-    def test_forex_has_no_order_flow_dimensions(self):
-        """CoinGlass is crypto-derivatives only, so forex gets Wyckoff + ICT and nothing else -- expressed as
-        the shape of the config object, not as a flag that could be turned on."""
+    def test_methods_has_no_forex_market(self):
         M = _load("methods", "methods.py")
-        self.assertEqual(M.dimensions("forex"), ["wyckoff", "ict"])
+        self.assertNotIn("forex", M.markets())
 
-    def test_the_order_venue_and_the_bridge_allowlist_both_know_forex(self):
+    def test_the_order_venue_no_longer_resolves_a_major(self):
         runner = _load("strategy_runner", "strategy-runner.py")
         for sym in self.MAJORS:
-            self.assertEqual(runner.venue_of(sym), "mt5", f"{sym} must route to the MT5 bridge, not futures")
+            with self.assertRaises(ValueError):
+                runner.venue_of(sym)
         bridge = _load("mt5_bridge", "mt5-order-bridge.py")
-        self.assertEqual(bridge.ALLOWED, set(I.execution("cfd")) | set(I.execution("forex")))
+        self.assertEqual(bridge.ALLOWED, set(I.execution("cfd")))
+        self.assertTrue(bridge.ALLOWED.isdisjoint(self.MAJORS))
 
     def test_the_compiled_ea_allowlist_matches_the_mt5_execution_lists(self):
         """integrations/mt5/OrderBridge.mq5 InpAllowedSymbols is a COMPILED input -- the EA cannot read
         instruments.json, so this is the one hand-kept copy in the system and the only thing that can catch it
         drifting is this test. A symbol here that the registry does not list means the EA would accept an order
-        the Python side refuses; the reverse means a silent refusal at the terminal."""
+        the Python side refuses; the reverse means a silent refusal at the terminal. Must be recompiled and
+        re-attached in MetaTrader before this trimmed list takes effect on the actual EA."""
         src = open(os.path.join(ROOT, "integrations", "mt5", "OrderBridge.mq5"), encoding="utf-8").read()
         m = re.search(r'InpAllowedSymbols\s*=\s*"([^"]*)"', src)
         self.assertIsNotNone(m, "InpAllowedSymbols not found")
         want = [s for mk in I.MARKETS if I.DATA_DIR[mk] == "mt5-bridge" for s in I.execution(mk)]
         self.assertEqual(sorted(m.group(1).split(",")), sorted(want))
+        self.assertTrue(set(m.group(1).split(",")).isdisjoint(self.MAJORS))

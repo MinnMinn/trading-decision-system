@@ -109,7 +109,7 @@
         "max_positions": {
           "mode": "full_book"
         },
-        "_max_positions_why": "One slot per symbol THIS ACCOUNT may trade, which is every market routed to the mt5 venue -- cfd AND forex. The constant this replaces was len(CFD) alone, so the cap ignored the seven FX majors that route to the same account (flagged in SPEC-COMPLIANCE §4 as belonging with the §33 account limits). Binding effect today is unchanged: forex is default_enabled=false, so no FX signal is generated, and the one-position-per-symbol rule already bounds the book.",
+        "_max_positions_why": "One slot per symbol THIS ACCOUNT may trade, which is every market routed to the mt5 venue -- cfd today. The constant this replaces was a hand-typed literal, so the cap silently went stale every time a symbol was added or removed; deriving it from the execution book (scripts/account_profile.py max_positions()) is what keeps it correct without an edit here. (2026-09-17..2026-09-27: forex briefly routed to the same MT5 account too, default_enabled=false throughout so it never generated a signal; the market was removed 2026-09-27, see instruments.json history.)",
         "consistency_rules": [],
         "news_restrictions": null,
         "overnight_restrictions": null,

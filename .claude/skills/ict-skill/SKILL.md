@@ -19,7 +19,8 @@ them.** Three rules come out of it and they are not optional:
 1. **The Opening-Gap family does not exist on crypto.** NDOG/NWOG/ORG are defined by a session close→open
    discontinuity. Crypto trades 24/7, so there is no gap and no midpoint to encroach. On a `crypto` symbol,
    citing one of these is **fabricating a level** — refuse, do not approximate it with the 00:00 UTC open.
-   They are valid on `cfd` (broker daily break + weekend) and on `forex` (Friday close → Sunday 17:00 ET).
+   They are valid on `cfd` (broker daily break + weekend). (A `forex` market existed 2026-09-17..2026-09-27,
+   Friday close → Sunday 17:00 ET weekend gap; removed -- see docs/architecture/instruments.json history.)
 2. **The first FVG is two different objects.** Before the stop hunt it is an *inversion* FVG and a **CISD
    signal**; after 9:30 / after liquidity is taken it is an *entry* level. Never cite one for the other.
 3. **No number from that deck is a system parameter.** The 30-handle ORG condition and the ES 5 / NQ 15 handle
@@ -90,7 +91,7 @@ The ICT corpus has no volume of any kind. Volume is the only genuinely orthogona
 - **Premium/discount scores only when its anchors are stated and differ from the Wyckoff TR anchors.** Otherwise it adds nothing beyond "price is in the lower half of the range", which the phase read already implies. If the anchors are the same, score that sub-item 0 and say so.
 - **Displacement and Wyckoff's "widening spread" are the same measurement** on the same candle. If this dimension scored displacement, Wyckoff may cite only the attached volume.
 - **PO3 manipulation ≡ Phase C**, and **PO3 distribution leg ≡ Phase D expansion** — name the PO3 period unit before claiming either as separate evidence.
-- **On tick-volume instruments** (XAUUSD/XAGUSD/USOIL/UKOIL via the MT5 bridge), Wyckoff and ICT are close to **not independent at all**. Flag this to DecisionAgent rather than letting both dimensions score at face value.
+- **On tick-volume instruments** (XAUUSD/XAGUSD via the MT5 bridge), Wyckoff and ICT are close to **not independent at all**. Flag this to DecisionAgent rather than letting both dimensions score at face value.
 
 ## Unsourced tokens — do not use
 

@@ -142,7 +142,7 @@ class Instruments(unittest.TestCase):
 
     def test_a_symbol_with_no_data_on_disk_is_badged(self):
         html = mp.render(cfg(), data_present={"XAUUSD"})
-        self.assertRegex(html, r'data-symbol="USOIL"[^>]*data-nodata="1"')
+        self.assertRegex(html, r'data-symbol="XAGUSD"[^>]*data-nodata="1"')
         self.assertRegex(html, r'data-symbol="XAUUSD"[^>]*data-nodata="0"')
 
     def test_unbacktested_symbols_carry_the_caveat(self):

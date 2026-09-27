@@ -131,8 +131,7 @@
         "testnet"
       ],
       "markets": [
-        "cfd",
-        "forex"
+        "cfd"
       ],
       "adapter": "scripts/mt5-order-bridge.py",
       "execution_alias": "mt5",
@@ -199,8 +198,7 @@
       "capabilities": [],
       "markets": [
         "crypto",
-        "cfd",
-        "forex"
+        "cfd"
       ],
       "adapter": "scripts/ict-scan.py",
       "auth": "none",
@@ -234,7 +232,7 @@
       "underlying_venues": [
         "UNDECLARED"
       ],
-      "note": "RESIDUAL research-only history for the commodity CFDs. Until 2026-09-18 it was the ONLY deep history available, because ExportOHLCV.mq5 gives ~600 bars per timeframe; ExportHistory.mq5 + scripts/import-mt5-history.py now supply years of the TRADED instrument, and on 2026-09-18 they replaced XAUUSD/XAGUSD 15m, 1H, 4H, 1D and 1W. What is left is the timeframes the broker export has no bar for: XAUUSD 2H/30m/5m and XAGUSD 2H. Those series are still FRONT-MONTH CONTINUOUS FUTURES, not the CFD the system trades: XAUUSD<-GC=F, XAGUSD<-SI=F, USOIL<-CL=F, UKOIL<-BZ=F (the mapping lives in scripts/fetch-history-cfd.py MAP -- only Yahoo can say what its contract codes mean). USOIL/UKOIL keep it for EVERY timeframe: the MT5 account carries no oil symbol at all. `underlying_venues` is UNDECLARED because each contract is a different exchange and naming them per ticker here would be inference, not a read fact.",
+      "note": "RESIDUAL research-only history for the metals CFDs. Until 2026-09-18 it was the ONLY deep history available, because ExportOHLCV.mq5 gives ~600 bars per timeframe; ExportHistory.mq5 + scripts/import-mt5-history.py now supply years of the TRADED instrument, and on 2026-09-18 they replaced XAUUSD/XAGUSD 15m, 1H, 4H, 1D and 1W. What is left is the timeframes the broker export has no bar for: XAUUSD 2H/30m/5m and XAGUSD 2H. Those series are still FRONT-MONTH CONTINUOUS FUTURES, not the CFD the system trades: XAUUSD<-GC=F, XAGUSD<-SI=F (the mapping lives in scripts/fetch-history-cfd.py MAP -- only Yahoo can say what its contract codes mean). USOIL/UKOIL used to keep it for EVERY timeframe (the MT5 account never carried an oil symbol at all); both were deleted from instruments.json entirely on 2026-09-27, and their Yahoo history and MAP entries were deleted with them -- this provider now covers metals only. `underlying_venues` is UNDECLARED because each contract is a different exchange and naming them per ticker here would be inference, not a read fact.",
       "differences_from_traded_instrument": [
         "exchange session hours, not 24/5 CFD quotes",
         "real contract volume, where the MT5 bridge gives tick volume",
@@ -246,6 +244,12 @@
     }
   },
   "history": [
+    {
+      "date": "2026-09-27",
+      "change": "mt5_bridge.markets and internal_scanner.markets: `forex` removed (both now name only the markets that remain registered). yahoo_finance.note: oil mapping/reasoning removed, now describes metals only.",
+      "reason": "Follows docs/architecture/instruments.json history (2026-09-27): the `forex` market and the USOIL/UKOIL symbols were deleted from the registry the same session. scripts/providers.py validates every provider's `markets` list against instruments.MARKETS and raises on an unknown entry, so a provider naming a retired market is a load-time error, not a stale comment -- this repo's own consistency check is what caught it.",
+      "approved_by": "user (in session)"
+    },
     {
       "date": "2026-09-18",
       "change": "initial registry: 6 providers, 4 roles, honest status per provider",

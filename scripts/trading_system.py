@@ -90,7 +90,7 @@ def _p_setup_method_requires(dep, system, ctx):
 
 def _p_preset_engages(dep, system, ctx):
     dim = dep["dimension"]
-    # Structural impossibility is knowable from the system alone and needs no config: cfd and forex have no
+    # Structural impossibility is knowable from the system alone and needs no config: cfd has no
     # CoinGlass source, so footprint/heatmap can never be engaged there (methods.json dimensions.*.markets).
     # Answering False here is what stops a dimension that cannot exist on a market from gating it forever.
     if system["market"] not in M.DIMENSIONS[dim]["markets"]:

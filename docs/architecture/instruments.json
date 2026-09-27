@@ -1,6 +1,6 @@
 {
   "_comment": "THE single source of truth for the instrument allowlist (SYSTEM-DESIGN.md §1). Nothing else in this repo may hard-code a symbol list: scripts/instruments.py (Python) and scripts/instruments.sh (bash/jq) are the two readers, and scripts/tests/test_instruments_sync.py fails the build if any file drifts from this one. Adding or removing a symbol = edit THIS file, run `python3 scripts/sync-instruments.py --write`, done.",
-  "_policy": "analysis != execution. A symbol on the analysis list is scannable and analysable (scanner, /analyze, /bias, /entry). Only a symbol on the execution list can ever have an order placed on it (pilot, /execute, the Binance connectors). Every execution list MUST be a subset of its analysis list -- scripts/instruments.py enforces this on load and raises on violation, and every backtested list must be a subset of its execution list. This file is the ONLY gate on what may be analysed or traded: the separate blanket Forex prohibition was lifted 2026-09-17 by user decision, so a currency pair is permitted exactly when it is listed here and refused otherwise, like every other symbol.",
+  "_policy": "analysis != execution. A symbol on the analysis list is scannable and analysable (scanner, /analyze, /bias, /entry). Only a symbol on the execution list can ever have an order placed on it (pilot, /execute, the Binance connectors). Every execution list MUST be a subset of its analysis list -- scripts/instruments.py enforces this on load and raises on violation, and every backtested list must be a subset of its execution list. This file is the ONLY gate on what may be analysed or traded. The blanket Forex prohibition was lifted 2026-09-17 by user decision and the `forex` market was removed again 2026-09-27 (no FX chart was ever attached in MetaTrader, so it fed no data and traded nothing in its ten days on the registry -- see history); currency pairs go through the normal per-symbol allowlist gate like every other instrument, the day a forex market is re-declared.",
   "market_types": {
     "_comment": "THE canonical market-type vocabulary (CLAUDE.md §5). Provider-independent ON PURPOSE: Binance calls its USDT-M contracts 'futures' and its venue alias here is `futures`, but the contract IS a PERPETUAL -- it has no expiry. CLAUDE.md §5 forbids provider terminology from being the canonical domain identity, so the venue alias and the market type are deliberately different vocabularies and must not be conflated.",
     "_where_declared": "A market lists the types it can be traded as (markets.<m>.market_types). An EXECUTION PROVIDER declares the ONE type a contract on it actually is (docs/architecture/providers.json -> providers.<p>.market_type). Market type is a property of (instrument, venue), NOT of the instrument: BTCUSDT is SPOT on binance_spot and PERPETUAL on binance_futures, and a per-symbol field would have to pick one and be wrong about the other.",
@@ -11,8 +11,7 @@
     "OTHER": "Declared so an unmodelled instrument is representable rather than silently mislabelled as one of the four above."
   },
   "canonical": {
-    "_comment": "Provider-independent instrument identity (CLAUDE.md §5: 'Canonical Instrument identity must be independent from provider-specific symbols'). The keys are the PROVIDER's spelling -- BTCUSDT is Binance's, USOIL is the MT5 broker's -- and the values are the identity the domain uses. Two providers spelling one instrument differently map to ONE canonical id; scripts/instruments.py enforces that every analysis symbol has one and that no two symbols share one. This is identity, NOT presentation: display.<sym>.label is what a page prints and may change for readability; a canonical id may not.",
-    "_oil_note": "USOIL and UKOIL are the MT5 broker's spellings for the WTI and Brent crude benchmarks; the canonical ids name the benchmark rather than the broker's ticker.",
+    "_comment": "Provider-independent instrument identity (CLAUDE.md §5: 'Canonical Instrument identity must be independent from provider-specific symbols'). The keys are the PROVIDER's spelling -- BTCUSDT is Binance's, XAUUSD is the MT5 broker's -- and the values are the identity the domain uses. Two providers spelling one instrument differently map to ONE canonical id; scripts/instruments.py enforces that every analysis symbol has one and that no two symbols share one. This is identity, NOT presentation: display.<sym>.label is what a page prints and may change for readability; a canonical id may not.",
     "BTCUSDT": "BTC/USDT",
     "ETHUSDT": "ETH/USDT",
     "SOLUSDT": "SOL/USDT",
@@ -24,15 +23,6 @@
     "ONDOUSDT": "ONDO/USDT",
     "XAUUSD": "XAU/USD",
     "XAGUSD": "XAG/USD",
-    "USOIL": "WTI/USD",
-    "UKOIL": "BRENT/USD",
-    "EURUSD": "EUR/USD",
-    "GBPUSD": "GBP/USD",
-    "USDJPY": "USD/JPY",
-    "AUDUSD": "AUD/USD",
-    "USDCAD": "USD/CAD",
-    "USDCHF": "USD/CHF",
-    "NZDUSD": "NZD/USD",
     "US500": "US500/USD",
     "US30": "US30/USD",
     "USTEC": "USTEC/USD",
@@ -62,17 +52,6 @@
       "tick_volume": true,
       "continuous": false,
       "default_enabled": true
-    },
-    "forex": {
-      "feed": "provider `mt5_bridge` -- docs/architecture/providers.json; the same EA as cfd, one attached chart per symbol",
-      "market_types": [
-        "CFD"
-      ],
-      "data_dir": "mt5-bridge",
-      "tick_volume": true,
-      "continuous": false,
-      "default_enabled": false,
-      "_default_enabled_why": "No FX chart is attached in MetaTrader yet, so the EA exports no pair and there is no data/live/mt5-bridge/ohlcv.<PAIR>.15m.json. Enabling the market would set a flag and not a source: the scanner would skip every fx- style and no page could build. Flip this to true only after attaching a chart per pair (and recompiling OrderBridge.mq5 if you intend to trade them)."
     }
   },
   "analysis": {
@@ -90,27 +69,16 @@
     "cfd": [
       "XAUUSD",
       "XAGUSD",
-      "USOIL",
-      "UKOIL",
       "US500",
       "US30",
       "USTEC",
       "DE40",
       "FRA40",
       "AUS200"
-    ],
-    "forex": [
-      "EURUSD",
-      "GBPUSD",
-      "USDJPY",
-      "AUDUSD",
-      "USDCAD",
-      "USDCHF",
-      "NZDUSD"
     ]
   },
   "display": {
-    "_comment": "OPTIONAL presentation metadata. A symbol with no entry gets id = lowercase symbol minus the USDT suffix, label = the symbol, price_decimals = 2, asset_class = its MARKET. Override only when the default is wrong. asset_class drives the killzone weighting in scripts/chart.js (KZ_WEIGHT): only a market holding more than one asset class needs it -- cfd holds both metals and oil, which weight the London/NY sessions differently.",
+    "_comment": "OPTIONAL presentation metadata. A symbol with no entry gets id = lowercase symbol minus the USDT suffix, label = the symbol, price_decimals = 2, asset_class = its MARKET. Override only when the default is wrong. asset_class drives the killzone weighting in scripts/chart.js (KZ_WEIGHT): only a market holding more than one asset class needs it -- cfd holds both metals and indices, which weight the London/NY sessions differently.",
     "BTCUSDT": {
       "label": "BTC/USDT",
       "price_decimals": 0
@@ -147,42 +115,6 @@
     "XAGUSD": {
       "label": "XAG/USD",
       "asset_class": "metals"
-    },
-    "USOIL": {
-      "label": "USOIL",
-      "asset_class": "oil"
-    },
-    "UKOIL": {
-      "label": "UKOIL",
-      "asset_class": "oil"
-    },
-    "EURUSD": {
-      "label": "EUR/USD",
-      "price_decimals": 5
-    },
-    "GBPUSD": {
-      "label": "GBP/USD",
-      "price_decimals": 5
-    },
-    "USDJPY": {
-      "label": "USD/JPY",
-      "price_decimals": 3
-    },
-    "AUDUSD": {
-      "label": "AUD/USD",
-      "price_decimals": 5
-    },
-    "USDCAD": {
-      "label": "USD/CAD",
-      "price_decimals": 5
-    },
-    "USDCHF": {
-      "label": "USD/CHF",
-      "price_decimals": 5
-    },
-    "NZDUSD": {
-      "label": "NZD/USD",
-      "price_decimals": 5
     },
     "US500": {
       "id": "us500",
@@ -236,15 +168,6 @@
       "DE40",
       "FRA40",
       "AUS200"
-    ],
-    "forex": [
-      "EURUSD",
-      "GBPUSD",
-      "USDJPY",
-      "AUDUSD",
-      "USDCAD",
-      "USDCHF",
-      "NZDUSD"
     ]
   },
   "backtested": {
@@ -256,11 +179,21 @@
     ],
     "cfd": [
       "XAUUSD"
-    ],
-    "_forex_note": "EMPTY ON PURPOSE. No FX backtest exists -- docs/architecture/pilot-selection.json contains no forex setup, so rank-setups.py can never select one and the pilot can never trade a pair. Do not populate this list to make a dashboard look complete; it is the field that tells the truth about what was measured.",
-    "forex": []
+    ]
   },
   "history": [
+    {
+      "date": "2026-09-27",
+      "change": "NEW MARKET forex REMOVED entirely: `forex` deleted from markets{}, analysis{}, execution{}, backtested{}; EURUSD/GBPUSD/USDJPY/AUDUSD/USDCAD/USDCHF/NZDUSD deleted from canonical{} and display{}.",
+      "reason": "Owner decision 2026-09-27 (\"xoa han\", same session as the oil removal below). Ten days after the 2026-09-17 entry that created it, forex was still exactly the state that entry warned about: no MetaTrader chart was ever attached for any of the seven majors, so the bridge exported no pair, no forex page ever built (markets.forex stayed refused-at-build per SYSTEM-DESIGN.md §36's table), and backtested.forex was empty by design -- zero analysis runs, zero trades, zero backtest coverage in its entire time on the registry. Removing an unused market is not a capability change (CLAUDE.md §6 concerns declaring a capability that does not exist; this is the reverse -- retracting a declared-but-never-fed one), and keeping a market on the registry that has never produced one candle is the opposite of 'lean' (CLAUDE.md house rule, ADR 0008 practice). integrations/mt5/OrderBridge.mq5 InpAllowedSymbols is trimmed to match (XAUUSD,XAGUSD,US500,US30,USTEC,DE40,FRA40,AUS200) and must be recompiled and re-attached before it takes effect -- same mechanical requirement as every compiled-allowlist change on this EA. Re-add the day a chart is actually attached per pair.",
+      "approved_by": "user (in session)"
+    },
+    {
+      "date": "2026-09-27",
+      "change": "USOIL and UKOIL REMOVED entirely: deleted from canonical{}, analysis.cfd, and display{} (they were already absent from execution.cfd and backtested.cfd since 2026-09-18). data/history/ohlcv.{USOIL,UKOIL}.*.json deleted. scripts/fetch-history-cfd.py MAP no longer maps them.",
+      "reason": "Owner decision 2026-09-27 (\"xoa han\" -- delete outright, not just leave analysis-only). The MT5 account this system trades has never carried either symbol (checked 2026-09-18, re-confirmed today), so USOIL/UKOIL could only ever be analysed against the Yahoo front-month futures proxy (`_source: yahoo_finance_CL=F_research_only` / `BZ=F`), never against the traded instrument -- research with no path to execution is not the 'lean' analysis-only carve-out CLAUDE.md §57 has in mind, it is dead surface. The Yahoo proxy itself (`scripts/fetch-history-cfd.py`, the `yahoo_finance` provider in providers.json) is NOT removed: verified today that XAUUSD 2H/30m/5m and XAGUSD 2H still have no MT5-broker bar (the 2026-09-18 deep-history import only reached 15m/1H/4H/1D/1W) and so still read the Yahoo proxy for those series -- providers.json `yahoo_finance.note` and SYSTEM-DESIGN.md §23.1.1 already document this as a standing §38-flagged, not a silent, gap. Only the MAP entries and history files with no remaining reader (USOIL, UKOIL) are deleted.",
+      "approved_by": "user (in session)"
+    },
     {
       "date": "2026-09-27",
       "change": "execution.cfd: + US500, US30, USTEC, DE40, FRA40, AUS200 (XAUUSD, XAGUSD -> XAUUSD, XAGUSD, US500, US30, USTEC, DE40, FRA40, AUS200). USOIL/UKOIL stay analysis-only.",

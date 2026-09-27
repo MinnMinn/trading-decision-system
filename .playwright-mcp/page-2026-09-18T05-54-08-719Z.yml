@@ -1,7 +1,0 @@
-- generic [active] [ref=f44e1]:
-  - main [ref=f44e2]
-  - generic [ref=f44e4]:
-    - heading "Page not found" [level=2] [ref=f44e8]
-    - heading "Claude can help with many things, but finding this page isn’t one of them." [level=3] [ref=f44e9]
-    - link "Go back home" [ref=f44e11] [cursor=pointer]:
-      - /url: /new

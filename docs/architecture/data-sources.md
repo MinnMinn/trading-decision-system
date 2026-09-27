@@ -2,7 +2,7 @@
 
 Referenced by `docs/architecture/SYSTEM-DESIGN.md` §3. This is the stable interface Skills are built against, so swapping mock fixtures for a real API connector later changes only the connector, never the Skills.
 
-**Revision note:** the original design targeted a TradingView MCP for price/candle data. That was dropped — TradingView has no official public data API for third parties, and the community MCP servers that exist do so via browser automation or unofficial scraping (fragile, possible ToS risk). This system now uses **exchange-native REST APIs** instead: Binance's free public REST API for crypto, and a commodities provider **to be selected** for XAUUSD/XAGUSD/USOIL/UKOIL (see below — this is an explicit open gap, not silently resolved).
+**Revision note:** the original design targeted a TradingView MCP for price/candle data. That was dropped — TradingView has no official public data API for third parties, and the community MCP servers that exist do so via browser automation or unofficial scraping (fragile, possible ToS risk). This system now uses **exchange-native REST APIs** instead: Binance's free public REST API for crypto, and a commodities provider **to be selected** for XAUUSD/XAGUSD (see below — this is an explicit open gap, not silently resolved).
 
 ## Status: no real connectors configured yet
 
@@ -30,9 +30,9 @@ Mock fixtures remain at `mock/market-data/ohlcv.<SYMBOL>.<TIMEFRAME>.json` for r
 
 **Pilot-private copies (2026-09-11).** `scripts/fetch-binance-klines.sh` honours `KLINES_OUT_DIR`; `scripts/strategy-runner.py` (the pilot) fetches 30m / 1H / 2H × 300 into `data/live/pilot-futures/candles/` and drops the forming candle, so the launchd scanner stays the single writer of `data/live/market-data/` and the pilot never reads a half-formed bar. 30m and 2H are pilot data only — no chart style, no local read, no artifact.
 
-**Research history for CFD backtests (2026-09-11).** `scripts/fetch-history-cfd.py` pulls Yahoo Finance front-month futures (GC=F, SI=F, CL=F, BZ=F) into `data/history/ohlcv.<XAUUSD|XAGUSD|USOIL|UKOIL>.<1H|2H|4H|1D>.json` — 1H for ~2.4 years, 1D for 10 years, 2H/4H aggregated. Research input only (the launchd scanner never touches it): exchange session hours, real contract volume and a futures basis, unlike the CFD quotes and tick volume the MT5 bridge trades on. Every CFD ranking built on it says so.
+**Research history for CFD backtests (2026-09-11).** `scripts/fetch-history-cfd.py` pulls Yahoo Finance front-month futures (GC=F, SI=F) into `data/history/ohlcv.<XAUUSD|XAGUSD>.<1H|2H|4H|1D>.json` (CL=F/BZ=F -> USOIL/UKOIL were in this map too until both symbols were deleted from the instrument registry entirely, 2026-09-27 -- docs/architecture/instruments.json history) — 1H for ~2.4 years, 1D for 10 years, 2H/4H aggregated. Research input only (the launchd scanner never touches it): exchange session hours, real contract volume and a futures basis, unlike the CFD quotes and tick volume the MT5 bridge trades on. Every CFD ranking built on it says so.
 
-## Commodities market-data contract (XAUUSD/XAGUSD/USOIL/UKOIL) — MT5 file bridge (LIVE for XAUUSD since 2026-09-10, see mt5-bridge.md)
+## Commodities market-data contract (XAUUSD/XAGUSD) — MT5 file bridge (LIVE for XAUUSD since 2026-09-10, see mt5-bridge.md)
 
 **Decision made:** rather than a third-party commodities API, this pulls data directly from your own MT5 terminal via a file bridge (an MQL5 Expert Advisor writes JSON files this system reads) — full design, install steps, and hard caveats in **`docs/architecture/mt5-bridge.md`**. Script: `integrations/mt5/ExportOHLCV.mq5` (written, not yet tested against a real terminal). Read path: `data/live/mt5-bridge/ohlcv.<SYMBOL>.<TIMEFRAME>.json`. Same field shape as the crypto contract above, plus a `_volume_caveat` field since MT5's volume for CFDs is tick-count, not real traded size.
 
@@ -74,7 +74,7 @@ Unlike Wyckoff/ICT/Footprint, there is no ingested book/course covering Heatmap/
 
 ## Instrument coverage in mock fixtures (v1)
 
-`BTCUSDT` only, across `1D/4H/1H/15m` (market-data) and all five CoinGlass endpoints. This is enough to exercise the full pipeline end-to-end once. Add `ETHUSDT`, `SOLUSDT` fixtures the same shape when needed (both are Binance-coverable the same way as BTCUSDT). For `XAUUSD`/`XAGUSD`/`USOIL`/`UKOIL`: CoinGlass's `liquidation-heatmap`/`open-interest`/`funding` endpoints don't apply to commodities at all (crypto-derivatives-specific) — `HeatmapSkill` should report those `UNAVAILABLE`, not mocked, for these instruments; only `orderbook-heatmap` and `footprint-history` concepts could ever translate to a commodities venue, and only once a specific CFD/futures broker's real API is wired in — do not mock a CoinGlass-shaped commodities integration that doesn't exist.
+`BTCUSDT` only, across `1D/4H/1H/15m` (market-data) and all five CoinGlass endpoints. This is enough to exercise the full pipeline end-to-end once. Add `ETHUSDT`, `SOLUSDT` fixtures the same shape when needed (both are Binance-coverable the same way as BTCUSDT). For `XAUUSD`/`XAGUSD`: CoinGlass's `liquidation-heatmap`/`open-interest`/`funding` endpoints don't apply to commodities at all (crypto-derivatives-specific) — `HeatmapSkill` should report those `UNAVAILABLE`, not mocked, for these instruments; only `orderbook-heatmap` and `footprint-history` concepts could ever translate to a commodities venue, and only once a specific CFD/futures broker's real API is wired in — do not mock a CoinGlass-shaped commodities integration that doesn't exist.
 
 ## Chart refresh: three-layer read, numbers from code (2026-09-10)
 
