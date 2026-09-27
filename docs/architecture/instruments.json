@@ -32,7 +32,13 @@
     "AUDUSD": "AUD/USD",
     "USDCAD": "USD/CAD",
     "USDCHF": "USD/CHF",
-    "NZDUSD": "NZD/USD"
+    "NZDUSD": "NZD/USD",
+    "US500": "US500/USD",
+    "US30": "US30/USD",
+    "USTEC": "USTEC/USD",
+    "DE40": "DE40/EUR",
+    "FRA40": "FRA40/EUR",
+    "AUS200": "AUS200/AUD"
   },
   "markets": {
     "_comment": "THE market registry. The keys here ARE the set of markets the system knows -- scripts/instruments.py derives MARKETS from them, and every per-market section below (analysis, execution, backtested) must carry exactly the same keys or loading raises. Adding a market is a data edit here plus a style prefix in scripts/automation.py; it used to be a literal [\"crypto\", \"cfd\"] in instruments.py AND another in automation.py, with the feed facts copied into eight more files.",
@@ -85,7 +91,13 @@
       "XAUUSD",
       "XAGUSD",
       "USOIL",
-      "UKOIL"
+      "UKOIL",
+      "US500",
+      "US30",
+      "USTEC",
+      "DE40",
+      "FRA40",
+      "AUS200"
     ],
     "forex": [
       "EURUSD",
@@ -171,6 +183,36 @@
     "NZDUSD": {
       "label": "NZD/USD",
       "price_decimals": 5
+    },
+    "US500": {
+      "id": "us500",
+      "label": "S&P 500",
+      "asset_class": "indices"
+    },
+    "US30": {
+      "id": "us30",
+      "label": "Dow Jones 30",
+      "asset_class": "indices"
+    },
+    "USTEC": {
+      "id": "ustec",
+      "label": "Nasdaq 100",
+      "asset_class": "indices"
+    },
+    "DE40": {
+      "id": "de40",
+      "label": "DAX 40",
+      "asset_class": "indices"
+    },
+    "FRA40": {
+      "id": "fra40",
+      "label": "CAC 40",
+      "asset_class": "indices"
+    },
+    "AUS200": {
+      "id": "aus200",
+      "label": "ASX 200",
+      "asset_class": "indices"
     }
   },
   "execution": {
@@ -213,6 +255,11 @@
     "forex": []
   },
   "history": [
+    {
+      "date": "2026-09-27",
+      "change": "analysis.cfd: + US500, US30, USTEC, DE40, FRA40, AUS200 (research only; execution.cfd unchanged).",
+      "reason": "Owner request 2026-09-27: search for setups that pass the FTMO Phase 1 / The5ers Step 1 rule sets across index CFDs as well as XAU/XAG. The MT5 terminal already exports all six (data/live/mt5-bridge/ohlcv.<SYM>.*.json, 600-bar live windows); deep history comes from integrations/mt5/ExportHistory.mq5 + scripts/import-mt5-history.py. Not added to execution.cfd: no decision yet that the pilot may trade them."
+    },
     {
       "date": "2026-09-18",
       "change": "execution.cfd: USOIL and UKOIL REMOVED (XAUUSD, XAGUSD, USOIL, UKOIL -> XAUUSD, XAGUSD). analysis.cfd is UNCHANGED and still lists all four.",
