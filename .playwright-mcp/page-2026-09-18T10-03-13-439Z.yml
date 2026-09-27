@@ -1,0 +1,183 @@
+- generic [active] [ref=f59e1]:
+  - generic [ref=f59e3]:
+    - generic [ref=f59e4]:
+      - generic [ref=f59e5]: Trading journal
+      - generic [ref=f59e6]: trades/*.md → scripts/journal.py · generated 2026-09-18 10:02 UTC
+    - navigation [ref=f59e7]:
+      - link "Pilot" [ref=f59e8] [cursor=pointer]:
+        - /url: "#pilot"
+      - link "Statistics" [ref=f59e9] [cursor=pointer]:
+        - /url: "#stats"
+      - link "Ledger" [ref=f59e10] [cursor=pointer]:
+        - /url: "#ledger"
+      - link "Reviews" [ref=f59e11] [cursor=pointer]:
+        - /url: "#reviews"
+    - group "Language" [ref=f59e12]:
+      - button "EN" [pressed] [ref=f59e13] [cursor=pointer]
+      - button "VI" [ref=f59e14] [cursor=pointer]
+    - generic [ref=f59e15]: Times UTC
+  - generic [ref=f59e16]:
+    - generic [ref=f59e17]:
+      - paragraph [ref=f59e18]: journal · figures computed by code · reviews written by a human or Claude
+      - heading "Trading journal" [level=1] [ref=f59e19]
+      - paragraph [ref=f59e20]:
+        - generic [ref=f59e21]:
+          - text: The pilot enters only when its fixed rules qualify; the journal gains a record only when the pilot enters, or when
+          - code [ref=f59e22]: /journal
+          - text: writes a plan after
+          - code [ref=f59e23]: /analyze
+          - text: . The top of this page says whether the pilot is running and why it has not traded.
+      - paragraph [ref=f59e24]: The analysis text on this page is written in Vietnamese by the analysis model and is shown as written — it is not translated, because translating an analysis would change it. Vietnamese passages are marked, and the times inside them are UTC.
+    - generic [ref=f59e25]:
+      - heading "Is the pilot running? data/live/pilot*/log.jsonl (legacy) · top5-log.jsonl / top5-mt5-log.jsonl (profile top5) · docs/architecture/automation-config.json" [level=2] [ref=f59e26]:
+        - text: Is the pilot running?
+        - generic [ref=f59e27]: data/live/pilot*/log.jsonl (legacy) · top5-log.jsonl / top5-mt5-log.jsonl (profile top5) · docs/architecture/automation-config.json
+      - generic [ref=f59e28]:
+        - generic [ref=f59e29]:
+          - generic [ref=f59e30]:
+            - generic [ref=f59e31]: Pilot top5 crypto (futures testnet)
+            - generic [ref=f59e32]: STOPPED
+            - generic [ref=f59e33]: env demo · last tick 18/9 10:01 UTC
+          - generic [ref=f59e34]: "Journal needs checking: automation is OFF — the pilot does not tick, so there can be no new trade."
+          - generic [ref=f59e36]:
+            - generic [ref=f59e37]:
+              - generic [ref=f59e38]: Evaluations, 24h
+              - generic [ref=f59e39]: "0"
+              - generic [ref=f59e40]: total 2
+            - generic [ref=f59e41]:
+              - generic [ref=f59e42]: Qualified
+              - generic [ref=f59e43]: "2"
+              - generic [ref=f59e44]: "rule: sweep → MSS → FVG · volume ≥ 1.5×"
+            - generic [ref=f59e45]:
+              - generic [ref=f59e46]: Entries / exits
+              - generic [ref=f59e47]: 0 / 0
+              - generic [ref=f59e48]: from the pilot log
+          - generic [ref=f59e49]:
+            - generic [ref=f59e50]: Most common rejection reasons
+            - list [ref=f59e51]:
+              - listitem [ref=f59e52]: —
+        - generic [ref=f59e53]:
+          - generic [ref=f59e54]:
+            - generic [ref=f59e55]: Pilot top5 CFD (MT5 demo)
+            - generic [ref=f59e56]: STOPPED
+            - generic [ref=f59e57]: env demo · last tick 18/9 09:24 UTC
+          - generic [ref=f59e58]: "Journal is behaving correctly: automation is OFF — the pilot does not tick, so there can be no new trade; no records in the log yet."
+          - generic [ref=f59e60]:
+            - generic [ref=f59e61]:
+              - generic [ref=f59e62]: Evaluations, 24h
+              - generic [ref=f59e63]: "0"
+              - generic [ref=f59e64]: total 0
+            - generic [ref=f59e65]:
+              - generic [ref=f59e66]: Qualified
+              - generic [ref=f59e67]: "0"
+              - generic [ref=f59e68]: "rule: sweep → MSS → FVG · volume ≥ 1.5×"
+            - generic [ref=f59e69]:
+              - generic [ref=f59e70]: Entries / exits
+              - generic [ref=f59e71]: 0 / 0
+              - generic [ref=f59e72]: from the pilot log
+          - generic [ref=f59e73]:
+            - generic [ref=f59e74]: Most common rejection reasons
+            - list [ref=f59e75]:
+              - listitem [ref=f59e76]: —
+    - generic [ref=f59e77]:
+      - heading "Balance sheet rehearsal trades excluded" [level=2] [ref=f59e78]:
+        - text: Balance sheet
+        - generic [ref=f59e79]: rehearsal trades excluded
+      - generic [ref=f59e80]:
+        - generic [ref=f59e81]:
+          - generic [ref=f59e82]: Closed trades
+          - generic [ref=f59e83]: "0"
+          - generic [ref=f59e84]: open 0 · planned 1 · rehearsal 1
+        - generic [ref=f59e85]:
+          - generic [ref=f59e86]: Win rate
+          - generic [ref=f59e87]: —
+          - generic [ref=f59e88]: 0 wins / 0 losses
+        - generic [ref=f59e89]:
+          - generic [ref=f59e90]: Expected R
+          - generic [ref=f59e91]: —
+          - generic [ref=f59e92]: win — R · loss — R
+        - generic [ref=f59e93]:
+          - generic [ref=f59e94]: Profit factor
+          - generic [ref=f59e95]: —
+          - generic [ref=f59e96]: total 0 R · 0 USDT
+        - generic [ref=f59e97]:
+          - generic [ref=f59e98]: Max drawdown
+          - generic [ref=f59e99]: 0.00 R
+          - generic [ref=f59e100]: longest losing streak 0
+    - generic [ref=f59e101]:
+      - heading "Cumulative R curve by close time · wheel = zoom · drag = pan" [level=2] [ref=f59e102]:
+        - text: Cumulative R curve
+        - generic [ref=f59e103]: by close time · wheel = zoom · drag = pan
+      - generic [ref=f59e104]: No closed trades yet (rehearsals excluded) — the cumulative R curve appears after the first closed trade.
+    - generic [ref=f59e106]:
+      - heading "Account rules these trades were placed under" [level=2] [ref=f59e107]
+      - generic [ref=f59e108]:
+        - generic [ref=f59e109]: Account profile
+        - generic [ref=f59e110]: futures → pilot-binance-futures-testnet · mt5 → pilot-mt5-demo
+        - generic [ref=f59e111]: Risk ceiling
+        - generic [ref=f59e112]: 1% of equity per trade
+    - generic [ref=f59e113]:
+      - heading "Ledger 1 records" [level=2] [ref=f59e114]:
+        - text: Ledger
+        - generic [ref=f59e115]: 1 records
+      - table [ref=f59e117]:
+        - rowgroup [ref=f59e118]:
+          - row [ref=f59e119]:
+            - columnheader "ID" [ref=f59e120]
+            - columnheader "Market" [ref=f59e121]
+            - columnheader "Instrument" [ref=f59e122]
+            - columnheader "Direction" [ref=f59e123]
+            - columnheader "Setup" [ref=f59e124]
+            - columnheader "Session" [ref=f59e125]
+            - columnheader "Entry" [ref=f59e126]
+            - columnheader "Stop" [ref=f59e127]
+            - columnheader "Targets" [ref=f59e128]
+            - columnheader "Planned R" [ref=f59e129]
+            - columnheader "Status" [ref=f59e130]
+            - columnheader "Exit" [ref=f59e131]
+            - columnheader "Result" [ref=f59e132]
+            - columnheader "R" [ref=f59e133]
+            - columnheader "P&L USDT" [ref=f59e134]
+            - columnheader "Hold (min)" [ref=f59e135]
+        - rowgroup [ref=f59e136]:
+          - row [ref=f59e137]:
+            - cell "2026-09-09-BTCUSDT-01" [ref=f59e138]
+            - cell "—" [ref=f59e139]
+            - cell "BTCUSDT" [ref=f59e140]
+            - cell "LONG" [ref=f59e141]
+            - cell "Wyckoff Spring Type 2 (candidate accumulation) rehearsal" [ref=f59e143]:
+              - text: Wyckoff Spring Type 2 (candidate accumulation)
+              - generic [ref=f59e144]: rehearsal
+            - cell "—" [ref=f59e145]
+            - cell "65,200" [ref=f59e146]
+            - cell "64,650" [ref=f59e147]
+            - cell "[66500, 67100]" [ref=f59e148]
+            - cell "—" [ref=f59e149]
+            - cell "PLANNED" [ref=f59e150]
+            - cell [ref=f59e152]
+            - cell [ref=f59e153]
+            - cell "—" [ref=f59e154]
+            - cell "—" [ref=f59e155]
+            - cell "—" [ref=f59e156]
+    - generic [ref=f59e157]:
+      - heading "Per-trade review" [level=2] [ref=f59e158]
+      - generic [ref=f59e160]:
+        - text: "After each trade, answer five questions: is the thesis still right · plan versus actual · was any rule broken (followed_plan) · root cause (root_cause) · one concrete change for next time (what_to_change). Repeated mistakes are collected in"
+        - code [ref=f59e161]: docs/mistakes/MISTAKE-DB.md
+        - text: ; update with
+        - code [ref=f59e162]: scripts/journal.py review <id> --set key=value
+        - text: .
+      - group [ref=f59e164]:
+        - generic "2026-09-09-BTCUSDT-01 BTCUSDT LONG PLANNED R —" [ref=f59e165] [cursor=pointer]:
+          - generic [ref=f59e166]: 2026-09-09-BTCUSDT-01
+          - generic [ref=f59e167]: BTCUSDT
+          - generic [ref=f59e168]: LONG
+          - generic [ref=f59e169]: PLANNED
+          - generic [ref=f59e170]: R —
+        - text: Thesis not recorded Plan vs actual not recorded Followed the plan not recorded Exit type not recorded Exit reason not recorded Root cause not recorded A mistake? not recorded Lessons not recorded Review notes not recorded Change next time not recorded Confidence before entry (1–5) not recorded Emotional state not recorded Tags not recorded Chart images not recorded
+    - contentinfo [ref=f59e171]:
+      - generic [ref=f59e172]: "Sources: trades/index.jsonl (derived from trades/*.md) · pilot log · automation-config.json · generated 2026-09-18 10:02 UTC by scripts/journal.py render · synced automatically after every pilot tick (scripts/pilot-loop.sh) and by /journal, /status, /review."
+      - text: "Chart: TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. ·"
+      - link "tradingview.com" [ref=f59e173] [cursor=pointer]:
+        - /url: https://www.tradingview.com/
+      - text: · Apache-2.0 (scripts/vendor/NOTICE-lightweight-charts.txt)

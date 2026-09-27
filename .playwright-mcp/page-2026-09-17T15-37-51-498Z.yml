@@ -1,0 +1,176 @@
+- generic [active] [ref=f8e1]:
+  - generic [ref=f8e3]:
+    - generic [ref=f8e4]:
+      - generic [ref=f8e5]: Nhật ký giao dịch
+      - generic [ref=f8e6]: trades/*.md → scripts/journal.py · sinh 2026-09-17 22:37 VNT
+    - navigation [ref=f8e7]:
+      - link "Pilot" [ref=f8e8] [cursor=pointer]:
+        - /url: "#pilot"
+      - link "Thống kê" [ref=f8e9] [cursor=pointer]:
+        - /url: "#stats"
+      - link "Sổ lệnh" [ref=f8e10] [cursor=pointer]:
+        - /url: "#ledger"
+      - link "Review" [ref=f8e11] [cursor=pointer]:
+        - /url: "#reviews"
+    - group "Ngôn ngữ" [ref=f8e12]:
+      - button "EN" [ref=f8e13] [cursor=pointer]
+      - button "VI" [pressed] [ref=f8e14] [cursor=pointer]
+    - generic [ref=f8e15]: Giờ UTC+7
+  - generic [ref=f8e16]:
+    - generic [ref=f8e17]:
+      - paragraph [ref=f8e18]: nhật ký · số liệu do code tính · review do người hoặc Claude điền
+      - heading "Nhật ký giao dịch" [level=1] [ref=f8e19]
+      - paragraph [ref=f8e20]:
+        - generic [ref=f8e21]:
+          - text: Pilot chỉ vào lệnh khi luật cố định đủ điều kiện; nhật ký chỉ có bản ghi mới khi pilot vào lệnh hoặc khi
+          - code [ref=f8e22]: /journal
+          - text: ghi một kế hoạch sau
+          - code [ref=f8e23]: /analyze
+          - text: . Phần đầu trang cho biết pilot có đang chạy không và vì sao chưa có lệnh.
+      - paragraph [ref=f8e24]: Phần văn bản phân tích trên trang này do mô hình viết bằng tiếng Việt và được giữ nguyên văn; thời gian trong đó là UTC.
+    - generic [ref=f8e25]:
+      - heading "Pilot có đang hoạt động không? data/live/pilot*/log.jsonl (legacy) · top5-log.jsonl / top5-mt5-log.jsonl (profile top5) · docs/architecture/automation-config.json" [level=2] [ref=f8e26]:
+        - text: Pilot có đang hoạt động không?
+        - generic [ref=f8e27]: data/live/pilot*/log.jsonl (legacy) · top5-log.jsonl / top5-mt5-log.jsonl (profile top5) · docs/architecture/automation-config.json
+      - generic [ref=f8e28]:
+        - generic [ref=f8e29]:
+          - generic [ref=f8e30]:
+            - generic [ref=f8e31]: Pilot top5 crypto (futures testnet)
+            - generic [ref=f8e32]: DỪNG
+            - generic [ref=f8e33]: env demo · tick cuối 12/9 23:56 VNT
+          - generic [ref=f8e34]: "Nhật ký cần kiểm tra: automation đang TẮT — pilot không tick nên không thể có lệnh mới."
+          - generic [ref=f8e36]:
+            - generic [ref=f8e37]:
+              - generic [ref=f8e38]: Đánh giá 24h
+              - generic [ref=f8e39]: "0"
+              - generic [ref=f8e40]: tổng 2
+            - generic [ref=f8e41]:
+              - generic [ref=f8e42]: Đủ điều kiện
+              - generic [ref=f8e43]: "2"
+              - generic [ref=f8e44]: "luật: quét → MSS → FVG · KL ≥ 1.5×"
+            - generic [ref=f8e45]:
+              - generic [ref=f8e46]: Lệnh vào / thoát
+              - generic [ref=f8e47]: 0 / 0
+              - generic [ref=f8e48]: từ log pilot
+          - generic [ref=f8e49]:
+            - generic [ref=f8e50]: Lý do bị loại nhiều nhất
+            - list [ref=f8e51]:
+              - listitem [ref=f8e52]: —
+        - generic [ref=f8e53]:
+          - generic [ref=f8e54]:
+            - generic [ref=f8e55]: Pilot top5 CFD (MT5 demo)
+            - generic [ref=f8e56]: DỪNG
+            - generic [ref=f8e57]: env demo · tick cuối —
+          - generic [ref=f8e58]: "Nhật ký hoạt động đúng: automation đang TẮT — pilot không tick nên không thể có lệnh mới; chưa có bản ghi nào trong log."
+          - generic [ref=f8e60]:
+            - generic [ref=f8e61]:
+              - generic [ref=f8e62]: Đánh giá 24h
+              - generic [ref=f8e63]: "0"
+              - generic [ref=f8e64]: tổng 0
+            - generic [ref=f8e65]:
+              - generic [ref=f8e66]: Đủ điều kiện
+              - generic [ref=f8e67]: "0"
+              - generic [ref=f8e68]: "luật: quét → MSS → FVG · KL ≥ 1.5×"
+            - generic [ref=f8e69]:
+              - generic [ref=f8e70]: Lệnh vào / thoát
+              - generic [ref=f8e71]: 0 / 0
+              - generic [ref=f8e72]: từ log pilot
+          - generic [ref=f8e73]:
+            - generic [ref=f8e74]: Lý do bị loại nhiều nhất
+            - list [ref=f8e75]:
+              - listitem [ref=f8e76]: —
+    - generic [ref=f8e77]:
+      - heading "Bảng cân đối không tính lệnh diễn tập" [level=2] [ref=f8e78]:
+        - text: Bảng cân đối
+        - generic [ref=f8e79]: không tính lệnh diễn tập
+      - generic [ref=f8e80]:
+        - generic [ref=f8e81]:
+          - generic [ref=f8e82]: Lệnh đã đóng
+          - generic [ref=f8e83]: "0"
+          - generic [ref=f8e84]: đang mở 0 · kế hoạch 0 · diễn tập 0
+        - generic [ref=f8e85]:
+          - generic [ref=f8e86]: Tỷ lệ thắng
+          - generic [ref=f8e87]: —
+          - generic [ref=f8e88]: 0 thắng / 0 thua
+        - generic [ref=f8e89]:
+          - generic [ref=f8e90]: R kỳ vọng
+          - generic [ref=f8e91]: —
+          - generic [ref=f8e92]: thắng — R · thua — R
+        - generic [ref=f8e93]:
+          - generic [ref=f8e94]: Profit factor
+          - generic [ref=f8e95]: —
+          - generic [ref=f8e96]: tổng 0 R · 0 USDT
+        - generic [ref=f8e97]:
+          - generic [ref=f8e98]: Sụt giảm tối đa
+          - generic [ref=f8e99]: 0 R
+          - generic [ref=f8e100]: chuỗi thua dài nhất 0
+    - generic [ref=f8e101]:
+      - heading "Đường R tích lũy theo thời điểm đóng lệnh · lăn chuột = zoom · kéo = dịch" [level=2] [ref=f8e102]:
+        - text: Đường R tích lũy
+        - generic [ref=f8e103]: theo thời điểm đóng lệnh · lăn chuột = zoom · kéo = dịch
+      - generic [ref=f8e104]: Chưa có lệnh đóng (không tính diễn tập) — đường R tích lũy sẽ xuất hiện sau lệnh đóng đầu tiên.
+    - generic [ref=f8e106]:
+      - heading "Sổ lệnh 1 bản ghi" [level=2] [ref=f8e107]:
+        - text: Sổ lệnh
+        - generic [ref=f8e108]: 1 bản ghi
+      - table [ref=f8e110]:
+        - rowgroup [ref=f8e111]:
+          - row [ref=f8e112]:
+            - columnheader "ID" [ref=f8e113]
+            - columnheader "Thị trường" [ref=f8e114]
+            - columnheader "Mã" [ref=f8e115]
+            - columnheader "Chiều" [ref=f8e116]
+            - columnheader "Setup" [ref=f8e117]
+            - columnheader "Phiên" [ref=f8e118]
+            - columnheader "Entry" [ref=f8e119]
+            - columnheader "Stop" [ref=f8e120]
+            - columnheader "Targets" [ref=f8e121]
+            - columnheader "R kế hoạch" [ref=f8e122]
+            - columnheader "Trạng thái" [ref=f8e123]
+            - columnheader "Thoát" [ref=f8e124]
+            - columnheader "Kết quả" [ref=f8e125]
+            - columnheader "R" [ref=f8e126]
+            - columnheader "P&L USDT" [ref=f8e127]
+            - columnheader "Giữ (phút)" [ref=f8e128]
+        - rowgroup [ref=f8e129]:
+          - row [ref=f8e130]:
+            - cell "2026-09-09-BTCUSDT-01" [ref=f8e131]
+            - cell "—" [ref=f8e132]
+            - cell "BTCUSDT" [ref=f8e133]
+            - cell "LONG" [ref=f8e134]
+            - cell "Wyckoff Spring Type 2 (candidate accumulation) diễn tập" [ref=f8e136]:
+              - text: Wyckoff Spring Type 2 (candidate accumulation)
+              - generic [ref=f8e137]: diễn tập
+            - cell "—" [ref=f8e138]
+            - cell "65,200" [ref=f8e139]
+            - cell "64,650" [ref=f8e140]
+            - cell "[66500, 67100]" [ref=f8e141]
+            - cell "—" [ref=f8e142]
+            - cell "PLANNED" [ref=f8e143]
+            - cell [ref=f8e145]
+            - cell [ref=f8e146]
+            - cell "—" [ref=f8e147]
+            - cell "—" [ref=f8e148]
+            - cell "—" [ref=f8e149]
+    - generic [ref=f8e150]:
+      - heading "Review từng lệnh" [level=2] [ref=f8e151]
+      - generic [ref=f8e153]:
+        - text: "Sau mỗi lệnh, trả lời năm câu: luận điểm còn đúng không · kế hoạch so với thực tế · có phá luật nào không (followed_plan) · nguyên nhân gốc (root_cause) · một thay đổi cụ thể cho lần sau (what_to_change). Sai lầm lặp lại được gom trong"
+        - code [ref=f8e154]: docs/mistakes/MISTAKE-DB.md
+        - text: ; cập nhật bằng
+        - code [ref=f8e155]: scripts/journal.py review <id> --set key=value
+        - text: .
+      - group [ref=f8e157]:
+        - generic "2026-09-09-BTCUSDT-01 BTCUSDT LONG PLANNED R —" [ref=f8e158] [cursor=pointer]:
+          - generic [ref=f8e159]: 2026-09-09-BTCUSDT-01
+          - generic [ref=f8e160]: BTCUSDT
+          - generic [ref=f8e161]: LONG
+          - generic [ref=f8e162]: PLANNED
+          - generic [ref=f8e163]: R —
+        - text: Luận điểm chưa ghi Kế hoạch vs thực tế chưa ghi Tuân thủ kế hoạch chưa ghi Loại thoát chưa ghi Lý do thoát chưa ghi Nguyên nhân gốc chưa ghi Là sai lầm? chưa ghi Bài học chưa ghi Ghi chú review chưa ghi Thay đổi lần sau chưa ghi Tự tin trước lệnh (1–5) chưa ghi Trạng thái cảm xúc chưa ghi Thẻ chưa ghi Ảnh chart chưa ghi
+    - contentinfo [ref=f8e164]:
+      - generic [ref=f8e165]: "Nguồn: trades/index.jsonl (dẫn xuất từ trades/*.md) · log pilot · automation-config.json · sinh 2026-09-17 22:37 VNT bởi scripts/journal.py render · đồng bộ tự động sau mỗi tick pilot (scripts/pilot-loop.sh) và bởi /journal, /status, /review."
+      - text: "Chart: TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. ·"
+      - link "tradingview.com" [ref=f8e166] [cursor=pointer]:
+        - /url: https://www.tradingview.com/
+      - text: · Apache-2.0 (scripts/vendor/NOTICE-lightweight-charts.txt)

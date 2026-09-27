@@ -1,0 +1,191 @@
+- main [ref=f11e2]:
+  - generic [ref=f11e3]:
+    - heading "Method switch" [level=1] [ref=f11e4]
+    - group "Language" [ref=f11e5]:
+      - button "EN" [pressed] [ref=f11e6] [cursor=pointer]
+      - button "VI" [ref=f11e7] [cursor=pointer]
+    - generic [ref=f11e8]: Times UTC
+    - generic [ref=f11e9]: DEMO (testnet, play money)
+  - paragraph [ref=f11e10]: Tapping here changes the trading configuration that is currently running. This page CANNOT record who tapped — the audit trail only records the actor "artifact-panel".
+  - status [ref=f11e11]: Read-only — this viewer does not support the control store.
+  - generic [ref=f11e12]:
+    - generic [ref=f11e13]:
+      - heading "Crypto BTCUSDT/ETHUSDT/SOLUSDT…" [level=2] [ref=f11e14]:
+        - text: Crypto
+        - generic [ref=f11e15]: BTCUSDT/ETHUSDT/SOLUSDT…
+      - generic [ref=f11e16]: Can qualify for entry
+      - generic [ref=f11e17]:
+        - 'button "Wyckoff Trade Wyckoff runner: WYCKOFF, WYCKOFF-BOOK the pilot runs the mechanical rules in scripts/wyckoff_rules.py (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill''s full Wyckoff read. mode SOLO · minimum 1 dimensions · score threshold 85 Runs SOLO — 1 dimension, with no other dimension cross-confirming it, so it needs a score ≥85 (instead of NORMAL''s 70) to reach TRADE." [disabled] [ref=f11e18]':
+          - generic [ref=f11e19]:
+            - generic [ref=f11e20]: Wyckoff
+            - generic [ref=f11e21]: Trade
+          - generic [ref=f11e22]: Wyckoff
+          - generic [ref=f11e23]: "runner: WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f11e25]:
+            - text: the pilot runs the mechanical rules in
+            - code [ref=f11e26]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill's full Wyckoff read.
+          - generic [ref=f11e27]: mode SOLO · minimum 1 dimensions · score threshold 85
+          - generic [ref=f11e28]: Runs SOLO — 1 dimension, with no other dimension cross-confirming it, so it needs a score ≥85 (instead of NORMAL's 70) to reach TRADE.
+        - 'button "ICT Trade ICT runner: ICT mode SOLO · minimum 1 dimensions · score threshold 85 Runs SOLO — 1 dimension, with no other dimension cross-confirming it, so it needs a score ≥85 (instead of NORMAL''s 70) to reach TRADE." [disabled] [pressed] [ref=f11e29]':
+          - generic [ref=f11e30]:
+            - generic [ref=f11e31]: ICT
+            - generic [ref=f11e32]: Trade
+          - generic [ref=f11e33]: ICT
+          - generic [ref=f11e34]: "runner: ICT"
+          - generic [ref=f11e35]: mode SOLO · minimum 1 dimensions · score threshold 85
+          - generic [ref=f11e36]: Runs SOLO — 1 dimension, with no other dimension cross-confirming it, so it needs a score ≥85 (instead of NORMAL's 70) to reach TRADE.
+        - 'button "Wyckoff + ICT Trade Wyckoff + ICT runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK the pilot runs the mechanical rules in scripts/wyckoff_rules.py (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill''s full Wyckoff read. mode NORMAL · minimum 2 dimensions · score threshold 70" [disabled] [ref=f11e37]':
+          - generic [ref=f11e38]:
+            - generic [ref=f11e39]: Wyckoff + ICT
+            - generic [ref=f11e40]: Trade
+          - generic [ref=f11e41]: Wyckoff + ICT
+          - generic [ref=f11e42]: "runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f11e44]:
+            - text: the pilot runs the mechanical rules in
+            - code [ref=f11e45]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill's full Wyckoff read.
+          - generic [ref=f11e46]: mode NORMAL · minimum 2 dimensions · score threshold 70
+        - 'button "Wyckoff + Footprint Trade Wyckoff + Footprint runner: WYCKOFF, WYCKOFF-BOOK the pilot runs the mechanical rules in scripts/wyckoff_rules.py (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill''s full Wyckoff read. mode NORMAL · minimum 2 dimensions · score threshold 70" [disabled] [ref=f11e47]':
+          - generic [ref=f11e48]:
+            - generic [ref=f11e49]: Wyckoff + Footprint
+            - generic [ref=f11e50]: Trade
+          - generic [ref=f11e51]: Wyckoff + Footprint
+          - generic [ref=f11e52]: "runner: WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f11e54]:
+            - text: the pilot runs the mechanical rules in
+            - code [ref=f11e55]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill's full Wyckoff read.
+          - generic [ref=f11e56]: mode NORMAL · minimum 2 dimensions · score threshold 70
+        - 'button "Wyckoff + ICT + Footprint Trade Wyckoff + ICT + Footprint runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK the pilot runs the mechanical rules in scripts/wyckoff_rules.py (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill''s full Wyckoff read. mode NORMAL · minimum 2 dimensions · score threshold 70" [disabled] [ref=f11e57]':
+          - generic [ref=f11e58]:
+            - generic [ref=f11e59]: Wyckoff + ICT + Footprint
+            - generic [ref=f11e60]: Trade
+          - generic [ref=f11e61]: Wyckoff + ICT + Footprint
+          - generic [ref=f11e62]: "runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f11e64]:
+            - text: the pilot runs the mechanical rules in
+            - code [ref=f11e65]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill's full Wyckoff read.
+          - generic [ref=f11e66]: mode NORMAL · minimum 2 dimensions · score threshold 70
+        - 'button "All four dimensions Trade Wyckoff + ICT + Footprint + Heatmap runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK the pilot runs the mechanical rules in scripts/wyckoff_rules.py (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill''s full Wyckoff read. mode NORMAL · minimum 2 dimensions · score threshold 70" [disabled] [ref=f11e67]':
+          - generic [ref=f11e68]:
+            - generic [ref=f11e69]: All four dimensions
+            - generic [ref=f11e70]: Trade
+          - generic [ref=f11e71]: Wyckoff + ICT + Footprint + Heatmap
+          - generic [ref=f11e72]: "runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f11e74]:
+            - text: the pilot runs the mechanical rules in
+            - code [ref=f11e75]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill's full Wyckoff read.
+          - generic [ref=f11e76]: mode NORMAL · minimum 2 dimensions · score threshold 70
+      - generic [ref=f11e77]: Watched pairs
+      - list [ref=f11e78]:
+        - listitem [ref=f11e79]:
+          - button "BTC/USDT" [disabled] [pressed] [ref=f11e80] [cursor=pointer]
+        - listitem [ref=f11e82]:
+          - button "ETH/USDT" [disabled] [pressed] [ref=f11e83] [cursor=pointer]
+        - listitem [ref=f11e85]:
+          - button "SOL/USDT" [disabled] [pressed] [ref=f11e86] [cursor=pointer]
+        - listitem [ref=f11e88]:
+          - button "ASTER/USDT not validated" [disabled] [pressed] [ref=f11e89] [cursor=pointer]:
+            - generic [ref=f11e90]: ASTER/USDT
+            - generic "Not validated by a backtest" [ref=f11e91]: not validated
+        - listitem [ref=f11e92]:
+          - button "VIRTUAL/USDT not validated" [disabled] [pressed] [ref=f11e93] [cursor=pointer]:
+            - generic [ref=f11e94]: VIRTUAL/USDT
+            - generic "Not validated by a backtest" [ref=f11e95]: not validated
+        - listitem [ref=f11e96]:
+          - button "SUI/USDT not validated" [disabled] [pressed] [ref=f11e97] [cursor=pointer]:
+            - generic [ref=f11e98]: SUI/USDT
+            - generic "Not validated by a backtest" [ref=f11e99]: not validated
+        - listitem [ref=f11e100]:
+          - button "TAO/USDT not validated" [disabled] [pressed] [ref=f11e101] [cursor=pointer]:
+            - generic [ref=f11e102]: TAO/USDT
+            - generic "Not validated by a backtest" [ref=f11e103]: not validated
+        - listitem [ref=f11e104]:
+          - button "RENDER/USDT not validated" [disabled] [pressed] [ref=f11e105] [cursor=pointer]:
+            - generic [ref=f11e106]: RENDER/USDT
+            - generic "Not validated by a backtest" [ref=f11e107]: not validated
+        - listitem [ref=f11e108]:
+          - button "ONDO/USDT not validated" [disabled] [pressed] [ref=f11e109] [cursor=pointer]:
+            - generic [ref=f11e110]: ONDO/USDT
+            - generic "Not validated by a backtest" [ref=f11e111]: not validated
+      - generic [ref=f11e112]: not sent
+    - generic [ref=f11e113]:
+      - heading "CFD XAUUSD/XAGUSD/USOIL…" [level=2] [ref=f11e114]:
+        - text: CFD
+        - generic [ref=f11e115]: XAUUSD/XAGUSD/USOIL…
+      - generic [ref=f11e116]: Can qualify for entry
+      - generic [ref=f11e117]:
+        - 'button "Wyckoff Trade Wyckoff runner: WYCKOFF, WYCKOFF-BOOK the pilot runs the mechanical rules in scripts/wyckoff_rules.py (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill''s full Wyckoff read. mode SOLO · minimum 1 dimensions · score threshold 85 Runs SOLO — 1 dimension, with no other dimension cross-confirming it, so it needs a score ≥85 (instead of NORMAL''s 70) to reach TRADE." [disabled] [ref=f11e118]':
+          - generic [ref=f11e119]:
+            - generic [ref=f11e120]: Wyckoff
+            - generic [ref=f11e121]: Trade
+          - generic [ref=f11e122]: Wyckoff
+          - generic [ref=f11e123]: "runner: WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f11e125]:
+            - text: the pilot runs the mechanical rules in
+            - code [ref=f11e126]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill's full Wyckoff read.
+          - generic [ref=f11e127]: mode SOLO · minimum 1 dimensions · score threshold 85
+          - generic [ref=f11e128]: Runs SOLO — 1 dimension, with no other dimension cross-confirming it, so it needs a score ≥85 (instead of NORMAL's 70) to reach TRADE.
+        - 'button "ICT Trade ICT runner: ICT mode SOLO · minimum 1 dimensions · score threshold 85 Runs SOLO — 1 dimension, with no other dimension cross-confirming it, so it needs a score ≥85 (instead of NORMAL''s 70) to reach TRADE." [disabled] [pressed] [ref=f11e129]':
+          - generic [ref=f11e130]:
+            - generic [ref=f11e131]: ICT
+            - generic [ref=f11e132]: Trade
+          - generic [ref=f11e133]: ICT
+          - generic [ref=f11e134]: "runner: ICT"
+          - generic [ref=f11e135]: mode SOLO · minimum 1 dimensions · score threshold 85
+          - generic [ref=f11e136]: Runs SOLO — 1 dimension, with no other dimension cross-confirming it, so it needs a score ≥85 (instead of NORMAL's 70) to reach TRADE.
+        - 'button "Wyckoff + ICT Trade Wyckoff + ICT runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK the pilot runs the mechanical rules in scripts/wyckoff_rules.py (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill''s full Wyckoff read. mode NORMAL · minimum 2 dimensions · score threshold 70" [disabled] [ref=f11e137]':
+          - generic [ref=f11e138]:
+            - generic [ref=f11e139]: Wyckoff + ICT
+            - generic [ref=f11e140]: Trade
+          - generic [ref=f11e141]: Wyckoff + ICT
+          - generic [ref=f11e142]: "runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f11e144]:
+            - text: the pilot runs the mechanical rules in
+            - code [ref=f11e145]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR from SC/AR, Spring vs Shakeout, VP veto), not the skill's full Wyckoff read.
+          - generic [ref=f11e146]: mode NORMAL · minimum 2 dimensions · score threshold 70
+        - button "Wyckoff + Footprint Trade Wyckoff + Footprint Locked on CFD — CoinGlass is the order-flow source for footprint/heatmap and covers crypto derivatives only (SYSTEM-DESIGN.md §12 item 3). mode NORMAL · minimum 2 dimensions · score threshold 70" [disabled] [ref=f11e147]:
+          - generic [ref=f11e148]:
+            - generic [ref=f11e149]: Wyckoff + Footprint
+            - generic [ref=f11e150]: Trade
+          - generic [ref=f11e151]: Wyckoff + Footprint
+          - generic [ref=f11e152]: Locked on CFD — CoinGlass is the order-flow source for footprint/heatmap and covers crypto derivatives only (SYSTEM-DESIGN.md §12 item 3).
+          - generic [ref=f11e153]: mode NORMAL · minimum 2 dimensions · score threshold 70
+        - button "Wyckoff + ICT + Footprint Trade Wyckoff + ICT + Footprint Locked on CFD — CoinGlass is the order-flow source for footprint/heatmap and covers crypto derivatives only (SYSTEM-DESIGN.md §12 item 3). mode NORMAL · minimum 2 dimensions · score threshold 70" [disabled] [ref=f11e154]:
+          - generic [ref=f11e155]:
+            - generic [ref=f11e156]: Wyckoff + ICT + Footprint
+            - generic [ref=f11e157]: Trade
+          - generic [ref=f11e158]: Wyckoff + ICT + Footprint
+          - generic [ref=f11e159]: Locked on CFD — CoinGlass is the order-flow source for footprint/heatmap and covers crypto derivatives only (SYSTEM-DESIGN.md §12 item 3).
+          - generic [ref=f11e160]: mode NORMAL · minimum 2 dimensions · score threshold 70
+        - button "All four dimensions Trade Wyckoff + ICT + Footprint + Heatmap Locked on CFD — CoinGlass is the order-flow source for footprint/heatmap and covers crypto derivatives only (SYSTEM-DESIGN.md §12 item 3). mode NORMAL · minimum 2 dimensions · score threshold 70" [disabled] [ref=f11e161]:
+          - generic [ref=f11e162]:
+            - generic [ref=f11e163]: All four dimensions
+            - generic [ref=f11e164]: Trade
+          - generic [ref=f11e165]: Wyckoff + ICT + Footprint + Heatmap
+          - generic [ref=f11e166]: Locked on CFD — CoinGlass is the order-flow source for footprint/heatmap and covers crypto derivatives only (SYSTEM-DESIGN.md §12 item 3).
+          - generic [ref=f11e167]: mode NORMAL · minimum 2 dimensions · score threshold 70
+      - generic [ref=f11e168]: Watched pairs
+      - list [ref=f11e169]:
+        - listitem [ref=f11e170]:
+          - button "XAU/USD" [disabled] [pressed] [ref=f11e171] [cursor=pointer]
+        - listitem [ref=f11e173]:
+          - button "XAG/USD not validated" [disabled] [pressed] [ref=f11e174] [cursor=pointer]:
+            - generic [ref=f11e175]: XAG/USD
+            - generic "Not validated by a backtest" [ref=f11e176]: not validated
+        - listitem [ref=f11e177]:
+          - button "USOIL no data not validated" [disabled] [ref=f11e178] [cursor=pointer]:
+            - generic [ref=f11e179]: USOIL
+            - generic "No candle data on disk yet" [ref=f11e180]: no data
+            - generic "Not validated by a backtest" [ref=f11e181]: not validated
+        - listitem [ref=f11e182]:
+          - button "UKOIL no data not validated" [disabled] [ref=f11e183] [cursor=pointer]:
+            - generic [ref=f11e184]: UKOIL
+            - generic "No candle data on disk yet" [ref=f11e185]: no data
+            - generic "Not validated by a backtest" [ref=f11e186]: not validated
+      - generic [ref=f11e187]: not sent

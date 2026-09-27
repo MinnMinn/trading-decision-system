@@ -1,0 +1,1681 @@
+- generic [ref=f3e1]:
+  - generic [ref=f3e3]:
+    - generic [ref=f3e4]:
+      - generic [ref=f3e5]: Crypto Scalping
+      - generic [ref=f3e6]: 15m × 576 (6 ngày) · dữ liệu tới 22:00 VNT
+    - navigation [ref=f3e7]:
+      - link "BTC" [ref=f3e8] [cursor=pointer]:
+        - /url: "#sec-btc"
+      - link "ETH" [ref=f3e9] [cursor=pointer]:
+        - /url: "#sec-eth"
+      - link "SOL" [ref=f3e10] [cursor=pointer]:
+        - /url: "#sec-sol"
+      - link "ASTER" [ref=f3e11] [cursor=pointer]:
+        - /url: "#sec-aster"
+      - link "VIRTUAL" [ref=f3e12] [cursor=pointer]:
+        - /url: "#sec-virtual"
+      - link "SUI" [ref=f3e13] [cursor=pointer]:
+        - /url: "#sec-sui"
+      - link "TAO" [ref=f3e14] [cursor=pointer]:
+        - /url: "#sec-tao"
+      - link "RENDER" [ref=f3e15] [cursor=pointer]:
+        - /url: "#sec-render"
+      - link "ONDO" [ref=f3e16] [cursor=pointer]:
+        - /url: "#sec-ondo"
+      - link "Thuật ngữ" [ref=f3e1332] [cursor=pointer]:
+        - /url: "#sec-glossary"
+    - group "Phương pháp" [ref=f3e1333]:
+      - button "Wyckoff" [ref=f3e19] [cursor=pointer]
+      - button "ICT" [ref=f3e21] [cursor=pointer]
+      - button "Footprint" [ref=f3e23] [cursor=pointer]
+      - button "Heatmap" [ref=f3e25] [cursor=pointer]
+    - group "Ngôn ngữ" [ref=f3e1334]:
+      - button "EN" [ref=f3e28] [cursor=pointer]
+      - button "VI" [active] [pressed] [ref=f3e29] [cursor=pointer]
+    - generic [ref=f3e30]: Giờ UTC+7
+  - generic [ref=f3e31]:
+    - generic [ref=f3e32]:
+      - generic [ref=f3e33]:
+        - paragraph [ref=f3e34]: Binance public REST · 15m × 576 (6 ngày) · phân tích, không phải tín hiệu
+        - heading "Crypto Scalping" [level=1] [ref=f3e35]
+        - paragraph [ref=f3e36]: Ba tầng khung cho mỗi mã — Bias → Cấu trúc → Vào lệnh — đọc bằng ICT (cấu trúc giá).
+        - paragraph [ref=f3e37]: Phần văn bản phân tích trên trang này do mô hình viết bằng tiếng Việt và được giữ nguyên văn; thời gian trong đó là UTC.
+      - generic [ref=f3e38]: KHÔNG PHẢI TÍN HIỆU GIAO DỊCH · chỉ nghiên cứu
+    - generic [ref=f3e39]:
+      - generic [ref=f3e40]:
+        - generic [ref=f3e41]: Thang khung · đọc từ trên xuống
+        - generic [ref=f3e1335]:
+          - generic [ref=f3e1336]: Bias 4H ×4
+          - text: →
+          - generic [ref=f3e1337]: Cấu trúc 1H ×4
+          - text: →
+          - generic [ref=f3e1338]: Vào lệnh 15m
+        - generic [ref=f3e47]: "tầng quyết định verdict: Bias · bias không tạo ở khung vào lệnh · liền kề ≥ ×4 (timeframe-mapping.md)"
+      - generic [ref=f3e48]:
+        - generic [ref=f3e49]: Sự kiện chính (phân tích đầy đủ gần nhất)
+        - generic [ref=f3e50]: BTC vẫn giữa vùng, chưa đóng cửa vượt AR; ETH đã lên cực trị mới 2,484.62 vượt đỉnh UA cũ nhưng chưa xác nhận SOS thật; SOL vẫn kẹt giữa SC–AR
+        - generic [ref=f3e51]: "Sau cú Spring 23:15Z 10/9, BTC giữ nguyên trạng thái: tham chiếu 10:45Z ở 76,993, vẫn dưới AR 77,424.98 (-0.56%) và trên đáy Spring 76,464 (+0.69%), chưa có đóng cửa vượt bên nào — vẫn Pha C. ETH đã đẩy giá lên cực trị 2,484.62 — vượt hẳn đỉnh UA cũ 2,475.03 — nhưng nến đang hình thành mới chỉ đang vượt, chưa đóng cửa xác nhận trên khối lượng đủ chuẩn, nên vẫn giữ đọc Pha C, chờ SOS thật. SOL yếu nhất, tham chiếu 99.18, vẫn giữa SC 98.50–AR 100.37, chưa có đóng cửa vượt bên nào."
+      - generic [ref=f3e52]:
+        - generic [ref=f3e53]: Trạng thái (cục bộ)
+        - generic [ref=f3e54]:
+          - generic [ref=f3e55]:
+            - generic [ref=f3e56]: BTC
+            - generic [ref=f3e57]: THEO DÕI LONG
+          - generic [ref=f3e58]:
+            - generic [ref=f3e59]: ETH
+            - generic [ref=f3e60]: THEO DÕI LONG
+          - generic [ref=f3e61]:
+            - generic [ref=f3e62]: SOL
+            - generic [ref=f3e63]: THEO DÕI LONG
+          - generic [ref=f3e64]:
+            - generic [ref=f3e65]: ASTER
+            - generic [ref=f3e66]: —
+          - generic [ref=f3e68]:
+            - generic [ref=f3e69]: VIRTUAL
+            - generic [ref=f3e70]: —
+          - generic [ref=f3e72]:
+            - generic [ref=f3e73]: SUI
+            - generic [ref=f3e74]: —
+          - generic [ref=f3e76]:
+            - generic [ref=f3e77]: TAO
+            - generic [ref=f3e78]: —
+          - generic [ref=f3e80]:
+            - generic [ref=f3e81]: RENDER
+            - generic [ref=f3e82]: —
+          - generic [ref=f3e84]:
+            - generic [ref=f3e85]: ONDO
+            - generic [ref=f3e86]: —
+        - generic [ref=f3e88]: dữ liệu tới 22:00 VNT
+    - generic [ref=f3e89]:
+      - generic [ref=f3e90]:
+        - generic [ref=f3e91]: BTC/USDT
+        - generic [ref=f3e92]: 76,382
+        - generic [ref=f3e93]:
+          - generic [ref=f3e94]: vị trí trong cửa sổ 15m 31%
+          - generic [ref=f3e96]: nến cuối 17/9 22:00 VNT
+        - generic [ref=f3e98]:
+          - generic [ref=f3e99]: vào lệnh 15m
+          - generic [ref=f3e100]: THEO DÕI LONG
+      - generic [ref=f3e101]:
+        - generic [ref=f3e102]: Tầng
+        - generic [ref=f3e103]: ICT
+        - generic [ref=f3e105]: Kết luận
+        - generic [ref=f3e106]:
+          - generic [ref=f3e107]: Bias
+          - generic [ref=f3e108]: 4H ×4
+          - generic [ref=f3e109]: cập nhật 19:00 VNT
+        - generic [ref=f3e110]:
+          - text: 70% dealing range (62,716–82,300) · premium
+          - generic [ref=f3e111]: "MSS gần nhất: tăng qua 77,506"
+        - generic [ref=f3e112]:
+          - 'generic "[ict] MSS gần nhất: tăng, thân đóng vượt swing 77505.67 (knowledge/ict/core-b.md §2.2)" [ref=f3e1341]': LONG
+          - generic [ref=f3e114]: tầng quyết định verdict
+        - generic [ref=f3e115]:
+          - generic [ref=f3e116]: Cấu trúc
+          - generic [ref=f3e117]: 1H ×4
+          - generic [ref=f3e118]: cập nhật 22:00 VNT
+        - generic [ref=f3e119]:
+          - text: 61% dealing range (74,968–77,223) · premium
+          - generic [ref=f3e120]: "MSS gần nhất: giảm qua 77,482"
+        - 'generic "[ict] PCL 76391.44 — thân nến đã đóng qua, mốc này là draw; kỳ vọng tiếp diễn giảm (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] MSS gần nhất: giảm, thân đóng vượt swing 77481.98 (knowledge/ict/core-b.md §2.2)" [ref=f3e1342]': SHORT
+        - generic [ref=f3e123]:
+          - generic [ref=f3e124]: Vào lệnh
+          - generic [ref=f3e125]: 15m
+          - generic [ref=f3e126]: cập nhật 22:00 VNT
+        - generic [ref=f3e127]:
+          - text: 22% dealing range (76,000–77,728) · discount
+          - generic [ref=f3e128]: "MSS gần nhất: tăng qua 76,770"
+        - generic [ref=f3e129]: THEO DÕI LONG
+      - generic [ref=f3e131]: "Wyckoff: tắt trong /automation"
+      - generic [ref=f3e133]:
+        - generic [ref=f3e134]:
+          - generic [ref=f3e135]:
+            - generic [ref=f3e136]:
+              - generic [ref=f3e137]: Bias
+              - text: · 4H × 360 (60 ngày) · 07-19 23:00 → 09-17 19:00
+            - generic [ref=f3e138]:
+              - generic [ref=f3e139]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e140] [cursor=pointer]
+              - button "+" [ref=f3e141] [cursor=pointer]
+              - button "⟲" [ref=f3e142] [cursor=pointer]
+          - table [ref=f3e1347]:
+            - row [ref=f3e1348]:
+              - cell
+              - cell [ref=f3e1349]
+              - cell [ref=f3e1353]
+            - row [ref=f3e1357]:
+              - cell [ref=f3e1358]
+            - row [ref=f3e1359]:
+              - cell
+              - cell [ref=f3e1360]
+              - cell [ref=f3e1364]
+            - row [ref=f3e1368]:
+              - cell
+              - cell [ref=f3e1369]
+              - cell [ref=f3e1373]
+        - generic [ref=f3e146]:
+          - generic [ref=f3e147]:
+            - generic [ref=f3e148]:
+              - generic [ref=f3e149]: Cấu trúc
+              - text: · 1H × 480 (20 ngày) · 08-28 23:00 → 09-17 22:00
+            - generic [ref=f3e150]:
+              - generic [ref=f3e151]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e152] [cursor=pointer]
+              - button "+" [ref=f3e153] [cursor=pointer]
+              - button "⟲" [ref=f3e154] [cursor=pointer]
+          - table [ref=f3e1379]:
+            - row [ref=f3e1380]:
+              - cell
+              - cell [ref=f3e1381]
+              - cell [ref=f3e1385]
+            - row [ref=f3e1389]:
+              - cell [ref=f3e1390]
+            - row [ref=f3e1391]:
+              - cell
+              - cell [ref=f3e1392]
+              - cell [ref=f3e1396]
+            - row [ref=f3e1400]:
+              - cell
+              - cell [ref=f3e1401]
+              - cell [ref=f3e1405]
+        - generic [ref=f3e158]:
+          - generic [ref=f3e159]:
+            - generic [ref=f3e160]:
+              - generic [ref=f3e161]: Vào lệnh
+              - text: · 15m × 576 (6 ngày) · 09-11 22:15 → 09-17 22:00
+            - generic [ref=f3e162]:
+              - generic [ref=f3e163]: lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–4 đổi phương pháp
+              - button "−" [ref=f3e164] [cursor=pointer]
+              - button "+" [ref=f3e165] [cursor=pointer]
+              - button "⟲" [ref=f3e166] [cursor=pointer]
+              - button "R:R" [ref=f3e167] [cursor=pointer]
+              - button "▶" [ref=f3e168] [cursor=pointer]
+          - table [ref=f3e1411]:
+            - row [ref=f3e1412]:
+              - cell
+              - cell [ref=f3e1413]
+              - cell [ref=f3e1417]
+            - row [ref=f3e1421]:
+              - cell [ref=f3e1422]
+            - row [ref=f3e1423]:
+              - cell
+              - cell [ref=f3e1424]
+              - cell [ref=f3e1428]
+            - row [ref=f3e1432]:
+              - cell
+              - cell [ref=f3e1433]
+              - cell [ref=f3e1437]
+        - generic [ref=f3e1440]:
+          - generic [ref=f3e1441]: FVG tăng
+          - generic [ref=f3e1443]: FVG giảm (nét chấm = CE 0.5)
+          - generic [ref=f3e1445]: "OB: đường open + 0.5 mean threshold (mờ = đã chạm open)"
+          - generic [ref=f3e1447]: BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)
+          - generic [ref=f3e1449]: PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)
+          - generic [ref=f3e1451]: EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới
+          - generic [ref=f3e1453]: CISD (● = nến đóng qua)
+          - generic [ref=f3e1455]: "killzone: không vẽ ở khung này"
+          - generic [ref=f3e1456]: MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement
+          - generic [ref=f3e1457]: OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực
+          - generic [ref=f3e1458]: "pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên), EQ = 50%"
+          - generic [ref=f3e1459]: ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)
+      - generic [ref=f3e172]:
+        - generic [ref=f3e173]: Lớp đọc
+        - generic [ref=f3e174]: ICT
+        - generic [ref=f3e176]: Tổng hợp
+        - generic [ref=f3e177]:
+          - generic [ref=f3e178]: Sơ bộ
+          - generic [ref=f3e179]: scanner · dữ liệu tới 22:00 VNT
+        - list [ref=f3e1461]:
+          - listitem [ref=f3e1462]: Giá 76,382 = 22% dealing range cửa sổ (76,000–77,728), discount, EQ 76,864.
+          - listitem [ref=f3e1463]:
+            - generic [ref=f3e1464]: Điểm swing bị phá bởi đóng cửa MSS giảm gần nhất
+            - text: "77,083 (11/9 02:45 VNT): nến đóng dưới (-0.75%)"
+          - listitem [ref=f3e1465]: "MSS gần nhất: tăng, đóng cửa vượt swing 76,770."
+          - listitem [ref=f3e1466]: "FVG chưa lấp gần giá nhất: giảm 76,502–76,612."
+          - listitem [ref=f3e1467]: "Pool chưa quét: BSL 77,728, BSL 78,083, SSL 77,693, SSL 76,000."
+          - listitem [ref=f3e1468]: Không có chuỗi quét → MSS cùng chiều trong các nến gần đây.
+        - generic [ref=f3e190]:
+          - generic [ref=f3e191]: PHÁ DƯỚI SC mới (Cao trào bán), khối lượng kỷ lục cửa sổ
+          - list [ref=f3e1470]:
+            - listitem [ref=f3e1471]:
+              - text: "Verdict theo luật so với mốc neo của phân tích đầy đủ gần nhất:"
+              - generic [ref=f3e1472]: PHÁ DƯỚI SC mới (Cao trào bán), khối lượng kỷ lục cửa sổ — cấu trúc mất hiệu lực, cần phân tích lại
+              - text: (nến đóng 17/9 21:45 VNT = 76,502).
+            - listitem [ref=f3e1473]: "Stance scanner: CHỜ (luật cố định, tham số dự án — không phải nhận định của mô hình)."
+        - generic [ref=f3e199]:
+          - generic [ref=f3e200]: Cục bộ
+          - generic [ref=f3e201]: Sonnet · dữ liệu tới 15:00 UTC
+        - generic [ref=f3e203]:
+          - paragraph [ref=f3e205]: Dealing range cửa sổ nằm trong 76,047–79,890, giá hiện tại 78,618 ở 67% biên độ, trên EQ 77,968 — vùng premium. docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19
+          - paragraph [ref=f3e206]: MSS giảm gần nhất đã đóng cửa vượt điểm swing 77,083, và nến đang hình thành hiện tại tiếp tục vượt mốc này, cho thấy displacement tăng đang tái diễn. docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2
+          - paragraph [ref=f3e207]: Mốc kháng cự vĩ mô xa hơn tại 79,760 chưa bị quét, giá tham chiếu 78,799 vẫn nằm dưới -1.21%. docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7
+          - paragraph [ref=f3e208]: Không ghi nhận chuỗi quét thanh khoản→MSS cùng chiều trong facts nên chưa đủ điều kiện xác nhận entry theo mô hình ICT. docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17
+        - generic [ref=f3e209]:
+          - generic [ref=f3e210]: THEO DÕI LONG
+          - generic [ref=f3e212]:
+            - paragraph [ref=f3e214]: "Bối cảnh 4h: cấu trúc tái tích lũy pha C, TR 76,676–77,959, bias LONG — tìm Spring[C]/LPS[C]/phá vỡ theo hướng tăng ở khung nhỏ. WA p93–96 · knowledge/07 §2.7"
+            - paragraph [ref=f3e215]: Mốc SC/Spring Wyckoff (76,676 / 76,464) trùng với vùng đáy dealing range ICT (76,047) trong cùng cửa sổ — một quan sát cấu trúc duy nhất, không tính hai lần. knowledge/10 §4.3
+            - paragraph [ref=f3e216]: Giá 78,618 đã đóng cửa vượt AR/mốc phá cấu trúc 77,425 và swing MSS 77,083, khớp hướng với bias khung lớn — verdict THEO DÕI LONG, không ngược bối cảnh; chưa có chuỗi quét→MSS cùng chiều xác nhận nên chưa đủ điều kiện SETUP TIỀM NĂNG, entry/stop/target chưa có trong facts. [tính toán của hệ thống — không phải trích dẫn tài liệu]
+            - paragraph [ref=f3e217]: "Điều kiện vô hiệu: đóng cửa dưới lại swing MSS 77,083 hoặc dưới Spring 76,464, thuộc sở hữu Wyckoff vì đây là mốc phá vỡ cấu trúc tăng sau SC/Spring. knowledge/10 §4.4"
+        - generic [ref=f3e218]:
+          - generic [ref=f3e219]: Toàn diện
+          - generic [ref=f3e220]: phân tích đầy đủ · 11/9 18:00 VNT
+        - generic [ref=f3e221]:
+          - paragraph [ref=f3e222]:
+            - generic [ref=f3e223]: Swing bị phá bởi đóng cửa MSS giảm gần nhất
+            - generic [ref=f3e224]: 77,083
+          - generic [ref=f3e225]:
+            - paragraph [ref=f3e227]: "Giá tham chiếu 76,993 (10:45Z) nằm trong dealing range cửa sổ (76,464–79,760), dưới điểm cân bằng 78,112 — vùng discount.Premium/Discount: docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19"
+            - paragraph [ref=f3e228]: "MSS gần nhất là giảm, đóng cửa phá swing 77,083 nhưng displacement cực yếu — chỉ 0.22× so với trung bình, không đủ áp lực để tiếp diễn giảm.Displacement/MSS: docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2"
+            - paragraph [ref=f3e229]: "Còn một khoảng trống giá giảm chưa lấp ngay phía trên giá hiện tại; các mốc thanh khoản chưa quét gồm BSL 77,544 phía trên và các SSL phía dưới quanh biên dưới dealing range — không có chuỗi quét thanh khoản rồi MSS cùng chiều để tạo một setup hoàn chỉnh.FVG: docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24; Grab vs MSS: docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17"
+        - generic [ref=f3e230]:
+          - generic [ref=f3e231]:
+            - generic [ref=f3e232]: THEO DÕI LONG
+            - generic [ref=f3e233]: "vô hiệu: đóng cửa dưới 76,464 · chủ sở hữu wyckoff"
+          - generic [ref=f3e235]: Nhìn lại
+          - paragraph [ref=f3e238]: "So với lần đọc 00:15Z (Spring vừa hồi phục về vùng, chờ SOS), cấu trúc không đổi: nến đóng tham chiếu 10:45Z ở 76,993 — vẫn dưới AR 77,424.98 (-0.56%) và trên đáy Spring 76,464.00 (+0.69%), chưa có đóng cửa vượt AR lẫn chưa đóng cửa dưới lại đáy Spring. Vẫn Pha C, chưa nâng cấp lên Pha D.Đối nhãn: WA p150–184 · knowledge/07 §2.11"
+          - generic [ref=f3e239]: Hiện tại
+          - generic [ref=f3e240]:
+            - paragraph [ref=f3e242]: "Bối cảnh 4h: tái tích lũy, Pha C — vùng giao dịch SC 76,676.07–AR 77,959.20, đóng cửa 4h hiện tại 76,827.80 nằm ở khoảng 12% vùng (sát biên dưới); vừa có Spring xuyên đáy SC xuống 76,464.00 (20:00Z) rồi hồi phục lên lại trên đáy SC; bias khung lớn: LONG (Pha C đã xác lập hướng, đúng vùng CO gom hàng theo luật giảm khung).Giảm khung: WA p93–96 · knowledge/07 §2.7"
+            - paragraph [ref=f3e243]: "Ở khung nhỏ, giá vẫn giữ trên đáy Spring 76,464.00 và chưa đóng cửa vượt lại AR 77,424.98 — tham chiếu 10:45Z ở 76,993, tức -0.56% dưới AR và +0.69% trên đáy Spring. Nỗ lực bán sau Spring không đủ đẩy giá xuống lại vùng cũ, nhưng nỗ lực mua cũng chưa đủ tạo một Dấu hiệu sức mạnh thật.Nỗ lực–Kết quả: WMT p149–154 · knowledge/07 §2.3, §4.1"
+            - paragraph [ref=f3e244]: "Mốc Wyckoff (SC 76,676.07, AR 77,424.98) và mốc ICT (swing MSS 77,083.17) không trùng giá trị nên vẫn là hai quan sát riêng biệt. MSS ICT gần nhất tại khung này vẫn là giảm nhưng đóng vượt swing chỉ trên khối lượng 0.22× trung bình — cực yếu, không đủ nỗ lực để phủ định đọc tăng của Spring.Đồng nhất Wyckoff/ICT khi trùng mốc: knowledge/10 §4.3"
+            - paragraph [ref=f3e245]:
+              - text: Kết luận
+              - strong [ref=f3e246]: THEO DÕI LONG
+              - text: ": chờ đóng cửa vượt AR 77,424.98 trên khối lượng đủ chuẩn (≥1.0x) để xác nhận SOS/Phase D; vô hiệu nếu đóng cửa dưới đáy Spring 76,464.00 — chủ sở hữu vô hiệu"
+              - strong [ref=f3e247]: Wyckoff
+              - text: "(đáy Spring).Chủ sở hữu vô hiệu: knowledge/10 §4.4"
+      - generic [ref=f3e248]: "Wyckoff: tắt trong /automation · Footprint: tắt trong /automation · Heatmap: tắt trong /automation"
+      - group [ref=f3e250]:
+        - generic "Dòng sự kiện của phân tích đầy đủ (7 mốc · ICT ở cột riêng)" [ref=f3e1476] [cursor=pointer]
+        - text: Thời gian (UTC) Sự kiện Đáy mới 76,676, khối lượng kỷ lục cửa sổ Hồi phục tạo đỉnh 77,425
+        - generic [ref=f3e1478]: Đỉnh dealing range hiện tại
+        - text: Xuyên bấc lên 77,544, đóng cửa lùi Đóng cửa phá swing 77,083
+        - generic [ref=f3e1479]: MSS giảm, đóng vượt swing 77,083
+        - text: Xuyên xuống 76,464 rồi hồi phục trong nến Đóng cửa 76,818, trở lại trên đáy vùng Vẫn giữ giữa vùng, tham chiếu 76,993
+        - generic [ref=f3e1480]: ": tắt trong /automation"
+    - generic [ref=f3e254]:
+      - generic [ref=f3e255]:
+        - generic [ref=f3e256]: ETH/USDT
+        - generic [ref=f3e257]: 2,456.63
+        - generic [ref=f3e258]:
+          - generic [ref=f3e259]: vị trí trong cửa sổ 15m 38%
+          - generic [ref=f3e261]: nến cuối 17/9 22:00 VNT
+        - generic [ref=f3e263]:
+          - generic [ref=f3e264]: vào lệnh 15m
+          - generic [ref=f3e265]: THEO DÕI LONG
+      - generic [ref=f3e266]:
+        - generic [ref=f3e267]: Tầng
+        - generic [ref=f3e268]: ICT
+        - generic [ref=f3e270]: Kết luận
+        - generic [ref=f3e271]:
+          - generic [ref=f3e272]: Bias
+          - generic [ref=f3e273]: 4H ×4
+          - generic [ref=f3e274]: cập nhật 19:00 VNT
+        - generic [ref=f3e275]:
+          - text: 24% dealing range (2,369.11–2,665.99) · discount
+          - generic [ref=f3e276]: "MSS gần nhất: giảm qua 2,462.02"
+        - generic [ref=f3e277]:
+          - 'generic "[ict] MSS gần nhất: giảm, thân đóng vượt swing 2462.02 (knowledge/ict/core-b.md §2.2)" [ref=f3e1483]': SHORT
+          - generic [ref=f3e279]: tầng quyết định verdict
+        - generic [ref=f3e280]:
+          - generic [ref=f3e281]: Cấu trúc
+          - generic [ref=f3e282]: 1H ×4
+          - generic [ref=f3e283]: cập nhật 22:00 VNT
+        - generic [ref=f3e284]:
+          - text: 71% dealing range (2,369.11–2,489.95) · premium
+          - generic [ref=f3e285]: "MSS gần nhất: giảm qua 2,487.84"
+        - 'generic "[ict] MSS gần nhất: giảm, thân đóng vượt swing 2487.84 (knowledge/ict/core-b.md §2.2)" [ref=f3e1484]': SHORT
+        - generic [ref=f3e288]:
+          - generic [ref=f3e289]: Vào lệnh
+          - generic [ref=f3e290]: 15m
+          - generic [ref=f3e291]: cập nhật 22:00 VNT
+        - generic [ref=f3e292]:
+          - text: 47% dealing range (2,432.82–2,483.74) · discount
+          - generic [ref=f3e293]: "MSS gần nhất: tăng qua 2,449.55"
+        - generic [ref=f3e294]: THEO DÕI LONG
+      - generic [ref=f3e296]: "Wyckoff: tắt trong /automation"
+      - generic [ref=f3e298]:
+        - generic [ref=f3e299]:
+          - generic [ref=f3e300]:
+            - generic [ref=f3e301]:
+              - generic [ref=f3e302]: Bias
+              - text: · 4H × 360 (60 ngày) · 07-19 23:00 → 09-17 19:00
+            - generic [ref=f3e303]:
+              - generic [ref=f3e304]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e305] [cursor=pointer]
+              - button "+" [ref=f3e306] [cursor=pointer]
+              - button "⟲" [ref=f3e307] [cursor=pointer]
+          - table [ref=f3e1489]:
+            - row [ref=f3e1490]:
+              - cell
+              - cell [ref=f3e1491]
+              - cell [ref=f3e1495]
+            - row [ref=f3e1499]:
+              - cell [ref=f3e1500]
+            - row [ref=f3e1501]:
+              - cell
+              - cell [ref=f3e1502]
+              - cell [ref=f3e1506]
+            - row [ref=f3e1510]:
+              - cell
+              - cell [ref=f3e1511]
+              - cell [ref=f3e1515]
+        - generic [ref=f3e311]:
+          - generic [ref=f3e312]:
+            - generic [ref=f3e313]:
+              - generic [ref=f3e314]: Cấu trúc
+              - text: · 1H × 480 (20 ngày) · 08-28 23:00 → 09-17 22:00
+            - generic [ref=f3e315]:
+              - generic [ref=f3e316]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e317] [cursor=pointer]
+              - button "+" [ref=f3e318] [cursor=pointer]
+              - button "⟲" [ref=f3e319] [cursor=pointer]
+          - table [ref=f3e1521]:
+            - row [ref=f3e1522]:
+              - cell
+              - cell [ref=f3e1523]
+              - cell [ref=f3e1527]
+            - row [ref=f3e1531]:
+              - cell [ref=f3e1532]
+            - row [ref=f3e1533]:
+              - cell
+              - cell [ref=f3e1534]
+              - cell [ref=f3e1538]
+            - row [ref=f3e1542]:
+              - cell
+              - cell [ref=f3e1543]
+              - cell [ref=f3e1547]
+        - generic [ref=f3e323]:
+          - generic [ref=f3e324]:
+            - generic [ref=f3e325]:
+              - generic [ref=f3e326]: Vào lệnh
+              - text: · 15m × 576 (6 ngày) · 09-11 22:15 → 09-17 22:00
+            - generic [ref=f3e327]:
+              - generic [ref=f3e328]: lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–4 đổi phương pháp
+              - button "−" [ref=f3e329] [cursor=pointer]
+              - button "+" [ref=f3e330] [cursor=pointer]
+              - button "⟲" [ref=f3e331] [cursor=pointer]
+              - button "R:R" [ref=f3e332] [cursor=pointer]
+              - button "▶" [ref=f3e333] [cursor=pointer]
+          - table [ref=f3e1553]:
+            - row [ref=f3e1554]:
+              - cell
+              - cell [ref=f3e1555]
+              - cell [ref=f3e1559]
+            - row [ref=f3e1563]:
+              - cell [ref=f3e1564]
+            - row [ref=f3e1565]:
+              - cell
+              - cell [ref=f3e1566]
+              - cell [ref=f3e1570]
+            - row [ref=f3e1574]:
+              - cell
+              - cell [ref=f3e1575]
+              - cell [ref=f3e1579]
+        - generic [ref=f3e1582]:
+          - generic [ref=f3e1583]: FVG tăng
+          - generic [ref=f3e1585]: FVG giảm (nét chấm = CE 0.5)
+          - generic [ref=f3e1587]: "OB: đường open + 0.5 mean threshold (mờ = đã chạm open)"
+          - generic [ref=f3e1589]: BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)
+          - generic [ref=f3e1591]: PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)
+          - generic [ref=f3e1593]: EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới
+          - generic [ref=f3e1595]: CISD (● = nến đóng qua)
+          - generic [ref=f3e1597]: "killzone: không vẽ ở khung này"
+          - generic [ref=f3e1598]: MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement
+          - generic [ref=f3e1599]: OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực
+          - generic [ref=f3e1600]: "pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên), EQ = 50%"
+          - generic [ref=f3e1601]: ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)
+      - generic [ref=f3e337]:
+        - generic [ref=f3e338]: Lớp đọc
+        - generic [ref=f3e339]: ICT
+        - generic [ref=f3e341]: Tổng hợp
+        - generic [ref=f3e342]:
+          - generic [ref=f3e343]: Sơ bộ
+          - generic [ref=f3e344]: scanner · dữ liệu tới 22:00 VNT
+        - list [ref=f3e1603]:
+          - listitem [ref=f3e1604]: Giá 2,456.63 = 47% dealing range cửa sổ (2,432.82–2,483.74), discount, EQ 2,458.28.
+          - listitem [ref=f3e1605]:
+            - generic [ref=f3e1606]: BSL chưa quét phía trên vùng hiện tại
+            - text: "2,479.29 (10/9 16:00 VNT): nến đóng dưới (-0.72%) · nến đóng vượt đầu tiên 11/9 22:15 VNT @ 2,611.43 · cực trị sau đó 2,617.03"
+          - listitem [ref=f3e1607]: "MSS gần nhất: tăng, đóng cửa vượt swing 2,449.55."
+          - listitem [ref=f3e1608]: "FVG chưa lấp gần giá nhất: giảm 2,490.61–2,496.07."
+          - listitem [ref=f3e1609]: "Pool chưa quét: BSL 2,483.74, BSL 2,488.18, SSL 2,432.82, SSL 2,413.01."
+          - listitem [ref=f3e1610]: Không có chuỗi quét → MSS cùng chiều trong các nến gần đây.
+        - generic [ref=f3e355]:
+          - generic [ref=f3e356]: PHÁ TRÊN AR — đã đóng cửa vượt (UA khối lượng dưới chuẩn); cực trị sau đó 2,484.62
+          - list [ref=f3e1612]:
+            - listitem [ref=f3e1613]:
+              - text: "Verdict theo luật so với mốc neo của phân tích đầy đủ gần nhất:"
+              - generic [ref=f3e1614]: PHÁ TRÊN AR — đã đóng cửa vượt (UA khối lượng dưới chuẩn); cực trị sau đó 2,484.62 — xác nhận tiếp diễn tăng
+              - text: (nến đóng 17/9 21:45 VNT = 2,461.42).
+            - listitem [ref=f3e1615]: "Stance scanner: CHỜ (luật cố định, tham số dự án — không phải nhận định của mô hình)."
+        - generic [ref=f3e364]:
+          - generic [ref=f3e365]: Cục bộ
+          - generic [ref=f3e366]: Sonnet · dữ liệu tới 15:00 UTC
+        - generic [ref=f3e368]:
+          - paragraph [ref=f3e370]: Giá 2,602.40 hiện ở 76% dealing range cửa sổ (2,405.85–2,665.99), trên EQ 2,535.92 — vùng premium. docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19
+          - paragraph [ref=f3e371]: MSS tăng gần nhất đã đóng cửa vượt điểm swing 2,475.27, xác nhận displacement tăng. docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2
+          - paragraph [ref=f3e372]: FVG tăng chưa lấp tại 2,512.45–2,519.36 vẫn còn hiệu lực dưới giá hiện tại, là vùng hỗ trợ tiềm năng nếu giá quay lại lấp. docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24
+          - paragraph [ref=f3e373]: Pool SSL 2,490.49 và 2,432.88 phía dưới vẫn chưa bị quét, trong khi BSL 2,523.30 và 2,484.76 đã được tiệm cận khi giá vượt lên; không ghi nhận chuỗi quét thanh khoản→MSS cùng chiều trong facts nên chưa đủ điều kiện xác nhận entry. docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7
+        - generic [ref=f3e374]:
+          - generic [ref=f3e375]: THEO DÕI LONG
+          - generic [ref=f3e377]:
+            - paragraph [ref=f3e379]: "Bối cảnh 4h: cấu trúc tái tích lũy pha B, TR 2,405.85–2,475.03, giá khung lớn ở 64% biên độ — giữa vùng, cung/cầu cân bằng, chưa xuất hiện CO, bias trung lập. WA p95–96, p201–203 · knowledge/07 §2.7"
+            - paragraph [ref=f3e380]: Mốc SC Wyckoff (2,405.85) trùng với đáy dealing range ICT của cửa sổ — một quan sát cấu trúc duy nhất, không tính hai lần. knowledge/10 §4.3
+            - paragraph [ref=f3e381]: Giá 2,602.40 đã đóng cửa vượt AR/mốc phá cấu trúc và swing MSS 2,475.27, khối lượng sự kiện gần nhất 3.85x xác nhận tiếp diễn tăng, nhưng do bối cảnh khung lớn trung lập nên verdict tối đa chỉ là THEO DÕI LONG, không được kết luận SETUP TIỀM NĂNG; entry/stop/target chưa có trong facts. [tính toán của hệ thống — không phải trích dẫn tài liệu]
+            - paragraph [ref=f3e382]: "Điều kiện vô hiệu: đóng cửa dưới lại LPS[C] 2,435.00, thuộc sở hữu Wyckoff vì đây là mốc kiểm tra hỗ trợ sau AR. knowledge/10 §4.4"
+        - generic [ref=f3e383]:
+          - generic [ref=f3e384]: Toàn diện
+          - generic [ref=f3e385]: phân tích đầy đủ · 11/9 18:00 VNT
+        - generic [ref=f3e386]:
+          - paragraph [ref=f3e387]:
+            - generic [ref=f3e388]: BSL chưa quét phía trên vùng hiện tại, đã bị vượt bởi cực trị mới
+            - generic [ref=f3e389]: 2,479.29
+          - generic [ref=f3e390]:
+            - paragraph [ref=f3e392]: "Giá tham chiếu 2,462.14 (10:45Z) nằm trong dealing range cửa sổ (2,405.85–2,523.30), sát dưới điểm cân bằng 2,464.57 — vẫn ở vùng discount.Premium/Discount: docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19"
+            - paragraph [ref=f3e393]: "MSS gần nhất là tăng, đóng cửa phá swing 2,460.29. Còn một khoảng trống giá tăng chưa lấp ngay dưới giá hiện tại; phía trên các mốc thanh khoản chưa quét gồm BSL 2,479.29 (đã bị vượt bởi cực trị mới) và các BSL xa hơn.Displacement/MSS: docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2; FVG: docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24; Liquidity: docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7"
+        - generic [ref=f3e394]:
+          - generic [ref=f3e395]:
+            - generic [ref=f3e396]: THEO DÕI LONG
+            - generic [ref=f3e397]: "vô hiệu: đóng cửa dưới 2,435.00 · chủ sở hữu wyckoff"
+          - generic [ref=f3e399]: Nhìn lại
+          - paragraph [ref=f3e402]: "So với lần đọc 00:15Z (LPS 2,435.00 vừa test xong, chờ SOS thật), giá tiếp tục đẩy lên và cực trị sau đó đã đạt 2,484.62 — vượt hẳn đỉnh UA cũ 2,475.03 — nhưng nến đang hình thành mới chỉ đang vượt AR, chưa đóng cửa xác nhận trên khối lượng đủ chuẩn nên chưa thể gọi là SOS thật. Tham chiếu 10:45Z ở 2,462.14, vẫn trên LPS 2,435.00 (+1.11%) và trên AR 2,444.45 (+0.72%).SOS cần khối lượng ≥ trung bình: WA p84 · knowledge/07 §2.7.4"
+          - generic [ref=f3e403]: Hiện tại
+          - generic [ref=f3e404]:
+            - paragraph [ref=f3e406]: "Bối cảnh 4h: tái tích lũy, còn Pha B — vùng giao dịch SC 2,405.85–AR 2,475.03, đóng cửa 4h hiện tại 2,449.96 nằm ở khoảng 64% vùng (giữa vùng, chưa chạm biên nào); sau cao trào bán 2,405.85, giá test lại LPS 2,435.00 (20:00Z) và giữ trên đáy đó; bias khung lớn: trung tính — mid-range chưa có CO nên chưa giao dịch theo hướng ở khung lớn.Giảm khung: WA p93–96 · knowledge/07 §2.7"
+            - paragraph [ref=f3e407]: "Ở khung nhỏ, giá đã đẩy lên cực trị 2,484.62, vượt hẳn đỉnh UA cũ 2,475.03 — Nỗ lực mở rộng thêm so với cú UA yếu 0.99x lúc 16:45Z hôm trước — nhưng nến đang hình thành hiện đang vượt AR vẫn chưa đóng cửa xác nhận, nên chưa đủ điều kiện gọi là Dấu hiệu sức mạnh (SOS) thật, cần đóng cửa trên khối lượng đủ chuẩn để mở Pha D.Nỗ lực–Kết quả: WMT p149–154 · knowledge/07 §2.3, §4.1"
+            - paragraph [ref=f3e408]: "Mốc Wyckoff (AR/LPS 2,444.45/2,435.00) và mốc ICT (BSL kế tiếp 2,479.29, đã bị vượt bởi cực trị 2,484.62) không trùng giá trị nên vẫn là hai quan sát riêng biệt. MSS ICT gần nhất tại khung này là tăng, đóng vượt swing 2,460.29 trên khối lượng 1.79x — cùng chiều với đọc tăng của Wyckoff, không mâu thuẫn.Đồng nhất Wyckoff/ICT khi trùng mốc: knowledge/10 §4.3"
+            - paragraph [ref=f3e409]:
+              - text: Kết luận
+              - strong [ref=f3e410]: THEO DÕI LONG
+              - text: ": giá đã áp sát vùng cần một SOS thật, chờ đóng cửa xác nhận trên khối lượng đủ chuẩn (≥1.0x); vô hiệu nếu đóng cửa dưới LPS 2,435.00 — chủ sở hữu vô hiệu"
+              - strong [ref=f3e411]: Wyckoff
+              - text: "(đáy LPS).Chủ sở hữu vô hiệu: knowledge/10 §4.4"
+      - generic [ref=f3e412]: "Wyckoff: tắt trong /automation · Footprint: tắt trong /automation · Heatmap: tắt trong /automation"
+      - group [ref=f3e414]:
+        - generic "Dòng sự kiện của phân tích đầy đủ (7 mốc · ICT ở cột riêng)" [ref=f3e1618] [cursor=pointer]
+        - text: Thời gian (UTC) Sự kiện Đáy mới 2,405.85, khối lượng kỷ lục cửa sổ Hồi phục tạo đỉnh 2,444.45 Đóng cửa vượt đỉnh hồi, khối lượng dưới chuẩn Đẩy giá lên đỉnh 2,475.03 Cực trị lùi 2,435.00 Đóng vượt swing 2,460.29
+        - generic [ref=f3e1620]: MSS tăng, đóng vượt swing 2,460.29
+        - text: Tham chiếu 2,462.14, cực trị sau đó đã lên 2,484.62
+        - generic [ref=f3e1621]: ": tắt trong /automation"
+    - generic [ref=f3e418]:
+      - generic [ref=f3e419]:
+        - generic [ref=f3e420]: SOL/USDT
+        - generic [ref=f3e421]: "100.86"
+        - generic [ref=f3e422]:
+          - generic [ref=f3e423]: vị trí trong cửa sổ 15m 56%
+          - generic [ref=f3e425]: nến cuối 17/9 22:00 VNT
+        - generic [ref=f3e427]:
+          - generic [ref=f3e428]: vào lệnh 15m
+          - generic [ref=f3e429]: THEO DÕI LONG
+      - generic [ref=f3e430]:
+        - generic [ref=f3e431]: Tầng
+        - generic [ref=f3e432]: ICT
+        - generic [ref=f3e434]: Kết luận
+        - generic [ref=f3e435]:
+          - generic [ref=f3e436]: Bias
+          - generic [ref=f3e437]: 4H ×4
+          - generic [ref=f3e438]: cập nhật 19:00 VNT
+        - generic [ref=f3e439]:
+          - text: 74% dealing range (70.58–110.60) · premium
+          - generic [ref=f3e440]: "MSS gần nhất: tăng qua 105.00"
+        - generic [ref=f3e441]:
+          - 'generic "[ict] MSS gần nhất: tăng, thân đóng vượt swing 105.0 (knowledge/ict/core-b.md §2.2)" [ref=f3e1624]': LONG
+          - generic [ref=f3e443]: tầng quyết định verdict
+        - generic [ref=f3e444]:
+          - generic [ref=f3e445]: Cấu trúc
+          - generic [ref=f3e446]: 1H ×4
+          - generic [ref=f3e447]: cập nhật 22:00 VNT
+        - generic [ref=f3e448]:
+          - text: 49% dealing range (95.82–105.80) · discount
+          - generic [ref=f3e449]: "MSS gần nhất: giảm qua 100.67"
+        - 'generic "[ict] MSS gần nhất: giảm, thân đóng vượt swing 100.67 (knowledge/ict/core-b.md §2.2)" [ref=f3e1625]': SHORT
+        - generic [ref=f3e452]:
+          - generic [ref=f3e453]: Vào lệnh
+          - generic [ref=f3e454]: 15m
+          - generic [ref=f3e455]: cập nhật 22:00 VNT
+        - generic [ref=f3e456]:
+          - text: 23% dealing range (99.66–104.82) · discount
+          - generic [ref=f3e457]: "MSS gần nhất: tăng qua 100.89"
+        - generic [ref=f3e458]: THEO DÕI LONG
+      - generic [ref=f3e460]: "Wyckoff: tắt trong /automation"
+      - generic [ref=f3e462]:
+        - generic [ref=f3e463]:
+          - generic [ref=f3e464]:
+            - generic [ref=f3e465]:
+              - generic [ref=f3e466]: Bias
+              - text: · 4H × 360 (60 ngày) · 07-19 23:00 → 09-17 19:00
+            - generic [ref=f3e467]:
+              - generic [ref=f3e468]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e469] [cursor=pointer]
+              - button "+" [ref=f3e470] [cursor=pointer]
+              - button "⟲" [ref=f3e471] [cursor=pointer]
+          - table [ref=f3e1630]:
+            - row [ref=f3e1631]:
+              - cell
+              - cell [ref=f3e1632]
+              - cell [ref=f3e1636]
+            - row [ref=f3e1640]:
+              - cell [ref=f3e1641]
+            - row [ref=f3e1642]:
+              - cell
+              - cell [ref=f3e1643]
+              - cell [ref=f3e1647]
+            - row [ref=f3e1651]:
+              - cell
+              - cell [ref=f3e1652]
+              - cell [ref=f3e1656]
+        - generic [ref=f3e475]:
+          - generic [ref=f3e476]:
+            - generic [ref=f3e477]:
+              - generic [ref=f3e478]: Cấu trúc
+              - text: · 1H × 480 (20 ngày) · 08-28 23:00 → 09-17 22:00
+            - generic [ref=f3e479]:
+              - generic [ref=f3e480]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e481] [cursor=pointer]
+              - button "+" [ref=f3e482] [cursor=pointer]
+              - button "⟲" [ref=f3e483] [cursor=pointer]
+          - table [ref=f3e1662]:
+            - row [ref=f3e1663]:
+              - cell
+              - cell [ref=f3e1664]
+              - cell [ref=f3e1668]
+            - row [ref=f3e1672]:
+              - cell [ref=f3e1673]
+            - row [ref=f3e1674]:
+              - cell
+              - cell [ref=f3e1675]
+              - cell [ref=f3e1679]
+            - row [ref=f3e1683]:
+              - cell
+              - cell [ref=f3e1684]
+              - cell [ref=f3e1688]
+        - generic [ref=f3e487]:
+          - generic [ref=f3e488]:
+            - generic [ref=f3e489]:
+              - generic [ref=f3e490]: Vào lệnh
+              - text: · 15m × 576 (6 ngày) · 09-11 22:15 → 09-17 22:00
+            - generic [ref=f3e491]:
+              - generic [ref=f3e492]: lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–4 đổi phương pháp
+              - button "−" [ref=f3e493] [cursor=pointer]
+              - button "+" [ref=f3e494] [cursor=pointer]
+              - button "⟲" [ref=f3e495] [cursor=pointer]
+              - button "R:R" [ref=f3e496] [cursor=pointer]
+              - button "▶" [ref=f3e497] [cursor=pointer]
+          - table [ref=f3e1694]:
+            - row [ref=f3e1695]:
+              - cell
+              - cell [ref=f3e1696]
+              - cell [ref=f3e1700]
+            - row [ref=f3e1704]:
+              - cell [ref=f3e1705]
+            - row [ref=f3e1706]:
+              - cell
+              - cell [ref=f3e1707]
+              - cell [ref=f3e1711]
+            - row [ref=f3e1715]:
+              - cell
+              - cell [ref=f3e1716]
+              - cell [ref=f3e1720]
+        - generic [ref=f3e1723]:
+          - generic [ref=f3e1724]: FVG tăng
+          - generic [ref=f3e1726]: FVG giảm (nét chấm = CE 0.5)
+          - generic [ref=f3e1728]: "OB: đường open + 0.5 mean threshold (mờ = đã chạm open)"
+          - generic [ref=f3e1730]: BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)
+          - generic [ref=f3e1732]: PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)
+          - generic [ref=f3e1734]: EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới
+          - generic [ref=f3e1736]: CISD (● = nến đóng qua)
+          - generic [ref=f3e1738]: "killzone: không vẽ ở khung này"
+          - generic [ref=f3e1739]: MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement
+          - generic [ref=f3e1740]: OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực
+          - generic [ref=f3e1741]: "pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên), EQ = 50%"
+          - generic [ref=f3e1742]: ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)
+      - generic [ref=f3e501]:
+        - generic [ref=f3e502]: Lớp đọc
+        - generic [ref=f3e503]: ICT
+        - generic [ref=f3e505]: Tổng hợp
+        - generic [ref=f3e506]:
+          - generic [ref=f3e507]: Sơ bộ
+          - generic [ref=f3e508]: scanner · dữ liệu tới 22:00 VNT
+        - list [ref=f3e1744]:
+          - listitem [ref=f3e1745]: Giá 100.86 = 23% dealing range cửa sổ (99.66–104.82), discount, EQ 102.24.
+          - listitem [ref=f3e1746]: "MSS gần nhất: tăng, đóng cửa vượt swing 100.89."
+          - listitem [ref=f3e1747]: "FVG chưa lấp gần giá nhất: tăng 97.79–98.37."
+          - listitem [ref=f3e1748]: "Pool chưa quét: SSL 99.11, SSL 99.66, SSL 98.83, SSL 99.53."
+          - listitem [ref=f3e1749]: Không có chuỗi quét → MSS cùng chiều trong các nến gần đây.
+        - generic [ref=f3e517]:
+          - generic [ref=f3e518]: PHÁ TRÊN AR (Automatic Rally, khối lượng yếu) — chưa có nến đóng cửa vượt
+          - list [ref=f3e1751]:
+            - listitem [ref=f3e1752]:
+              - text: "Verdict theo luật so với mốc neo của phân tích đầy đủ gần nhất:"
+              - generic [ref=f3e1753]: PHÁ TRÊN AR (Automatic Rally, khối lượng yếu) — chưa có nến đóng cửa vượt — xác nhận tiếp diễn tăng
+              - text: (nến đóng 17/9 21:45 VNT = 101.07).
+            - listitem [ref=f3e1754]: "Stance scanner: CHỜ (luật cố định, tham số dự án — không phải nhận định của mô hình)."
+        - generic [ref=f3e526]:
+          - generic [ref=f3e527]: Cục bộ
+          - generic [ref=f3e528]: Sonnet · dữ liệu tới 15:00 UTC
+        - generic [ref=f3e530]:
+          - paragraph [ref=f3e532]: Giá 103.13 ở 66% dealing range cửa sổ (98.00–105.80), trên EQ 101.90 — vùng premium nhẹ. docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19
+          - paragraph [ref=f3e533]: MSS tăng gần nhất đã đóng cửa vượt điểm swing 100.29, xác nhận displacement tăng. docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2
+          - paragraph [ref=f3e534]: Pool BSL 100.37 nằm ngay dưới giá hiện tại còn BSL 102.13 đã được tiệm cận khi giá vượt lên, thanh khoản mua còn lại phía trên hướng về vùng kháng cự 105.20. docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7
+          - paragraph [ref=f3e535]: Không ghi nhận chuỗi quét thanh khoản→MSS cùng chiều trong facts nên chưa đủ điều kiện xác nhận entry theo mô hình ICT. docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17
+        - generic [ref=f3e536]:
+          - generic [ref=f3e537]: THEO DÕI LONG
+          - generic [ref=f3e539]:
+            - paragraph [ref=f3e541]: "Bối cảnh 4h: cấu trúc tái tích lũy pha B, TR 98.50–100.46, giá khung lớn ở 28% biên độ — sát biên dưới, nơi CO gom hàng và khung nhỏ có thể in Spring[C]/LPS[C] cục bộ, bias LONG. WA p93, p201 · knowledge/07 §2.7, §3.4"
+            - paragraph [ref=f3e542]: Mốc SC Wyckoff (98.50) trùng với đáy dealing range ICT của cửa sổ — một quan sát cấu trúc duy nhất, không tính hai lần. knowledge/10 §4.3
+            - paragraph [ref=f3e543]: Giá 103.13 đã đóng cửa vượt AR/mốc phá cấu trúc 100.37 và swing MSS 100.29, khối lượng sự kiện gần nhất 1.68x xác nhận tiếp diễn tăng, khớp hướng bias khung lớn — verdict THEO DÕI LONG, không ngược bối cảnh; chưa có chuỗi quét→MSS cùng chiều xác nhận nên chưa đủ điều kiện SETUP TIỀM NĂNG, entry/stop/target chưa có trong facts. [tính toán của hệ thống — không phải trích dẫn tài liệu]
+            - paragraph [ref=f3e544]: "Điều kiện vô hiệu: đóng cửa dưới lại SC 98.50, thuộc sở hữu Wyckoff vì phá vỡ đáy cao trào bán sẽ vô hiệu hoá cấu trúc tích luỹ. knowledge/10 §4.4"
+        - generic [ref=f3e545]:
+          - generic [ref=f3e546]: Toàn diện
+          - generic [ref=f3e547]: phân tích đầy đủ · 11/9 18:00 VNT
+        - generic [ref=f3e549]:
+          - paragraph [ref=f3e551]: "Giá tham chiếu 99.18 (10:45Z) nằm trong dealing range cửa sổ (98.50–105.20), dưới điểm cân bằng 101.85 — vùng discount.Premium/Discount: docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19"
+          - paragraph [ref=f3e552]: "MSS gần nhất là giảm, đóng cửa phá swing 99.60. Phía trên còn nguyên các mốc thanh khoản chưa quét BSL 103.83, BSL 102.13, BSL 101.54, BSL 100.37; phía dưới là SSL 100.75 và SSL 98.95; không có chuỗi quét thanh khoản rồi MSS cùng chiều nào để tạo một setup hoàn chỉnh.Displacement/MSS: docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2; Grab vs MSS: docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17"
+        - generic [ref=f3e553]:
+          - generic [ref=f3e554]:
+            - generic [ref=f3e555]: CHỜ
+            - generic [ref=f3e556]: "vô hiệu: đóng cửa dưới 98.50 · chủ sở hữu wyckoff"
+          - generic [ref=f3e558]: Nhìn lại
+          - paragraph [ref=f3e561]: "So với lần đọc 00:15Z (Pha B chưa ngã ngũ, vừa lùi về 98.60 chưa phá đáy), SOL gần như không đổi: tham chiếu 10:45Z ở 99.18 — trên SC 98.50 (+0.69%) và dưới AR 100.37 (-1.19%), chưa có đóng cửa vượt bên nào. Vẫn Pha B, chưa có test đủ điều kiện gọi Spring hay SOS mới.Đối nhãn: WA p150–184 · knowledge/07 §2.11"
+          - generic [ref=f3e562]: Hiện tại
+          - generic [ref=f3e563]:
+            - paragraph [ref=f3e565]: "Bối cảnh 4h: tái tích lũy, còn Pha B — vùng giao dịch SC 98.50–AR 100.46, đóng cửa 4h hiện tại 99.04 nằm ở khoảng 28% vùng (sát biên dưới); sau cao trào bán 98.50, giá test lại 98.60 (20:00Z) và giữ trên đáy đó; bias khung lớn: LONG — giá ở biên dưới TR đúng vùng CO gom hàng theo luật giảm khung (WA p93, p201), nhưng khung 15 phút chưa xác nhận nên vẫn CHỜ.Giảm khung: WA p93–96 · knowledge/07 §2.7"
+            - paragraph [ref=f3e566]: "SOL vẫn là mã yếu nhất trong ba mã: tham chiếu 10:45Z ở 99.18, vẫn giữa vùng SC–AR, chưa có đóng cửa vượt AR 100.37 lẫn chưa đóng cửa dưới lại SC 98.50.Nỗ lực–Kết quả: WMT p149–154 · knowledge/07 §2.3, §4.1"
+            - paragraph [ref=f3e567]: "Mốc Wyckoff (SC 98.50 / AR 100.37) chưa trùng với mốc ICT thanh khoản đã nêu nên chưa cần khử trùng lặp ở đây. MSS ICT gần nhất là giảm (swing 99.60), cùng chiều với đọc Phase B chưa ngã ngũ của Wyckoff.Đồng nhất Wyckoff/ICT khi trùng mốc: knowledge/10 §4.3"
+            - paragraph [ref=f3e568]:
+              - text: Kết luận
+              - strong [ref=f3e569]: CHỜ
+              - text: ": cần đóng cửa vượt AR 100.37 để tính SOS, hoặc một Spring xuyên xuống dưới SC 98.50 rồi hồi phục mới đổi đọc; vô hiệu (cho kịch bản tăng) nếu đóng cửa dưới 98.50 — chủ sở hữu vô hiệu"
+              - strong [ref=f3e570]: Wyckoff
+              - text: "(đáy vùng giao dịch).Chủ sở hữu vô hiệu: knowledge/10 §4.4"
+      - generic [ref=f3e571]: "Wyckoff: tắt trong /automation · Footprint: tắt trong /automation · Heatmap: tắt trong /automation"
+      - group [ref=f3e573]:
+        - generic "Dòng sự kiện của phân tích đầy đủ (6 mốc · ICT ở cột riêng)" [ref=f3e1757] [cursor=pointer]
+        - text: Thời gian (UTC) Sự kiện Đáy mới 98.50, khối lượng kỷ lục cửa sổ Hồi phục tạo đỉnh 100.37, khối lượng yếu Xuyên bấc lên 100.46, đóng cửa lùi Đóng cửa phá swing 99.60
+        - generic [ref=f3e1759]: MSS giảm, đóng vượt swing 99.60
+        - text: Lùi về đáy 98.60, chưa phá SC Tham chiếu 99.18, vẫn giữa vùng
+        - generic [ref=f3e1760]: ": tắt trong /automation"
+    - generic [ref=f3e577]:
+      - generic [ref=f3e578]:
+        - generic [ref=f3e579]: ASTER/USDT
+        - generic [ref=f3e580]: "0.74"
+        - generic [ref=f3e581]:
+          - generic [ref=f3e582]: vị trí trong cửa sổ 15m 89%
+          - generic [ref=f3e584]: nến cuối 17/9 22:00 VNT
+        - generic [ref=f3e586]:
+          - generic [ref=f3e587]: vào lệnh 15m
+          - generic [ref=f3e588]: —
+      - generic [ref=f3e590]:
+        - generic [ref=f3e591]: Tầng
+        - generic [ref=f3e592]: ICT
+        - generic [ref=f3e594]: Kết luận
+        - generic [ref=f3e595]:
+          - generic [ref=f3e596]: Bias
+          - generic [ref=f3e597]: 4H ×4
+          - generic [ref=f3e598]: cập nhật 19:00 VNT
+        - generic [ref=f3e599]:
+          - text: 52% dealing range (0.60–0.87) · premium
+          - generic [ref=f3e600]: "MSS gần nhất: tăng qua 0.70"
+        - generic [ref=f3e601]:
+          - 'generic "[ict] MSS gần nhất: tăng, thân đóng vượt swing 0.697 (knowledge/ict/core-b.md §2.2)" [ref=f3e1763]': LONG
+          - generic [ref=f3e603]: tầng quyết định verdict
+        - generic [ref=f3e604]:
+          - generic [ref=f3e605]: Cấu trúc
+          - generic [ref=f3e606]: 1H ×4
+          - generic [ref=f3e607]: cập nhật 22:00 VNT
+        - generic [ref=f3e608]:
+          - text: 40% dealing range (0.73–0.74) · discount
+          - generic [ref=f3e609]: "MSS gần nhất: tăng qua 0.69"
+        - 'generic "[ict] MSS gần nhất: tăng, thân đóng vượt swing 0.685 (knowledge/ict/core-b.md §2.2)" [ref=f3e1764]': LONG
+        - generic [ref=f3e612]:
+          - generic [ref=f3e613]: Vào lệnh
+          - generic [ref=f3e614]: 15m
+          - generic [ref=f3e615]: cập nhật 22:00 VNT
+        - generic [ref=f3e616]:
+          - text: 88% dealing range (0.67–0.74) · premium
+          - generic [ref=f3e617]: "MSS gần nhất: giảm qua 0.68"
+        - generic [ref=f3e618]: —
+      - generic [ref=f3e621]: "Wyckoff: tắt trong /automation"
+      - generic [ref=f3e623]:
+        - generic [ref=f3e624]:
+          - generic [ref=f3e625]:
+            - generic [ref=f3e626]:
+              - generic [ref=f3e627]: Bias
+              - text: · 4H × 360 (60 ngày) · 07-19 23:00 → 09-17 19:00
+            - generic [ref=f3e628]:
+              - generic [ref=f3e629]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e630] [cursor=pointer]
+              - button "+" [ref=f3e631] [cursor=pointer]
+              - button "⟲" [ref=f3e632] [cursor=pointer]
+          - table [ref=f3e1769]:
+            - row [ref=f3e1770]:
+              - cell
+              - cell [ref=f3e1771]
+              - cell [ref=f3e1775]
+            - row [ref=f3e1779]:
+              - cell [ref=f3e1780]
+            - row [ref=f3e1781]:
+              - cell
+              - cell [ref=f3e1782]
+              - cell [ref=f3e1786]
+            - row [ref=f3e1790]:
+              - cell
+              - cell [ref=f3e1791]
+              - cell [ref=f3e1795]
+        - generic [ref=f3e636]:
+          - generic [ref=f3e637]:
+            - generic [ref=f3e638]:
+              - generic [ref=f3e639]: Cấu trúc
+              - text: · 1H × 480 (20 ngày) · 08-28 23:00 → 09-17 22:00
+            - generic [ref=f3e640]:
+              - generic [ref=f3e641]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e642] [cursor=pointer]
+              - button "+" [ref=f3e643] [cursor=pointer]
+              - button "⟲" [ref=f3e644] [cursor=pointer]
+          - table [ref=f3e1801]:
+            - row [ref=f3e1802]:
+              - cell
+              - cell [ref=f3e1803]
+              - cell [ref=f3e1807]
+            - row [ref=f3e1811]:
+              - cell [ref=f3e1812]
+            - row [ref=f3e1813]:
+              - cell
+              - cell [ref=f3e1814]
+              - cell [ref=f3e1818]
+            - row [ref=f3e1822]:
+              - cell
+              - cell [ref=f3e1823]
+              - cell [ref=f3e1827]
+        - generic [ref=f3e648]:
+          - generic [ref=f3e649]:
+            - generic [ref=f3e650]:
+              - generic [ref=f3e651]: Vào lệnh
+              - text: · 15m × 576 (6 ngày) · 09-11 22:15 → 09-17 22:00
+            - generic [ref=f3e652]:
+              - generic [ref=f3e653]: lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–4 đổi phương pháp
+              - button "−" [ref=f3e654] [cursor=pointer]
+              - button "+" [ref=f3e655] [cursor=pointer]
+              - button "⟲" [ref=f3e656] [cursor=pointer]
+              - button "R:R" [ref=f3e657] [cursor=pointer]
+              - button "▶" [ref=f3e658] [cursor=pointer]
+          - table [ref=f3e1833]:
+            - row [ref=f3e1834]:
+              - cell
+              - cell [ref=f3e1835]
+              - cell [ref=f3e1839]
+            - row [ref=f3e1843]:
+              - cell [ref=f3e1844]
+            - row [ref=f3e1845]:
+              - cell
+              - cell [ref=f3e1846]
+              - cell [ref=f3e1850]
+            - row [ref=f3e1854]:
+              - cell
+              - cell [ref=f3e1855]
+              - cell [ref=f3e1859]
+        - generic [ref=f3e1862]:
+          - generic [ref=f3e1863]: FVG tăng
+          - generic [ref=f3e1865]: FVG giảm (nét chấm = CE 0.5)
+          - generic [ref=f3e1867]: "OB: đường open + 0.5 mean threshold (mờ = đã chạm open)"
+          - generic [ref=f3e1869]: BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)
+          - generic [ref=f3e1871]: PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)
+          - generic [ref=f3e1873]: EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới
+          - generic [ref=f3e1875]: CISD (● = nến đóng qua)
+          - generic [ref=f3e1877]: "killzone: không vẽ ở khung này"
+          - generic [ref=f3e1878]: MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement
+          - generic [ref=f3e1879]: OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực
+          - generic [ref=f3e1880]: "pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên), EQ = 50%"
+          - generic [ref=f3e1881]: ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)
+      - generic [ref=f3e662]:
+        - generic [ref=f3e663]: Lớp đọc
+        - generic [ref=f3e664]: ICT
+        - generic [ref=f3e666]: Tổng hợp
+        - generic [ref=f3e667]:
+          - generic [ref=f3e668]: Sơ bộ
+          - generic [ref=f3e669]: scanner · dữ liệu tới 22:00 VNT
+        - list [ref=f3e1883]:
+          - listitem [ref=f3e1884]: Giá 0.74 = 88% dealing range cửa sổ (0.67–0.74), premium, EQ 0.71.
+          - listitem [ref=f3e1885]: "MSS gần nhất: giảm, đóng cửa vượt swing 0.68."
+          - listitem [ref=f3e1886]: "FVG chưa lấp gần giá nhất: giảm 0.74–0.74."
+          - listitem [ref=f3e1887]: "Pool chưa quét: BSL 0.69, BSL 0.74, SSL 0.67, SSL 0.67."
+          - listitem [ref=f3e1888]: Không có chuỗi quét → MSS cùng chiều trong các nến gần đây.
+        - generic [ref=f3e678]:
+          - generic [ref=f3e679]: CHỜ
+          - list [ref=f3e1890]:
+            - listitem [ref=f3e1891]: Chưa có mốc neo từ phân tích đầy đủ — scanner chỉ có stance theo luật cố định.
+            - listitem [ref=f3e1892]: "Stance scanner: CHỜ (luật cố định, tham số dự án — không phải nhận định của mô hình)."
+        - generic [ref=f3e685]:
+          - generic [ref=f3e686]: Cục bộ
+          - generic [ref=f3e687]: Sonnet
+        - paragraph [ref=f3e689]: —
+        - paragraph [ref=f3e691]: Chưa có đánh giá cục bộ.
+        - generic [ref=f3e692]:
+          - generic [ref=f3e693]: Toàn diện
+          - generic [ref=f3e694]: phân tích đầy đủ
+        - paragraph [ref=f3e696]: —
+        - paragraph [ref=f3e698]: Chưa có phân tích đầy đủ theo định dạng mới (data/live/narrative/<style>.json).
+      - generic [ref=f3e699]: "Wyckoff: tắt trong /automation · Footprint: tắt trong /automation · Heatmap: tắt trong /automation"
+    - generic [ref=f3e701]:
+      - generic [ref=f3e702]:
+        - generic [ref=f3e703]: VIRTUAL/USDT
+        - generic [ref=f3e704]: "0.61"
+        - generic [ref=f3e705]:
+          - generic [ref=f3e706]: vị trí trong cửa sổ 15m 38%
+          - generic [ref=f3e708]: nến cuối 17/9 22:00 VNT
+        - generic [ref=f3e710]:
+          - generic [ref=f3e711]: vào lệnh 15m
+          - generic [ref=f3e712]: —
+      - generic [ref=f3e714]:
+        - generic [ref=f3e715]: Tầng
+        - generic [ref=f3e716]: ICT
+        - generic [ref=f3e718]: Kết luận
+        - generic [ref=f3e719]:
+          - generic [ref=f3e720]: Bias
+          - generic [ref=f3e721]: 4H ×4
+          - generic [ref=f3e722]: cập nhật 19:00 VNT
+        - generic [ref=f3e723]:
+          - text: 22% dealing range (0.55–0.84) · discount
+          - generic [ref=f3e724]: "MSS gần nhất: giảm qua 0.71"
+        - generic [ref=f3e725]:
+          - 'generic "[ict] PCH 0.6128 — râu xuyên qua nhưng thân đóng lại (failure to displace); draw đảo về PCL 0.6024 (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] MSS gần nhất: giảm, thân đóng vượt swing 0.7085 (knowledge/ict/core-b.md §2.2)" [ref=f3e1896]': SHORT
+          - generic [ref=f3e727]: tầng quyết định verdict
+        - generic [ref=f3e728]:
+          - generic [ref=f3e729]: Cấu trúc
+          - generic [ref=f3e730]: 1H ×4
+          - generic [ref=f3e731]: cập nhật 22:00 VNT
+        - generic [ref=f3e732]:
+          - text: 48% dealing range (0.57–0.64) · discount
+          - generic [ref=f3e733]: "MSS gần nhất: tăng qua 0.60"
+        - 'generic "[ict] mâu thuẫn trong ICT — nêu ra, không tự giải quyết: [ict] PCL 0.6068 — thân nến đã đóng qua, mốc này là draw; kỳ vọng tiếp diễn giảm (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] MSS gần nhất: tăng, thân đóng vượt swing 0.5968 (knowledge/ict/core-b.md §2.2)" [ref=f3e1897]': TRUNG LẬP
+        - generic [ref=f3e736]:
+          - generic [ref=f3e737]: Vào lệnh
+          - generic [ref=f3e738]: 15m
+          - generic [ref=f3e739]: cập nhật 22:00 VNT
+        - generic [ref=f3e740]:
+          - text: 31% dealing range (0.60–0.62) · discount
+          - generic [ref=f3e741]: "MSS gần nhất: giảm qua 0.60"
+        - generic [ref=f3e742]: —
+      - generic [ref=f3e745]: "Wyckoff: tắt trong /automation"
+      - generic [ref=f3e747]:
+        - generic [ref=f3e748]:
+          - generic [ref=f3e749]:
+            - generic [ref=f3e750]:
+              - generic [ref=f3e751]: Bias
+              - text: · 4H × 360 (60 ngày) · 07-19 23:00 → 09-17 19:00
+            - generic [ref=f3e752]:
+              - generic [ref=f3e753]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e754] [cursor=pointer]
+              - button "+" [ref=f3e755] [cursor=pointer]
+              - button "⟲" [ref=f3e756] [cursor=pointer]
+          - table [ref=f3e1902]:
+            - row [ref=f3e1903]:
+              - cell
+              - cell [ref=f3e1904]
+              - cell [ref=f3e1908]
+            - row [ref=f3e1912]:
+              - cell [ref=f3e1913]
+            - row [ref=f3e1914]:
+              - cell
+              - cell [ref=f3e1915]
+              - cell [ref=f3e1919]
+            - row [ref=f3e1923]:
+              - cell
+              - cell [ref=f3e1924]
+              - cell [ref=f3e1928]
+        - generic [ref=f3e760]:
+          - generic [ref=f3e761]:
+            - generic [ref=f3e762]:
+              - generic [ref=f3e763]: Cấu trúc
+              - text: · 1H × 480 (20 ngày) · 08-28 23:00 → 09-17 22:00
+            - generic [ref=f3e764]:
+              - generic [ref=f3e765]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e766] [cursor=pointer]
+              - button "+" [ref=f3e767] [cursor=pointer]
+              - button "⟲" [ref=f3e768] [cursor=pointer]
+          - table [ref=f3e1934]:
+            - row [ref=f3e1935]:
+              - cell
+              - cell [ref=f3e1936]
+              - cell [ref=f3e1940]
+            - row [ref=f3e1944]:
+              - cell [ref=f3e1945]
+            - row [ref=f3e1946]:
+              - cell
+              - cell [ref=f3e1947]
+              - cell [ref=f3e1951]
+            - row [ref=f3e1955]:
+              - cell
+              - cell [ref=f3e1956]
+              - cell [ref=f3e1960]
+        - generic [ref=f3e772]:
+          - generic [ref=f3e773]:
+            - generic [ref=f3e774]:
+              - generic [ref=f3e775]: Vào lệnh
+              - text: · 15m × 576 (6 ngày) · 09-11 22:15 → 09-17 22:00
+            - generic [ref=f3e776]:
+              - generic [ref=f3e777]: lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–4 đổi phương pháp
+              - button "−" [ref=f3e778] [cursor=pointer]
+              - button "+" [ref=f3e779] [cursor=pointer]
+              - button "⟲" [ref=f3e780] [cursor=pointer]
+              - button "R:R" [ref=f3e781] [cursor=pointer]
+              - button "▶" [ref=f3e782] [cursor=pointer]
+          - table [ref=f3e1966]:
+            - row [ref=f3e1967]:
+              - cell
+              - cell [ref=f3e1968]
+              - cell [ref=f3e1972]
+            - row [ref=f3e1976]:
+              - cell [ref=f3e1977]
+            - row [ref=f3e1978]:
+              - cell
+              - cell [ref=f3e1979]
+              - cell [ref=f3e1983]
+            - row [ref=f3e1987]:
+              - cell
+              - cell [ref=f3e1988]
+              - cell [ref=f3e1992]
+        - generic [ref=f3e1995]:
+          - generic [ref=f3e1996]: FVG tăng
+          - generic [ref=f3e1998]: FVG giảm (nét chấm = CE 0.5)
+          - generic [ref=f3e2000]: "OB: đường open + 0.5 mean threshold (mờ = đã chạm open)"
+          - generic [ref=f3e2002]: BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)
+          - generic [ref=f3e2004]: PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)
+          - generic [ref=f3e2006]: EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới
+          - generic [ref=f3e2008]: CISD (● = nến đóng qua)
+          - generic [ref=f3e2010]: "killzone: không vẽ ở khung này"
+          - generic [ref=f3e2011]: MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement
+          - generic [ref=f3e2012]: OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực
+          - generic [ref=f3e2013]: "pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên), EQ = 50%"
+          - generic [ref=f3e2014]: ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)
+      - generic [ref=f3e786]:
+        - generic [ref=f3e787]: Lớp đọc
+        - generic [ref=f3e788]: ICT
+        - generic [ref=f3e790]: Tổng hợp
+        - generic [ref=f3e791]:
+          - generic [ref=f3e792]: Sơ bộ
+          - generic [ref=f3e793]: scanner · dữ liệu tới 22:00 VNT
+        - list [ref=f3e2016]:
+          - listitem [ref=f3e2017]: Giá 0.61 = 31% dealing range cửa sổ (0.60–0.62), discount, EQ 0.61.
+          - listitem [ref=f3e2018]: "MSS gần nhất: giảm, đóng cửa vượt swing 0.60."
+          - listitem [ref=f3e2019]: "FVG chưa lấp gần giá nhất: giảm 0.61–0.61."
+          - listitem [ref=f3e2020]: "Pool chưa quét: BSL 0.64, BSL 0.64, BSL 0.62, SSL 0.63, SSL 0.60, SSL 0.59."
+          - listitem [ref=f3e2021]: Không có chuỗi quét → MSS cùng chiều trong các nến gần đây.
+        - generic [ref=f3e802]:
+          - generic [ref=f3e803]: CHỜ
+          - list [ref=f3e2023]:
+            - listitem [ref=f3e2024]: Chưa có mốc neo từ phân tích đầy đủ — scanner chỉ có stance theo luật cố định.
+            - listitem [ref=f3e2025]: "Stance scanner: CHỜ (luật cố định, tham số dự án — không phải nhận định của mô hình)."
+        - generic [ref=f3e809]:
+          - generic [ref=f3e810]: Cục bộ
+          - generic [ref=f3e811]: Sonnet
+        - paragraph [ref=f3e813]: —
+        - paragraph [ref=f3e815]: Chưa có đánh giá cục bộ.
+        - generic [ref=f3e816]:
+          - generic [ref=f3e817]: Toàn diện
+          - generic [ref=f3e818]: phân tích đầy đủ
+        - paragraph [ref=f3e820]: —
+        - paragraph [ref=f3e822]: Chưa có phân tích đầy đủ theo định dạng mới (data/live/narrative/<style>.json).
+      - generic [ref=f3e823]: "Wyckoff: tắt trong /automation · Footprint: tắt trong /automation · Heatmap: tắt trong /automation"
+    - generic [ref=f3e825]:
+      - generic [ref=f3e826]:
+        - generic [ref=f3e827]: SUI/USDT
+        - generic [ref=f3e828]: "0.72"
+        - generic [ref=f3e829]:
+          - generic [ref=f3e830]: vị trí trong cửa sổ 15m 61%
+          - generic [ref=f3e832]: nến cuối 17/9 22:00 VNT
+        - generic [ref=f3e834]:
+          - generic [ref=f3e835]: vào lệnh 15m
+          - generic [ref=f3e836]: —
+      - generic [ref=f3e838]:
+        - generic [ref=f3e839]: Tầng
+        - generic [ref=f3e840]: ICT
+        - generic [ref=f3e842]: Kết luận
+        - generic [ref=f3e843]:
+          - generic [ref=f3e844]: Bias
+          - generic [ref=f3e845]: 4H ×4
+          - generic [ref=f3e846]: cập nhật 19:00 VNT
+        - generic [ref=f3e847]:
+          - text: 17% dealing range (0.67–0.95) · discount
+          - generic [ref=f3e848]: "MSS gần nhất: tăng qua 0.73"
+        - generic [ref=f3e849]:
+          - 'generic "[ict] MSS gần nhất: tăng, thân đóng vượt swing 0.7312 (knowledge/ict/core-b.md §2.2)" [ref=f3e2029]': LONG
+          - generic [ref=f3e851]: tầng quyết định verdict
+        - generic [ref=f3e852]:
+          - generic [ref=f3e853]: Cấu trúc
+          - generic [ref=f3e854]: 1H ×4
+          - generic [ref=f3e855]: cập nhật 22:00 VNT
+        - generic [ref=f3e856]:
+          - text: 9% dealing range (0.72–0.83) · discount
+          - generic [ref=f3e857]: "MSS gần nhất: tăng qua 0.69"
+        - 'generic "[ict] mâu thuẫn trong ICT — nêu ra, không tự giải quyết: [ict] PCL 0.7255 — thân nến đã đóng qua, mốc này là draw; kỳ vọng tiếp diễn giảm (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] MSS gần nhất: tăng, thân đóng vượt swing 0.6941 (knowledge/ict/core-b.md §2.2)" [ref=f3e2030]': TRUNG LẬP
+        - generic [ref=f3e860]:
+          - generic [ref=f3e861]: Vào lệnh
+          - generic [ref=f3e862]: 15m
+          - generic [ref=f3e863]: cập nhật 22:00 VNT
+        - generic [ref=f3e864]:
+          - text: 44% dealing range (0.72–0.74) · discount
+          - generic [ref=f3e865]: "MSS gần nhất: tăng qua 0.73"
+        - generic [ref=f3e866]: —
+      - generic [ref=f3e869]: "Wyckoff: tắt trong /automation"
+      - generic [ref=f3e871]:
+        - generic [ref=f3e872]:
+          - generic [ref=f3e873]:
+            - generic [ref=f3e874]:
+              - generic [ref=f3e875]: Bias
+              - text: · 4H × 360 (60 ngày) · 07-19 23:00 → 09-17 19:00
+            - generic [ref=f3e876]:
+              - generic [ref=f3e877]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e878] [cursor=pointer]
+              - button "+" [ref=f3e879] [cursor=pointer]
+              - button "⟲" [ref=f3e880] [cursor=pointer]
+          - table [ref=f3e2035]:
+            - row [ref=f3e2036]:
+              - cell
+              - cell [ref=f3e2037]
+              - cell [ref=f3e2041]
+            - row [ref=f3e2045]:
+              - cell [ref=f3e2046]
+            - row [ref=f3e2047]:
+              - cell
+              - cell [ref=f3e2048]
+              - cell [ref=f3e2052]
+            - row [ref=f3e2056]:
+              - cell
+              - cell [ref=f3e2057]
+              - cell [ref=f3e2061]
+        - generic [ref=f3e884]:
+          - generic [ref=f3e885]:
+            - generic [ref=f3e886]:
+              - generic [ref=f3e887]: Cấu trúc
+              - text: · 1H × 480 (20 ngày) · 08-28 23:00 → 09-17 22:00
+            - generic [ref=f3e888]:
+              - generic [ref=f3e889]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e890] [cursor=pointer]
+              - button "+" [ref=f3e891] [cursor=pointer]
+              - button "⟲" [ref=f3e892] [cursor=pointer]
+          - table [ref=f3e2067]:
+            - row [ref=f3e2068]:
+              - cell
+              - cell [ref=f3e2069]
+              - cell [ref=f3e2073]
+            - row [ref=f3e2077]:
+              - cell [ref=f3e2078]
+            - row [ref=f3e2079]:
+              - cell
+              - cell [ref=f3e2080]
+              - cell [ref=f3e2084]
+            - row [ref=f3e2088]:
+              - cell
+              - cell [ref=f3e2089]
+              - cell [ref=f3e2093]
+        - generic [ref=f3e896]:
+          - generic [ref=f3e897]:
+            - generic [ref=f3e898]:
+              - generic [ref=f3e899]: Vào lệnh
+              - text: · 15m × 576 (6 ngày) · 09-11 22:15 → 09-17 22:00
+            - generic [ref=f3e900]:
+              - generic [ref=f3e901]: lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–4 đổi phương pháp
+              - button "−" [ref=f3e902] [cursor=pointer]
+              - button "+" [ref=f3e903] [cursor=pointer]
+              - button "⟲" [ref=f3e904] [cursor=pointer]
+              - button "R:R" [ref=f3e905] [cursor=pointer]
+              - button "▶" [ref=f3e906] [cursor=pointer]
+          - table [ref=f3e2099]:
+            - row [ref=f3e2100]:
+              - cell
+              - cell [ref=f3e2101]
+              - cell [ref=f3e2105]
+            - row [ref=f3e2109]:
+              - cell [ref=f3e2110]
+            - row [ref=f3e2111]:
+              - cell
+              - cell [ref=f3e2112]
+              - cell [ref=f3e2116]
+            - row [ref=f3e2120]:
+              - cell
+              - cell [ref=f3e2121]
+              - cell [ref=f3e2125]
+        - generic [ref=f3e2128]:
+          - generic [ref=f3e2129]: FVG tăng
+          - generic [ref=f3e2131]: FVG giảm (nét chấm = CE 0.5)
+          - generic [ref=f3e2133]: "OB: đường open + 0.5 mean threshold (mờ = đã chạm open)"
+          - generic [ref=f3e2135]: BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)
+          - generic [ref=f3e2137]: PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)
+          - generic [ref=f3e2139]: EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới
+          - generic [ref=f3e2141]: CISD (● = nến đóng qua)
+          - generic [ref=f3e2143]: "killzone: không vẽ ở khung này"
+          - generic [ref=f3e2144]: MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement
+          - generic [ref=f3e2145]: OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực
+          - generic [ref=f3e2146]: "pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên), EQ = 50%"
+          - generic [ref=f3e2147]: ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)
+      - generic [ref=f3e910]:
+        - generic [ref=f3e911]: Lớp đọc
+        - generic [ref=f3e912]: ICT
+        - generic [ref=f3e914]: Tổng hợp
+        - generic [ref=f3e915]:
+          - generic [ref=f3e916]: Sơ bộ
+          - generic [ref=f3e917]: scanner · dữ liệu tới 22:00 VNT
+        - list [ref=f3e2149]:
+          - listitem [ref=f3e2150]: Giá 0.72 = 44% dealing range cửa sổ (0.72–0.74), discount, EQ 0.73.
+          - listitem [ref=f3e2151]: "MSS gần nhất: tăng, đóng cửa vượt swing 0.73."
+          - listitem [ref=f3e2152]: "FVG chưa lấp gần giá nhất: giảm 0.73–0.73."
+          - listitem [ref=f3e2153]: "Pool chưa quét: BSL 0.74, BSL 0.69, SSL 0.70, SSL 0.72, SSL 0.71."
+          - listitem [ref=f3e2154]: Không có chuỗi quét → MSS cùng chiều trong các nến gần đây.
+        - generic [ref=f3e926]:
+          - generic [ref=f3e927]: CHỜ
+          - list [ref=f3e2156]:
+            - listitem [ref=f3e2157]: Chưa có mốc neo từ phân tích đầy đủ — scanner chỉ có stance theo luật cố định.
+            - listitem [ref=f3e2158]: "Stance scanner: CHỜ (luật cố định, tham số dự án — không phải nhận định của mô hình)."
+        - generic [ref=f3e933]:
+          - generic [ref=f3e934]: Cục bộ
+          - generic [ref=f3e935]: Sonnet
+        - paragraph [ref=f3e937]: —
+        - paragraph [ref=f3e939]: Chưa có đánh giá cục bộ.
+        - generic [ref=f3e940]:
+          - generic [ref=f3e941]: Toàn diện
+          - generic [ref=f3e942]: phân tích đầy đủ
+        - paragraph [ref=f3e944]: —
+        - paragraph [ref=f3e946]: Chưa có phân tích đầy đủ theo định dạng mới (data/live/narrative/<style>.json).
+      - generic [ref=f3e947]: "Wyckoff: tắt trong /automation · Footprint: tắt trong /automation · Heatmap: tắt trong /automation"
+    - generic [ref=f3e949]:
+      - generic [ref=f3e950]:
+        - generic [ref=f3e951]: TAO/USDT
+        - generic [ref=f3e952]: "226.30"
+        - generic [ref=f3e953]:
+          - generic [ref=f3e954]: vị trí trong cửa sổ 15m 42%
+          - generic [ref=f3e956]: nến cuối 17/9 22:00 VNT
+        - generic [ref=f3e958]:
+          - generic [ref=f3e959]: vào lệnh 15m
+          - generic [ref=f3e960]: —
+      - generic [ref=f3e962]:
+        - generic [ref=f3e963]: Tầng
+        - generic [ref=f3e964]: ICT
+        - generic [ref=f3e966]: Kết luận
+        - generic [ref=f3e967]:
+          - generic [ref=f3e968]: Bias
+          - generic [ref=f3e969]: 4H ×4
+          - generic [ref=f3e970]: cập nhật 19:00 VNT
+        - generic [ref=f3e971]:
+          - text: 46% dealing range (183.50–277.00) · discount
+          - generic [ref=f3e972]: "MSS gần nhất: giảm qua 229.60"
+        - generic [ref=f3e973]:
+          - 'generic "[ict] MSS gần nhất: giảm, thân đóng vượt swing 229.6 (knowledge/ict/core-b.md §2.2)" [ref=f3e2162]': SHORT
+          - generic [ref=f3e975]: tầng quyết định verdict
+        - generic [ref=f3e976]:
+          - generic [ref=f3e977]: Cấu trúc
+          - generic [ref=f3e978]: 1H ×4
+          - generic [ref=f3e979]: cập nhật 22:00 VNT
+        - generic [ref=f3e980]:
+          - text: 22% dealing range (213.40–272.20) · discount
+          - generic [ref=f3e981]: "MSS gần nhất: tăng qua 219.40"
+        - 'generic "[ict] PCL 226.3 — râu xuyên qua nhưng thân đóng lại (failure to displace); draw đảo về PCH 229.9 (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] MSS gần nhất: tăng, thân đóng vượt swing 219.4 (knowledge/ict/core-b.md §2.2)" [ref=f3e2163]': LONG
+        - generic [ref=f3e984]:
+          - generic [ref=f3e985]: Vào lệnh
+          - generic [ref=f3e986]: 15m
+          - generic [ref=f3e987]: cập nhật 22:00 VNT
+        - generic [ref=f3e988]:
+          - text: 18% dealing range (224.70–233.60) · discount
+          - generic [ref=f3e989]: "MSS gần nhất: tăng qua 228.90"
+        - generic [ref=f3e990]: —
+      - generic [ref=f3e993]: "Wyckoff: tắt trong /automation"
+      - generic [ref=f3e995]:
+        - generic [ref=f3e996]:
+          - generic [ref=f3e997]:
+            - generic [ref=f3e998]:
+              - generic [ref=f3e999]: Bias
+              - text: · 4H × 360 (60 ngày) · 07-19 23:00 → 09-17 19:00
+            - generic [ref=f3e1000]:
+              - generic [ref=f3e1001]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e1002] [cursor=pointer]
+              - button "+" [ref=f3e1003] [cursor=pointer]
+              - button "⟲" [ref=f3e1004] [cursor=pointer]
+          - table [ref=f3e2168]:
+            - row [ref=f3e2169]:
+              - cell
+              - cell [ref=f3e2170]
+              - cell [ref=f3e2174]
+            - row [ref=f3e2178]:
+              - cell [ref=f3e2179]
+            - row [ref=f3e2180]:
+              - cell
+              - cell [ref=f3e2181]
+              - cell [ref=f3e2185]
+            - row [ref=f3e2189]:
+              - cell
+              - cell [ref=f3e2190]
+              - cell [ref=f3e2194]
+        - generic [ref=f3e1008]:
+          - generic [ref=f3e1009]:
+            - generic [ref=f3e1010]:
+              - generic [ref=f3e1011]: Cấu trúc
+              - text: · 1H × 480 (20 ngày) · 08-28 23:00 → 09-17 22:00
+            - generic [ref=f3e1012]:
+              - generic [ref=f3e1013]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e1014] [cursor=pointer]
+              - button "+" [ref=f3e1015] [cursor=pointer]
+              - button "⟲" [ref=f3e1016] [cursor=pointer]
+          - table [ref=f3e2200]:
+            - row [ref=f3e2201]:
+              - cell
+              - cell [ref=f3e2202]
+              - cell [ref=f3e2206]
+            - row [ref=f3e2210]:
+              - cell [ref=f3e2211]
+            - row [ref=f3e2212]:
+              - cell
+              - cell [ref=f3e2213]
+              - cell [ref=f3e2217]
+            - row [ref=f3e2221]:
+              - cell
+              - cell [ref=f3e2222]
+              - cell [ref=f3e2226]
+        - generic [ref=f3e1020]:
+          - generic [ref=f3e1021]:
+            - generic [ref=f3e1022]:
+              - generic [ref=f3e1023]: Vào lệnh
+              - text: · 15m × 576 (6 ngày) · 09-11 22:15 → 09-17 22:00
+            - generic [ref=f3e1024]:
+              - generic [ref=f3e1025]: lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–4 đổi phương pháp
+              - button "−" [ref=f3e1026] [cursor=pointer]
+              - button "+" [ref=f3e1027] [cursor=pointer]
+              - button "⟲" [ref=f3e1028] [cursor=pointer]
+              - button "R:R" [ref=f3e1029] [cursor=pointer]
+              - button "▶" [ref=f3e1030] [cursor=pointer]
+          - table [ref=f3e2232]:
+            - row [ref=f3e2233]:
+              - cell
+              - cell [ref=f3e2234]
+              - cell [ref=f3e2238]
+            - row [ref=f3e2242]:
+              - cell [ref=f3e2243]
+            - row [ref=f3e2244]:
+              - cell
+              - cell [ref=f3e2245]
+              - cell [ref=f3e2249]
+            - row [ref=f3e2253]:
+              - cell
+              - cell [ref=f3e2254]
+              - cell [ref=f3e2258]
+        - generic [ref=f3e2261]:
+          - generic [ref=f3e2262]: FVG tăng
+          - generic [ref=f3e2264]: FVG giảm (nét chấm = CE 0.5)
+          - generic [ref=f3e2266]: "OB: đường open + 0.5 mean threshold (mờ = đã chạm open)"
+          - generic [ref=f3e2268]: BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)
+          - generic [ref=f3e2270]: PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)
+          - generic [ref=f3e2272]: EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới
+          - generic [ref=f3e2274]: CISD (● = nến đóng qua)
+          - generic [ref=f3e2276]: "killzone: không vẽ ở khung này"
+          - generic [ref=f3e2277]: MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement
+          - generic [ref=f3e2278]: OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực
+          - generic [ref=f3e2279]: "pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên), EQ = 50%"
+          - generic [ref=f3e2280]: ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)
+      - generic [ref=f3e1034]:
+        - generic [ref=f3e1035]: Lớp đọc
+        - generic [ref=f3e1036]: ICT
+        - generic [ref=f3e1038]: Tổng hợp
+        - generic [ref=f3e1039]:
+          - generic [ref=f3e1040]: Sơ bộ
+          - generic [ref=f3e1041]: scanner · dữ liệu tới 22:00 VNT
+        - list [ref=f3e2282]:
+          - listitem [ref=f3e2283]: Giá 226.30 = 18% dealing range cửa sổ (224.70–233.60), discount, EQ 229.15.
+          - listitem [ref=f3e2284]: "MSS gần nhất: tăng, đóng cửa vượt swing 228.90."
+          - listitem [ref=f3e2285]: "FVG chưa lấp gần giá nhất: giảm 226.80–227.50."
+          - listitem [ref=f3e2286]: "Pool chưa quét: BSL 233.60, BSL 220.20, SSL 230.50, SSL 230.70, SSL 224.70."
+          - listitem [ref=f3e2287]: Không có chuỗi quét → MSS cùng chiều trong các nến gần đây.
+        - generic [ref=f3e1050]:
+          - generic [ref=f3e1051]: CHỜ
+          - list [ref=f3e2289]:
+            - listitem [ref=f3e2290]: Chưa có mốc neo từ phân tích đầy đủ — scanner chỉ có stance theo luật cố định.
+            - listitem [ref=f3e2291]: "Stance scanner: CHỜ (luật cố định, tham số dự án — không phải nhận định của mô hình)."
+        - generic [ref=f3e1057]:
+          - generic [ref=f3e1058]: Cục bộ
+          - generic [ref=f3e1059]: Sonnet
+        - paragraph [ref=f3e1061]: —
+        - paragraph [ref=f3e1063]: Chưa có đánh giá cục bộ.
+        - generic [ref=f3e1064]:
+          - generic [ref=f3e1065]: Toàn diện
+          - generic [ref=f3e1066]: phân tích đầy đủ
+        - paragraph [ref=f3e1068]: —
+        - paragraph [ref=f3e1070]: Chưa có phân tích đầy đủ theo định dạng mới (data/live/narrative/<style>.json).
+      - generic [ref=f3e1071]: "Wyckoff: tắt trong /automation · Footprint: tắt trong /automation · Heatmap: tắt trong /automation"
+    - generic [ref=f3e1073]:
+      - generic [ref=f3e1074]:
+        - generic [ref=f3e1075]: RENDER/USDT
+        - generic [ref=f3e1076]: "1.39"
+        - generic [ref=f3e1077]:
+          - generic [ref=f3e1078]: vị trí trong cửa sổ 15m 66%
+          - generic [ref=f3e1080]: nến cuối 17/9 22:00 VNT
+        - generic [ref=f3e1082]:
+          - generic [ref=f3e1083]: vào lệnh 15m
+          - generic [ref=f3e1084]: —
+      - generic [ref=f3e1086]:
+        - generic [ref=f3e1087]: Tầng
+        - generic [ref=f3e1088]: ICT
+        - generic [ref=f3e1090]: Kết luận
+        - generic [ref=f3e1091]:
+          - generic [ref=f3e1092]: Bias
+          - generic [ref=f3e1093]: 4H ×4
+          - generic [ref=f3e1094]: cập nhật 19:00 VNT
+        - generic [ref=f3e1095]:
+          - text: 35% dealing range (1.25–1.64) · discount
+          - generic [ref=f3e1096]: "MSS gần nhất: giảm qua 1.36"
+        - generic [ref=f3e1097]:
+          - 'generic "[ict] MSS gần nhất: giảm, thân đóng vượt swing 1.358 (knowledge/ict/core-b.md §2.2)" [ref=f3e2295]': SHORT
+          - generic [ref=f3e1099]: tầng quyết định verdict
+        - generic [ref=f3e1100]:
+          - generic [ref=f3e1101]: Cấu trúc
+          - generic [ref=f3e1102]: 1H ×4
+          - generic [ref=f3e1103]: cập nhật 22:00 VNT
+        - generic [ref=f3e1104]:
+          - text: 61% dealing range (1.28–1.46) · premium
+          - generic [ref=f3e1105]: "MSS gần nhất: tăng qua 1.31"
+        - 'generic "[ict] mâu thuẫn trong ICT — nêu ra, không tự giải quyết: [ict] PCL 1.394 — thân nến đã đóng qua, mốc này là draw; kỳ vọng tiếp diễn giảm (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] MSS gần nhất: tăng, thân đóng vượt swing 1.314 (knowledge/ict/core-b.md §2.2)" [ref=f3e2296]': TRUNG LẬP
+        - generic [ref=f3e1108]:
+          - generic [ref=f3e1109]: Vào lệnh
+          - generic [ref=f3e1110]: 15m
+          - generic [ref=f3e1111]: cập nhật 22:00 VNT
+        - generic [ref=f3e1112]:
+          - text: 83% dealing range (1.29–1.42) · premium
+          - generic [ref=f3e1113]: "MSS gần nhất: tăng qua 1.39"
+        - generic [ref=f3e1114]: —
+      - generic [ref=f3e1117]: "Wyckoff: tắt trong /automation"
+      - generic [ref=f3e1119]:
+        - generic [ref=f3e1120]:
+          - generic [ref=f3e1121]:
+            - generic [ref=f3e1122]:
+              - generic [ref=f3e1123]: Bias
+              - text: · 4H × 360 (60 ngày) · 07-19 23:00 → 09-17 19:00
+            - generic [ref=f3e1124]:
+              - generic [ref=f3e1125]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e1126] [cursor=pointer]
+              - button "+" [ref=f3e1127] [cursor=pointer]
+              - button "⟲" [ref=f3e1128] [cursor=pointer]
+          - table [ref=f3e2301]:
+            - row [ref=f3e2302]:
+              - cell
+              - cell [ref=f3e2303]
+              - cell [ref=f3e2307]
+            - row [ref=f3e2311]:
+              - cell [ref=f3e2312]
+            - row [ref=f3e2313]:
+              - cell
+              - cell [ref=f3e2314]
+              - cell [ref=f3e2318]
+            - row [ref=f3e2322]:
+              - cell
+              - cell [ref=f3e2323]
+              - cell [ref=f3e2327]
+        - generic [ref=f3e1132]:
+          - generic [ref=f3e1133]:
+            - generic [ref=f3e1134]:
+              - generic [ref=f3e1135]: Cấu trúc
+              - text: · 1H × 480 (20 ngày) · 08-28 23:00 → 09-17 22:00
+            - generic [ref=f3e1136]:
+              - generic [ref=f3e1137]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e1138] [cursor=pointer]
+              - button "+" [ref=f3e1139] [cursor=pointer]
+              - button "⟲" [ref=f3e1140] [cursor=pointer]
+          - table [ref=f3e2333]:
+            - row [ref=f3e2334]:
+              - cell
+              - cell [ref=f3e2335]
+              - cell [ref=f3e2339]
+            - row [ref=f3e2343]:
+              - cell [ref=f3e2344]
+            - row [ref=f3e2345]:
+              - cell
+              - cell [ref=f3e2346]
+              - cell [ref=f3e2350]
+            - row [ref=f3e2354]:
+              - cell
+              - cell [ref=f3e2355]
+              - cell [ref=f3e2359]
+        - generic [ref=f3e1144]:
+          - generic [ref=f3e1145]:
+            - generic [ref=f3e1146]:
+              - generic [ref=f3e1147]: Vào lệnh
+              - text: · 15m × 576 (6 ngày) · 09-11 22:15 → 09-17 22:00
+            - generic [ref=f3e1148]:
+              - generic [ref=f3e1149]: lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–4 đổi phương pháp
+              - button "−" [ref=f3e1150] [cursor=pointer]
+              - button "+" [ref=f3e1151] [cursor=pointer]
+              - button "⟲" [ref=f3e1152] [cursor=pointer]
+              - button "R:R" [ref=f3e1153] [cursor=pointer]
+              - button "▶" [ref=f3e1154] [cursor=pointer]
+          - table [ref=f3e2365]:
+            - row [ref=f3e2366]:
+              - cell
+              - cell [ref=f3e2367]
+              - cell [ref=f3e2371]
+            - row [ref=f3e2375]:
+              - cell [ref=f3e2376]
+            - row [ref=f3e2377]:
+              - cell
+              - cell [ref=f3e2378]
+              - cell [ref=f3e2382]
+            - row [ref=f3e2386]:
+              - cell
+              - cell [ref=f3e2387]
+              - cell [ref=f3e2391]
+        - generic [ref=f3e2394]:
+          - generic [ref=f3e2395]: FVG tăng
+          - generic [ref=f3e2397]: FVG giảm (nét chấm = CE 0.5)
+          - generic [ref=f3e2399]: "OB: đường open + 0.5 mean threshold (mờ = đã chạm open)"
+          - generic [ref=f3e2401]: BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)
+          - generic [ref=f3e2403]: PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)
+          - generic [ref=f3e2405]: EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới
+          - generic [ref=f3e2407]: CISD (● = nến đóng qua)
+          - generic [ref=f3e2409]: "killzone: không vẽ ở khung này"
+          - generic [ref=f3e2410]: MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement
+          - generic [ref=f3e2411]: OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực
+          - generic [ref=f3e2412]: "pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên), EQ = 50%"
+          - generic [ref=f3e2413]: ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)
+      - generic [ref=f3e1158]:
+        - generic [ref=f3e1159]: Lớp đọc
+        - generic [ref=f3e1160]: ICT
+        - generic [ref=f3e1162]: Tổng hợp
+        - generic [ref=f3e1163]:
+          - generic [ref=f3e1164]: Sơ bộ
+          - generic [ref=f3e1165]: scanner · dữ liệu tới 22:00 VNT
+        - list [ref=f3e2415]:
+          - listitem [ref=f3e2416]: Giá 1.39 = 83% dealing range cửa sổ (1.29–1.42), premium, EQ 1.35.
+          - listitem [ref=f3e2417]: "MSS gần nhất: tăng, đóng cửa vượt swing 1.39."
+          - listitem [ref=f3e2418]: "FVG chưa lấp gần giá nhất: giảm 1.40–1.40."
+          - listitem [ref=f3e2419]: "Pool chưa quét: BSL 1.42, BSL 1.34, SSL 1.29."
+          - listitem [ref=f3e2420]: Không có chuỗi quét → MSS cùng chiều trong các nến gần đây.
+        - generic [ref=f3e1174]:
+          - generic [ref=f3e1175]: CHỜ
+          - list [ref=f3e2422]:
+            - listitem [ref=f3e2423]: Chưa có mốc neo từ phân tích đầy đủ — scanner chỉ có stance theo luật cố định.
+            - listitem [ref=f3e2424]: "Stance scanner: CHỜ (luật cố định, tham số dự án — không phải nhận định của mô hình)."
+        - generic [ref=f3e1181]:
+          - generic [ref=f3e1182]: Cục bộ
+          - generic [ref=f3e1183]: Sonnet
+        - paragraph [ref=f3e1185]: —
+        - paragraph [ref=f3e1187]: Chưa có đánh giá cục bộ.
+        - generic [ref=f3e1188]:
+          - generic [ref=f3e1189]: Toàn diện
+          - generic [ref=f3e1190]: phân tích đầy đủ
+        - paragraph [ref=f3e1192]: —
+        - paragraph [ref=f3e1194]: Chưa có phân tích đầy đủ theo định dạng mới (data/live/narrative/<style>.json).
+      - generic [ref=f3e1195]: "Wyckoff: tắt trong /automation · Footprint: tắt trong /automation · Heatmap: tắt trong /automation"
+    - generic [ref=f3e1197]:
+      - generic [ref=f3e1198]:
+        - generic [ref=f3e1199]: ONDO/USDT
+        - generic [ref=f3e1200]: "0.37"
+        - generic [ref=f3e1201]:
+          - generic [ref=f3e1202]: vị trí trong cửa sổ 15m 78%
+          - generic [ref=f3e1204]: nến cuối 17/9 22:00 VNT
+        - generic [ref=f3e1206]:
+          - generic [ref=f3e1207]: vào lệnh 15m
+          - generic [ref=f3e1208]: —
+      - generic [ref=f3e1210]:
+        - generic [ref=f3e1211]: Tầng
+        - generic [ref=f3e1212]: ICT
+        - generic [ref=f3e1214]: Kết luận
+        - generic [ref=f3e1215]:
+          - generic [ref=f3e1216]: Bias
+          - generic [ref=f3e1217]: 4H ×4
+          - generic [ref=f3e1218]: cập nhật 19:00 VNT
+        - generic [ref=f3e1219]:
+          - text: 26% dealing range (0.32–0.43) · discount
+          - generic [ref=f3e1220]: "MSS gần nhất: giảm qua 0.34"
+        - generic [ref=f3e1221]:
+          - 'generic "[ict] MSS gần nhất: giảm, thân đóng vượt swing 0.3393 (knowledge/ict/core-b.md §2.2)" [ref=f3e2428]': SHORT
+          - generic [ref=f3e1223]: tầng quyết định verdict
+        - generic [ref=f3e1224]:
+          - generic [ref=f3e1225]: Cấu trúc
+          - generic [ref=f3e1226]: 1H ×4
+          - generic [ref=f3e1227]: cập nhật 22:00 VNT
+        - generic [ref=f3e1228]:
+          - text: 62% dealing range (0.35–0.38) · premium
+          - generic [ref=f3e1229]: "MSS gần nhất: giảm qua 0.35"
+        - 'generic "[ict] PCL 0.3675 — thân nến đã đóng qua, mốc này là draw; kỳ vọng tiếp diễn giảm (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] MSS gần nhất: giảm, thân đóng vượt swing 0.3485 (knowledge/ict/core-b.md §2.2)" [ref=f3e2429]': SHORT
+        - generic [ref=f3e1232]:
+          - generic [ref=f3e1233]: Vào lệnh
+          - generic [ref=f3e1234]: 15m
+          - generic [ref=f3e1235]: cập nhật 22:00 VNT
+        - generic [ref=f3e1236]:
+          - text: 78% dealing range (0.32–0.38) · premium
+          - generic [ref=f3e1237]: "MSS gần nhất: giảm qua 0.35"
+        - generic [ref=f3e1238]: —
+      - generic [ref=f3e1241]: "Wyckoff: tắt trong /automation"
+      - generic [ref=f3e1243]:
+        - generic [ref=f3e1244]:
+          - generic [ref=f3e1245]:
+            - generic [ref=f3e1246]:
+              - generic [ref=f3e1247]: Bias
+              - text: · 4H × 360 (60 ngày) · 07-19 23:00 → 09-17 19:00
+            - generic [ref=f3e1248]:
+              - generic [ref=f3e1249]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e1250] [cursor=pointer]
+              - button "+" [ref=f3e1251] [cursor=pointer]
+              - button "⟲" [ref=f3e1252] [cursor=pointer]
+          - table [ref=f3e2434]:
+            - row [ref=f3e2435]:
+              - cell
+              - cell [ref=f3e2436]
+              - cell [ref=f3e2440]
+            - row [ref=f3e2444]:
+              - cell [ref=f3e2445]
+            - row [ref=f3e2446]:
+              - cell
+              - cell [ref=f3e2447]
+              - cell [ref=f3e2451]
+            - row [ref=f3e2455]:
+              - cell
+              - cell [ref=f3e2456]
+              - cell [ref=f3e2460]
+        - generic [ref=f3e1256]:
+          - generic [ref=f3e1257]:
+            - generic [ref=f3e1258]:
+              - generic [ref=f3e1259]: Cấu trúc
+              - text: · 1H × 480 (20 ngày) · 08-28 23:00 → 09-17 22:00
+            - generic [ref=f3e1260]:
+              - generic [ref=f3e1261]: vùng tô = cửa sổ vào lệnh
+              - button "−" [ref=f3e1262] [cursor=pointer]
+              - button "+" [ref=f3e1263] [cursor=pointer]
+              - button "⟲" [ref=f3e1264] [cursor=pointer]
+          - table [ref=f3e2466]:
+            - row [ref=f3e2467]:
+              - cell
+              - cell [ref=f3e2468]
+              - cell [ref=f3e2472]
+            - row [ref=f3e2476]:
+              - cell [ref=f3e2477]
+            - row [ref=f3e2478]:
+              - cell
+              - cell [ref=f3e2479]
+              - cell [ref=f3e2483]
+            - row [ref=f3e2487]:
+              - cell
+              - cell [ref=f3e2488]
+              - cell [ref=f3e2492]
+        - generic [ref=f3e1268]:
+          - generic [ref=f3e1269]:
+            - generic [ref=f3e1270]:
+              - generic [ref=f3e1271]: Vào lệnh
+              - text: · 15m × 576 (6 ngày) · 09-11 22:15 → 09-17 22:00
+            - generic [ref=f3e1272]:
+              - generic [ref=f3e1273]: lăn chuột = zoom · kéo = dịch · kéo trục = co giãn · End = nến cuối · phím 1–4 đổi phương pháp
+              - button "−" [ref=f3e1274] [cursor=pointer]
+              - button "+" [ref=f3e1275] [cursor=pointer]
+              - button "⟲" [ref=f3e1276] [cursor=pointer]
+              - button "R:R" [ref=f3e1277] [cursor=pointer]
+              - button "▶" [ref=f3e1278] [cursor=pointer]
+          - table [ref=f3e2498]:
+            - row [ref=f3e2499]:
+              - cell
+              - cell [ref=f3e2500]
+              - cell [ref=f3e2504]
+            - row [ref=f3e2508]:
+              - cell [ref=f3e2509]
+            - row [ref=f3e2510]:
+              - cell
+              - cell [ref=f3e2511]
+              - cell [ref=f3e2515]
+            - row [ref=f3e2519]:
+              - cell
+              - cell [ref=f3e2520]
+              - cell [ref=f3e2524]
+        - generic [ref=f3e2527]:
+          - generic [ref=f3e2528]: FVG tăng
+          - generic [ref=f3e2530]: FVG giảm (nét chấm = CE 0.5)
+          - generic [ref=f3e2532]: "OB: đường open + 0.5 mean threshold (mờ = đã chạm open)"
+          - generic [ref=f3e2534]: BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)
+          - generic [ref=f3e2536]: PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)
+          - generic [ref=f3e2538]: EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới
+          - generic [ref=f3e2540]: CISD (● = nến đóng qua)
+          - generic [ref=f3e2542]: "killzone: không vẽ ở khung này"
+          - generic [ref=f3e2543]: MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement
+          - generic [ref=f3e2544]: OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực
+          - generic [ref=f3e2545]: "pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên), EQ = 50%"
+          - generic [ref=f3e2546]: ngưỡng số là tham số dự án (analysis-params.json → project_defined.ict)
+      - generic [ref=f3e1282]:
+        - generic [ref=f3e1283]: Lớp đọc
+        - generic [ref=f3e1284]: ICT
+        - generic [ref=f3e1286]: Tổng hợp
+        - generic [ref=f3e1287]:
+          - generic [ref=f3e1288]: Sơ bộ
+          - generic [ref=f3e1289]: scanner · dữ liệu tới 22:00 VNT
+        - list [ref=f3e2548]:
+          - listitem [ref=f3e2549]: Giá 0.37 = 78% dealing range cửa sổ (0.32–0.38), premium, EQ 0.35.
+          - listitem [ref=f3e2550]: "MSS gần nhất: giảm, đóng cửa vượt swing 0.35."
+          - listitem [ref=f3e2551]: "FVG chưa lấp gần giá nhất: giảm 0.37–0.37."
+          - listitem [ref=f3e2552]: "Pool chưa quét: BSL 0.35, BSL 0.36, SSL 0.32."
+          - listitem [ref=f3e2553]: Không có chuỗi quét → MSS cùng chiều trong các nến gần đây.
+        - generic [ref=f3e1298]:
+          - generic [ref=f3e1299]: CHỜ
+          - list [ref=f3e2555]:
+            - listitem [ref=f3e2556]: Chưa có mốc neo từ phân tích đầy đủ — scanner chỉ có stance theo luật cố định.
+            - listitem [ref=f3e2557]: "Stance scanner: CHỜ (luật cố định, tham số dự án — không phải nhận định của mô hình)."
+        - generic [ref=f3e1305]:
+          - generic [ref=f3e1306]: Cục bộ
+          - generic [ref=f3e1307]: Sonnet
+        - paragraph [ref=f3e1309]: —
+        - paragraph [ref=f3e1311]: Chưa có đánh giá cục bộ.
+        - generic [ref=f3e1312]:
+          - generic [ref=f3e1313]: Toàn diện
+          - generic [ref=f3e1314]: phân tích đầy đủ
+        - paragraph [ref=f3e1316]: —
+        - paragraph [ref=f3e1318]: Chưa có phân tích đầy đủ theo định dạng mới (data/live/narrative/<style>.json).
+      - generic [ref=f3e1319]: "Wyckoff: tắt trong /automation · Footprint: tắt trong /automation · Heatmap: tắt trong /automation"
+    - group [ref=f3e1322]:
+      - generic "Thuật ngữ theo phương pháp ( mở khi cần )" [ref=f3e2559] [cursor=pointer]:
+        - text: Thuật ngữ theo phương pháp
+        - generic [ref=f3e1324]: ( mở khi cần )
+      - text: "BSL / SSL · ERL / IRL Buy-side / sell-side liquidity tại đỉnh/đáy bằng nhau; external vs internal range liquidity (knowledge/ict/core-a.md §2.6–2.7, knowledge/ict/core-b.md §2.13). Sweep vs MSS Quét thanh khoản = xuyên qua rồi đóng lại; Market Structure Shift = nến đóng cửa phá swing ngược chiều sau displacement (knowledge/ict/core-a.md §2.14, §2.17). Displacement · FVG Nến đẩy mạnh để lại Fair Value Gap (nến 1 và nến 3 không chồng nhau); FVG được vẽ tới khi lấp (knowledge/ict/core-a.md §2.16, §2.21). Order Block Nến ngược chiều cuối cùng trước displacement; đường OB = giá mở của nến đó, mean threshold = 0.5 thân; stop chặt = đáy thân (close), stop rộng = đáy cú quét (knowledge/ict/core-b.md §2.5, xác minh lại PDF 2026-09-12). CISD Change in State of Delivery: nến đóng qua giá mở của nến đầu tiên trong chuỗi nến ngược màu cuối cùng chạy vào mức; sớm hơn MSS (knowledge/ict/core-b.md §2.3, knowledge/ict/models.md §2.3). Dealing range · EQ · premium / discount Range = cặp BSL↔SSL chưa quét gần nhất (nơi thanh khoản đang nằm); EQ = 50%; mua ở discount, bán ở premium; khi không có cặp thì dùng biên cửa sổ và ghi rõ (knowledge/ict/core-a.md §2.18–2.19). PDH/PDL · PWH/PWL · phiên Á/London Đỉnh/đáy ngày, tuần trước và phiên là mức thanh khoản; râu xuyên rồi đóng lại = failure to displace (đóng khung đảo chiều), thân đóng qua = mức là draw (knowledge/ict/core-a.md §2.8–2.9, §2.12, §2.14). Ranh giới ngày (00Z) và phiên (session-model.md) là giả định dự án. OTE · STD OTE: fib 1 tại gốc nhịp, 0 tại đỉnh/đáy nhịp, vùng vào 0.62–0.79, nhấn 0.705 (knowledge/ict/core-a.md §2.20). Std: 1 tại cực trị cú quét, 0 tại đỉnh/đáy tạo highest high/lowest low trước đó; −2/−2.5 vùng chốt, −4 mở rộng tối đa (knowledge/ict/core-b.md §2.12, knowledge/ict/models.md §2.1.5). Killzone Hai bộ giờ EST trong deck, không có luật cho crypto/CFD (knowledge/ict/core-a.md §2.1, §6). Trang vẽ theo docs/architecture/session-model.md: LDN 08–11 Europe/London, NY AM 08:30–11, NY PM 13:30–16 America/New_York, đổi UTC theo ngày; trọng số theo thị trường; không vẽ cuối tuần — tham số dự án."
+    - contentinfo [ref=f3e1325]:
+      - generic [ref=f3e2560]: "Nguồn dữ liệu: BTCUSDT 15m: binance_public_rest_live · cập nhật 2026-09-17T15:01:27Z · bias 4H cập nhật 2026-09-17T12:03:44Z · cấu trúc 1H cập nhật 2026-09-17T15:02:36Z · ETHUSDT 15m: binance_public_rest_live · cập nhật 2026-09-17T15:01:27Z · bias 4H cập nhật 2026-09-17T12:03:44Z · cấu trúc 1H cập nhật 2026-09-17T15:02:37Z · SOLUSDT 15m: binance_public_rest_live · cập nhật 2026-09-17T15:01:28Z · bias 4H cập nhật 2026-09-17T12:03:45Z · cấu trúc 1H cập nhật 2026-09-17T15:02:38Z · ASTERUSDT 15m: binance_public_rest_live · cập nhật 2026-09-17T15:01:29Z · bias 4H cập nhật 2026-09-17T12:03:45Z · cấu trúc 1H cập nhật 2026-09-17T15:02:38Z · VIRTUALUSDT 15m: binance_public_rest_live · cập nhật 2026-09-17T15:01:29Z · bias 4H cập nhật 2026-09-17T12:03:46Z · cấu trúc 1H cập nhật 2026-09-17T15:02:39Z · SUIUSDT 15m: binance_public_rest_live · cập nhật 2026-09-17T15:01:29Z · bias 4H cập nhật 2026-09-17T12:03:46Z · cấu trúc 1H cập nhật 2026-09-17T15:02:40Z · TAOUSDT 15m: binance_public_rest_live · cập nhật 2026-09-17T15:01:30Z · bias 4H cập nhật 2026-09-17T12:03:47Z · cấu trúc 1H cập nhật 2026-09-17T15:02:40Z · RENDERUSDT 15m: binance_public_rest_live · cập nhật 2026-09-17T15:01:30Z · bias 4H cập nhật 2026-09-17T12:03:47Z · cấu trúc 1H cập nhật 2026-09-17T15:02:41Z · ONDOUSDT 15m: binance_public_rest_live · cập nhật 2026-09-17T15:01:31Z · bias 4H cập nhật 2026-09-17T12:03:48Z · cấu trúc 1H cập nhật 2026-09-17T15:02:42Z"
+      - generic [ref=f3e2561]: Lớp 1 scanner 2026-09-17T15:01:31Z · Lớp 3 2026-09-11T11:00:00Z · trang dựng 2026-09-17T15:10:04Z bởi scripts/build-artifact.py (scalping)
+      - generic [ref=f3e2562]: "Chế độ SOLO: ICT (phân tích đầy đủ gần nhất: NORMAL)"
+      - text: "· Footprint · Heatmap: không có nguồn live ·"
+      - generic [ref=f3e2563]: "Lớp đọc: sơ bộ (máy quét), cục bộ (Sonnet, theo sự kiện), toàn diện (hàng ngày)"
+      - generic [ref=f3e2564]: "Luật: số liệu từ code (SYSTEM-DESIGN §13); mỗi khối phương pháp qua scripts/method_purity.py. Scanner: pivot 3 nến, dung sai đỉnh/đáy bằng nhau 0,08%, FVG ≥ 0,6× biên độ trung vị; ngưỡng khối lượng: docs/architecture/analysis-params.json (tham số dự án, không phải trích dẫn sách)."
+      - text: "Chart: TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. ·"
+      - link "tradingview.com" [ref=f3e1331] [cursor=pointer]:
+        - /url: https://www.tradingview.com/
+      - text: · Apache-2.0 (scripts/vendor/NOTICE-lightweight-charts.txt)

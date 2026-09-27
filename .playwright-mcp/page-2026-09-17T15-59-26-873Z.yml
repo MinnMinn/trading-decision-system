@@ -1,0 +1,1197 @@
+- generic [active] [ref=f13e1]:
+  - generic [ref=f13e3]:
+    - generic [ref=f13e4]:
+      - generic [ref=f13e5]: Crypto Scalping
+      - generic [ref=f13e6]: 15m × 576 (6 days) · data through 15:45 UTC
+    - navigation [ref=f13e7]:
+      - link "BTC" [ref=f13e8] [cursor=pointer]:
+        - /url: "#sec-btc"
+      - link "ETH" [ref=f13e9] [cursor=pointer]:
+        - /url: "#sec-eth"
+      - link "SOL" [ref=f13e10] [cursor=pointer]:
+        - /url: "#sec-sol"
+      - link "ASTER" [ref=f13e11] [cursor=pointer]:
+        - /url: "#sec-aster"
+      - link "VIRTUAL" [ref=f13e12] [cursor=pointer]:
+        - /url: "#sec-virtual"
+      - link "SUI" [ref=f13e13] [cursor=pointer]:
+        - /url: "#sec-sui"
+      - link "TAO" [ref=f13e14] [cursor=pointer]:
+        - /url: "#sec-tao"
+      - link "RENDER" [ref=f13e15] [cursor=pointer]:
+        - /url: "#sec-render"
+      - link "ONDO" [ref=f13e16] [cursor=pointer]:
+        - /url: "#sec-ondo"
+      - link "Terminology" [ref=f13e17] [cursor=pointer]:
+        - /url: "#sec-glossary"
+    - group "Method" [ref=f13e18]:
+      - button "Wyckoff" [ref=f13e19] [cursor=pointer]
+      - button "ICT" [ref=f13e21] [cursor=pointer]
+      - button "Footprint" [ref=f13e23] [cursor=pointer]
+      - button "Heatmap" [ref=f13e25] [cursor=pointer]
+    - group "Language" [ref=f13e27]:
+      - button "EN" [pressed] [ref=f13e28] [cursor=pointer]
+      - button "VI" [ref=f13e29] [cursor=pointer]
+    - generic [ref=f13e30]: Times UTC
+  - generic [ref=f13e31]:
+    - generic [ref=f13e32]:
+      - generic [ref=f13e33]:
+        - paragraph [ref=f13e34]: Binance public REST · 15m × 576 (6 days) · analysis, not a signal
+        - heading "Crypto Scalping" [level=1] [ref=f13e35]
+        - paragraph [ref=f13e36]: Three timeframe tiers per instrument — Bias → Structure → Entry — read with ICT (price structure).
+        - paragraph [ref=f13e37]: The analysis text on this page is written in Vietnamese by the analysis model and is shown as written — it is not translated, because translating an analysis would change it. Vietnamese passages are marked, and the times inside them are UTC.
+      - generic [ref=f13e38]: NOT A TRADING SIGNAL · research only
+    - generic [ref=f13e39]:
+      - generic [ref=f13e40]:
+        - generic [ref=f13e41]: Timeframe ladder · read top-down
+        - generic [ref=f13e43]:
+          - generic [ref=f13e44]: Bias 4H ×4
+          - text: →
+          - generic [ref=f13e45]: Structure 1H ×4
+          - text: →
+          - generic [ref=f13e46]: Entry 15m
+        - generic [ref=f13e47]: "tier that decides the verdict: Bias · bias is never formed on the entry timeframe · adjacent rungs ≥ ×4 (timeframe-mapping.md)"
+      - generic [ref=f13e48]:
+        - generic [ref=f13e49]: Main event (latest full analysis)
+        - generic [ref=f13e50]: BTC vẫn giữa vùng, chưa đóng cửa vượt AR; ETH đã lên cực trị mới 2,484.62 vượt đỉnh UA cũ nhưng chưa xác nhận SOS thật; SOL vẫn kẹt giữa SC–AR
+        - generic [ref=f13e51]: "Sau cú Spring 23:15Z 10/9, BTC giữ nguyên trạng thái: tham chiếu 10:45Z ở 76,993, vẫn dưới AR 77,424.98 (-0.56%) và trên đáy Spring 76,464 (+0.69%), chưa có đóng cửa vượt bên nào — vẫn Pha C. ETH đã đẩy giá lên cực trị 2,484.62 — vượt hẳn đỉnh UA cũ 2,475.03 — nhưng nến đang hình thành mới chỉ đang vượt, chưa đóng cửa xác nhận trên khối lượng đủ chuẩn, nên vẫn giữ đọc Pha C, chờ SOS thật. SOL yếu nhất, tham chiếu 99.18, vẫn giữa SC 98.50–AR 100.37, chưa có đóng cửa vượt bên nào."
+      - generic [ref=f13e52]:
+        - generic [ref=f13e53]: Status (local)
+        - generic [ref=f13e54]:
+          - generic [ref=f13e55]:
+            - generic [ref=f13e56]: BTC
+            - generic [ref=f13e57]: WATCHING LONG
+          - generic [ref=f13e58]:
+            - generic [ref=f13e59]: ETH
+            - generic [ref=f13e60]: WATCHING LONG
+          - generic [ref=f13e61]:
+            - generic [ref=f13e62]: SOL
+            - generic [ref=f13e63]: WATCHING LONG
+          - generic [ref=f13e64]:
+            - generic [ref=f13e65]: ASTER
+            - generic [ref=f13e66]: —
+          - generic [ref=f13e67]:
+            - generic [ref=f13e68]: VIRTUAL
+            - generic [ref=f13e69]: —
+          - generic [ref=f13e70]:
+            - generic [ref=f13e71]: SUI
+            - generic [ref=f13e72]: —
+          - generic [ref=f13e73]:
+            - generic [ref=f13e74]: TAO
+            - generic [ref=f13e75]: —
+          - generic [ref=f13e76]:
+            - generic [ref=f13e77]: RENDER
+            - generic [ref=f13e78]: —
+          - generic [ref=f13e79]:
+            - generic [ref=f13e80]: ONDO
+            - generic [ref=f13e81]: —
+        - generic [ref=f13e82]: data through 15:45 UTC
+    - generic [ref=f13e83]:
+      - generic [ref=f13e84]:
+        - generic [ref=f13e85]: BTC/USDT
+        - generic [ref=f13e86]: 76,665
+        - generic [ref=f13e87]:
+          - generic [ref=f13e88]: position in the 15m window 37%
+          - generic [ref=f13e90]: last candle 17/9 15:45 UTC
+        - generic [ref=f13e92]:
+          - generic [ref=f13e93]: entry 15m
+          - generic [ref=f13e94]: WATCHING LONG
+      - generic [ref=f13e95]:
+        - generic [ref=f13e96]: Tier
+        - generic [ref=f13e97]: ICT
+        - generic [ref=f13e99]: Conclusion
+        - generic [ref=f13e100]:
+          - generic [ref=f13e101]: Bias
+          - generic [ref=f13e102]: 4H ×4
+          - generic [ref=f13e103]: updated 12:00 UTC
+        - generic [ref=f13e104]:
+          - text: 70% dealing range (62,716–82,300) · premium
+          - generic [ref=f13e105]: "latest MSS: up past 77,506"
+        - generic [ref=f13e106]:
+          - 'generic "[ict] latest MSS: up, body closed past the swing at 77505.67 (knowledge/ict/core-b.md §2.2)" [ref=f13e107]': LONG
+          - generic [ref=f13e108]: tier that decides the verdict
+        - generic [ref=f13e109]:
+          - generic [ref=f13e110]: Structure
+          - generic [ref=f13e111]: 1H ×4
+          - generic [ref=f13e112]: updated 15:00 UTC
+        - generic [ref=f13e113]:
+          - text: 61% dealing range (74,968–77,223) · premium
+          - generic [ref=f13e114]: "latest MSS: down past 77,482"
+        - 'generic "[ict] PCL 76391.44 — the body has closed through, so that level was the draw; expect continuation down (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] latest MSS: down, body closed past the swing at 77481.98 (knowledge/ict/core-b.md §2.2)" [ref=f13e116]': SHORT
+        - generic [ref=f13e117]:
+          - generic [ref=f13e118]: Entry
+          - generic [ref=f13e119]: 15m
+          - generic [ref=f13e120]: updated 15:45 UTC
+        - generic [ref=f13e121]:
+          - text: 27% dealing range (76,275–77,728) · discount
+          - generic [ref=f13e122]: "latest MSS: up past 76,770"
+        - generic [ref=f13e123]: WATCHING LONG
+      - generic [ref=f13e125]: "Wyckoff: off in /automation"
+      - generic [ref=f13e127]:
+        - generic [ref=f13e128]:
+          - generic [ref=f13e129]:
+            - generic [ref=f13e130]:
+              - generic [ref=f13e131]: Bias
+              - text: · 4H × 360 (60 days) · 07-19 16:00 → 09-17 12:00 UTC
+            - generic [ref=f13e132]:
+              - generic [ref=f13e133]: shaded area = the entry window
+              - button "−" [ref=f13e134] [cursor=pointer]
+              - button "+" [ref=f13e135] [cursor=pointer]
+              - button "⟲" [ref=f13e136] [cursor=pointer]
+          - generic [ref=f13e137]: Wyckoff — off in /automation
+        - generic [ref=f13e140]:
+          - generic [ref=f13e141]:
+            - generic [ref=f13e142]:
+              - generic [ref=f13e143]: Structure
+              - text: · 1H × 480 (20 days) · 08-28 16:00 → 09-17 15:00 UTC
+            - generic [ref=f13e144]:
+              - generic [ref=f13e145]: shaded area = the entry window
+              - button "−" [ref=f13e146] [cursor=pointer]
+              - button "+" [ref=f13e147] [cursor=pointer]
+              - button "⟲" [ref=f13e148] [cursor=pointer]
+          - generic [ref=f13e149]: Wyckoff — off in /automation
+        - generic [ref=f13e152]:
+          - generic [ref=f13e153]:
+            - generic [ref=f13e154]:
+              - generic [ref=f13e155]: Entry
+              - text: · 15m × 576 (6 days) · 09-11 16:00 → 09-17 15:45 UTC
+            - generic [ref=f13e156]:
+              - generic [ref=f13e157]: wheel = zoom · drag = pan · drag the axis = stretch · End = last candle · keys 1–4 change method
+              - button "−" [ref=f13e158] [cursor=pointer]
+              - button "+" [ref=f13e159] [cursor=pointer]
+              - button "⟲" [ref=f13e160] [cursor=pointer]
+              - button "R:R" [ref=f13e161] [cursor=pointer]
+              - button "▶" [ref=f13e162] [cursor=pointer]
+          - generic [ref=f13e163]: Wyckoff — off in /automation
+      - generic [ref=f13e166]:
+        - generic [ref=f13e167]: Reading layer
+        - generic [ref=f13e168]: ICT
+        - generic [ref=f13e170]: Synthesis
+        - generic [ref=f13e171]:
+          - generic [ref=f13e172]: Preliminary
+          - generic [ref=f13e173]: scanner · data through 15:45 UTC
+        - list [ref=f13e176]:
+          - listitem [ref=f13e177]: Price 76,665 = 27% of the window dealing range (76,275–77,728), discount, EQ 77,001.
+          - listitem [ref=f13e178]:
+            - generic [ref=f13e179]: Điểm swing bị phá bởi đóng cửa MSS giảm gần nhất
+            - text: "77,083 (10/9 19:45 UTC): candle closed below (-0.41%)"
+          - listitem [ref=f13e180]: "Latest MSS: up, closed past the swing at 76,770."
+          - listitem [ref=f13e181]: "Nearest unmitigated FVG: up 76,464–76,654."
+          - listitem [ref=f13e182]: "Unswept pools: BSL 77,728, BSL 78,083, SSL 77,693, SSL 76,000, SSL 76,275."
+          - listitem [ref=f13e183]: No sweep → same-direction MSS chain among the recent candles.
+        - generic [ref=f13e184]:
+          - generic [ref=f13e185]: CHỜ (giữa vùng)
+          - list [ref=f13e189]:
+            - listitem [ref=f13e190]:
+              - text: "Rule verdict against the anchors of the latest full analysis:"
+              - generic [ref=f13e191]: CHỜ — vẫn giữa vùng
+              - text: (candle close 17/9 15:30 UTC = 76,766).
+            - listitem [ref=f13e192]: "Scanner stance: WAIT (fixed rules, project parameters — not a model's judgement)."
+        - generic [ref=f13e193]:
+          - generic [ref=f13e194]: Local
+          - generic [ref=f13e195]: Sonnet · data through 15:00 UTC
+        - generic [ref=f13e197]:
+          - generic [ref=f13e198]: Vietnamese source · times UTC
+          - paragraph [ref=f13e199]: Dealing range cửa sổ nằm trong 76,047–79,890, giá hiện tại 78,618 ở 67% biên độ, trên EQ 77,968 — vùng premium. docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19
+          - paragraph [ref=f13e200]: MSS giảm gần nhất đã đóng cửa vượt điểm swing 77,083, và nến đang hình thành hiện tại tiếp tục vượt mốc này, cho thấy displacement tăng đang tái diễn. docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2
+          - paragraph [ref=f13e201]: Mốc kháng cự vĩ mô xa hơn tại 79,760 chưa bị quét, giá tham chiếu 78,799 vẫn nằm dưới -1.21%. docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7
+          - paragraph [ref=f13e202]: Không ghi nhận chuỗi quét thanh khoản→MSS cùng chiều trong facts nên chưa đủ điều kiện xác nhận entry theo mô hình ICT. docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17
+        - generic [ref=f13e203]:
+          - generic [ref=f13e204]: WATCHING LONG
+          - generic [ref=f13e206]:
+            - generic [ref=f13e207]: Vietnamese source · times UTC
+            - paragraph [ref=f13e208]: "Bối cảnh 4h: cấu trúc tái tích lũy pha C, TR 76,676–77,959, bias LONG — tìm Spring[C]/LPS[C]/phá vỡ theo hướng tăng ở khung nhỏ. WA p93–96 · knowledge/07 §2.7"
+            - paragraph [ref=f13e209]: Mốc SC/Spring Wyckoff (76,676 / 76,464) trùng với vùng đáy dealing range ICT (76,047) trong cùng cửa sổ — một quan sát cấu trúc duy nhất, không tính hai lần. knowledge/10 §4.3
+            - paragraph [ref=f13e210]: Giá 78,618 đã đóng cửa vượt AR/mốc phá cấu trúc 77,425 và swing MSS 77,083, khớp hướng với bias khung lớn — verdict THEO DÕI LONG, không ngược bối cảnh; chưa có chuỗi quét→MSS cùng chiều xác nhận nên chưa đủ điều kiện SETUP TIỀM NĂNG, entry/stop/target chưa có trong facts. [tính toán của hệ thống — không phải trích dẫn tài liệu]
+            - paragraph [ref=f13e211]: "Điều kiện vô hiệu: đóng cửa dưới lại swing MSS 77,083 hoặc dưới Spring 76,464, thuộc sở hữu Wyckoff vì đây là mốc phá vỡ cấu trúc tăng sau SC/Spring. knowledge/10 §4.4"
+        - generic [ref=f13e212]:
+          - generic [ref=f13e213]: Full
+          - generic [ref=f13e214]: full analysis · 11/9 11:00 UTC
+        - generic [ref=f13e215]:
+          - paragraph [ref=f13e216]:
+            - generic [ref=f13e217]: Swing bị phá bởi đóng cửa MSS giảm gần nhất
+            - generic [ref=f13e218]: 77,083
+          - generic [ref=f13e219]:
+            - generic [ref=f13e220]: Vietnamese source · times UTC
+            - paragraph [ref=f13e221]: "Giá tham chiếu 76,993 (10:45Z) nằm trong dealing range cửa sổ (76,464–79,760), dưới điểm cân bằng 78,112 — vùng discount.Premium/Discount: docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19"
+            - paragraph [ref=f13e222]: "MSS gần nhất là giảm, đóng cửa phá swing 77,083 nhưng displacement cực yếu — chỉ 0.22× so với trung bình, không đủ áp lực để tiếp diễn giảm.Displacement/MSS: docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2"
+            - paragraph [ref=f13e223]: "Còn một khoảng trống giá giảm chưa lấp ngay phía trên giá hiện tại; các mốc thanh khoản chưa quét gồm BSL 77,544 phía trên và các SSL phía dưới quanh biên dưới dealing range — không có chuỗi quét thanh khoản rồi MSS cùng chiều để tạo một setup hoàn chỉnh.FVG: docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24; Grab vs MSS: docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17"
+        - generic [ref=f13e224]:
+          - generic [ref=f13e225]:
+            - generic [ref=f13e226]: WATCHING LONG
+            - generic [ref=f13e227]: "invalidated: đóng cửa dưới 76,464 · owner wyckoff"
+          - generic [ref=f13e229]: Looking back
+          - generic [ref=f13e230]:
+            - generic [ref=f13e231]: Vietnamese source · times UTC
+            - paragraph [ref=f13e232]: "So với lần đọc 00:15Z (Spring vừa hồi phục về vùng, chờ SOS), cấu trúc không đổi: nến đóng tham chiếu 10:45Z ở 76,993 — vẫn dưới AR 77,424.98 (-0.56%) và trên đáy Spring 76,464.00 (+0.69%), chưa có đóng cửa vượt AR lẫn chưa đóng cửa dưới lại đáy Spring. Vẫn Pha C, chưa nâng cấp lên Pha D.Đối nhãn: WA p150–184 · knowledge/07 §2.11"
+          - generic [ref=f13e233]: Now
+          - generic [ref=f13e234]:
+            - generic [ref=f13e235]: Vietnamese source · times UTC
+            - paragraph [ref=f13e236]: "Bối cảnh 4h: tái tích lũy, Pha C — vùng giao dịch SC 76,676.07–AR 77,959.20, đóng cửa 4h hiện tại 76,827.80 nằm ở khoảng 12% vùng (sát biên dưới); vừa có Spring xuyên đáy SC xuống 76,464.00 (20:00Z) rồi hồi phục lên lại trên đáy SC; bias khung lớn: LONG (Pha C đã xác lập hướng, đúng vùng CO gom hàng theo luật giảm khung).Giảm khung: WA p93–96 · knowledge/07 §2.7"
+            - paragraph [ref=f13e237]: "Ở khung nhỏ, giá vẫn giữ trên đáy Spring 76,464.00 và chưa đóng cửa vượt lại AR 77,424.98 — tham chiếu 10:45Z ở 76,993, tức -0.56% dưới AR và +0.69% trên đáy Spring. Nỗ lực bán sau Spring không đủ đẩy giá xuống lại vùng cũ, nhưng nỗ lực mua cũng chưa đủ tạo một Dấu hiệu sức mạnh thật.Nỗ lực–Kết quả: WMT p149–154 · knowledge/07 §2.3, §4.1"
+            - paragraph [ref=f13e238]: "Mốc Wyckoff (SC 76,676.07, AR 77,424.98) và mốc ICT (swing MSS 77,083.17) không trùng giá trị nên vẫn là hai quan sát riêng biệt. MSS ICT gần nhất tại khung này vẫn là giảm nhưng đóng vượt swing chỉ trên khối lượng 0.22× trung bình — cực yếu, không đủ nỗ lực để phủ định đọc tăng của Spring.Đồng nhất Wyckoff/ICT khi trùng mốc: knowledge/10 §4.3"
+            - paragraph [ref=f13e239]:
+              - text: Kết luận
+              - strong [ref=f13e240]: THEO DÕI LONG
+              - text: ": chờ đóng cửa vượt AR 77,424.98 trên khối lượng đủ chuẩn (≥1.0x) để xác nhận SOS/Phase D; vô hiệu nếu đóng cửa dưới đáy Spring 76,464.00 — chủ sở hữu vô hiệu"
+              - strong [ref=f13e241]: Wyckoff
+              - text: "(đáy Spring).Chủ sở hữu vô hiệu: knowledge/10 §4.4"
+      - generic [ref=f13e242]: "Wyckoff: off in /automation · Footprint: off in /automation · Heatmap: off in /automation"
+      - group [ref=f13e244]:
+        - generic "Event timeline of the full analysis (7 marks · ICT in its own column)" [ref=f13e245] [cursor=pointer]
+        - text: Time (UTC) Event Vietnamese source · times UTC Vietnamese source · times UTC
+        - generic [ref=f13e247]: ": off in /automation"
+    - generic [ref=f13e248]:
+      - generic [ref=f13e249]:
+        - generic [ref=f13e250]: ETH/USDT
+        - generic [ref=f13e251]: 2,468.48
+        - generic [ref=f13e252]:
+          - generic [ref=f13e253]: position in the 15m window 43%
+          - generic [ref=f13e255]: last candle 17/9 15:45 UTC
+        - generic [ref=f13e257]:
+          - generic [ref=f13e258]: entry 15m
+          - generic [ref=f13e259]: WATCHING LONG
+      - generic [ref=f13e260]:
+        - generic [ref=f13e261]: Tier
+        - generic [ref=f13e262]: ICT
+        - generic [ref=f13e264]: Conclusion
+        - generic [ref=f13e265]:
+          - generic [ref=f13e266]: Bias
+          - generic [ref=f13e267]: 4H ×4
+          - generic [ref=f13e268]: updated 12:00 UTC
+        - generic [ref=f13e269]:
+          - text: 24% dealing range (2,369.11–2,665.99) · discount
+          - generic [ref=f13e270]: "latest MSS: down past 2,462.02"
+        - generic [ref=f13e271]:
+          - 'generic "[ict] latest MSS: down, body closed past the swing at 2462.02 (knowledge/ict/core-b.md §2.2)" [ref=f13e272]': SHORT
+          - generic [ref=f13e273]: tier that decides the verdict
+        - generic [ref=f13e274]:
+          - generic [ref=f13e275]: Structure
+          - generic [ref=f13e276]: 1H ×4
+          - generic [ref=f13e277]: updated 15:00 UTC
+        - generic [ref=f13e278]:
+          - text: 71% dealing range (2,369.11–2,489.95) · premium
+          - generic [ref=f13e279]: "latest MSS: down past 2,487.84"
+        - 'generic "[ict] latest MSS: down, body closed past the swing at 2487.84 (knowledge/ict/core-b.md §2.2)" [ref=f13e281]': SHORT
+        - generic [ref=f13e282]:
+          - generic [ref=f13e283]: Entry
+          - generic [ref=f13e284]: 15m
+          - generic [ref=f13e285]: updated 15:45 UTC
+        - generic [ref=f13e286]:
+          - text: 70% dealing range (2,432.82–2,483.74) · premium
+          - generic [ref=f13e287]: "latest MSS: up past 2,449.55"
+        - generic [ref=f13e288]: WATCHING LONG
+      - generic [ref=f13e290]: "Wyckoff: off in /automation"
+      - generic [ref=f13e292]:
+        - generic [ref=f13e293]:
+          - generic [ref=f13e294]:
+            - generic [ref=f13e295]:
+              - generic [ref=f13e296]: Bias
+              - text: · 4H × 360 (60 days) · 07-19 16:00 → 09-17 12:00 UTC
+            - generic [ref=f13e297]:
+              - generic [ref=f13e298]: shaded area = the entry window
+              - button "−" [ref=f13e299] [cursor=pointer]
+              - button "+" [ref=f13e300] [cursor=pointer]
+              - button "⟲" [ref=f13e301] [cursor=pointer]
+          - generic [ref=f13e302]: Wyckoff — off in /automation
+        - generic [ref=f13e305]:
+          - generic [ref=f13e306]:
+            - generic [ref=f13e307]:
+              - generic [ref=f13e308]: Structure
+              - text: · 1H × 480 (20 days) · 08-28 16:00 → 09-17 15:00 UTC
+            - generic [ref=f13e309]:
+              - generic [ref=f13e310]: shaded area = the entry window
+              - button "−" [ref=f13e311] [cursor=pointer]
+              - button "+" [ref=f13e312] [cursor=pointer]
+              - button "⟲" [ref=f13e313] [cursor=pointer]
+          - generic [ref=f13e314]: Wyckoff — off in /automation
+        - generic [ref=f13e317]:
+          - generic [ref=f13e318]:
+            - generic [ref=f13e319]:
+              - generic [ref=f13e320]: Entry
+              - text: · 15m × 576 (6 days) · 09-11 16:00 → 09-17 15:45 UTC
+            - generic [ref=f13e321]:
+              - generic [ref=f13e322]: wheel = zoom · drag = pan · drag the axis = stretch · End = last candle · keys 1–4 change method
+              - button "−" [ref=f13e323] [cursor=pointer]
+              - button "+" [ref=f13e324] [cursor=pointer]
+              - button "⟲" [ref=f13e325] [cursor=pointer]
+              - button "R:R" [ref=f13e326] [cursor=pointer]
+              - button "▶" [ref=f13e327] [cursor=pointer]
+          - generic [ref=f13e328]: Wyckoff — off in /automation
+      - generic [ref=f13e331]:
+        - generic [ref=f13e332]: Reading layer
+        - generic [ref=f13e333]: ICT
+        - generic [ref=f13e335]: Synthesis
+        - generic [ref=f13e336]:
+          - generic [ref=f13e337]: Preliminary
+          - generic [ref=f13e338]: scanner · data through 15:45 UTC
+        - list [ref=f13e341]:
+          - listitem [ref=f13e342]: Price 2,468.48 = 70% of the window dealing range (2,432.82–2,483.74), premium, EQ 2,458.28.
+          - listitem [ref=f13e343]:
+            - generic [ref=f13e344]: BSL chưa quét phía trên vùng hiện tại
+            - text: "2,479.29 (10/9 09:00 UTC): candle closed below (-0.30%) · first candle closing beyond 11/9 16:00 UTC @ 2,560.80 · extreme since 2,615.00"
+          - listitem [ref=f13e345]: "Latest MSS: up, closed past the swing at 2,449.55."
+          - listitem [ref=f13e346]: "Nearest unmitigated FVG: up 2,456.95–2,467.87."
+          - listitem [ref=f13e347]: "Unswept pools: BSL 2,483.74, BSL 2,488.18, SSL 2,432.82, SSL 2,413.01."
+          - listitem [ref=f13e348]: No sweep → same-direction MSS chain among the recent candles.
+        - generic [ref=f13e349]:
+          - generic [ref=f13e350]: PHÁ TRÊN AR — đã đóng cửa vượt (UA khối lượng dưới chuẩn); cực trị sau đó 2,484.62
+          - list [ref=f13e354]:
+            - listitem [ref=f13e355]:
+              - text: "Rule verdict against the anchors of the latest full analysis:"
+              - generic [ref=f13e356]: PHÁ TRÊN AR — đã đóng cửa vượt (UA khối lượng dưới chuẩn); cực trị sau đó 2,484.62 — xác nhận tiếp diễn tăng
+              - text: (candle close 17/9 15:30 UTC = 2,471.91).
+            - listitem [ref=f13e357]: "Scanner stance: WAIT (fixed rules, project parameters — not a model's judgement)."
+        - generic [ref=f13e358]:
+          - generic [ref=f13e359]: Local
+          - generic [ref=f13e360]: Sonnet · data through 15:00 UTC
+        - generic [ref=f13e362]:
+          - generic [ref=f13e363]: Vietnamese source · times UTC
+          - paragraph [ref=f13e364]: Giá 2,602.40 hiện ở 76% dealing range cửa sổ (2,405.85–2,665.99), trên EQ 2,535.92 — vùng premium. docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19
+          - paragraph [ref=f13e365]: MSS tăng gần nhất đã đóng cửa vượt điểm swing 2,475.27, xác nhận displacement tăng. docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2
+          - paragraph [ref=f13e366]: FVG tăng chưa lấp tại 2,512.45–2,519.36 vẫn còn hiệu lực dưới giá hiện tại, là vùng hỗ trợ tiềm năng nếu giá quay lại lấp. docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24
+          - paragraph [ref=f13e367]: Pool SSL 2,490.49 và 2,432.88 phía dưới vẫn chưa bị quét, trong khi BSL 2,523.30 và 2,484.76 đã được tiệm cận khi giá vượt lên; không ghi nhận chuỗi quét thanh khoản→MSS cùng chiều trong facts nên chưa đủ điều kiện xác nhận entry. docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7
+        - generic [ref=f13e368]:
+          - generic [ref=f13e369]: WATCHING LONG
+          - generic [ref=f13e371]:
+            - generic [ref=f13e372]: Vietnamese source · times UTC
+            - paragraph [ref=f13e373]: "Bối cảnh 4h: cấu trúc tái tích lũy pha B, TR 2,405.85–2,475.03, giá khung lớn ở 64% biên độ — giữa vùng, cung/cầu cân bằng, chưa xuất hiện CO, bias trung lập. WA p95–96, p201–203 · knowledge/07 §2.7"
+            - paragraph [ref=f13e374]: Mốc SC Wyckoff (2,405.85) trùng với đáy dealing range ICT của cửa sổ — một quan sát cấu trúc duy nhất, không tính hai lần. knowledge/10 §4.3
+            - paragraph [ref=f13e375]: Giá 2,602.40 đã đóng cửa vượt AR/mốc phá cấu trúc và swing MSS 2,475.27, khối lượng sự kiện gần nhất 3.85x xác nhận tiếp diễn tăng, nhưng do bối cảnh khung lớn trung lập nên verdict tối đa chỉ là THEO DÕI LONG, không được kết luận SETUP TIỀM NĂNG; entry/stop/target chưa có trong facts. [tính toán của hệ thống — không phải trích dẫn tài liệu]
+            - paragraph [ref=f13e376]: "Điều kiện vô hiệu: đóng cửa dưới lại LPS[C] 2,435.00, thuộc sở hữu Wyckoff vì đây là mốc kiểm tra hỗ trợ sau AR. knowledge/10 §4.4"
+        - generic [ref=f13e377]:
+          - generic [ref=f13e378]: Full
+          - generic [ref=f13e379]: full analysis · 11/9 11:00 UTC
+        - generic [ref=f13e380]:
+          - paragraph [ref=f13e381]:
+            - generic [ref=f13e382]: BSL chưa quét phía trên vùng hiện tại, đã bị vượt bởi cực trị mới
+            - generic [ref=f13e383]: 2,479.29
+          - generic [ref=f13e384]:
+            - generic [ref=f13e385]: Vietnamese source · times UTC
+            - paragraph [ref=f13e386]: "Giá tham chiếu 2,462.14 (10:45Z) nằm trong dealing range cửa sổ (2,405.85–2,523.30), sát dưới điểm cân bằng 2,464.57 — vẫn ở vùng discount.Premium/Discount: docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19"
+            - paragraph [ref=f13e387]: "MSS gần nhất là tăng, đóng cửa phá swing 2,460.29. Còn một khoảng trống giá tăng chưa lấp ngay dưới giá hiện tại; phía trên các mốc thanh khoản chưa quét gồm BSL 2,479.29 (đã bị vượt bởi cực trị mới) và các BSL xa hơn.Displacement/MSS: docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2; FVG: docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1–6 · knowledge/04 §2.21–2.24; Liquidity: docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7"
+        - generic [ref=f13e388]:
+          - generic [ref=f13e389]:
+            - generic [ref=f13e390]: WATCHING LONG
+            - generic [ref=f13e391]: "invalidated: đóng cửa dưới 2,435.00 · owner wyckoff"
+          - generic [ref=f13e393]: Looking back
+          - generic [ref=f13e394]:
+            - generic [ref=f13e395]: Vietnamese source · times UTC
+            - paragraph [ref=f13e396]: "So với lần đọc 00:15Z (LPS 2,435.00 vừa test xong, chờ SOS thật), giá tiếp tục đẩy lên và cực trị sau đó đã đạt 2,484.62 — vượt hẳn đỉnh UA cũ 2,475.03 — nhưng nến đang hình thành mới chỉ đang vượt AR, chưa đóng cửa xác nhận trên khối lượng đủ chuẩn nên chưa thể gọi là SOS thật. Tham chiếu 10:45Z ở 2,462.14, vẫn trên LPS 2,435.00 (+1.11%) và trên AR 2,444.45 (+0.72%).SOS cần khối lượng ≥ trung bình: WA p84 · knowledge/07 §2.7.4"
+          - generic [ref=f13e397]: Now
+          - generic [ref=f13e398]:
+            - generic [ref=f13e399]: Vietnamese source · times UTC
+            - paragraph [ref=f13e400]: "Bối cảnh 4h: tái tích lũy, còn Pha B — vùng giao dịch SC 2,405.85–AR 2,475.03, đóng cửa 4h hiện tại 2,449.96 nằm ở khoảng 64% vùng (giữa vùng, chưa chạm biên nào); sau cao trào bán 2,405.85, giá test lại LPS 2,435.00 (20:00Z) và giữ trên đáy đó; bias khung lớn: trung tính — mid-range chưa có CO nên chưa giao dịch theo hướng ở khung lớn.Giảm khung: WA p93–96 · knowledge/07 §2.7"
+            - paragraph [ref=f13e401]: "Ở khung nhỏ, giá đã đẩy lên cực trị 2,484.62, vượt hẳn đỉnh UA cũ 2,475.03 — Nỗ lực mở rộng thêm so với cú UA yếu 0.99x lúc 16:45Z hôm trước — nhưng nến đang hình thành hiện đang vượt AR vẫn chưa đóng cửa xác nhận, nên chưa đủ điều kiện gọi là Dấu hiệu sức mạnh (SOS) thật, cần đóng cửa trên khối lượng đủ chuẩn để mở Pha D.Nỗ lực–Kết quả: WMT p149–154 · knowledge/07 §2.3, §4.1"
+            - paragraph [ref=f13e402]: "Mốc Wyckoff (AR/LPS 2,444.45/2,435.00) và mốc ICT (BSL kế tiếp 2,479.29, đã bị vượt bởi cực trị 2,484.62) không trùng giá trị nên vẫn là hai quan sát riêng biệt. MSS ICT gần nhất tại khung này là tăng, đóng vượt swing 2,460.29 trên khối lượng 1.79x — cùng chiều với đọc tăng của Wyckoff, không mâu thuẫn.Đồng nhất Wyckoff/ICT khi trùng mốc: knowledge/10 §4.3"
+            - paragraph [ref=f13e403]:
+              - text: Kết luận
+              - strong [ref=f13e404]: THEO DÕI LONG
+              - text: ": giá đã áp sát vùng cần một SOS thật, chờ đóng cửa xác nhận trên khối lượng đủ chuẩn (≥1.0x); vô hiệu nếu đóng cửa dưới LPS 2,435.00 — chủ sở hữu vô hiệu"
+              - strong [ref=f13e405]: Wyckoff
+              - text: "(đáy LPS).Chủ sở hữu vô hiệu: knowledge/10 §4.4"
+      - generic [ref=f13e406]: "Wyckoff: off in /automation · Footprint: off in /automation · Heatmap: off in /automation"
+      - group [ref=f13e408]:
+        - generic "Event timeline of the full analysis (7 marks · ICT in its own column)" [ref=f13e409] [cursor=pointer]
+        - text: Time (UTC) Event Vietnamese source · times UTC
+        - generic [ref=f13e411]: ": off in /automation"
+    - generic [ref=f13e412]:
+      - generic [ref=f13e413]:
+        - generic [ref=f13e414]: SOL/USDT
+        - generic [ref=f13e415]: "101.03"
+        - generic [ref=f13e416]:
+          - generic [ref=f13e417]: position in the 15m window 58%
+          - generic [ref=f13e419]: last candle 17/9 15:45 UTC
+        - generic [ref=f13e421]:
+          - generic [ref=f13e422]: entry 15m
+          - generic [ref=f13e423]: WATCHING LONG
+      - generic [ref=f13e424]:
+        - generic [ref=f13e425]: Tier
+        - generic [ref=f13e426]: ICT
+        - generic [ref=f13e428]: Conclusion
+        - generic [ref=f13e429]:
+          - generic [ref=f13e430]: Bias
+          - generic [ref=f13e431]: 4H ×4
+          - generic [ref=f13e432]: updated 12:00 UTC
+        - generic [ref=f13e433]:
+          - text: 74% dealing range (70.58–110.60) · premium
+          - generic [ref=f13e434]: "latest MSS: up past 105.00"
+        - generic [ref=f13e435]:
+          - 'generic "[ict] latest MSS: up, body closed past the swing at 105.0 (knowledge/ict/core-b.md §2.2)" [ref=f13e436]': LONG
+          - generic [ref=f13e437]: tier that decides the verdict
+        - generic [ref=f13e438]:
+          - generic [ref=f13e439]: Structure
+          - generic [ref=f13e440]: 1H ×4
+          - generic [ref=f13e441]: updated 15:00 UTC
+        - generic [ref=f13e442]:
+          - text: 49% dealing range (95.82–105.80) · discount
+          - generic [ref=f13e443]: "latest MSS: down past 100.67"
+        - 'generic "[ict] latest MSS: down, body closed past the swing at 100.67 (knowledge/ict/core-b.md §2.2)" [ref=f13e445]': SHORT
+        - generic [ref=f13e446]:
+          - generic [ref=f13e447]: Entry
+          - generic [ref=f13e448]: 15m
+          - generic [ref=f13e449]: updated 15:45 UTC
+        - generic [ref=f13e450]:
+          - text: 27% dealing range (99.66–104.82) · discount
+          - generic [ref=f13e451]: "latest MSS: up past 100.89"
+        - generic [ref=f13e452]: WATCHING LONG
+      - generic [ref=f13e454]: "Wyckoff: off in /automation"
+      - generic [ref=f13e456]:
+        - generic [ref=f13e457]:
+          - generic [ref=f13e458]:
+            - generic [ref=f13e459]:
+              - generic [ref=f13e460]: Bias
+              - text: · 4H × 360 (60 days) · 07-19 16:00 → 09-17 12:00 UTC
+            - generic [ref=f13e461]:
+              - generic [ref=f13e462]: shaded area = the entry window
+              - button "−" [ref=f13e463] [cursor=pointer]
+              - button "+" [ref=f13e464] [cursor=pointer]
+              - button "⟲" [ref=f13e465] [cursor=pointer]
+          - generic [ref=f13e466]: Wyckoff — off in /automation
+        - generic [ref=f13e469]:
+          - generic [ref=f13e470]:
+            - generic [ref=f13e471]:
+              - generic [ref=f13e472]: Structure
+              - text: · 1H × 480 (20 days) · 08-28 16:00 → 09-17 15:00 UTC
+            - generic [ref=f13e473]:
+              - generic [ref=f13e474]: shaded area = the entry window
+              - button "−" [ref=f13e475] [cursor=pointer]
+              - button "+" [ref=f13e476] [cursor=pointer]
+              - button "⟲" [ref=f13e477] [cursor=pointer]
+          - generic [ref=f13e478]: Wyckoff — off in /automation
+        - generic [ref=f13e481]:
+          - generic [ref=f13e482]:
+            - generic [ref=f13e483]:
+              - generic [ref=f13e484]: Entry
+              - text: · 15m × 576 (6 days) · 09-11 16:00 → 09-17 15:45 UTC
+            - generic [ref=f13e485]:
+              - generic [ref=f13e486]: wheel = zoom · drag = pan · drag the axis = stretch · End = last candle · keys 1–4 change method
+              - button "−" [ref=f13e487] [cursor=pointer]
+              - button "+" [ref=f13e488] [cursor=pointer]
+              - button "⟲" [ref=f13e489] [cursor=pointer]
+              - button "R:R" [ref=f13e490] [cursor=pointer]
+              - button "▶" [ref=f13e491] [cursor=pointer]
+          - generic [ref=f13e492]: Wyckoff — off in /automation
+      - generic [ref=f13e495]:
+        - generic [ref=f13e496]: Reading layer
+        - generic [ref=f13e497]: ICT
+        - generic [ref=f13e499]: Synthesis
+        - generic [ref=f13e500]:
+          - generic [ref=f13e501]: Preliminary
+          - generic [ref=f13e502]: scanner · data through 15:45 UTC
+        - list [ref=f13e505]:
+          - listitem [ref=f13e506]: Price 101.03 = 27% of the window dealing range (99.66–104.82), discount, EQ 102.24.
+          - listitem [ref=f13e507]: "Latest MSS: up, closed past the swing at 100.89."
+          - listitem [ref=f13e508]: "Nearest unmitigated FVG: up 100.72–100.98."
+          - listitem [ref=f13e509]: "Unswept pools: SSL 99.11, SSL 99.66, SSL 98.83, SSL 99.53."
+          - listitem [ref=f13e510]: No sweep → same-direction MSS chain among the recent candles.
+        - generic [ref=f13e511]:
+          - generic [ref=f13e512]: PHÁ TRÊN AR (Automatic Rally, khối lượng yếu) — chưa có nến đóng cửa vượt
+          - list [ref=f13e516]:
+            - listitem [ref=f13e517]:
+              - text: "Rule verdict against the anchors of the latest full analysis:"
+              - generic [ref=f13e518]: PHÁ TRÊN AR (Automatic Rally, khối lượng yếu) — chưa có nến đóng cửa vượt — xác nhận tiếp diễn tăng
+              - text: (candle close 17/9 15:30 UTC = 101.15).
+            - listitem [ref=f13e519]: "Scanner stance: WAIT (fixed rules, project parameters — not a model's judgement)."
+        - generic [ref=f13e520]:
+          - generic [ref=f13e521]: Local
+          - generic [ref=f13e522]: Sonnet · data through 15:00 UTC
+        - generic [ref=f13e524]:
+          - generic [ref=f13e525]: Vietnamese source · times UTC
+          - paragraph [ref=f13e526]: Giá 103.13 ở 66% dealing range cửa sổ (98.00–105.80), trên EQ 101.90 — vùng premium nhẹ. docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19
+          - paragraph [ref=f13e527]: MSS tăng gần nhất đã đóng cửa vượt điểm swing 100.29, xác nhận displacement tăng. docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2
+          - paragraph [ref=f13e528]: Pool BSL 100.37 nằm ngay dưới giá hiện tại còn BSL 102.13 đã được tiệm cận khi giá vượt lên, thanh khoản mua còn lại phía trên hướng về vùng kháng cự 105.20. docs/TTrades PDFs/3. Liquidity.pdf tr.1–5 · knowledge/04 §2.6–2.7
+          - paragraph [ref=f13e529]: Không ghi nhận chuỗi quét thanh khoản→MSS cùng chiều trong facts nên chưa đủ điều kiện xác nhận entry theo mô hình ICT. docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17
+        - generic [ref=f13e530]:
+          - generic [ref=f13e531]: WATCHING LONG
+          - generic [ref=f13e533]:
+            - generic [ref=f13e534]: Vietnamese source · times UTC
+            - paragraph [ref=f13e535]: "Bối cảnh 4h: cấu trúc tái tích lũy pha B, TR 98.50–100.46, giá khung lớn ở 28% biên độ — sát biên dưới, nơi CO gom hàng và khung nhỏ có thể in Spring[C]/LPS[C] cục bộ, bias LONG. WA p93, p201 · knowledge/07 §2.7, §3.4"
+            - paragraph [ref=f13e536]: Mốc SC Wyckoff (98.50) trùng với đáy dealing range ICT của cửa sổ — một quan sát cấu trúc duy nhất, không tính hai lần. knowledge/10 §4.3
+            - paragraph [ref=f13e537]: Giá 103.13 đã đóng cửa vượt AR/mốc phá cấu trúc 100.37 và swing MSS 100.29, khối lượng sự kiện gần nhất 1.68x xác nhận tiếp diễn tăng, khớp hướng bias khung lớn — verdict THEO DÕI LONG, không ngược bối cảnh; chưa có chuỗi quét→MSS cùng chiều xác nhận nên chưa đủ điều kiện SETUP TIỀM NĂNG, entry/stop/target chưa có trong facts. [tính toán của hệ thống — không phải trích dẫn tài liệu]
+            - paragraph [ref=f13e538]: "Điều kiện vô hiệu: đóng cửa dưới lại SC 98.50, thuộc sở hữu Wyckoff vì phá vỡ đáy cao trào bán sẽ vô hiệu hoá cấu trúc tích luỹ. knowledge/10 §4.4"
+        - generic [ref=f13e539]:
+          - generic [ref=f13e540]: Full
+          - generic [ref=f13e541]: full analysis · 11/9 11:00 UTC
+        - generic [ref=f13e543]:
+          - generic [ref=f13e544]: Vietnamese source · times UTC
+          - paragraph [ref=f13e545]: "Giá tham chiếu 99.18 (10:45Z) nằm trong dealing range cửa sổ (98.50–105.20), dưới điểm cân bằng 101.85 — vùng discount.Premium/Discount: docs/TTrades PDFs/8. Discount__Premium.pdf tr.1–5 · knowledge/04 §2.18–2.19"
+          - paragraph [ref=f13e546]: "MSS gần nhất là giảm, đóng cửa phá swing 99.60. Phía trên còn nguyên các mốc thanh khoản chưa quét BSL 103.83, BSL 102.13, BSL 101.54, BSL 100.37; phía dưới là SSL 100.75 và SSL 98.95; không có chuỗi quét thanh khoản rồi MSS cùng chiều nào để tạo một setup hoàn chỉnh.Displacement/MSS: docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1–3 · knowledge/05 §2.1–2.2; Grab vs MSS: docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1–4 · knowledge/04 §2.14, §2.17"
+        - generic [ref=f13e547]:
+          - generic [ref=f13e548]:
+            - generic [ref=f13e549]: WAIT
+            - generic [ref=f13e550]: "invalidated: đóng cửa dưới 98.50 · owner wyckoff"
+          - generic [ref=f13e552]: Looking back
+          - generic [ref=f13e553]:
+            - generic [ref=f13e554]: Vietnamese source · times UTC
+            - paragraph [ref=f13e555]: "So với lần đọc 00:15Z (Pha B chưa ngã ngũ, vừa lùi về 98.60 chưa phá đáy), SOL gần như không đổi: tham chiếu 10:45Z ở 99.18 — trên SC 98.50 (+0.69%) và dưới AR 100.37 (-1.19%), chưa có đóng cửa vượt bên nào. Vẫn Pha B, chưa có test đủ điều kiện gọi Spring hay SOS mới.Đối nhãn: WA p150–184 · knowledge/07 §2.11"
+          - generic [ref=f13e556]: Now
+          - generic [ref=f13e557]:
+            - generic [ref=f13e558]: Vietnamese source · times UTC
+            - paragraph [ref=f13e559]: "Bối cảnh 4h: tái tích lũy, còn Pha B — vùng giao dịch SC 98.50–AR 100.46, đóng cửa 4h hiện tại 99.04 nằm ở khoảng 28% vùng (sát biên dưới); sau cao trào bán 98.50, giá test lại 98.60 (20:00Z) và giữ trên đáy đó; bias khung lớn: LONG — giá ở biên dưới TR đúng vùng CO gom hàng theo luật giảm khung (WA p93, p201), nhưng khung 15 phút chưa xác nhận nên vẫn CHỜ.Giảm khung: WA p93–96 · knowledge/07 §2.7"
+            - paragraph [ref=f13e560]: "SOL vẫn là mã yếu nhất trong ba mã: tham chiếu 10:45Z ở 99.18, vẫn giữa vùng SC–AR, chưa có đóng cửa vượt AR 100.37 lẫn chưa đóng cửa dưới lại SC 98.50.Nỗ lực–Kết quả: WMT p149–154 · knowledge/07 §2.3, §4.1"
+            - paragraph [ref=f13e561]: "Mốc Wyckoff (SC 98.50 / AR 100.37) chưa trùng với mốc ICT thanh khoản đã nêu nên chưa cần khử trùng lặp ở đây. MSS ICT gần nhất là giảm (swing 99.60), cùng chiều với đọc Phase B chưa ngã ngũ của Wyckoff.Đồng nhất Wyckoff/ICT khi trùng mốc: knowledge/10 §4.3"
+            - paragraph [ref=f13e562]:
+              - text: Kết luận
+              - strong [ref=f13e563]: CHỜ
+              - text: ": cần đóng cửa vượt AR 100.37 để tính SOS, hoặc một Spring xuyên xuống dưới SC 98.50 rồi hồi phục mới đổi đọc; vô hiệu (cho kịch bản tăng) nếu đóng cửa dưới 98.50 — chủ sở hữu vô hiệu"
+              - strong [ref=f13e564]: Wyckoff
+              - text: "(đáy vùng giao dịch).Chủ sở hữu vô hiệu: knowledge/10 §4.4"
+      - generic [ref=f13e565]: "Wyckoff: off in /automation · Footprint: off in /automation · Heatmap: off in /automation"
+      - group [ref=f13e567]:
+        - generic "Event timeline of the full analysis (6 marks · ICT in its own column)" [ref=f13e568] [cursor=pointer]
+        - text: Time (UTC) Event Vietnamese source · times UTC
+        - generic [ref=f13e570]: ": off in /automation"
+    - generic [ref=f13e571]:
+      - generic [ref=f13e572]:
+        - generic [ref=f13e573]: ASTER/USDT
+        - generic [ref=f13e574]: "0.74"
+        - generic [ref=f13e575]:
+          - generic [ref=f13e576]: position in the 15m window 95%
+          - generic [ref=f13e578]: last candle 17/9 15:45 UTC
+        - generic [ref=f13e580]:
+          - generic [ref=f13e581]: entry 15m
+          - generic [ref=f13e582]: —
+      - generic [ref=f13e583]:
+        - generic [ref=f13e584]: Tier
+        - generic [ref=f13e585]: ICT
+        - generic [ref=f13e587]: Conclusion
+        - generic [ref=f13e588]:
+          - generic [ref=f13e589]: Bias
+          - generic [ref=f13e590]: 4H ×4
+          - generic [ref=f13e591]: updated 12:00 UTC
+        - generic [ref=f13e592]:
+          - text: 52% dealing range (0.60–0.87) · premium
+          - generic [ref=f13e593]: "latest MSS: up past 0.70"
+        - generic [ref=f13e594]:
+          - 'generic "[ict] latest MSS: up, body closed past the swing at 0.697 (knowledge/ict/core-b.md §2.2)" [ref=f13e595]': LONG
+          - generic [ref=f13e596]: tier that decides the verdict
+        - generic [ref=f13e597]:
+          - generic [ref=f13e598]: Structure
+          - generic [ref=f13e599]: 1H ×4
+          - generic [ref=f13e600]: updated 15:00 UTC
+        - generic [ref=f13e601]:
+          - text: 40% dealing range (0.73–0.74) · discount
+          - generic [ref=f13e602]: "latest MSS: up past 0.69"
+        - 'generic "[ict] latest MSS: up, body closed past the swing at 0.685 (knowledge/ict/core-b.md §2.2)" [ref=f13e604]': LONG
+        - generic [ref=f13e605]:
+          - generic [ref=f13e606]: Entry
+          - generic [ref=f13e607]: 15m
+          - generic [ref=f13e608]: updated 15:45 UTC
+        - generic [ref=f13e609]:
+          - text: 71% dealing range (0.73–0.75) · premium
+          - generic [ref=f13e610]: "latest MSS: down past 0.68"
+        - generic [ref=f13e611]: —
+      - generic [ref=f13e613]: "Wyckoff: off in /automation"
+      - generic [ref=f13e615]:
+        - generic [ref=f13e616]:
+          - generic [ref=f13e617]:
+            - generic [ref=f13e618]:
+              - generic [ref=f13e619]: Bias
+              - text: · 4H × 360 (60 days) · 07-19 16:00 → 09-17 12:00 UTC
+            - generic [ref=f13e620]:
+              - generic [ref=f13e621]: shaded area = the entry window
+              - button "−" [ref=f13e622] [cursor=pointer]
+              - button "+" [ref=f13e623] [cursor=pointer]
+              - button "⟲" [ref=f13e624] [cursor=pointer]
+          - generic [ref=f13e625]: Wyckoff — off in /automation
+        - generic [ref=f13e628]:
+          - generic [ref=f13e629]:
+            - generic [ref=f13e630]:
+              - generic [ref=f13e631]: Structure
+              - text: · 1H × 480 (20 days) · 08-28 16:00 → 09-17 15:00 UTC
+            - generic [ref=f13e632]:
+              - generic [ref=f13e633]: shaded area = the entry window
+              - button "−" [ref=f13e634] [cursor=pointer]
+              - button "+" [ref=f13e635] [cursor=pointer]
+              - button "⟲" [ref=f13e636] [cursor=pointer]
+          - generic [ref=f13e637]: Wyckoff — off in /automation
+        - generic [ref=f13e640]:
+          - generic [ref=f13e641]:
+            - generic [ref=f13e642]:
+              - generic [ref=f13e643]: Entry
+              - text: · 15m × 576 (6 days) · 09-11 16:00 → 09-17 15:45 UTC
+            - generic [ref=f13e644]:
+              - generic [ref=f13e645]: wheel = zoom · drag = pan · drag the axis = stretch · End = last candle · keys 1–4 change method
+              - button "−" [ref=f13e646] [cursor=pointer]
+              - button "+" [ref=f13e647] [cursor=pointer]
+              - button "⟲" [ref=f13e648] [cursor=pointer]
+              - button "R:R" [ref=f13e649] [cursor=pointer]
+              - button "▶" [ref=f13e650] [cursor=pointer]
+          - generic [ref=f13e651]: Wyckoff — off in /automation
+      - generic [ref=f13e654]:
+        - generic [ref=f13e655]: Reading layer
+        - generic [ref=f13e656]: ICT
+        - generic [ref=f13e658]: Synthesis
+        - generic [ref=f13e659]:
+          - generic [ref=f13e660]: Preliminary
+          - generic [ref=f13e661]: scanner · data through 15:45 UTC
+        - list [ref=f13e664]:
+          - listitem [ref=f13e665]: Price 0.74 = 71% of the window dealing range (0.73–0.75), premium, EQ 0.74.
+          - listitem [ref=f13e666]: "Latest MSS: down, closed past the swing at 0.68."
+          - listitem [ref=f13e667]: "Nearest unmitigated FVG: up 0.74–0.74."
+          - listitem [ref=f13e668]: "Unswept pools: BSL 0.69, BSL 0.74, SSL 0.67, SSL 0.67, SSL 0.73."
+          - listitem [ref=f13e669]: "Recent events: touched ERL high 0.75 @15:30 UTC."
+          - listitem [ref=f13e670]: No sweep → same-direction MSS chain among the recent candles.
+        - generic [ref=f13e671]:
+          - generic [ref=f13e672]: WAIT
+          - list [ref=f13e675]:
+            - listitem [ref=f13e676]: No anchors from a full analysis yet — the scanner has only its fixed-rule stance.
+            - listitem [ref=f13e677]: "Scanner stance: WAIT (fixed rules, project parameters — not a model's judgement)."
+        - generic [ref=f13e678]:
+          - generic [ref=f13e679]: Local
+          - generic [ref=f13e680]: Sonnet
+        - paragraph [ref=f13e682]: —
+        - paragraph [ref=f13e684]: No local read yet.
+        - generic [ref=f13e685]:
+          - generic [ref=f13e686]: Full
+          - generic [ref=f13e687]: full analysis
+        - paragraph [ref=f13e689]: —
+        - paragraph [ref=f13e691]: No full analysis in the current format yet (data/live/narrative/<style>.json).
+      - generic [ref=f13e692]: "Wyckoff: off in /automation · Footprint: off in /automation · Heatmap: off in /automation"
+    - generic [ref=f13e694]:
+      - generic [ref=f13e695]:
+        - generic [ref=f13e696]: VIRTUAL/USDT
+        - generic [ref=f13e697]: "0.61"
+        - generic [ref=f13e698]:
+          - generic [ref=f13e699]: position in the 15m window 48%
+          - generic [ref=f13e701]: last candle 17/9 15:45 UTC
+        - generic [ref=f13e703]:
+          - generic [ref=f13e704]: entry 15m
+          - generic [ref=f13e705]: —
+      - generic [ref=f13e706]:
+        - generic [ref=f13e707]: Tier
+        - generic [ref=f13e708]: ICT
+        - generic [ref=f13e710]: Conclusion
+        - generic [ref=f13e711]:
+          - generic [ref=f13e712]: Bias
+          - generic [ref=f13e713]: 4H ×4
+          - generic [ref=f13e714]: updated 12:00 UTC
+        - generic [ref=f13e715]:
+          - text: 22% dealing range (0.55–0.84) · discount
+          - generic [ref=f13e716]: "latest MSS: down past 0.71"
+        - generic [ref=f13e717]:
+          - 'generic "[ict] PCH 0.6128 — wick through but the body closed back inside (failure to displace); the draw flips to PCL 0.6024 (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] latest MSS: down, body closed past the swing at 0.7085 (knowledge/ict/core-b.md §2.2)" [ref=f13e718]': SHORT
+          - generic [ref=f13e719]: tier that decides the verdict
+        - generic [ref=f13e720]:
+          - generic [ref=f13e721]: Structure
+          - generic [ref=f13e722]: 1H ×4
+          - generic [ref=f13e723]: updated 15:00 UTC
+        - generic [ref=f13e724]:
+          - text: 48% dealing range (0.57–0.64) · discount
+          - generic [ref=f13e725]: "latest MSS: up past 0.60"
+        - 'generic "[ict] contradiction inside ICT — stated, not resolved: [ict] PCL 0.6068 — the body has closed through, so that level was the draw; expect continuation down (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] latest MSS: up, body closed past the swing at 0.5968 (knowledge/ict/core-b.md §2.2)" [ref=f13e727]': NEUTRAL
+        - generic [ref=f13e728]:
+          - generic [ref=f13e729]: Entry
+          - generic [ref=f13e730]: 15m
+          - generic [ref=f13e731]: updated 15:45 UTC
+        - generic [ref=f13e732]:
+          - text: 50% dealing range (0.60–0.62) · premium
+          - generic [ref=f13e733]: "latest MSS: down past 0.60"
+        - generic [ref=f13e734]: —
+      - generic [ref=f13e736]: "Wyckoff: off in /automation"
+      - generic [ref=f13e738]:
+        - generic [ref=f13e739]:
+          - generic [ref=f13e740]:
+            - generic [ref=f13e741]:
+              - generic [ref=f13e742]: Bias
+              - text: · 4H × 360 (60 days) · 07-19 16:00 → 09-17 12:00 UTC
+            - generic [ref=f13e743]:
+              - generic [ref=f13e744]: shaded area = the entry window
+              - button "−" [ref=f13e745] [cursor=pointer]
+              - button "+" [ref=f13e746] [cursor=pointer]
+              - button "⟲" [ref=f13e747] [cursor=pointer]
+          - generic [ref=f13e748]: Wyckoff — off in /automation
+        - generic [ref=f13e751]:
+          - generic [ref=f13e752]:
+            - generic [ref=f13e753]:
+              - generic [ref=f13e754]: Structure
+              - text: · 1H × 480 (20 days) · 08-28 16:00 → 09-17 15:00 UTC
+            - generic [ref=f13e755]:
+              - generic [ref=f13e756]: shaded area = the entry window
+              - button "−" [ref=f13e757] [cursor=pointer]
+              - button "+" [ref=f13e758] [cursor=pointer]
+              - button "⟲" [ref=f13e759] [cursor=pointer]
+          - generic [ref=f13e760]: Wyckoff — off in /automation
+        - generic [ref=f13e763]:
+          - generic [ref=f13e764]:
+            - generic [ref=f13e765]:
+              - generic [ref=f13e766]: Entry
+              - text: · 15m × 576 (6 days) · 09-11 16:00 → 09-17 15:45 UTC
+            - generic [ref=f13e767]:
+              - generic [ref=f13e768]: wheel = zoom · drag = pan · drag the axis = stretch · End = last candle · keys 1–4 change method
+              - button "−" [ref=f13e769] [cursor=pointer]
+              - button "+" [ref=f13e770] [cursor=pointer]
+              - button "⟲" [ref=f13e771] [cursor=pointer]
+              - button "R:R" [ref=f13e772] [cursor=pointer]
+              - button "▶" [ref=f13e773] [cursor=pointer]
+          - generic [ref=f13e774]: Wyckoff — off in /automation
+      - generic [ref=f13e777]:
+        - generic [ref=f13e778]: Reading layer
+        - generic [ref=f13e779]: ICT
+        - generic [ref=f13e781]: Synthesis
+        - generic [ref=f13e782]:
+          - generic [ref=f13e783]: Preliminary
+          - generic [ref=f13e784]: scanner · data through 15:45 UTC
+        - list [ref=f13e787]:
+          - listitem [ref=f13e788]: Price 0.61 = 50% of the window dealing range (0.60–0.62), premium, EQ 0.61.
+          - listitem [ref=f13e789]: "Latest MSS: down, closed past the swing at 0.60."
+          - listitem [ref=f13e790]: "Nearest unmitigated FVG: up 0.61–0.61."
+          - listitem [ref=f13e791]: "Unswept pools: BSL 0.64, BSL 0.64, BSL 0.62, SSL 0.63, SSL 0.60, SSL 0.59."
+          - listitem [ref=f13e792]: No sweep → same-direction MSS chain among the recent candles.
+        - generic [ref=f13e793]:
+          - generic [ref=f13e794]: WAIT
+          - list [ref=f13e797]:
+            - listitem [ref=f13e798]: No anchors from a full analysis yet — the scanner has only its fixed-rule stance.
+            - listitem [ref=f13e799]: "Scanner stance: WAIT (fixed rules, project parameters — not a model's judgement)."
+        - generic [ref=f13e800]:
+          - generic [ref=f13e801]: Local
+          - generic [ref=f13e802]: Sonnet
+        - paragraph [ref=f13e804]: —
+        - paragraph [ref=f13e806]: No local read yet.
+        - generic [ref=f13e807]:
+          - generic [ref=f13e808]: Full
+          - generic [ref=f13e809]: full analysis
+        - paragraph [ref=f13e811]: —
+        - paragraph [ref=f13e813]: No full analysis in the current format yet (data/live/narrative/<style>.json).
+      - generic [ref=f13e814]: "Wyckoff: off in /automation · Footprint: off in /automation · Heatmap: off in /automation"
+    - generic [ref=f13e816]:
+      - generic [ref=f13e817]:
+        - generic [ref=f13e818]: SUI/USDT
+        - generic [ref=f13e819]: "0.73"
+        - generic [ref=f13e820]:
+          - generic [ref=f13e821]: position in the 15m window 80%
+          - generic [ref=f13e823]: last candle 17/9 15:45 UTC
+        - generic [ref=f13e825]:
+          - generic [ref=f13e826]: entry 15m
+          - generic [ref=f13e827]: —
+      - generic [ref=f13e828]:
+        - generic [ref=f13e829]: Tier
+        - generic [ref=f13e830]: ICT
+        - generic [ref=f13e832]: Conclusion
+        - generic [ref=f13e833]:
+          - generic [ref=f13e834]: Bias
+          - generic [ref=f13e835]: 4H ×4
+          - generic [ref=f13e836]: updated 12:00 UTC
+        - generic [ref=f13e837]:
+          - text: 17% dealing range (0.67–0.95) · discount
+          - generic [ref=f13e838]: "latest MSS: up past 0.73"
+        - generic [ref=f13e839]:
+          - 'generic "[ict] latest MSS: up, body closed past the swing at 0.7312 (knowledge/ict/core-b.md §2.2)" [ref=f13e840]': LONG
+          - generic [ref=f13e841]: tier that decides the verdict
+        - generic [ref=f13e842]:
+          - generic [ref=f13e843]: Structure
+          - generic [ref=f13e844]: 1H ×4
+          - generic [ref=f13e845]: updated 15:00 UTC
+        - generic [ref=f13e846]:
+          - text: 9% dealing range (0.72–0.83) · discount
+          - generic [ref=f13e847]: "latest MSS: up past 0.69"
+        - 'generic "[ict] contradiction inside ICT — stated, not resolved: [ict] PCL 0.7255 — the body has closed through, so that level was the draw; expect continuation down (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] latest MSS: up, body closed past the swing at 0.6941 (knowledge/ict/core-b.md §2.2)" [ref=f13e849]': NEUTRAL
+        - generic [ref=f13e850]:
+          - generic [ref=f13e851]: Entry
+          - generic [ref=f13e852]: 15m
+          - generic [ref=f13e853]: updated 15:45 UTC
+        - generic [ref=f13e854]:
+          - text: 85% dealing range (0.72–0.74) · premium
+          - generic [ref=f13e855]: "latest MSS: up past 0.73"
+        - generic [ref=f13e856]: —
+      - generic [ref=f13e858]: "Wyckoff: off in /automation"
+      - generic [ref=f13e860]:
+        - generic [ref=f13e861]:
+          - generic [ref=f13e862]:
+            - generic [ref=f13e863]:
+              - generic [ref=f13e864]: Bias
+              - text: · 4H × 360 (60 days) · 07-19 16:00 → 09-17 12:00 UTC
+            - generic [ref=f13e865]:
+              - generic [ref=f13e866]: shaded area = the entry window
+              - button "−" [ref=f13e867] [cursor=pointer]
+              - button "+" [ref=f13e868] [cursor=pointer]
+              - button "⟲" [ref=f13e869] [cursor=pointer]
+          - generic [ref=f13e870]: Wyckoff — off in /automation
+        - generic [ref=f13e873]:
+          - generic [ref=f13e874]:
+            - generic [ref=f13e875]:
+              - generic [ref=f13e876]: Structure
+              - text: · 1H × 480 (20 days) · 08-28 16:00 → 09-17 15:00 UTC
+            - generic [ref=f13e877]:
+              - generic [ref=f13e878]: shaded area = the entry window
+              - button "−" [ref=f13e879] [cursor=pointer]
+              - button "+" [ref=f13e880] [cursor=pointer]
+              - button "⟲" [ref=f13e881] [cursor=pointer]
+          - generic [ref=f13e882]: Wyckoff — off in /automation
+        - generic [ref=f13e885]:
+          - generic [ref=f13e886]:
+            - generic [ref=f13e887]:
+              - generic [ref=f13e888]: Entry
+              - text: · 15m × 576 (6 days) · 09-11 16:00 → 09-17 15:45 UTC
+            - generic [ref=f13e889]:
+              - generic [ref=f13e890]: wheel = zoom · drag = pan · drag the axis = stretch · End = last candle · keys 1–4 change method
+              - button "−" [ref=f13e891] [cursor=pointer]
+              - button "+" [ref=f13e892] [cursor=pointer]
+              - button "⟲" [ref=f13e893] [cursor=pointer]
+              - button "R:R" [ref=f13e894] [cursor=pointer]
+              - button "▶" [ref=f13e895] [cursor=pointer]
+          - generic [ref=f13e896]: Wyckoff — off in /automation
+      - generic [ref=f13e899]:
+        - generic [ref=f13e900]: Reading layer
+        - generic [ref=f13e901]: ICT
+        - generic [ref=f13e903]: Synthesis
+        - generic [ref=f13e904]:
+          - generic [ref=f13e905]: Preliminary
+          - generic [ref=f13e906]: scanner · data through 15:45 UTC
+        - list [ref=f13e909]:
+          - listitem [ref=f13e910]: Price 0.73 = 85% of the window dealing range (0.72–0.74), premium, EQ 0.73.
+          - listitem [ref=f13e911]: "Latest MSS: up, closed past the swing at 0.73."
+          - listitem [ref=f13e912]: "Nearest unmitigated FVG: up 0.73–0.73."
+          - listitem [ref=f13e913]: "Unswept pools: BSL 0.74, BSL 0.69, SSL 0.70, SSL 0.72, SSL 0.71."
+          - listitem [ref=f13e914]: No sweep → same-direction MSS chain among the recent candles.
+        - generic [ref=f13e915]:
+          - generic [ref=f13e916]: WAIT
+          - list [ref=f13e919]:
+            - listitem [ref=f13e920]: No anchors from a full analysis yet — the scanner has only its fixed-rule stance.
+            - listitem [ref=f13e921]: "Scanner stance: WAIT (fixed rules, project parameters — not a model's judgement)."
+        - generic [ref=f13e922]:
+          - generic [ref=f13e923]: Local
+          - generic [ref=f13e924]: Sonnet
+        - paragraph [ref=f13e926]: —
+        - paragraph [ref=f13e928]: No local read yet.
+        - generic [ref=f13e929]:
+          - generic [ref=f13e930]: Full
+          - generic [ref=f13e931]: full analysis
+        - paragraph [ref=f13e933]: —
+        - paragraph [ref=f13e935]: No full analysis in the current format yet (data/live/narrative/<style>.json).
+      - generic [ref=f13e936]: "Wyckoff: off in /automation · Footprint: off in /automation · Heatmap: off in /automation"
+    - generic [ref=f13e938]:
+      - generic [ref=f13e939]:
+        - generic [ref=f13e940]: TAO/USDT
+        - generic [ref=f13e941]: "228.30"
+        - generic [ref=f13e942]:
+          - generic [ref=f13e943]: position in the 15m window 52%
+          - generic [ref=f13e945]: last candle 17/9 15:45 UTC
+        - generic [ref=f13e947]:
+          - generic [ref=f13e948]: entry 15m
+          - generic [ref=f13e949]: —
+      - generic [ref=f13e950]:
+        - generic [ref=f13e951]: Tier
+        - generic [ref=f13e952]: ICT
+        - generic [ref=f13e954]: Conclusion
+        - generic [ref=f13e955]:
+          - generic [ref=f13e956]: Bias
+          - generic [ref=f13e957]: 4H ×4
+          - generic [ref=f13e958]: updated 12:00 UTC
+        - generic [ref=f13e959]:
+          - text: 46% dealing range (183.50–277.00) · discount
+          - generic [ref=f13e960]: "latest MSS: down past 229.60"
+        - generic [ref=f13e961]:
+          - 'generic "[ict] latest MSS: down, body closed past the swing at 229.6 (knowledge/ict/core-b.md §2.2)" [ref=f13e962]': SHORT
+          - generic [ref=f13e963]: tier that decides the verdict
+        - generic [ref=f13e964]:
+          - generic [ref=f13e965]: Structure
+          - generic [ref=f13e966]: 1H ×4
+          - generic [ref=f13e967]: updated 15:00 UTC
+        - generic [ref=f13e968]:
+          - text: 22% dealing range (213.40–272.20) · discount
+          - generic [ref=f13e969]: "latest MSS: up past 219.40"
+        - 'generic "[ict] PCL 226.3 — wick through but the body closed back inside (failure to displace); the draw flips to PCH 229.9 (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] latest MSS: up, body closed past the swing at 219.4 (knowledge/ict/core-b.md §2.2)" [ref=f13e971]': LONG
+        - generic [ref=f13e972]:
+          - generic [ref=f13e973]: Entry
+          - generic [ref=f13e974]: 15m
+          - generic [ref=f13e975]: updated 15:45 UTC
+        - generic [ref=f13e976]:
+          - text: 31% dealing range (225.90–233.60) · discount
+          - generic [ref=f13e977]: "latest MSS: up past 228.90"
+        - generic [ref=f13e978]: —
+      - generic [ref=f13e980]: "Wyckoff: off in /automation"
+      - generic [ref=f13e982]:
+        - generic [ref=f13e983]:
+          - generic [ref=f13e984]:
+            - generic [ref=f13e985]:
+              - generic [ref=f13e986]: Bias
+              - text: · 4H × 360 (60 days) · 07-19 16:00 → 09-17 12:00 UTC
+            - generic [ref=f13e987]:
+              - generic [ref=f13e988]: shaded area = the entry window
+              - button "−" [ref=f13e989] [cursor=pointer]
+              - button "+" [ref=f13e990] [cursor=pointer]
+              - button "⟲" [ref=f13e991] [cursor=pointer]
+          - generic [ref=f13e992]: Wyckoff — off in /automation
+        - generic [ref=f13e995]:
+          - generic [ref=f13e996]:
+            - generic [ref=f13e997]:
+              - generic [ref=f13e998]: Structure
+              - text: · 1H × 480 (20 days) · 08-28 16:00 → 09-17 15:00 UTC
+            - generic [ref=f13e999]:
+              - generic [ref=f13e1000]: shaded area = the entry window
+              - button "−" [ref=f13e1001] [cursor=pointer]
+              - button "+" [ref=f13e1002] [cursor=pointer]
+              - button "⟲" [ref=f13e1003] [cursor=pointer]
+          - generic [ref=f13e1004]: Wyckoff — off in /automation
+        - generic [ref=f13e1007]:
+          - generic [ref=f13e1008]:
+            - generic [ref=f13e1009]:
+              - generic [ref=f13e1010]: Entry
+              - text: · 15m × 576 (6 days) · 09-11 16:00 → 09-17 15:45 UTC
+            - generic [ref=f13e1011]:
+              - generic [ref=f13e1012]: wheel = zoom · drag = pan · drag the axis = stretch · End = last candle · keys 1–4 change method
+              - button "−" [ref=f13e1013] [cursor=pointer]
+              - button "+" [ref=f13e1014] [cursor=pointer]
+              - button "⟲" [ref=f13e1015] [cursor=pointer]
+              - button "R:R" [ref=f13e1016] [cursor=pointer]
+              - button "▶" [ref=f13e1017] [cursor=pointer]
+          - generic [ref=f13e1018]: Wyckoff — off in /automation
+      - generic [ref=f13e1021]:
+        - generic [ref=f13e1022]: Reading layer
+        - generic [ref=f13e1023]: ICT
+        - generic [ref=f13e1025]: Synthesis
+        - generic [ref=f13e1026]:
+          - generic [ref=f13e1027]: Preliminary
+          - generic [ref=f13e1028]: scanner · data through 15:45 UTC
+        - list [ref=f13e1031]:
+          - listitem [ref=f13e1032]: Price 228.30 = 31% of the window dealing range (225.90–233.60), discount, EQ 229.75.
+          - listitem [ref=f13e1033]: "Latest MSS: up, closed past the swing at 228.90."
+          - listitem [ref=f13e1034]: "Nearest unmitigated FVG: up 227.30–228.30."
+          - listitem [ref=f13e1035]: "Unswept pools: BSL 233.60, BSL 220.20, SSL 230.50, SSL 230.70, SSL 224.70, SSL 225.90."
+          - listitem [ref=f13e1036]: No sweep → same-direction MSS chain among the recent candles.
+        - generic [ref=f13e1037]:
+          - generic [ref=f13e1038]: WAIT
+          - list [ref=f13e1041]:
+            - listitem [ref=f13e1042]: No anchors from a full analysis yet — the scanner has only its fixed-rule stance.
+            - listitem [ref=f13e1043]: "Scanner stance: WAIT (fixed rules, project parameters — not a model's judgement)."
+        - generic [ref=f13e1044]:
+          - generic [ref=f13e1045]: Local
+          - generic [ref=f13e1046]: Sonnet
+        - paragraph [ref=f13e1048]: —
+        - paragraph [ref=f13e1050]: No local read yet.
+        - generic [ref=f13e1051]:
+          - generic [ref=f13e1052]: Full
+          - generic [ref=f13e1053]: full analysis
+        - paragraph [ref=f13e1055]: —
+        - paragraph [ref=f13e1057]: No full analysis in the current format yet (data/live/narrative/<style>.json).
+      - generic [ref=f13e1058]: "Wyckoff: off in /automation · Footprint: off in /automation · Heatmap: off in /automation"
+    - generic [ref=f13e1060]:
+      - generic [ref=f13e1061]:
+        - generic [ref=f13e1062]: RENDER/USDT
+        - generic [ref=f13e1063]: "1.41"
+        - generic [ref=f13e1064]:
+          - generic [ref=f13e1065]: position in the 15m window 88%
+          - generic [ref=f13e1067]: last candle 17/9 15:45 UTC
+        - generic [ref=f13e1069]:
+          - generic [ref=f13e1070]: entry 15m
+          - generic [ref=f13e1071]: —
+      - generic [ref=f13e1072]:
+        - generic [ref=f13e1073]: Tier
+        - generic [ref=f13e1074]: ICT
+        - generic [ref=f13e1076]: Conclusion
+        - generic [ref=f13e1077]:
+          - generic [ref=f13e1078]: Bias
+          - generic [ref=f13e1079]: 4H ×4
+          - generic [ref=f13e1080]: updated 12:00 UTC
+        - generic [ref=f13e1081]:
+          - text: 35% dealing range (1.25–1.64) · discount
+          - generic [ref=f13e1082]: "latest MSS: down past 1.36"
+        - generic [ref=f13e1083]:
+          - 'generic "[ict] latest MSS: down, body closed past the swing at 1.358 (knowledge/ict/core-b.md §2.2)" [ref=f13e1084]': SHORT
+          - generic [ref=f13e1085]: tier that decides the verdict
+        - generic [ref=f13e1086]:
+          - generic [ref=f13e1087]: Structure
+          - generic [ref=f13e1088]: 1H ×4
+          - generic [ref=f13e1089]: updated 15:00 UTC
+        - generic [ref=f13e1090]:
+          - text: 61% dealing range (1.28–1.46) · premium
+          - generic [ref=f13e1091]: "latest MSS: up past 1.31"
+        - 'generic "[ict] contradiction inside ICT — stated, not resolved: [ict] PCL 1.394 — the body has closed through, so that level was the draw; expect continuation down (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] latest MSS: up, body closed past the swing at 1.314 (knowledge/ict/core-b.md §2.2)" [ref=f13e1093]': NEUTRAL
+        - generic [ref=f13e1094]:
+          - generic [ref=f13e1095]: Entry
+          - generic [ref=f13e1096]: 15m
+          - generic [ref=f13e1097]: updated 15:45 UTC
+        - generic [ref=f13e1098]:
+          - text: 98% dealing range (1.29–1.42) · premium
+          - generic [ref=f13e1099]: "latest MSS: up past 1.39"
+        - generic [ref=f13e1100]: —
+      - generic [ref=f13e1102]: "Wyckoff: off in /automation"
+      - generic [ref=f13e1104]:
+        - generic [ref=f13e1105]:
+          - generic [ref=f13e1106]:
+            - generic [ref=f13e1107]:
+              - generic [ref=f13e1108]: Bias
+              - text: · 4H × 360 (60 days) · 07-19 16:00 → 09-17 12:00 UTC
+            - generic [ref=f13e1109]:
+              - generic [ref=f13e1110]: shaded area = the entry window
+              - button "−" [ref=f13e1111] [cursor=pointer]
+              - button "+" [ref=f13e1112] [cursor=pointer]
+              - button "⟲" [ref=f13e1113] [cursor=pointer]
+          - generic [ref=f13e1114]: Wyckoff — off in /automation
+        - generic [ref=f13e1117]:
+          - generic [ref=f13e1118]:
+            - generic [ref=f13e1119]:
+              - generic [ref=f13e1120]: Structure
+              - text: · 1H × 480 (20 days) · 08-28 16:00 → 09-17 15:00 UTC
+            - generic [ref=f13e1121]:
+              - generic [ref=f13e1122]: shaded area = the entry window
+              - button "−" [ref=f13e1123] [cursor=pointer]
+              - button "+" [ref=f13e1124] [cursor=pointer]
+              - button "⟲" [ref=f13e1125] [cursor=pointer]
+          - generic [ref=f13e1126]: Wyckoff — off in /automation
+        - generic [ref=f13e1129]:
+          - generic [ref=f13e1130]:
+            - generic [ref=f13e1131]:
+              - generic [ref=f13e1132]: Entry
+              - text: · 15m × 576 (6 days) · 09-11 16:00 → 09-17 15:45 UTC
+            - generic [ref=f13e1133]:
+              - generic [ref=f13e1134]: wheel = zoom · drag = pan · drag the axis = stretch · End = last candle · keys 1–4 change method
+              - button "−" [ref=f13e1135] [cursor=pointer]
+              - button "+" [ref=f13e1136] [cursor=pointer]
+              - button "⟲" [ref=f13e1137] [cursor=pointer]
+              - button "R:R" [ref=f13e1138] [cursor=pointer]
+              - button "▶" [ref=f13e1139] [cursor=pointer]
+          - generic [ref=f13e1140]: Wyckoff — off in /automation
+      - generic [ref=f13e1143]:
+        - generic [ref=f13e1144]: Reading layer
+        - generic [ref=f13e1145]: ICT
+        - generic [ref=f13e1147]: Synthesis
+        - generic [ref=f13e1148]:
+          - generic [ref=f13e1149]: Preliminary
+          - generic [ref=f13e1150]: scanner · data through 15:45 UTC
+        - list [ref=f13e1153]:
+          - listitem [ref=f13e1154]: Price 1.41 = 98% of the window dealing range (1.29–1.42), premium, EQ 1.35.
+          - listitem [ref=f13e1155]: "Latest MSS: up, closed past the swing at 1.39."
+          - listitem [ref=f13e1156]: "Nearest unmitigated FVG: up 1.41–1.41."
+          - listitem [ref=f13e1157]: "Unswept pools: BSL 1.42, BSL 1.34, SSL 1.29."
+          - listitem [ref=f13e1158]: No sweep → same-direction MSS chain among the recent candles.
+        - generic [ref=f13e1159]:
+          - generic [ref=f13e1160]: WAIT
+          - list [ref=f13e1163]:
+            - listitem [ref=f13e1164]: No anchors from a full analysis yet — the scanner has only its fixed-rule stance.
+            - listitem [ref=f13e1165]: "Scanner stance: WAIT (fixed rules, project parameters — not a model's judgement)."
+        - generic [ref=f13e1166]:
+          - generic [ref=f13e1167]: Local
+          - generic [ref=f13e1168]: Sonnet
+        - paragraph [ref=f13e1170]: —
+        - paragraph [ref=f13e1172]: No local read yet.
+        - generic [ref=f13e1173]:
+          - generic [ref=f13e1174]: Full
+          - generic [ref=f13e1175]: full analysis
+        - paragraph [ref=f13e1177]: —
+        - paragraph [ref=f13e1179]: No full analysis in the current format yet (data/live/narrative/<style>.json).
+      - generic [ref=f13e1180]: "Wyckoff: off in /automation · Footprint: off in /automation · Heatmap: off in /automation"
+    - generic [ref=f13e1182]:
+      - generic [ref=f13e1183]:
+        - generic [ref=f13e1184]: ONDO/USDT
+        - generic [ref=f13e1185]: "0.37"
+        - generic [ref=f13e1186]:
+          - generic [ref=f13e1187]: position in the 15m window 90%
+          - generic [ref=f13e1189]: last candle 17/9 15:45 UTC
+        - generic [ref=f13e1191]:
+          - generic [ref=f13e1192]: entry 15m
+          - generic [ref=f13e1193]: —
+      - generic [ref=f13e1194]:
+        - generic [ref=f13e1195]: Tier
+        - generic [ref=f13e1196]: ICT
+        - generic [ref=f13e1198]: Conclusion
+        - generic [ref=f13e1199]:
+          - generic [ref=f13e1200]: Bias
+          - generic [ref=f13e1201]: 4H ×4
+          - generic [ref=f13e1202]: updated 12:00 UTC
+        - generic [ref=f13e1203]:
+          - text: 26% dealing range (0.32–0.43) · discount
+          - generic [ref=f13e1204]: "latest MSS: down past 0.34"
+        - generic [ref=f13e1205]:
+          - 'generic "[ict] latest MSS: down, body closed past the swing at 0.3393 (knowledge/ict/core-b.md §2.2)" [ref=f13e1206]': SHORT
+          - generic [ref=f13e1207]: tier that decides the verdict
+        - generic [ref=f13e1208]:
+          - generic [ref=f13e1209]: Structure
+          - generic [ref=f13e1210]: 1H ×4
+          - generic [ref=f13e1211]: updated 15:00 UTC
+        - generic [ref=f13e1212]:
+          - text: 62% dealing range (0.35–0.38) · premium
+          - generic [ref=f13e1213]: "latest MSS: down past 0.35"
+        - 'generic "[ict] PCL 0.3675 — the body has closed through, so that level was the draw; expect continuation down (knowledge/ict/core-a.md §2.14, §3.2 R5–R8) · [ict] latest MSS: down, body closed past the swing at 0.3485 (knowledge/ict/core-b.md §2.2)" [ref=f13e1215]': SHORT
+        - generic [ref=f13e1216]:
+          - generic [ref=f13e1217]: Entry
+          - generic [ref=f13e1218]: 15m
+          - generic [ref=f13e1219]: updated 15:45 UTC
+        - generic [ref=f13e1220]:
+          - text: 90% dealing range (0.32–0.38) · premium
+          - generic [ref=f13e1221]: "latest MSS: down past 0.35"
+        - generic [ref=f13e1222]: —
+      - generic [ref=f13e1224]: "Wyckoff: off in /automation"
+      - generic [ref=f13e1226]:
+        - generic [ref=f13e1227]:
+          - generic [ref=f13e1228]:
+            - generic [ref=f13e1229]:
+              - generic [ref=f13e1230]: Bias
+              - text: · 4H × 360 (60 days) · 07-19 16:00 → 09-17 12:00 UTC
+            - generic [ref=f13e1231]:
+              - generic [ref=f13e1232]: shaded area = the entry window
+              - button "−" [ref=f13e1233] [cursor=pointer]
+              - button "+" [ref=f13e1234] [cursor=pointer]
+              - button "⟲" [ref=f13e1235] [cursor=pointer]
+          - generic [ref=f13e1236]: Wyckoff — off in /automation
+        - generic [ref=f13e1239]:
+          - generic [ref=f13e1240]:
+            - generic [ref=f13e1241]:
+              - generic [ref=f13e1242]: Structure
+              - text: · 1H × 480 (20 days) · 08-28 16:00 → 09-17 15:00 UTC
+            - generic [ref=f13e1243]:
+              - generic [ref=f13e1244]: shaded area = the entry window
+              - button "−" [ref=f13e1245] [cursor=pointer]
+              - button "+" [ref=f13e1246] [cursor=pointer]
+              - button "⟲" [ref=f13e1247] [cursor=pointer]
+          - generic [ref=f13e1248]: Wyckoff — off in /automation
+        - generic [ref=f13e1251]:
+          - generic [ref=f13e1252]:
+            - generic [ref=f13e1253]:
+              - generic [ref=f13e1254]: Entry
+              - text: · 15m × 576 (6 days) · 09-11 16:00 → 09-17 15:45 UTC
+            - generic [ref=f13e1255]:
+              - generic [ref=f13e1256]: wheel = zoom · drag = pan · drag the axis = stretch · End = last candle · keys 1–4 change method
+              - button "−" [ref=f13e1257] [cursor=pointer]
+              - button "+" [ref=f13e1258] [cursor=pointer]
+              - button "⟲" [ref=f13e1259] [cursor=pointer]
+              - button "R:R" [ref=f13e1260] [cursor=pointer]
+              - button "▶" [ref=f13e1261] [cursor=pointer]
+          - generic [ref=f13e1262]: Wyckoff — off in /automation
+      - generic [ref=f13e1265]:
+        - generic [ref=f13e1266]: Reading layer
+        - generic [ref=f13e1267]: ICT
+        - generic [ref=f13e1269]: Synthesis
+        - generic [ref=f13e1270]:
+          - generic [ref=f13e1271]: Preliminary
+          - generic [ref=f13e1272]: scanner · data through 15:45 UTC
+        - list [ref=f13e1275]:
+          - listitem [ref=f13e1276]: Price 0.37 = 90% of the window dealing range (0.32–0.38), premium, EQ 0.35.
+          - listitem [ref=f13e1277]: "Latest MSS: down, closed past the swing at 0.35."
+          - listitem [ref=f13e1278]: "Nearest unmitigated FVG: up 0.36–0.36."
+          - listitem [ref=f13e1279]: "Unswept pools: BSL 0.35, BSL 0.36, SSL 0.32."
+          - listitem [ref=f13e1280]: No sweep → same-direction MSS chain among the recent candles.
+        - generic [ref=f13e1281]:
+          - generic [ref=f13e1282]: WAIT
+          - list [ref=f13e1285]:
+            - listitem [ref=f13e1286]: No anchors from a full analysis yet — the scanner has only its fixed-rule stance.
+            - listitem [ref=f13e1287]: "Scanner stance: WAIT (fixed rules, project parameters — not a model's judgement)."
+        - generic [ref=f13e1288]:
+          - generic [ref=f13e1289]: Local
+          - generic [ref=f13e1290]: Sonnet
+        - paragraph [ref=f13e1292]: —
+        - paragraph [ref=f13e1294]: No local read yet.
+        - generic [ref=f13e1295]:
+          - generic [ref=f13e1296]: Full
+          - generic [ref=f13e1297]: full analysis
+        - paragraph [ref=f13e1299]: —
+        - paragraph [ref=f13e1301]: No full analysis in the current format yet (data/live/narrative/<style>.json).
+      - generic [ref=f13e1302]: "Wyckoff: off in /automation · Footprint: off in /automation · Heatmap: off in /automation"
+    - group [ref=f13e1305]:
+      - generic "Terminology by method ( open when needed )" [ref=f13e1306] [cursor=pointer]:
+        - text: Terminology by method
+        - generic [ref=f13e1307]: ( open when needed )
+      - text: "BSL / SSL · ERL / IRL Buy-side / sell-side liquidity at equal highs and lows; external versus internal range liquidity (knowledge/ict/core-a.md §2.6–2.7, knowledge/ict/core-b.md §2.13). Sweep vs MSS A liquidity sweep runs through a level and closes back; a Market Structure Shift is a body close past the opposing swing after displacement (knowledge/ict/core-a.md §2.14, §2.17). Displacement · FVG A strong push leaves a Fair Value Gap (candle 1 and candle 3 do not overlap); the FVG is drawn until it is mitigated (knowledge/ict/core-a.md §2.16, §2.21). Order Block The last opposing candle before displacement; the OB line is that candle's open, mean threshold = 0.5 of the body; tight stop = body low (close), wide stop = the low of the sweep (knowledge/ict/core-b.md §2.5, re-checked against the PDF 2026-09-12). CISD Change in State of Delivery: a close through the open of the first candle in the last opposing-colour run into the level; earlier than the MSS (knowledge/ict/core-b.md §2.3, knowledge/ict/models.md §2.3). Dealing range · EQ · premium / discount The range is the nearest unswept BSL↔SSL pair (where the liquidity sits); EQ = 50%; buy in discount, sell in premium; with no pair, the window edges are used and said so (knowledge/ict/core-a.md §2.18–2.19). PDH/PDL · PWH/PWL · Asia/London session Previous day's, previous week's and session highs and lows are liquidity levels; a wick through that closes back = failure to displace (a reversal frame), a body close through = the level was the draw (knowledge/ict/core-a.md §2.8–2.9, §2.12, §2.14). The day boundary (00Z) and the session windows (session-model.md) are project assumptions. OTE · STD OTE: fib 1 at the leg's origin, 0 at its extreme, entry band 0.62–0.79, emphasis 0.705 (knowledge/ict/core-a.md §2.20). Std: 1 at the sweep's extreme, 0 at the prior highest high / lowest low; −2/−2.5 the exit band, −4 the maximum extension (knowledge/ict/core-b.md §2.12, knowledge/ict/models.md §2.1.5). Killzone Two sets of EST hours in the deck, with no rule for crypto or CFD (knowledge/ict/core-a.md §2.1, §6). The page draws them per docs/architecture/session-model.md: LDN 08–11 Europe/London, NY AM 08:30–11, NY PM 13:30–16 America/New_York, converted to UTC per date; weighting by market; not drawn at weekends — project parameters."
+    - contentinfo [ref=f13e1308]:
+      - generic [ref=f13e1309]: "Data sources: BTCUSDT 15m: binance_public_rest_live · updated 2026-09-17T15:46:58Z · bias 4H updated 2026-09-17T12:03:44Z · structure 1H updated 2026-09-17T15:02:36Z · ETHUSDT 15m: binance_public_rest_live · updated 2026-09-17T15:46:59Z · bias 4H updated 2026-09-17T12:03:44Z · structure 1H updated 2026-09-17T15:02:37Z · SOLUSDT 15m: binance_public_rest_live · updated 2026-09-17T15:47:00Z · bias 4H updated 2026-09-17T12:03:45Z · structure 1H updated 2026-09-17T15:02:38Z · ASTERUSDT 15m: binance_public_rest_live · updated 2026-09-17T15:47:00Z · bias 4H updated 2026-09-17T12:03:45Z · structure 1H updated 2026-09-17T15:02:38Z · VIRTUALUSDT 15m: binance_public_rest_live · updated 2026-09-17T15:47:01Z · bias 4H updated 2026-09-17T12:03:46Z · structure 1H updated 2026-09-17T15:02:39Z · SUIUSDT 15m: binance_public_rest_live · updated 2026-09-17T15:47:02Z · bias 4H updated 2026-09-17T12:03:46Z · structure 1H updated 2026-09-17T15:02:40Z · TAOUSDT 15m: binance_public_rest_live · updated 2026-09-17T15:47:03Z · bias 4H updated 2026-09-17T12:03:47Z · structure 1H updated 2026-09-17T15:02:40Z · RENDERUSDT 15m: binance_public_rest_live · updated 2026-09-17T15:47:04Z · bias 4H updated 2026-09-17T12:03:47Z · structure 1H updated 2026-09-17T15:02:41Z · ONDOUSDT 15m: binance_public_rest_live · updated 2026-09-17T15:47:04Z · bias 4H updated 2026-09-17T12:03:48Z · structure 1H updated 2026-09-17T15:02:42Z"
+      - generic [ref=f13e1310]: Layer 1 scanner 2026-09-17T15:47:05Z · Layer 3 2026-09-11T11:00:00Z · page built 2026-09-17T15:59:20Z by scripts/build-artifact.py (scalping)
+      - generic [ref=f13e1311]: "Mode SOLO: ICT (latest full analysis: NORMAL)"
+      - text: "· Footprint · Heatmap: no live source ·"
+      - generic [ref=f13e1312]: "Reading layers: preliminary (scanner), local (Sonnet, event-driven), full (daily)"
+      - generic [ref=f13e1313]: "Rules: figures come from code (SYSTEM-DESIGN §13); every per-method block goes through scripts/method_purity.py. Scanner: 3-candle pivot, equal-high/low tolerance 0.08%, FVG ≥ 0.6× the median range; volume thresholds: docs/architecture/analysis-params.json (project parameters, not quotations from a book)."
+      - text: "Chart: TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. ·"
+      - link "tradingview.com" [ref=f13e1314] [cursor=pointer]:
+        - /url: https://www.tradingview.com/
+      - text: · Apache-2.0 (scripts/vendor/NOTICE-lightweight-charts.txt)

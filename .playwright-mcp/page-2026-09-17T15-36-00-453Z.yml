@@ -1,0 +1,191 @@
+- main [ref=f4e2]:
+  - generic [ref=f4e3]:
+    - heading "Công tắc phương pháp" [level=1] [ref=f4e4]
+    - group "Ngôn ngữ" [ref=f4e5]:
+      - button "EN" [ref=f4e6] [cursor=pointer]
+      - button "VI" [pressed] [ref=f4e7] [cursor=pointer]
+    - generic [ref=f4e8]: Giờ UTC+7
+    - generic [ref=f4e9]: DEMO (testnet, tiền giả)
+  - paragraph [ref=f4e10]: Chạm vào đây thay đổi cấu hình giao dịch đang chạy. Trang này KHÔNG THỂ ghi nhận ai đã chạm -- nhật ký chỉ ghi actor "artifact-panel".
+  - status [ref=f4e11]: Chỉ xem — trình xem này không hỗ trợ bộ nhớ điều khiển.
+  - generic [ref=f4e12]:
+    - generic [ref=f4e13]:
+      - heading "Crypto BTCUSDT/ETHUSDT/SOLUSDT…" [level=2] [ref=f4e14]:
+        - text: Crypto
+        - generic [ref=f4e15]: BTCUSDT/ETHUSDT/SOLUSDT…
+      - generic [ref=f4e16]: Đủ điều kiện vào lệnh
+      - generic [ref=f4e17]:
+        - 'button "{''en'': ''Wyckoff'', ''vi'': ''Wyckoff''} Trade Wyckoff runner: WYCKOFF, WYCKOFF-BOOK pilot chạy luật cơ học scripts/wyckoff_rules.py (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill. chế độ SOLO · tối thiểu 1 dimension · ngưỡng điểm 85 Chạy SOLO — 1 dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥85 (thay vì 70 của NORMAL) mới ra được TRADE." [disabled] [ref=f4e18]':
+          - generic [ref=f4e19]:
+            - generic [ref=f4e20]: "{'en': 'Wyckoff', 'vi': 'Wyckoff'}"
+            - generic [ref=f4e21]: Trade
+          - generic [ref=f4e22]: Wyckoff
+          - generic [ref=f4e23]: "runner: WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f4e25]:
+            - text: pilot chạy luật cơ học
+            - code [ref=f4e26]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.
+          - generic [ref=f4e27]: chế độ SOLO · tối thiểu 1 dimension · ngưỡng điểm 85
+          - generic [ref=f4e28]: Chạy SOLO — 1 dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥85 (thay vì 70 của NORMAL) mới ra được TRADE.
+        - 'button "{''en'': ''ICT'', ''vi'': ''ICT''} Trade ICT runner: ICT chế độ SOLO · tối thiểu 1 dimension · ngưỡng điểm 85 Chạy SOLO — 1 dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥85 (thay vì 70 của NORMAL) mới ra được TRADE." [disabled] [pressed] [ref=f4e29]':
+          - generic [ref=f4e30]:
+            - generic [ref=f4e31]: "{'en': 'ICT', 'vi': 'ICT'}"
+            - generic [ref=f4e32]: Trade
+          - generic [ref=f4e33]: ICT
+          - generic [ref=f4e34]: "runner: ICT"
+          - generic [ref=f4e35]: chế độ SOLO · tối thiểu 1 dimension · ngưỡng điểm 85
+          - generic [ref=f4e36]: Chạy SOLO — 1 dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥85 (thay vì 70 của NORMAL) mới ra được TRADE.
+        - 'button "{''en'': ''Wyckoff + ICT'', ''vi'': ''Wyckoff + ICT''} Trade Wyckoff + ICT runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK pilot chạy luật cơ học scripts/wyckoff_rules.py (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill. chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70" [disabled] [ref=f4e37]':
+          - generic [ref=f4e38]:
+            - generic [ref=f4e39]: "{'en': 'Wyckoff + ICT', 'vi': 'Wyckoff + ICT'}"
+            - generic [ref=f4e40]: Trade
+          - generic [ref=f4e41]: Wyckoff + ICT
+          - generic [ref=f4e42]: "runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f4e44]:
+            - text: pilot chạy luật cơ học
+            - code [ref=f4e45]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.
+          - generic [ref=f4e46]: chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70
+        - 'button "{''en'': ''Wyckoff + Footprint'', ''vi'': ''Wyckoff + Footprint''} Trade Wyckoff + Footprint runner: WYCKOFF, WYCKOFF-BOOK pilot chạy luật cơ học scripts/wyckoff_rules.py (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill. chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70" [disabled] [ref=f4e47]':
+          - generic [ref=f4e48]:
+            - generic [ref=f4e49]: "{'en': 'Wyckoff + Footprint', 'vi': 'Wyckoff + Footprint'}"
+            - generic [ref=f4e50]: Trade
+          - generic [ref=f4e51]: Wyckoff + Footprint
+          - generic [ref=f4e52]: "runner: WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f4e54]:
+            - text: pilot chạy luật cơ học
+            - code [ref=f4e55]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.
+          - generic [ref=f4e56]: chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70
+        - 'button "{''en'': ''Wyckoff + ICT + Footprint'', ''vi'': ''Wyckoff + ICT + Footprint''} Trade Wyckoff + ICT + Footprint runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK pilot chạy luật cơ học scripts/wyckoff_rules.py (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill. chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70" [disabled] [ref=f4e57]':
+          - generic [ref=f4e58]:
+            - generic [ref=f4e59]: "{'en': 'Wyckoff + ICT + Footprint', 'vi': 'Wyckoff + ICT + Footprint'}"
+            - generic [ref=f4e60]: Trade
+          - generic [ref=f4e61]: Wyckoff + ICT + Footprint
+          - generic [ref=f4e62]: "runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f4e64]:
+            - text: pilot chạy luật cơ học
+            - code [ref=f4e65]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.
+          - generic [ref=f4e66]: chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70
+        - 'button "{''en'': ''All four dimensions'', ''vi'': ''Đầy đủ 4 chiều''} Trade Wyckoff + ICT + Footprint + Heatmap runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK pilot chạy luật cơ học scripts/wyckoff_rules.py (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill. chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70" [disabled] [ref=f4e67]':
+          - generic [ref=f4e68]:
+            - generic [ref=f4e69]: "{'en': 'All four dimensions', 'vi': 'Đầy đủ 4 chiều'}"
+            - generic [ref=f4e70]: Trade
+          - generic [ref=f4e71]: Wyckoff + ICT + Footprint + Heatmap
+          - generic [ref=f4e72]: "runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f4e74]:
+            - text: pilot chạy luật cơ học
+            - code [ref=f4e75]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.
+          - generic [ref=f4e76]: chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70
+      - generic [ref=f4e77]: Cặp theo dõi
+      - list [ref=f4e78]:
+        - listitem [ref=f4e79]:
+          - button "BTC/USDT" [disabled] [pressed] [ref=f4e80] [cursor=pointer]
+        - listitem [ref=f4e82]:
+          - button "ETH/USDT" [disabled] [pressed] [ref=f4e83] [cursor=pointer]
+        - listitem [ref=f4e85]:
+          - button "SOL/USDT" [disabled] [pressed] [ref=f4e86] [cursor=pointer]
+        - listitem [ref=f4e88]:
+          - button "ASTER/USDT chưa kiểm định" [disabled] [pressed] [ref=f4e89] [cursor=pointer]:
+            - generic [ref=f4e90]: ASTER/USDT
+            - generic "Chưa kiểm định bằng backtest" [ref=f4e91]: chưa kiểm định
+        - listitem [ref=f4e92]:
+          - button "VIRTUAL/USDT chưa kiểm định" [disabled] [pressed] [ref=f4e93] [cursor=pointer]:
+            - generic [ref=f4e94]: VIRTUAL/USDT
+            - generic "Chưa kiểm định bằng backtest" [ref=f4e95]: chưa kiểm định
+        - listitem [ref=f4e96]:
+          - button "SUI/USDT chưa kiểm định" [disabled] [pressed] [ref=f4e97] [cursor=pointer]:
+            - generic [ref=f4e98]: SUI/USDT
+            - generic "Chưa kiểm định bằng backtest" [ref=f4e99]: chưa kiểm định
+        - listitem [ref=f4e100]:
+          - button "TAO/USDT chưa kiểm định" [disabled] [pressed] [ref=f4e101] [cursor=pointer]:
+            - generic [ref=f4e102]: TAO/USDT
+            - generic "Chưa kiểm định bằng backtest" [ref=f4e103]: chưa kiểm định
+        - listitem [ref=f4e104]:
+          - button "RENDER/USDT chưa kiểm định" [disabled] [pressed] [ref=f4e105] [cursor=pointer]:
+            - generic [ref=f4e106]: RENDER/USDT
+            - generic "Chưa kiểm định bằng backtest" [ref=f4e107]: chưa kiểm định
+        - listitem [ref=f4e108]:
+          - button "ONDO/USDT chưa kiểm định" [disabled] [pressed] [ref=f4e109] [cursor=pointer]:
+            - generic [ref=f4e110]: ONDO/USDT
+            - generic "Chưa kiểm định bằng backtest" [ref=f4e111]: chưa kiểm định
+      - generic [ref=f4e112]: chưa gửi
+    - generic [ref=f4e113]:
+      - heading "CFD XAUUSD/XAGUSD/USOIL…" [level=2] [ref=f4e114]:
+        - text: CFD
+        - generic [ref=f4e115]: XAUUSD/XAGUSD/USOIL…
+      - generic [ref=f4e116]: Đủ điều kiện vào lệnh
+      - generic [ref=f4e117]:
+        - 'button "{''en'': ''Wyckoff'', ''vi'': ''Wyckoff''} Trade Wyckoff runner: WYCKOFF, WYCKOFF-BOOK pilot chạy luật cơ học scripts/wyckoff_rules.py (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill. chế độ SOLO · tối thiểu 1 dimension · ngưỡng điểm 85 Chạy SOLO — 1 dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥85 (thay vì 70 của NORMAL) mới ra được TRADE." [disabled] [ref=f4e118]':
+          - generic [ref=f4e119]:
+            - generic [ref=f4e120]: "{'en': 'Wyckoff', 'vi': 'Wyckoff'}"
+            - generic [ref=f4e121]: Trade
+          - generic [ref=f4e122]: Wyckoff
+          - generic [ref=f4e123]: "runner: WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f4e125]:
+            - text: pilot chạy luật cơ học
+            - code [ref=f4e126]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.
+          - generic [ref=f4e127]: chế độ SOLO · tối thiểu 1 dimension · ngưỡng điểm 85
+          - generic [ref=f4e128]: Chạy SOLO — 1 dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥85 (thay vì 70 của NORMAL) mới ra được TRADE.
+        - 'button "{''en'': ''ICT'', ''vi'': ''ICT''} Trade ICT runner: ICT chế độ SOLO · tối thiểu 1 dimension · ngưỡng điểm 85 Chạy SOLO — 1 dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥85 (thay vì 70 của NORMAL) mới ra được TRADE." [disabled] [pressed] [ref=f4e129]':
+          - generic [ref=f4e130]:
+            - generic [ref=f4e131]: "{'en': 'ICT', 'vi': 'ICT'}"
+            - generic [ref=f4e132]: Trade
+          - generic [ref=f4e133]: ICT
+          - generic [ref=f4e134]: "runner: ICT"
+          - generic [ref=f4e135]: chế độ SOLO · tối thiểu 1 dimension · ngưỡng điểm 85
+          - generic [ref=f4e136]: Chạy SOLO — 1 dimension, không có dimension nào khác xác nhận chéo, nên cần điểm ≥85 (thay vì 70 của NORMAL) mới ra được TRADE.
+        - 'button "{''en'': ''Wyckoff + ICT'', ''vi'': ''Wyckoff + ICT''} Trade Wyckoff + ICT runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK pilot chạy luật cơ học scripts/wyckoff_rules.py (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill. chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70" [disabled] [ref=f4e137]':
+          - generic [ref=f4e138]:
+            - generic [ref=f4e139]: "{'en': 'Wyckoff + ICT', 'vi': 'Wyckoff + ICT'}"
+            - generic [ref=f4e140]: Trade
+          - generic [ref=f4e141]: Wyckoff + ICT
+          - generic [ref=f4e142]: "runner: COMBINED, ICT, WYCKOFF, WYCKOFF-BOOK"
+          - generic [ref=f4e144]:
+            - text: pilot chạy luật cơ học
+            - code [ref=f4e145]: scripts/wyckoff_rules.py
+            - text: (CHoCH, TR từ SC/AR, Spring vs Shakeout, VP veto), không phải bài đọc Wyckoff đầy đủ của skill.
+          - generic [ref=f4e146]: chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70
+        - 'button "{''en'': ''Wyckoff + Footprint'', ''vi'': ''Wyckoff + Footprint''} Trade Wyckoff + Footprint Khoá ở CFD — CoinGlass là nguồn order-flow cho footprint/heatmap, chỉ có cho crypto-derivatives (SYSTEM-DESIGN.md §12 mục 3). chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70" [disabled] [ref=f4e147]':
+          - generic [ref=f4e148]:
+            - generic [ref=f4e149]: "{'en': 'Wyckoff + Footprint', 'vi': 'Wyckoff + Footprint'}"
+            - generic [ref=f4e150]: Trade
+          - generic [ref=f4e151]: Wyckoff + Footprint
+          - generic [ref=f4e152]: Khoá ở CFD — CoinGlass là nguồn order-flow cho footprint/heatmap, chỉ có cho crypto-derivatives (SYSTEM-DESIGN.md §12 mục 3).
+          - generic [ref=f4e153]: chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70
+        - 'button "{''en'': ''Wyckoff + ICT + Footprint'', ''vi'': ''Wyckoff + ICT + Footprint''} Trade Wyckoff + ICT + Footprint Khoá ở CFD — CoinGlass là nguồn order-flow cho footprint/heatmap, chỉ có cho crypto-derivatives (SYSTEM-DESIGN.md §12 mục 3). chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70" [disabled] [ref=f4e154]':
+          - generic [ref=f4e155]:
+            - generic [ref=f4e156]: "{'en': 'Wyckoff + ICT + Footprint', 'vi': 'Wyckoff + ICT + Footprint'}"
+            - generic [ref=f4e157]: Trade
+          - generic [ref=f4e158]: Wyckoff + ICT + Footprint
+          - generic [ref=f4e159]: Khoá ở CFD — CoinGlass là nguồn order-flow cho footprint/heatmap, chỉ có cho crypto-derivatives (SYSTEM-DESIGN.md §12 mục 3).
+          - generic [ref=f4e160]: chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70
+        - 'button "{''en'': ''All four dimensions'', ''vi'': ''Đầy đủ 4 chiều''} Trade Wyckoff + ICT + Footprint + Heatmap Khoá ở CFD — CoinGlass là nguồn order-flow cho footprint/heatmap, chỉ có cho crypto-derivatives (SYSTEM-DESIGN.md §12 mục 3). chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70" [disabled] [ref=f4e161]':
+          - generic [ref=f4e162]:
+            - generic [ref=f4e163]: "{'en': 'All four dimensions', 'vi': 'Đầy đủ 4 chiều'}"
+            - generic [ref=f4e164]: Trade
+          - generic [ref=f4e165]: Wyckoff + ICT + Footprint + Heatmap
+          - generic [ref=f4e166]: Khoá ở CFD — CoinGlass là nguồn order-flow cho footprint/heatmap, chỉ có cho crypto-derivatives (SYSTEM-DESIGN.md §12 mục 3).
+          - generic [ref=f4e167]: chế độ NORMAL · tối thiểu 2 dimension · ngưỡng điểm 70
+      - generic [ref=f4e168]: Cặp theo dõi
+      - list [ref=f4e169]:
+        - listitem [ref=f4e170]:
+          - button "XAU/USD" [disabled] [pressed] [ref=f4e171] [cursor=pointer]
+        - listitem [ref=f4e173]:
+          - button "XAG/USD chưa kiểm định" [disabled] [pressed] [ref=f4e174] [cursor=pointer]:
+            - generic [ref=f4e175]: XAG/USD
+            - generic "Chưa kiểm định bằng backtest" [ref=f4e176]: chưa kiểm định
+        - listitem [ref=f4e177]:
+          - button "USOIL chưa có dữ liệu chưa kiểm định" [disabled] [ref=f4e178] [cursor=pointer]:
+            - generic [ref=f4e179]: USOIL
+            - generic "Chưa có dữ liệu nến trên đĩa" [ref=f4e180]: chưa có dữ liệu
+            - generic "Chưa kiểm định bằng backtest" [ref=f4e181]: chưa kiểm định
+        - listitem [ref=f4e182]:
+          - button "UKOIL chưa có dữ liệu chưa kiểm định" [disabled] [ref=f4e183] [cursor=pointer]:
+            - generic [ref=f4e184]: UKOIL
+            - generic "Chưa có dữ liệu nến trên đĩa" [ref=f4e185]: chưa có dữ liệu
+            - generic "Chưa kiểm định bằng backtest" [ref=f4e186]: chưa kiểm định
+      - generic [ref=f4e187]: chưa gửi

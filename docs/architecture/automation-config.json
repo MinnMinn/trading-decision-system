@@ -69,7 +69,7 @@
     "launchd_label": "com.tyme.trading.pilot.futures",
     "stopped_at": "2026-09-12T18:25:54Z"
   },
-  "last_updated": "2026-09-27T15:34:26Z",
+  "last_updated": "2026-09-27T00:00:00Z",
   "history": [
     {
       "ts": "2026-09-10T10:06:03Z",
@@ -1386,20 +1386,6 @@
       "action": "markets.forex deleted (config surgery, not a CLI verb)",
       "detail": "docs/architecture/instruments.json removed the `forex` market 2026-09-27 (owner decision); this file is normally written only by scripts/automation.py, but load()'s v3 _deep_merge keeps any key present in the file even if DEFAULTS/MARKETS no longer has it, so a stale markets.forex block would survive every future `/automation` call unless removed here directly. Edited by hand as the coordinator directed; the running scanner process (if any) in the checkout this branch merges into must reload this file, or be restarted, before the change takes effect there.",
       "result": "applied"
-    },
-    {
-      "ts": "2026-09-27T15:34:26Z",
-      "actor": "unknown",
-      "action": "instrument NOTAREALSYM=on",
-      "detail": null,
-      "result": "refused"
-    },
-    {
-      "ts": "2026-09-27T15:34:26Z",
-      "actor": "unknown",
-      "action": "dimension footprint=on --market cfd",
-      "detail": null,
-      "result": "refused"
     }
   ]
 }

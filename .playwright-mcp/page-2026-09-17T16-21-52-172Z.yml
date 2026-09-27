@@ -1,0 +1,175 @@
+- generic [active] [ref=f21e1]:
+  - generic [ref=f21e3]:
+    - generic [ref=f21e4]:
+      - generic [ref=f21e5]: Nháºt kÃ½ giao dá»‹ch
+      - generic [ref=f21e6]: trades/*.md â†’ scripts/journal.py Â· sinh 2026-09-17 23:14 VNT
+    - navigation [ref=f21e7]:
+      - link "Pilot" [ref=f21e8] [cursor=pointer]:
+        - /url: "#pilot"
+      - link "Thá»‘ng kÃª" [ref=f21e9] [cursor=pointer]:
+        - /url: "#stats"
+      - link "Sá»• lá»‡nh" [ref=f21e10] [cursor=pointer]:
+        - /url: "#ledger"
+      - link "Review" [ref=f21e11] [cursor=pointer]:
+        - /url: "#reviews"
+    - group "NgÃ´n ngá»¯" [ref=f21e12]:
+      - button "EN" [ref=f21e13] [cursor=pointer]
+      - button "VI" [pressed] [ref=f21e14] [cursor=pointer]
+    - generic [ref=f21e15]: "Giá»\x9d UTC+7"
+  - generic [ref=f21e16]:
+    - generic [ref=f21e17]:
+      - paragraph [ref=f21e18]: "nháºt kÃ½ Â· sá»‘ liá»‡u do code tÃnh Â· review do ngÆ°á»\x9di hoáº·c Claude Ä‘iá»\x81n"
+      - heading "Nháºt kÃ½ giao dá»‹ch" [level=1] [ref=f21e19]
+      - paragraph [ref=f21e20]:
+        - generic [ref=f21e21]:
+          - text: "Pilot chá»‰ vÃ o lá»‡nh khi luáºt cá»‘ Ä‘á»‹nh Ä‘á»§ Ä‘iá»\x81u kiá»‡n; nháºt kÃ½ chá»‰ cÃ³ báº£n ghi má»›i khi pilot vÃ o lá»‡nh hoáº·c khi"
+          - code [ref=f21e22]: /journal
+          - text: ghi má»™t káº¿ hoáº¡ch sau
+          - code [ref=f21e23]: /analyze
+          - text: . Pháº§n Ä‘áº§u trang cho biáº¿t pilot cÃ³ Ä‘ang cháº¡y khÃ´ng vÃ vÃ¬ sao chÆ°a cÃ³ lá»‡nh.
+    - generic [ref=f21e24]:
+      - heading "Pilot cÃ³ Ä‘ang hoáº¡t Ä‘á»™ng khÃ´ng? data/live/pilot*/log.jsonl (legacy) Â· top5-log.jsonl / top5-mt5-log.jsonl (profile top5) Â· docs/architecture/automation-config.json" [level=2] [ref=f21e25]:
+        - text: Pilot cÃ³ Ä‘ang hoáº¡t Ä‘á»™ng khÃ´ng?
+        - generic [ref=f21e26]: data/live/pilot*/log.jsonl (legacy) Â· top5-log.jsonl / top5-mt5-log.jsonl (profile top5) Â· docs/architecture/automation-config.json
+      - generic [ref=f21e27]:
+        - generic [ref=f21e28]:
+          - generic [ref=f21e29]:
+            - generic [ref=f21e30]: Pilot top5 crypto (futures testnet)
+            - generic [ref=f21e31]: Dá»ªNG
+            - generic [ref=f21e32]: env demo Â· tick cuá»‘i 12/9 23:56 VNT
+          - generic [ref=f21e33]: "Nháºt kÃ½ cáº§n kiá»ƒm tra: automation Ä‘ang Táº®T â€” pilot khÃ´ng tick nÃªn khÃ´ng thá»ƒ cÃ³ lá»‡nh má»›i."
+          - generic [ref=f21e35]:
+            - generic [ref=f21e36]:
+              - generic [ref=f21e37]: "Ä\x90Ã¡nh giÃ¡ 24h"
+              - generic [ref=f21e38]: "0"
+              - generic [ref=f21e39]: tá»•ng 2
+            - generic [ref=f21e40]:
+              - generic [ref=f21e41]: "Ä\x90á»§ Ä‘iá»\x81u kiá»‡n"
+              - generic [ref=f21e42]: "2"
+              - generic [ref=f21e43]: "luáºt: quÃ©t â†’ MSS â†’ FVG Â· KL â‰¥ 1.5Ã—"
+            - generic [ref=f21e44]:
+              - generic [ref=f21e45]: Lá»‡nh vÃ o / thoÃ¡t
+              - generic [ref=f21e46]: 0 / 0
+              - generic [ref=f21e47]: tá»« log pilot
+          - generic [ref=f21e48]:
+            - generic [ref=f21e49]: "LÃ½ do bá»‹ loáº¡i nhiá»\x81u nháº¥t"
+            - list [ref=f21e50]:
+              - listitem [ref=f21e51]: â€”
+        - generic [ref=f21e52]:
+          - generic [ref=f21e53]:
+            - generic [ref=f21e54]: Pilot top5 CFD (MT5 demo)
+            - generic [ref=f21e55]: Dá»ªNG
+            - generic [ref=f21e56]: env demo Â· tick cuá»‘i â€”
+          - generic [ref=f21e57]: "Nháºt kÃ½ hoáº¡t Ä‘á»™ng Ä‘Ãºng: automation Ä‘ang Táº®T â€” pilot khÃ´ng tick nÃªn khÃ´ng thá»ƒ cÃ³ lá»‡nh má»›i; chÆ°a cÃ³ báº£n ghi nÃ o trong log."
+          - generic [ref=f21e59]:
+            - generic [ref=f21e60]:
+              - generic [ref=f21e61]: "Ä\x90Ã¡nh giÃ¡ 24h"
+              - generic [ref=f21e62]: "0"
+              - generic [ref=f21e63]: tá»•ng 0
+            - generic [ref=f21e64]:
+              - generic [ref=f21e65]: "Ä\x90á»§ Ä‘iá»\x81u kiá»‡n"
+              - generic [ref=f21e66]: "0"
+              - generic [ref=f21e67]: "luáºt: quÃ©t â†’ MSS â†’ FVG Â· KL â‰¥ 1.5Ã—"
+            - generic [ref=f21e68]:
+              - generic [ref=f21e69]: Lá»‡nh vÃ o / thoÃ¡t
+              - generic [ref=f21e70]: 0 / 0
+              - generic [ref=f21e71]: tá»« log pilot
+          - generic [ref=f21e72]:
+            - generic [ref=f21e73]: "LÃ½ do bá»‹ loáº¡i nhiá»\x81u nháº¥t"
+            - list [ref=f21e74]:
+              - listitem [ref=f21e75]: â€”
+    - generic [ref=f21e76]:
+      - heading "Báº£ng cÃ¢n Ä‘á»‘i khÃ´ng tÃnh lá»‡nh diá»…n táºp" [level=2] [ref=f21e77]:
+        - text: Báº£ng cÃ¢n Ä‘á»‘i
+        - generic [ref=f21e78]: khÃ´ng tÃnh lá»‡nh diá»…n táºp
+      - generic [ref=f21e79]:
+        - generic [ref=f21e80]:
+          - generic [ref=f21e81]: Lá»‡nh Ä‘Ã£ Ä‘Ã³ng
+          - generic [ref=f21e82]: "0"
+          - generic [ref=f21e83]: Ä‘ang má»Ÿ 0 Â· káº¿ hoáº¡ch 1 Â· diá»…n táºp 1
+        - generic [ref=f21e84]:
+          - generic [ref=f21e85]: Tá»· lá»‡ tháº¯ng
+          - generic [ref=f21e86]: â€”
+          - generic [ref=f21e87]: 0 tháº¯ng / 0 thua
+        - generic [ref=f21e88]:
+          - generic [ref=f21e89]: "R ká»³ vá»\x8dng"
+          - generic [ref=f21e90]: â€”
+          - generic [ref=f21e91]: tháº¯ng â€” R Â· thua â€” R
+        - generic [ref=f21e92]:
+          - generic [ref=f21e93]: Profit factor
+          - generic [ref=f21e94]: â€”
+          - generic [ref=f21e95]: tá»•ng 0 R Â· 0 USDT
+        - generic [ref=f21e96]:
+          - generic [ref=f21e97]: Sá»¥t giáº£m tá»‘i Ä‘a
+          - generic [ref=f21e98]: 0.00 R
+          - generic [ref=f21e99]: chuá»—i thua dÃ i nháº¥t 0
+    - generic [ref=f21e100]:
+      - 'heading "ÄÆ°á»ng R tÃch lÅ©y theo thá»i Ä‘iá»ƒm Ä‘Ã³ng lá»‡nh Â· lÄƒn chuá»™t = zoom Â· kÃ©o = dá»‹ch" [level=2] [ref=f21e101]':
+        - text: "Ä\x90Æ°á»\x9dng R tÃch lÅ©y"
+        - generic [ref=f21e102]: "theo thá»\x9di Ä‘iá»ƒm Ä‘Ã³ng lá»‡nh Â· lÄƒn chuá»™t = zoom Â· kÃ©o = dá»‹ch"
+      - generic [ref=f21e103]: "ChÆ°a cÃ³ lá»‡nh Ä‘Ã³ng (khÃ´ng tÃnh diá»…n táºp) â€” Ä‘Æ°á»\x9dng R tÃch lÅ©y sáº½ xuáº¥t hiá»‡n sau lá»‡nh Ä‘Ã³ng Ä‘áº§u tiÃªn."
+    - generic [ref=f21e105]:
+      - heading "Sá»• lá»‡nh 1 báº£n ghi" [level=2] [ref=f21e106]:
+        - text: Sá»• lá»‡nh
+        - generic [ref=f21e107]: 1 báº£n ghi
+      - table [ref=f21e109]:
+        - rowgroup [ref=f21e110]:
+          - row [ref=f21e111]:
+            - columnheader "ID" [ref=f21e112]
+            - 'columnheader "Thá»‹ trÆ°á»ng" [ref=f21e113]'
+            - columnheader "MÃ£" [ref=f21e114]
+            - 'columnheader "Chiá»u" [ref=f21e115]'
+            - columnheader "Setup" [ref=f21e116]
+            - columnheader "PhiÃªn" [ref=f21e117]
+            - columnheader "Entry" [ref=f21e118]
+            - columnheader "Stop" [ref=f21e119]
+            - columnheader "Targets" [ref=f21e120]
+            - columnheader "R káº¿ hoáº¡ch" [ref=f21e121]
+            - columnheader "Tráº¡ng thÃ¡i" [ref=f21e122]
+            - columnheader "ThoÃ¡t" [ref=f21e123]
+            - columnheader "Káº¿t quáº£" [ref=f21e124]
+            - columnheader "R" [ref=f21e125]
+            - columnheader "P&L USDT" [ref=f21e126]
+            - columnheader "Giá»¯ (phÃºt)" [ref=f21e127]
+        - rowgroup [ref=f21e128]:
+          - row [ref=f21e129]:
+            - cell "2026-09-09-BTCUSDT-01" [ref=f21e130]
+            - cell "â€”" [ref=f21e131]
+            - cell "BTCUSDT" [ref=f21e132]
+            - cell "LONG" [ref=f21e133]
+            - cell "Wyckoff Spring Type 2 (candidate accumulation) diá»…n táºp" [ref=f21e135]:
+              - text: Wyckoff Spring Type 2 (candidate accumulation)
+              - generic [ref=f21e136]: diá»…n táºp
+            - cell "â€”" [ref=f21e137]
+            - cell "65,200" [ref=f21e138]
+            - cell "64,650" [ref=f21e139]
+            - cell "[66500, 67100]" [ref=f21e140]
+            - cell "â€”" [ref=f21e141]
+            - cell "PLANNED" [ref=f21e142]
+            - cell [ref=f21e144]
+            - cell [ref=f21e145]
+            - cell "â€”" [ref=f21e146]
+            - cell "â€”" [ref=f21e147]
+            - cell "â€”" [ref=f21e148]
+    - generic [ref=f21e149]:
+      - heading "Review tá»«ng lá»‡nh" [level=2] [ref=f21e150]
+      - generic [ref=f21e152]:
+        - text: "Sau má»—i lá»‡nh, tráº£ lá»\x9di nÄƒm cÃ¢u: luáºn Ä‘iá»ƒm cÃ²n Ä‘Ãºng khÃ´ng Â· káº¿ hoáº¡ch so vá»›i thá»±c táº¿ Â· cÃ³ phÃ¡ luáºt nÃ o khÃ´ng (followed_plan) Â· nguyÃªn nhÃ¢n gá»‘c (root_cause) Â· má»™t thay Ä‘á»•i cá»¥ thá»ƒ cho láº§n sau (what_to_change). Sai láº§m láº·p láº¡i Ä‘Æ°á»£c gom trong"
+        - code [ref=f21e153]: docs/mistakes/MISTAKE-DB.md
+        - text: ; cáºp nháºt báº±ng
+        - code [ref=f21e154]: scripts/journal.py review <id> --set key=value
+        - text: .
+      - group [ref=f21e156]:
+        - generic "2026-09-09-BTCUSDT-01 BTCUSDT LONG PLANNED R â€”" [ref=f21e157] [cursor=pointer]:
+          - generic [ref=f21e158]: 2026-09-09-BTCUSDT-01
+          - generic [ref=f21e159]: BTCUSDT
+          - generic [ref=f21e160]: LONG
+          - generic [ref=f21e161]: PLANNED
+          - generic [ref=f21e162]: R â€”
+        - text: "Luáºn Ä‘iá»ƒm chÆ°a ghi Káº¿ hoáº¡ch vs thá»±c táº¿ chÆ°a ghi TuÃ¢n thá»§ káº¿ hoáº¡ch chÆ°a ghi Loáº¡i thoÃ¡t chÆ°a ghi LÃ½ do thoÃ¡t chÆ°a ghi NguyÃªn nhÃ¢n gá»‘c chÆ°a ghi LÃ sai láº§m? chÆ°a ghi BÃ i há»\x8dc chÆ°a ghi Ghi chÃº review chÆ°a ghi Thay Ä‘á»•i láº§n sau chÆ°a ghi Tá»± tin trÆ°á»›c lá»‡nh (1â€“5) chÆ°a ghi Tráº¡ng thÃ¡i cáº£m xÃºc chÆ°a ghi Tháº» chÆ°a ghi áº¢nh chart chÆ°a ghi"
+    - contentinfo [ref=f21e163]:
+      - generic [ref=f21e164]: "Nguá»“n: trades/index.jsonl (dáº«n xuáº¥t tá»« trades/*.md) Â· log pilot Â· automation-config.json Â· sinh 2026-09-17 23:14 VNT bá»Ÿi scripts/journal.py render Â· Ä‘á»“ng bá»™ tá»± Ä‘á»™ng sau má»—i tick pilot (scripts/pilot-loop.sh) vÃ bá»Ÿi /journal, /status, /review."
+      - text: "Chart: TradingView Lightweight Chartsâ„¢ Â· Copyright (c) 2025 TradingView, Inc. Â·"
+      - link "tradingview.com" [ref=f21e165] [cursor=pointer]:
+        - /url: https://www.tradingview.com/
+      - text: Â· Apache-2.0 (scripts/vendor/NOTICE-lightweight-charts.txt)

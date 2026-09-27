@@ -1,0 +1,1726 @@
+- generic [active] [ref=f8e1]:
+  - generic [ref=f8e3]:
+    - generic [ref=f8e4]:
+      - generic [ref=f8e5]: Crypto Day
+      - generic [ref=f8e6]: 15m Ã— 576 (6 ngÃ y) Â· dá»¯ liá»‡u tá»›i 17:15 UTC
+    - navigation [ref=f8e7]:
+      - link "BTC" [ref=f8e8] [cursor=pointer]:
+        - /url: "#sec-btc"
+      - link "ETH" [ref=f8e9] [cursor=pointer]:
+        - /url: "#sec-eth"
+      - link "SOL" [ref=f8e10] [cursor=pointer]:
+        - /url: "#sec-sol"
+      - link "ASTER" [ref=f8e11] [cursor=pointer]:
+        - /url: "#sec-aster"
+      - link "VIRTUAL" [ref=f8e12] [cursor=pointer]:
+        - /url: "#sec-virtual"
+      - link "SUI" [ref=f8e13] [cursor=pointer]:
+        - /url: "#sec-sui"
+      - link "TAO" [ref=f8e14] [cursor=pointer]:
+        - /url: "#sec-tao"
+      - link "RENDER" [ref=f8e15] [cursor=pointer]:
+        - /url: "#sec-render"
+      - link "ONDO" [ref=f8e16] [cursor=pointer]:
+        - /url: "#sec-ondo"
+      - link "Thuáºt ngá»¯" [ref=f8e17] [cursor=pointer]:
+        - /url: "#sec-glossary"
+    - group "PhÆ°Æ¡ng phÃ¡p" [ref=f8e18]:
+      - button "Wyckoff" [ref=f8e19] [cursor=pointer]
+      - button "ICT" [ref=f8e21] [cursor=pointer]
+      - button "Footprint" [ref=f8e23] [cursor=pointer]
+      - button "Heatmap" [ref=f8e25] [cursor=pointer]
+  - generic [ref=f8e27]:
+    - generic [ref=f8e28]:
+      - generic [ref=f8e29]:
+        - paragraph [ref=f8e30]: Binance public REST Â· 15m Ã— 576 (6 ngÃ y) Â· phÃ¢n tÃch, khÃ´ng pháº£i tÃn hiá»‡u
+        - heading "Crypto Day" [level=1] [ref=f8e31]
+        - paragraph [ref=f8e32]: "Ba táº§ng khung cho má»—i mÃ£ â€” Bias â†’ Cáº¥u trÃºc â†’ VÃ o lá»‡nh â€” Ä‘á»\x8dc báº±ng Wyckoff (giÃ¡ + khá»‘i lÆ°á»£ng) vÃ ICT (cáº¥u trÃºc giÃ¡) riÃªng ráº½, rá»“i tá»•ng há»£p."
+      - generic [ref=f8e33]: "KHÃ”NG PHáº¢I TÃ\x8dN HIá»†U GIAO Dá»ŠCH Â· chá»‰ nghiÃªn cá»©u"
+    - generic [ref=f8e34]:
+      - generic [ref=f8e35]:
+        - generic [ref=f8e36]: "Thang khung Â· Ä‘á»\x8dc tá»« trÃªn xuá»‘ng"
+        - generic [ref=f8e37]:
+          - generic [ref=f8e38]: Bias 4H Ã—4
+          - text: â†’
+          - generic [ref=f8e39]: Cáº¥u trÃºc 1H Ã—4
+          - text: â†’
+          - generic [ref=f8e40]: VÃ o lá»‡nh 15m
+        - generic [ref=f8e41]: "táº§ng quyáº¿t Ä‘á»‹nh verdict: Bias Â· bias khÃ´ng táº¡o á»Ÿ khung vÃ o lá»‡nh Â· liá»\x81n ká»\x81 â‰¥ Ã—4 (timeframe-mapping.md)"
+      - generic [ref=f8e42]:
+        - generic [ref=f8e43]: Sá»± kiá»‡n chÃnh (phÃ¢n tÃch Ä‘áº§y Ä‘á»§ gáº§n nháº¥t)
+        - generic [ref=f8e44]: BTC váº«n giá»¯a vÃ¹ng, chÆ°a Ä‘Ã³ng cá»a vÆ°á»£t AR; ETH Ä‘Ã£ lÃªn cá»±c trá»‹ má»›i 2,484.62 vÆ°á»£t Ä‘á»‰nh UA cÅ© nhÆ°ng chÆ°a xÃ¡c nháºn SOS tháºt; SOL váº«n káº¹t giá»¯a SCâ€“AR
+        - generic [ref=f8e45]: "Sau cÃº Spring 23:15Z 10/9, BTC giá»¯ nguyÃªn tráº¡ng thÃ¡i: tham chiáº¿u 10:45Z á»Ÿ 76,993, váº«n dÆ°á»›i AR 77,424.98 (-0.56%) vÃ trÃªn Ä‘Ã¡y Spring 76,464 (+0.69%), chÆ°a cÃ³ Ä‘Ã³ng cá»a vÆ°á»£t bÃªn nÃ o â€” váº«n Pha C. ETH Ä‘Ã£ Ä‘áº©y giÃ¡ lÃªn cá»±c trá»‹ 2,484.62 â€” vÆ°á»£t háº³n Ä‘á»‰nh UA cÅ© 2,475.03 â€” nhÆ°ng náº¿n Ä‘ang hÃ¬nh thÃ nh má»›i chá»‰ Ä‘ang vÆ°á»£t, chÆ°a Ä‘Ã³ng cá»a xÃ¡c nháºn trÃªn khá»‘i lÆ°á»£ng Ä‘á»§ chuáº©n, nÃªn váº«n giá»¯ Ä‘á»\x8dc Pha C, chá»\x9d SOS tháºt. SOL yáº¿u nháº¥t, tham chiáº¿u 99.18, váº«n giá»¯a SC 98.50â€“AR 100.37, chÆ°a cÃ³ Ä‘Ã³ng cá»a vÆ°á»£t bÃªn nÃ o."
+      - generic [ref=f8e46]:
+        - generic [ref=f8e47]: Tráº¡ng thÃ¡i (cá»¥c bá»™)
+        - generic [ref=f8e48]:
+          - generic [ref=f8e49]:
+            - generic [ref=f8e50]: BTC
+            - generic [ref=f8e51]: THEO DÃ•I LONG
+          - generic [ref=f8e52]:
+            - generic [ref=f8e53]: ETH
+            - generic [ref=f8e54]: THEO DÃ•I LONG
+          - generic [ref=f8e55]:
+            - generic [ref=f8e56]: SOL
+            - generic [ref=f8e57]: THEO DÃ•I LONG
+          - generic [ref=f8e58]:
+            - generic [ref=f8e59]: ASTER
+            - generic [ref=f8e60]: â€”
+          - generic [ref=f8e61]:
+            - generic [ref=f8e62]: VIRTUAL
+            - generic [ref=f8e63]: â€”
+          - generic [ref=f8e64]:
+            - generic [ref=f8e65]: SUI
+            - generic [ref=f8e66]: â€”
+          - generic [ref=f8e67]:
+            - generic [ref=f8e68]: TAO
+            - generic [ref=f8e69]: â€”
+          - generic [ref=f8e70]:
+            - generic [ref=f8e71]: RENDER
+            - generic [ref=f8e72]: â€”
+          - generic [ref=f8e73]:
+            - generic [ref=f8e74]: ONDO
+            - generic [ref=f8e75]: â€”
+        - generic [ref=f8e76]: dá»¯ liá»‡u tá»›i 17:15 UTC
+    - generic [ref=f8e77]:
+      - generic [ref=f8e78]:
+        - generic [ref=f8e79]: BTC/USDT
+        - generic [ref=f8e80]: 77,357
+        - generic [ref=f8e81]:
+          - generic [ref=f8e82]: vá»‹ trÃ trong cá»a sá»• 15m 29%
+          - generic [ref=f8e83]: náº¿n cuá»‘i 12/9 17:15Z
+        - generic [ref=f8e84]:
+          - generic [ref=f8e85]: vÃ o lá»‡nh 15m
+          - generic [ref=f8e86]: THEO DÃ•I LONG
+      - generic [ref=f8e87]:
+        - generic [ref=f8e88]:
+          - generic [ref=f8e89]: Bias
+          - generic [ref=f8e90]: 4H Ã—4
+          - generic [ref=f8e91]: cáºp nháºt 16:00Z
+        - generic [ref=f8e92]:
+          - text: tÃ¡i tÃch lÅ©y Â· pha C
+          - generic [ref=f8e93]: SC 76,676 â€“ AR 77,959
+          - generic [ref=f8e94]: "Ä‘á»\x8dc 2026-09-11T11:00Z"
+        - generic [ref=f8e95]:
+          - text: 75% dealing range (62,716â€“82,300) Â· premium
+          - generic [ref=f8e96]: "MSS gáº§n nháº¥t: tÄƒng qua 79,250"
+        - generic [ref=f8e97]:
+          - 'generic "khung lá»›n tÃ¡i tÃch lÅ©y pha C â€” tÃ¬m Spring[C]/LPS[C]/phÃ¡ vá»¡ theo hÆ°á»›ng tÄƒng á»Ÿ khung nhá» (WA p93â€“96, knowledge/07 Â§2.7)" [ref=f8e98]': LONG
+          - generic [ref=f8e99]: táº§ng quyáº¿t Ä‘á»‹nh verdict
+        - generic [ref=f8e100]:
+          - generic [ref=f8e101]: Cáº¥u trÃºc
+          - generic [ref=f8e102]: 1H Ã—4
+          - generic [ref=f8e103]: cáºp nháºt 16:00Z
+        - generic [ref=f8e104]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e105]:
+          - text: 4% dealing range (77,255â€“80,560) Â· discount
+          - generic [ref=f8e106]: "MSS gáº§n nháº¥t: tÄƒng qua 77,500"
+        - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e108]': CHÆ¯A RÃ•
+        - generic [ref=f8e109]:
+          - generic [ref=f8e110]: VÃ o lá»‡nh
+          - generic [ref=f8e111]: 15m
+          - generic [ref=f8e112]: cáºp nháºt 17:15Z
+        - generic [ref=f8e113]:
+          - text: tÃ¡i tÃch lÅ©y Â· pha C
+          - generic [ref=f8e114]: SC 76,676 â€“ AR 77,425
+          - generic [ref=f8e115]: "Ä‘á»\x8dc 2026-09-11T11:00Z"
+        - generic [ref=f8e116]:
+          - text: 7% dealing range (77,164â€“79,970) Â· discount
+          - generic [ref=f8e117]: "MSS gáº§n nháº¥t: tÄƒng qua 77,397"
+        - generic [ref=f8e118]: THEO DÃ•I LONG
+      - generic [ref=f8e120]:
+        - generic [ref=f8e121]:
+          - generic [ref=f8e122]:
+            - generic [ref=f8e123]: Bias Â· 4H Ã— 360 (60 ngÃ y) Â· 07-14 20:00 â†’ 09-12 16:00
+            - generic [ref=f8e124]:
+              - generic [ref=f8e125]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e126] [cursor=pointer]
+              - button "+" [ref=f8e127] [cursor=pointer]
+              - button "âŸ²" [ref=f8e128] [cursor=pointer]
+          - table [ref=f8e132]:
+            - row [ref=f8e133]:
+              - cell
+              - cell [ref=f8e134]
+              - cell [ref=f8e138]
+            - row [ref=f8e142]:
+              - cell [ref=f8e143]
+            - row [ref=f8e144]:
+              - cell
+              - cell [ref=f8e145]
+              - cell [ref=f8e149]
+            - row [ref=f8e153]:
+              - cell
+              - cell [ref=f8e154]
+              - cell [ref=f8e158]
+        - generic [ref=f8e162]:
+          - generic [ref=f8e163]:
+            - generic [ref=f8e164]: Cáº¥u trÃºc Â· 1H Ã— 480 (20 ngÃ y) Â· 08-23 17:00 â†’ 09-12 16:00
+            - generic [ref=f8e165]:
+              - generic [ref=f8e166]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e167] [cursor=pointer]
+              - button "+" [ref=f8e168] [cursor=pointer]
+              - button "âŸ²" [ref=f8e169] [cursor=pointer]
+          - table [ref=f8e173]:
+            - row [ref=f8e174]:
+              - cell
+              - cell [ref=f8e175]
+              - cell [ref=f8e179]
+            - row [ref=f8e183]:
+              - cell [ref=f8e184]
+            - row [ref=f8e185]:
+              - cell
+              - cell [ref=f8e186]
+              - cell [ref=f8e190]
+            - row [ref=f8e194]:
+              - cell
+              - cell [ref=f8e195]
+              - cell [ref=f8e199]
+        - generic [ref=f8e203]:
+          - generic [ref=f8e204]:
+            - generic [ref=f8e205]: VÃ o lá»‡nh Â· 15m Ã— 576 (6 ngÃ y) Â· 09-06 17:30 â†’ 09-12 17:15
+            - generic [ref=f8e206]:
+              - generic [ref=f8e207]: lÄƒn chuá»™t = zoom Â· kÃ©o = dá»‹ch Â· kÃ©o trá»¥c = co giÃ£n Â· End = náº¿n cuá»‘i Â· phÃm 1â€“4 Ä‘á»•i phÆ°Æ¡ng phÃ¡p
+              - button "âˆ’" [ref=f8e208] [cursor=pointer]
+              - button "+" [ref=f8e209] [cursor=pointer]
+              - button "âŸ²" [ref=f8e210] [cursor=pointer]
+              - button "R:R" [ref=f8e211] [cursor=pointer]
+              - button "â–¶" [ref=f8e212] [cursor=pointer]
+          - table [ref=f8e216]:
+            - row [ref=f8e217]:
+              - cell
+              - cell [ref=f8e218]
+              - cell [ref=f8e222]
+            - row [ref=f8e226]:
+              - cell [ref=f8e227]
+            - row [ref=f8e228]:
+              - cell
+              - cell [ref=f8e229]
+              - cell [ref=f8e233]
+            - row [ref=f8e237]:
+              - cell
+              - cell [ref=f8e238]
+              - cell [ref=f8e242]
+        - generic [ref=f8e246]:
+          - generic [ref=f8e247]: náº¿n Ä‘Ã³ng tÄƒng
+          - generic [ref=f8e249]: náº¿n Ä‘Ã³ng giáº£m
+          - generic [ref=f8e251]: khá»‘i lÆ°á»£ng
+          - generic [ref=f8e253]: KL â‰¥ 1.5Ã— TB 20 náº¿n (â‰¥ 2.5Ã— ghi sá»‘)
+          - generic [ref=f8e255]: biÃªn vÃ¹ng giao dá»‹ch (AR / SC)
+          - generic [ref=f8e257]: pha Aâ€“E
+          - generic [ref=f8e259]: "â—\x8f sá»± kiá»‡n Wyckoff do phÃ¢n tÃch Ä‘áº§y Ä‘á»§ Ä‘áº·t"
+          - generic [ref=f8e260]: "káº¿ hoáº¡ch lá»‡nh tá»« trades/ (há»™p Ä‘á»\x8f = rá»§i ro, xanh = lá»\x9di)"
+      - generic [ref=f8e262]:
+        - generic [ref=f8e263]:
+          - generic [ref=f8e264]: SÆ¡ bá»™
+          - generic [ref=f8e265]: scanner Â· dá»¯ liá»‡u tá»›i 17:15Z
+        - generic [ref=f8e266]:
+          - generic [ref=f8e267]: Wyckoff
+          - list [ref=f8e268]:
+            - listitem [ref=f8e269]: "SC má»›i (Cao trÃ o bÃ¡n), khá»‘i lÆ°á»£ng ká»· lá»¥c cá»a sá»• 76,676 (10/9 12:45Z): náº¿n Ä‘Ã³ng trÃªn (+0.88%) Â· náº¿n Ä‘Ã³ng vÆ°á»£t Ä‘áº§u tiÃªn 10/9 23:00Z @ 76,516 Â· cá»±c trá»‹ sau Ä‘Ã³ 76,047"
+            - listitem [ref=f8e270]: "AR (Automatic Rally) â€” chÆ°a cÃ³ náº¿n Ä‘Ã³ng cá»a vÆ°á»£t 77,425 (10/9 14:45Z): náº¿n Ä‘Ã³ng dÆ°á»›i (-0.09%) Â· náº¿n Ä‘Ã³ng vÆ°á»£t Ä‘áº§u tiÃªn 11/9 12:30Z @ 77,590 Â· cá»±c trá»‹ sau Ä‘Ã³ 79,890"
+            - listitem [ref=f8e271]: "Ä‘á»‰nh SOS cÅ© (9/9), má»‘c khÃ¡ng cá»± vÄ© mÃ´ xa hÆ¡n 79,760 (9/9 08:30Z): náº¿n Ä‘Ã³ng dÆ°á»›i (-3.02%)"
+            - listitem [ref=f8e272]: "Ä\x90Ã¡y Spring â€” xuyÃªn xuá»‘ng dÆ°á»›i SC rá»“i Ä‘Ã³ng cá»a há»“i phá»¥c láº¡i vÃ¹ng giao dá»‹ch 76,464 (10/9 23:15Z): náº¿n Ä‘Ã³ng trÃªn (+1.16%)"
+            - listitem [ref=f8e273]: "KhÃ´ng cÃ³ náº¿n khá»‘i lÆ°á»£ng báº¥t thÆ°á»\x9dng trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y (ngÆ°á»¡ng: tham sá»‘ dá»± Ã¡n)."
+        - generic [ref=f8e274]:
+          - generic [ref=f8e275]: ICT
+          - list [ref=f8e276]:
+            - listitem [ref=f8e277]: GiÃ¡ 77,357 = 7% dealing range cá»a sá»• (77,164â€“79,970), discount, EQ 78,567.
+            - listitem [ref=f8e278]: "Ä\x90iá»ƒm swing bá»‹ phÃ¡ bá»Ÿi Ä‘Ã³ng cá»a MSS giáº£m gáº§n nháº¥t 77,083 (10/9 19:45Z): náº¿n Ä‘Ã³ng trÃªn (+0.35%) Â· náº¿n Ä‘ang hÃ¬nh thÃ nh hiá»‡n Ä‘ang vÆ°á»£t"
+            - listitem [ref=f8e279]: "MSS gáº§n nháº¥t: tÄƒng, Ä‘Ã³ng cá»a vÆ°á»£t swing 77,397."
+            - listitem [ref=f8e280]: "FVG chÆ°a láº¥p gáº§n giÃ¡ nháº¥t: giáº£m 78,068â€“78,652."
+            - listitem [ref=f8e281]: "Pool chÆ°a quÃ©t: BSL 79,970, SSL 76,967, SSL 77,164."
+            - listitem [ref=f8e282]: "KhÃ´ng cÃ³ chuá»—i quÃ©t â†’ MSS cÃ¹ng chiá»\x81u trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y."
+        - generic [ref=f8e283]:
+          - generic [ref=f8e284]: Tá»•ng há»£p
+          - generic [ref=f8e285]: CHá»œ (giá»¯a vÃ¹ng)
+          - list [ref=f8e287]:
+            - listitem [ref=f8e288]: "Verdict theo luáºt so vá»›i má»‘c neo cá»§a phÃ¢n tÃch Ä‘áº§y Ä‘á»§ gáº§n nháº¥t: CHá»œ â€” váº«n giá»¯a vÃ¹ng (náº¿n Ä‘Ã³ng 12/9 17:00Z = 77,353)."
+            - listitem [ref=f8e289]: "Stance scanner: CHá»œ (luáºt cá»‘ Ä‘á»‹nh, tham sá»‘ dá»± Ã¡n â€” khÃ´ng pháº£i nháºn Ä‘á»‹nh cá»§a mÃ´ hÃ¬nh)."
+        - generic [ref=f8e290]:
+          - generic [ref=f8e291]: Cá»¥c bá»™
+          - generic [ref=f8e292]: Sonnet Â· dá»¯ liá»‡u tá»›i 15:00Z
+        - generic [ref=f8e293]:
+          - generic [ref=f8e294]: Wyckoff
+          - paragraph [ref=f8e295]: SC má»›i xÃ¡c láºp táº¡i 76,676 vá»›i khá»‘i lÆ°á»£ng ká»· lá»¥c trong cá»a sá»•, giÃ¡ hiá»‡n táº¡i 78,618 Ä‘Ã£ Ä‘Ã³ng cá»a náº±m trÃªn xa má»‘c nÃ y (náº¿n tham chiáº¿u 78,799, +2.77%). WA p71â€“72 Â· knowledge/07 Â§2.7
+          - paragraph [ref=f8e296]: Má»‘c AR táº¡i 77,425 chÆ°a cÃ³ náº¿n Ä‘Ã³ng cá»a vÆ°á»£t theo luáºt nhÆ°ng náº¿n Ä‘ang hÃ¬nh thÃ nh hiá»‡n Ä‘ang vÆ°á»£t, cho tháº¥y ná»— lá»±c tÄƒng tiáº¿p tá»¥c tháº¯ng tháº¿ sau cao trÃ o bÃ¡n. WA p33â€“39 Â· knowledge/07 Â§2.2
+          - paragraph [ref=f8e297]: "Ä\x90Ã¡y Spring táº¡i 76,464 Ä‘Ã£ há»“i phá»¥c vá»\x81 vÃ¹ng giao dá»‹ch vÃ giÃ¡ tham chiáº¿u hiá»‡n náº±m trÃªn xa (+3.05%), chÆ°a cÃ³ náº¿n Ä‘Ã³ng cá»a vÆ°á»£t xuá»‘ng láº¡i dÆ°á»›i má»‘c nÃ y. WA p80 Â· knowledge/07 Â§2.7.3"
+          - paragraph [ref=f8e298]: Khá»‘i lÆ°á»£ng sá»± kiá»‡n gáº§n nháº¥t tÄƒng 1.61x lÃºc 14:45Z Ä‘i kÃ¨m giÃ¡ tÄƒng, thá»ƒ hiá»‡n Ná»— lá»±c-Káº¿t quáº£ hÃ i hoÃ á»§ng há»™ phe mua. WA p33â€“39 Â· knowledge/07 Â§2.2
+        - generic [ref=f8e299]:
+          - generic [ref=f8e300]: ICT
+          - paragraph [ref=f8e301]: Dealing range cá»a sá»• náº±m trong 76,047â€“79,890, giÃ¡ hiá»‡n táº¡i 78,618 á»Ÿ 67% biÃªn Ä‘á»™, trÃªn EQ 77,968 â€” vÃ¹ng premium. docs/TTrades PDFs/8. Discount__Premium.pdf tr.1â€“5 Â· knowledge/04 Â§2.18â€“2.19
+          - paragraph [ref=f8e302]: MSS giáº£m gáº§n nháº¥t Ä‘Ã£ Ä‘Ã³ng cá»a vÆ°á»£t Ä‘iá»ƒm swing 77,083, vÃ náº¿n Ä‘ang hÃ¬nh thÃ nh hiá»‡n táº¡i tiáº¿p tá»¥c vÆ°á»£t má»‘c nÃ y, cho tháº¥y displacement tÄƒng Ä‘ang tÃ¡i diá»…n. docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1â€“3 Â· knowledge/05 Â§2.1â€“2.2
+          - paragraph [ref=f8e303]: Má»‘c khÃ¡ng cá»± vÄ© mÃ´ xa hÆ¡n táº¡i 79,760 chÆ°a bá»‹ quÃ©t, giÃ¡ tham chiáº¿u 78,799 váº«n náº±m dÆ°á»›i -1.21%. docs/TTrades PDFs/3. Liquidity.pdf tr.1â€“5 Â· knowledge/04 Â§2.6â€“2.7
+          - paragraph [ref=f8e304]: "KhÃ´ng ghi nháºn chuá»—i quÃ©t thanh khoáº£nâ†’MSS cÃ¹ng chiá»\x81u trong facts nÃªn chÆ°a Ä‘á»§ Ä‘iá»\x81u kiá»‡n xÃ¡c nháºn entry theo mÃ´ hÃ¬nh ICT. docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1â€“4 Â· knowledge/04 Â§2.14, Â§2.17"
+        - generic [ref=f8e305]:
+          - generic [ref=f8e306]: Tá»•ng há»£p
+          - generic [ref=f8e307]: THEO DÃ•I LONG
+          - paragraph [ref=f8e309]: "Bá»‘i cáº£nh 4h: cáº¥u trÃºc tÃ¡i tÃch lÅ©y pha C, TR 76,676â€“77,959, bias LONG â€” tÃ¬m Spring[C]/LPS[C]/phÃ¡ vá»¡ theo hÆ°á»›ng tÄƒng á»Ÿ khung nhá»\x8f. WA p93â€“96 Â· knowledge/07 Â§2.7"
+          - paragraph [ref=f8e310]: Má»‘c SC/Spring Wyckoff (76,676 / 76,464) trÃ¹ng vá»›i vÃ¹ng Ä‘Ã¡y dealing range ICT (76,047) trong cÃ¹ng cá»a sá»• â€” má»™t quan sÃ¡t cáº¥u trÃºc duy nháº¥t, khÃ´ng tÃnh hai láº§n. knowledge/10 Â§4.3
+          - paragraph [ref=f8e311]: "GiÃ¡ 78,618 Ä‘Ã£ Ä‘Ã³ng cá»a vÆ°á»£t AR/má»‘c phÃ¡ cáº¥u trÃºc 77,425 vÃ swing MSS 77,083, khá»›p hÆ°á»›ng vá»›i bias khung lá»›n â€” verdict THEO DÃ•I LONG, khÃ´ng ngÆ°á»£c bá»‘i cáº£nh; chÆ°a cÃ³ chuá»—i quÃ©tâ†’MSS cÃ¹ng chiá»\x81u xÃ¡c nháºn nÃªn chÆ°a Ä‘á»§ Ä‘iá»\x81u kiá»‡n SETUP TIá»€M NÄ‚NG, entry/stop/target chÆ°a cÃ³ trong facts. [tÃnh toÃ¡n cá»§a há»‡ thá»‘ng â€” khÃ´ng pháº£i trÃch dáº«n tÃ i liá»‡u]"
+          - paragraph [ref=f8e312]: "Ä\x90iá»\x81u kiá»‡n vÃ´ hiá»‡u: Ä‘Ã³ng cá»a dÆ°á»›i láº¡i swing MSS 77,083 hoáº·c dÆ°á»›i Spring 76,464, thuá»™c sá»Ÿ há»¯u Wyckoff vÃ¬ Ä‘Ã¢y lÃ má»‘c phÃ¡ vá»¡ cáº¥u trÃºc tÄƒng sau SC/Spring. knowledge/10 Â§4.4"
+        - generic [ref=f8e313]:
+          - generic [ref=f8e314]: ToÃ n diá»‡n
+          - generic [ref=f8e315]: phÃ¢n tÃch Ä‘áº§y Ä‘á»§ Â· 11/9 11:00Z
+        - generic [ref=f8e316]:
+          - generic [ref=f8e317]: Wyckoff
+          - generic [ref=f8e318]:
+            - generic [ref=f8e319]: tÃ¡i tÃch lÅ©y
+            - generic [ref=f8e320]: Pha C
+            - generic [ref=f8e321]: TRANSITIONAL
+          - paragraph [ref=f8e322]:
+            - generic [ref=f8e323]: AR
+            - generic [ref=f8e324]: 77,425
+            - generic [ref=f8e325]: SC
+            - generic [ref=f8e326]: 76,676
+          - paragraph [ref=f8e327]: "Cá»•ng CHoBEV/CHoCH: náº¿n 12:30 Ä‘Ã³ng 77,130 trÃªn khá»‘i lÆ°á»£ng Ä‘á»™t biáº¿n, rá»“i náº¿n 12:45 táº¡o Ä‘Ã¡y cá»±c trá»‹ 76,676, phÃ¡ cÃ¡c Ä‘Ã¡y cÅ©, dá»±ng cáº¡nh dÆ°á»›i má»™t vÃ¹ng giao dá»‹ch hoÃ n toÃ n má»›i â€” chuá»—i Ä‘áº§u hÃ ng rÃµ rÃ ng.CHoBEV/CHoCH: WA p67â€“71 Â· knowledge/07 Â§2.6"
+          - paragraph [ref=f8e328]: "Automatic Rally Ä‘áº¡t Ä‘á»‰nh 77,425 lÃºc 14:45Z, dá»±ng cáº¡nh trÃªn vÃ¹ng giao dá»‹ch. LÃºc 17:30Z giÃ¡ xuyÃªn báº¥c lÃªn 77,544 trÃªn khá»‘i lÆ°á»£ng 2.14x nhÆ°ng Ä‘Ã³ng cá»a lÃ¹i láº¡i â€” má»™t Secondary Test táº¡i khÃ¡ng cá»±, chÆ°a cÃ³ Ä‘Ã³ng cá»a xÃ¡c nháºn.Trading Range: WA p71â€“72 Â· knowledge/07 Â§2.7.1"
+          - paragraph [ref=f8e329]: "LÃºc 23:15Z giÃ¡ xuyÃªn xuá»‘ng dÆ°á»›i Ä‘Ã¡y SC 76,676 tá»›i cá»±c trá»‹ 76,464 trÃªn khá»‘i lÆ°á»£ng giáº£m máº¡nh so vá»›i cao trÃ o gá»‘c rá»“i Ä‘Ã³ng cá»a há»“i phá»¥c hoÃ n toÃ n trá»Ÿ láº¡i trÃªn SC táº¡i náº¿n 00:00Z (76,818) â€” Ná»— lá»±c nhá»\x8f, Káº¿t quáº£ Ä‘áº£o chiá»\x81u lá»›n, Ä‘á»\x8dc lÃ Spring.Ná»— lá»±câ€“Káº¿t quáº£: WMT p149â€“154 Â· knowledge/07 Â§2.3, Â§4.1; Spring: WA p80 Â· knowledge/07 Â§2.7.3"
+          - paragraph [ref=f8e330]: "Ä\x90á»‘i nhÃ£n: ká»ƒ tá»« Spring, giÃ¡ váº«n giá»¯ trÃªn Ä‘Ã¡y Spring 76,464 vÃ chÆ°a cÃ³ Ä‘Ã³ng cá»a vÆ°á»£t láº¡i AR 77,424.98 (tham chiáº¿u 10:45Z: 76,993, -0.56% dÆ°á»›i AR) â€” vÆ°á»£t kiá»ƒm tra sÆ¡ bá»™ cá»§a Phase C nhÆ°ng chÆ°a cÃ³ SOS Ä‘Ã³ng cá»a vÆ°á»£t trÃªn khá»‘i lÆ°á»£ng Ä‘á»§ chuáº©n Ä‘á»ƒ má»Ÿ Phase D.Ä\x90á»‘i nhÃ£n: WA p150â€“184 Â· knowledge/07 Â§2.11; SOS cáº§n khá»‘i lÆ°á»£ng â‰¥ trung bÃ¬nh: WA p84 Â· knowledge/07 Â§2.7.4"
+        - generic [ref=f8e331]:
+          - generic [ref=f8e332]: ICT
+          - paragraph [ref=f8e333]:
+            - generic [ref=f8e334]: Swing bá»‹ phÃ¡ bá»Ÿi Ä‘Ã³ng cá»a MSS giáº£m gáº§n nháº¥t
+            - generic [ref=f8e335]: 77,083
+          - paragraph [ref=f8e336]: "GiÃ¡ tham chiáº¿u 76,993 (10:45Z) náº±m trong dealing range cá»a sá»• (76,464â€“79,760), dÆ°á»›i Ä‘iá»ƒm cÃ¢n báº±ng 78,112 â€” vÃ¹ng discount.Premium/Discount: docs/TTrades PDFs/8. Discount__Premium.pdf tr.1â€“5 Â· knowledge/04 Â§2.18â€“2.19"
+          - paragraph [ref=f8e337]: "MSS gáº§n nháº¥t lÃ giáº£m, Ä‘Ã³ng cá»a phÃ¡ swing 77,083 nhÆ°ng displacement cá»±c yáº¿u â€” chá»‰ 0.22Ã— so vá»›i trung bÃ¬nh, khÃ´ng Ä‘á»§ Ã¡p lá»±c Ä‘á»ƒ tiáº¿p diá»…n giáº£m.Displacement/MSS: docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1â€“3 Â· knowledge/05 Â§2.1â€“2.2"
+          - paragraph [ref=f8e338]: "CÃ²n má»™t khoáº£ng trá»‘ng giÃ¡ giáº£m chÆ°a láº¥p ngay phÃa trÃªn giÃ¡ hiá»‡n táº¡i; cÃ¡c má»‘c thanh khoáº£n chÆ°a quÃ©t gá»“m BSL 77,544 phÃa trÃªn vÃ cÃ¡c SSL phÃa dÆ°á»›i quanh biÃªn dÆ°á»›i dealing range â€” khÃ´ng cÃ³ chuá»—i quÃ©t thanh khoáº£n rá»“i MSS cÃ¹ng chiá»\x81u Ä‘á»ƒ táº¡o má»™t setup hoÃ n chá»‰nh.FVG: docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1â€“6 Â· knowledge/04 Â§2.21â€“2.24; Grab vs MSS: docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1â€“4 Â· knowledge/04 Â§2.14, Â§2.17"
+        - generic [ref=f8e339]:
+          - generic [ref=f8e340]: Tá»•ng há»£p
+          - generic [ref=f8e341]:
+            - generic [ref=f8e342]: THEO DÃ•I LONG
+            - generic [ref=f8e343]: "vÃ´ hiá»‡u: Ä‘Ã³ng cá»a dÆ°á»›i 76,464 Â· chá»§ sá»Ÿ há»¯u wyckoff"
+          - generic [ref=f8e344]: NhÃ¬n láº¡i
+          - paragraph [ref=f8e345]: "So vá»›i láº§n Ä‘á»\x8dc 00:15Z (Spring vá»«a há»“i phá»¥c vá»\x81 vÃ¹ng, chá»\x9d SOS), cáº¥u trÃºc khÃ´ng Ä‘á»•i: náº¿n Ä‘Ã³ng tham chiáº¿u 10:45Z á»Ÿ 76,993 â€” váº«n dÆ°á»›i AR 77,424.98 (-0.56%) vÃ trÃªn Ä‘Ã¡y Spring 76,464.00 (+0.69%), chÆ°a cÃ³ Ä‘Ã³ng cá»a vÆ°á»£t AR láº«n chÆ°a Ä‘Ã³ng cá»a dÆ°á»›i láº¡i Ä‘Ã¡y Spring. Váº«n Pha C, chÆ°a nÃ¢ng cáº¥p lÃªn Pha D.Ä\x90á»‘i nhÃ£n: WA p150â€“184 Â· knowledge/07 Â§2.11"
+          - generic [ref=f8e346]: Hiá»‡n táº¡i
+          - paragraph [ref=f8e347]: "Bá»‘i cáº£nh 4h: tÃ¡i tÃch lÅ©y, Pha C â€” vÃ¹ng giao dá»‹ch SC 76,676.07â€“AR 77,959.20, Ä‘Ã³ng cá»a 4h hiá»‡n táº¡i 76,827.80 náº±m á»Ÿ khoáº£ng 12% vÃ¹ng (sÃ¡t biÃªn dÆ°á»›i); vá»«a cÃ³ Spring xuyÃªn Ä‘Ã¡y SC xuá»‘ng 76,464.00 (20:00Z) rá»“i há»“i phá»¥c lÃªn láº¡i trÃªn Ä‘Ã¡y SC; bias khung lá»›n: LONG (Pha C Ä‘Ã£ xÃ¡c láºp hÆ°á»›ng, Ä‘Ãºng vÃ¹ng CO gom hÃ ng theo luáºt giáº£m khung).Giáº£m khung: WA p93â€“96 Â· knowledge/07 Â§2.7"
+          - paragraph [ref=f8e348]: "á»ž khung nhá»\x8f, giÃ¡ váº«n giá»¯ trÃªn Ä‘Ã¡y Spring 76,464.00 vÃ chÆ°a Ä‘Ã³ng cá»a vÆ°á»£t láº¡i AR 77,424.98 â€” tham chiáº¿u 10:45Z á»Ÿ 76,993, tá»©c -0.56% dÆ°á»›i AR vÃ +0.69% trÃªn Ä‘Ã¡y Spring. Ná»— lá»±c bÃ¡n sau Spring khÃ´ng Ä‘á»§ Ä‘áº©y giÃ¡ xuá»‘ng láº¡i vÃ¹ng cÅ©, nhÆ°ng ná»— lá»±c mua cÅ©ng chÆ°a Ä‘á»§ táº¡o má»™t Dáº¥u hiá»‡u sá»©c máº¡nh tháºt.Ná»— lá»±câ€“Káº¿t quáº£: WMT p149â€“154 Â· knowledge/07 Â§2.3, Â§4.1"
+          - paragraph [ref=f8e349]: "Má»‘c Wyckoff (SC 76,676.07, AR 77,424.98) vÃ má»‘c ICT (swing MSS 77,083.17) khÃ´ng trÃ¹ng giÃ¡ trá»‹ nÃªn váº«n lÃ hai quan sÃ¡t riÃªng biá»‡t. MSS ICT gáº§n nháº¥t táº¡i khung nÃ y váº«n lÃ giáº£m nhÆ°ng Ä‘Ã³ng vÆ°á»£t swing chá»‰ trÃªn khá»‘i lÆ°á»£ng 0.22Ã— trung bÃ¬nh â€” cá»±c yáº¿u, khÃ´ng Ä‘á»§ ná»— lá»±c Ä‘á»ƒ phá»§ Ä‘á»‹nh Ä‘á»\x8dc tÄƒng cá»§a Spring.Ä\x90á»“ng nháº¥t Wyckoff/ICT khi trÃ¹ng má»‘c: knowledge/10 Â§4.3"
+          - paragraph [ref=f8e350]:
+            - text: Káº¿t luáºn
+            - strong [ref=f8e351]: THEO DÃ•I LONG
+            - text: ": chá»\x9d Ä‘Ã³ng cá»a vÆ°á»£t AR 77,424.98 trÃªn khá»‘i lÆ°á»£ng Ä‘á»§ chuáº©n (â‰¥1.0x) Ä‘á»ƒ xÃ¡c nháºn SOS/Phase D; vÃ´ hiá»‡u náº¿u Ä‘Ã³ng cá»a dÆ°á»›i Ä‘Ã¡y Spring 76,464.00 â€” chá»§ sá»Ÿ há»¯u vÃ´ hiá»‡u"
+            - strong [ref=f8e352]: Wyckoff
+            - text: "(Ä‘Ã¡y Spring).Chá»§ sá»Ÿ há»¯u vÃ´ hiá»‡u: knowledge/10 Â§4.4"
+      - generic [ref=f8e353]: "Footprint: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT) Â· Heatmap: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT)"
+      - group [ref=f8e354]:
+        - generic "DÃ²ng sá»± kiá»‡n cá»§a phÃ¢n tÃch Ä‘áº§y Ä‘á»§ (7 má»‘c Â· Wyckoff vÃ ICT á»Ÿ hai cá»™t riÃªng)" [ref=f8e355] [cursor=pointer]
+    - generic [ref=f8e356]:
+      - generic [ref=f8e357]:
+        - generic [ref=f8e358]: ETH/USDT
+        - generic [ref=f8e359]: 2,532.15
+        - generic [ref=f8e360]:
+          - generic [ref=f8e361]: vá»‹ trÃ trong cá»a sá»• 15m 49%
+          - generic [ref=f8e362]: náº¿n cuá»‘i 12/9 17:15Z
+        - generic [ref=f8e363]:
+          - generic [ref=f8e364]: vÃ o lá»‡nh 15m
+          - generic [ref=f8e365]: THEO DÃ•I LONG
+      - generic [ref=f8e366]:
+        - generic [ref=f8e367]:
+          - generic [ref=f8e368]: Bias
+          - generic [ref=f8e369]: 4H Ã—4
+          - generic [ref=f8e370]: cáºp nháºt 16:00Z
+        - generic [ref=f8e371]:
+          - text: tÃ¡i tÃch lÅ©y Â· pha B
+          - generic [ref=f8e372]: SC 2,405.85 â€“ AR 2,475.03
+          - generic [ref=f8e373]: "Ä‘á»\x8dc 2026-09-11T11:00Z"
+        - generic [ref=f8e374]:
+          - text: 50% dealing range (2,405.85â€“2,665.99) Â· premium
+          - generic [ref=f8e375]: "MSS gáº§n nháº¥t: tÄƒng qua 2,489.95"
+        - generic [ref=f8e376]:
+          - generic "khung lá»›n tÃ¡i tÃch lÅ©y pha B, giÃ¡ á»Ÿ 189% TR (biÃªn trÃªn â€” CO bÃ¡n á»Ÿ Ä‘Ã¢y, khÃ´ng pháº£i cÆ¡ há»™i cho cÃ´ng chÃºng) â€” cung/cáº§u cÃ¢n báº±ng, chÆ°a cÃ³ CO xuáº¥t hiá»‡n, chÆ°a giao dá»‹ch (WA p95â€“96, p201â€“203)" [ref=f8e377]: TRUNG Láº¬P
+          - generic [ref=f8e378]: táº§ng quyáº¿t Ä‘á»‹nh verdict
+        - generic [ref=f8e379]:
+          - generic [ref=f8e380]: Cáº¥u trÃºc
+          - generic [ref=f8e381]: 1H Ã—4
+          - generic [ref=f8e382]: cáºp nháºt 16:00Z
+        - generic [ref=f8e383]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e384]:
+          - text: 91% dealing range (2,433.77â€“2,546.66) Â· premium
+          - generic [ref=f8e385]: "MSS gáº§n nháº¥t: tÄƒng qua 2,484.62"
+        - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e387]': CHÆ¯A RÃ•
+        - generic [ref=f8e388]:
+          - generic [ref=f8e389]: VÃ o lá»‡nh
+          - generic [ref=f8e390]: 15m
+          - generic [ref=f8e391]: cáºp nháºt 17:15Z
+        - generic [ref=f8e392]:
+          - text: tÃ¡i tÃch lÅ©y Â· pha C
+          - generic [ref=f8e393]: SC 2,405.85 â€“ AR 2,444.45
+          - generic [ref=f8e394]: "Ä‘á»\x8dc 2026-09-11T11:00Z"
+        - generic [ref=f8e395]:
+          - text: 2% dealing range (2,529.00â€“2,665.99) Â· discount
+          - generic [ref=f8e396]: "MSS gáº§n nháº¥t: tÄƒng qua 2,515.13"
+        - generic [ref=f8e397]: THEO DÃ•I LONG
+      - generic [ref=f8e399]:
+        - generic [ref=f8e400]:
+          - generic [ref=f8e401]:
+            - generic [ref=f8e402]: Bias Â· 4H Ã— 360 (60 ngÃ y) Â· 07-14 20:00 â†’ 09-12 16:00
+            - generic [ref=f8e403]:
+              - generic [ref=f8e404]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e405] [cursor=pointer]
+              - button "+" [ref=f8e406] [cursor=pointer]
+              - button "âŸ²" [ref=f8e407] [cursor=pointer]
+          - table [ref=f8e411]:
+            - row [ref=f8e412]:
+              - cell
+              - cell [ref=f8e413]
+              - cell [ref=f8e417]
+            - row [ref=f8e421]:
+              - cell [ref=f8e422]
+            - row [ref=f8e423]:
+              - cell
+              - cell [ref=f8e424]
+              - cell [ref=f8e428]
+            - row [ref=f8e432]:
+              - cell
+              - cell [ref=f8e433]
+              - cell [ref=f8e437]
+        - generic [ref=f8e441]:
+          - generic [ref=f8e442]:
+            - generic [ref=f8e443]: Cáº¥u trÃºc Â· 1H Ã— 480 (20 ngÃ y) Â· 08-23 17:00 â†’ 09-12 16:00
+            - generic [ref=f8e444]:
+              - generic [ref=f8e445]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e446] [cursor=pointer]
+              - button "+" [ref=f8e447] [cursor=pointer]
+              - button "âŸ²" [ref=f8e448] [cursor=pointer]
+          - table [ref=f8e452]:
+            - row [ref=f8e453]:
+              - cell
+              - cell [ref=f8e454]
+              - cell [ref=f8e458]
+            - row [ref=f8e462]:
+              - cell [ref=f8e463]
+            - row [ref=f8e464]:
+              - cell
+              - cell [ref=f8e465]
+              - cell [ref=f8e469]
+            - row [ref=f8e473]:
+              - cell
+              - cell [ref=f8e474]
+              - cell [ref=f8e478]
+        - generic [ref=f8e482]:
+          - generic [ref=f8e483]:
+            - generic [ref=f8e484]: VÃ o lá»‡nh Â· 15m Ã— 576 (6 ngÃ y) Â· 09-06 17:30 â†’ 09-12 17:15
+            - generic [ref=f8e485]:
+              - generic [ref=f8e486]: lÄƒn chuá»™t = zoom Â· kÃ©o = dá»‹ch Â· kÃ©o trá»¥c = co giÃ£n Â· End = náº¿n cuá»‘i Â· phÃm 1â€“4 Ä‘á»•i phÆ°Æ¡ng phÃ¡p
+              - button "âˆ’" [ref=f8e487] [cursor=pointer]
+              - button "+" [ref=f8e488] [cursor=pointer]
+              - button "âŸ²" [ref=f8e489] [cursor=pointer]
+              - button "R:R" [ref=f8e490] [cursor=pointer]
+              - button "â–¶" [ref=f8e491] [cursor=pointer]
+          - table [ref=f8e495]:
+            - row [ref=f8e496]:
+              - cell
+              - cell [ref=f8e497]
+              - cell [ref=f8e501]
+            - row [ref=f8e505]:
+              - cell [ref=f8e506]
+            - row [ref=f8e507]:
+              - cell
+              - cell [ref=f8e508]
+              - cell [ref=f8e512]
+            - row [ref=f8e516]:
+              - cell
+              - cell [ref=f8e517]
+              - cell [ref=f8e521]
+        - generic [ref=f8e525]:
+          - generic [ref=f8e526]: náº¿n Ä‘Ã³ng tÄƒng
+          - generic [ref=f8e528]: náº¿n Ä‘Ã³ng giáº£m
+          - generic [ref=f8e530]: khá»‘i lÆ°á»£ng
+          - generic [ref=f8e532]: KL â‰¥ 1.5Ã— TB 20 náº¿n (â‰¥ 2.5Ã— ghi sá»‘)
+          - generic [ref=f8e534]: biÃªn vÃ¹ng giao dá»‹ch (AR / SC)
+          - generic [ref=f8e536]: pha Aâ€“E
+          - generic [ref=f8e538]: "â—\x8f sá»± kiá»‡n Wyckoff do phÃ¢n tÃch Ä‘áº§y Ä‘á»§ Ä‘áº·t"
+      - generic [ref=f8e539]:
+        - generic [ref=f8e540]:
+          - generic [ref=f8e541]: SÆ¡ bá»™
+          - generic [ref=f8e542]: scanner Â· dá»¯ liá»‡u tá»›i 17:15Z
+        - generic [ref=f8e543]:
+          - generic [ref=f8e544]: Wyckoff
+          - list [ref=f8e545]:
+            - listitem [ref=f8e546]: "SC má»›i (Cao trÃ o bÃ¡n), khá»‘i lÆ°á»£ng ká»· lá»¥c cá»a sá»• 2,405.85 (10/9 13:00Z): náº¿n Ä‘Ã³ng trÃªn (+5.25%)"
+            - listitem [ref=f8e547]: "AR â€” Ä‘Ã£ Ä‘Ã³ng cá»a vÆ°á»£t (UA khá»‘i lÆ°á»£ng dÆ°á»›i chuáº©n); cá»±c trá»‹ sau Ä‘Ã³ 2,484.62 2,444.45 (10/9 14:45Z): náº¿n Ä‘Ã³ng trÃªn (+3.59%) Â· náº¿n Ä‘Ã³ng vÆ°á»£t Ä‘áº§u tiÃªn 10/9 16:45Z @ 2,448.78 Â· cá»±c trá»‹ sau Ä‘Ã³ 2,665.99 Â· náº¿n Ä‘ang hÃ¬nh thÃ nh hiá»‡n Ä‘ang vÆ°á»£t"
+            - listitem [ref=f8e548]: "Ä‘á»‰nh SOS cÅ© (9/9), má»‘c khÃ¡ng cá»± vÄ© mÃ´ xa hÆ¡n 2,523.30 (9/9 08:30Z): náº¿n Ä‘Ã³ng trÃªn (+0.35%) Â· náº¿n Ä‘Ã³ng vÆ°á»£t Ä‘áº§u tiÃªn 11/9 13:30Z @ 2,524.23 Â· cá»±c trá»‹ sau Ä‘Ã³ 2,665.99 Â· náº¿n Ä‘ang hÃ¬nh thÃ nh hiá»‡n Ä‘ang vÆ°á»£t"
+            - listitem [ref=f8e549]: "Ä\x90Ã¡y Ä\x90iá»ƒm há»— trá»£ cuá»‘i (LPS[C]) â€” kiá»ƒm tra láº¡i sau khi Ä‘Ã³ng cá»a vÆ°á»£t AR 2,435.00 (10/9 23:15Z): náº¿n Ä‘Ã³ng trÃªn (+3.99%)"
+            - listitem [ref=f8e550]: "KhÃ´ng cÃ³ náº¿n khá»‘i lÆ°á»£ng báº¥t thÆ°á»\x9dng trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y (ngÆ°á»¡ng: tham sá»‘ dá»± Ã¡n)."
+        - generic [ref=f8e551]:
+          - generic [ref=f8e552]: ICT
+          - list [ref=f8e553]:
+            - listitem [ref=f8e554]: GiÃ¡ 2,532.15 = 2% dealing range cá»a sá»• (2,529.00â€“2,665.99), discount, EQ 2,597.49.
+            - listitem [ref=f8e555]: "BSL chÆ°a quÃ©t phÃa trÃªn vÃ¹ng hiá»‡n táº¡i 2,479.29 (10/9 09:00Z): náº¿n Ä‘Ã³ng trÃªn (+2.13%) Â· náº¿n Ä‘Ã³ng vÆ°á»£t Ä‘áº§u tiÃªn 11/9 12:30Z @ 2,493.97 Â· cá»±c trá»‹ sau Ä‘Ã³ 2,665.99 Â· náº¿n Ä‘ang hÃ¬nh thÃ nh hiá»‡n Ä‘ang vÆ°á»£t"
+            - listitem [ref=f8e556]: "MSS gáº§n nháº¥t: tÄƒng, Ä‘Ã³ng cá»a vÆ°á»£t swing 2,515.13."
+            - listitem [ref=f8e557]: "FVG chÆ°a láº¥p gáº§n giÃ¡ nháº¥t: tÄƒng 2,512.89â€“2,518.18."
+            - listitem [ref=f8e558]: "Pool chÆ°a quÃ©t: BSL 2,485.00, BSL 2,517.74, SSL 2,432.88, SSL 2,529.00."
+            - listitem [ref=f8e559]: "KhÃ´ng cÃ³ chuá»—i quÃ©t â†’ MSS cÃ¹ng chiá»\x81u trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y."
+        - generic [ref=f8e560]:
+          - generic [ref=f8e561]: Tá»•ng há»£p
+          - generic [ref=f8e562]: "PHÃ\x81 TRÃŠN AR â€” Ä‘Ã£ Ä‘Ã³ng cá»a vÆ°á»£t (UA khá»‘i lÆ°á»£ng dÆ°á»›i chuáº©n); cá»±c trá»‹ sau Ä‘Ã³ 2,484.62"
+          - list [ref=f8e564]:
+            - listitem [ref=f8e565]: "Verdict theo luáºt so vá»›i má»‘c neo cá»§a phÃ¢n tÃch Ä‘áº§y Ä‘á»§ gáº§n nháº¥t: PHÃ\x81 TRÃŠN AR â€” Ä‘Ã£ Ä‘Ã³ng cá»a vÆ°á»£t (UA khá»‘i lÆ°á»£ng dÆ°á»›i chuáº©n); cá»±c trá»‹ sau Ä‘Ã³ 2,484.62 â€” xÃ¡c nháºn tiáº¿p diá»…n tÄƒng (náº¿n Ä‘Ã³ng 12/9 17:00Z = 2,532.12)."
+            - listitem [ref=f8e566]: "Stance scanner: CHá»œ (luáºt cá»‘ Ä‘á»‹nh, tham sá»‘ dá»± Ã¡n â€” khÃ´ng pháº£i nháºn Ä‘á»‹nh cá»§a mÃ´ hÃ¬nh)."
+        - generic [ref=f8e567]:
+          - generic [ref=f8e568]: Cá»¥c bá»™
+          - generic [ref=f8e569]: Sonnet Â· dá»¯ liá»‡u tá»›i 15:00Z
+        - generic [ref=f8e570]:
+          - generic [ref=f8e571]: Wyckoff
+          - paragraph [ref=f8e572]: SC má»›i xÃ¡c láºp táº¡i 2,405.85 vá»›i khá»‘i lÆ°á»£ng ká»· lá»¥c trong cá»a sá»•, giÃ¡ hiá»‡n táº¡i 2,602.40 Ä‘Ã³ng cá»a náº±m trÃªn xa má»‘c nÃ y (náº¿n tham chiáº¿u 2,607.93, +8.40%). WA p71â€“72 Â· knowledge/07 Â§2.7
+          - paragraph [ref=f8e573]: AR Ä‘Ã£ cÃ³ náº¿n Ä‘Ã³ng cá»a vÆ°á»£t nhÆ°ng khá»‘i lÆ°á»£ng dÆ°á»›i chuáº©n (UA) táº¡i vÃ¹ng 2,484.62â€“2,444.45, cho tháº¥y ná»— lá»±c tÄƒng ban Ä‘áº§u cÃ²n yáº¿u so vá»›i káº¿t quáº£ giÃ¡. WA p33â€“39 Â· knowledge/07 Â§2.2
+          - paragraph [ref=f8e574]: LPS[C] táº¡i 2,435.00 Ä‘ang Ä‘Æ°á»£c kiá»ƒm tra láº¡i sau khi Ä‘Ã³ng cá»a vÆ°á»£t AR, giÃ¡ tham chiáº¿u váº«n náº±m trÃªn xa (+7.10%), chÆ°a cÃ³ náº¿n Ä‘Ã³ng cá»a vÆ°á»£t xuá»‘ng láº¡i dÆ°á»›i má»‘c nÃ y. WMT p036â€“049 Â· knowledge/08 Â§2.6
+          - paragraph [ref=f8e575]: "Khá»‘i lÆ°á»£ng sá»± kiá»‡n gáº§n nháº¥t tÄƒng máº¡nh 3.85x lÃºc 14:45Z cÃ¹ng chiá»\x81u giÃ¡ tÄƒng, xÃ¡c nháºn Ná»— lá»±c-Káº¿t quáº£ hÃ i hoÃ , á»§ng há»™ tiáº¿p diá»…n sau AR. WA p33â€“39 Â· knowledge/07 Â§2.2"
+        - generic [ref=f8e576]:
+          - generic [ref=f8e577]: ICT
+          - paragraph [ref=f8e578]: GiÃ¡ 2,602.40 hiá»‡n á»Ÿ 76% dealing range cá»a sá»• (2,405.85â€“2,665.99), trÃªn EQ 2,535.92 â€” vÃ¹ng premium. docs/TTrades PDFs/8. Discount__Premium.pdf tr.1â€“5 Â· knowledge/04 Â§2.18â€“2.19
+          - paragraph [ref=f8e579]: MSS tÄƒng gáº§n nháº¥t Ä‘Ã£ Ä‘Ã³ng cá»a vÆ°á»£t Ä‘iá»ƒm swing 2,475.27, xÃ¡c nháºn displacement tÄƒng. docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1â€“3 Â· knowledge/05 Â§2.1â€“2.2
+          - paragraph [ref=f8e580]: "FVG tÄƒng chÆ°a láº¥p táº¡i 2,512.45â€“2,519.36 váº«n cÃ²n hiá»‡u lá»±c dÆ°á»›i giÃ¡ hiá»‡n táº¡i, lÃ vÃ¹ng há»— trá»£ tiá»\x81m nÄƒng náº¿u giÃ¡ quay láº¡i láº¥p. docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1â€“6 Â· knowledge/04 Â§2.21â€“2.24"
+          - paragraph [ref=f8e581]: "Pool SSL 2,490.49 vÃ 2,432.88 phÃa dÆ°á»›i váº«n chÆ°a bá»‹ quÃ©t, trong khi BSL 2,523.30 vÃ 2,484.76 Ä‘Ã£ Ä‘Æ°á»£c tiá»‡m cáºn khi giÃ¡ vÆ°á»£t lÃªn; khÃ´ng ghi nháºn chuá»—i quÃ©t thanh khoáº£nâ†’MSS cÃ¹ng chiá»\x81u trong facts nÃªn chÆ°a Ä‘á»§ Ä‘iá»\x81u kiá»‡n xÃ¡c nháºn entry. docs/TTrades PDFs/3. Liquidity.pdf tr.1â€“5 Â· knowledge/04 Â§2.6â€“2.7"
+        - generic [ref=f8e582]:
+          - generic [ref=f8e583]: Tá»•ng há»£p
+          - generic [ref=f8e584]: THEO DÃ•I LONG
+          - paragraph [ref=f8e586]: "Bá»‘i cáº£nh 4h: cáº¥u trÃºc tÃ¡i tÃch lÅ©y pha B, TR 2,405.85â€“2,475.03, giÃ¡ khung lá»›n á»Ÿ 64% biÃªn Ä‘á»™ â€” giá»¯a vÃ¹ng, cung/cáº§u cÃ¢n báº±ng, chÆ°a xuáº¥t hiá»‡n CO, bias trung láºp. WA p95â€“96, p201â€“203 Â· knowledge/07 Â§2.7"
+          - paragraph [ref=f8e587]: Má»‘c SC Wyckoff (2,405.85) trÃ¹ng vá»›i Ä‘Ã¡y dealing range ICT cá»§a cá»a sá»• â€” má»™t quan sÃ¡t cáº¥u trÃºc duy nháº¥t, khÃ´ng tÃnh hai láº§n. knowledge/10 Â§4.3
+          - paragraph [ref=f8e588]: GiÃ¡ 2,602.40 Ä‘Ã£ Ä‘Ã³ng cá»a vÆ°á»£t AR/má»‘c phÃ¡ cáº¥u trÃºc vÃ swing MSS 2,475.27, khá»‘i lÆ°á»£ng sá»± kiá»‡n gáº§n nháº¥t 3.85x xÃ¡c nháºn tiáº¿p diá»…n tÄƒng, nhÆ°ng do bá»‘i cáº£nh khung lá»›n trung láºp nÃªn verdict tá»‘i Ä‘a chá»‰ lÃ THEO DÃ•I LONG, khÃ´ng Ä‘Æ°á»£c káº¿t luáºn SETUP TIá»€M NÄ‚NG; entry/stop/target chÆ°a cÃ³ trong facts. [tÃnh toÃ¡n cá»§a há»‡ thá»‘ng â€” khÃ´ng pháº£i trÃch dáº«n tÃ i liá»‡u]
+          - paragraph [ref=f8e589]: "Ä\x90iá»\x81u kiá»‡n vÃ´ hiá»‡u: Ä‘Ã³ng cá»a dÆ°á»›i láº¡i LPS[C] 2,435.00, thuá»™c sá»Ÿ há»¯u Wyckoff vÃ¬ Ä‘Ã¢y lÃ má»‘c kiá»ƒm tra há»— trá»£ sau AR. knowledge/10 Â§4.4"
+        - generic [ref=f8e590]:
+          - generic [ref=f8e591]: ToÃ n diá»‡n
+          - generic [ref=f8e592]: phÃ¢n tÃch Ä‘áº§y Ä‘á»§ Â· 11/9 11:00Z
+        - generic [ref=f8e593]:
+          - generic [ref=f8e594]: Wyckoff
+          - generic [ref=f8e595]:
+            - generic [ref=f8e596]: tÃ¡i tÃch lÅ©y
+            - generic [ref=f8e597]: Pha C
+            - generic [ref=f8e598]: TRANSITIONAL
+          - paragraph [ref=f8e599]:
+            - generic [ref=f8e600]: AR
+            - generic [ref=f8e601]: 2,444.45
+            - generic [ref=f8e602]: SC
+            - generic [ref=f8e603]: 2,405.85
+          - paragraph [ref=f8e604]: "Cá»•ng CHoBEV/CHoCH: náº¿n 12:30 Ä‘Ã³ng 2,437.52 trÃªn khá»‘i lÆ°á»£ng Ä‘á»™t biáº¿n, rá»“i náº¿n 13:00 táº¡o Ä‘Ã¡y cá»±c trá»‹ 2,405.85, phÃ¡ cÃ¡c Ä‘Ã¡y cÅ©, dá»±ng cáº¡nh dÆ°á»›i vÃ¹ng giao dá»‹ch má»›i.CHoBEV/CHoCH: WA p67â€“71 Â· knowledge/07 Â§2.6"
+          - paragraph [ref=f8e605]: "Automatic Rally Ä‘áº¡t Ä‘á»‰nh 2,444.45 lÃºc 14:45Z. LÃºc 16:45Z giÃ¡ Ä‘Ã³ng cá»a vÆ°á»£t AR lÃªn 2,448.78 nhÆ°ng khá»‘i lÆ°á»£ng chá»‰ 0.99x â€” dÆ°á»›i chuáº©n â€” Ä‘Ã¢y lÃ má»™t CÃº háº¥t lÃªn (UA), khÃ´ng pháº£i SOS; giÃ¡ tiáº¿p tá»¥c Ä‘áº©y lÃªn cá»±c trá»‹ 2,475.03 lÃºc 17:30Z váº«n lÃ pháº§n má»Ÿ rá»™ng cá»§a cÃ¹ng nhá»‹p UA.Ná»— lá»±câ€“Káº¿t quáº£: WMT p149â€“154 Â· knowledge/07 Â§2.3, Â§4.1; UA: WA p78/p88 Â· knowledge/07 Â§2.7.2"
+          - paragraph [ref=f8e606]: "Sau nhá»‹p UA, giÃ¡ lÃ¹i vá»\x81 kiá»ƒm tra, cá»±c trá»‹ 2,435.00 lÃºc 23:15Z (khá»‘i lÆ°á»£ng 0.88x) â€” Ä‘Ã¡y váº«n cao hÆ¡n háº³n Ä‘Ã¡y SC 2,405.85. Ä\x90Ã¢y lÃ bÃ i test Pha C (LPS[C]) trÃªn khá»‘i lÆ°á»£ng tháº¥p.LPS: knowledge/07 Â§2.7.3"
+          - paragraph [ref=f8e607]: "Sau LPS[C], giÃ¡ tiáº¿p tá»¥c Ä‘áº©y lÃªn vÃ Ä‘áº¡t cá»±c trá»‹ má»›i 2,484.62 â€” vÆ°á»£t háº³n Ä‘á»‰nh UA cÅ© 2,475.03 â€” nhÆ°ng náº¿n Ä‘ang hÃ¬nh thÃ nh váº«n chÆ°a Ä‘Ã³ng cá»a xÃ¡c nháºn trÃªn khá»‘i lÆ°á»£ng Ä‘á»§ chuáº©n cá»§a má»™t Dáº¥u hiá»‡u sá»©c máº¡nh (SOS) tháºt, nÃªn váº«n giá»¯ Ä‘á»\x8dc Pha C, chÆ°a má»Ÿ Pha D.SOS cáº§n khá»‘i lÆ°á»£ng â‰¥ trung bÃ¬nh: WA p84 Â· knowledge/07 Â§2.7.4; Ä\x90á»‘i nhÃ£n: WA p150â€“184 Â· knowledge/07 Â§2.11"
+        - generic [ref=f8e608]:
+          - generic [ref=f8e609]: ICT
+          - paragraph [ref=f8e610]:
+            - generic [ref=f8e611]: BSL chÆ°a quÃ©t phÃa trÃªn vÃ¹ng hiá»‡n táº¡i, Ä‘Ã£ bá»‹ vÆ°á»£t bá»Ÿi cá»±c trá»‹ má»›i
+            - generic [ref=f8e612]: 2,479.29
+          - paragraph [ref=f8e613]: "GiÃ¡ tham chiáº¿u 2,462.14 (10:45Z) náº±m trong dealing range cá»a sá»• (2,405.85â€“2,523.30), sÃ¡t dÆ°á»›i Ä‘iá»ƒm cÃ¢n báº±ng 2,464.57 â€” váº«n á»Ÿ vÃ¹ng discount.Premium/Discount: docs/TTrades PDFs/8. Discount__Premium.pdf tr.1â€“5 Â· knowledge/04 Â§2.18â€“2.19"
+          - paragraph [ref=f8e614]: "MSS gáº§n nháº¥t lÃ tÄƒng, Ä‘Ã³ng cá»a phÃ¡ swing 2,460.29. CÃ²n má»™t khoáº£ng trá»‘ng giÃ¡ tÄƒng chÆ°a láº¥p ngay dÆ°á»›i giÃ¡ hiá»‡n táº¡i; phÃa trÃªn cÃ¡c má»‘c thanh khoáº£n chÆ°a quÃ©t gá»“m BSL 2,479.29 (Ä‘Ã£ bá»‹ vÆ°á»£t bá»Ÿi cá»±c trá»‹ má»›i) vÃ cÃ¡c BSL xa hÆ¡n.Displacement/MSS: docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1â€“3 Â· knowledge/05 Â§2.1â€“2.2; FVG: docs/TTrades PDFs/12. Fair_Value_Gaps.pdf tr.1â€“6 Â· knowledge/04 Â§2.21â€“2.24; Liquidity: docs/TTrades PDFs/3. Liquidity.pdf tr.1â€“5 Â· knowledge/04 Â§2.6â€“2.7"
+        - generic [ref=f8e615]:
+          - generic [ref=f8e616]: Tá»•ng há»£p
+          - generic [ref=f8e617]:
+            - generic [ref=f8e618]: THEO DÃ•I LONG
+            - generic [ref=f8e619]: "vÃ´ hiá»‡u: Ä‘Ã³ng cá»a dÆ°á»›i 2,435.00 Â· chá»§ sá»Ÿ há»¯u wyckoff"
+          - generic [ref=f8e620]: NhÃ¬n láº¡i
+          - paragraph [ref=f8e621]: "So vá»›i láº§n Ä‘á»\x8dc 00:15Z (LPS 2,435.00 vá»«a test xong, chá»\x9d SOS tháºt), giÃ¡ tiáº¿p tá»¥c Ä‘áº©y lÃªn vÃ cá»±c trá»‹ sau Ä‘Ã³ Ä‘Ã£ Ä‘áº¡t 2,484.62 â€” vÆ°á»£t háº³n Ä‘á»‰nh UA cÅ© 2,475.03 â€” nhÆ°ng náº¿n Ä‘ang hÃ¬nh thÃ nh má»›i chá»‰ Ä‘ang vÆ°á»£t AR, chÆ°a Ä‘Ã³ng cá»a xÃ¡c nháºn trÃªn khá»‘i lÆ°á»£ng Ä‘á»§ chuáº©n nÃªn chÆ°a thá»ƒ gá»\x8di lÃ SOS tháºt. Tham chiáº¿u 10:45Z á»Ÿ 2,462.14, váº«n trÃªn LPS 2,435.00 (+1.11%) vÃ trÃªn AR 2,444.45 (+0.72%).SOS cáº§n khá»‘i lÆ°á»£ng â‰¥ trung bÃ¬nh: WA p84 Â· knowledge/07 Â§2.7.4"
+          - generic [ref=f8e622]: Hiá»‡n táº¡i
+          - paragraph [ref=f8e623]: "Bá»‘i cáº£nh 4h: tÃ¡i tÃch lÅ©y, cÃ²n Pha B â€” vÃ¹ng giao dá»‹ch SC 2,405.85â€“AR 2,475.03, Ä‘Ã³ng cá»a 4h hiá»‡n táº¡i 2,449.96 náº±m á»Ÿ khoáº£ng 64% vÃ¹ng (giá»¯a vÃ¹ng, chÆ°a cháº¡m biÃªn nÃ o); sau cao trÃ o bÃ¡n 2,405.85, giÃ¡ test láº¡i LPS 2,435.00 (20:00Z) vÃ giá»¯ trÃªn Ä‘Ã¡y Ä‘Ã³; bias khung lá»›n: trung tÃnh â€” mid-range chÆ°a cÃ³ CO nÃªn chÆ°a giao dá»‹ch theo hÆ°á»›ng á»Ÿ khung lá»›n.Giáº£m khung: WA p93â€“96 Â· knowledge/07 Â§2.7"
+          - paragraph [ref=f8e624]: "á»ž khung nhá»\x8f, giÃ¡ Ä‘Ã£ Ä‘áº©y lÃªn cá»±c trá»‹ 2,484.62, vÆ°á»£t háº³n Ä‘á»‰nh UA cÅ© 2,475.03 â€” Ná»— lá»±c má»Ÿ rá»™ng thÃªm so vá»›i cÃº UA yáº¿u 0.99x lÃºc 16:45Z hÃ´m trÆ°á»›c â€” nhÆ°ng náº¿n Ä‘ang hÃ¬nh thÃ nh hiá»‡n Ä‘ang vÆ°á»£t AR váº«n chÆ°a Ä‘Ã³ng cá»a xÃ¡c nháºn, nÃªn chÆ°a Ä‘á»§ Ä‘iá»\x81u kiá»‡n gá»\x8di lÃ Dáº¥u hiá»‡u sá»©c máº¡nh (SOS) tháºt, cáº§n Ä‘Ã³ng cá»a trÃªn khá»‘i lÆ°á»£ng Ä‘á»§ chuáº©n Ä‘á»ƒ má»Ÿ Pha D.Ná»— lá»±câ€“Káº¿t quáº£: WMT p149â€“154 Â· knowledge/07 Â§2.3, Â§4.1"
+          - paragraph [ref=f8e625]: "Má»‘c Wyckoff (AR/LPS 2,444.45/2,435.00) vÃ má»‘c ICT (BSL káº¿ tiáº¿p 2,479.29, Ä‘Ã£ bá»‹ vÆ°á»£t bá»Ÿi cá»±c trá»‹ 2,484.62) khÃ´ng trÃ¹ng giÃ¡ trá»‹ nÃªn váº«n lÃ hai quan sÃ¡t riÃªng biá»‡t. MSS ICT gáº§n nháº¥t táº¡i khung nÃ y lÃ tÄƒng, Ä‘Ã³ng vÆ°á»£t swing 2,460.29 trÃªn khá»‘i lÆ°á»£ng 1.79x â€” cÃ¹ng chiá»\x81u vá»›i Ä‘á»\x8dc tÄƒng cá»§a Wyckoff, khÃ´ng mÃ¢u thuáº«n.Ä\x90á»“ng nháº¥t Wyckoff/ICT khi trÃ¹ng má»‘c: knowledge/10 Â§4.3"
+          - paragraph [ref=f8e626]:
+            - text: Káº¿t luáºn
+            - strong [ref=f8e627]: THEO DÃ•I LONG
+            - text: ": giÃ¡ Ä‘Ã£ Ã¡p sÃ¡t vÃ¹ng cáº§n má»™t SOS tháºt, chá»\x9d Ä‘Ã³ng cá»a xÃ¡c nháºn trÃªn khá»‘i lÆ°á»£ng Ä‘á»§ chuáº©n (â‰¥1.0x); vÃ´ hiá»‡u náº¿u Ä‘Ã³ng cá»a dÆ°á»›i LPS 2,435.00 â€” chá»§ sá»Ÿ há»¯u vÃ´ hiá»‡u"
+            - strong [ref=f8e628]: Wyckoff
+            - text: "(Ä‘Ã¡y LPS).Chá»§ sá»Ÿ há»¯u vÃ´ hiá»‡u: knowledge/10 Â§4.4"
+      - generic [ref=f8e629]: "Footprint: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT) Â· Heatmap: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT)"
+      - group [ref=f8e630]:
+        - generic "DÃ²ng sá»± kiá»‡n cá»§a phÃ¢n tÃch Ä‘áº§y Ä‘á»§ (7 má»‘c Â· Wyckoff vÃ ICT á»Ÿ hai cá»™t riÃªng)" [ref=f8e631] [cursor=pointer]
+    - generic [ref=f8e632]:
+      - generic [ref=f8e633]:
+        - generic [ref=f8e634]: SOL/USDT
+        - generic [ref=f8e635]: "102.10"
+        - generic [ref=f8e636]:
+          - generic [ref=f8e637]: vá»‹ trÃ trong cá»a sá»• 15m 45%
+          - generic [ref=f8e638]: náº¿n cuá»‘i 12/9 17:15Z
+        - generic [ref=f8e639]:
+          - generic [ref=f8e640]: vÃ o lá»‡nh 15m
+          - generic [ref=f8e641]: THEO DÃ•I LONG
+      - generic [ref=f8e642]:
+        - generic [ref=f8e643]:
+          - generic [ref=f8e644]: Bias
+          - generic [ref=f8e645]: 4H Ã—4
+          - generic [ref=f8e646]: cáºp nháºt 16:00Z
+        - generic [ref=f8e647]:
+          - text: tÃ¡i tÃch lÅ©y Â· pha B
+          - generic [ref=f8e648]: SC 98.50 â€“ AR 100.46
+          - generic [ref=f8e649]: "Ä‘á»\x8dc 2026-09-11T11:00Z"
+        - generic [ref=f8e650]:
+          - text: 79% dealing range (70.58â€“110.60) Â· premium
+          - generic [ref=f8e651]: "MSS gáº§n nháº¥t: tÄƒng qua 105.00"
+        - generic [ref=f8e652]:
+          - generic "khung lá»›n tÃ¡i tÃch lÅ©y pha B, giÃ¡ á»Ÿ 184% TR (biÃªn trÃªn â€” CO bÃ¡n á»Ÿ Ä‘Ã¢y, khÃ´ng pháº£i cÆ¡ há»™i cho cÃ´ng chÃºng) â€” cung/cáº§u cÃ¢n báº±ng, chÆ°a cÃ³ CO xuáº¥t hiá»‡n, chÆ°a giao dá»‹ch (WA p95â€“96, p201â€“203)" [ref=f8e653]: TRUNG Láº¬P
+          - generic [ref=f8e654]: táº§ng quyáº¿t Ä‘á»‹nh verdict
+        - generic [ref=f8e655]:
+          - generic [ref=f8e656]: Cáº¥u trÃºc
+          - generic [ref=f8e657]: 1H Ã—4
+          - generic [ref=f8e658]: cáºp nháºt 16:00Z
+        - generic [ref=f8e659]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e660]:
+          - text: 95% dealing range (94.76â€“102.46) Â· premium
+          - generic [ref=f8e661]: "MSS gáº§n nháº¥t: tÄƒng qua 100.29"
+        - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e663]': CHÆ¯A RÃ•
+        - generic [ref=f8e664]:
+          - generic [ref=f8e665]: VÃ o lá»‡nh
+          - generic [ref=f8e666]: 15m
+          - generic [ref=f8e667]: cáºp nháºt 17:15Z
+        - generic [ref=f8e668]:
+          - text: tÃ¡i tÃch lÅ©y Â· pha B
+          - generic [ref=f8e669]: SC 98.50 â€“ AR 100.37
+          - generic [ref=f8e670]: "Ä‘á»\x8dc 2026-09-11T11:00Z"
+        - generic [ref=f8e671]:
+          - text: 59% dealing range (101.56â€“102.48) Â· premium
+          - generic [ref=f8e672]: "MSS gáº§n nháº¥t: giáº£m qua 102.00"
+        - generic [ref=f8e673]: THEO DÃ•I LONG
+      - generic [ref=f8e675]:
+        - generic [ref=f8e676]:
+          - generic [ref=f8e677]:
+            - generic [ref=f8e678]: Bias Â· 4H Ã— 360 (60 ngÃ y) Â· 07-14 20:00 â†’ 09-12 16:00
+            - generic [ref=f8e679]:
+              - generic [ref=f8e680]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e681] [cursor=pointer]
+              - button "+" [ref=f8e682] [cursor=pointer]
+              - button "âŸ²" [ref=f8e683] [cursor=pointer]
+          - table [ref=f8e687]:
+            - row [ref=f8e688]:
+              - cell
+              - cell [ref=f8e689]
+              - cell [ref=f8e693]
+            - row [ref=f8e697]:
+              - cell [ref=f8e698]
+            - row [ref=f8e699]:
+              - cell
+              - cell [ref=f8e700]
+              - cell [ref=f8e704]
+            - row [ref=f8e708]:
+              - cell
+              - cell [ref=f8e709]
+              - cell [ref=f8e713]
+        - generic [ref=f8e717]:
+          - generic [ref=f8e718]:
+            - generic [ref=f8e719]: Cáº¥u trÃºc Â· 1H Ã— 480 (20 ngÃ y) Â· 08-23 17:00 â†’ 09-12 16:00
+            - generic [ref=f8e720]:
+              - generic [ref=f8e721]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e722] [cursor=pointer]
+              - button "+" [ref=f8e723] [cursor=pointer]
+              - button "âŸ²" [ref=f8e724] [cursor=pointer]
+          - table [ref=f8e728]:
+            - row [ref=f8e729]:
+              - cell
+              - cell [ref=f8e730]
+              - cell [ref=f8e734]
+            - row [ref=f8e738]:
+              - cell [ref=f8e739]
+            - row [ref=f8e740]:
+              - cell
+              - cell [ref=f8e741]
+              - cell [ref=f8e745]
+            - row [ref=f8e749]:
+              - cell
+              - cell [ref=f8e750]
+              - cell [ref=f8e754]
+        - generic [ref=f8e758]:
+          - generic [ref=f8e759]:
+            - generic [ref=f8e760]: VÃ o lá»‡nh Â· 15m Ã— 576 (6 ngÃ y) Â· 09-06 17:30 â†’ 09-12 17:15
+            - generic [ref=f8e761]:
+              - generic [ref=f8e762]: lÄƒn chuá»™t = zoom Â· kÃ©o = dá»‹ch Â· kÃ©o trá»¥c = co giÃ£n Â· End = náº¿n cuá»‘i Â· phÃm 1â€“4 Ä‘á»•i phÆ°Æ¡ng phÃ¡p
+              - button "âˆ’" [ref=f8e763] [cursor=pointer]
+              - button "+" [ref=f8e764] [cursor=pointer]
+              - button "âŸ²" [ref=f8e765] [cursor=pointer]
+              - button "R:R" [ref=f8e766] [cursor=pointer]
+              - button "â–¶" [ref=f8e767] [cursor=pointer]
+          - table [ref=f8e771]:
+            - row [ref=f8e772]:
+              - cell
+              - cell [ref=f8e773]
+              - cell [ref=f8e777]
+            - row [ref=f8e781]:
+              - cell [ref=f8e782]
+            - row [ref=f8e783]:
+              - cell
+              - cell [ref=f8e784]
+              - cell [ref=f8e788]
+            - row [ref=f8e792]:
+              - cell
+              - cell [ref=f8e793]
+              - cell [ref=f8e797]
+        - generic [ref=f8e801]:
+          - generic [ref=f8e802]: náº¿n Ä‘Ã³ng tÄƒng
+          - generic [ref=f8e804]: náº¿n Ä‘Ã³ng giáº£m
+          - generic [ref=f8e806]: khá»‘i lÆ°á»£ng
+          - generic [ref=f8e808]: KL â‰¥ 1.5Ã— TB 20 náº¿n (â‰¥ 2.5Ã— ghi sá»‘)
+          - generic [ref=f8e810]: biÃªn vÃ¹ng giao dá»‹ch (AR / SC)
+          - generic [ref=f8e812]: pha Aâ€“E
+          - generic [ref=f8e814]: "â—\x8f sá»± kiá»‡n Wyckoff do phÃ¢n tÃch Ä‘áº§y Ä‘á»§ Ä‘áº·t"
+      - generic [ref=f8e815]:
+        - generic [ref=f8e816]:
+          - generic [ref=f8e817]: SÆ¡ bá»™
+          - generic [ref=f8e818]: scanner Â· dá»¯ liá»‡u tá»›i 17:15Z
+        - generic [ref=f8e819]:
+          - generic [ref=f8e820]: Wyckoff
+          - list [ref=f8e821]:
+            - listitem [ref=f8e822]: "SC má»›i (Cao trÃ o bÃ¡n), khá»‘i lÆ°á»£ng ká»· lá»¥c cá»a sá»• vÃ máº¡nh nháº¥t trong ba mÃ£ 98.50 (10/9 12:45Z): náº¿n Ä‘Ã³ng trÃªn (+3.67%)"
+            - listitem [ref=f8e823]: "AR (Automatic Rally, khá»‘i lÆ°á»£ng yáº¿u) â€” chÆ°a cÃ³ náº¿n Ä‘Ã³ng cá»a vÆ°á»£t 100.37 (10/9 14:45Z): náº¿n Ä‘Ã³ng trÃªn (+1.73%) Â· náº¿n Ä‘Ã³ng vÆ°á»£t Ä‘áº§u tiÃªn 11/9 12:30Z @ 100.93 Â· cá»±c trá»‹ sau Ä‘Ã³ 105.80 Â· náº¿n Ä‘ang hÃ¬nh thÃ nh hiá»‡n Ä‘ang vÆ°á»£t"
+            - listitem [ref=f8e824]: "Ä‘á»‰nh SOS cÅ© (9/9, sá»›m vÃ tháº¥p hÆ¡n BTC/ETH), má»‘c khÃ¡ng cá»± vÄ© mÃ´ xa hÆ¡n 105.20 (9/9 07:00Z): náº¿n Ä‘Ã³ng dÆ°á»›i (-2.94%)"
+            - listitem [ref=f8e825]: "KhÃ´ng cÃ³ náº¿n khá»‘i lÆ°á»£ng báº¥t thÆ°á»\x9dng trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y (ngÆ°á»¡ng: tham sá»‘ dá»± Ã¡n)."
+        - generic [ref=f8e826]:
+          - generic [ref=f8e827]: ICT
+          - list [ref=f8e828]:
+            - listitem [ref=f8e829]: GiÃ¡ 102.10 = 59% dealing range cá»a sá»• (101.56â€“102.48), premium, EQ 102.02.
+            - listitem [ref=f8e830]: "MSS gáº§n nháº¥t: giáº£m, Ä‘Ã³ng cá»a vÆ°á»£t swing 102.00."
+            - listitem [ref=f8e831]: KhÃ´ng cÃ³ FVG chÆ°a láº¥p gáº§n giÃ¡.
+            - listitem [ref=f8e832]: "Pool chÆ°a quÃ©t: BSL 103.60, BSL 100.37, BSL 102.48, SSL 100.33, SSL 101.56, SSL 101.40."
+            - listitem [ref=f8e833]: "KhÃ´ng cÃ³ chuá»—i quÃ©t â†’ MSS cÃ¹ng chiá»\x81u trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y."
+        - generic [ref=f8e834]:
+          - generic [ref=f8e835]: Tá»•ng há»£p
+          - generic [ref=f8e836]: "PHÃ\x81 TRÃŠN AR (Automatic Rally, khá»‘i lÆ°á»£ng yáº¿u) â€” chÆ°a cÃ³ náº¿n Ä‘Ã³ng cá»a vÆ°á»£t"
+          - list [ref=f8e838]:
+            - listitem [ref=f8e839]: "Verdict theo luáºt so vá»›i má»‘c neo cá»§a phÃ¢n tÃch Ä‘áº§y Ä‘á»§ gáº§n nháº¥t: PHÃ\x81 TRÃŠN AR (Automatic Rally, khá»‘i lÆ°á»£ng yáº¿u) â€” chÆ°a cÃ³ náº¿n Ä‘Ã³ng cá»a vÆ°á»£t â€” xÃ¡c nháºn tiáº¿p diá»…n tÄƒng (náº¿n Ä‘Ã³ng 12/9 17:00Z = 102.11)."
+            - listitem [ref=f8e840]: "Stance scanner: CHá»œ (luáºt cá»‘ Ä‘á»‹nh, tham sá»‘ dá»± Ã¡n â€” khÃ´ng pháº£i nháºn Ä‘á»‹nh cá»§a mÃ´ hÃ¬nh)."
+        - generic [ref=f8e841]:
+          - generic [ref=f8e842]: Cá»¥c bá»™
+          - generic [ref=f8e843]: Sonnet Â· dá»¯ liá»‡u tá»›i 15:00Z
+        - generic [ref=f8e844]:
+          - generic [ref=f8e845]: Wyckoff
+          - paragraph [ref=f8e846]: SC má»›i táº¡i 98.50 ghi nháºn khá»‘i lÆ°á»£ng ká»· lá»¥c trong cá»a sá»•, máº¡nh nháº¥t trong ba mÃ£ theo dÃµi, giÃ¡ hiá»‡n táº¡i 103.13 Ä‘Ã³ng cá»a náº±m trÃªn xa má»‘c nÃ y (tham chiáº¿u 103.28, +4.85%). WA p71â€“72 Â· knowledge/07 Â§2.7
+          - paragraph [ref=f8e847]: AR táº¡i 100.37 hÃ¬nh thÃ nh vá»›i khá»‘i lÆ°á»£ng yáº¿u, theo luáºt chÆ°a cÃ³ náº¿n Ä‘Ã³ng cá»a vÆ°á»£t nhÆ°ng náº¿n Ä‘ang hÃ¬nh thÃ nh hiá»‡n Ä‘ang vÆ°á»£t, thá»ƒ hiá»‡n Ä‘Ã tÄƒng Ä‘ang má»Ÿ rá»™ng dÃ¹ ná»— lá»±c ban Ä‘áº§u khiÃªm tá»‘n. WA p33â€“39 Â· knowledge/07 Â§2.2
+          - paragraph [ref=f8e848]: "Khá»‘i lÆ°á»£ng sá»± kiá»‡n gáº§n nháº¥t tÄƒng 1.68x lÃºc 14:45Z cÃ¹ng chiá»\x81u giÃ¡ tÄƒng, tiáº¿p ná»‘i chuá»—i Ná»— lá»±c-Káº¿t quáº£ hÃ i hoÃ ká»ƒ tá»« Ä‘Ã¡y SC. WA p33â€“39 Â· knowledge/07 Â§2.2"
+          - paragraph [ref=f8e849]: Cáº¥u trÃºc hiá»‡n táº¡i phÃ¹ há»£p má»™t giai Ä‘oáº¡n SOS Ä‘ang diá»…n ra sau SC, chÆ°a ghi nháºn dáº¥u hiá»‡u suy yáº¿u ná»— lá»±c. knowledge/07 Â§2.7
+        - generic [ref=f8e850]:
+          - generic [ref=f8e851]: ICT
+          - paragraph [ref=f8e852]: GiÃ¡ 103.13 á»Ÿ 66% dealing range cá»a sá»• (98.00â€“105.80), trÃªn EQ 101.90 â€” vÃ¹ng premium nháº¹. docs/TTrades PDFs/8. Discount__Premium.pdf tr.1â€“5 Â· knowledge/04 Â§2.18â€“2.19
+          - paragraph [ref=f8e853]: MSS tÄƒng gáº§n nháº¥t Ä‘Ã£ Ä‘Ã³ng cá»a vÆ°á»£t Ä‘iá»ƒm swing 100.29, xÃ¡c nháºn displacement tÄƒng. docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1â€“3 Â· knowledge/05 Â§2.1â€“2.2
+          - paragraph [ref=f8e854]: "Pool BSL 100.37 náº±m ngay dÆ°á»›i giÃ¡ hiá»‡n táº¡i cÃ²n BSL 102.13 Ä‘Ã£ Ä‘Æ°á»£c tiá»‡m cáºn khi giÃ¡ vÆ°á»£t lÃªn, thanh khoáº£n mua cÃ²n láº¡i phÃa trÃªn hÆ°á»›ng vá»\x81 vÃ¹ng khÃ¡ng cá»± 105.20. docs/TTrades PDFs/3. Liquidity.pdf tr.1â€“5 Â· knowledge/04 Â§2.6â€“2.7"
+          - paragraph [ref=f8e855]: "KhÃ´ng ghi nháºn chuá»—i quÃ©t thanh khoáº£nâ†’MSS cÃ¹ng chiá»\x81u trong facts nÃªn chÆ°a Ä‘á»§ Ä‘iá»\x81u kiá»‡n xÃ¡c nháºn entry theo mÃ´ hÃ¬nh ICT. docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1â€“4 Â· knowledge/04 Â§2.14, Â§2.17"
+        - generic [ref=f8e856]:
+          - generic [ref=f8e857]: Tá»•ng há»£p
+          - generic [ref=f8e858]: THEO DÃ•I LONG
+          - paragraph [ref=f8e860]: "Bá»‘i cáº£nh 4h: cáº¥u trÃºc tÃ¡i tÃch lÅ©y pha B, TR 98.50â€“100.46, giÃ¡ khung lá»›n á»Ÿ 28% biÃªn Ä‘á»™ â€” sÃ¡t biÃªn dÆ°á»›i, nÆ¡i CO gom hÃ ng vÃ khung nhá»\x8f cÃ³ thá»ƒ in Spring[C]/LPS[C] cá»¥c bá»™, bias LONG. WA p93, p201 Â· knowledge/07 Â§2.7, Â§3.4"
+          - paragraph [ref=f8e861]: Má»‘c SC Wyckoff (98.50) trÃ¹ng vá»›i Ä‘Ã¡y dealing range ICT cá»§a cá»a sá»• â€” má»™t quan sÃ¡t cáº¥u trÃºc duy nháº¥t, khÃ´ng tÃnh hai láº§n. knowledge/10 Â§4.3
+          - paragraph [ref=f8e862]: "GiÃ¡ 103.13 Ä‘Ã£ Ä‘Ã³ng cá»a vÆ°á»£t AR/má»‘c phÃ¡ cáº¥u trÃºc 100.37 vÃ swing MSS 100.29, khá»‘i lÆ°á»£ng sá»± kiá»‡n gáº§n nháº¥t 1.68x xÃ¡c nháºn tiáº¿p diá»…n tÄƒng, khá»›p hÆ°á»›ng bias khung lá»›n â€” verdict THEO DÃ•I LONG, khÃ´ng ngÆ°á»£c bá»‘i cáº£nh; chÆ°a cÃ³ chuá»—i quÃ©tâ†’MSS cÃ¹ng chiá»\x81u xÃ¡c nháºn nÃªn chÆ°a Ä‘á»§ Ä‘iá»\x81u kiá»‡n SETUP TIá»€M NÄ‚NG, entry/stop/target chÆ°a cÃ³ trong facts. [tÃnh toÃ¡n cá»§a há»‡ thá»‘ng â€” khÃ´ng pháº£i trÃch dáº«n tÃ i liá»‡u]"
+          - paragraph [ref=f8e863]: "Ä\x90iá»\x81u kiá»‡n vÃ´ hiá»‡u: Ä‘Ã³ng cá»a dÆ°á»›i láº¡i SC 98.50, thuá»™c sá»Ÿ há»¯u Wyckoff vÃ¬ phÃ¡ vá»¡ Ä‘Ã¡y cao trÃ o bÃ¡n sáº½ vÃ´ hiá»‡u hoÃ¡ cáº¥u trÃºc tÃch luá»¹. knowledge/10 Â§4.4"
+        - generic [ref=f8e864]:
+          - generic [ref=f8e865]: ToÃ n diá»‡n
+          - generic [ref=f8e866]: phÃ¢n tÃch Ä‘áº§y Ä‘á»§ Â· 11/9 11:00Z
+        - generic [ref=f8e867]:
+          - generic [ref=f8e868]: Wyckoff
+          - generic [ref=f8e869]:
+            - generic [ref=f8e870]: tÃ¡i tÃch lÅ©y
+            - generic [ref=f8e871]: Pha B
+            - generic [ref=f8e872]: RANGING
+          - paragraph [ref=f8e873]:
+            - generic [ref=f8e874]: AR
+            - generic [ref=f8e875]: "100.37"
+            - generic [ref=f8e876]: SC
+            - generic [ref=f8e877]: "98.50"
+          - paragraph [ref=f8e878]: "Cá»•ng CHoBEV/CHoCH: náº¿n 12:30 Ä‘Ã³ng 100.09 trÃªn khá»‘i lÆ°á»£ng Ä‘á»™t biáº¿n, rá»“i náº¿n 12:45 táº¡o Ä‘Ã¡y cá»±c trá»‹ 98.50, phÃ¡ cÃ¡c Ä‘Ã¡y cÅ©, dá»±ng cáº¡nh dÆ°á»›i vÃ¹ng giao dá»‹ch má»›i.CHoBEV/CHoCH: WA p67â€“71 Â· knowledge/07 Â§2.6"
+          - paragraph [ref=f8e879]: "Automatic Rally Ä‘áº¡t Ä‘á»‰nh 100.37 lÃºc 14:45Z, dá»±ng cáº¡nh trÃªn vÃ¹ng giao dá»‹ch.Trading Range: WA p71â€“72 Â· knowledge/07 Â§2.7.1; AR: knowledge/07 Â§2.7"
+          - paragraph [ref=f8e880]: "Pha B tiáº¿p diá»…n: Ä‘á»‰nh 17:30Z xuyÃªn báº¥c lÃªn 100.46 trÃªn khá»‘i lÆ°á»£ng 1.80x nhÆ°ng Ä‘Ã³ng cá»a lÃ¹i vá»\x81 dÆ°á»›i AR â€” Secondary Test tháº¥t báº¡i táº¡i khÃ¡ng cá»±. LÃºc 22:30Z giÃ¡ lÃ¹i phÃ¡ swing 99.60 (khá»‘i lÆ°á»£ng 0.67x) rá»“i test Ä‘Ã¡y 98.60 lÃºc 23:45Z (0.75x) â€” sÃ¡t nhÆ°ng chÆ°a xuyÃªn qua SC 98.50.Ná»— lá»±câ€“Káº¿t quáº£: WMT p149â€“154 Â· knowledge/07 Â§2.3, Â§4.1"
+          - paragraph [ref=f8e881]: "Ä\x90á»‘i nhÃ£n: ká»ƒ tá»« Ä‘Ã³ giÃ¡ váº«n giá»¯a vÃ¹ng, tham chiáº¿u 10:45Z á»Ÿ 99.18 â€” chÆ°a cháº¡m láº¡i AR 100.37 nÃªn khÃ´ng Ä‘áº¡t chuáº©n thá» nghiá»‡m phÃ¡ khÃ¡ng cá»±; Ä‘á»\x8dc lÃ Pha B Ä‘ang tiáº¿p diá»…n, khÃ´ng pháº£i má»™t chu ká»³ Ä‘Ã£ hoÃ n chá»‰nh, chÆ°a Ä‘á»§ Ä‘iá»\x81u kiá»‡n gá»\x8di Spring hay SOS.Ä\x90á»‘i nhÃ£n: WA p150â€“184 Â· knowledge/07 Â§2.11"
+        - generic [ref=f8e882]:
+          - generic [ref=f8e883]: ICT
+          - paragraph [ref=f8e884]: "GiÃ¡ tham chiáº¿u 99.18 (10:45Z) náº±m trong dealing range cá»a sá»• (98.50â€“105.20), dÆ°á»›i Ä‘iá»ƒm cÃ¢n báº±ng 101.85 â€” vÃ¹ng discount.Premium/Discount: docs/TTrades PDFs/8. Discount__Premium.pdf tr.1â€“5 Â· knowledge/04 Â§2.18â€“2.19"
+          - paragraph [ref=f8e885]: "MSS gáº§n nháº¥t lÃ giáº£m, Ä‘Ã³ng cá»a phÃ¡ swing 99.60. PhÃa trÃªn cÃ²n nguyÃªn cÃ¡c má»‘c thanh khoáº£n chÆ°a quÃ©t BSL 103.83, BSL 102.13, BSL 101.54, BSL 100.37; phÃa dÆ°á»›i lÃ SSL 100.75 vÃ SSL 98.95; khÃ´ng cÃ³ chuá»—i quÃ©t thanh khoáº£n rá»“i MSS cÃ¹ng chiá»\x81u nÃ o Ä‘á»ƒ táº¡o má»™t setup hoÃ n chá»‰nh.Displacement/MSS: docs/TTrades PDFs/18. Market_Structure_Shift.pdf tr.1â€“3 Â· knowledge/05 Â§2.1â€“2.2; Grab vs MSS: docs/TTrades PDFs/11. MSS_vs_Liquidity_Grab.pdf tr.1â€“4 Â· knowledge/04 Â§2.14, Â§2.17"
+        - generic [ref=f8e886]:
+          - generic [ref=f8e887]: Tá»•ng há»£p
+          - generic [ref=f8e888]:
+            - generic [ref=f8e889]: CHá»œ
+            - generic [ref=f8e890]: "vÃ´ hiá»‡u: Ä‘Ã³ng cá»a dÆ°á»›i 98.50 Â· chá»§ sá»Ÿ há»¯u wyckoff"
+          - generic [ref=f8e891]: NhÃ¬n láº¡i
+          - paragraph [ref=f8e892]: "So vá»›i láº§n Ä‘á»\x8dc 00:15Z (Pha B chÆ°a ngÃ£ ngÅ©, vá»«a lÃ¹i vá»\x81 98.60 chÆ°a phÃ¡ Ä‘Ã¡y), SOL gáº§n nhÆ° khÃ´ng Ä‘á»•i: tham chiáº¿u 10:45Z á»Ÿ 99.18 â€” trÃªn SC 98.50 (+0.69%) vÃ dÆ°á»›i AR 100.37 (-1.19%), chÆ°a cÃ³ Ä‘Ã³ng cá»a vÆ°á»£t bÃªn nÃ o. Váº«n Pha B, chÆ°a cÃ³ test Ä‘á»§ Ä‘iá»\x81u kiá»‡n gá»\x8di Spring hay SOS má»›i.Ä\x90á»‘i nhÃ£n: WA p150â€“184 Â· knowledge/07 Â§2.11"
+          - generic [ref=f8e893]: Hiá»‡n táº¡i
+          - paragraph [ref=f8e894]: "Bá»‘i cáº£nh 4h: tÃ¡i tÃch lÅ©y, cÃ²n Pha B â€” vÃ¹ng giao dá»‹ch SC 98.50â€“AR 100.46, Ä‘Ã³ng cá»a 4h hiá»‡n táº¡i 99.04 náº±m á»Ÿ khoáº£ng 28% vÃ¹ng (sÃ¡t biÃªn dÆ°á»›i); sau cao trÃ o bÃ¡n 98.50, giÃ¡ test láº¡i 98.60 (20:00Z) vÃ giá»¯ trÃªn Ä‘Ã¡y Ä‘Ã³; bias khung lá»›n: LONG â€” giÃ¡ á»Ÿ biÃªn dÆ°á»›i TR Ä‘Ãºng vÃ¹ng CO gom hÃ ng theo luáºt giáº£m khung (WA p93, p201), nhÆ°ng khung 15 phÃºt chÆ°a xÃ¡c nháºn nÃªn váº«n CHá»œ.Giáº£m khung: WA p93â€“96 Â· knowledge/07 Â§2.7"
+          - paragraph [ref=f8e895]: "SOL váº«n lÃ mÃ£ yáº¿u nháº¥t trong ba mÃ£: tham chiáº¿u 10:45Z á»Ÿ 99.18, váº«n giá»¯a vÃ¹ng SCâ€“AR, chÆ°a cÃ³ Ä‘Ã³ng cá»a vÆ°á»£t AR 100.37 láº«n chÆ°a Ä‘Ã³ng cá»a dÆ°á»›i láº¡i SC 98.50.Ná»— lá»±câ€“Káº¿t quáº£: WMT p149â€“154 Â· knowledge/07 Â§2.3, Â§4.1"
+          - paragraph [ref=f8e896]: "Má»‘c Wyckoff (SC 98.50 / AR 100.37) chÆ°a trÃ¹ng vá»›i má»‘c ICT thanh khoáº£n Ä‘Ã£ nÃªu nÃªn chÆ°a cáº§n khá» trÃ¹ng láº·p á»Ÿ Ä‘Ã¢y. MSS ICT gáº§n nháº¥t lÃ giáº£m (swing 99.60), cÃ¹ng chiá»\x81u vá»›i Ä‘á»\x8dc Phase B chÆ°a ngÃ£ ngÅ© cá»§a Wyckoff.Ä\x90á»“ng nháº¥t Wyckoff/ICT khi trÃ¹ng má»‘c: knowledge/10 Â§4.3"
+          - paragraph [ref=f8e897]:
+            - text: Káº¿t luáºn
+            - strong [ref=f8e898]: CHá»œ
+            - text: ": cáº§n Ä‘Ã³ng cá»a vÆ°á»£t AR 100.37 Ä‘á»ƒ tÃnh SOS, hoáº·c má»™t Spring xuyÃªn xuá»‘ng dÆ°á»›i SC 98.50 rá»“i há»“i phá»¥c má»›i Ä‘á»•i Ä‘á»\x8dc; vÃ´ hiá»‡u (cho ká»‹ch báº£n tÄƒng) náº¿u Ä‘Ã³ng cá»a dÆ°á»›i 98.50 â€” chá»§ sá»Ÿ há»¯u vÃ´ hiá»‡u"
+            - strong [ref=f8e899]: Wyckoff
+            - text: "(Ä‘Ã¡y vÃ¹ng giao dá»‹ch).Chá»§ sá»Ÿ há»¯u vÃ´ hiá»‡u: knowledge/10 Â§4.4"
+      - generic [ref=f8e900]: "Footprint: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT) Â· Heatmap: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT)"
+      - group [ref=f8e901]:
+        - generic "DÃ²ng sá»± kiá»‡n cá»§a phÃ¢n tÃch Ä‘áº§y Ä‘á»§ (6 má»‘c Â· Wyckoff vÃ ICT á»Ÿ hai cá»™t riÃªng)" [ref=f8e902] [cursor=pointer]
+    - generic [ref=f8e903]:
+      - generic [ref=f8e904]:
+        - generic [ref=f8e905]: ASTER/USDT
+        - generic [ref=f8e906]: "0.69"
+        - generic [ref=f8e907]:
+          - generic [ref=f8e908]: vá»‹ trÃ trong cá»a sá»• 15m 15%
+          - generic [ref=f8e909]: náº¿n cuá»‘i 12/9 17:15Z
+        - generic [ref=f8e910]:
+          - generic [ref=f8e911]: vÃ o lá»‡nh 15m
+          - generic [ref=f8e912]: â€”
+      - generic [ref=f8e913]:
+        - generic [ref=f8e914]:
+          - generic [ref=f8e915]: Bias
+          - generic [ref=f8e916]: 4H Ã—4
+          - generic [ref=f8e917]: cáºp nháºt â€”Z
+        - generic [ref=f8e918]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e919]: chÆ°a quÃ©t
+        - generic [ref=f8e920]:
+          - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e921]': CHÆ¯A RÃ•
+          - generic [ref=f8e922]: táº§ng quyáº¿t Ä‘á»‹nh verdict
+        - generic [ref=f8e923]:
+          - generic [ref=f8e924]: Cáº¥u trÃºc
+          - generic [ref=f8e925]: 1H Ã—4
+          - generic [ref=f8e926]: cáºp nháºt â€”Z
+        - generic [ref=f8e927]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e928]: chÆ°a quÃ©t
+        - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e930]': CHÆ¯A RÃ•
+        - generic [ref=f8e931]:
+          - generic [ref=f8e932]: VÃ o lá»‡nh
+          - generic [ref=f8e933]: 15m
+          - generic [ref=f8e934]: cáºp nháºt 17:15Z
+        - generic [ref=f8e935]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e936]:
+          - text: 67% dealing range (0.68â€“0.70) Â· premium
+          - generic [ref=f8e937]: "MSS gáº§n nháº¥t: giáº£m qua 0.69"
+        - generic [ref=f8e938]: â€”
+      - generic [ref=f8e940]:
+        - generic [ref=f8e941]:
+          - generic [ref=f8e942]:
+            - generic [ref=f8e943]: Bias Â· 4H Ã— 360 (60 ngÃ y) Â· 07-14 12:00 â†’ 09-12 08:00
+            - generic [ref=f8e944]:
+              - generic [ref=f8e945]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e946] [cursor=pointer]
+              - button "+" [ref=f8e947] [cursor=pointer]
+              - button "âŸ²" [ref=f8e948] [cursor=pointer]
+          - table [ref=f8e952]:
+            - row [ref=f8e953]:
+              - cell
+              - cell [ref=f8e954]
+              - cell [ref=f8e958]
+            - row [ref=f8e962]:
+              - cell [ref=f8e963]
+            - row [ref=f8e964]:
+              - cell
+              - cell [ref=f8e965]
+              - cell [ref=f8e969]
+            - row [ref=f8e973]:
+              - cell
+              - cell [ref=f8e974]
+              - cell [ref=f8e978]
+        - generic [ref=f8e982]:
+          - generic [ref=f8e983]:
+            - generic [ref=f8e984]: Cáº¥u trÃºc Â· 1H Ã— 480 (20 ngÃ y) Â· 08-23 11:00 â†’ 09-12 10:00
+            - generic [ref=f8e985]:
+              - generic [ref=f8e986]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e987] [cursor=pointer]
+              - button "+" [ref=f8e988] [cursor=pointer]
+              - button "âŸ²" [ref=f8e989] [cursor=pointer]
+          - table [ref=f8e993]:
+            - row [ref=f8e994]:
+              - cell
+              - cell [ref=f8e995]
+              - cell [ref=f8e999]
+            - row [ref=f8e1003]:
+              - cell [ref=f8e1004]
+            - row [ref=f8e1005]:
+              - cell
+              - cell [ref=f8e1006]
+              - cell [ref=f8e1010]
+            - row [ref=f8e1014]:
+              - cell
+              - cell [ref=f8e1015]
+              - cell [ref=f8e1019]
+        - generic [ref=f8e1023]:
+          - generic [ref=f8e1024]:
+            - generic [ref=f8e1025]: VÃ o lá»‡nh Â· 15m Ã— 576 (6 ngÃ y) Â· 09-06 17:30 â†’ 09-12 17:15
+            - generic [ref=f8e1026]:
+              - generic [ref=f8e1027]: lÄƒn chuá»™t = zoom Â· kÃ©o = dá»‹ch Â· kÃ©o trá»¥c = co giÃ£n Â· End = náº¿n cuá»‘i Â· phÃm 1â€“4 Ä‘á»•i phÆ°Æ¡ng phÃ¡p
+              - button "âˆ’" [ref=f8e1028] [cursor=pointer]
+              - button "+" [ref=f8e1029] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1030] [cursor=pointer]
+              - button "R:R" [ref=f8e1031] [cursor=pointer]
+              - button "â–¶" [ref=f8e1032] [cursor=pointer]
+          - table [ref=f8e1036]:
+            - row [ref=f8e1037]:
+              - cell
+              - cell [ref=f8e1038]
+              - cell [ref=f8e1042]
+            - row [ref=f8e1046]:
+              - cell [ref=f8e1047]
+            - row [ref=f8e1048]:
+              - cell
+              - cell [ref=f8e1049]
+              - cell [ref=f8e1053]
+            - row [ref=f8e1057]:
+              - cell
+              - cell [ref=f8e1058]
+              - cell [ref=f8e1062]
+        - generic [ref=f8e1066]:
+          - generic [ref=f8e1067]: náº¿n Ä‘Ã³ng tÄƒng
+          - generic [ref=f8e1069]: náº¿n Ä‘Ã³ng giáº£m
+          - generic [ref=f8e1071]: khá»‘i lÆ°á»£ng
+          - generic [ref=f8e1073]: KL â‰¥ 1.5Ã— TB 20 náº¿n (â‰¥ 2.5Ã— ghi sá»‘)
+          - generic [ref=f8e1075]: biÃªn vÃ¹ng giao dá»‹ch (AR / SC)
+          - generic [ref=f8e1077]: pha Aâ€“E
+          - generic [ref=f8e1079]: "â—\x8f sá»± kiá»‡n Wyckoff do phÃ¢n tÃch Ä‘áº§y Ä‘á»§ Ä‘áº·t"
+      - generic [ref=f8e1080]:
+        - generic [ref=f8e1081]:
+          - generic [ref=f8e1082]: SÆ¡ bá»™
+          - generic [ref=f8e1083]: scanner Â· dá»¯ liá»‡u tá»›i 17:15Z
+        - generic [ref=f8e1084]:
+          - generic [ref=f8e1085]: Wyckoff
+          - list [ref=f8e1086]:
+            - listitem [ref=f8e1087]: "Khá»‘i lÆ°á»£ng báº¥t thÆ°á»\x9dng gáº§n Ä‘Ã¢y: 1.8Ã— trung bÃ¬nh lÃºc 17:00Z trÃªn náº¿n giáº£m â€” kiá»ƒm tra Ná»— lá»±câ€“Káº¿t quáº£ trÆ°á»›c khi tin vÃ o hÆ°á»›ng (bá»™i sá»‘ theo trung bÃ¬nh cá»a sá»•, tham sá»‘ dá»± Ã¡n)."
+        - generic [ref=f8e1088]:
+          - generic [ref=f8e1089]: ICT
+          - list [ref=f8e1090]:
+            - listitem [ref=f8e1091]: GiÃ¡ 0.69 = 67% dealing range cá»a sá»• (0.68â€“0.70), premium, EQ 0.69.
+            - listitem [ref=f8e1092]: "MSS gáº§n nháº¥t: giáº£m, Ä‘Ã³ng cá»a vÆ°á»£t swing 0.69."
+            - listitem [ref=f8e1093]: "FVG chÆ°a láº¥p gáº§n giÃ¡ nháº¥t: giáº£m 0.70â€“0.71."
+            - listitem [ref=f8e1094]: "Pool chÆ°a quÃ©t: BSL 0.76, BSL 0.72, BSL 0.70, BSL 0.69, SSL 0.79, SSL 0.68."
+            - listitem [ref=f8e1095]: "KhÃ´ng cÃ³ chuá»—i quÃ©t â†’ MSS cÃ¹ng chiá»\x81u trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y."
+        - generic [ref=f8e1096]:
+          - generic [ref=f8e1097]: Tá»•ng há»£p
+          - generic [ref=f8e1098]: CHá»œ
+          - list [ref=f8e1100]:
+            - listitem [ref=f8e1101]: ChÆ°a cÃ³ má»‘c neo tá»« phÃ¢n tÃch Ä‘áº§y Ä‘á»§ â€” scanner chá»‰ cÃ³ stance theo luáºt cá»‘ Ä‘á»‹nh.
+            - listitem [ref=f8e1102]: "Stance scanner: CHá»œ (luáºt cá»‘ Ä‘á»‹nh, tham sá»‘ dá»± Ã¡n â€” khÃ´ng pháº£i nháºn Ä‘á»‹nh cá»§a mÃ´ hÃ¬nh)."
+        - generic [ref=f8e1103]:
+          - generic [ref=f8e1104]: Cá»¥c bá»™
+          - generic [ref=f8e1105]: Sonnet
+        - generic [ref=f8e1106]:
+          - generic [ref=f8e1107]: Wyckoff
+          - paragraph [ref=f8e1108]: â€”
+        - generic [ref=f8e1109]:
+          - generic [ref=f8e1110]: ICT
+          - paragraph [ref=f8e1111]: â€”
+        - generic [ref=f8e1112]:
+          - generic [ref=f8e1113]: Tá»•ng há»£p
+          - paragraph [ref=f8e1114]: ChÆ°a cÃ³ Ä‘Ã¡nh giÃ¡ cá»¥c bá»™.
+        - generic [ref=f8e1115]:
+          - generic [ref=f8e1116]: ToÃ n diá»‡n
+          - generic [ref=f8e1117]: phÃ¢n tÃch Ä‘áº§y Ä‘á»§
+        - generic [ref=f8e1118]:
+          - generic [ref=f8e1119]: Wyckoff
+          - paragraph [ref=f8e1120]: â€”
+        - generic [ref=f8e1121]:
+          - generic [ref=f8e1122]: ICT
+          - paragraph [ref=f8e1123]: â€”
+        - generic [ref=f8e1124]:
+          - generic [ref=f8e1125]: Tá»•ng há»£p
+          - paragraph [ref=f8e1126]: ChÆ°a cÃ³ phÃ¢n tÃch Ä‘áº§y Ä‘á»§ theo Ä‘á»‹nh dáº¡ng má»›i (data/live/narrative/<style>.json).
+      - generic [ref=f8e1127]: "Footprint: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT) Â· Heatmap: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT)"
+    - generic [ref=f8e1128]:
+      - generic [ref=f8e1129]:
+        - generic [ref=f8e1130]: VIRTUAL/USDT
+        - generic [ref=f8e1131]: "0.63"
+        - generic [ref=f8e1132]:
+          - generic [ref=f8e1133]: vá»‹ trÃ trong cá»a sá»• 15m 10%
+          - generic [ref=f8e1134]: náº¿n cuá»‘i 12/9 17:15Z
+        - generic [ref=f8e1135]:
+          - generic [ref=f8e1136]: vÃ o lá»‡nh 15m
+          - generic [ref=f8e1137]: â€”
+      - generic [ref=f8e1138]:
+        - generic [ref=f8e1139]:
+          - generic [ref=f8e1140]: Bias
+          - generic [ref=f8e1141]: 4H Ã—4
+          - generic [ref=f8e1142]: cáºp nháºt â€”Z
+        - generic [ref=f8e1143]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e1144]: chÆ°a quÃ©t
+        - generic [ref=f8e1145]:
+          - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e1146]': CHÆ¯A RÃ•
+          - generic [ref=f8e1147]: táº§ng quyáº¿t Ä‘á»‹nh verdict
+        - generic [ref=f8e1148]:
+          - generic [ref=f8e1149]: Cáº¥u trÃºc
+          - generic [ref=f8e1150]: 1H Ã—4
+          - generic [ref=f8e1151]: cáºp nháºt â€”Z
+        - generic [ref=f8e1152]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e1153]: chÆ°a quÃ©t
+        - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e1155]': CHÆ¯A RÃ•
+        - generic [ref=f8e1156]:
+          - generic [ref=f8e1157]: VÃ o lá»‡nh
+          - generic [ref=f8e1158]: 15m
+          - generic [ref=f8e1159]: cáºp nháºt 17:15Z
+        - generic [ref=f8e1160]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e1161]:
+          - text: 82% dealing range (0.62â€“0.64) Â· premium
+          - generic [ref=f8e1162]: "MSS gáº§n nháº¥t: giáº£m qua 0.63"
+        - generic [ref=f8e1163]: â€”
+      - generic [ref=f8e1165]:
+        - generic [ref=f8e1166]:
+          - generic [ref=f8e1167]:
+            - generic [ref=f8e1168]: Bias Â· 4H Ã— 360 (60 ngÃ y) Â· 07-14 12:00 â†’ 09-12 08:00
+            - generic [ref=f8e1169]:
+              - generic [ref=f8e1170]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e1171] [cursor=pointer]
+              - button "+" [ref=f8e1172] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1173] [cursor=pointer]
+          - table [ref=f8e1177]:
+            - row [ref=f8e1178]:
+              - cell
+              - cell [ref=f8e1179]
+              - cell [ref=f8e1183]
+            - row [ref=f8e1187]:
+              - cell [ref=f8e1188]
+            - row [ref=f8e1189]:
+              - cell
+              - cell [ref=f8e1190]
+              - cell [ref=f8e1194]
+            - row [ref=f8e1198]:
+              - cell
+              - cell [ref=f8e1199]
+              - cell [ref=f8e1203]
+        - generic [ref=f8e1207]:
+          - generic [ref=f8e1208]:
+            - generic [ref=f8e1209]: Cáº¥u trÃºc Â· 1H Ã— 480 (20 ngÃ y) Â· 08-23 11:00 â†’ 09-12 10:00
+            - generic [ref=f8e1210]:
+              - generic [ref=f8e1211]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e1212] [cursor=pointer]
+              - button "+" [ref=f8e1213] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1214] [cursor=pointer]
+          - table [ref=f8e1218]:
+            - row [ref=f8e1219]:
+              - cell
+              - cell [ref=f8e1220]
+              - cell [ref=f8e1224]
+            - row [ref=f8e1228]:
+              - cell [ref=f8e1229]
+            - row [ref=f8e1230]:
+              - cell
+              - cell [ref=f8e1231]
+              - cell [ref=f8e1235]
+            - row [ref=f8e1239]:
+              - cell
+              - cell [ref=f8e1240]
+              - cell [ref=f8e1244]
+        - generic [ref=f8e1248]:
+          - generic [ref=f8e1249]:
+            - generic [ref=f8e1250]: VÃ o lá»‡nh Â· 15m Ã— 576 (6 ngÃ y) Â· 09-06 17:30 â†’ 09-12 17:15
+            - generic [ref=f8e1251]:
+              - generic [ref=f8e1252]: lÄƒn chuá»™t = zoom Â· kÃ©o = dá»‹ch Â· kÃ©o trá»¥c = co giÃ£n Â· End = náº¿n cuá»‘i Â· phÃm 1â€“4 Ä‘á»•i phÆ°Æ¡ng phÃ¡p
+              - button "âˆ’" [ref=f8e1253] [cursor=pointer]
+              - button "+" [ref=f8e1254] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1255] [cursor=pointer]
+              - button "R:R" [ref=f8e1256] [cursor=pointer]
+              - button "â–¶" [ref=f8e1257] [cursor=pointer]
+          - table [ref=f8e1261]:
+            - row [ref=f8e1262]:
+              - cell
+              - cell [ref=f8e1263]
+              - cell [ref=f8e1267]
+            - row [ref=f8e1271]:
+              - cell [ref=f8e1272]
+            - row [ref=f8e1273]:
+              - cell
+              - cell [ref=f8e1274]
+              - cell [ref=f8e1278]
+            - row [ref=f8e1282]:
+              - cell
+              - cell [ref=f8e1283]
+              - cell [ref=f8e1287]
+        - generic [ref=f8e1291]:
+          - generic [ref=f8e1292]: náº¿n Ä‘Ã³ng tÄƒng
+          - generic [ref=f8e1294]: náº¿n Ä‘Ã³ng giáº£m
+          - generic [ref=f8e1296]: khá»‘i lÆ°á»£ng
+          - generic [ref=f8e1298]: KL â‰¥ 1.5Ã— TB 20 náº¿n (â‰¥ 2.5Ã— ghi sá»‘)
+          - generic [ref=f8e1300]: biÃªn vÃ¹ng giao dá»‹ch (AR / SC)
+          - generic [ref=f8e1302]: pha Aâ€“E
+          - generic [ref=f8e1304]: "â—\x8f sá»± kiá»‡n Wyckoff do phÃ¢n tÃch Ä‘áº§y Ä‘á»§ Ä‘áº·t"
+      - generic [ref=f8e1305]:
+        - generic [ref=f8e1306]:
+          - generic [ref=f8e1307]: SÆ¡ bá»™
+          - generic [ref=f8e1308]: scanner Â· dá»¯ liá»‡u tá»›i 17:15Z
+        - generic [ref=f8e1309]:
+          - generic [ref=f8e1310]: Wyckoff
+          - list [ref=f8e1311]:
+            - listitem [ref=f8e1312]: "KhÃ´ng cÃ³ náº¿n khá»‘i lÆ°á»£ng báº¥t thÆ°á»\x9dng trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y (ngÆ°á»¡ng: tham sá»‘ dá»± Ã¡n)."
+        - generic [ref=f8e1313]:
+          - generic [ref=f8e1314]: ICT
+          - list [ref=f8e1315]:
+            - listitem [ref=f8e1316]: GiÃ¡ 0.63 = 82% dealing range cá»a sá»• (0.62â€“0.64), premium, EQ 0.63.
+            - listitem [ref=f8e1317]: "MSS gáº§n nháº¥t: giáº£m, Ä‘Ã³ng cá»a vÆ°á»£t swing 0.63."
+            - listitem [ref=f8e1318]: "FVG chÆ°a láº¥p gáº§n giÃ¡ nháº¥t: giáº£m 0.65â€“0.66."
+            - listitem [ref=f8e1319]: "Pool chÆ°a quÃ©t: BSL 0.74, BSL 0.72, BSL 0.71, BSL 0.64, SSL 0.70."
+            - listitem [ref=f8e1320]: "Sá»± kiá»‡n gáº§n Ä‘Ã¢y: MSS giáº£m 0.63 @17:00Z."
+            - listitem [ref=f8e1321]: "KhÃ´ng cÃ³ chuá»—i quÃ©t â†’ MSS cÃ¹ng chiá»\x81u trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y."
+        - generic [ref=f8e1322]:
+          - generic [ref=f8e1323]: Tá»•ng há»£p
+          - generic [ref=f8e1324]: CHá»œ
+          - list [ref=f8e1326]:
+            - listitem [ref=f8e1327]: ChÆ°a cÃ³ má»‘c neo tá»« phÃ¢n tÃch Ä‘áº§y Ä‘á»§ â€” scanner chá»‰ cÃ³ stance theo luáºt cá»‘ Ä‘á»‹nh.
+            - listitem [ref=f8e1328]: "Stance scanner: CHá»œ (luáºt cá»‘ Ä‘á»‹nh, tham sá»‘ dá»± Ã¡n â€” khÃ´ng pháº£i nháºn Ä‘á»‹nh cá»§a mÃ´ hÃ¬nh)."
+        - generic [ref=f8e1329]:
+          - generic [ref=f8e1330]: Cá»¥c bá»™
+          - generic [ref=f8e1331]: Sonnet
+        - generic [ref=f8e1332]:
+          - generic [ref=f8e1333]: Wyckoff
+          - paragraph [ref=f8e1334]: â€”
+        - generic [ref=f8e1335]:
+          - generic [ref=f8e1336]: ICT
+          - paragraph [ref=f8e1337]: â€”
+        - generic [ref=f8e1338]:
+          - generic [ref=f8e1339]: Tá»•ng há»£p
+          - paragraph [ref=f8e1340]: ChÆ°a cÃ³ Ä‘Ã¡nh giÃ¡ cá»¥c bá»™.
+        - generic [ref=f8e1341]:
+          - generic [ref=f8e1342]: ToÃ n diá»‡n
+          - generic [ref=f8e1343]: phÃ¢n tÃch Ä‘áº§y Ä‘á»§
+        - generic [ref=f8e1344]:
+          - generic [ref=f8e1345]: Wyckoff
+          - paragraph [ref=f8e1346]: â€”
+        - generic [ref=f8e1347]:
+          - generic [ref=f8e1348]: ICT
+          - paragraph [ref=f8e1349]: â€”
+        - generic [ref=f8e1350]:
+          - generic [ref=f8e1351]: Tá»•ng há»£p
+          - paragraph [ref=f8e1352]: ChÆ°a cÃ³ phÃ¢n tÃch Ä‘áº§y Ä‘á»§ theo Ä‘á»‹nh dáº¡ng má»›i (data/live/narrative/<style>.json).
+      - generic [ref=f8e1353]: "Footprint: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT) Â· Heatmap: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT)"
+    - generic [ref=f8e1354]:
+      - generic [ref=f8e1355]:
+        - generic [ref=f8e1356]: SUI/USDT
+        - generic [ref=f8e1357]: "0.73"
+        - generic [ref=f8e1358]:
+          - generic [ref=f8e1359]: vá»‹ trÃ trong cá»a sá»• 15m 14%
+          - generic [ref=f8e1360]: náº¿n cuá»‘i 12/9 17:15Z
+        - generic [ref=f8e1361]:
+          - generic [ref=f8e1362]: vÃ o lá»‡nh 15m
+          - generic [ref=f8e1363]: â€”
+      - generic [ref=f8e1364]:
+        - generic [ref=f8e1365]:
+          - generic [ref=f8e1366]: Bias
+          - generic [ref=f8e1367]: 4H Ã—4
+          - generic [ref=f8e1368]: cáºp nháºt â€”Z
+        - generic [ref=f8e1369]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e1370]: chÆ°a quÃ©t
+        - generic [ref=f8e1371]:
+          - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e1372]': CHÆ¯A RÃ•
+          - generic [ref=f8e1373]: táº§ng quyáº¿t Ä‘á»‹nh verdict
+        - generic [ref=f8e1374]:
+          - generic [ref=f8e1375]: Cáº¥u trÃºc
+          - generic [ref=f8e1376]: 1H Ã—4
+          - generic [ref=f8e1377]: cáºp nháºt â€”Z
+        - generic [ref=f8e1378]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e1379]: chÆ°a quÃ©t
+        - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e1381]': CHÆ¯A RÃ•
+        - generic [ref=f8e1382]:
+          - generic [ref=f8e1383]: VÃ o lá»‡nh
+          - generic [ref=f8e1384]: 15m
+          - generic [ref=f8e1385]: cáºp nháºt 17:15Z
+        - generic [ref=f8e1386]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e1387]:
+          - text: 25% dealing range (0.72â€“0.73) Â· discount
+          - generic [ref=f8e1388]: "MSS gáº§n nháº¥t: tÄƒng qua 0.73"
+        - generic [ref=f8e1389]: â€”
+      - generic [ref=f8e1391]:
+        - generic [ref=f8e1392]:
+          - generic [ref=f8e1393]:
+            - generic [ref=f8e1394]: Bias Â· 4H Ã— 360 (60 ngÃ y) Â· 07-14 12:00 â†’ 09-12 08:00
+            - generic [ref=f8e1395]:
+              - generic [ref=f8e1396]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e1397] [cursor=pointer]
+              - button "+" [ref=f8e1398] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1399] [cursor=pointer]
+          - table [ref=f8e1403]:
+            - row [ref=f8e1404]:
+              - cell
+              - cell [ref=f8e1405]
+              - cell [ref=f8e1409]
+            - row [ref=f8e1413]:
+              - cell [ref=f8e1414]
+            - row [ref=f8e1415]:
+              - cell
+              - cell [ref=f8e1416]
+              - cell [ref=f8e1420]
+            - row [ref=f8e1424]:
+              - cell
+              - cell [ref=f8e1425]
+              - cell [ref=f8e1429]
+        - generic [ref=f8e1433]:
+          - generic [ref=f8e1434]:
+            - generic [ref=f8e1435]: Cáº¥u trÃºc Â· 1H Ã— 480 (20 ngÃ y) Â· 08-23 11:00 â†’ 09-12 10:00
+            - generic [ref=f8e1436]:
+              - generic [ref=f8e1437]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e1438] [cursor=pointer]
+              - button "+" [ref=f8e1439] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1440] [cursor=pointer]
+          - table [ref=f8e1444]:
+            - row [ref=f8e1445]:
+              - cell
+              - cell [ref=f8e1446]
+              - cell [ref=f8e1450]
+            - row [ref=f8e1454]:
+              - cell [ref=f8e1455]
+            - row [ref=f8e1456]:
+              - cell
+              - cell [ref=f8e1457]
+              - cell [ref=f8e1461]
+            - row [ref=f8e1465]:
+              - cell
+              - cell [ref=f8e1466]
+              - cell [ref=f8e1470]
+        - generic [ref=f8e1474]:
+          - generic [ref=f8e1475]:
+            - generic [ref=f8e1476]: VÃ o lá»‡nh Â· 15m Ã— 576 (6 ngÃ y) Â· 09-06 17:30 â†’ 09-12 17:15
+            - generic [ref=f8e1477]:
+              - generic [ref=f8e1478]: lÄƒn chuá»™t = zoom Â· kÃ©o = dá»‹ch Â· kÃ©o trá»¥c = co giÃ£n Â· End = náº¿n cuá»‘i Â· phÃm 1â€“4 Ä‘á»•i phÆ°Æ¡ng phÃ¡p
+              - button "âˆ’" [ref=f8e1479] [cursor=pointer]
+              - button "+" [ref=f8e1480] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1481] [cursor=pointer]
+              - button "R:R" [ref=f8e1482] [cursor=pointer]
+              - button "â–¶" [ref=f8e1483] [cursor=pointer]
+          - table [ref=f8e1487]:
+            - row [ref=f8e1488]:
+              - cell
+              - cell [ref=f8e1489]
+              - cell [ref=f8e1493]
+            - row [ref=f8e1497]:
+              - cell [ref=f8e1498]
+            - row [ref=f8e1499]:
+              - cell
+              - cell [ref=f8e1500]
+              - cell [ref=f8e1504]
+            - row [ref=f8e1508]:
+              - cell
+              - cell [ref=f8e1509]
+              - cell [ref=f8e1513]
+        - generic [ref=f8e1517]:
+          - generic [ref=f8e1518]: náº¿n Ä‘Ã³ng tÄƒng
+          - generic [ref=f8e1520]: náº¿n Ä‘Ã³ng giáº£m
+          - generic [ref=f8e1522]: khá»‘i lÆ°á»£ng
+          - generic [ref=f8e1524]: KL â‰¥ 1.5Ã— TB 20 náº¿n (â‰¥ 2.5Ã— ghi sá»‘)
+          - generic [ref=f8e1526]: biÃªn vÃ¹ng giao dá»‹ch (AR / SC)
+          - generic [ref=f8e1528]: pha Aâ€“E
+          - generic [ref=f8e1530]: "â—\x8f sá»± kiá»‡n Wyckoff do phÃ¢n tÃch Ä‘áº§y Ä‘á»§ Ä‘áº·t"
+      - generic [ref=f8e1531]:
+        - generic [ref=f8e1532]:
+          - generic [ref=f8e1533]: SÆ¡ bá»™
+          - generic [ref=f8e1534]: scanner Â· dá»¯ liá»‡u tá»›i 17:15Z
+        - generic [ref=f8e1535]:
+          - generic [ref=f8e1536]: Wyckoff
+          - list [ref=f8e1537]:
+            - listitem [ref=f8e1538]: "KhÃ´ng cÃ³ náº¿n khá»‘i lÆ°á»£ng báº¥t thÆ°á»\x9dng trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y (ngÆ°á»¡ng: tham sá»‘ dá»± Ã¡n)."
+        - generic [ref=f8e1539]:
+          - generic [ref=f8e1540]: ICT
+          - list [ref=f8e1541]:
+            - listitem [ref=f8e1542]: GiÃ¡ 0.73 = 25% dealing range cá»a sá»• (0.72â€“0.73), discount, EQ 0.73.
+            - listitem [ref=f8e1543]: "MSS gáº§n nháº¥t: tÄƒng, Ä‘Ã³ng cá»a vÆ°á»£t swing 0.73."
+            - listitem [ref=f8e1544]: "FVG chÆ°a láº¥p gáº§n giÃ¡ nháº¥t: giáº£m 0.75â€“0.75."
+            - listitem [ref=f8e1545]: "Pool chÆ°a quÃ©t: BSL 0.77, BSL 0.77, BSL 0.73, BSL 0.73, SSL 0.72, SSL 0.72."
+            - listitem [ref=f8e1546]: "KhÃ´ng cÃ³ chuá»—i quÃ©t â†’ MSS cÃ¹ng chiá»\x81u trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y."
+        - generic [ref=f8e1547]:
+          - generic [ref=f8e1548]: Tá»•ng há»£p
+          - generic [ref=f8e1549]: CHá»œ
+          - list [ref=f8e1551]:
+            - listitem [ref=f8e1552]: ChÆ°a cÃ³ má»‘c neo tá»« phÃ¢n tÃch Ä‘áº§y Ä‘á»§ â€” scanner chá»‰ cÃ³ stance theo luáºt cá»‘ Ä‘á»‹nh.
+            - listitem [ref=f8e1553]: "Stance scanner: CHá»œ (luáºt cá»‘ Ä‘á»‹nh, tham sá»‘ dá»± Ã¡n â€” khÃ´ng pháº£i nháºn Ä‘á»‹nh cá»§a mÃ´ hÃ¬nh)."
+        - generic [ref=f8e1554]:
+          - generic [ref=f8e1555]: Cá»¥c bá»™
+          - generic [ref=f8e1556]: Sonnet
+        - generic [ref=f8e1557]:
+          - generic [ref=f8e1558]: Wyckoff
+          - paragraph [ref=f8e1559]: â€”
+        - generic [ref=f8e1560]:
+          - generic [ref=f8e1561]: ICT
+          - paragraph [ref=f8e1562]: â€”
+        - generic [ref=f8e1563]:
+          - generic [ref=f8e1564]: Tá»•ng há»£p
+          - paragraph [ref=f8e1565]: ChÆ°a cÃ³ Ä‘Ã¡nh giÃ¡ cá»¥c bá»™.
+        - generic [ref=f8e1566]:
+          - generic [ref=f8e1567]: ToÃ n diá»‡n
+          - generic [ref=f8e1568]: phÃ¢n tÃch Ä‘áº§y Ä‘á»§
+        - generic [ref=f8e1569]:
+          - generic [ref=f8e1570]: Wyckoff
+          - paragraph [ref=f8e1571]: â€”
+        - generic [ref=f8e1572]:
+          - generic [ref=f8e1573]: ICT
+          - paragraph [ref=f8e1574]: â€”
+        - generic [ref=f8e1575]:
+          - generic [ref=f8e1576]: Tá»•ng há»£p
+          - paragraph [ref=f8e1577]: ChÆ°a cÃ³ phÃ¢n tÃch Ä‘áº§y Ä‘á»§ theo Ä‘á»‹nh dáº¡ng má»›i (data/live/narrative/<style>.json).
+      - generic [ref=f8e1578]: "Footprint: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT) Â· Heatmap: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT)"
+    - generic [ref=f8e1579]:
+      - generic [ref=f8e1580]:
+        - generic [ref=f8e1581]: TAO/USDT
+        - generic [ref=f8e1582]: "235.10"
+        - generic [ref=f8e1583]:
+          - generic [ref=f8e1584]: vá»‹ trÃ trong cá»a sá»• 15m 14%
+          - generic [ref=f8e1585]: náº¿n cuá»‘i 12/9 17:15Z
+        - generic [ref=f8e1586]:
+          - generic [ref=f8e1587]: vÃ o lá»‡nh 15m
+          - generic [ref=f8e1588]: â€”
+      - generic [ref=f8e1589]:
+        - generic [ref=f8e1590]:
+          - generic [ref=f8e1591]: Bias
+          - generic [ref=f8e1592]: 4H Ã—4
+          - generic [ref=f8e1593]: cáºp nháºt â€”Z
+        - generic [ref=f8e1594]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e1595]: chÆ°a quÃ©t
+        - generic [ref=f8e1596]:
+          - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e1597]': CHÆ¯A RÃ•
+          - generic [ref=f8e1598]: táº§ng quyáº¿t Ä‘á»‹nh verdict
+        - generic [ref=f8e1599]:
+          - generic [ref=f8e1600]: Cáº¥u trÃºc
+          - generic [ref=f8e1601]: 1H Ã—4
+          - generic [ref=f8e1602]: cáºp nháºt â€”Z
+        - generic [ref=f8e1603]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e1604]: chÆ°a quÃ©t
+        - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e1606]': CHÆ¯A RÃ•
+        - generic [ref=f8e1607]:
+          - generic [ref=f8e1608]: VÃ o lá»‡nh
+          - generic [ref=f8e1609]: 15m
+          - generic [ref=f8e1610]: cáºp nháºt 17:15Z
+        - generic [ref=f8e1611]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e1612]:
+          - text: 48% dealing range (233.70â€“236.60) Â· discount
+          - generic [ref=f8e1613]: "MSS gáº§n nháº¥t: giáº£m qua 234.90"
+        - generic [ref=f8e1614]: â€”
+      - generic [ref=f8e1616]:
+        - generic [ref=f8e1617]:
+          - generic [ref=f8e1618]:
+            - generic [ref=f8e1619]: Bias Â· 4H Ã— 360 (60 ngÃ y) Â· 07-14 12:00 â†’ 09-12 08:00
+            - generic [ref=f8e1620]:
+              - generic [ref=f8e1621]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e1622] [cursor=pointer]
+              - button "+" [ref=f8e1623] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1624] [cursor=pointer]
+          - table [ref=f8e1628]:
+            - row [ref=f8e1629]:
+              - cell
+              - cell [ref=f8e1630]
+              - cell [ref=f8e1634]
+            - row [ref=f8e1638]:
+              - cell [ref=f8e1639]
+            - row [ref=f8e1640]:
+              - cell
+              - cell [ref=f8e1641]
+              - cell [ref=f8e1645]
+            - row [ref=f8e1649]:
+              - cell
+              - cell [ref=f8e1650]
+              - cell [ref=f8e1654]
+        - generic [ref=f8e1658]:
+          - generic [ref=f8e1659]:
+            - generic [ref=f8e1660]: Cáº¥u trÃºc Â· 1H Ã— 480 (20 ngÃ y) Â· 08-23 11:00 â†’ 09-12 10:00
+            - generic [ref=f8e1661]:
+              - generic [ref=f8e1662]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e1663] [cursor=pointer]
+              - button "+" [ref=f8e1664] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1665] [cursor=pointer]
+          - table [ref=f8e1669]:
+            - row [ref=f8e1670]:
+              - cell
+              - cell [ref=f8e1671]
+              - cell [ref=f8e1675]
+            - row [ref=f8e1679]:
+              - cell [ref=f8e1680]
+            - row [ref=f8e1681]:
+              - cell
+              - cell [ref=f8e1682]
+              - cell [ref=f8e1686]
+            - row [ref=f8e1690]:
+              - cell
+              - cell [ref=f8e1691]
+              - cell [ref=f8e1695]
+        - generic [ref=f8e1699]:
+          - generic [ref=f8e1700]:
+            - generic [ref=f8e1701]: VÃ o lá»‡nh Â· 15m Ã— 576 (6 ngÃ y) Â· 09-06 17:30 â†’ 09-12 17:15
+            - generic [ref=f8e1702]:
+              - generic [ref=f8e1703]: lÄƒn chuá»™t = zoom Â· kÃ©o = dá»‹ch Â· kÃ©o trá»¥c = co giÃ£n Â· End = náº¿n cuá»‘i Â· phÃm 1â€“4 Ä‘á»•i phÆ°Æ¡ng phÃ¡p
+              - button "âˆ’" [ref=f8e1704] [cursor=pointer]
+              - button "+" [ref=f8e1705] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1706] [cursor=pointer]
+              - button "R:R" [ref=f8e1707] [cursor=pointer]
+              - button "â–¶" [ref=f8e1708] [cursor=pointer]
+          - table [ref=f8e1712]:
+            - row [ref=f8e1713]:
+              - cell
+              - cell [ref=f8e1714]
+              - cell [ref=f8e1718]
+            - row [ref=f8e1722]:
+              - cell [ref=f8e1723]
+            - row [ref=f8e1724]:
+              - cell
+              - cell [ref=f8e1725]
+              - cell [ref=f8e1729]
+            - row [ref=f8e1733]:
+              - cell
+              - cell [ref=f8e1734]
+              - cell [ref=f8e1738]
+        - generic [ref=f8e1742]:
+          - generic [ref=f8e1743]: náº¿n Ä‘Ã³ng tÄƒng
+          - generic [ref=f8e1745]: náº¿n Ä‘Ã³ng giáº£m
+          - generic [ref=f8e1747]: khá»‘i lÆ°á»£ng
+          - generic [ref=f8e1749]: KL â‰¥ 1.5Ã— TB 20 náº¿n (â‰¥ 2.5Ã— ghi sá»‘)
+          - generic [ref=f8e1751]: biÃªn vÃ¹ng giao dá»‹ch (AR / SC)
+          - generic [ref=f8e1753]: pha Aâ€“E
+          - generic [ref=f8e1755]: "â—\x8f sá»± kiá»‡n Wyckoff do phÃ¢n tÃch Ä‘áº§y Ä‘á»§ Ä‘áº·t"
+      - generic [ref=f8e1756]:
+        - generic [ref=f8e1757]:
+          - generic [ref=f8e1758]: SÆ¡ bá»™
+          - generic [ref=f8e1759]: scanner Â· dá»¯ liá»‡u tá»›i 17:15Z
+        - generic [ref=f8e1760]:
+          - generic [ref=f8e1761]: Wyckoff
+          - list [ref=f8e1762]:
+            - listitem [ref=f8e1763]: "KhÃ´ng cÃ³ náº¿n khá»‘i lÆ°á»£ng báº¥t thÆ°á»\x9dng trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y (ngÆ°á»¡ng: tham sá»‘ dá»± Ã¡n)."
+        - generic [ref=f8e1764]:
+          - generic [ref=f8e1765]: ICT
+          - list [ref=f8e1766]:
+            - listitem [ref=f8e1767]: GiÃ¡ 235.10 = 48% dealing range cá»a sá»• (233.70â€“236.60), discount, EQ 235.15.
+            - listitem [ref=f8e1768]: "MSS gáº§n nháº¥t: giáº£m, Ä‘Ã³ng cá»a vÆ°á»£t swing 234.90."
+            - listitem [ref=f8e1769]: "FVG chÆ°a láº¥p gáº§n giÃ¡ nháº¥t: giáº£m 240.10â€“243.00."
+            - listitem [ref=f8e1770]: "Pool chÆ°a quÃ©t: BSL 272.20, BSL 254.10, BSL 236.60, SSL 249.40, SSL 233.70, SSL 232.40."
+            - listitem [ref=f8e1771]: "KhÃ´ng cÃ³ chuá»—i quÃ©t â†’ MSS cÃ¹ng chiá»\x81u trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y."
+        - generic [ref=f8e1772]:
+          - generic [ref=f8e1773]: Tá»•ng há»£p
+          - generic [ref=f8e1774]: CHá»œ
+          - list [ref=f8e1776]:
+            - listitem [ref=f8e1777]: ChÆ°a cÃ³ má»‘c neo tá»« phÃ¢n tÃch Ä‘áº§y Ä‘á»§ â€” scanner chá»‰ cÃ³ stance theo luáºt cá»‘ Ä‘á»‹nh.
+            - listitem [ref=f8e1778]: "Stance scanner: CHá»œ (luáºt cá»‘ Ä‘á»‹nh, tham sá»‘ dá»± Ã¡n â€” khÃ´ng pháº£i nháºn Ä‘á»‹nh cá»§a mÃ´ hÃ¬nh)."
+        - generic [ref=f8e1779]:
+          - generic [ref=f8e1780]: Cá»¥c bá»™
+          - generic [ref=f8e1781]: Sonnet
+        - generic [ref=f8e1782]:
+          - generic [ref=f8e1783]: Wyckoff
+          - paragraph [ref=f8e1784]: â€”
+        - generic [ref=f8e1785]:
+          - generic [ref=f8e1786]: ICT
+          - paragraph [ref=f8e1787]: â€”
+        - generic [ref=f8e1788]:
+          - generic [ref=f8e1789]: Tá»•ng há»£p
+          - paragraph [ref=f8e1790]: ChÆ°a cÃ³ Ä‘Ã¡nh giÃ¡ cá»¥c bá»™.
+        - generic [ref=f8e1791]:
+          - generic [ref=f8e1792]: ToÃ n diá»‡n
+          - generic [ref=f8e1793]: phÃ¢n tÃch Ä‘áº§y Ä‘á»§
+        - generic [ref=f8e1794]:
+          - generic [ref=f8e1795]: Wyckoff
+          - paragraph [ref=f8e1796]: â€”
+        - generic [ref=f8e1797]:
+          - generic [ref=f8e1798]: ICT
+          - paragraph [ref=f8e1799]: â€”
+        - generic [ref=f8e1800]:
+          - generic [ref=f8e1801]: Tá»•ng há»£p
+          - paragraph [ref=f8e1802]: ChÆ°a cÃ³ phÃ¢n tÃch Ä‘áº§y Ä‘á»§ theo Ä‘á»‹nh dáº¡ng má»›i (data/live/narrative/<style>.json).
+      - generic [ref=f8e1803]: "Footprint: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT) Â· Heatmap: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT)"
+    - generic [ref=f8e1804]:
+      - generic [ref=f8e1805]:
+        - generic [ref=f8e1806]: RENDER/USDT
+        - generic [ref=f8e1807]: "1.40"
+        - generic [ref=f8e1808]:
+          - generic [ref=f8e1809]: vá»‹ trÃ trong cá»a sá»• 15m 20%
+          - generic [ref=f8e1810]: náº¿n cuá»‘i 12/9 17:15Z
+        - generic [ref=f8e1811]:
+          - generic [ref=f8e1812]: vÃ o lá»‡nh 15m
+          - generic [ref=f8e1813]: â€”
+      - generic [ref=f8e1814]:
+        - generic [ref=f8e1815]:
+          - generic [ref=f8e1816]: Bias
+          - generic [ref=f8e1817]: 4H Ã—4
+          - generic [ref=f8e1818]: cáºp nháºt â€”Z
+        - generic [ref=f8e1819]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e1820]: chÆ°a quÃ©t
+        - generic [ref=f8e1821]:
+          - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e1822]': CHÆ¯A RÃ•
+          - generic [ref=f8e1823]: táº§ng quyáº¿t Ä‘á»‹nh verdict
+        - generic [ref=f8e1824]:
+          - generic [ref=f8e1825]: Cáº¥u trÃºc
+          - generic [ref=f8e1826]: 1H Ã—4
+          - generic [ref=f8e1827]: cáºp nháºt â€”Z
+        - generic [ref=f8e1828]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e1829]: chÆ°a quÃ©t
+        - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e1831]': CHÆ¯A RÃ•
+        - generic [ref=f8e1832]:
+          - generic [ref=f8e1833]: VÃ o lá»‡nh
+          - generic [ref=f8e1834]: 15m
+          - generic [ref=f8e1835]: cáºp nháºt 17:15Z
+        - generic [ref=f8e1836]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e1837]:
+          - text: 6% dealing range (1.39â€“1.46) Â· discount
+          - generic [ref=f8e1838]: "MSS gáº§n nháº¥t: giáº£m qua 1.40"
+        - generic [ref=f8e1839]: â€”
+      - generic [ref=f8e1841]:
+        - generic [ref=f8e1842]:
+          - generic [ref=f8e1843]:
+            - generic [ref=f8e1844]: Bias Â· 4H Ã— 360 (60 ngÃ y) Â· 07-14 12:00 â†’ 09-12 08:00
+            - generic [ref=f8e1845]:
+              - generic [ref=f8e1846]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e1847] [cursor=pointer]
+              - button "+" [ref=f8e1848] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1849] [cursor=pointer]
+          - table [ref=f8e1853]:
+            - row [ref=f8e1854]:
+              - cell
+              - cell [ref=f8e1855]
+              - cell [ref=f8e1859]
+            - row [ref=f8e1863]:
+              - cell [ref=f8e1864]
+            - row [ref=f8e1865]:
+              - cell
+              - cell [ref=f8e1866]
+              - cell [ref=f8e1870]
+            - row [ref=f8e1874]:
+              - cell
+              - cell [ref=f8e1875]
+              - cell [ref=f8e1879]
+        - generic [ref=f8e1883]:
+          - generic [ref=f8e1884]:
+            - generic [ref=f8e1885]: Cáº¥u trÃºc Â· 1H Ã— 480 (20 ngÃ y) Â· 08-23 11:00 â†’ 09-12 10:00
+            - generic [ref=f8e1886]:
+              - generic [ref=f8e1887]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e1888] [cursor=pointer]
+              - button "+" [ref=f8e1889] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1890] [cursor=pointer]
+          - table [ref=f8e1894]:
+            - row [ref=f8e1895]:
+              - cell
+              - cell [ref=f8e1896]
+              - cell [ref=f8e1900]
+            - row [ref=f8e1904]:
+              - cell [ref=f8e1905]
+            - row [ref=f8e1906]:
+              - cell
+              - cell [ref=f8e1907]
+              - cell [ref=f8e1911]
+            - row [ref=f8e1915]:
+              - cell
+              - cell [ref=f8e1916]
+              - cell [ref=f8e1920]
+        - generic [ref=f8e1924]:
+          - generic [ref=f8e1925]:
+            - generic [ref=f8e1926]: VÃ o lá»‡nh Â· 15m Ã— 576 (6 ngÃ y) Â· 09-06 17:30 â†’ 09-12 17:15
+            - generic [ref=f8e1927]:
+              - generic [ref=f8e1928]: lÄƒn chuá»™t = zoom Â· kÃ©o = dá»‹ch Â· kÃ©o trá»¥c = co giÃ£n Â· End = náº¿n cuá»‘i Â· phÃm 1â€“4 Ä‘á»•i phÆ°Æ¡ng phÃ¡p
+              - button "âˆ’" [ref=f8e1929] [cursor=pointer]
+              - button "+" [ref=f8e1930] [cursor=pointer]
+              - button "âŸ²" [ref=f8e1931] [cursor=pointer]
+              - button "R:R" [ref=f8e1932] [cursor=pointer]
+              - button "â–¶" [ref=f8e1933] [cursor=pointer]
+          - table [ref=f8e1937]:
+            - row [ref=f8e1938]:
+              - cell
+              - cell [ref=f8e1939]
+              - cell [ref=f8e1943]
+            - row [ref=f8e1947]:
+              - cell [ref=f8e1948]
+            - row [ref=f8e1949]:
+              - cell
+              - cell [ref=f8e1950]
+              - cell [ref=f8e1954]
+            - row [ref=f8e1958]:
+              - cell
+              - cell [ref=f8e1959]
+              - cell [ref=f8e1963]
+        - generic [ref=f8e1967]:
+          - generic [ref=f8e1968]: náº¿n Ä‘Ã³ng tÄƒng
+          - generic [ref=f8e1970]: náº¿n Ä‘Ã³ng giáº£m
+          - generic [ref=f8e1972]: khá»‘i lÆ°á»£ng
+          - generic [ref=f8e1974]: KL â‰¥ 1.5Ã— TB 20 náº¿n (â‰¥ 2.5Ã— ghi sá»‘)
+          - generic [ref=f8e1976]: biÃªn vÃ¹ng giao dá»‹ch (AR / SC)
+          - generic [ref=f8e1978]: pha Aâ€“E
+          - generic [ref=f8e1980]: "â—\x8f sá»± kiá»‡n Wyckoff do phÃ¢n tÃch Ä‘áº§y Ä‘á»§ Ä‘áº·t"
+      - generic [ref=f8e1981]:
+        - generic [ref=f8e1982]:
+          - generic [ref=f8e1983]: SÆ¡ bá»™
+          - generic [ref=f8e1984]: scanner Â· dá»¯ liá»‡u tá»›i 17:15Z
+        - generic [ref=f8e1985]:
+          - generic [ref=f8e1986]: Wyckoff
+          - list [ref=f8e1987]:
+            - listitem [ref=f8e1988]: "KhÃ´ng cÃ³ náº¿n khá»‘i lÆ°á»£ng báº¥t thÆ°á»\x9dng trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y (ngÆ°á»¡ng: tham sá»‘ dá»± Ã¡n)."
+        - generic [ref=f8e1989]:
+          - generic [ref=f8e1990]: ICT
+          - list [ref=f8e1991]:
+            - listitem [ref=f8e1992]: GiÃ¡ 1.40 = 6% dealing range cá»a sá»• (1.39â€“1.46), discount, EQ 1.43.
+            - listitem [ref=f8e1993]: "MSS gáº§n nháº¥t: giáº£m, Ä‘Ã³ng cá»a vÆ°á»£t swing 1.40."
+            - listitem [ref=f8e1994]: "FVG chÆ°a láº¥p gáº§n giÃ¡ nháº¥t: giáº£m 1.43â€“1.44."
+            - listitem [ref=f8e1995]: "Pool chÆ°a quÃ©t: BSL 1.57, BSL 1.46, SSL 1.51, SSL 1.49, SSL 1.39."
+            - listitem [ref=f8e1996]: "KhÃ´ng cÃ³ chuá»—i quÃ©t â†’ MSS cÃ¹ng chiá»\x81u trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y."
+        - generic [ref=f8e1997]:
+          - generic [ref=f8e1998]: Tá»•ng há»£p
+          - generic [ref=f8e1999]: CHá»œ
+          - list [ref=f8e2001]:
+            - listitem [ref=f8e2002]: ChÆ°a cÃ³ má»‘c neo tá»« phÃ¢n tÃch Ä‘áº§y Ä‘á»§ â€” scanner chá»‰ cÃ³ stance theo luáºt cá»‘ Ä‘á»‹nh.
+            - listitem [ref=f8e2003]: "Stance scanner: CHá»œ (luáºt cá»‘ Ä‘á»‹nh, tham sá»‘ dá»± Ã¡n â€” khÃ´ng pháº£i nháºn Ä‘á»‹nh cá»§a mÃ´ hÃ¬nh)."
+        - generic [ref=f8e2004]:
+          - generic [ref=f8e2005]: Cá»¥c bá»™
+          - generic [ref=f8e2006]: Sonnet
+        - generic [ref=f8e2007]:
+          - generic [ref=f8e2008]: Wyckoff
+          - paragraph [ref=f8e2009]: â€”
+        - generic [ref=f8e2010]:
+          - generic [ref=f8e2011]: ICT
+          - paragraph [ref=f8e2012]: â€”
+        - generic [ref=f8e2013]:
+          - generic [ref=f8e2014]: Tá»•ng há»£p
+          - paragraph [ref=f8e2015]: ChÆ°a cÃ³ Ä‘Ã¡nh giÃ¡ cá»¥c bá»™.
+        - generic [ref=f8e2016]:
+          - generic [ref=f8e2017]: ToÃ n diá»‡n
+          - generic [ref=f8e2018]: phÃ¢n tÃch Ä‘áº§y Ä‘á»§
+        - generic [ref=f8e2019]:
+          - generic [ref=f8e2020]: Wyckoff
+          - paragraph [ref=f8e2021]: â€”
+        - generic [ref=f8e2022]:
+          - generic [ref=f8e2023]: ICT
+          - paragraph [ref=f8e2024]: â€”
+        - generic [ref=f8e2025]:
+          - generic [ref=f8e2026]: Tá»•ng há»£p
+          - paragraph [ref=f8e2027]: ChÆ°a cÃ³ phÃ¢n tÃch Ä‘áº§y Ä‘á»§ theo Ä‘á»‹nh dáº¡ng má»›i (data/live/narrative/<style>.json).
+      - generic [ref=f8e2028]: "Footprint: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT) Â· Heatmap: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT)"
+    - generic [ref=f8e2029]:
+      - generic [ref=f8e2030]:
+        - generic [ref=f8e2031]: ONDO/USDT
+        - generic [ref=f8e2032]: "0.35"
+        - generic [ref=f8e2033]:
+          - generic [ref=f8e2034]: vá»‹ trÃ trong cá»a sá»• 15m 15%
+          - generic [ref=f8e2035]: náº¿n cuá»‘i 12/9 17:15Z
+        - generic [ref=f8e2036]:
+          - generic [ref=f8e2037]: vÃ o lá»‡nh 15m
+          - generic [ref=f8e2038]: â€”
+      - generic [ref=f8e2039]:
+        - generic [ref=f8e2040]:
+          - generic [ref=f8e2041]: Bias
+          - generic [ref=f8e2042]: 4H Ã—4
+          - generic [ref=f8e2043]: cáºp nháºt â€”Z
+        - generic [ref=f8e2044]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e2045]: chÆ°a quÃ©t
+        - generic [ref=f8e2046]:
+          - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e2047]': CHÆ¯A RÃ•
+          - generic [ref=f8e2048]: táº§ng quyáº¿t Ä‘á»‹nh verdict
+        - generic [ref=f8e2049]:
+          - generic [ref=f8e2050]: Cáº¥u trÃºc
+          - generic [ref=f8e2051]: 1H Ã—4
+          - generic [ref=f8e2052]: cáºp nháºt â€”Z
+        - generic [ref=f8e2053]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e2054]: chÆ°a quÃ©t
+        - 'generic "chÆ°a cÃ³ Ä‘á»c Wyckoff khung lá»›n vÃ scanner khung lá»›n chÆ°a cÃ³ má»‘c neo bá»‹ phÃ¡" [ref=f8e2056]': CHÆ¯A RÃ•
+        - generic [ref=f8e2057]:
+          - generic [ref=f8e2058]: VÃ o lá»‡nh
+          - generic [ref=f8e2059]: 15m
+          - generic [ref=f8e2060]: cáºp nháºt 17:15Z
+        - generic [ref=f8e2061]: "chÆ°a cÃ³ Ä‘á»\x8dc Wyckoff cho khung nÃ y"
+        - generic [ref=f8e2062]:
+          - text: 31% dealing range (0.35â€“0.35) Â· discount
+          - generic [ref=f8e2063]: "MSS gáº§n nháº¥t: giáº£m qua 0.35"
+        - generic [ref=f8e2064]: â€”
+      - generic [ref=f8e2066]:
+        - generic [ref=f8e2067]:
+          - generic [ref=f8e2068]:
+            - generic [ref=f8e2069]: Bias Â· 4H Ã— 360 (60 ngÃ y) Â· 07-14 12:00 â†’ 09-12 08:00
+            - generic [ref=f8e2070]:
+              - generic [ref=f8e2071]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e2072] [cursor=pointer]
+              - button "+" [ref=f8e2073] [cursor=pointer]
+              - button "âŸ²" [ref=f8e2074] [cursor=pointer]
+          - table [ref=f8e2078]:
+            - row [ref=f8e2079]:
+              - cell
+              - cell [ref=f8e2080]
+              - cell [ref=f8e2084]
+            - row [ref=f8e2088]:
+              - cell [ref=f8e2089]
+            - row [ref=f8e2090]:
+              - cell
+              - cell [ref=f8e2091]
+              - cell [ref=f8e2095]
+            - row [ref=f8e2099]:
+              - cell
+              - cell [ref=f8e2100]
+              - cell [ref=f8e2104]
+        - generic [ref=f8e2108]:
+          - generic [ref=f8e2109]:
+            - generic [ref=f8e2110]: Cáº¥u trÃºc Â· 1H Ã— 480 (20 ngÃ y) Â· 08-23 11:00 â†’ 09-12 10:00
+            - generic [ref=f8e2111]:
+              - generic [ref=f8e2112]: vÃ¹ng tÃ´ = cá»a sá»• vÃ o lá»‡nh
+              - button "âˆ’" [ref=f8e2113] [cursor=pointer]
+              - button "+" [ref=f8e2114] [cursor=pointer]
+              - button "âŸ²" [ref=f8e2115] [cursor=pointer]
+          - table [ref=f8e2119]:
+            - row [ref=f8e2120]:
+              - cell
+              - cell [ref=f8e2121]
+              - cell [ref=f8e2125]
+            - row [ref=f8e2129]:
+              - cell [ref=f8e2130]
+            - row [ref=f8e2131]:
+              - cell
+              - cell [ref=f8e2132]
+              - cell [ref=f8e2136]
+            - row [ref=f8e2140]:
+              - cell
+              - cell [ref=f8e2141]
+              - cell [ref=f8e2145]
+        - generic [ref=f8e2149]:
+          - generic [ref=f8e2150]:
+            - generic [ref=f8e2151]: VÃ o lá»‡nh Â· 15m Ã— 576 (6 ngÃ y) Â· 09-06 17:30 â†’ 09-12 17:15
+            - generic [ref=f8e2152]:
+              - generic [ref=f8e2153]: lÄƒn chuá»™t = zoom Â· kÃ©o = dá»‹ch Â· kÃ©o trá»¥c = co giÃ£n Â· End = náº¿n cuá»‘i Â· phÃm 1â€“4 Ä‘á»•i phÆ°Æ¡ng phÃ¡p
+              - button "âˆ’" [ref=f8e2154] [cursor=pointer]
+              - button "+" [ref=f8e2155] [cursor=pointer]
+              - button "âŸ²" [ref=f8e2156] [cursor=pointer]
+              - button "R:R" [ref=f8e2157] [cursor=pointer]
+              - button "â–¶" [ref=f8e2158] [cursor=pointer]
+          - table [ref=f8e2162]:
+            - row [ref=f8e2163]:
+              - cell
+              - cell [ref=f8e2164]
+              - cell [ref=f8e2168]
+            - row [ref=f8e2172]:
+              - cell [ref=f8e2173]
+            - row [ref=f8e2174]:
+              - cell
+              - cell [ref=f8e2175]
+              - cell [ref=f8e2179]
+            - row [ref=f8e2183]:
+              - cell
+              - cell [ref=f8e2184]
+              - cell [ref=f8e2188]
+        - generic [ref=f8e2192]:
+          - generic [ref=f8e2193]: náº¿n Ä‘Ã³ng tÄƒng
+          - generic [ref=f8e2195]: náº¿n Ä‘Ã³ng giáº£m
+          - generic [ref=f8e2197]: khá»‘i lÆ°á»£ng
+          - generic [ref=f8e2199]: KL â‰¥ 1.5Ã— TB 20 náº¿n (â‰¥ 2.5Ã— ghi sá»‘)
+          - generic [ref=f8e2201]: biÃªn vÃ¹ng giao dá»‹ch (AR / SC)
+          - generic [ref=f8e2203]: pha Aâ€“E
+          - generic [ref=f8e2205]: "â—\x8f sá»± kiá»‡n Wyckoff do phÃ¢n tÃch Ä‘áº§y Ä‘á»§ Ä‘áº·t"
+      - generic [ref=f8e2206]:
+        - generic [ref=f8e2207]:
+          - generic [ref=f8e2208]: SÆ¡ bá»™
+          - generic [ref=f8e2209]: scanner Â· dá»¯ liá»‡u tá»›i 17:15Z
+        - generic [ref=f8e2210]:
+          - generic [ref=f8e2211]: Wyckoff
+          - list [ref=f8e2212]:
+            - listitem [ref=f8e2213]: "Khá»‘i lÆ°á»£ng báº¥t thÆ°á»\x9dng gáº§n Ä‘Ã¢y: 6.22Ã— trung bÃ¬nh lÃºc 17:00Z trÃªn náº¿n giáº£m â€” kiá»ƒm tra Ná»— lá»±câ€“Káº¿t quáº£ trÆ°á»›c khi tin vÃ o hÆ°á»›ng (bá»™i sá»‘ theo trung bÃ¬nh cá»a sá»•, tham sá»‘ dá»± Ã¡n)."
+        - generic [ref=f8e2214]:
+          - generic [ref=f8e2215]: ICT
+          - list [ref=f8e2216]:
+            - listitem [ref=f8e2217]: GiÃ¡ 0.35 = 31% dealing range cá»a sá»• (0.35â€“0.35), discount, EQ 0.35.
+            - listitem [ref=f8e2218]: "MSS gáº§n nháº¥t: giáº£m, Ä‘Ã³ng cá»a vÆ°á»£t swing 0.35."
+            - listitem [ref=f8e2219]: KhÃ´ng cÃ³ FVG chÆ°a láº¥p gáº§n giÃ¡.
+            - listitem [ref=f8e2220]: "Pool chÆ°a quÃ©t: BSL 0.36, BSL 0.35, SSL 0.37, SSL 0.34, SSL 0.35, SSL 0.35."
+            - listitem [ref=f8e2221]: "KhÃ´ng cÃ³ chuá»—i quÃ©t â†’ MSS cÃ¹ng chiá»\x81u trong cÃ¡c náº¿n gáº§n Ä‘Ã¢y."
+        - generic [ref=f8e2222]:
+          - generic [ref=f8e2223]: Tá»•ng há»£p
+          - generic [ref=f8e2224]: CHá»œ
+          - list [ref=f8e2226]:
+            - listitem [ref=f8e2227]: ChÆ°a cÃ³ má»‘c neo tá»« phÃ¢n tÃch Ä‘áº§y Ä‘á»§ â€” scanner chá»‰ cÃ³ stance theo luáºt cá»‘ Ä‘á»‹nh.
+            - listitem [ref=f8e2228]: "Stance scanner: CHá»œ (luáºt cá»‘ Ä‘á»‹nh, tham sá»‘ dá»± Ã¡n â€” khÃ´ng pháº£i nháºn Ä‘á»‹nh cá»§a mÃ´ hÃ¬nh)."
+        - generic [ref=f8e2229]:
+          - generic [ref=f8e2230]: Cá»¥c bá»™
+          - generic [ref=f8e2231]: Sonnet
+        - generic [ref=f8e2232]:
+          - generic [ref=f8e2233]: Wyckoff
+          - paragraph [ref=f8e2234]: â€”
+        - generic [ref=f8e2235]:
+          - generic [ref=f8e2236]: ICT
+          - paragraph [ref=f8e2237]: â€”
+        - generic [ref=f8e2238]:
+          - generic [ref=f8e2239]: Tá»•ng há»£p
+          - paragraph [ref=f8e2240]: ChÆ°a cÃ³ Ä‘Ã¡nh giÃ¡ cá»¥c bá»™.
+        - generic [ref=f8e2241]:
+          - generic [ref=f8e2242]: ToÃ n diá»‡n
+          - generic [ref=f8e2243]: phÃ¢n tÃch Ä‘áº§y Ä‘á»§
+        - generic [ref=f8e2244]:
+          - generic [ref=f8e2245]: Wyckoff
+          - paragraph [ref=f8e2246]: â€”
+        - generic [ref=f8e2247]:
+          - generic [ref=f8e2248]: ICT
+          - paragraph [ref=f8e2249]: â€”
+        - generic [ref=f8e2250]:
+          - generic [ref=f8e2251]: Tá»•ng há»£p
+          - paragraph [ref=f8e2252]: ChÆ°a cÃ³ phÃ¢n tÃch Ä‘áº§y Ä‘á»§ theo Ä‘á»‹nh dáº¡ng má»›i (data/live/narrative/<style>.json).
+      - generic [ref=f8e2253]: "Footprint: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT) Â· Heatmap: khÃ´ng cÃ³ nguá»“n CoinGlass live â€” khÃ´ng váº½, khÃ´ng cháº¥m Ä‘iá»ƒm (cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT)"
+    - group [ref=f8e2255]:
+      - generic "Thuáºt ngá»¯ theo phÆ°Æ¡ng phÃ¡p (má»Ÿ khi cáº§n)" [ref=f8e2256] [cursor=pointer]
+    - contentinfo [ref=f8e2257]:
+      - text: "Nguá»“n dá»¯ liá»‡u: BTCUSDT 15m: binance_public_rest_live Â· cáºp nháºt 2026-09-12T17:16:24Z Â· bias 4H cáºp nháºt 2026-09-12T16:03:33Z Â· cáº¥u trÃºc 1H cáºp nháºt 2026-09-12T16:02:25Z Â· ETHUSDT 15m: binance_public_rest_live Â· cáºp nháºt 2026-09-12T17:16:24Z Â· bias 4H cáºp nháºt 2026-09-12T16:03:33Z Â· cáº¥u trÃºc 1H cáºp nháºt 2026-09-12T16:02:25Z Â· SOLUSDT 15m: binance_public_rest_live Â· cáºp nháºt 2026-09-12T17:16:24Z Â· bias 4H cáºp nháºt 2026-09-12T16:03:34Z Â· cáº¥u trÃºc 1H cáºp nháºt 2026-09-12T16:02:26Z Â· ASTERUSDT 15m: binance_public_rest_live Â· cáºp nháºt 2026-09-12T17:16:25Z Â· bias 4H cáºp nháºt 2026-09-12T08:03:16Z Â· cáº¥u trÃºc 1H cáºp nháºt 2026-09-12T10:02:57Z Â· VIRTUALUSDT 15m: binance_public_rest_live Â· cáºp nháºt 2026-09-12T17:16:25Z Â· bias 4H cáºp nháºt 2026-09-12T08:03:17Z Â· cáº¥u trÃºc 1H cáºp nháºt 2026-09-12T10:02:58Z Â· SUIUSDT 15m: binance_public_rest_live Â· cáºp nháºt 2026-09-12T17:16:26Z Â· bias 4H cáºp nháºt 2026-09-12T08:03:17Z Â· cáº¥u trÃºc 1H cáºp nháºt 2026-09-12T10:02:58Z Â· TAOUSDT 15m: binance_public_rest_live Â· cáºp nháºt 2026-09-12T17:16:27Z Â· bias 4H cáºp nháºt 2026-09-12T08:03:18Z Â· cáº¥u trÃºc 1H cáºp nháºt 2026-09-12T10:02:59Z Â· RENDERUSDT 15m: binance_public_rest_live Â· cáºp nháºt 2026-09-12T17:16:28Z Â· bias 4H cáºp nháºt 2026-09-12T08:03:18Z Â· cáº¥u trÃºc 1H cáºp nháºt 2026-09-12T10:02:59Z Â· ONDOUSDT 15m: binance_public_rest_live Â· cáºp nháºt 2026-09-12T17:16:28Z Â· bias 4H cáºp nháºt 2026-09-12T08:03:19Z Â· cáº¥u trÃºc 1H cáºp nháºt 2026-09-12T10:03:00ZLá»›p 1 scanner 2026-09-12T17:16:29Z Â· Lá»›p 3 2026-09-11T11:00:00Z Â· trang dá»±ng 2026-09-12T17:20:38Z bá»Ÿi scripts/build-artifact.py (daytrade)Cháº¿ Ä‘á»™ NORMAL: Wyckoff + ICT Â· Footprint/Heatmap: khÃ´ng cÃ³ nguá»“n live Â· Lá»›p Ä‘á»\x8dc: sÆ¡ bá»™ (mÃ¡y quÃ©t), cá»¥c bá»™ (Sonnet, theo sá»± kiá»‡n), toÃ n diá»‡n (hÃ ng ngÃ y)Luáºt: sá»‘ liá»‡u tá»« code (SYSTEM-DESIGN Â§13); má»—i khá»‘i phÆ°Æ¡ng phÃ¡p qua scripts/method_purity.py; Footprint láº¥y Wyckoff lÃ m ná»\x81n. Scanner: pivot 3 náº¿n, dung sai Ä‘á»‰nh/Ä‘Ã¡y báº±ng nhau 0,08%, FVG â‰¥ 0,6Ã— biÃªn Ä‘á»™ trung vá»‹; ngÆ°á»¡ng khá»‘i lÆ°á»£ng: docs/architecture/analysis-params.json (tham sá»‘ dá»± Ã¡n, khÃ´ng pháº£i trÃch dáº«n sÃ¡ch).Chart: TradingView Lightweight Chartsâ„¢ Â· Copyright (c) 2025 TradingView, Inc. Â·"
+      - link "tradingview.com" [ref=f8e2258] [cursor=pointer]:
+        - /url: https://www.tradingview.com/
+      - text: Â· Apache-2.0 (scripts/vendor/NOTICE-lightweight-charts.txt)
