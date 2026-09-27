@@ -25,11 +25,11 @@ Data-sufficiency preconditions (can only disable): each window ≥ 90 days; in-s
 - **crypto**: cutoff **2026-03-11T00:00:00Z** (dataset last bar 2026-09-11T05:45:00Z − 6 calendar months, derived from the data); in-sample 2025-03-11 -> 2026-03-11; OOS 2026-03-11 -> 2026-09-11.
 - **cfd**: cutoff **2026-03-18T00:00:00Z** (dataset last bar 2026-09-18T03:45:00Z − 6 calendar months, derived from the data); in-sample 2025-03-18 -> 2026-03-18; OOS 2026-03-18 -> 2026-09-18.
 
-**The OOS period is now EXPOSED** (CLAUDE.md §44): it has decided which systems are enabled, so it may not later be described as pristine or untouched validation data. crypto: used for selection 1 time(s) at this cutoff. cfd: used for selection 1 time(s) at this cutoff.
+**The OOS period is now EXPOSED** (CLAUDE.md §44): it has decided which systems are enabled, so it may not later be described as pristine or untouched validation data. crypto: used for selection 2 time(s) at this cutoff. cfd: used for selection 2 time(s) at this cutoff.
 
 ## Provenance
 
-- Code version (this run): `2469b3c43dbda6acc7319b6196e2235c5a482967` — dirty: 450 uncommitted file(s) at snapshot time: this run is NOT reproducible from 2469b3c43dbda6acc7319b6196e2235c5a482967 alone (CLAUDE.md §46).
+- Code version (this run): `5f624536096a80d829af5cbf63c3e5ca977cb3f1`
 - Stability sources (dataset snapshot id · generated · stability-report code SHA · §38 verdict):
   - `data/history/stability/crypto-crypto-personal-v1.json` · snapshot `779337fa90678b2b` · 2026-09-26 · `06a4eae10bd5` · FLAGGED
   - `data/history/stability/crypto-crypto-prop-discipline.json` · snapshot `779337fa90678b2b` · 2026-09-26 · `06a4eae10bd5` · FLAGGED

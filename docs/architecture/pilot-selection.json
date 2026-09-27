@@ -4829,8 +4829,13 @@
    "in_sample_period": "2025-03-11 -> 2026-03-11",
    "status": "EXPOSED",
    "exposure": "this window has now decided which systems are enabled (CLAUDE.md §44): it is EXPOSED and may not be called pristine/untouched validation data again",
-   "times_used_for_selection": 1,
+   "times_used_for_selection": 2,
    "uses": [
+    {
+     "date": "2026-09-27",
+     "cutoff": "2026-03-11T00:00:00Z",
+     "by": "rank-setups.py (criteria-oos6m)"
+    },
     {
      "date": "2026-09-27",
      "cutoff": "2026-03-11T00:00:00Z",
@@ -4845,8 +4850,13 @@
    "in_sample_period": "2025-03-18 -> 2026-03-18",
    "status": "EXPOSED",
    "exposure": "this window has now decided which systems are enabled (CLAUDE.md §44): it is EXPOSED and may not be called pristine/untouched validation data again",
-   "times_used_for_selection": 1,
+   "times_used_for_selection": 2,
    "uses": [
+    {
+     "date": "2026-09-27",
+     "cutoff": "2026-03-18T00:00:00Z",
+     "by": "rank-setups.py (criteria-oos6m)"
+    },
     {
      "date": "2026-09-27",
      "cutoff": "2026-03-18T00:00:00Z",
@@ -4925,10 +4935,9 @@
   "_note": "CLAUDE.md §43. candidate_rows = every (timeframe, method, configuration, source file) row at a pilot horizon with a RUNNABLE method; each was judged on in-sample AND on OOS, so the OOS window adjudicated among all of them. passed_in_sample / passed_oos count each side independently; enabled needs both plus the preconditions. duplicate_rows = identical re-measurements of one system (counted once). reported_only_rows = rows measured under an account other than the pilot's (pilot_account); reported, never judged. conflicting_rows = a second measurement of one system with different numbers (neither is enabled). rows = the sum of candidate_rows, not_candidates, reported_only_rows, duplicate_rows and conflicting_rows."
  },
  "code_version": {
-  "git_sha": "2469b3c43dbda6acc7319b6196e2235c5a482967",
-  "dirty": true,
-  "modified_files": 450,
-  "dirty_note": "450 uncommitted file(s) at snapshot time: this run is NOT reproducible from 2469b3c43dbda6acc7319b6196e2235c5a482967 alone (CLAUDE.md §46)."
+  "git_sha": "5f624536096a80d829af5cbf63c3e5ca977cb3f1",
+  "dirty": false,
+  "modified_files": 0
  },
  "sources": {
   "data/history/stability/crypto-crypto-personal-v1.json": {
