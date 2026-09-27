@@ -1,23 +1,459 @@
 {
- "generated": "2026-09-26",
- "mode": "horizons-1y",
- "note": "Written by scripts/rank-setups.py --horizons. One setup per (horizon, method) per market -- every RUNNABLE method gets its own scalping/day/swing setups so any method-switch preset (strategy-runner.py allowed_methods()) still covers all 3 horizons (user decision 2026-09-11, extended 2026-09-13 for the per-method split). Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.",
- "setups": [
+ "generated": "2026-09-27",
+ "mode": "criteria-oos6m",
+ "note": "Written by scripts/rank-setups.py (ADR 0008). A system is ENABLED only if it passes every criterion of its horizon (selection-criteria.json) on its in-sample window AND its held-out OOS window. Every passing system is enabled; there is no ranking, no top-N, no per-slot winner and no fallback. A horizon listed in `horizons_without_system` trades nothing. Crypto = Binance futures testnet, CFD = MT5 demo via the file order bridge.",
+ "criteria": {
+  "source": "docs/architecture/selection-criteria.json",
+  "version": 1,
+  "decided": "2026-09-26",
+  "window_months": 6,
+  "horizons": {
+   "scalping": {
+    "_applies_to": "minute- and second-scale systems (15m today; seconds-scale Heatmap/Footprint systems later)",
+    "mean_monthly_return_pct_min": 5.0,
+    "monthly_return_pct_target": 10.0,
+    "losing_months_max": 2,
+    "worst_month_pct_min": -8.0
+   },
+   "day": {
+    "_applies_to": "1H systems",
+    "mean_monthly_return_pct_min": 2.0,
+    "losing_months_max": 2,
+    "worst_month_pct_min": -4.0,
+    "max_drawdown_pct_max": 10.0
+   },
+   "swing": {
+    "_applies_to": "4H systems",
+    "mean_monthly_return_pct_min": 1.5,
+    "worst_quarter_pct_min": -3.0,
+    "max_drawdown_pct_max": 8.0
+   }
+  }
+ },
+ "preconditions": {
+  "min_window_days": 90,
+  "in_sample_min_trades": {
+   "scalping": 20,
+   "day": 15,
+   "swing": 6
+  }
+ },
+ "setups": [],
+ "disabled": [
   {
-   "id": "crypto-scalping-ict-15m-v1-b",
+   "id": "crypto-scalping-wyckoff-book-15m-border-a",
    "horizon": "scalping",
-   "rank": 1,
    "market": "crypto",
    "symbols": [
     "BTCUSDT",
     "ETHUSDT",
-    "SOLUSDT",
-    "ASTERUSDT",
-    "VIRTUALUSDT",
-    "SUIUSDT",
-    "TAOUSDT",
-    "RENDERUSDT",
-    "ONDOUSDT"
+    "SOLUSDT"
+   ],
+   "tf": "15m",
+   "method": "WYCKOFF-BOOK",
+   "htf": false,
+   "mgmt": "none",
+   "fee_assumed": 0.0005,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 5,
+     "expectancy_R": -1.194,
+     "profit_factor": 0.0,
+     "net_pnl": -279.78,
+     "max_dd_pct": 2.8,
+     "ann_pct": -2.8,
+     "q_worst_pct": -2.8,
+     "m_mean_geo_pct": -0.236,
+     "m_losing": 2,
+     "m_worst_pct": -1.836,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-05-08T02:30:00Z",
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 12,
+     "expectancy_R": -0.1995,
+     "profit_factor": 0.778,
+     "net_pnl": -97.38,
+     "max_dd_pct": 2.46,
+     "ann_pct": -1.9,
+     "q_worst_pct": -2.46,
+     "m_mean_geo_pct": -0.162,
+     "m_losing": 1,
+     "m_worst_pct": -2.462,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": "2026-04-21T19:30:00Z",
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 178,
+    "full_ann_pct": -1.0,
+    "period": "2023-09-13→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.2364,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.2364 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 2,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 2 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.8362,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.836 meets >= -8"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1617,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1617 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 1,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 1 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -2.4622,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -2.462 meets >= -8"
+     }
+    ],
+    "reported_target": [
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.2364,
+      "threshold": 10.0,
+      "met": false
+     },
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.1617,
+      "threshold": 10.0,
+      "met": false
+     }
+    ]
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=5 < 20 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.2364 fails >= 5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1617 fails >= 5"
+   ],
+   "rule_version": "cf50d14f10be",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-scalping-ict-15m-range-a",
+   "horizon": "scalping",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "15m",
+   "method": "ICT",
+   "htf": false,
+   "mgmt": "none",
+   "fee_assumed": 0.0005,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 32,
+     "expectancy_R": 0.2706,
+     "profit_factor": 1.378,
+     "net_pnl": 89.2,
+     "max_dd_pct": 2.9,
+     "ann_pct": 0.9,
+     "q_worst_pct": -2.59,
+     "m_mean_geo_pct": 0.074,
+     "m_losing": 6,
+     "m_worst_pct": -2.287,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 16,
+     "expectancy_R": -0.021,
+     "profit_factor": 0.963,
+     "net_pnl": -46.24,
+     "max_dd_pct": 1.92,
+     "ann_pct": -0.9,
+     "q_worst_pct": -0.78,
+     "m_mean_geo_pct": -0.077,
+     "m_losing": 3,
+     "m_worst_pct": -1.337,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 99,
+    "full_ann_pct": 0.6,
+    "period": "2023-09-13→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.0741,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0.07408 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 6,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 6 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -2.2869,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -2.287 meets >= -8"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.0766,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.07664 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.337,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.337 meets >= -8"
+     }
+    ],
+    "reported_target": [
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": 0.0741,
+      "threshold": 10.0,
+      "met": false
+     },
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.0766,
+      "threshold": 10.0,
+      "met": false
+     }
+    ]
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) 0.07408 fails >= 5",
+    "IS losing_months_max: losing calendar months 6 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.07664 fails >= 5",
+    "OOS losing_months_max: losing calendar months 3 fails <= 2"
+   ],
+   "rule_version": "65d77eef04d9",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-scalping-wyckoff-book-15m-border-b",
+   "horizon": "scalping",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "15m",
+   "method": "WYCKOFF-BOOK",
+   "htf": false,
+   "mgmt": "be",
+   "fee_assumed": 0.0002,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 5,
+     "expectancy_R": -1.194,
+     "profit_factor": 0.0,
+     "net_pnl": -279.78,
+     "max_dd_pct": 2.8,
+     "ann_pct": -2.8,
+     "q_worst_pct": -2.8,
+     "m_mean_geo_pct": -0.236,
+     "m_losing": 2,
+     "m_worst_pct": -1.836,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-05-08T02:30:00Z",
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 5,
+     "expectancy_R": -0.9538,
+     "profit_factor": 0.0,
+     "net_pnl": -230.66,
+     "max_dd_pct": 2.31,
+     "ann_pct": -4.5,
+     "q_worst_pct": -2.31,
+     "m_mean_geo_pct": -0.385,
+     "m_losing": 1,
+     "m_worst_pct": -2.307,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": "2026-03-19T09:15:00Z",
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 179,
+    "full_ann_pct": -1.0,
+    "period": "2023-09-13→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.2364,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.2364 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 2,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 2 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.8362,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.836 meets >= -8"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.3853,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.3853 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 1,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 1 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -2.3066,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -2.307 meets >= -8"
+     }
+    ],
+    "reported_target": [
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.2364,
+      "threshold": 10.0,
+      "met": false
+     },
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.3853,
+      "threshold": 10.0,
+      "met": false
+     }
+    ]
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=5 < 20 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.2364 fails >= 5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.3853 fails >= 5"
+   ],
+   "rule_version": "343818008639",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-scalping-ict-15m-range-b",
+   "horizon": "scalping",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
    ],
    "tf": "15m",
    "method": "ICT",
@@ -25,26 +461,1969 @@
    "mgmt": "be",
    "fee_assumed": 0.0002,
    "execution": "futures",
-   "negative_backtest": false,
    "backtest": {
-    "window": "1y",
-    "n": 23,
-    "ann_pct": 19.7,
-    "max_dd_pct": 3.7,
-    "q_pos_pct": 60,
-    "full_n": 64,
-    "full_ann_pct": 4.9,
-    "years_pos": "3/4",
-    "period": "2023-09-13→2026-09-11",
-    "source": "data/history/stability/crypto-crypto-personal-v1.json"
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 25,
+     "expectancy_R": 0.2142,
+     "profit_factor": 1.435,
+     "net_pnl": 223.03,
+     "max_dd_pct": 1.83,
+     "ann_pct": 2.2,
+     "q_worst_pct": -0.39,
+     "m_mean_geo_pct": 0.184,
+     "m_losing": 5,
+     "m_worst_pct": -1.512,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-12-15T14:45:00Z",
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 15,
+     "expectancy_R": -0.2167,
+     "profit_factor": 0.523,
+     "net_pnl": -171.19,
+     "max_dd_pct": 2.65,
+     "ann_pct": -3.4,
+     "q_worst_pct": -1.97,
+     "m_mean_geo_pct": -0.285,
+     "m_losing": 6,
+     "m_worst_pct": -1.396,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": "2026-09-09T16:00:00Z",
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 100,
+    "full_ann_pct": 1.3,
+    "period": "2023-09-13→2026-09-11"
    },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.1841,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0.1841 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 5,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 5 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.512,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.512 meets >= -8"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.2852,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.2852 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 6,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 6 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.3959,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.396 meets >= -8"
+     }
+    ],
+    "reported_target": [
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": 0.1841,
+      "threshold": 10.0,
+      "met": false
+     },
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.2852,
+      "threshold": 10.0,
+      "met": false
+     }
+    ]
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) 0.1841 fails >= 5",
+    "IS losing_months_max: losing calendar months 5 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.2852 fails >= 5",
+    "OOS losing_months_max: losing calendar months 6 fails <= 2"
+   ],
    "rule_version": "5a53546b5bfa",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-scalping-wyckoff-book-15m-border-c",
+   "horizon": "scalping",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "15m",
+   "method": "WYCKOFF-BOOK",
+   "htf": true,
+   "mgmt": "be",
+   "fee_assumed": 0.0002,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 5,
+     "expectancy_R": -1.1304,
+     "profit_factor": 0.0,
+     "net_pnl": -290.93,
+     "max_dd_pct": 2.91,
+     "ann_pct": -2.9,
+     "q_worst_pct": -1.64,
+     "m_mean_geo_pct": -0.246,
+     "m_losing": 4,
+     "m_worst_pct": -1.11,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-08-09T14:00:00Z",
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 8,
+     "expectancy_R": -0.2976,
+     "profit_factor": 0.647,
+     "net_pnl": -182.44,
+     "max_dd_pct": 1.82,
+     "ann_pct": -3.6,
+     "q_worst_pct": -1.35,
+     "m_mean_geo_pct": -0.304,
+     "m_losing": 4,
+     "m_worst_pct": -0.632,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": "2026-06-08T01:30:00Z",
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 56,
+    "full_ann_pct": 1.6,
+    "period": "2023-09-13→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.2459,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.2459 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 4,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 4 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.1098,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.11 meets >= -8"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.3041,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.3041 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 4,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 4 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -0.6322,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -0.6322 meets >= -8"
+     }
+    ],
+    "reported_target": [
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.2459,
+      "threshold": 10.0,
+      "met": false
+     },
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.3041,
+      "threshold": 10.0,
+      "met": false
+     }
+    ]
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=5 < 20 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.2459 fails >= 5",
+    "IS losing_months_max: losing calendar months 4 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.3041 fails >= 5",
+    "OOS losing_months_max: losing calendar months 4 fails <= 2"
+   ],
+   "rule_version": "a355212f027c",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-scalping-ict-15m-range-c",
+   "horizon": "scalping",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "15m",
+   "method": "ICT",
+   "htf": true,
+   "mgmt": "be",
+   "fee_assumed": 0.0002,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 10,
+     "expectancy_R": 0.7208,
+     "profit_factor": 2.561,
+     "net_pnl": 420.95,
+     "max_dd_pct": 1.68,
+     "ann_pct": 4.2,
+     "q_worst_pct": -1.43,
+     "m_mean_geo_pct": 0.344,
+     "m_losing": 3,
+     "m_worst_pct": -0.81,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 7,
+     "expectancy_R": -0.1501,
+     "profit_factor": 0.737,
+     "net_pnl": 27.42,
+     "max_dd_pct": 1.73,
+     "ann_pct": 0.5,
+     "q_worst_pct": -1.14,
+     "m_mean_geo_pct": 0.045,
+     "m_losing": 4,
+     "m_worst_pct": -0.644,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": "2026-08-04T15:30:00Z",
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 39,
+    "full_ann_pct": 1.1,
+    "period": "2023-09-13→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.3444,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0.3444 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -0.81,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -0.81 meets >= -8"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.0453,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0.04531 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 4,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 4 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -0.6444,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -0.6444 meets >= -8"
+     }
+    ],
+    "reported_target": [
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": 0.3444,
+      "threshold": 10.0,
+      "met": false
+     },
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": 0.0453,
+      "threshold": 10.0,
+      "met": false
+     }
+    ]
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=10 < 20 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) 0.3444 fails >= 5",
+    "IS losing_months_max: losing calendar months 3 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) 0.04531 fails >= 5",
+    "OOS losing_months_max: losing calendar months 4 fails <= 2"
+   ],
+   "rule_version": "02d472da9879",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-day-wyckoff-book-1h-border-a",
+   "horizon": "day",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "1H",
+   "method": "WYCKOFF-BOOK",
+   "htf": false,
+   "mgmt": "none",
+   "fee_assumed": 0.0005,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 23,
+     "expectancy_R": -0.0578,
+     "profit_factor": 0.925,
+     "net_pnl": -159.5,
+     "max_dd_pct": 5.51,
+     "ann_pct": -1.6,
+     "q_worst_pct": -3.5,
+     "m_mean_geo_pct": -0.134,
+     "m_losing": 6,
+     "m_worst_pct": -2.447,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 6,
+     "expectancy_R": -0.566,
+     "profit_factor": 0.437,
+     "net_pnl": -173.89,
+     "max_dd_pct": 1.74,
+     "ann_pct": -3.4,
+     "q_worst_pct": -1.31,
+     "m_mean_geo_pct": -0.29,
+     "m_losing": 2,
+     "m_worst_pct": -1.311,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 75,
+    "full_ann_pct": -0.2,
+    "period": "2022-09-13→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.134,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.134 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 6,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 6 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -2.4472,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -2.447 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 5.5141,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 5.514 meets <= 10"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.2898,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.2898 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 2,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 2 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.3108,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.311 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.7389,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 1.739 meets <= 10"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.134 fails >= 2",
+    "IS losing_months_max: losing calendar months 6 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.2898 fails >= 2"
+   ],
+   "rule_version": "0563b5c8e9dc",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-day-ict-1h-range-a",
+   "horizon": "day",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "1H",
+   "method": "ICT",
+   "htf": false,
+   "mgmt": "none",
+   "fee_assumed": 0.0005,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 9,
+     "expectancy_R": -0.3006,
+     "profit_factor": 0.634,
+     "net_pnl": -228.14,
+     "max_dd_pct": 3.16,
+     "ann_pct": -2.3,
+     "q_worst_pct": -3.16,
+     "m_mean_geo_pct": -0.192,
+     "m_losing": 6,
+     "m_worst_pct": -2.091,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 2,
+     "expectancy_R": -0.4015,
+     "profit_factor": 0.276,
+     "net_pnl": -54.11,
+     "max_dd_pct": 0.84,
+     "ann_pct": -1.1,
+     "q_worst_pct": -0.84,
+     "m_mean_geo_pct": -0.09,
+     "m_losing": 1,
+     "m_worst_pct": -0.845,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 25,
+    "full_ann_pct": -0.7,
+    "period": "2022-09-13→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1923,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1923 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 6,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 6 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -2.0908,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -2.091 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 3.1638,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 3.164 meets <= 10"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.0897,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.08972 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 1,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 1 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -0.8449,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -0.8449 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 0.8449,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 0.8449 meets <= 10"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=9 < 15 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1923 fails >= 2",
+    "IS losing_months_max: losing calendar months 6 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.08972 fails >= 2"
+   ],
+   "rule_version": "5472ec97d148",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-day-wyckoff-book-1h-border-b",
+   "horizon": "day",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "1H",
+   "method": "WYCKOFF-BOOK",
+   "htf": false,
+   "mgmt": "be",
+   "fee_assumed": 0.0002,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 9,
+     "expectancy_R": -0.0552,
+     "profit_factor": 0.955,
+     "net_pnl": -109.47,
+     "max_dd_pct": 1.62,
+     "ann_pct": -1.1,
+     "q_worst_pct": -0.68,
+     "m_mean_geo_pct": -0.092,
+     "m_losing": 4,
+     "m_worst_pct": -1.084,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-08-04T13:00:00Z",
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 6,
+     "expectancy_R": -0.3993,
+     "profit_factor": 0.537,
+     "net_pnl": -103.24,
+     "max_dd_pct": 1.35,
+     "ann_pct": -2.0,
+     "q_worst_pct": -0.6,
+     "m_mean_geo_pct": -0.172,
+     "m_losing": 2,
+     "m_worst_pct": -0.601,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 75,
+    "full_ann_pct": -0.7,
+    "period": "2022-09-13→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.0918,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.09175 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 4,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 4 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.084,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.084 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.6229,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 1.623 meets <= 10"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1715,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1715 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 2,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 2 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -0.6013,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -0.6013 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.3482,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 1.348 meets <= 10"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=9 < 15 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.09175 fails >= 2",
+    "IS losing_months_max: losing calendar months 4 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1715 fails >= 2"
+   ],
+   "rule_version": "a9e08d3c4ff9",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-day-ict-1h-range-b",
+   "horizon": "day",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "1H",
+   "method": "ICT",
+   "htf": false,
+   "mgmt": "be",
+   "fee_assumed": 0.0002,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 5,
+     "expectancy_R": -0.4464,
+     "profit_factor": 0.0,
+     "net_pnl": -164.47,
+     "max_dd_pct": 1.64,
+     "ann_pct": -1.6,
+     "q_worst_pct": -1.63,
+     "m_mean_geo_pct": -0.138,
+     "m_losing": 4,
+     "m_worst_pct": -1.071,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-07-25T15:00:00Z",
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 2,
+     "expectancy_R": -0.557,
+     "profit_factor": 0.0,
+     "net_pnl": -83.31,
+     "max_dd_pct": 0.83,
+     "ann_pct": -1.6,
+     "q_worst_pct": -0.8,
+     "m_mean_geo_pct": -0.138,
+     "m_losing": 2,
+     "m_worst_pct": -0.796,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 25,
+    "full_ann_pct": -0.4,
+    "period": "2022-09-13→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1382,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1382 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 4,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 4 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.0708,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.071 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.6447,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 1.645 meets <= 10"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1383,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1383 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 2,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 2 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -0.7957,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -0.7957 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 0.8331,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 0.8331 meets <= 10"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=5 < 15 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1382 fails >= 2",
+    "IS losing_months_max: losing calendar months 4 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1383 fails >= 2"
+   ],
+   "rule_version": "7b8d0827adcc",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-day-wyckoff-book-1h-border-c",
+   "horizon": "day",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "1H",
+   "method": "WYCKOFF-BOOK",
+   "htf": true,
+   "mgmt": "be",
+   "fee_assumed": 0.0002,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 5,
+     "expectancy_R": -0.981,
+     "profit_factor": 0.0,
+     "net_pnl": -245.81,
+     "max_dd_pct": 2.46,
+     "ann_pct": -2.5,
+     "q_worst_pct": -1.42,
+     "m_mean_geo_pct": -0.207,
+     "m_losing": 3,
+     "m_worst_pct": -1.056,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-08-18T13:00:00Z",
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 4,
+     "expectancy_R": -0.0023,
+     "profit_factor": 1.043,
+     "net_pnl": 30.44,
+     "max_dd_pct": 0.92,
+     "ann_pct": 0.6,
+     "q_worst_pct": 0.0,
+     "m_mean_geo_pct": 0.05,
+     "m_losing": 0,
+     "m_worst_pct": 0.0,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 28,
+    "full_ann_pct": -0.6,
+    "period": "2022-09-13→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.2073,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.2073 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.0565,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.056 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 2.4581,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 2.458 meets <= 10"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.0503,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0.05029 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 0,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 0 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % 0 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 0.9185,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 0.9185 meets <= 10"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=5 < 15 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.2073 fails >= 2",
+    "IS losing_months_max: losing calendar months 3 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) 0.05029 fails >= 2"
+   ],
+   "rule_version": "d78925ad8d6f",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-day-ict-1h-range-c",
+   "horizon": "day",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "1H",
+   "method": "ICT",
+   "htf": true,
+   "mgmt": "be",
+   "fee_assumed": 0.0002,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 3,
+     "expectancy_R": -1.0477,
+     "profit_factor": 0.0,
+     "net_pnl": -216.03,
+     "max_dd_pct": 2.16,
+     "ann_pct": -2.2,
+     "q_worst_pct": -1.66,
+     "m_mean_geo_pct": -0.182,
+     "m_losing": 3,
+     "m_worst_pct": -1.028,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 2,
+     "expectancy_R": -0.557,
+     "profit_factor": 0.0,
+     "net_pnl": -83.31,
+     "max_dd_pct": 0.83,
+     "ann_pct": -1.6,
+     "q_worst_pct": -0.8,
+     "m_mean_geo_pct": -0.138,
+     "m_losing": 2,
+     "m_worst_pct": -0.796,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 11,
+    "full_ann_pct": -0.5,
+    "period": "2022-09-13→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.182,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.182 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.0277,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.028 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 2.1603,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 2.16 meets <= 10"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1383,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1383 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 2,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 2 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -0.7957,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -0.7957 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 0.8331,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 0.8331 meets <= 10"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=3 < 15 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.182 fails >= 2",
+    "IS losing_months_max: losing calendar months 3 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1383 fails >= 2"
+   ],
+   "rule_version": "ea24419cc501",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-swing-wyckoff-book-4h-border-a",
+   "horizon": "swing",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "4H",
+   "method": "WYCKOFF-BOOK",
+   "htf": false,
+   "mgmt": "none",
+   "fee_assumed": 0.0005,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 2,
+     "expectancy_R": -1.0835,
+     "profit_factor": 0.0,
+     "net_pnl": -186.95,
+     "max_dd_pct": 1.87,
+     "ann_pct": -1.9,
+     "q_worst_pct": -1.05,
+     "m_mean_geo_pct": -0.157,
+     "m_losing": 2,
+     "m_worst_pct": -1.054,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 4,
+     "expectancy_R": -0.9032,
+     "profit_factor": 0.0,
+     "net_pnl": -275.79,
+     "max_dd_pct": 2.76,
+     "ann_pct": -5.4,
+     "q_worst_pct": -1.72,
+     "m_mean_geo_pct": -0.462,
+     "m_losing": 3,
+     "m_worst_pct": -1.538,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 20,
+    "full_ann_pct": -0.9,
+    "period": "2022-09-05→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1573,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1573 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.8695,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 1.87 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.0538,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.054 meets >= -3"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.4616,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.4616 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 2.7579,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 2.758 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.7193,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.719 meets >= -3"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=2 < 6 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1573 fails >= 1.5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.4616 fails >= 1.5"
+   ],
+   "rule_version": "003b5ac73dc6",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-swing-ict-4h-range-a",
+   "horizon": "swing",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "4H",
+   "method": "ICT",
+   "htf": false,
+   "mgmt": "none",
+   "fee_assumed": 0.0005,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 4,
+     "expectancy_R": -1.03,
+     "profit_factor": 0.0,
+     "net_pnl": -355.68,
+     "max_dd_pct": 3.56,
+     "ann_pct": -3.6,
+     "q_worst_pct": -2.56,
+     "m_mean_geo_pct": -0.302,
+     "m_losing": 2,
+     "m_worst_pct": -2.558,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 2,
+     "expectancy_R": -0.39,
+     "profit_factor": 0.261,
+     "net_pnl": -78.28,
+     "max_dd_pct": 1.06,
+     "ann_pct": -1.5,
+     "q_worst_pct": -1.06,
+     "m_mean_geo_pct": -0.13,
+     "m_losing": 1,
+     "m_worst_pct": -1.056,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 8,
+    "full_ann_pct": -0.7,
+    "period": "2022-09-05→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.3016,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.3016 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 3.5568,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 3.557 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -2.5582,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -2.558 meets >= -3"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1299,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1299 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.0559,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 1.056 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.0559,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.056 meets >= -3"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=4 < 6 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.3016 fails >= 1.5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1299 fails >= 1.5"
+   ],
+   "rule_version": "84c8131bda0d",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-swing-wyckoff-book-4h-border-b",
+   "horizon": "swing",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "4H",
+   "method": "WYCKOFF-BOOK",
+   "htf": false,
+   "mgmt": "be",
+   "fee_assumed": 0.0002,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 2,
+     "expectancy_R": -0.0835,
+     "profit_factor": null,
+     "net_pnl": -13.72,
+     "max_dd_pct": 0.14,
+     "ann_pct": -0.1,
+     "q_worst_pct": -0.08,
+     "m_mean_geo_pct": -0.011,
+     "m_losing": 2,
+     "m_worst_pct": -0.084,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 4,
+     "expectancy_R": -0.3225,
+     "profit_factor": 0.0,
+     "net_pnl": -112.16,
+     "max_dd_pct": 1.12,
+     "ann_pct": -2.2,
+     "q_worst_pct": -1.07,
+     "m_mean_geo_pct": -0.186,
+     "m_losing": 3,
+     "m_worst_pct": -1.043,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 20,
+    "full_ann_pct": -0.5,
+    "period": "2022-09-05→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.0114,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.01145 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 0.1372,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 0.1372 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -0.0835,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -0.08349 meets >= -3"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1864,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1864 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.1216,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 1.122 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.0654,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.065 meets >= -3"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=2 < 6 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.01145 fails >= 1.5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1864 fails >= 1.5"
+   ],
+   "rule_version": "2ef82a30b303",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-swing-ict-4h-range-b",
+   "horizon": "swing",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "4H",
+   "method": "ICT",
+   "htf": false,
+   "mgmt": "be",
+   "fee_assumed": 0.0002,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 4,
+     "expectancy_R": -1.021,
+     "profit_factor": 0.0,
+     "net_pnl": -352.93,
+     "max_dd_pct": 3.53,
+     "ann_pct": -3.5,
+     "q_worst_pct": -2.54,
+     "m_mean_geo_pct": -0.299,
+     "m_losing": 2,
+     "m_worst_pct": -2.538,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 2,
+     "expectancy_R": -0.527,
+     "profit_factor": 0.0,
+     "net_pnl": -105.37,
+     "max_dd_pct": 1.05,
+     "ann_pct": -2.1,
+     "q_worst_pct": -1.04,
+     "m_mean_geo_pct": -0.175,
+     "m_losing": 2,
+     "m_worst_pct": -1.039,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 8,
+    "full_ann_pct": -0.6,
+    "period": "2022-09-05→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.2992,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.2992 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 3.5293,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 3.529 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -2.5378,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -2.538 meets >= -3"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1751,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1751 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.0537,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 1.054 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.0391,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.039 meets >= -3"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=4 < 6 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.2992 fails >= 1.5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1751 fails >= 1.5"
+   ],
+   "rule_version": "9749500da986",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-swing-wyckoff-book-4h-border-c",
+   "horizon": "swing",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "4H",
+   "method": "WYCKOFF-BOOK",
+   "htf": true,
+   "mgmt": "be",
+   "fee_assumed": 0.0002,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 1,
+     "expectancy_R": -0.113,
+     "profit_factor": null,
+     "net_pnl": -8.35,
+     "max_dd_pct": 0.08,
+     "ann_pct": -0.1,
+     "q_worst_pct": -0.08,
+     "m_mean_geo_pct": -0.007,
+     "m_losing": 1,
+     "m_worst_pct": -0.084,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 0,
+     "expectancy_R": null,
+     "profit_factor": null,
+     "net_pnl": 0.0,
+     "max_dd_pct": 0.0,
+     "ann_pct": 0.0,
+     "q_worst_pct": 0.0,
+     "m_mean_geo_pct": 0.0,
+     "m_losing": 0,
+     "m_worst_pct": 0.0,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 5,
+    "full_ann_pct": -0.3,
+    "period": "2022-09-05→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.007,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.006965 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 0.0835,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 0.08349 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -0.0835,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -0.08349 meets >= -3"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 0.0,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 0 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % 0 meets >= -3"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=1 < 6 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.006965 fails >= 1.5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) 0 fails >= 1.5"
+   ],
+   "rule_version": "fd753d7066ca",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "crypto-swing-ict-4h-range-c",
+   "horizon": "swing",
+   "market": "crypto",
+   "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "tf": "4H",
+   "method": "ICT",
+   "htf": true,
+   "mgmt": "be",
+   "fee_assumed": 0.0002,
+   "execution": "futures",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "source": "data/history/stability/crypto-pilot-binance-futures-testnet.json",
+    "account": "pilot-binance-futures-testnet",
+    "in_sample": {
+     "n": 1,
+     "expectancy_R": -1.037,
+     "profit_factor": 0.0,
+     "net_pnl": -103.67,
+     "max_dd_pct": 1.04,
+     "ann_pct": -1.0,
+     "q_worst_pct": -1.04,
+     "m_mean_geo_pct": -0.087,
+     "m_losing": 1,
+     "m_worst_pct": -1.037,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-11",
+     "until": "2026-03-11"
+    },
+    "oos": {
+     "n": 0,
+     "expectancy_R": null,
+     "profit_factor": null,
+     "net_pnl": 0.0,
+     "max_dd_pct": 0.0,
+     "ann_pct": 0.0,
+     "q_worst_pct": 0.0,
+     "m_mean_geo_pct": 0.0,
+     "m_losing": 0,
+     "m_worst_pct": 0.0,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-11",
+     "until": "2026-09-11"
+    },
+    "full_n": 1,
+    "full_ann_pct": -0.3,
+    "period": "2022-09-05→2026-09-11"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.0869,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.08687 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.0367,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 1.037 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.0367,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.037 meets >= -3"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 0.0,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 0 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % 0 meets >= -3"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=1 < 6 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.08687 fails >= 1.5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) 0 fails >= 1.5"
+   ],
+   "rule_version": "1faec9d35377",
    "rule_version_algo": "sha256-12"
   },
   {
    "id": "cfd-scalping-wyckoff-book-15m-border-a",
    "horizon": "scalping",
-   "rank": 2,
    "market": "cfd",
    "symbols": [
     "XAUUSD",
@@ -56,26 +2435,805 @@
    "mgmt": "none",
    "fee_assumed": 0.0005,
    "execution": "mt5",
-   "negative_backtest": false,
    "backtest": {
-    "window": "1y",
-    "n": 27,
-    "ann_pct": 0.0,
-    "max_dd_pct": 6.7,
-    "q_pos_pct": 40,
-    "full_n": 184,
-    "full_ann_pct": -1.2,
-    "years_pos": "0/2",
-    "period": "2018-03-20→2026-09-18",
-    "source": "data/history/stability/cfd-ftmo-challenge-phase1.json"
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 6,
+     "expectancy_R": -0.814,
+     "profit_factor": 0.321,
+     "net_pnl": -284.1,
+     "max_dd_pct": 5.03,
+     "ann_pct": -2.8,
+     "q_worst_pct": -5.03,
+     "m_mean_geo_pct": -0.24,
+     "m_losing": 2,
+     "m_worst_pct": -3.05,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-05-19T03:45:00Z",
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 9,
+     "expectancy_R": -0.6728,
+     "profit_factor": 0.39,
+     "net_pnl": -543.74,
+     "max_dd_pct": 5.44,
+     "ann_pct": -10.5,
+     "q_worst_pct": -2.87,
+     "m_mean_geo_pct": -0.921,
+     "m_losing": 3,
+     "m_worst_pct": -2.872,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": "2026-06-02T09:00:00Z",
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 209,
+    "full_ann_pct": -0.5,
+    "period": "2018-03-20→2026-09-18"
    },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.2401,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.2401 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 2,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 2 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -3.0495,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -3.05 meets >= -8"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.9206,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.9206 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -2.8715,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -2.872 meets >= -8"
+     }
+    ],
+    "reported_target": [
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.2401,
+      "threshold": 10.0,
+      "met": false
+     },
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.9206,
+      "threshold": 10.0,
+      "met": false
+     }
+    ]
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=6 < 20 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.2401 fails >= 5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.9206 fails >= 5",
+    "OOS losing_months_max: losing calendar months 3 fails <= 2"
+   ],
    "rule_version": "017ad07ab5a8",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-scalping-ict-15m-range-a",
+   "horizon": "scalping",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "15m",
+   "method": "ICT",
+   "htf": false,
+   "mgmt": "none",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 7,
+     "expectancy_R": -0.5719,
+     "profit_factor": 0.488,
+     "net_pnl": -219.5,
+     "max_dd_pct": 4.76,
+     "ann_pct": -2.2,
+     "q_worst_pct": -2.9,
+     "m_mean_geo_pct": -0.185,
+     "m_losing": 4,
+     "m_worst_pct": -2.289,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-10-07T23:00:00Z",
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 0,
+     "expectancy_R": null,
+     "profit_factor": null,
+     "net_pnl": 0.0,
+     "max_dd_pct": 0.0,
+     "ann_pct": 0.0,
+     "q_worst_pct": 0.0,
+     "m_mean_geo_pct": 0.0,
+     "m_losing": 0,
+     "m_worst_pct": 0.0,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 94,
+    "full_ann_pct": 0.3,
+    "period": "2018-03-20→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1849,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1849 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 4,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 4 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -2.2894,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -2.289 meets >= -8"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 0,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 0 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % 0 meets >= -8"
+     }
+    ],
+    "reported_target": [
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.1849,
+      "threshold": 10.0,
+      "met": false
+     },
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": 0.0,
+      "threshold": 10.0,
+      "met": false
+     }
+    ]
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=7 < 20 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1849 fails >= 5",
+    "IS losing_months_max: losing calendar months 4 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) 0 fails >= 5"
+   ],
+   "rule_version": "a3dc1245fc04",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-scalping-wyckoff-book-15m-border-b",
+   "horizon": "scalping",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "15m",
+   "method": "WYCKOFF-BOOK",
+   "htf": false,
+   "mgmt": "be",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 6,
+     "expectancy_R": -0.6473,
+     "profit_factor": 0.397,
+     "net_pnl": -235.18,
+     "max_dd_pct": 4.55,
+     "ann_pct": -2.4,
+     "q_worst_pct": -4.55,
+     "m_mean_geo_pct": -0.198,
+     "m_losing": 2,
+     "m_worst_pct": -3.05,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-05-19T03:45:00Z",
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 9,
+     "expectancy_R": -0.5617,
+     "profit_factor": 0.456,
+     "net_pnl": -447.78,
+     "max_dd_pct": 4.48,
+     "ann_pct": -8.7,
+     "q_worst_pct": -2.87,
+     "m_mean_geo_pct": -0.755,
+     "m_losing": 3,
+     "m_worst_pct": -2.872,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": "2026-06-02T09:00:00Z",
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 209,
+    "full_ann_pct": -0.2,
+    "period": "2018-03-20→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1983,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1983 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 2,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 2 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -3.0495,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -3.05 meets >= -8"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.755,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.755 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -2.8715,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -2.872 meets >= -8"
+     }
+    ],
+    "reported_target": [
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.1983,
+      "threshold": 10.0,
+      "met": false
+     },
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.755,
+      "threshold": 10.0,
+      "met": false
+     }
+    ]
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=6 < 20 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1983 fails >= 5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.755 fails >= 5",
+    "OOS losing_months_max: losing calendar months 3 fails <= 2"
+   ],
+   "rule_version": "26a661906258",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-scalping-ict-15m-range-b",
+   "horizon": "scalping",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "15m",
+   "method": "ICT",
+   "htf": false,
+   "mgmt": "be",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 5,
+     "expectancy_R": -0.7228,
+     "profit_factor": 0.0,
+     "net_pnl": -196.81,
+     "max_dd_pct": 1.97,
+     "ann_pct": -2.0,
+     "q_worst_pct": -1.01,
+     "m_mean_geo_pct": -0.166,
+     "m_losing": 3,
+     "m_worst_pct": -0.973,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-07-30T12:45:00Z",
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 0,
+     "expectancy_R": null,
+     "profit_factor": null,
+     "net_pnl": 0.0,
+     "max_dd_pct": 0.0,
+     "ann_pct": 0.0,
+     "q_worst_pct": 0.0,
+     "m_mean_geo_pct": 0.0,
+     "m_losing": 0,
+     "m_worst_pct": 0.0,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 94,
+    "full_ann_pct": -0.1,
+    "period": "2018-03-20→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1656,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1656 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -0.9726,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -0.9726 meets >= -8"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 0,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 0 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % 0 meets >= -8"
+     }
+    ],
+    "reported_target": [
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.1656,
+      "threshold": 10.0,
+      "met": false
+     },
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": 0.0,
+      "threshold": 10.0,
+      "met": false
+     }
+    ]
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=5 < 20 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1656 fails >= 5",
+    "IS losing_months_max: losing calendar months 3 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) 0 fails >= 5"
+   ],
+   "rule_version": "288d76a07a1e",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-scalping-wyckoff-book-15m-border-c",
+   "horizon": "scalping",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "15m",
+   "method": "WYCKOFF-BOOK",
+   "htf": true,
+   "mgmt": "be",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 5,
+     "expectancy_R": -1.2076,
+     "profit_factor": 0.0,
+     "net_pnl": -431.71,
+     "max_dd_pct": 4.32,
+     "ann_pct": -4.3,
+     "q_worst_pct": -3.62,
+     "m_mean_geo_pct": -0.367,
+     "m_losing": 4,
+     "m_worst_pct": -1.39,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-09-16T13:00:00Z",
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 6,
+     "expectancy_R": 0.4432,
+     "profit_factor": 1.81,
+     "net_pnl": 133.27,
+     "max_dd_pct": 2.7,
+     "ann_pct": 2.7,
+     "q_worst_pct": -1.1,
+     "m_mean_geo_pct": 0.219,
+     "m_losing": 3,
+     "m_worst_pct": -1.214,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 72,
+    "full_ann_pct": -0.5,
+    "period": "2018-03-20→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.3673,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.3673 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 4,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 4 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.3896,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.39 meets >= -8"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.2192,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0.2192 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.2141,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.214 meets >= -8"
+     }
+    ],
+    "reported_target": [
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.3673,
+      "threshold": 10.0,
+      "met": false
+     },
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": 0.2192,
+      "threshold": 10.0,
+      "met": false
+     }
+    ]
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=5 < 20 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.3673 fails >= 5",
+    "IS losing_months_max: losing calendar months 4 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) 0.2192 fails >= 5",
+    "OOS losing_months_max: losing calendar months 3 fails <= 2"
+   ],
+   "rule_version": "7d878f916a84",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-scalping-ict-15m-range-c",
+   "horizon": "scalping",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "15m",
+   "method": "ICT",
+   "htf": true,
+   "mgmt": "be",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 3,
+     "expectancy_R": -0.2697,
+     "profit_factor": 0.875,
+     "net_pnl": -136.12,
+     "max_dd_pct": 1.9,
+     "ann_pct": -1.4,
+     "q_worst_pct": -1.9,
+     "m_mean_geo_pct": -0.114,
+     "m_losing": 2,
+     "m_worst_pct": -1.259,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 0,
+     "expectancy_R": null,
+     "profit_factor": null,
+     "net_pnl": 0.0,
+     "max_dd_pct": 0.0,
+     "ann_pct": 0.0,
+     "q_worst_pct": 0.0,
+     "m_mean_geo_pct": 0.0,
+     "m_losing": 0,
+     "m_worst_pct": 0.0,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 29,
+    "full_ann_pct": 0.2,
+    "period": "2018-03-20→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.1142,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.1142 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 2,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 2 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.2587,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.259 meets >= -8"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": 5.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0 fails >= 5"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 0,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 0 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": -8.0,
+      "passed": true,
+      "reason": "worst calendar month % 0 meets >= -8"
+     }
+    ],
+    "reported_target": [
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": -0.1142,
+      "threshold": 10.0,
+      "met": false
+     },
+     {
+      "criterion": "monthly_return_pct_target",
+      "value": 0.0,
+      "threshold": 10.0,
+      "met": false
+     }
+    ]
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=3 < 20 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.1142 fails >= 5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) 0 fails >= 5"
+   ],
+   "rule_version": "4eff6bbd1ce3",
    "rule_version_algo": "sha256-12"
   },
   {
    "id": "cfd-day-wyckoff-book-1h-border-a",
    "horizon": "day",
-   "rank": 3,
    "market": "cfd",
    "symbols": [
     "XAUUSD",
@@ -87,24 +3245,1912 @@
    "mgmt": "none",
    "fee_assumed": 0.0005,
    "execution": "mt5",
-   "negative_backtest": false,
    "backtest": {
-    "window": "1y",
-    "n": 15,
-    "ann_pct": 3.8,
-    "max_dd_pct": 7.4,
-    "q_pos_pct": 40,
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 8,
+     "expectancy_R": -0.3267,
+     "profit_factor": 0.658,
+     "net_pnl": -59.51,
+     "max_dd_pct": 4.38,
+     "ann_pct": -0.6,
+     "q_worst_pct": -2.39,
+     "m_mean_geo_pct": -0.05,
+     "m_losing": 3,
+     "m_worst_pct": -2.921,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-07-03T07:00:00Z",
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 6,
+     "expectancy_R": -1.168,
+     "profit_factor": 0.0,
+     "net_pnl": -452.75,
+     "max_dd_pct": 4.53,
+     "ann_pct": -8.8,
+     "q_worst_pct": -3.33,
+     "m_mean_geo_pct": -0.763,
+     "m_losing": 4,
+     "m_worst_pct": -1.628,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
     "full_n": 162,
-    "full_ann_pct": -0.5,
-    "years_pos": "2/8",
-    "period": "2004-06-11→2026-09-18",
-    "source": "data/history/stability/cfd-ftmo-challenge-phase1.json"
+    "full_ann_pct": -0.2,
+    "period": "2004-06-11→2026-09-18"
    },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.0498,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.04976 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -2.9208,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -2.921 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 4.3784,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 4.378 meets <= 10"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.7635,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.7635 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 4,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 4 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.6281,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.628 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 4.5275,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 4.527 meets <= 10"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=8 < 15 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.04976 fails >= 2",
+    "IS losing_months_max: losing calendar months 3 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.7635 fails >= 2",
+    "OOS losing_months_max: losing calendar months 4 fails <= 2"
+   ],
    "rule_version": "caf496001f82",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-day-ict-1h-range-a",
+   "horizon": "day",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "1H",
+   "method": "ICT",
+   "htf": false,
+   "mgmt": "none",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 7,
+     "expectancy_R": 0.747,
+     "profit_factor": 2.712,
+     "net_pnl": 385.36,
+     "max_dd_pct": 2.39,
+     "ann_pct": 3.9,
+     "q_worst_pct": -1.07,
+     "m_mean_geo_pct": 0.316,
+     "m_losing": 3,
+     "m_worst_pct": -1.329,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 3,
+     "expectancy_R": -1.1013,
+     "profit_factor": 0.0,
+     "net_pnl": -272.32,
+     "max_dd_pct": 2.72,
+     "ann_pct": -5.3,
+     "q_worst_pct": -1.66,
+     "m_mean_geo_pct": -0.456,
+     "m_losing": 3,
+     "m_worst_pct": -1.109,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 63,
+    "full_ann_pct": 0.8,
+    "period": "2004-06-11→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.3158,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0.3158 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.3287,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.329 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 2.3884,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 2.388 meets <= 10"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.4557,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.4557 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.1095,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.109 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 2.7232,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 2.723 meets <= 10"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=7 < 15 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) 0.3158 fails >= 2",
+    "IS losing_months_max: losing calendar months 3 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.4557 fails >= 2",
+    "OOS losing_months_max: losing calendar months 3 fails <= 2"
+   ],
+   "rule_version": "c241d71c68b5",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-day-wyckoff-book-1h-border-b",
+   "horizon": "day",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "1H",
+   "method": "WYCKOFF-BOOK",
+   "htf": false,
+   "mgmt": "be",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 6,
+     "expectancy_R": -0.0235,
+     "profit_factor": 1.12,
+     "net_pnl": 59.58,
+     "max_dd_pct": 1.89,
+     "ann_pct": 0.6,
+     "q_worst_pct": -1.89,
+     "m_mean_geo_pct": 0.05,
+     "m_losing": 2,
+     "m_worst_pct": -1.129,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-05-30T14:00:00Z",
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 6,
+     "expectancy_R": -0.668,
+     "profit_factor": 0.0,
+     "net_pnl": -258.52,
+     "max_dd_pct": 2.59,
+     "ann_pct": -5.1,
+     "q_worst_pct": -2.35,
+     "m_mean_geo_pct": -0.432,
+     "m_losing": 4,
+     "m_worst_pct": -1.628,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 162,
+    "full_ann_pct": -0.1,
+    "period": "2004-06-11→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.0495,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0.04955 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 2,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 2 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.1285,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.129 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.8931,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 1.893 meets <= 10"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.4323,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.4323 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 4,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 4 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.6281,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.628 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 2.5852,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 2.585 meets <= 10"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=6 < 15 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) 0.04955 fails >= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.4323 fails >= 2",
+    "OOS losing_months_max: losing calendar months 4 fails <= 2"
+   ],
+   "rule_version": "9abcf1b9afd2",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-day-ict-1h-range-b",
+   "horizon": "day",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "1H",
+   "method": "ICT",
+   "htf": false,
+   "mgmt": "be",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 5,
+     "expectancy_R": -0.657,
+     "profit_factor": 0.0,
+     "net_pnl": -281.86,
+     "max_dd_pct": 2.82,
+     "ann_pct": -2.8,
+     "q_worst_pct": -1.39,
+     "m_mean_geo_pct": -0.238,
+     "m_losing": 5,
+     "m_worst_pct": -1.329,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-12-19T01:00:00Z",
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 3,
+     "expectancy_R": -0.768,
+     "profit_factor": 0.0,
+     "net_pnl": -223.41,
+     "max_dd_pct": 2.23,
+     "ann_pct": -4.4,
+     "q_worst_pct": -1.17,
+     "m_mean_geo_pct": -0.373,
+     "m_losing": 3,
+     "m_worst_pct": -1.109,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 63,
+    "full_ann_pct": 0.1,
+    "period": "2004-06-11→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.2381,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.2381 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 5,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 5 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.3287,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.329 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 2.8186,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 2.819 meets <= 10"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.3731,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.3731 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.1095,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.109 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 2.2341,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 2.234 meets <= 10"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=5 < 15 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.2381 fails >= 2",
+    "IS losing_months_max: losing calendar months 5 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.3731 fails >= 2",
+    "OOS losing_months_max: losing calendar months 3 fails <= 2"
+   ],
+   "rule_version": "0b4887350507",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-day-wyckoff-book-1h-border-c",
+   "horizon": "day",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "1H",
+   "method": "WYCKOFF-BOOK",
+   "htf": true,
+   "mgmt": "be",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 6,
+     "expectancy_R": -0.3588,
+     "profit_factor": 0.56,
+     "net_pnl": -98.43,
+     "max_dd_pct": 3.43,
+     "ann_pct": -1.0,
+     "q_worst_pct": -2.33,
+     "m_mean_geo_pct": -0.082,
+     "m_losing": 4,
+     "m_worst_pct": -1.266,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-08-20T12:00:00Z",
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 2,
+     "expectancy_R": -0.647,
+     "profit_factor": 0.0,
+     "net_pnl": -129.25,
+     "max_dd_pct": 1.29,
+     "ann_pct": -2.5,
+     "q_worst_pct": -1.29,
+     "m_mean_geo_pct": -0.215,
+     "m_losing": 2,
+     "m_worst_pct": -1.145,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 61,
+    "full_ann_pct": -0.1,
+    "period": "2004-06-11→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.0825,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.08246 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 4,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 4 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.2663,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.266 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 3.4341,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 3.434 meets <= 10"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.215,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.215 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 2,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 2 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.145,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.145 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.2925,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 1.293 meets <= 10"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=6 < 15 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.08246 fails >= 2",
+    "IS losing_months_max: losing calendar months 4 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.215 fails >= 2"
+   ],
+   "rule_version": "d5f355c631be",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-day-ict-1h-range-c",
+   "horizon": "day",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "1H",
+   "method": "ICT",
+   "htf": true,
+   "mgmt": "be",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 4,
+     "expectancy_R": 0.2145,
+     "profit_factor": 1.987,
+     "net_pnl": -17.36,
+     "max_dd_pct": 1.23,
+     "ann_pct": -0.2,
+     "q_worst_pct": -1.07,
+     "m_mean_geo_pct": -0.014,
+     "m_losing": 3,
+     "m_worst_pct": -1.074,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 2,
+     "expectancy_R": -0.6115,
+     "profit_factor": 0.0,
+     "net_pnl": -122.11,
+     "max_dd_pct": 1.22,
+     "ann_pct": -2.4,
+     "q_worst_pct": -1.22,
+     "m_mean_geo_pct": -0.203,
+     "m_losing": 2,
+     "m_worst_pct": -1.109,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 24,
+    "full_ann_pct": -0.0,
+    "period": "2004-06-11→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.0145,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.01449 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 3,
+      "op": "<=",
+      "threshold": 2,
+      "passed": false,
+      "reason": "losing calendar months 3 fails <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.074,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.074 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.2276,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 1.228 meets <= 10"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.203,
+      "op": ">=",
+      "threshold": 2.0,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.203 fails >= 2"
+     },
+     {
+      "criterion": "losing_months_max",
+      "value": 2,
+      "op": "<=",
+      "threshold": 2,
+      "passed": true,
+      "reason": "losing calendar months 2 meets <= 2"
+     },
+     {
+      "criterion": "worst_month_pct_min",
+      "value": -1.1095,
+      "op": ">=",
+      "threshold": -4.0,
+      "passed": true,
+      "reason": "worst calendar month % -1.109 meets >= -4"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.2211,
+      "op": "<=",
+      "threshold": 10.0,
+      "passed": true,
+      "reason": "max drawdown % 1.221 meets <= 10"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=4 < 15 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.01449 fails >= 2",
+    "IS losing_months_max: losing calendar months 3 fails <= 2",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.203 fails >= 2"
+   ],
+   "rule_version": "933aafee0cfe",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-swing-wyckoff-book-4h-border-a",
+   "horizon": "swing",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "4H",
+   "method": "WYCKOFF-BOOK",
+   "htf": false,
+   "mgmt": "none",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 5,
+     "expectancy_R": -1.1046,
+     "profit_factor": 0.0,
+     "net_pnl": -382.34,
+     "max_dd_pct": 3.82,
+     "ann_pct": -3.8,
+     "q_worst_pct": -2.79,
+     "m_mean_geo_pct": -0.325,
+     "m_losing": 4,
+     "m_worst_pct": -1.159,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-10-21T08:00:00Z",
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 7,
+     "expectancy_R": -0.0811,
+     "profit_factor": 0.864,
+     "net_pnl": -58.74,
+     "max_dd_pct": 2.06,
+     "ann_pct": -1.2,
+     "q_worst_pct": -1.05,
+     "m_mean_geo_pct": -0.097,
+     "m_losing": 3,
+     "m_worst_pct": -1.05,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 68,
+    "full_ann_pct": -0.3,
+    "period": "2004-06-11→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.3246,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.3246 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 3.8234,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 3.823 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -2.7859,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -2.786 meets >= -3"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.0974,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.0974 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 2.0634,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 2.063 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.0495,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.05 meets >= -3"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=5 < 6 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.3246 fails >= 1.5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.0974 fails >= 1.5"
+   ],
+   "rule_version": "611efc673e10",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-swing-ict-4h-range-a",
+   "horizon": "swing",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "4H",
+   "method": "ICT",
+   "htf": false,
+   "mgmt": "none",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 2,
+     "expectancy_R": 0.354,
+     "profit_factor": 1.67,
+     "net_pnl": 68.92,
+     "max_dd_pct": 1.06,
+     "ann_pct": 0.7,
+     "q_worst_pct": -1.06,
+     "m_mean_geo_pct": 0.057,
+     "m_losing": 1,
+     "m_worst_pct": -1.057,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 2,
+     "expectancy_R": 0.523,
+     "profit_factor": 2.023,
+     "net_pnl": 102.51,
+     "max_dd_pct": 1.02,
+     "ann_pct": 2.0,
+     "q_worst_pct": -1.02,
+     "m_mean_geo_pct": 0.169,
+     "m_losing": 1,
+     "m_worst_pct": -1.022,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 15,
+    "full_ann_pct": -0.2,
+    "period": "2004-06-11→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.0573,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0.05729 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.0572,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 1.057 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.0572,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.057 meets >= -3"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.1689,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0.1689 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.0216,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 1.022 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.0216,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.022 meets >= -3"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=2 < 6 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) 0.05729 fails >= 1.5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) 0.1689 fails >= 1.5"
+   ],
+   "rule_version": "612b587f416b",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-swing-wyckoff-book-4h-border-b",
+   "horizon": "swing",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "4H",
+   "method": "WYCKOFF-BOOK",
+   "htf": false,
+   "mgmt": "be",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 5,
+     "expectancy_R": -0.9046,
+     "profit_factor": 0.0,
+     "net_pnl": -285.03,
+     "max_dd_pct": 2.85,
+     "ann_pct": -2.9,
+     "q_worst_pct": -1.8,
+     "m_mean_geo_pct": -0.241,
+     "m_losing": 4,
+     "m_worst_pct": -1.081,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": "2025-10-21T08:00:00Z",
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 7,
+     "expectancy_R": -0.0211,
+     "profit_factor": 0.973,
+     "net_pnl": -62.68,
+     "max_dd_pct": 1.62,
+     "ann_pct": -1.2,
+     "q_worst_pct": -1.05,
+     "m_mean_geo_pct": -0.104,
+     "m_losing": 3,
+     "m_worst_pct": -1.046,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 68,
+    "full_ann_pct": -0.2,
+    "period": "2004-06-11→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.2409,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.2409 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 2.8503,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 2.85 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.8023,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.802 meets >= -3"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.104,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.104 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.6215,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 1.621 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.0459,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.046 meets >= -3"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=5 < 6 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.2409 fails >= 1.5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.104 fails >= 1.5"
+   ],
+   "rule_version": "2755e9d10b2c",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-swing-ict-4h-range-b",
+   "horizon": "swing",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "4H",
+   "method": "ICT",
+   "htf": false,
+   "mgmt": "be",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 2,
+     "expectancy_R": -0.0665,
+     "profit_factor": null,
+     "net_pnl": -13.34,
+     "max_dd_pct": 0.13,
+     "ann_pct": -0.1,
+     "q_worst_pct": -0.08,
+     "m_mean_geo_pct": -0.011,
+     "m_losing": 2,
+     "m_worst_pct": -0.076,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 2,
+     "expectancy_R": 0.523,
+     "profit_factor": 2.023,
+     "net_pnl": 102.51,
+     "max_dd_pct": 1.02,
+     "ann_pct": 2.0,
+     "q_worst_pct": -1.02,
+     "m_mean_geo_pct": 0.169,
+     "m_losing": 1,
+     "m_worst_pct": -1.022,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 15,
+    "full_ann_pct": -0.1,
+    "period": "2004-06-11→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.0111,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.01113 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 0.1334,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 0.1334 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -0.0762,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -0.0762 meets >= -3"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.1689,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0.1689 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.0216,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 1.022 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.0216,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.022 meets >= -3"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=2 < 6 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.01113 fails >= 1.5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) 0.1689 fails >= 1.5"
+   ],
+   "rule_version": "79e434f2be8d",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-swing-wyckoff-book-4h-border-c",
+   "horizon": "swing",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "4H",
+   "method": "WYCKOFF-BOOK",
+   "htf": true,
+   "mgmt": "be",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 3,
+     "expectancy_R": -1.1247,
+     "profit_factor": 0.0,
+     "net_pnl": -277.48,
+     "max_dd_pct": 2.77,
+     "ann_pct": -2.8,
+     "q_worst_pct": -1.14,
+     "m_mean_geo_pct": -0.234,
+     "m_losing": 3,
+     "m_worst_pct": -1.142,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 3,
+     "expectancy_R": 0.3537,
+     "profit_factor": 2.04,
+     "net_pnl": -0.33,
+     "max_dd_pct": 1.05,
+     "ann_pct": -0.0,
+     "q_worst_pct": -1.05,
+     "m_mean_geo_pct": -0.001,
+     "m_losing": 1,
+     "m_worst_pct": -1.046,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 26,
+    "full_ann_pct": -0.0,
+    "period": "2004-06-11→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.2344,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.2344 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 2.7748,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 2.775 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.1418,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.142 meets >= -3"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": -0.0005,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) -0.0005401 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 1.0459,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 1.046 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": -1.0459,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % -1.046 meets >= -3"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=3 < 6 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.2344 fails >= 1.5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) -0.0005401 fails >= 1.5"
+   ],
+   "rule_version": "9d539742437c",
+   "rule_version_algo": "sha256-12"
+  },
+  {
+   "id": "cfd-swing-ict-4h-range-c",
+   "horizon": "swing",
+   "market": "cfd",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "tf": "4H",
+   "method": "ICT",
+   "htf": true,
+   "mgmt": "be",
+   "fee_assumed": 0.0005,
+   "execution": "mt5",
+   "backtest": {
+    "window": "oos6m",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "source": "data/history/stability/cfd-pilot-mt5-demo.json",
+    "account": "pilot-mt5-demo",
+    "in_sample": {
+     "n": 0,
+     "expectancy_R": null,
+     "profit_factor": null,
+     "net_pnl": 0.0,
+     "max_dd_pct": 0.0,
+     "ann_pct": 0.0,
+     "q_worst_pct": 0.0,
+     "m_mean_geo_pct": 0.0,
+     "m_losing": 0,
+     "m_worst_pct": 0.0,
+     "months": 13,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2025-03-18",
+     "until": "2026-03-18"
+    },
+    "oos": {
+     "n": 1,
+     "expectancy_R": 2.068,
+     "profit_factor": null,
+     "net_pnl": 206.79,
+     "max_dd_pct": 0.0,
+     "ann_pct": 4.1,
+     "q_worst_pct": 0.0,
+     "m_mean_geo_pct": 0.339,
+     "m_losing": 0,
+     "m_worst_pct": 0.0,
+     "months": 7,
+     "partial_months": 2,
+     "ruin": null,
+     "since": "2026-03-18",
+     "until": "2026-09-18"
+    },
+    "full_n": 5,
+    "full_ann_pct": -0.0,
+    "period": "2004-06-11→2026-09-18"
+   },
+   "criteria_result": {
+    "in_sample": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 0.0,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 0 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % 0 meets >= -3"
+     }
+    ],
+    "oos": [
+     {
+      "criterion": "mean_monthly_return_pct_min",
+      "value": 0.3392,
+      "op": ">=",
+      "threshold": 1.5,
+      "passed": false,
+      "reason": "mean monthly return % (geometric) 0.3392 fails >= 1.5"
+     },
+     {
+      "criterion": "max_drawdown_pct_max",
+      "value": 0.0,
+      "op": "<=",
+      "threshold": 8.0,
+      "passed": true,
+      "reason": "max drawdown % 0 meets <= 8"
+     },
+     {
+      "criterion": "worst_quarter_pct_min",
+      "value": 0.0,
+      "op": ">=",
+      "threshold": -3.0,
+      "passed": true,
+      "reason": "worst quarter % 0 meets >= -3"
+     }
+    ],
+    "reported_target": []
+   },
+   "decision": "DISABLED",
+   "reasons": [
+    "precondition: IS n=0 < 6 trades",
+    "IS mean_monthly_return_pct_min: mean monthly return % (geometric) 0 fails >= 1.5",
+    "OOS mean_monthly_return_pct_min: mean monthly return % (geometric) 0.3392 fails >= 1.5"
+   ],
+   "rule_version": "c67cec2be2c3",
    "rule_version_algo": "sha256-12"
   }
  ],
- "rank_by": "consistency",
+ "horizons_without_system": [
+  {
+   "market": "crypto",
+   "horizon": "scalping",
+   "reason": "0 of 6 candidates met every criterion on in-sample and OOS -- this horizon trades nothing"
+  },
+  {
+   "market": "crypto",
+   "horizon": "day",
+   "reason": "0 of 6 candidates met every criterion on in-sample and OOS -- this horizon trades nothing"
+  },
+  {
+   "market": "crypto",
+   "horizon": "swing",
+   "reason": "0 of 6 candidates met every criterion on in-sample and OOS -- this horizon trades nothing"
+  },
+  {
+   "market": "cfd",
+   "horizon": "scalping",
+   "reason": "0 of 6 candidates met every criterion on in-sample and OOS -- this horizon trades nothing"
+  },
+  {
+   "market": "cfd",
+   "horizon": "day",
+   "reason": "0 of 6 candidates met every criterion on in-sample and OOS -- this horizon trades nothing"
+  },
+  {
+   "market": "cfd",
+   "horizon": "swing",
+   "reason": "0 of 6 candidates met every criterion on in-sample and OOS -- this horizon trades nothing"
+  }
+ ],
+ "oos_holdout": {
+  "crypto": {
+   "cutoff": "2026-03-11T00:00:00Z",
+   "dataset_last_bar": "2026-09-11T05:45:00Z",
+   "oos_period": "2026-03-11 -> 2026-09-11",
+   "in_sample_period": "2025-03-11 -> 2026-03-11",
+   "status": "EXPOSED",
+   "exposure": "this window has now decided which systems are enabled (CLAUDE.md §44): it is EXPOSED and may not be called pristine/untouched validation data again",
+   "times_used_for_selection": 1,
+   "uses": [
+    {
+     "date": "2026-09-27",
+     "cutoff": "2026-03-11T00:00:00Z",
+     "by": "rank-setups.py (criteria-oos6m)"
+    }
+   ]
+  },
+  "cfd": {
+   "cutoff": "2026-03-18T00:00:00Z",
+   "dataset_last_bar": "2026-09-18T03:45:00Z",
+   "oos_period": "2026-03-18 -> 2026-09-18",
+   "in_sample_period": "2025-03-18 -> 2026-03-18",
+   "status": "EXPOSED",
+   "exposure": "this window has now decided which systems are enabled (CLAUDE.md §44): it is EXPOSED and may not be called pristine/untouched validation data again",
+   "times_used_for_selection": 1,
+   "uses": [
+    {
+     "date": "2026-09-27",
+     "cutoff": "2026-03-18T00:00:00Z",
+     "by": "rank-setups.py (criteria-oos6m)"
+    }
+   ]
+  }
+ },
+ "experiment_budget": {
+  "crypto": {
+   "rows": 108,
+   "candidate_rows": 18,
+   "not_candidates": 9,
+   "reported_only_rows": 81,
+   "duplicate_rows": 0,
+   "conflicting_rows": 0,
+   "passed_in_sample": 0,
+   "passed_oos": 0,
+   "enabled": 0,
+   "disabled": 18,
+   "pilot_account": "pilot-binance-futures-testnet",
+   "by_horizon": {
+    "scalping": {
+     "candidates": 6,
+     "enabled": 0
+    },
+    "day": {
+     "candidates": 6,
+     "enabled": 0
+    },
+    "swing": {
+     "candidates": 6,
+     "enabled": 0
+    }
+   }
+  },
+  "cfd": {
+   "rows": 81,
+   "candidate_rows": 18,
+   "not_candidates": 9,
+   "reported_only_rows": 54,
+   "duplicate_rows": 0,
+   "conflicting_rows": 0,
+   "passed_in_sample": 0,
+   "passed_oos": 0,
+   "enabled": 0,
+   "disabled": 18,
+   "pilot_account": "pilot-mt5-demo",
+   "by_horizon": {
+    "scalping": {
+     "candidates": 6,
+     "enabled": 0
+    },
+    "day": {
+     "candidates": 6,
+     "enabled": 0
+    },
+    "swing": {
+     "candidates": 6,
+     "enabled": 0
+    }
+   }
+  },
+  "total": {
+   "rows": 189,
+   "candidate_rows": 36,
+   "not_candidates": 18,
+   "reported_only_rows": 135,
+   "duplicate_rows": 0,
+   "conflicting_rows": 0,
+   "passed_in_sample": 0,
+   "passed_oos": 0,
+   "enabled": 0,
+   "disabled": 36
+  },
+  "_note": "CLAUDE.md §43. candidate_rows = every (timeframe, method, configuration, source file) row at a pilot horizon with a RUNNABLE method; each was judged on in-sample AND on OOS, so the OOS window adjudicated among all of them. passed_in_sample / passed_oos count each side independently; enabled needs both plus the preconditions. duplicate_rows = identical re-measurements of one system (counted once). reported_only_rows = rows measured under an account other than the pilot's (pilot_account); reported, never judged. conflicting_rows = a second measurement of one system with different numbers (neither is enabled). rows = the sum of candidate_rows, not_candidates, reported_only_rows, duplicate_rows and conflicting_rows."
+ },
+ "code_version": {
+  "git_sha": "2469b3c43dbda6acc7319b6196e2235c5a482967",
+  "dirty": true,
+  "modified_files": 450,
+  "dirty_note": "450 uncommitted file(s) at snapshot time: this run is NOT reproducible from 2469b3c43dbda6acc7319b6196e2235c5a482967 alone (CLAUDE.md §46)."
+ },
+ "sources": {
+  "data/history/stability/crypto-crypto-personal-v1.json": {
+   "generated": "2026-09-26",
+   "dataset_snapshot_id": "779337fa90678b2b",
+   "snapshot_error": null,
+   "code_version": {
+    "git_sha": "06a4eae10bd569df79aae1cee1745eafcdc9ae16",
+    "dirty": false,
+    "modified_files": 0
+   },
+   "requested_but_absent": null,
+   "oos_holdout": {
+    "months": 6,
+    "dataset_last_bar": "2026-09-11T05:45:00Z",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "in_sample_since": "2025-03-11T00:00:00Z",
+    "in_sample_lookback_days": 365,
+    "split": "entry_time: entry < cutoff -> in-sample, entry >= cutoff -> OOS; each side a fresh account",
+    "source": "scripts/stability-report.py (INT-5)"
+   },
+   "run_params": {
+    "symbols": "BTCUSDT,ETHUSDT,SOLUSDT",
+    "tf": "15m,1H,4H",
+    "ict_target": "range",
+    "account": "crypto-personal-v1",
+    "account_file": null,
+    "live_parity_sizing": true,
+    "entry_pricing": "per-method (INT-4/PAR-2)"
+   },
+   "research_validity": "FLAGGED"
+  },
+  "data/history/stability/crypto-crypto-prop-discipline.json": {
+   "generated": "2026-09-26",
+   "dataset_snapshot_id": "779337fa90678b2b",
+   "snapshot_error": null,
+   "code_version": {
+    "git_sha": "06a4eae10bd569df79aae1cee1745eafcdc9ae16",
+    "dirty": false,
+    "modified_files": 0
+   },
+   "requested_but_absent": null,
+   "oos_holdout": {
+    "months": 6,
+    "dataset_last_bar": "2026-09-11T05:45:00Z",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "in_sample_since": "2025-03-11T00:00:00Z",
+    "in_sample_lookback_days": 365,
+    "split": "entry_time: entry < cutoff -> in-sample, entry >= cutoff -> OOS; each side a fresh account",
+    "source": "scripts/stability-report.py (INT-5)"
+   },
+   "run_params": {
+    "symbols": "BTCUSDT,ETHUSDT,SOLUSDT",
+    "tf": "15m,1H,4H",
+    "ict_target": "range",
+    "account": "crypto-prop-discipline",
+    "account_file": null,
+    "live_parity_sizing": true,
+    "entry_pricing": "per-method (INT-4/PAR-2)"
+   },
+   "research_validity": "FLAGGED"
+  },
+  "data/history/stability/crypto-live.json": {
+   "generated": "2026-09-26",
+   "dataset_snapshot_id": "779337fa90678b2b",
+   "snapshot_error": null,
+   "code_version": {
+    "git_sha": "06a4eae10bd569df79aae1cee1745eafcdc9ae16",
+    "dirty": false,
+    "modified_files": 0
+   },
+   "requested_but_absent": null,
+   "oos_holdout": {
+    "months": 6,
+    "dataset_last_bar": "2026-09-11T05:45:00Z",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "in_sample_since": "2025-03-11T00:00:00Z",
+    "in_sample_lookback_days": 365,
+    "split": "entry_time: entry < cutoff -> in-sample, entry >= cutoff -> OOS; each side a fresh account",
+    "source": "scripts/stability-report.py (INT-5)"
+   },
+   "run_params": {
+    "symbols": "BTCUSDT,ETHUSDT,SOLUSDT",
+    "tf": "15m,1H,4H",
+    "ict_target": "range",
+    "account": null,
+    "account_file": null,
+    "live_parity_sizing": true,
+    "entry_pricing": "per-method (INT-4/PAR-2)"
+   },
+   "research_validity": "FLAGGED"
+  },
+  "data/history/stability/crypto-pilot-binance-futures-testnet.json": {
+   "generated": "2026-09-26",
+   "dataset_snapshot_id": "779337fa90678b2b",
+   "snapshot_error": null,
+   "code_version": {
+    "git_sha": "06a4eae10bd569df79aae1cee1745eafcdc9ae16",
+    "dirty": false,
+    "modified_files": 0
+   },
+   "requested_but_absent": null,
+   "oos_holdout": {
+    "months": 6,
+    "dataset_last_bar": "2026-09-11T05:45:00Z",
+    "cutoff": "2026-03-11T00:00:00Z",
+    "in_sample_since": "2025-03-11T00:00:00Z",
+    "in_sample_lookback_days": 365,
+    "split": "entry_time: entry < cutoff -> in-sample, entry >= cutoff -> OOS; each side a fresh account",
+    "source": "scripts/stability-report.py (INT-5)"
+   },
+   "run_params": {
+    "symbols": "BTCUSDT,ETHUSDT,SOLUSDT",
+    "tf": "15m,1H,4H",
+    "ict_target": "range",
+    "account": "pilot-binance-futures-testnet",
+    "account_file": null,
+    "live_parity_sizing": true,
+    "entry_pricing": "per-method (INT-4/PAR-2)"
+   },
+   "research_validity": "FLAGGED"
+  },
+  "data/history/stability/cfd-ftmo-challenge-phase1.json": {
+   "generated": "2026-09-26",
+   "dataset_snapshot_id": "7d95827ef3a0d173",
+   "snapshot_error": null,
+   "code_version": {
+    "git_sha": "06a4eae10bd569df79aae1cee1745eafcdc9ae16",
+    "dirty": false,
+    "modified_files": 0
+   },
+   "requested_but_absent": [
+    "USOIL:15m",
+    "UKOIL:15m"
+   ],
+   "oos_holdout": {
+    "months": 6,
+    "dataset_last_bar": "2026-09-18T03:45:00Z",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "in_sample_since": "2025-03-18T00:00:00Z",
+    "in_sample_lookback_days": 365,
+    "split": "entry_time: entry < cutoff -> in-sample, entry >= cutoff -> OOS; each side a fresh account",
+    "source": "scripts/stability-report.py (INT-5)"
+   },
+   "run_params": {
+    "symbols": "XAUUSD,XAGUSD,USOIL,UKOIL",
+    "tf": "15m,1H,4H",
+    "ict_target": "range",
+    "account": "ftmo-challenge-phase1",
+    "account_file": null,
+    "live_parity_sizing": true,
+    "entry_pricing": "per-method (INT-4/PAR-2)"
+   },
+   "research_validity": "FLAGGED"
+  },
+  "data/history/stability/cfd-live.json": {
+   "generated": "2026-09-26",
+   "dataset_snapshot_id": "7d95827ef3a0d173",
+   "snapshot_error": null,
+   "code_version": {
+    "git_sha": "06a4eae10bd569df79aae1cee1745eafcdc9ae16",
+    "dirty": false,
+    "modified_files": 0
+   },
+   "requested_but_absent": [
+    "USOIL:15m",
+    "UKOIL:15m"
+   ],
+   "oos_holdout": {
+    "months": 6,
+    "dataset_last_bar": "2026-09-18T03:45:00Z",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "in_sample_since": "2025-03-18T00:00:00Z",
+    "in_sample_lookback_days": 365,
+    "split": "entry_time: entry < cutoff -> in-sample, entry >= cutoff -> OOS; each side a fresh account",
+    "source": "scripts/stability-report.py (INT-5)"
+   },
+   "run_params": {
+    "symbols": "XAUUSD,XAGUSD,USOIL,UKOIL",
+    "tf": "15m,1H,4H",
+    "ict_target": "range",
+    "account": null,
+    "account_file": null,
+    "live_parity_sizing": true,
+    "entry_pricing": "per-method (INT-4/PAR-2)"
+   },
+   "research_validity": "FLAGGED"
+  },
+  "data/history/stability/cfd-pilot-mt5-demo.json": {
+   "generated": "2026-09-27",
+   "dataset_snapshot_id": "7d95827ef3a0d173",
+   "snapshot_error": null,
+   "code_version": {
+    "git_sha": "06a4eae10bd569df79aae1cee1745eafcdc9ae16",
+    "dirty": false,
+    "modified_files": 0
+   },
+   "requested_but_absent": [
+    "USOIL:15m",
+    "UKOIL:15m"
+   ],
+   "oos_holdout": {
+    "months": 6,
+    "dataset_last_bar": "2026-09-18T03:45:00Z",
+    "cutoff": "2026-03-18T00:00:00Z",
+    "in_sample_since": "2025-03-18T00:00:00Z",
+    "in_sample_lookback_days": 365,
+    "split": "entry_time: entry < cutoff -> in-sample, entry >= cutoff -> OOS; each side a fresh account",
+    "source": "scripts/stability-report.py (INT-5)"
+   },
+   "run_params": {
+    "symbols": "XAUUSD,XAGUSD,USOIL,UKOIL",
+    "tf": "15m,1H,4H",
+    "ict_target": "range",
+    "account": "pilot-mt5-demo",
+    "account_file": null,
+    "live_parity_sizing": true,
+    "entry_pricing": "per-method (INT-4/PAR-2)"
+   },
+   "research_validity": "FLAGGED"
+  }
+ },
  "research_validity": {
   "per_source": {
    "data/history/stability/crypto-crypto-personal-v1.json": "FLAGGED",
@@ -112,7 +5158,8 @@
    "data/history/stability/crypto-live.json": "FLAGGED",
    "data/history/stability/crypto-pilot-binance-futures-testnet.json": "FLAGGED",
    "data/history/stability/cfd-ftmo-challenge-phase1.json": "FLAGGED",
-   "data/history/stability/cfd-live.json": "FLAGGED"
+   "data/history/stability/cfd-live.json": "FLAGGED",
+   "data/history/stability/cfd-pilot-mt5-demo.json": "FLAGGED"
   },
   "worst": "FLAGGED",
   "refused": [],
