@@ -12,6 +12,7 @@ Configurations (all long AND short):
   C  as B + higher-timeframe boundary filter (htf_context rule)     (giảm khung)
 """
 import argparse, concurrent.futures, contextlib, datetime, importlib.util, io, json, os, statistics, sys
+import concurrent.futures.process  # BrokenProcessPool lives here; `import concurrent.futures` does not load it
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 spec = importlib.util.spec_from_file_location("bt", os.path.join(ROOT, "scripts", "backtest-methods.py")); bt = importlib.util.module_from_spec(spec); spec.loader.exec_module(bt)

@@ -53,6 +53,21 @@ class OneProcessPerTask(unittest.TestCase):
             f.result()
 
 
+class RunScansWorksInAFreshInterpreter(unittest.TestCase):
+    """The except-clauses in run_scans() name concurrent.futures.process.BrokenProcessPool; that submodule is
+    loaded lazily, and this test module imports it itself, so an in-process test can never see it missing.
+    A fresh interpreter can: a real run died with AttributeError on its first WorkerCrashed (2026-09-27)."""
+
+    def test_stability_report_loads_the_submodule_it_names(self):
+        import subprocess
+        code = ("import importlib.util, sys; s = importlib.util.spec_from_file_location('sr', r'%s'); "
+                "m = importlib.util.module_from_spec(s); s.loader.exec_module(m); "
+                "print('concurrent.futures.process' in sys.modules)"
+                % os.path.join(ROOT, "scripts", "stability-report.py"))
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=ROOT, timeout=300)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "True", r.stderr[-2000:])
+
+
 class _CrashingExecutor:
     """Thread-free stand-in for run_scans(): `crash_counts[(sym, tf)]` submissions end in WorkerCrashed."""
 
