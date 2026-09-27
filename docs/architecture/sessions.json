@@ -1,7 +1,7 @@
 {
   "_comment": "THE single source of truth for the session model (CLAUDE.md §21). Before 2026-09-18 these windows existed as six hand-kept copies -- the table in docs/architecture/session-model.md §2, Python literals in scripts/journal.py session_of(), a `const SESSIONS` array in scripts/chart.js, a `const KZ_WEIGHT` map beside it, the `session` enum in schemas/trade-file.schema.json, and the weight table in session-model.md §3 -- with no generator and no drift test between any of them. §21 asks for sessions that are configurable and historically reproducible; a markdown table is neither. scripts/sessions.py is the ONE reader, scripts/sync-sessions.py regenerates the derived spots, and scripts/tests/test_sessions.py fails the build on drift. Adding or changing a session = edit THIS file, run `python3 scripts/sync-sessions.py --write`, done.",
   "_rationale": "The WHY of every number here -- why the windows are these windows, why asia is 20:00-00:00 New York, why metals get a full London weight and crypto never gets one -- stays in docs/architecture/session-model.md, which this file does not duplicate. That document is the decision record; this file is the machine-readable form of its conclusions.",
-  "version": 1,
+  "version": 2,
   "_version_why": "Bumped whenever a window, zone, weight or gate changes. A session label is stamped on every journalled trade, so changing a window silently re-labels history: a trade recorded as `ny_am` under one model and `off` under the next is the same trade with two different facts attached. CLAUDE.md §11 wants a configuration snapshot to be able to say WHICH model produced a label, and §59 treats a session-rule change as potentially Trading System version significant. Bump this and the label stops being ambiguous.",
   "reference_clock": "exchange-local, converted per date",
   "_reference_clock_why": "session-model.md §1. Windows are defined in the opening market's own clock and converted to UTC for the date in question, so they follow daylight saving. A fixed UTC hour is correct in summer only -- the 08:30 America/New_York macro release is 12:30Z in winter and 11:30Z in summer.",
@@ -62,18 +62,6 @@
       "ny_am": "full",
       "ny_pm": "full",
       "asia": "none"
-    },
-    "oil": {
-      "london": "reduced",
-      "ny_am": "full",
-      "ny_pm": "full",
-      "asia": "none"
-    },
-    "forex": {
-      "london": "full",
-      "ny_am": "full",
-      "ny_pm": "reduced",
-      "asia": "none"
     }
   },
   "gates": {
@@ -84,7 +72,7 @@
         5,
         6
       ],
-      "_why": "Python weekday(): 5 = Saturday, 6 = Sunday, evaluated in UTC. Crypto trades weekends, metals and oil do not, and the gate applies to ALL of them -- the sessions these windows name are not running for anyone, so a Saturday 09:00 London is not a London session."
+      "_why": "Python weekday(): 5 = Saturday, 6 = Sunday, evaluated in UTC. Crypto trades weekends, metals and indices do not, and the gate applies to ALL of them -- the sessions these windows name are not running for anyone, so a Saturday 09:00 London is not a London session."
     },
     "min_timeframe_minutes_ref": "analysis-params.json timing.min_timeframe_minutes",
     "_min_timeframe_why": "Not copied here. It is a SCORING gate (below 15m, no timing credit) and it already lives beside the points it gates. A session is still a session on a 1m chart; what it stops earning is credit."

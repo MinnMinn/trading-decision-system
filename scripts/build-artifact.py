@@ -103,7 +103,7 @@ def _style(tf, syms, name, kz):
 # rows -- which is why adding a market meant editing this table, artifacts.json, local-eval-brief.py and
 # scan-loop.sh by hand and hoping all four agreed. Now only the per-market symbol set and human label are
 # authored, and both are validated against the registry below.
-MARKET_LABEL = {"crypto": "Crypto", "cfd": "CFD", "forex": "Forex"}
+MARKET_LABEL = {"crypto": "Crypto", "cfd": "CFD"}
 # Which symbols a market's pages may draw: the ANALYSIS ALLOWLIST, per market, with no second list anywhere.
 #
 # `cfd` was a hand-written `[_meta("XAUUSD")]` with a comment explaining that the MT5 EA exports only symbols
@@ -113,7 +113,10 @@ MARKET_LABEL = {"crypto": "Crypto", "cfd": "CFD", "forex": "Forex"}
 # reason, and a hardcoded list cannot become unavailable, so there was nothing to expose: available analysis
 # was suppressed by a literal. Found 2026-09-18 by looking at the built page in a browser.
 #
-# What replaces it is not "draw everything" either -- USOIL and UKOIL are analysable and have no export at all.
+# What replaces it is not "draw everything" either -- an analysable symbol can still have no export: the MT5
+# EA is per-chart, so a symbol newly added to analysis.cfd has no candles until a chart running it is opened
+# (this is exactly the state a whole THIRD market, forex, was in for its entire 2026-09-17..2026-09-27 life on
+# the registry -- no chart ever attached, so no fx- page ever built; see instruments.json history).
 # `drawable()` below splits the allowlist into what has candles and what does not, and the page NAMES the
 # second group instead of dropping it (§6, §15: let the rest continue, say why the rest is not there).
 STYLE_SYMS = {m: [_meta(s) for s in I.analysis(m)] for m in _auto.MARKETS}
@@ -323,7 +326,9 @@ def drawable(syms, tf):
     CLAUDE.md §6: an unavailable source must be exposed with its reason, not disappeared. §15: unrelated
     analysis continues when it can. So a symbol with no export is NAMED on the page rather than dropped -- and
     the build still refuses outright when NOTHING has data, because a page with no chart on it is not a page,
-    it is a misleading blank. That is the state every fx- style is in today.
+    it is a misleading blank. That was the state every fx- style was in for its entire life on the registry
+    (2026-09-17..2026-09-27, no MT5 chart ever attached for any of the seven majors) -- proof the refusal path
+    is reachable, not merely declared. No current market is fully in that state.
     """
     drawn = [m for m in syms if os.path.exists(_series_path(m[0], tf))]
     absent = [m for m in syms if m not in drawn]
@@ -335,8 +340,8 @@ def candles(sym, tf, n, snap=None):
     if not os.path.exists(src):
         # A missing candle file is a MISSING SOURCE, not a crash. It raised FileNotFoundError with a traceback,
         # which reads like a broken script; it is usually one of two ordinary states, and the operator needs to
-        # be told which. On the MT5 bridge the EA only exports a symbol that has a chart attached, so every
-        # forex style is in exactly this position until a chart is opened per pair.
+        # be told which. On the MT5 bridge the EA only exports a symbol that has a chart attached, so a newly
+        # analysable cfd symbol is in exactly this position until a chart is opened for it.
         how = ("the MT5 EA (integrations/mt5/ExportOHLCV.mq5) only exports a symbol that has a CHART ATTACHED "
                "in MetaTrader -- open one for this symbol, keep the terminal running, then rebuild"
                if I.data_dir(sym) == "mt5-bridge" else

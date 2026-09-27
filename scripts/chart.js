@@ -26,9 +26,10 @@ const OPEN=0, HIGH=1, LOW=2, CLOSE=3, VOL=4, ISO=5;
 // sessions convert to the exchange-local zone per date (docs/architecture/session-model.md §1) so they follow DST.
 const SESSIONS = [{key:'london',name:'LDN',tz:'Europe/London',a:8,b:11},{key:'ny_am',name:'NY AM',tz:'America/New_York',a:8.5,b:11},{key:'ny_pm',name:'NY PM',tz:'America/New_York',a:13.5,b:16},{key:'asia',name:'ASIA',tz:'America/New_York',a:20,b:24}];
 // Keyed by instruments.json display.asset_class (I.display(sym)['asset_class']), which defaults to the market.
-// forex: the London and NY killzones are FX concepts to begin with (docs/architecture/session-model.md cites
-// forexop for exactly this), so both carry full weight; the NY afternoon is the weaker of the three.
-const KZ_WEIGHT = {crypto:{london:'reduced',ny_am:'reduced',ny_pm:'none',asia:'none'}, metals:{london:'full',ny_am:'full',ny_pm:'full',asia:'none'}, oil:{london:'reduced',ny_am:'full',ny_pm:'full',asia:'none'}, forex:{london:'full',ny_am:'full',ny_pm:'reduced',asia:'none'}, default:{london:'none',ny_am:'none',ny_pm:'none',asia:'none'}};
+// (A `forex` key existed here 2026-09-17..2026-09-27, full weight on london/ny_am -- the London and NY
+// killzones are FX concepts to begin with, docs/architecture/session-model.md cites forexop for exactly this.
+// Removed with the `forex` market itself -- see docs/architecture/instruments.json history.)
+const KZ_WEIGHT = {crypto:{london:'reduced',ny_am:'reduced',ny_pm:'none',asia:'none'}, metals:{london:'full',ny_am:'full',ny_pm:'full',asia:'none'}, default:{london:'none',ny_am:'none',ny_pm:'none',asia:'none'}};
 // A candle row is [open, high, low, close, volume, isoUTC] -- the shape scripts/build-artifact.py rows_js()
 // emits. Times are ALWAYS derived from the ISO at index 5: it is locale-free and timezone-free, which is what
 // lets the page render the same candle as 14:30 UTC or 21:30 VNT without shipping two copies of anything.

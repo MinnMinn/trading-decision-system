@@ -18,8 +18,10 @@ _as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "a
 _auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
 # style -> (timeframe code as scripts/fetch-binance-klines.sh spells it, bars in the window).
 # The `cfd-` prefixed styles are XAUUSD via the MT5 bridge (the EA exports 200 bars per timeframe,
-# InpBarsToExport); the bare names are crypto. Nine names: three horizons x three markets (forex added 2026-09-17), derived
-# in scripts/automation.py (HORIZON_TF / STYLE) -- this table only adds the WINDOW each one reads.
+# InpBarsToExport); the bare names are crypto. Six names: three horizons x two markets, derived in
+# scripts/automation.py (HORIZON_TF / STYLE) -- this table only adds the WINDOW each one reads. (A third
+# market, forex, existed 2026-09-17..2026-09-27 and made this nine names for that stretch; removed -- see
+# docs/architecture/instruments.json history.)
 # The 1H/4H window sizes (240 / 180) are PROJECT PARAMETERS -- no source prescribes them; they are ~10 days of
 # hourly and ~30 days of 4-hourly bars. On the MT5 bridge a 240-bar 1H request simply yields the 200 bars the EA
 # exports until InpBarsToExport is raised.

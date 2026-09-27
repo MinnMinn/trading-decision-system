@@ -177,7 +177,7 @@ class DataAndExecutionMarketTypes(unittest.TestCase):
         self.assertEqual(m["execution_market_type"], ["PERPETUAL"])
 
     def test_the_cfd_markets_analyse_and_execute_the_same_thing(self):
-        for market in ("cfd", "forex"):
+        for market in ("cfd",):
             self.assertIsNone(P.data_execution_mismatch(market),
                               f"{market} unexpectedly reports a data/execution market-type mismatch")
 

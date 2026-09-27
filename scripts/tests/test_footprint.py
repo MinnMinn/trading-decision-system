@@ -221,7 +221,7 @@ class TheMissingFeedIsRecordedNotForgotten(unittest.TestCase):
                              f"{name} declares trades_raw -- wire footprint.build() to it")
 
     def test_the_footprint_dimension_is_not_live_sourced_anywhere(self):
-        for market in ("crypto", "cfd", "forex"):
+        for market in ("crypto", "cfd"):
             self.assertFalse(M.live_sourced("footprint", market), market)
 
 

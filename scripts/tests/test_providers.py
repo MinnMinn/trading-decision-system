@@ -121,7 +121,7 @@ class DataSourceIsNotExecutionVenue(unittest.TestCase):
         self.assertNotIn("coinglass", P.for_role("execution", "crypto"))
 
     def test_one_provider_may_hold_two_roles(self):
-        """mt5_bridge supplies CFD/forex data AND receives their orders. Roles are a list precisely so this is
+        """mt5_bridge supplies CFD data AND receives its orders. Roles are a list precisely so this is
         expressible without collapsing the two questions into one field."""
         self.assertIn("mt5_bridge", P.for_role("market_data", "cfd"))
         self.assertIn("mt5_bridge", P.for_role("execution", "cfd"))

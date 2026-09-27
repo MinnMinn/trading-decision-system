@@ -23,10 +23,12 @@ hand in the config file; the order connectors and the pilot read it on every cal
 environment on policy grounds. Hard rules that stay in every environment: the instrument allowlist,
 PILOT_RISK_PCT <= 1% (clamped by the loaders).
 
-v3 shape (schema_version 3): per-MARKET config (crypto | cfd | forex) with instruments, Confluence dimensions (§6.2) and
+v3 shape (schema_version 3): per-MARKET config (crypto | cfd) with instruments, Confluence dimensions (§6.2) and
 timeframes; (market, timeframe) maps to the chart-style vocabulary (STYLE below), which is DERIVED from the three
 authored horizons (HORIZONS / HORIZON_TF: scalping 15m, day 1h, swing 4h) -- crypto keeps the bare horizon word,
-cfd takes `cfd-`, forex takes `fx-`. `services` records what `on` installed so `off` can remove exactly that.
+cfd takes `cfd-`. (A third market, forex, existed 2026-09-17..2026-09-27 and took `fx-`; removed when it turned
+out no MetaTrader chart was ever attached for any pair -- see docs/architecture/instruments.json history.)
+`services` records what `on` installed so `off` can remove exactly that.
 
 Subcommands
   status [--json]                     full effective configuration + warnings (safe any time, works with no file)
@@ -34,10 +36,10 @@ Subcommands
   demo | real                         set environment + preset + bring everything up
   on  [--who W] [--reason R]          bring everything up in the CURRENT environment
   off [--who W] [--reason R]          stop everything (persists across reboot)
-  market <crypto|cfd|forex> <on|off>
-  timeframe <15m|1h|4h> <on|off> [--market crypto|cfd|forex]   one scanned set, all markets (scalping|day|swing)
-  dimension <wyckoff|ict|footprint|heatmap> <on|off> [--market crypto|cfd|forex]   footprint/heatmap: crypto only
-  method <preset> [--market crypto|cfd|forex]   apply a named preset from docs/architecture/methods.json as a set of the
+  market <crypto|cfd> <on|off>
+  timeframe <15m|1h|4h> <on|off> [--market crypto|cfd]   one scanned set, all markets (scalping|day|swing)
+  dimension <wyckoff|ict|footprint|heatmap> <on|off> [--market crypto|cfd]   footprint/heatmap: crypto only
+  method <preset> [--market crypto|cfd]   apply a named preset from docs/architecture/methods.json as a set of the
                                       dimension flags; the preset is only a NAME for that set, nothing extra is
                                       stored. Presets: wyckoff | ict | wyckoff+ict | wyckoff+footprint |
                                       wyckoff+ict+footprint | full. Refuses (2) a preset whose dimensions the
@@ -169,8 +171,8 @@ _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 HORIZONS = ["scalping", "day", "swing"]
 HORIZON_TF = {"scalping": "15m", "day": "1h", "swing": "4h"}
 TF_HORIZON = {tf: hz for hz, tf in HORIZON_TF.items()}
-# Crypto keeps the bare horizon word; every other market takes a prefix. forex -> fx-scalping/fx-day/fx-swing.
-STYLE_PREFIX = {"crypto": "", "cfd": "cfd-", "forex": "fx-"}
+# Crypto keeps the bare horizon word; every other market takes a prefix.
+STYLE_PREFIX = {"crypto": "", "cfd": "cfd-"}
 if set(STYLE_PREFIX) != set(MARKETS):
     raise KeyError(f"STYLE_PREFIX covers {sorted(STYLE_PREFIX)} but MARKETS is {sorted(MARKETS)} -- a market\n"
                    f"with no style prefix would silently collide with crypto's bare horizon names.")
@@ -314,9 +316,10 @@ def _market_default(m):
     """The shape a market takes in a config that does not mention it.
 
     `enabled` is the market's REGISTERED default (instruments.json markets.<m>.default_enabled), not a blanket
-    True. A market whose feed has no data -- forex today: the MT5 EA exports only symbols with an attached
-    chart, and no FX chart is attached -- must not arrive enabled, because enabling it sets a flag over an
-    empty directory and every downstream reader then reports a market that cannot produce a single candle."""
+    True. A market whose feed has no data must not arrive enabled, because enabling it sets a flag over an
+    empty directory and every downstream reader then reports a market that cannot produce a single candle --
+    which is exactly what `forex` was, 2026-09-17..2026-09-27: the MT5 EA exports only symbols with an attached
+    chart, and no FX chart was ever attached in that market's whole time on the registry."""
     return {"enabled": instruments.default_enabled(m), "instruments": list(MARKET_INSTRUMENTS[m]),
             "dimensions": {d: True for d in MARKET_DIMENSIONS[m]},
             "timeframes": {t: True for t in MARKET_TIMEFRAMES[m]}}
@@ -1207,9 +1210,11 @@ def cmd_dimension(a):
         record(cfg, a, f"dimension {a.name}={a.value} --market {','.join(bad)}", "refused")
         save(cfg)
         print(f"REFUSED: dimension '{a.name}' does not exist for market '{bad[0]}'. Footprint and Heatmap have no "
-              f"CFD data source at all -- CoinGlass is crypto-derivatives only, so XAUUSD/XAGUSD/USOIL/UKOIL are "
+              f"CFD data source at all -- CoinGlass is crypto-derivatives only, so every cfd symbol is "
               f"structurally capped at Wyckoff + ICT, i.e. NORMAL mode (SYSTEM-DESIGN.md §12 item 3). This is a "
-              f"structural limit, not a flag: the schema has no such key to set.", file=sys.stderr)
+              f"structural limit, not a flag: the schema has no such key to set (naming the symbols here would "
+              f"be the hardcoded-list duplication instruments.py already forbids -- 'cfd' names the whole set).",
+              file=sys.stderr)
         show(cfg, True)
         return 2
     want = a.value == "on"

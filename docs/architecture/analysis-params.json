@@ -22,12 +22,12 @@
       "meaning": "3 to 4 pushes is the useful window; MORE than 4 means the trend is too strong to oppose",
       "cite": "WA p280, p284, p292 -- knowledge/wyckoff/advance.md section 5.4 rule WA4-52"
     },
-    "imbalance_ratio_gold_oil_cfd": {
+    "imbalance_ratio_gold_cfd": {
       "value": [
         3.0,
         4.0
       ],
-      "meaning": "Footprint imbalance ratio range for gold and oil CFDs (XAUUSD, XAGUSD, USOIL, UKOIL)",
+      "meaning": "Footprint imbalance ratio range for gold/silver CFDs (XAUUSD, XAGUSD). Was imbalance_ratio_gold_oil_cfd, covering USOIL/UKOIL too; both oil symbols were deleted from the instrument registry 2026-09-27 (docs/architecture/instruments.json history) -- the source's threshold (WMT below) was for gold AND oil together, so the number is unchanged, only the key and the instrument list in this description are.",
       "cite": "WMT p107-p109 -- knowledge/wyckoff/modern-tools.md section 3.2"
     },
     "imbalance_ratio_stocks": {

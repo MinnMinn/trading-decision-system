@@ -237,10 +237,12 @@ class RoleResolution(unittest.TestCase):
                 self.assertEqual(TS.role_of("scalping", dep_id, setup=row), expected, f"{method}/{dep_id}")
 
     def test_a_dimension_with_no_source_on_this_market_can_never_gate_it(self):
-        """cfd and forex have no CoinGlass source, so footprint/heatmap are structurally unengageable there --
-        and the predicate must answer that WITHOUT being handed an engaged set, or a cfd system asked with no
-        context would fail closed onto a dimension that can never arrive and never trade again."""
-        for style in ("cfd-scalping", "cfd-day", "cfd-swing", "fx-scalping", "fx-day", "fx-swing"):
+        """cfd has no CoinGlass source, so footprint/heatmap are structurally unengageable there -- and the
+        predicate must answer that WITHOUT being handed an engaged set, or a cfd system asked with no context
+        would fail closed onto a dimension that can never arrive and never trade again. (forex was the same
+        case, 2026-09-17..2026-09-27; its three fx-* systems are gone with the market -- instruments.json
+        history.)"""
+        for style in ("cfd-scalping", "cfd-day", "cfd-swing"):
             for dep in ("methodology.footprint", "methodology.heatmap"):
                 self.assertEqual(TS.role_of(style, dep), TS.OPTIONAL, f"{style}/{dep}")
                 self.assertEqual(TS.role_of(style, dep, engaged=("footprint", "heatmap")), TS.OPTIONAL)

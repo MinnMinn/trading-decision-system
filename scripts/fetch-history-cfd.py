@@ -3,22 +3,28 @@
 data/history/ohlcv.<SYM>.<TF>.json with the same shape as the Binance history files.
 
 Why: the MT5 EA exports 300 bars per timeframe (docs/architecture/mt5-bridge.md), far too few to rank setups over years.
-Mapping (futures front-month continuous, NOT the CFD itself):  XAUUSD -> GC=F  XAGUSD -> SI=F  USOIL -> CL=F  UKOIL -> BZ=F
+Mapping (futures front-month continuous, NOT the CFD itself):  XAUUSD -> GC=F  XAGUSD -> SI=F
 Differences to state in every report built on this: exchange session hours (not 24/5 CFD quotes), real contract volume
 (the MT5 bridge gives tick volume), roll gaps, and prices in futures terms (basis to spot). Yahoo serves 1h bars for ~730 days
 and daily bars for years; 2H and 4H are aggregated here from 1H on UTC boundaries (a session gap simply shortens a bar).
 
-Usage: fetch-history-cfd.py [XAUUSD XAGUSD USOIL UKOIL]
+USOIL/UKOIL used to be in this map (-> CL=F / BZ=F); removed 2026-09-27 when the owner deleted both symbols from
+instruments.json entirely (docs/architecture/instruments.json history, 2026-09-27) -- the MT5 account this system
+trades never carried either symbol, so their Yahoo history had no path to execution. XAUUSD/XAGUSD stay: the
+2026-09-18 MT5 deep-history import only replaced 15m/1H/4H/1D/1W (docs/architecture/mt5-history-export.md), so
+XAUUSD 2H/30m/5m and XAGUSD 2H still have no broker bar and still read this proxy (providers.json `yahoo_finance`).
+
+Usage: fetch-history-cfd.py [XAUUSD XAGUSD]
 """
 import json, os, sys, time, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 from repo_paths import repo_rel
-# Symbol -> Yahoo ticker. This is a PROVIDER mapping, not an allowlist copy: the four keys happen to be the
+# Symbol -> Yahoo ticker. This is a PROVIDER mapping, not an allowlist copy: the two keys happen to be a subset of the
 # cfd list today, but the values are Yahoo's own contract codes and only Yahoo can say what they are. A symbol
 # with no entry is refused below rather than guessed -- fetching the wrong contract would write plausible,
 # wrong history into the research store.
-MAP = {"XAUUSD": "GC=F", "XAGUSD": "SI=F", "USOIL": "CL=F", "UKOIL": "BZ=F"}
+MAP = {"XAUUSD": "GC=F", "XAGUSD": "SI=F"}
 UA = {"User-Agent": "Mozilla/5.0"}
 
 
