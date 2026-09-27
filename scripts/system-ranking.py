@@ -46,7 +46,7 @@ import artifact_theme as theme    # noqa: E402
 
 
 def _rank_setups_module():
-    """scripts/rank-setups.py -- imported the way rank-setups.py:79 imports stability-report.py, because its
+    """scripts/rank-setups.py -- imported the way rank-setups.py imports stability-report.py, because its
     filename has a dash. `load_rows()` is THE reader that applies the §38 validity gate; this module must not
     grow a second one."""
     spec = importlib.util.spec_from_file_location(
@@ -65,8 +65,8 @@ def esc(s):
 
 # --------------------------------------------------------------------------------------------------- rows()
 def _cfg_of(pilot_id):
-    """The stability row's cfg letter, read off the tail of the pilot-top20.json id
-    (`f"...-{cfg.lower()}"`, scripts/rank-setups.py:339/305/273) -- never re-typed."""
+    """The stability row's cfg letter, read off the tail of the pilot-selection.json id
+    (`f"...-{cfg.lower()}"`, scripts/rank-setups.py `_setup_id`) -- never re-typed."""
     return pilot_id.rsplit("-", 1)[-1].upper()
 
 
@@ -74,7 +74,7 @@ _STAB_CACHE = {}
 
 
 class NoStabilityRow(LookupError):
-    """A pilot-top20.json setup names a (tf, method, cfg) this module could not find in its own stability
+    """A pilot-selection.json setup names a (tf, method, cfg) this module could not find in its own stability
     source. A matching gap, not something to fuzzy-match past."""
 
 
@@ -106,8 +106,8 @@ def _row(style, prow, srow, config_snapshot, validity_block, account=None):
     q_pos, q_worst = srow.get("q_pos"), srow.get("q_worst")
     return {
         # `account` is whichever account these numbers were simulated under: the one this call was made for,
-        # or -- when the SELECTION's own stability source is already an account file (pilot-top20.json since
-        # 2026-09-19 is selected by prop-pass, so it is) -- the one the row itself records. Without the
+        # or -- when the SELECTION's own stability source is already an account file (a selection row whose
+        # `backtest.source` names an account-conditioned stability file) -- the one the row itself records. Without the
         # fallback an account-conditioned base row carried real §39 account metrics while claiming no
         # account, which is exactly the "where did this number come from" failure the label exists to prevent.
         "id": f"{style}::{prow['id']}" + (f"@{account}" if account else ""),
@@ -131,10 +131,9 @@ def _row(style, prow, srow, config_snapshot, validity_block, account=None):
             else P.unavailable("stability row carries no q_worst (worst quarter return)"),
         # ---- CLAUDE.md §48 "always expose" -- the seven ranking.exposure_gaps() checks on every row.
         "ranking_objective": (
-            "consistency (scripts/rank-setups.py selection: not blown up -> share of positive quarters -> "
-            "share of positive years -> worst quarter -> stability ratio; this is docs/architecture/"
-            "ranking.json's own 'consistency' objective, which is what selected this setup into "
-            "pilot-top20.json in the first place)"),
+            "consistency (docs/architecture/ranking.json's 'consistency' objective, applied for display on "
+            "this page only; the pilot's selection is NOT a ranking -- ADR 0008 enables every system that "
+            "passes docs/architecture/selection-criteria.json on in-sample and OOS)"),
         "metrics": perf,
         "sample_size": perf.get("n", srow.get("n")),
         "validation_state": validity_block or P.unavailable("no §38 verdict recorded for this stability file"),
@@ -170,7 +169,7 @@ def account_sources(source_rel):
 
 def rows():
     """One row per (Trading System, selected setup) -- docs/architecture/trading-systems.json `styles()` x
-    each style's `setups()` (pilot-top20.json rows sharing its market+horizon), matched to their stability
+    each style's `setups()` (pilot-selection.json rows sharing its market+horizon), matched to their stability
     source by (market, tf, method, cfg). A style with no selected setup contributes no row.
 
     Plus one row per ACCOUNT-conditioned stability file found beside the source (account_sources()): the same

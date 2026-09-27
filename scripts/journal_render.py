@@ -26,8 +26,8 @@ T, DUAL = i18n.t, i18n.dual
 
 e = html.escape
 PILOT_DIRS = {"spot": "data/live/pilot", "futures": "data/live/pilot-futures"}
-# profile top20 (scripts/strategy-runner.py): its logs sit next to the legacy futures log; "signal" records play the role of "eval"
-TOP20_LOGS = {"top20 crypto (futures testnet)": ("data/live/pilot-futures", "top20-log.jsonl"), "top20 CFD (MT5 demo)": ("data/live/pilot-futures", "top20-mt5-log.jsonl")}
+# the pilot (scripts/strategy-runner.py): its logs sit next to the legacy futures log; "signal" records play the role of "eval"
+PILOT_LOGS = {"pilot crypto (futures testnet)": ("data/live/pilot-futures", "pilot-selection-log.jsonl"), "pilot CFD (MT5 demo)": ("data/live/pilot-futures", "pilot-selection-mt5-log.jsonl")}
 
 
 def f(v):
@@ -50,9 +50,9 @@ def pilot_activity(now):
     except Exception:
         pass
     out = []
-    sources = [(m, d) for m, (d, _) in TOP20_LOGS.items()]
+    sources = [(m, d) for m, (d, _) in PILOT_LOGS.items()]
     for market, d in sources:
-        p = os.path.join(ROOT, d, TOP20_LOGS[market][1] if market in TOP20_LOGS else "log.jsonl")
+        p = os.path.join(ROOT, d, PILOT_LOGS[market][1] if market in PILOT_LOGS else "log.jsonl")
         recs = []
         if os.path.exists(p):
             for line in open(p, encoding="utf-8"):
@@ -378,7 +378,7 @@ def render(rows, st, out, closed_real):
 <div class="page">
 <div class="lede"><p class="eyebrow">{i18n.tx("journal.eyebrow")}</p><h1>{i18n.tx("journal.title")}</h1><p>{i18n.tx("journal.lede")}</p>
 <p class="i18n-authored">{i18n.tx("ui.vi_source.page")}</p></div>
-<section id="pilot"><h2>{i18n.tx("journal.pilot.heading")} <small>data/live/pilot*/log.jsonl (legacy) · top20-log.jsonl / top20-mt5-log.jsonl (profile top20) · docs/architecture/automation-config.json</small></h2><div class="pilot">{''.join(pcards)}</div></section>
+<section id="pilot"><h2>{i18n.tx("journal.pilot.heading")} <small>data/live/pilot*/log.jsonl (legacy) · pilot-selection-log.jsonl / pilot-selection-mt5-log.jsonl (the pilot) · docs/architecture/automation-config.json</small></h2><div class="pilot">{''.join(pcards)}</div></section>
 <section id="stats"><h2>{i18n.tx("journal.section.balance")} <small>{i18n.tx("journal.section.balance_sub")}</small></h2><div class="tiles">{tiles_html}</div></section>
 {vendor_script() if any(isinstance(r.get("r_multiple"), (int, float)) for r in closed_real) else ''}
 <section><h2>{i18n.tx("journal.section.r_curve")} <small>{i18n.tx("journal.section.r_curve_sub")}</small></h2><div class="card"{UI.attr("actual-path")}>{r_curve(closed_real)}</div></section>

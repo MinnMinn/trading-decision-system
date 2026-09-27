@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pilot profile `top20` -- mechanical runner for the setups selected in docs/architecture/pilot-top20.json
+"""The pilot -- mechanical runner for the setups selected in docs/architecture/pilot-selection.json
 (written by scripts/rank-setups.py from the stability backtests). Crypto setups trade Binance USDT-M FUTURES TESTNET
 (scripts/binance-futures-testnet-order.sh); CFD setups trade the MT5 DEMO account through the file bridge
 (scripts/mt5-order-bridge.py + integrations/mt5/OrderBridge.mq5). Real trades, fake money, on both venues.
@@ -10,7 +10,7 @@ tick when execution.environment is "real" (user decision 2026-09-11: demo/testne
 non-demo accounts on its side too.
 
 Rules = the backtest, function for function (scripts/backtest-methods.py, imported; parameters bt.P[tf]). Only
-  the two RUNNABLE methods can ever be selected into pilot-top20.json and reach this runner:
+  the two RUNNABLE methods can ever be selected into pilot-selection.json and reach this runner:
   WYCKOFF-BOOK  scripts/wyckoff_rules.py structures on the window (CHoCH gate, TR from SC/AR, Phase B, Spring vs Shakeout, VP veto, Test, Phase D
             BU) -- MARKET at the entry bar close; Phase D target = TR top + 1 TR. (The "WYCKOFF" mechanical
             proxy -- rolling R-bar min/max as the trading range, no CHoCH gate, no Phase A/B -- was removed
@@ -23,7 +23,7 @@ Rules = the backtest, function for function (scripts/backtest-methods.py, import
             the legacy ICT branch that was their only caller was removed)
   (COMBINED-BOOK -- the book Wyckoff engine + the ICT confirmation, LIMIT at the FVG edge -- exists in
   scripts/backtest-methods.py but is runnable=false (docs/architecture/methods.json): backtest-only, never
-  selectable into pilot-top20.json. The earlier "COMBINED" and "PARTIAL" methods, which paired the same removed
+  selectable into pilot-selection.json. The earlier "COMBINED" and "PARTIAL" methods, which paired the same removed
   proxy Spring with an ICT confirmation, were removed with it, 2026-09-19.)
   Entry = LIMIT valid K bars after the MSS (post-only GTX on Binance; a pending order with SL/TP attached on MT5); no fill -> no
   trade. Management = STOP_MARKET + TAKE_PROFIT_MARKET closePosition (futures) or the position's own SL/TP (MT5); breakeven at +1R
@@ -37,9 +37,9 @@ order per symbol; the position cap, the per-symbol daily entry cap and the lever
 Halts (STOP file written with the reason): the account profile's max_total_drawdown (15 % from start, per venue) and its
 declared failure conditions (5 consecutive losses, per venue); 3 consecutive connector errors (infrastructure, not an account rule). Refused per tick: kill switch, automation gate (master/pilot layer/market/profile/environment), event blackout.
 Reconcile (PILOT-06): venue positions/orders this runner does not own block new entries in that symbol.
-Files (this runner is their only writer): data/live/pilot-futures/top20-state.json, top20-log.jsonl (crypto), top20-mt5-log.jsonl (CFD),
+Files (this runner is their only writer): data/live/pilot-futures/pilot-selection-state.json, pilot-selection-log.jsonl (crypto), pilot-selection-mt5-log.jsonl (CFD),
 candles/ohlcv.<SYM>.<TF>.json (private Binance copies). CFD candles are READ from data/live/mt5-bridge/ (the export EA writes them).
-Journal: scripts/journal.py sync-pilot --market futures-top20 | cfd-mt5.
+Journal: scripts/journal.py sync-pilot --market futures-selection | cfd-mt5.
 Usage: strategy-runner.py --live | --dry-run [--ignore-gate] [--tick-time ISO] | --replay <setup-id|all> [--bars N] | --report | --flatten | --list | --tick-seconds
 """
 import argparse, contextlib, datetime, hashlib, importlib.util, json, os, re, subprocess, sys, time
@@ -99,19 +99,18 @@ PILOT_DIR = os.path.join(ROOT, "data", "live", "pilot-futures")
 # What IS per-account is everything a customer owns or can lose: state, logs, kill switch.
 CANDLES = os.path.join(ROOT, "data", "live", "candles-cache")
 MT5_DIR = os.path.join(ROOT, "data", "live", "mt5-bridge")
-STATE = os.path.join(PILOT_DIR, "top20-state.json")
-LOG = os.path.join(PILOT_DIR, "top20-log.jsonl")
-MT5_LOG = os.path.join(PILOT_DIR, "top20-mt5-log.jsonl")
+STATE = os.path.join(PILOT_DIR, "pilot-selection-state.json")
+LOG = os.path.join(PILOT_DIR, "pilot-selection-log.jsonl")
+MT5_LOG = os.path.join(PILOT_DIR, "pilot-selection-mt5-log.jsonl")
 STOP = os.path.join(PILOT_DIR, "STOP")
 AUTOMATION_CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
-SELECTION = os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")
+SELECTION = os.path.join(ROOT, "docs", "architecture", "pilot-selection.json")
 _ispec = importlib.util.spec_from_file_location("instruments", os.path.join(ROOT, "scripts", "instruments.py"))
 instruments = importlib.util.module_from_spec(_ispec); _ispec.loader.exec_module(instruments)
 # EXECUTION list (docs/architecture/instruments.json) -- the orderable subset, never the analysis allowlist.
 CRYPTO = instruments.execution("crypto"); CFD = instruments.execution("cfd")
 _mspec = importlib.util.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py"))
 mreg = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(mreg)
-DEFAULT_SETUPS = [dict(id="crypto-ict-30m-std25-c", market="crypto", symbols=CRYPTO, tf="30m", method="ICT", htf=True, mgmt="be", execution="futures")]
 # STRUCTURE tier = the next runner timeframe >= 4x (scripts/automation.py next_rung -- the one ladder rule, docs/architecture/
 # timeframe-mapping.md). Over the runner's rungs this yields 5m->30m, 15m->1H, 30m->2H, 1H->4H, 2H->1D, 4H->1D, 1D->None,
 # identical to the table the backtests were run with (scripts/tests/test_timeframe_ladder.py pins it).
@@ -275,7 +274,7 @@ def bind_account(account_id):
     """Point this process at ONE account: its own state, logs, candle cache and kill switch.
 
     Isolation is the requirement (plan §0.3 item 2). Before this, `STOP` was one file for every venue and
-    every account, so one customer breaching a drawdown limit halted everybody; `top20-state.json` was one
+    every account, so one customer breaching a drawdown limit halted everybody; `pilot-selection-state.json` was one
     file written with a bare `open(..., "w")`, so two processes would have silently overwritten each other's
     positions. Scoping the paths is what makes one process per account safe to run.
 
@@ -299,9 +298,9 @@ def bind_account(account_id):
         except ValueError as e:
             raise SystemExit(f"--account {account_id!r}: {e}") from None
         PILOT_DIR = os.path.join(ROOT, "data", "live", "accounts", account_id)
-    STATE = os.path.join(PILOT_DIR, "top20-state.json")
-    LOG = os.path.join(PILOT_DIR, "top20-log.jsonl")
-    MT5_LOG = os.path.join(PILOT_DIR, "top20-mt5-log.jsonl")
+    STATE = os.path.join(PILOT_DIR, "pilot-selection-state.json")
+    LOG = os.path.join(PILOT_DIR, "pilot-selection-log.jsonl")
+    MT5_LOG = os.path.join(PILOT_DIR, "pilot-selection-mt5-log.jsonl")
     STOP = os.path.join(PILOT_DIR, "STOP")
     VENUE_LOG = {"mt5": MT5_LOG}
     return PILOT_DIR
@@ -361,18 +360,24 @@ def mt5_json(*args):
 
 
 def load_setups():
-    if os.path.exists(SELECTION):
-        try:
-            return [s for s in json.load(open(SELECTION, encoding="utf-8"))["setups"] if s.get("method") in METHODS and s.get("execution") in VENUES]
-        except Exception:
-            return []
-    return DEFAULT_SETUPS
+    """The ENABLED systems of the selection file, and nothing else (ADR 0008). No selection file, or an
+    unreadable one, means nothing is enabled -- the runner trades nothing rather than a built-in default. (A
+    hard-coded fallback setup used to be returned when the file was absent: a coverage fallback, which ADR 0008
+    removed.)"""
+    if not os.path.exists(SELECTION):
+        return []
+    try:
+        with open(SELECTION, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        return [s for s in doc["setups"] if s.get("method") in METHODS and s.get("execution") in VENUES]
+    except Exception:
+        return []
 
 
 def automation_gate():
     """Reason to refuse this tick, or None. Can only stop, never start. Missing/unreadable config = refuse (PILOT-03)."""
     if not os.path.exists(AUTOMATION_CONFIG):
-        return "no automation config -- profile top20 runs only under /automation"
+        return "no automation config -- the pilot runs only under /automation"
     try:
         c = json.load(open(AUTOMATION_CONFIG, encoding="utf-8"))
     except Exception:
@@ -381,10 +386,10 @@ def automation_gate():
         return "automation master switch is OFF"
     if not c.get("layers", {}).get("pilot", True):
         return "pilot layer disabled"
-    # (deleted 2026-09-13) the pilot_profile != "top20" refusal: there is one engine now, so the only thing this
+    # (deleted 2026-09-13) the pilot_profile refusal: there is one engine now, so the only thing this
     # key could still express is "run nothing", which layers.pilot already expresses.
     if c.get("execution", {}).get("environment", "demo") == "real":
-        return "environment is REAL -- the top20 profile is a demo/testnet pilot (user decision 2026-09-11); refusing"
+        return "environment is REAL -- the pilot is demo/testnet only (user decision 2026-09-11); refusing"
     if ENV_ERROR:
         return f"environment '{ENV_NAME}' unusable -- {ENV_ERROR}"
     ok, missing, note = trading_env.completeness(ENV_NAME, ("BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY"))
@@ -2318,7 +2323,7 @@ def replay(setup_ids, bars=900):
 
 
 def report_state(s):
-    lines = [f"TOP20 RUNNER [env {ENV_NAME}] {iso(now())} started {s['started']} halted: {s.get('halted')}"]
+    lines = [f"PILOT RUNNER [env {ENV_NAME}] {iso(now())} started {s['started']} halted: {s.get('halted')}"]
     for v in VENUES:
         vs = s["venues"][v]
         lines.append(f"{v}: equity start {vs['equity_start']} | closed {len(vs['closed'])} | realised {sum(c['pnl'] for c in vs['closed']):+.2f} | consec losses {vs['consec_losses']}")

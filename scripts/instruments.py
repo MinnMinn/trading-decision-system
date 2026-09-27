@@ -101,7 +101,7 @@ def execution(market=None):
 
 def backtested(market=None):
     """Symbols the pilot rule set was actually validated on (docs/architecture/instruments.json ->
-    backtested, checked against docs/architecture/pilot-top20.json -> backtest.source). A symbol absent here
+    backtested, checked against docs/architecture/pilot-selection.json -> backtest.source). A symbol absent here
     is NOT backtested -- there is no separate 'unknown' state; fail loud, per the field's own purpose."""
     return list(BACKTESTED[market]) if market else list(ALL_BACKTESTED)
 

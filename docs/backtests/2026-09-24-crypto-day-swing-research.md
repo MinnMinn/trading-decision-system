@@ -1,7 +1,7 @@
 # Crypto day (1H) / swing (4H) — /improve research proposal — 2026-09-24
 
 _Controlled-improvement procedure (`.claude/commands/improve.md`, CLAUDE.md §41–§46). Evidence only: nothing here
-changes `pilot-top20.json`, `methods.json`, `trading-systems.json` or `improve-candidates.json`. Every
+changes `pilot-selection.json`, `methods.json`, `trading-systems.json` or `improve-candidates.json`. Every
 recommendation below is a proposal for a human decision (§41 stage 11)._
 
 **Question.** Crypto day (1H) and swing (4H) have no eligible pilot setup. Selection bar (user decision

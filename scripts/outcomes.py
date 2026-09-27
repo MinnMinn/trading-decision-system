@@ -2,7 +2,7 @@
 is allowed to change production because of it.
 
 §41 asks for eight outcome states. **Five of them could not be expressed anywhere in this repo.** A trade file
-carries WIN / LOSS / BREAKEVEN; the runner logged every block reason into `top20-log.jsonl` and *nothing ever
+carries WIN / LOSS / BREAKEVEN; the runner logged every block reason into `pilot-selection-log.jsonl` and *nothing ever
 read it back*, so "the filter saved us" and "the filter cost us a winner" were the same silence.
 
     import outcomes as O
@@ -42,8 +42,8 @@ REALISED, EVALUATION, FAULT = "realised", "evaluation", "fault"
 UNKNOWN = "UNKNOWN"
 
 #: Where the live path writes what happened. Read-only here.
-PILOT_LOGS = (os.path.join(ROOT, "data", "live", "pilot-futures", "top20-log.jsonl"),
-              os.path.join(ROOT, "data", "live", "pilot-futures", "top20-mt5-log.jsonl"),
+PILOT_LOGS = (os.path.join(ROOT, "data", "live", "pilot-futures", "pilot-selection-log.jsonl"),
+              os.path.join(ROOT, "data", "live", "pilot-futures", "pilot-selection-mt5-log.jsonl"),
               os.path.join(ROOT, "data", "live", "pilot-futures", "log.jsonl"))
 JOURNAL = os.path.join(ROOT, "trades", "index.jsonl")
 
@@ -357,7 +357,7 @@ class Proposal:
     The reason this is a class rather than a document convention: §41's prohibition is on a SILENT rewrite,
     and silence is prevented by making the artifact mandatory, ordered and unapprovable until the pipeline has
     been walked. There is no method here that writes to docs/architecture/trading-systems.json or
-    docs/architecture/pilot-top20.json, and there is not meant to be one.
+    docs/architecture/pilot-selection.json, and there is not meant to be one.
     """
 
     def __init__(self, title, *, hypothesis, author, cluster=None, baseline=None):

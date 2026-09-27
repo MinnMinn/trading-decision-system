@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
 //| OrderBridge.mq5 -- file-based order bridge for the TYME trading    |
-//| system (pilot profile top20, CFD leg). Companion of ExportOHLCV.mq5.|
+//| system (the pilot, CFD leg). Companion of ExportOHLCV.mq5.       |
 //|                                                                    |
 //| Protocol (all files under the terminal's Common\Files folder,      |
 //| which the project symlinks as data/live/mt5-bridge):               |

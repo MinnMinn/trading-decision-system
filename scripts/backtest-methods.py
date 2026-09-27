@@ -158,11 +158,28 @@ def limit_bars(n):
     _BARS_LIMIT = n
 
 
+#: Parsed history files, keyed by (path, mtime_ns, size). htf_bias_gate() calls load() once per LTF bar, so
+#: without this every bar re-read and re-parsed a multi-MB JSON file -- hours of IO and allocator churn per
+#: stability run. The key includes the file's identity, so a rewritten file is re-read, never served stale.
+_LOAD_CACHE = {}
+
+
+def _read_history(p):
+    st = os.stat(p)
+    key = (p, st.st_mtime_ns, st.st_size)
+    d = _LOAD_CACHE.get(key)
+    if d is None:
+        with open(p) as fh:
+            d = json.load(fh)
+        _LOAD_CACHE[key] = d
+    return d
+
+
 def load(sym, tf):
     p = f"{ROOT}/data/history/ohlcv.{sym}.{tf}.json"
     if not os.path.exists(p):
         return None, None
-    d = json.load(open(p))
+    d = _read_history(p)
     if _BARS_LIMIT and len(d.get("candles") or ()) > _BARS_LIMIT:
         d = dict(d, candles=d["candles"][-_BARS_LIMIT:])
     # CLAUDE.md §7: provenance travels with the series. Recorded per (symbol, timeframe) because ONE
@@ -182,7 +199,7 @@ def load(sym, tf):
                                   "source": os.path.relpath(p, ROOT)})
             print(f"DATA-QUALITY FLAG (CLAUDE.md §20/§38): {sym} {tf} history is {state}: {why}",
                   file=sys.stderr)
-    return d["candles"], os.path.relpath(p, ROOT)
+    return list(d["candles"]), os.path.relpath(p, ROOT)  # a fresh list: the cached one is never handed out
 
 
 # CLAUDE.md §38 "unrealistic execution assumptions", as DATA rather than as a paragraph of Vietnamese prose at
@@ -907,7 +924,7 @@ def scan(sym, tf, only=None, opts=None):
                             # uses (this leg IS the ICT confirmation, methods.json's COMBINED-BOOK.entry=
                             # "market" describes the WYCKOFF leg, not this one) -- an order that never fills is
                             # not a trade, exactly as ict_setups_live() already treats it. runnable=false, so
-                            # this cannot reach pilot-top20 either way; fixed per CLAUDE.md §37 regardless.
+                            # this cannot reach the pilot selection either way; fixed per CLAUDE.md §37 regardless.
                             if fill is None:
                                 continue
                             e_bar, outcome = fill
@@ -1276,7 +1293,7 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
         # the floor once the venue's own fee is charged. A backtest that admits 5 % of trades its own live
         # system would decline is not measuring that system.
         #
-        # RESEARCH-SEMANTICS CHANGE (§59): every stability report and every `pilot-top20.json` backtest block
+        # RESEARCH-SEMANTICS CHANGE (§59): every stability report and every `pilot-selection.json` backtest block
         # produced before this date was computed under the gross convention and is NOT comparable to a run
         # after it. They are deliberately not regenerated here -- see SYSTEM-DESIGN.md §45.
         dist = abs(t["entry"] - t["stop"]) / t["entry"]

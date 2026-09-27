@@ -30,7 +30,7 @@ import trading_env as TE
 
 ACCOUNT = next(pid for pid, p in AP.PROFILES.items()
                if p["environment"] not in AP.UNROUTABLE_ENVIRONMENTS)
-SETUPS = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top20.json"),
+SETUPS = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-selection.json"),
                         encoding="utf-8"))["setups"]
 SETUP = SETUPS[0]["id"]
 VERSION = SETUPS[0].get("rule_version")
@@ -102,7 +102,7 @@ class RiskMayOnlyBeTightened(unittest.TestCase):
 
 
 class TheVersionPinIsTheWholePoint(unittest.TestCase):
-    """scripts/rank-setups.py rewrites pilot-top20.json in place -- four times on 2026-09-19 alone. The same
+    """scripts/rank-setups.py rewrites pilot-selection.json in place -- four times on 2026-09-19 alone. The same
     setup id can mean different rules afterwards, so a customer's agreed version is recorded, not resolved."""
 
     def test_drift_is_reported_when_the_setup_moved_under_the_mandate(self):

@@ -200,7 +200,7 @@
     ]
   },
   "backtested": {
-    "_comment": "Symbols the pilot rule set was actually validated on. Anything on an execution list but absent here is an EXPERIMENT, not a measured edge -- docs/architecture/pilot-top20.json -> backtest.source. Keep this in step with that file when the backtest is re-run. scripts/instruments.py enforces backtested.<m> subset execution.<m> on load (cannot claim validation for a symbol that cannot be traded). A symbol absent from its market's list here -- or the whole field missing -- is treated as NOT backtested by every reader (fail loud, not fail silent: this is a warning field, and silence on a warning is the dangerous direction).",
+    "_comment": "Symbols the pilot rule set was actually validated on. Anything on an execution list but absent here is an EXPERIMENT, not a measured edge -- docs/architecture/pilot-selection.json -> backtest.source. Keep this in step with that file when the backtest is re-run. scripts/instruments.py enforces backtested.<m> subset execution.<m> on load (cannot claim validation for a symbol that cannot be traded). A symbol absent from its market's list here -- or the whole field missing -- is treated as NOT backtested by every reader (fail loud, not fail silent: this is a warning field, and silence on a warning is the dangerous direction).",
     "crypto": [
       "BTCUSDT",
       "ETHUSDT",
@@ -209,7 +209,7 @@
     "cfd": [
       "XAUUSD"
     ],
-    "_forex_note": "EMPTY ON PURPOSE. No FX backtest exists -- docs/architecture/pilot-top20.json contains no forex setup, so rank-setups.py can never select one and the pilot can never trade a pair. Do not populate this list to make a dashboard look complete; it is the field that tells the truth about what was measured.",
+    "_forex_note": "EMPTY ON PURPOSE. No FX backtest exists -- docs/architecture/pilot-selection.json contains no forex setup, so rank-setups.py can never select one and the pilot can never trade a pair. Do not populate this list to make a dashboard look complete; it is the field that tells the truth about what was measured.",
     "forex": []
   },
   "history": [
@@ -222,7 +222,7 @@
     {
       "date": "2026-09-17",
       "change": "NEW MARKET forex: analysis.forex = execution.forex = EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD (the 7 majors); backtested.forex = [] deliberately",
-      "reason": "explicit user approval -- the blanket Forex prohibition was lifted and the answer to \"analysis only, or execution too?\" was \"Thêm cả majors luôn\" (add the majors to both). Fed by the same MT5 bridge as cfd. THREE CAVEATS ON RECORD: (1) there is no FX DATA yet -- integrations/mt5/ExportOHLCV.mq5 only exports symbols with an attached chart, today XAUUSD and XAGUSD, so until a chart is attached per pair in MetaTrader no forex page can build and markets.forex.enabled ships false; (2) there is no FX BACKTEST -- backtested.forex is empty and pilot-top20.json holds no forex setup, so the pilot cannot select a pair even with execution permission; (3) the MT5 EA's own InpAllowedSymbols is a COMPILED input -- the source now lists the majors, but the user must recompile and re-attach OrderBridge.mq5 before any FX order can leave the bridge. FX tick volume is not traded volume (knowledge/wyckoff/modern-tools.md §7), so Wyckoff credit is reduced there exactly as it is for cfd.",
+      "reason": "explicit user approval -- the blanket Forex prohibition was lifted and the answer to \"analysis only, or execution too?\" was \"Thêm cả majors luôn\" (add the majors to both). Fed by the same MT5 bridge as cfd. THREE CAVEATS ON RECORD: (1) there is no FX DATA yet -- integrations/mt5/ExportOHLCV.mq5 only exports symbols with an attached chart, today XAUUSD and XAGUSD, so until a chart is attached per pair in MetaTrader no forex page can build and markets.forex.enabled ships false; (2) there is no FX BACKTEST -- backtested.forex is empty and pilot-selection.json holds no forex setup, so the pilot cannot select a pair even with execution permission; (3) the MT5 EA's own InpAllowedSymbols is a COMPILED input -- the source now lists the majors, but the user must recompile and re-attach OrderBridge.mq5 before any FX order can leave the bridge. FX tick volume is not traded volume (knowledge/wyckoff/modern-tools.md §7), so Wyckoff credit is reduced there exactly as it is for cfd.",
       "approved_by": "user (in session)"
     },
     {
@@ -234,13 +234,13 @@
     {
       "date": "2026-09-12",
       "change": "execution.crypto += ASTERUSDT, VIRTUALUSDT, SUIUSDT, TAOUSDT, RENDERUSDT, ONDOUSDT (now equals analysis.crypto, 9 symbols)",
-      "reason": "explicit user approval -- \"thêm cả vào execution đi, tao muốn xem kết quả trade của cả 9 token trong crypto\". CAVEAT ON RECORD: the pilot-top20 setups were backtested on BTCUSDT/ETHUSDT/SOLUSDT only (docs/architecture/pilot-top20.json -> backtest.source); the rule set is UNVALIDATED on the six added symbols, so their results are an experiment, not a measured edge. Environment at the time of approval: demo (Binance TESTNET, fake money).",
+      "reason": "explicit user approval -- \"thêm cả vào execution đi, tao muốn xem kết quả trade của cả 9 token trong crypto\". CAVEAT ON RECORD: the pilot-selection setups were backtested on BTCUSDT/ETHUSDT/SOLUSDT only (docs/architecture/pilot-selection.json -> backtest.source); the rule set is UNVALIDATED on the six added symbols, so their results are an experiment, not a measured edge. Environment at the time of approval: demo (Binance TESTNET, fake money).",
       "approved_by": "user (in session)"
     },
     {
       "date": "2026-09-12",
       "change": "added the structured backtested{} field (crypto: BTCUSDT/ETHUSDT/SOLUSDT, cfd: XAUUSD), replacing the prose-only caveat above as the source scripts/method-panel.py reads for the unvalidated badge",
-      "reason": "the prose caveat was a regex target, not data -- rewording it would silently stop the badge with nothing failing. cfd list checked against docs/architecture/pilot-top20.json: all three cfd setups (scalping/day/swing) list symbols=[XAUUSD] only, so XAUUSD is backtested (two of the three cfd setups carry negative_backtest=true, which is a separate 'known losing' concern, not 'never tested'); XAGUSD/USOIL/UKOIL appear in no cfd setup and are absent from this list.",
+      "reason": "the prose caveat was a regex target, not data -- rewording it would silently stop the badge with nothing failing. cfd list checked against docs/architecture/pilot-selection.json: all three cfd setups (scalping/day/swing) list symbols=[XAUUSD] only, so XAUUSD is backtested (two of the three cfd setups carry negative_backtest=true, which is a separate 'known losing' concern, not 'never tested'); XAGUSD/USOIL/UKOIL appear in no cfd setup and are absent from this list.",
       "approved_by": "coordinator (in session, method-panel B1 follow-up)"
     }
   ],

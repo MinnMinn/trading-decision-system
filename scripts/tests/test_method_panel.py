@@ -197,7 +197,7 @@ class PilotHonesty(unittest.TestCase):
         self.assertIn("wyckoff_rules.py", html)
 
     def test_real_environment_replaces_the_pilot_column(self):
-        """strategy-runner.py:167 refuses every top20 tick when environment is real."""
+        """strategy-runner.py:167 refuses every pilot tick when environment is real."""
         self.assertIn(_say("panel.real_gate.before"), mp.render(cfg(env="real")))
         self.assertNotIn(_say("panel.real_gate.before"), mp.render(cfg(env="demo")))
 

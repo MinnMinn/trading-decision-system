@@ -66,8 +66,8 @@ class SyncPilotCarriesExpectations(unittest.TestCase):
         os.makedirs(self.trades_dir, exist_ok=True)
         self.j.TRADES = self.trades_dir
         self.j.INDEX = os.path.join(self.trades_dir, "index.jsonl")
-        self.log_path = os.path.join(self.tmp, "top20-log.jsonl")
-        self.j.PILOT["futures-top20"] = self.log_path
+        self.log_path = os.path.join(self.tmp, "pilot-selection-log.jsonl")
+        self.j.PILOT["futures-selection"] = self.log_path
 
     def _write_log(self, exps):
         entry = {"kind": "entry", "symbol": "BTCUSDT", "opened_at": "2026-09-17T18:00:00Z", "side": "LONG",
@@ -79,7 +79,7 @@ class SyncPilotCarriesExpectations(unittest.TestCase):
     def test_sync_pilot_writes_expectations_into_the_trade_file(self):
         exps = sample_expectations()
         self._write_log(exps)
-        self.j.sync_pilot("futures-top20")
+        self.j.sync_pilot("futures-selection")
         trades = self.j.all_trades()
         self.assertEqual(len(trades), 1)
         self.assertEqual(trades[0]["expectations"], exps)
@@ -87,7 +87,7 @@ class SyncPilotCarriesExpectations(unittest.TestCase):
     def test_build_index_keeps_expectations(self):
         exps = sample_expectations()
         self._write_log(exps)
-        self.j.sync_pilot("futures-top20")
+        self.j.sync_pilot("futures-selection")
         rows = self.j.build_index()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["expectations"], exps)
@@ -98,7 +98,7 @@ class SyncPilotCarriesExpectations(unittest.TestCase):
 
     def test_no_expectations_in_log_writes_an_empty_list(self):
         self._write_log([])
-        self.j.sync_pilot("futures-top20")
+        self.j.sync_pilot("futures-selection")
         trades = self.j.all_trades()
         self.assertEqual(trades[0]["expectations"], [])
 

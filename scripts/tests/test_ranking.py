@@ -237,10 +237,13 @@ class TheABRefusesRatherThanCaveats(unittest.TestCase):
 
 
 class AgainstTheRepositorysOwnRankingConsumer(unittest.TestCase):
-    def test_rank_setups_still_sorts_on_a_lexicographic_tuple(self):
+    def test_rank_setups_has_no_sort_and_no_blended_score(self):
         # §48 is enforced at the consumer too: the pilot selection must not become a blended score.
         src = open(os.path.join(ROOT, "scripts", "rank-setups.py"), encoding="utf-8").read()
-        self.assertIn('key=lambda r: (r["ruin"] is None, r["q_pos"]', src)
+        # ADR 0008: the pilot selection is no longer a ranking at all -- every system is judged alone against
+        # absolute criteria, so there is no sort key and no blended score to become.
+        self.assertIn("SC.evaluate(", src)
+        self.assertNotIn(".sort(", src)
         self.assertNotIn("weighted", src.lower())
 
     def test_the_consistency_objective_matches_what_that_consumer_sorts_on(self):

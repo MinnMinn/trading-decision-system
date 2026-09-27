@@ -60,10 +60,10 @@ def _run(store, extra=(), out=None, js=None):
 
 
 class NeverWritesTheGovernedRegistries(unittest.TestCase):
-    def test_source_never_writes_pilot_top20_methods_or_trading_systems(self):
+    def test_source_never_writes_pilot_selection_methods_or_trading_systems(self):
         # Every occurrence of the three filenames must be in a comment, a docstring, or a read-side string --
         # never the target of an open(..., "w") / write() call on the SAME line.
-        forbidden = ("pilot-top20.json", "methods.json", "trading-systems.json")
+        forbidden = ("pilot-selection.json", "methods.json", "trading-systems.json")
         for line_no, line in enumerate(SRC.splitlines(), start=1):
             for name in forbidden:
                 if name in line:

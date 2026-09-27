@@ -153,7 +153,7 @@ class ForexIsWiredEndToEnd(unittest.TestCase):
 
     def test_no_forex_symbol_claims_a_backtest(self):
         """The safety envelope that makes execution permission survivable: rank-setups.py selects the pilot's
-        setups from backtests, pilot-top20.json holds no forex setup, and backtested.forex is empty -- so the
+        setups from backtests, pilot-selection.json holds no forex setup, and backtested.forex is empty -- so the
         pilot cannot pick a pair even though it is allowed to order one."""
         self.assertEqual(I.backtested("forex"), [])
 

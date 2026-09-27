@@ -261,7 +261,7 @@ class IctParityAchieved(unittest.TestCase):
         worth keeping is that ICT remains a RUNNABLE, selectable method, and that nothing the ranking selects
         is a method the runner cannot run."""
         self.assertIn("ICT", sr.mreg.runnable())
-        setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")))["setups"]
+        setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-selection.json")))["setups"]
         for st in setups:
             self.assertIn(st.get("method"), sr.mreg.runnable(), st.get("id"))
 
@@ -341,7 +341,7 @@ class HtfGateFailsClosed(unittest.TestCase):
         crypto-scalping-wyckoff-5m-border-c was exactly that (WYCKOFF, 5m, htf:true, HTF_OF["5m"] == "30m",
         which automation.SCAN_WINDOW has no entry for). The 2026-09-13 re-rank onto live-scannable timeframes
         removed it. This asserts the selection cannot reacquire one -- it is the invariant, not that one id."""
-        setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")))["setups"]
+        setups = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-selection.json")))["setups"]
         doomed = [s["id"] for s in setups
                   if s.get("htf") and sr.ict_scan_bars(sr.HTF_OF.get(s["tf"])) is None]
         self.assertEqual(doomed, [],
@@ -573,22 +573,23 @@ class SetupSpec(unittest.TestCase):
         au = load("au", os.path.join(ROOT, "scripts", "automation.py"))
         cfg = json.loads(json.dumps(au.DEFAULTS)); ns = type("A", (), {"setup": ["setup", "top", "99"], "who": None, "reason": None, "cmd": "on"})()
         rc, lines = au.apply_setup_spec(cfg, ns)
-        self.assertEqual(rc, 1); self.assertEqual(cfg["history"], [])
+        self.assertEqual(rc, 1); self.assertEqual(cfg["history"], [])   # ADR 0008: any spec words are a usage error
 
-    def test_plain_on_selects_per_horizon(self):
-        """No spec = `setup horizons` (user decision 2026-09-11): rank-setups is called with --horizons --window 1y; a `top N` spec in force is kept."""
+    def test_plain_on_runs_the_one_criteria_selection(self):
+        """ADR 0008: no spec = the only selection path; rank-setups is called with no mode/window/count flag, and a
+        previously recorded `setup_spec` no longer short-circuits a re-selection (the old `top N` keep-rule was
+        removed with the top-N mode)."""
         from unittest import mock
         au = load("au", os.path.join(ROOT, "scripts", "automation.py"))
         cfg = json.loads(json.dumps(au.DEFAULTS)); calls = []
         def fake_run(args, **kw):
-            calls.append(args); return type("R", (), {"returncode": 0, "stderr": ""})()
+            calls.append(args); return type("R", (), {"returncode": 1, "stderr": "stub"})()
+        cfg["execution"]["setup_spec"] = "legacy spec"
         with mock.patch.object(au.subprocess, "run", fake_run):
             rc, lines = au.apply_setup_spec(cfg, type("A", (), {"setup": [], "cmd": "on", "who": None, "reason": None})())
-        self.assertEqual(rc, 0); self.assertIn("--horizons", calls[0]); self.assertIn("1y", calls[0])
-        cfg["execution"]["setup_spec"] = "top 3 (1y)"; calls.clear()
-        with mock.patch.object(au.subprocess, "run", fake_run):
-            rc, lines = au.apply_setup_spec(cfg, type("A", (), {"setup": [], "cmd": "on", "who": None, "reason": None})())
-        self.assertEqual(calls, []); self.assertEqual(rc, 0)
+        self.assertEqual(len(calls), 1); self.assertEqual(rc, 2)
+        for gone in ("--horizons", "--window", "--n"):
+            self.assertNotIn(gone, calls[0])
 
 
 class PresetFilter(unittest.TestCase):
@@ -1550,7 +1551,7 @@ class PerAccountScope(unittest.TestCase):
     """One process, one customer account: its own state, logs, candle cache and kill switch.
 
     docs/plans/2026-09-19-multi-account.md §0.3 item 2. Before this, `STOP` was one file for every venue and
-    every account, so one customer breaching a drawdown limit halted everybody, and `top20-state.json` was one
+    every account, so one customer breaching a drawdown limit halted everybody, and `pilot-selection-state.json` was one
     file written with a bare `open(..., "w")`, so two processes would have silently overwritten each other's
     positions. Scoping the paths is what makes one process per account safe to run at all.
     """

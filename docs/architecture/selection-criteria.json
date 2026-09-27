@@ -1,5 +1,5 @@
 {
-  "_doc": "THE source for which backtested systems may be enabled for the pilot. Replaces the 'top N' / 'top20' selection (owner decision 2026-09-26, ADR 0008). A system is enabled only if it passes EVERY criterion of its horizon on its in-sample window AND on its untouched out-of-sample window (INT-5, oos6m). There is no ranking cut-off: every system that passes is eligible, and a horizon with no passing system trades nothing. Returns are account-level, net of fees/slippage, sized with live-parity 1% risk (risk-config.json max_risk_pct).",
+  "_doc": "THE source for which backtested systems may be enabled for the pilot. Replaces the count-named 'top N' selection (owner decision 2026-09-26, ADR 0008). A system is enabled only if it passes EVERY criterion of its horizon on its in-sample window AND on its untouched out-of-sample window (INT-5, oos6m). There is no ranking cut-off: every system that passes is eligible, and a horizon with no passing system trades nothing. Returns are account-level, net of fees/slippage, sized with live-parity 1% risk (risk-config.json max_risk_pct).",
   "version": 1,
   "decided": "2026-09-26",
   "source": "owner answers 2026-09-26: scalping = 'TB tháng >= 5%'; day/swing = 'Bảo toàn vốn'",

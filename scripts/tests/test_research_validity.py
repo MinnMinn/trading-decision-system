@@ -317,14 +317,14 @@ class TheVerdictTravelsWithTheNumbers(unittest.TestCase):
 
     def test_rank_setups_reads_the_verdict_at_the_one_place_all_modes_load_rows(self):
         self.assertIn("def load_rows(paths, market, *, require_stamped=False)", RANK_SRC)
-        self.assertEqual(RANK_SRC.count("load_rows(sorted(paths), market, require_stamped=a.require_stamped)"), 3)
+        self.assertEqual(RANK_SRC.count("load_rows(sorted(paths), market, require_stamped=a.require_stamped)"), 1)   # ADR 0008: one selection path (was 3 modes)
 
     def test_the_selection_file_carries_the_validity_of_every_source_it_used(self):
-        self.assertEqual(RANK_SRC.count('selection["research_validity"] = validity_note()'), 3)
+        self.assertEqual(RANK_SRC.count('selection["research_validity"] = validity_note()'), 1)   # ADR 0008: one selection path (was 3 modes)
 
 
 class AnInvalidRunCannotBeSelectedFrom(unittest.TestCase):
-    """The end §38 exists for: `pilot-top20.json` is what the runner places orders from."""
+    """The end §38 exists for: `pilot-selection.json` is what the runner places orders from."""
 
     def _stability_file(self, tmpdir, verdict, name="crypto-std25.json"):
         os.makedirs(tmpdir, exist_ok=True)

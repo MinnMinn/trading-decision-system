@@ -145,14 +145,19 @@ class UnknownIsAValidState(unittest.TestCase):
         s = importlib.util.spec_from_file_location("rs", os.path.join(ROOT, "scripts", "rank-setups.py"))
         rs = importlib.util.module_from_spec(s); s.loader.exec_module(rs)
         self.assertGreaterEqual(rs.MIN_WINDOW_DAYS, 90)
-        row = {"first": "2026-08-01", "last": "2026-09-11", "w1y": {}, "ruin": None, "ann": 5.0}
-        self.assertFalse(rs.solvent(row), "a 41-day row must not be selectable")
+        # ADR 0008: the floor is now a precondition of the criteria selection (solvent() went with ranking).
+        row = {"oos6m": {"in_sample": {"since": "2026-08-01", "until": "2026-09-11", "n": 500},
+                         "oos": {"since": "2025-01-01", "until": "2026-01-01"}}}
+        self.assertTrue(any("41 days < 90" in w for w in rs.preconditions(row, "day")),
+                        "a 41-day window must not be selectable")
 
     def test_an_unparseable_date_fails_closed(self):
         import importlib.util
         s = importlib.util.spec_from_file_location("rs", os.path.join(ROOT, "scripts", "rank-setups.py"))
         rs = importlib.util.module_from_spec(s); s.loader.exec_module(rs)
-        self.assertFalse(rs.solvent({"first": "not-a-date", "last": "also-not", "ruin": None, "ann": 9.9}))
+        row = {"oos6m": {"in_sample": {"since": "not-a-date", "until": "also-not", "n": 500},
+                         "oos": {"since": "2025-01-01", "until": "2026-01-01"}}}
+        self.assertTrue(rs.preconditions(row, "day"), "unparseable dates must refuse, not pass")
 
 
 class SelectionPressureIsReal(unittest.TestCase):
@@ -167,23 +172,20 @@ class SelectionPressureIsReal(unittest.TestCase):
                 total += len(json.load(fh).get("rows", []))
         if total == 0:
             self.skipTest("no stability rows on disk")
-        selection = os.path.join(ROOT, "docs", "architecture", "pilot-top20.json")
+        selection = os.path.join(ROOT, "docs", "architecture", "pilot-selection.json")
         with open(selection, encoding="utf-8") as fh:
             picked = len(json.load(fh).get("setups", []))
         self.assertGreater(total, picked * 5,
                            "the register claims substantial selection pressure; the data no longer shows it")
 
-    def test_the_selection_file_still_records_no_candidate_count(self):
-        """A failing-forward test: when §43 adds the count, this test should be DELETED along with the
-        register's 'unrecorded' wording. Until then it pins the gap so the claim cannot go stale."""
-        import json
-        with open(os.path.join(ROOT, "docs", "architecture", "pilot-top20.json"), encoding="utf-8") as fh:
-            d = json.load(fh)
-        keys = " ".join(k.lower() for k in d)
-        for token in ("candidate", "rejected", "considered"):
-            self.assertNotIn(token, keys,
-                             f"pilot-top20.json now records {token!r} -- §43 landed; update §22's "
-                             f"selection-bias row and delete this test")
+    def test_the_selection_writer_records_the_candidate_count(self):
+        """The failing-forward pin that stood here ("the selection file records no candidate count") was
+        deleted as its own docstring asked: §43's count landed (round 4b, kept by ADR 0008) as the selection
+        file's `experiment_budget` and `disabled` list. Pinned at the writer, because the committed file is
+        regenerated only by `/automation on`."""
+        src = open(os.path.join(ROOT, "scripts", "rank-setups.py"), encoding="utf-8").read()
+        for token in ("experiment_budget", "candidate_rows", "disabled=[]"):
+            self.assertIn(token, src)
 
 
 if __name__ == "__main__":
