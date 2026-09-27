@@ -1,0 +1,80 @@
+# Heavy research runs on GitHub-hosted runners instead of the owner's PC (flaky RAM: segfaults and BSODs
+# during multi-hour backtests). Manual trigger only; read-only token; results come back as artifacts and are
+# checked by a human-reviewed step before anything is committed. The live scanner stays on the PC.
+name: research
+
+on:
+  # workflow_dispatch only works once this file is on the default branch; a push to a research-run/**
+  # branch runs it from any branch without touching the default one.
+  push:
+    branches: ["research-run/**"]
+  workflow_dispatch:
+    inputs:
+      workers:
+        description: "scan worker processes per job (runner has 2 vCPU for private repos)"
+        default: "2"
+
+permissions:
+  contents: read
+
+jobs:
+  stability:
+    name: stability ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350          # under the 6 h hosted-runner job limit
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: crypto-live, symbols: "BTCUSDT,ETHUSDT,SOLUSDT", account: ""}
+          - {name: crypto-crypto-personal-v1, symbols: "BTCUSDT,ETHUSDT,SOLUSDT", account: crypto-personal-v1}
+          - {name: crypto-crypto-prop-discipline, symbols: "BTCUSDT,ETHUSDT,SOLUSDT", account: crypto-prop-discipline}
+          - {name: crypto-pilot-binance-futures-testnet, symbols: "BTCUSDT,ETHUSDT,SOLUSDT", account: pilot-binance-futures-testnet}
+          - {name: cfd-live, symbols: "XAUUSD,XAGUSD,USOIL,UKOIL", account: ""}
+          - {name: cfd-ftmo-challenge-phase1, symbols: "XAUUSD,XAGUSD,USOIL,UKOIL", account: ftmo-challenge-phase1}
+          - {name: cfd-pilot-mt5-demo, symbols: "XAUUSD,XAGUSD,USOIL,UKOIL", account: pilot-mt5-demo}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # the interpreter the committed stability files were produced with (Docker py3.12)
+      - name: stability-report
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          mkdir -p out
+          acct=()
+          if [ -n "${{ matrix.account }}" ]; then acct=(--account "${{ matrix.account }}"); fi
+          python -X faulthandler scripts/stability-report.py --tf 15m,1H,4H --symbols "${{ matrix.symbols }}" \
+            --ict-target range --json "out/${{ matrix.name }}.json" --workers "${{ inputs.workers || 2 }}" "${acct[@]}" \
+            > "out/${{ matrix.name }}.stdout.md" 2> "out/${{ matrix.name }}.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stability-${{ matrix.name }}
+          path: out/
+          retention-days: 14
+
+  # Results come back through git, not the artifact API: a research-results/<run id> branch holding only the
+  # outputs (no code), so the owner's machine can `git fetch` them with the credentials it already has. This
+  # is the one job with write access, and it writes nothing but that branch.
+  collect:
+    needs: stability
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: results
+      - name: push results branch
+        run: |
+          cd results
+          git init -q -b "research-results/${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          printf 'run %s\nsource commit %s (%s)\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" "$GITHUB_REF_NAME" > RUN.txt
+          git add -A
+          git commit -q -m "research results: run ${GITHUB_RUN_ID} of ${GITHUB_SHA}"
+          git push -q "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/research-results/${GITHUB_RUN_ID}"
