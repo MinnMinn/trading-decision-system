@@ -26,7 +26,7 @@ def tearDownModule():
 
 
 class TheRealPilotDirectoryIsNeverWritten(unittest.TestCase):
-    """Regression for the leak probe of 2026-09-27: the runner's own writers (log, save_state, halt) called
+    """Regression for the leak probe of 2026-09-27: the runner's own writers (log, save_state) called
     with NO per-test override must land in the redirect, never in the repo's data/live."""
 
     def test_the_house_paths_are_redirected(self):
