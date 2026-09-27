@@ -335,6 +335,25 @@ class RunScansRetriesOnFailure(unittest.TestCase):
             cache = SR.run_scans(tasks, workers=2, executor_cls=factory, max_retries=2)
         self.assertIn("k1", cache)
 
+    def test_a_broken_pool_is_charged_to_the_run_not_to_every_task(self):
+        """Three pool deaths hit all pending tasks each time; with a per-task budget of 2 that used to kill the
+        run. Charged to the run (budget 6), every task still completes."""
+        fail_counts = {("BTCUSDT", "1H"): 3, ("ETHUSDT", "1H"): 3, ("SOLUSDT", "1H"): 3}
+        factory = functools.partial(_FlakyExecutor, fail_counts)
+        with mock.patch.object(SR, "_worker_scan", side_effect=lambda sym, tf, overlay: {"symbol": sym}):
+            tasks = [("BTCUSDT", "1H", {}, "k1"), ("ETHUSDT", "1H", {}, "k2"), ("SOLUSDT", "1H", {}, "k3")]
+            cache = SR.run_scans(tasks, workers=3, executor_cls=factory, max_retries=2, max_pool_rebuilds=6)
+        self.assertEqual(sorted(cache), ["k1", "k2", "k3"])
+
+    def test_the_pool_rebuild_budget_still_ends_the_run_loudly(self):
+        fail_counts = {("BTCUSDT", "1H"): 99}
+        factory = functools.partial(_FlakyExecutor, fail_counts)
+        with mock.patch.object(SR, "_worker_scan", side_effect=lambda sym, tf, overlay: {"symbol": sym}):
+            tasks = [("BTCUSDT", "1H", {}, "k1"), ("ETHUSDT", "1H", {}, "k2")]
+            with self.assertRaises(concurrent.futures.process.BrokenProcessPool):
+                SR.run_scans(tasks, workers=2, executor_cls=factory, max_pool_rebuilds=3)
+        self.assertEqual(fail_counts[("BTCUSDT", "1H")], 99 - 4, "1 first round + 3 rebuilds, then stop")
+
     def test_exceeds_retry_budget_fails_loudly(self):
         fail_counts = {("BTCUSDT", "1H"): 99}  # never succeeds
         factory = functools.partial(_FlakyExecutor, fail_counts)

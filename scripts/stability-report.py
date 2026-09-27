@@ -166,7 +166,8 @@ def build_scan_tasks(tfs, syms, cfg_overlays, methods_by_sym):
     return tasks
 
 
-def run_scans(tasks, workers, executor_cls=concurrent.futures.ProcessPoolExecutor, max_retries=2):
+def run_scans(tasks, workers, executor_cls=concurrent.futures.ProcessPoolExecutor, max_retries=2,
+              max_pool_rebuilds=6):
     """Execute every (sym, tf, overlay, key) in `tasks` (from `build_scan_tasks`), in parallel across
     `executor_cls` when `workers > 1` and there is more than one task, sequentially in THIS process otherwise
     (same `bt.scan(sym, tf, opts=overlay)` call either way -- see `_worker_scan`'s docstring for why the
@@ -197,14 +198,23 @@ def run_scans(tasks, workers, executor_cls=concurrent.futures.ProcessPoolExecuto
     below tracks this: only the very FIRST round (round_num == 0) may take the no-pool shortcut for a single
     task, matching the existing "a one-task RUN never pays pool-startup cost" behaviour for the ordinary,
     nothing-failed case, while every subsequent round honours "recreate the pool and resubmit" for a retry
-    even down to a single straggler."""
+    even down to a single straggler.
+
+    TWO budgets, because the two failures mean different things. An ordinary exception from one task is that
+    task's own failure: `max_retries` per task. A `BrokenProcessPool` is NOT: one segfaulting worker marks
+    EVERY pending future of that pool broken, so charging it to each task spent all 27 tasks' retries on three
+    unrelated hardware events (observed: D:/tmp-tests/speed-full/run2.attempt1.log, 27 x "attempt 2/3" and the
+    run died). A broken pool is charged once to the RUN (`max_pool_rebuilds`), its unfinished tasks are
+    resubmitted without spending their own budget, and past that budget the run fails loudly."""
     cache = {}
+    pool_breaks = 0
     remaining = list(tasks)
     attempts = {t[3]: 0 for t in tasks}
     round_num = 0
     while remaining:
         if workers > 1 and (len(remaining) > 1 or round_num > 0):
             still_remaining = []
+            broken = None
             with executor_cls(max_workers=min(workers, len(remaining))) as ex:
                 futures = {ex.submit(_worker_scan, sym, tf, overlay): (sym, tf, overlay, key)
                           for sym, tf, overlay, key in remaining}
@@ -212,6 +222,9 @@ def run_scans(tasks, workers, executor_cls=concurrent.futures.ProcessPoolExecuto
                     sym, tf, overlay, key = futures[fut]
                     try:
                         cache[key] = fut.result()
+                    except concurrent.futures.process.BrokenProcessPool as exc:
+                        broken = exc                        # charged to the run below, not to this task
+                        still_remaining.append((sym, tf, overlay, key))
                     except Exception as exc:
                         attempts[key] += 1
                         if attempts[key] > max_retries:
@@ -219,6 +232,14 @@ def run_scans(tasks, workers, executor_cls=concurrent.futures.ProcessPoolExecuto
                         print(f"run_scans: {sym} {tf} failed (attempt {attempts[key]}/{max_retries + 1}): "
                               f"{type(exc).__name__}: {exc} -- retrying against a fresh pool", file=sys.stderr)
                         still_remaining.append((sym, tf, overlay, key))
+            if broken is not None:
+                pool_breaks += 1
+                if pool_breaks > max_pool_rebuilds:
+                    raise broken
+                print(f"run_scans: worker pool died ({broken}); rebuild {pool_breaks}/{max_pool_rebuilds}, "
+                      f"resubmitting {len(still_remaining)} unfinished task(s) "
+                      f"({', '.join(f'{t[0]} {t[1]}' for t in still_remaining)}) -- retrying against a fresh pool",
+                      file=sys.stderr)
             remaining = still_remaining
         else:
             still_remaining = []
