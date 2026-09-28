@@ -1,0 +1,14 @@
+{
+  "_note": "FTMO-Demo symbol name -> canonical instrument (docs/architecture/instruments.json). Exported 2026-09-28 by integrations/mt5/ExportSymbolSpec.mq5 from the owner's FTMO demo account. swap_mode 1 = SYMBOL_SWAP_MODE_POINTS (swap in points per lot per day). Commission: no deals on this account yet (status no_deals) -- not guessed.",
+  "server": "FTMO-Demo",
+  "map": {
+    "XAUUSD": "XAUUSD",
+    "XAGUSD": "XAGUSD",
+    "US500.cash": "US500",
+    "US30.cash": "US30",
+    "US100.cash": "USTEC",
+    "GER40.cash": "DE40",
+    "FRA40.cash": "FRA40",
+    "AUS200.cash": "AUS200"
+  }
+}
