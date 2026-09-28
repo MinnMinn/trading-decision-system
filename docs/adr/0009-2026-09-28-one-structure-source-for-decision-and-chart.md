@@ -14,10 +14,13 @@ alternatives:
 chosen_approach: One deterministic structure computation feeding both the decision and the chart, with image review as an audit and blocking gate outside the hot path.
 reason: A decision made from images is not reproducible or backtestable over years of bars, and is not point-in-time provable (CLAUDE.md §9, §37, §46). Pixels lose the exact prices that entries, stops and FVG edges need, and §40 forbids an LLM as a mandatory hot-path dependency. The owner's underlying goal -- what is seen is what is decided -- is met exactly by one source rendered faithfully, and the image check keeps the part of the proposal that catches drawing and detection errors.
 consequences: |
-  - chart.js's own ICT detector and the model-read Wyckoff overlay are replaced by rendering the engine's structure objects. The model read keeps only its narrative role and no longer owns levels that are drawn as analysis.
-  - The build must obtain structure from the same code and point-in-time state as the decision. That is a shared-contract change (§59), implemented and reviewed as its own step.
-  - A methodology change that alters structure changes both the decision and the chart, so version significance (§47, §59) is assessed once.
-  - Image review needs a Chrome runtime (scripts/capture-charts.mjs) and reviewer runs. It does not run on the hot path.
+  chart.js's own ICT detector and the model-read Wyckoff overlay are replaced by rendering the engine's structure objects. The model read keeps only its narrative role and no longer owns levels that are drawn as analysis.
+
+  The build must obtain structure from the same code and point-in-time state as the decision. That is a shared-contract change (§59), implemented and reviewed as its own step.
+
+  A methodology change that alters structure changes both the decision and the chart, so version significance (§47, §59) is assessed once.
+
+  Image review needs a Chrome runtime (scripts/capture-charts.mjs) and reviewer runs. It does not run on the hot path.
 rejected_alternatives:
   - Two parallel structure computations -- rejected; they already disagree (fidelity audit §1.1 I-chart items, §3), and nothing forces them to agree.
   - Deciding from a chart image -- rejected; the decision would be non-deterministic, not backtestable or reproducible, lossy in price precision, and dependent on an LLM on the hot path (§40). It would also inherit every drawing error instead of catching it.
