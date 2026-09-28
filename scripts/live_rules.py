@@ -34,6 +34,16 @@ def _load(name, mod):
 ict_scan = _load("ict-scan.py", "ict_scan")      # will be called by backtest-methods.py (Task 4), not yet
 htf = _load("htf_context.py", "htf_context")     # will be called by backtest-methods.py (Task 4), not yet
 _auto = _load("automation.py", "automation")
+# A1 (docs/plans/2026-09-28-methodology-improvement-plan.md §2, ADR 0009): read_at() below is routed through
+# the one structure source. A regular `import` (not `_load()`) -- structures.py has no dash in its filename, so
+# it does not need the spec_from_file_location workaround `_load()` exists for, and a regular import is cached
+# in sys.modules for this process: every caller that already put scripts/ on sys.path before loading this
+# module (scripts/backtest-methods.py, scripts/strategy-runner.py, every test that loads live_rules.py) shares
+# ONE `structures` instance instead of each `_load()` call re-executing structures.py's own module-level
+# `_load("ict-scan.py", ...)`/`_load("htf_context.py", ...)` a second time (A1 code review round 1, item 4:
+# reduces the redundant per-process import cost this file's OWN `ict_scan`/`htf` `_load()` calls above already
+# accept, without adding a third and fourth redundant copy of the same two modules).
+import structures as _structures
 
 
 def scan_spec(tf):
@@ -67,7 +77,12 @@ def read_at(candles, i, tf, methods):
     w = window(candles, i, tf)
     if len(w) != bars:
         return None
-    return ict_scan.analyze(w, recent, tf=tf, methods=methods)
+    # A1: routed through scripts/structures.py, the one structure source (ADR 0009). `ict_analysis()` IS
+    # `ict_scan.analyze(w, recent, tf=tf, methods=methods)` -- see structures.py's module docstring, "Hot-path
+    # / cold-path split" (A1 code review round 1, item 4): this runs once per bar of a backtest, so it must not
+    # pay to build the enriched structure envelope (pivots/pools/MSS/FVGs/dealing range/bias) that nothing on
+    # this path reads. Byte-identical to the pre-A1 direct call.
+    return _structures.ict_analysis(w, recent, tf, methods=methods)
 
 
 def setup_lookback(tf):

@@ -160,7 +160,12 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
             if kind == "SSL" and L[j] < level and C[j] > level:
                 swept, state = j, "swept"; break
         pools.append({"kind": kind, "level": level, "from": first, "swept": swept, "type": ptype,
-                      "state": state, "closed_at": closed_at})
+                      "state": state, "closed_at": closed_at,
+                      # A1 code review round 1 (structures.py needs the LAST constituent pivot's bar to compute
+                      # a pool's available_at correctly for "equal" pools, whose second swing confirms the
+                      # level; for "old" pools to == from since idxs has one element). Additive field only --
+                      # no existing reader of this dict is affected.
+                      "to": last})
     # The deck enumerates TWO types of liquidity (knowledge/ict/core-a.md §2.7) and both rest on the same two
     # lines: "A Swing High at the top of the range will have stop losses from short positions (buy stops). This
     # is called buyside liquidity" (§2.6).
@@ -311,6 +316,13 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
         # display -- prelim_html/setup_candidate already render a grab differently via `disp`). Bias-reading
         # code (htf_context.ict_bias) must use only a genuine MSS, so it reads this field instead.
         "last_displaced_mss": next((m for m in reversed(mss) if m.get("disp")), None),
+        # A1 (docs/plans/2026-09-28-methodology-improvement-plan.md §2; ADR 0009): `sh`/`sl` (3-bar pivot
+        # indices) and the FULL `mss` list (not the display-only last-3 slice above) were computed here but
+        # never returned, so scripts/structures.py -- the one structure source both the decision path and the
+        # future chart read -- could not extract pivots or the complete MSS history without recomputing them.
+        # Purely additive (new keys only): no existing reader of this dict is affected, and no detection logic
+        # changed, so this cannot alter a single trade (A1's byte-identity requirement).
+        "pivots_high": sh, "pivots_low": sl, "mss_all": mss,
     }
 
 
