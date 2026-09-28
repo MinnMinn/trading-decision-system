@@ -25,6 +25,7 @@ process per candidate when `--workers` > 1).
 """
 import argparse
 import concurrent.futures
+import contextlib
 import datetime
 import hashlib
 import importlib.util
@@ -32,6 +33,7 @@ import json
 import os
 import random
 import sys
+import time
 import types
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -41,7 +43,9 @@ import instruments as _I        # docs/architecture/instruments.json: analysis.c
 import methods as _M            # docs/architecture/methods.json: the runnable RUNNER_METHODS set
 import account_profile as _AP   # the two fund profiles (research-only, docs/architecture/account-profiles.json)
 import performance as _perf     # CLAUDE.md §39: the ONE computer for the twenty-three metrics
-import snapshot as _snap        # CLAUDE.md §10/§11: dataset + configuration snapshots
+import snapshot as _snap        # CLAUDE.md §11: configuration snapshot (dataset snapshot is PIT-truncated below)
+import normalized as _N         # CLAUDE.md §7/§10: provenance() + SNAPSHOT_INPUTS_VERSION, reused for the
+                                # PIT-truncated dataset snapshot (fix round 1, review item B)
 import trading_system as _TS    # CLAUDE.md §35/§47: which Trading System (market, tf) resolves to
 import isolated_pool as _pool   # one process per candidate, matching stability-report.py's own convention
 
@@ -69,15 +73,8 @@ BUDGET_MAX = 200                              # §3: at most this many candidate
 TARGET_PASSES = 5                             # §3: a goal, not a stopping rule beyond the budget
 PASS_PROB_THRESHOLD = 0.70                    # §2.1
 FUNDS = ("ftmo-challenge-phase1", "the5ers-high-stakes-step1")
-MIN_TRADING_DAYS = {"ftmo-challenge-phase1": 4, "the5ers-high-stakes-step1": 3}   # §2.2
 TIMEFRAMES = ("15m", "1H", "4H")               # §5
 
-# INTERPRETATION (no line in PREREG_DOC fixes this number): §2.1 asks for `prop_pass_probability` with
-# "horizon = the number of trading days in the validation window", and CLAUDE.md §21 makes sessions/DST a
-# first-class concern rather than something to eyeball. Read as calendar weekdays (Mon-Fri) in
-# [VALIDATION_START, VALIDATION_END) -- deterministic, reproducible, and independent of any one instrument's
-# own holiday calendar (which this repo does not carry for CFDs). If this undercounts a given venue's actual
-# trading-day count by a holiday or two, the effect on the bootstrap's horizon is second-order.
 EXPECTANCY_BOOTSTRAP_ITERATIONS = 2000
 EXPECTANCY_BOOTSTRAP_SEED = 20260927           # the pre-registration's own date; fixed, reproducible (§46)
 EXPECTANCY_LOWER_BOUND_CI = 0.90               # one-sided 90% CI lower bound (§2.3)
@@ -86,15 +83,22 @@ EXPECTANCY_MIN_N = 5                           # same floor as performance.py's 
 
 
 def _weekday_count(start_iso, end_iso):
-    """Calendar weekdays (Mon-Fri) in [start, end) -- see EXPECTANCY_BOOTSTRAP_ITERATIONS block above for why
-    this, and not a per-venue trading calendar, is what `horizon` is computed from."""
+    """Calendar weekdays (Mon-Fri) in [start, end)."""
     start = datetime.date.fromisoformat(start_iso[:10])
     end = datetime.date.fromisoformat(end_iso[:10])
     n = (end - start).days
     return sum(1 for i in range(n) if (start + datetime.timedelta(days=i)).weekday() < 5)
 
 
-VALIDATION_TRADING_DAYS = _weekday_count(VALIDATION_START, VALIDATION_END)
+# Owner decision, addendum §8.1 (2026-09-28), SUPERSEDING the first implementer reading ("horizon = every
+# weekday in the validation window", ~261): the GATING horizon for prop_pass_probability is 120 trading days
+# (~6 months, the owner's maximum acceptable wait -- neither fund imposes its own time limit today), for BOTH
+# funds. 30, 60 and the full validation-window weekday count are computed too and carried on every record
+# under `informational_horizons`, but NEVER read by `evaluate_pass` -- see CHALLENGE_HORIZON_DAYS's own use
+# below and `evaluate_pass`'s docstring for where the boundary between "gates" and "reported" is drawn.
+CHALLENGE_HORIZON_DAYS = 120
+VALIDATION_TRADING_DAYS = _weekday_count(VALIDATION_START, VALIDATION_END)   # ~261; informational only now
+INFORMATIONAL_HORIZON_DAYS = (30, 60, VALIDATION_TRADING_DAYS)   # §8.1: "REPORTED for information, never gate"
 
 
 # ---------------------------------------------------------------------------------------- candidate space (§5)
@@ -176,7 +180,10 @@ def cmd_plan():
         "validation_window": {"start": VALIDATION_START, "end": VALIDATION_END},
         "budget_max": BUDGET_MAX, "target_passes": TARGET_PASSES,
         "pass_probability_threshold": PASS_PROB_THRESHOLD,
-        "funds": {f: {"min_trading_days": MIN_TRADING_DAYS[f]} for f in FUNDS},
+        "challenge_horizon_days": CHALLENGE_HORIZON_DAYS,
+        "informational_horizon_days": list(INFORMATIONAL_HORIZON_DAYS),
+        "funds": {f: dict(zip(("day_requirement_count", "day_requirement_kind"), _required_days(f)))
+                 for f in FUNDS},
         "candidate_count": len(candidates),
         "plan_hash": plan_hash,
         "candidates": candidates,
@@ -280,11 +287,145 @@ def split_windows(trades):
     return dev, val
 
 
-def evaluate_pass(metrics_by_fund, trading_days, expectancy_lb):
-    """PREREG_DOC §2, all three criteria, evaluated together (a candidate must clear every one). Pure and
-    side-effect-free so `run` (fresh evaluation) and `report`/resume (re-deriving PASS/FAIL from a previously
-    sealed record's own `metrics` field) always agree -- there is no separate stored boolean to drift from the
-    numbers that justify it.
+def split_unfinished(trades, horizon_bars):
+    """Addendum §8.2 (owner decision 2026-09-28): a validation trade whose exit (stop, target, or the H-bar
+    time stop) would need a bar after the PIT cutoff is excluded from the pass decision, not marked to market
+    at the truncated last bar.
+
+    A trade's own outcome (`scripts/backtest-methods.py walk()`) is "timeout" exactly when neither stop nor
+    target was touched within its H-bar window -- and `walk()` falls back to `outcome="timeout"` in BOTH of
+    two different situations that its own `bars_held` field distinguishes:
+      * a GENUINE time-stop: the full H-bar window existed in the (possibly truncated) series and neither
+        level was touched in it -- `bars_held == horizon_bars`, a real, fully-observed outcome.
+      * data RAN OUT before the window finished (`walk()`'s own `min(len(C_), start + horizon)` clipped the
+        scan short) -- `bars_held < horizon_bars`, and the trade's true fate beyond the truncated data is
+        UNKNOWN, exactly the "would need a bar after the cutoff" case this rule excludes.
+    A win/loss/breakeven outcome is never excluded: the stop/target touch that produced it happened on some
+    bar INSIDE the (already truncated) series that walk() actually scanned, so it needs no bar beyond the
+    cutoff to be known, however close to the cutoff that bar sits.
+
+    Returns `(finished, excluded)`.
+    """
+    finished, excluded = [], []
+    for t in trades:
+        bars_held = t.get("bars_held")
+        if (t.get("outcome") == "timeout" and isinstance(bars_held, (int, float))
+                and bars_held < horizon_bars):
+            excluded.append(t)
+        else:
+            finished.append(t)
+    return finished, excluded
+
+
+def _required_days(fund):
+    """(count, kind) for `fund`'s own §33 minimum-days requirement, read from account-profiles.json -- THE
+    one source (replaces a hand-typed copy this file carried before addendum §8.3). `kind` is
+    "trading_days" (FTMO: any day a trade was INITIATED) or "profitable_days" (The5ers: a day whose closed
+    profit reached the fund's own threshold) -- account_profile._validate_rules refuses a profile declaring
+    both, so exactly one of the two rule keys is ever non-null on a real fund profile."""
+    prof = _AP.get(fund)
+    mtd = prof["rules"].get("min_trading_days")
+    if mtd is not None:
+        return mtd, "trading_days"
+    mpd = prof["rules"].get("min_profitable_days")
+    if mpd is not None:
+        return mpd["count"], "profitable_days"
+    return None, None
+
+
+def _profitable_day_threshold_pct(fund):
+    mpd = _AP.get(fund)["rules"].get("min_profitable_days")
+    return mpd["profit_threshold_pct"] if mpd else None
+
+
+def _inactivity_threshold_days(fund):
+    """The fund's own §33 `custom_failure_conditions` inactivity threshold, or None when it declares none
+    (FTMO today). THE one source -- addendum §8.3's "30 consecutive calendar days" lives in account-
+    profiles.json, not as a second, separately-typed constant here."""
+    for item in _AP.get(fund)["rules"].get("custom_failure_conditions") or ():
+        if item["kind"] == "inactivity_days":
+            return item["threshold"]
+    return None
+
+
+def _profitable_days_count(taken, threshold_dollar):
+    """Distinct EXIT days ("closed profit ... that day", addendum §8.3) whose summed `pnl` (backtest
+    dollars, `bt.simulate()`'s own `taken` records) reaches `threshold_dollar`. Grouped by EXIT day, matching
+    `simulate()`'s own `profit_by_day` bucketing (`t2["exit_time"][:10]`) -- not the ENTRY-day convention
+    `performance._day_blocks` uses for the UNRELATED max_daily_loss rule."""
+    by_day = {}
+    for t in taken:
+        d = t["exit_time"][:10]
+        by_day[d] = by_day.get(d, 0.0) + t.get("pnl", 0.0)
+    return sum(1 for pnl in by_day.values() if pnl >= threshold_dollar)
+
+
+def day_counts_for(fund, val_taken, bt):
+    """This fund's OWN qualifying-day count (addendum §8.3): FTMO counts distinct ENTRY days (any day a
+    trade was initiated); The5ers counts distinct EXIT days whose closed profit reached its own
+    `profit_threshold_pct` of the account's starting balance.
+
+    The profitable-day threshold is expressed as a dollar amount ON THE BACKTEST'S OWN `bt.START`-scaled
+    account, not the fund's real $100,000 -- and that is exactly right, not an approximation:
+    fixed-fractional risk sizing is scale-invariant, so "day's pnl >= pct * fund_initial_balance" and "day's
+    pnl (in backtest dollars) >= pct * bt.START" are the SAME comparison once the linear rescaling
+    `account_profile._basis_value`/`backtest-methods._account_stop` apply elsewhere is done out algebraically
+    -- both sides carry the same `fund_initial_balance / bt.START` factor, which cancels.
+    """
+    _, kind = _required_days(fund)
+    if kind == "profitable_days":
+        threshold_dollar = _profitable_day_threshold_pct(fund) * bt.START
+        return _profitable_days_count(val_taken, threshold_dollar)
+    return len({t["entry_time"][:10] for t in val_taken})   # FTMO: days a trade was INITIATED
+
+
+def _max_inactivity_gap_days(taken, window_start_iso, window_end_iso):
+    """Largest gap, in calendar days, between consecutive trade-ENTRY days within [window_start, window_end)
+    -- including window_start -> first trade and last trade -> window_end. ENTRY day (not exit), matching
+    FTMO's own "days a trade was initiated" convention for the sibling min_trading_days rule: an evaluation
+    account is inactive from the moment it stops OPENING new trades, not from when its last one happens to
+    close.
+
+    Deliberately NOT computed inside performance.py's day-block bootstrap (`_bootstrap_days`): that function
+    resamples TRADING-day blocks with replacement and has no representation of the CALENDAR GAP between one
+    trading day and the next -- every simulated "day" in a bootstrap path is, by construction, a day that had
+    a trade, so "N consecutive calendar days with none" cannot be expressed inside it. This is evaluated once,
+    directly, against the REAL (non-resampled) validation trade timeline instead -- a deterministic
+    house-keeping fact about THIS candidate's actual trade cadence, not a probability.
+    """
+    days = sorted({t["entry_time"][:10] for t in taken})
+    window_start = datetime.date.fromisoformat(window_start_iso[:10])
+    window_end = datetime.date.fromisoformat(window_end_iso[:10])
+    if not days:
+        return (window_end - window_start).days
+    dates = [datetime.date.fromisoformat(d) for d in days]
+    gaps = [(dates[0] - window_start).days]
+    gaps += [(b - a).days for a, b in zip(dates, dates[1:])]
+    gaps.append((window_end - dates[-1]).days)
+    return max(gaps)
+
+
+def inactivity_breach_for(fund, val_taken):
+    """True when `fund`'s own inactivity rule (addendum §8.3, account-profiles.json custom_failure_conditions
+    kind="inactivity_days") is breached somewhere in the validation window's REAL trade timeline. False for a
+    fund that declares no such rule (FTMO today) -- absence of a rule is never a breach."""
+    threshold = _inactivity_threshold_days(fund)
+    if threshold is None:
+        return False
+    return _max_inactivity_gap_days(val_taken, VALIDATION_START, VALIDATION_END) >= threshold
+
+
+def evaluate_pass(metrics_by_fund, day_counts, inactivity_breach, expectancy_lb):
+    """PREREG_DOC §2 + addendum §8.3, all criteria evaluated together (a candidate must clear every one) at
+    the SINGLE GATING horizon (CHALLENGE_HORIZON_DAYS) -- the informational 30/60/full-window horizons a
+    record also carries are never read here. Pure and side-effect-free so `run` (fresh evaluation) and
+    `report`/resume (re-deriving PASS/FAIL from a previously sealed record's own `metrics` field) always
+    agree -- there is no separate stored boolean to drift from the numbers that justify it.
+
+    `metrics_by_fund[fund]` -- performance.metrics() computed with `horizon=CHALLENGE_HORIZON_DAYS`.
+    `day_counts[fund]`      -- this fund's OWN qualifying-day count (day_counts_for): trading days for FTMO,
+                               profitable days for The5ers.
+    `inactivity_breach[fund]` -- whether the fund's own inactivity rule (The5ers only) was breached.
 
     Returns `(passed: bool, detail: dict)` -- `detail` is written into the experiment record's `metrics` field
     so a reader can see exactly which sub-condition decided the outcome, per fund.
@@ -296,13 +437,17 @@ def evaluate_pass(metrics_by_fund, trading_days, expectancy_lb):
         p = m.get("prop_pass_probability")
         p_val = p.get("value") if isinstance(p, dict) and "value" in p else None
         p_ok = isinstance(p_val, (int, float)) and p_val >= PASS_PROB_THRESHOLD
-        days_ok = trading_days >= MIN_TRADING_DAYS[fund]
+        required, kind = _required_days(fund)
+        days_ok = required is not None and day_counts.get(fund, 0) >= required
+        breach = bool(inactivity_breach.get(fund, False))
+        inactivity_ok = not breach
         detail[fund] = {
             "prop_pass_probability": p, "threshold": PASS_PROB_THRESHOLD, "meets_threshold": p_ok,
-            "min_trading_days_required": MIN_TRADING_DAYS[fund], "trading_days_observed": trading_days,
-            "meets_min_trading_days": days_ok,
+            "day_requirement_kind": kind, "day_requirement_count": required,
+            "days_observed": day_counts.get(fund, 0), "meets_day_requirement": days_ok,
+            "inactivity_breach": breach, "meets_inactivity_rule": inactivity_ok,
         }
-        ok = ok and p_ok and days_ok
+        ok = ok and p_ok and days_ok and inactivity_ok
     expectancy_ok = isinstance(expectancy_lb, dict) and isinstance(expectancy_lb.get("value"), (int, float)) \
         and expectancy_lb["value"] > 0
     detail["expectancy_lower_bound"] = expectancy_lb
@@ -323,6 +468,75 @@ def _has_predevelopment_history(sym, tf):
         return False
     candles = d.get("candles") or []
     return bool(candles) and candles[0]["time"] < VALIDATION_START
+
+
+def _pit_series_snapshot(symbol, tf, bt):
+    """One input series' identity, but for the PIT-TRUNCATED view `bt.scan()` actually read (fix round 1,
+    review item B, CRITICAL): `snapshot.series_snapshot()` reads the FULL FILE FROM DISK via
+    `normalized.load()` -- correct for every OTHER research script here (none of which truncate), wrong for
+    this one, where the candidate's own dataset_snapshot must describe what the engine actually consumed
+    after `bt.pit_cutoff()`, not whatever now sits on disk after 2025-03-01.
+
+    `bt.load(symbol, tf)` already applies the process's current `_PIT_CUTOFF` (backtest-methods.py's own
+    load-time seam), so the candle list this reads IS the truncated series. Static provenance facts (provider,
+    canonical_symbol, market, market_type, aggregation_scope, ...) are still correctly derived via
+    `normalized.provenance()` -- fed the TRUNCATED candle list instead of the full file's, so the DATA-
+    DEPENDENT fields it computes (`event_time`, `available_time`, `data_scope`, `quality`) describe the
+    truncated view too, not the archive.
+
+    Returns None when `bt.load()` finds nothing (should not happen here -- the caller already filtered to
+    `_has_predevelopment_history` symbols -- but a None is a cleaner failure than an IndexError on an empty
+    candle list).
+    """
+    truncated, _src = bt.load(symbol, tf)
+    if not truncated:
+        return None
+    # bt.load() reads data/history/ohlcv.<sym>.<tf>.json (the research archive) -- normalized.load()'s OWN
+    # default reads data/live/<data_dir>/... (the live feed) instead, so `base` must be passed explicitly to
+    # point at the SAME file bt.load() just read, or provenance() would describe a different series.
+    hist_base = os.path.join(ROOT, "data", "history")
+    full = _N.load(symbol, tf, base=hist_base)        # for static provenance facts + the raw file header only
+    raw_for_prov = dict(full["raw_header"], candles=truncated)
+    path = _N.path_for(symbol, tf, base=hist_base)
+    prov = _N.provenance(raw_for_prov, symbol, tf, path)
+    digest = hashlib.sha256(json.dumps(truncated, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+    quality_flags = [dict(f) for f in bt.QUALITY_FLAGS if f["symbol"] == symbol and f["tf"] == tf]
+    return {
+        "symbol": symbol, "canonical_symbol": prov["canonical_symbol"], "market": prov["market"],
+        "market_type": prov["market_type"], "timeframe": tf, "provider": prov["provider"],
+        "source_venue": prov["source_venue"], "aggregation_scope": prov["aggregation_scope"],
+        "underlying_venues": prov["underlying_venues"], "source_identifier": prov["source_identifier"],
+        "retrieval_state": prov["quality"], "received_time": prov["received_time"],
+        "bars": len(truncated), "first_open": truncated[0]["time"], "last_open": truncated[-1]["time"],
+        "sha256": digest,
+        # CLAUDE.md §20/§38 (fix round 1, review item C1): every data-quality fault `bt.load()` flagged for
+        # THIS (symbol, timeframe) in this process, folded directly into the snapshot -- see
+        # `_ASSESSED`/`QUALITY_FLAGS`'s own module docstring in backtest-methods.py for the per-process,
+        # per-(symbol, tf) cache this reads from, and the cutoff-stability assumption it relies on (§8.3/D).
+        "quality_flags": quality_flags,
+        "_pit_truncated": True,
+        "_pit_cutoff": VALIDATION_END,
+        "_note": "bars/first_open/last_open/sha256/quality_flags describe the PIT-TRUNCATED series bt.scan() "
+                 "actually read (CLAUDE.md §8), not the full on-disk file -- last_open is always <= the "
+                 "cutoff by construction (bt.pit_cutoff() / pit.series_as_of()).",
+    }
+
+
+def dataset_snapshot_truncated(symbols, tf, bt):
+    """CLAUDE.md §10, PIT-TRUNCATED variant (fix round 1, review item B): the dataset snapshot for a
+    candidate's own set of symbols, built ONLY from what `bt.scan()` actually read (see
+    `_pit_series_snapshot`), never from the raw archive file."""
+    rows = [r for r in (_pit_series_snapshot(s, tf, bt) for s in symbols) if r is not None]
+    ident = hashlib.sha256("|".join(sorted(f"{r['symbol']}:{r['timeframe']}:{r['sha256']}"
+                                           for r in rows)).encode()).hexdigest()[:16]
+    return {
+        "snapshot_format": 1, "snapshot_id": ident, "created_at": _now_iso(),
+        "code_version": _snap.code_version(), "preprocessing_version": _N.SNAPSHOT_INPUTS_VERSION,
+        "series": rows,
+        "_note": "CLAUDE.md §10, PIT-TRUNCATED variant (fix round 1, review item B): series[*].bars/"
+                 "first_open/last_open/sha256/quality_flags describe the validation-truncated candle list "
+                 "bt.scan() actually consumed for this candidate, not the raw on-disk file.",
+    }
 
 
 def _system_version_for(tf):
@@ -357,7 +571,9 @@ def _evaluate_candidate(candidate, sr=None):
                         f"-- {symbols} all lack pre-development-window history ({PREREG_DOC} §5)"}
 
     bt.pit_cutoff(VALIDATION_END)   # CLAUDE.md §8 / PREREG_DOC §4: nothing after validation reaches this run
-    bt.limit_bars(None)
+    # (no bt.limit_bars() reset here: prop-search.py never sets it itself in production -- nothing in this
+    # file's own CLI calls it -- so resetting it would only ever undo a CALLER's deliberate choice, e.g. a
+    # test that wants a small, fast real run via bt.limit_bars(N) before invoking this function directly.)
     cfg = sr.CONFIGS[cfg_name]
     overlay = sr.config_opts(cfg, ict_target="range")
     scans = [s for s in (bt.scan(sym, tf, only=(method,), opts=overlay) for sym in usable) if s]
@@ -368,6 +584,12 @@ def _evaluate_candidate(candidate, sr=None):
     entry_order_type = sr.entry_order_type_for(cfg, method)
 
     dev_trades, val_trades = split_windows(trades)
+    # Addendum §8.2 (owner decision 2026-09-28): a validation trade whose true outcome would need a bar past
+    # the PIT cutoff is excluded from the pass decision entirely -- BEFORE simulate() ever sees it, so it
+    # never occupies a symbol's one-open-position slot, is never booked onto the equity curve, and cannot
+    # distort the drawdown/pnl/bootstrap numbers with an outcome nobody actually knows.
+    horizon_bars = bt.P[tf]["H"]
+    val_trades, excluded_unfinished = split_unfinished(val_trades, horizon_bars)
 
     def _population(trs):
         # No `account=` here on purpose (matching scripts/stability-report.py's own `metrics()` helper):
@@ -380,22 +602,27 @@ def _evaluate_candidate(candidate, sr=None):
     dev_final, dev_curve, dev_taken = _population(dev_trades)
     val_final, val_curve, val_taken = _population(val_trades)
 
-    trading_days = len({t["entry_time"][:10] for t in val_taken})
     net_rs = [t["net_R"] for t in val_taken]
     exp_lb = expectancy_lower_bound(net_rs)
 
+    # Addendum §8.1: prop_pass_probability is GATED at CHALLENGE_HORIZON_DAYS (120) for both funds; 30, 60
+    # and the full validation-window weekday count are computed too and carried for information, never read
+    # by evaluate_pass.
     metrics_by_fund = {f: _perf.metrics(val_taken, equity=val_curve, account=_AP.get(f),
-                                        horizon=VALIDATION_TRADING_DAYS) for f in FUNDS}
-    passed, pass_detail = evaluate_pass(metrics_by_fund, trading_days, exp_lb)
+                                        horizon=CHALLENGE_HORIZON_DAYS) for f in FUNDS}
+    informational_horizons = {
+        f: {str(h): _perf.metrics(val_taken, equity=val_curve, account=_AP.get(f), horizon=h)
+                    .get("prop_pass_probability")
+           for h in INFORMATIONAL_HORIZON_DAYS}
+        for f in FUNDS
+    }
+    day_counts = {f: day_counts_for(f, val_taken, bt) for f in FUNDS}
+    inactivity_breach = {f: inactivity_breach_for(f, val_taken) for f in FUNDS}
+    passed, pass_detail = evaluate_pass(metrics_by_fund, day_counts, inactivity_breach, exp_lb)
     development_metrics = {f: _perf.metrics(dev_taken, equity=dev_curve, account=_AP.get(f)) for f in FUNDS}
 
-    dataset_pairs = [(s, tf) for s in usable]
-    try:
-        dataset_snap = _snap.dataset_snapshot(dataset_pairs, base=os.path.join(ROOT, "data", "history"))
-        dataset_snapshot_id = dataset_snap.get("snapshot_id")
-    except (OSError, ValueError, KeyError) as exc:
-        dataset_snap = X.unavailable(f"{type(exc).__name__}: {exc}")
-        dataset_snapshot_id = None
+    dataset_snap = dataset_snapshot_truncated(usable, tf, bt)
+    dataset_snapshot_id = dataset_snap.get("snapshot_id")
     try:
         cfg_snap = _snap.backtest_config_snapshot(
             bt, timeframes=[tf], methods=(method,), configs={cfg_name: cfg}, fee_pct=fee * 100,
@@ -464,9 +691,19 @@ def _evaluate_candidate(candidate, sr=None):
          f"only, no further walk-forward/OOS split ({PREREG_DOC} §4)")
     r.set("metrics", {
         "validation": {
+            "gating_horizon_days": CHALLENGE_HORIZON_DAYS,
             "ftmo-challenge-phase1": metrics_by_fund["ftmo-challenge-phase1"],
             "the5ers-high-stakes-step1": metrics_by_fund["the5ers-high-stakes-step1"],
-            "trading_days_observed": trading_days,
+            "informational_horizons": {
+                "_note": "addendum §8.1: 30/60/full-validation-window-weekday prop_pass_probability at each "
+                         "fund, REPORTED for information -- never read by evaluate_pass, never gate",
+                "days": list(INFORMATIONAL_HORIZON_DAYS), **informational_horizons,
+            },
+            "day_counts": day_counts,
+            "inactivity_breach": inactivity_breach,
+            "excluded_unfinished_trades": len(excluded_unfinished),
+            "_excluded_unfinished_trades_note": "addendum §8.2: validation trades whose true outcome would "
+                "need a bar after the PIT cutoff, excluded from every number above (not marked to market)",
             "expectancy_lower_bound": exp_lb,
             "pass_detail": pass_detail,
             "passed": passed,
@@ -521,7 +758,75 @@ def _record_skip(cid, reason):
         json.dump(skipped, fh, ensure_ascii=False, indent=1)
 
 
+# How stale a lock file must be before a NEW cmd_run() reclaims it as abandoned (fix round 1, item C4).
+# A real run may legitimately occupy the lock for hours (the workflow's own timeout is 350 minutes), so this
+# is deliberately generous -- it exists to recover from a CRASHED run holding a lock forever, not to bound a
+# slow one.
+RUN_LOCK_STALE_SECONDS = 6 * 3600
+
+
+class AlreadyRunning(RuntimeError):
+    """Another cmd_run() appears to already be using this RECORDS_DIR."""
+
+
+@contextlib.contextmanager
+def _run_lock(path):
+    """Exclusive-create lock so two concurrent `cmd_run()` invocations on the SAME store cannot each dispatch
+    work and jointly exceed the budget (fix round 1, item C4) -- `_existing_counts`/`todo` are computed once
+    per call from what is ALREADY on disk, so two processes running that computation concurrently could both
+    see "budget - 0 used" and each dispatch up to the full budget.
+
+    Not a distributed lock (this is a local exclusive-create on one filesystem, matching every other resumable
+    piece of this script, which already assumes ONE store lives on one filesystem) -- just enough to make
+    "two `run` invocations on the same store" a refusal instead of a silent budget overrun. A lock older than
+    `RUN_LOCK_STALE_SECONDS` is reclaimed with a loud warning rather than refused forever, so a crashed run
+    cannot permanently wedge the store.
+    """
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        age = time.time() - os.path.getmtime(path)
+        if age < RUN_LOCK_STALE_SECONDS:
+            raise AlreadyRunning(
+                f"{path} exists and is {age:.0f}s old (< the {RUN_LOCK_STALE_SECONDS}s stale threshold) -- "
+                f"another cmd_run() appears to be using {RECORDS_DIR}; refusing to run concurrently (two runs "
+                f"could each read the same budget/pass counts and jointly exceed the budget)")
+        print(f"WARNING: {path} is {age:.0f}s old (>= the stale threshold) -- reclaiming an apparently "
+              f"abandoned lock from a crashed run", file=sys.stderr)
+        os.remove(path)
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(f"pid={os.getpid()} started={_now_iso()}\n")
+    try:
+        yield
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
 def cmd_run(only=None, workers=1):
+    lock_path = os.path.join(os.path.dirname(RECORDS_DIR) or ".", ".prop-search-run.lock")
+    with _run_lock(lock_path):
+        _cmd_run_locked(only=only, workers=workers)
+
+
+def _cmd_run_locked(only=None, workers=1):
+    """The actual `run` loop, always called with `RECORDS_DIR`'s own lock held (see `cmd_run`).
+
+    Failure handling (fix round 1, item C5, decided and documented here): an exception raised while
+    evaluating one candidate FAILS THE RUN LOUD -- it is never silently recorded as a "fail" outcome, because
+    an exception means the pass/fail numbers for that candidate were never actually computed, and recording
+    one anyway would misrepresent an error as a real (if negative) result (CLAUDE.md §38's "never silently
+    produce a trustworthy-looking performance result" extends to a failure that isn't one). Every candidate
+    that DID complete successfully before the failure -- including a sibling in the SAME parallel chunk that
+    finished before another one crashed -- is written to disk first; only the run as a whole then stops with
+    a clear error naming which candidate(s) failed and how. Re-running `run` afterwards is safe and correct:
+    already-written records are skipped (resumable), so fixing the root cause and re-running picks up exactly
+    where the run stopped.
+    """
     plan = load_plan()
     os.makedirs(RECORDS_DIR, exist_ok=True)
     evaluated, passed = _existing_counts(RECORDS_DIR)
@@ -552,14 +857,26 @@ def cmd_run(only=None, workers=1):
     while idx < len(todo) and evaluated < BUDGET_MAX and passed < TARGET_PASSES:
         chunk = todo[idx: idx + workers]
         idx += len(chunk)
+        errors = []
         if workers == 1:
-            results = [(chunk[0]["id"], _evaluate_candidate(chunk[0], sr=sr))]
+            cid = chunk[0]["id"]
+            try:
+                results = [(cid, _evaluate_candidate(chunk[0], sr=sr))]
+            except Exception as exc:
+                results = []
+                errors.append((cid, exc))
         else:
             results = []
             with _pool.IsolatedExecutor(max_workers=workers) as ex:
                 futs = {ex.submit(_evaluate_candidate, c): c["id"] for c in chunk}
                 for fut in concurrent.futures.as_completed(futs):
-                    results.append((futs[fut], fut.result()))
+                    cid = futs[fut]
+                    try:
+                        results.append((cid, fut.result()))
+                    except Exception as exc:
+                        errors.append((cid, exc))
+        # Write every result that DID succeed BEFORE deciding whether to raise -- a sibling candidate's crash
+        # (or, sequentially, the one candidate that crashed) must never discard an already-computed result.
         for cid, outcome in results:
             if "skip" in outcome:
                 print(f"SKIP {cid}: {outcome['skip']}")
@@ -574,6 +891,14 @@ def cmd_run(only=None, workers=1):
                   f"({evaluated}/{BUDGET_MAX} evaluated, {passed}/{TARGET_PASSES} passes)")
             if evaluated >= BUDGET_MAX or passed >= TARGET_PASSES:
                 break
+        if errors:
+            raise RuntimeError(
+                f"prop-search: {len(errors)} candidate(s) raised while evaluating -- FAILING LOUD (fix round "
+                f"1, item C5: an exception is never silently recorded as a fail outcome): "
+                + "; ".join(f"{cid}: {type(exc).__name__}: {exc}" for cid, exc in errors) +
+                f". {evaluated} already-written record(s) under {RECORDS_DIR} are untouched (including any "
+                f"successful sibling from this same chunk, already written above). Fix the root cause and "
+                f"re-run `run` -- already-recorded candidates are skipped (resumable).")
     print(f"stopped: {evaluated} evaluated, {passed} passed")
 
 
@@ -603,25 +928,33 @@ def cmd_report():
         f"Budget spent: **{evaluated} / {BUDGET_MAX}** candidates evaluated. "
         f"Passes found: **{len(passes)} / {TARGET_PASSES}** "
         f"(the target is a goal, not a stopping rule beyond whichever of the two comes first).", "",
-        "## Pass criteria (verbatim from the pre-registration, §2)", "",
+        "## Pass criteria (verbatim from the pre-registration, §2, and addendum §8)", "",
         f"1. `prop_pass_probability` >= {PASS_PROB_THRESHOLD} under BOTH `ftmo-challenge-phase1` AND "
-        f"`the5ers-high-stakes-step1`, each fund judged on its own.",
-        "2. Trades on at least the fund's own `min_trading_days` (FTMO 4, The5ers 3) within the validation "
-        "window, and the bootstrap has the sample it needs to run at all (n >= 5).",
+        f"`the5ers-high-stakes-step1`, each fund judged on its own, at a {CHALLENGE_HORIZON_DAYS}-trading-day "
+        f"horizon (addendum §8.1 -- {list(INFORMATIONAL_HORIZON_DAYS)}-day horizons are also recorded per "
+        f"candidate for information and never gate).",
+        "2. Each fund's OWN day-count rule: FTMO requires >= 4 days a trade was INITIATED; The5ers requires "
+        ">= 3 PROFITABLE days (closed profit >= 0.5% of initial balance that day) and fails on 30 consecutive "
+        "calendar days with no trade (addendum §8.3) -- and the bootstrap has the sample it needs to run at "
+        "all (n >= 5).",
         "3. The one-sided 90% bootstrap lower bound of mean net R on the validation trades is > 0. There is "
-        "NO fixed minimum trade count beyond that.", "",
+        "NO fixed minimum trade count beyond that. Validation trades whose true outcome would need a bar "
+        "after the PIT cutoff are excluded from this and every other criterion (addendum §8.2).", "",
         "## Multiple-testing caveat", "",
         f"{evaluated} candidates were evaluated on the SAME validation window in the search for these passes "
         f"(CLAUDE.md §43/§45: repeated selection over one window inflates the apparent hit rate above what "
         f"any single candidate's own numbers suggest). A PASS here is a candidate that cleared the "
         f"pre-registered bar on the first and only look this search grants the validation window -- it is "
         f"NOT yet forward-confirmed (`{PREREG_DOC}` §4: forward confirmation on live demo is required before "
-        f"any funded attempt), and the validation window is EXPOSED as of the first evaluation recorded here.",
+        f"any funded attempt), and the validation window is EXPOSED as of "
+        + (f"{min(recs, key=lambda r: r['timestamp'])['timestamp']} "
+           f"(first record: `{min(recs, key=lambda r: r['timestamp'])['experiment_id']}`)." if recs
+           else "the first evaluation recorded here (none yet)."),
         "",
         "## Every evaluated candidate", "",
-        "| # | id | method | config | tf | group | prop_pass_probability (FTMO / The5ers) | trading days | "
-        "expectancy LB (net R) | PASS |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "| # | id | method | config | tf | group | prop_pass_probability (FTMO / The5ers) | day count "
+        "(FTMO trading / The5ers profitable) | excluded unfinished | expectancy LB (net R) | PASS |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for i, r in enumerate(recs, 1):
         v = r["metrics"]["validation"]
@@ -629,10 +962,13 @@ def cmd_report():
         params = r["parameters"]
         lb = v["expectancy_lower_bound"]
         lb_val = lb.get("value") if isinstance(lb, dict) and "value" in lb else None
+        dc = v.get("day_counts", {})
         lines.append(
             f"| {i} | {r['experiment_id']} | {params['method']} | {params['config']} | "
             f"{params['timeframe']} | {params['group_kind']}={params['group_id']} | "
-            f"{fund_cell(pd, FUNDS[0])} / {fund_cell(pd, FUNDS[1])} | {v['trading_days_observed']} | "
+            f"{fund_cell(pd, FUNDS[0])} / {fund_cell(pd, FUNDS[1])} | "
+            f"{dc.get(FUNDS[0], 'n/a')} / {dc.get(FUNDS[1], 'n/a')} | "
+            f"{v.get('excluded_unfinished_trades', 0)} | "
             f"{f'{lb_val:+.3f}' if isinstance(lb_val, (int, float)) else 'n/a'} | "
             f"{'**PASS**' if v['passed'] else 'fail'} |")
     if skipped:

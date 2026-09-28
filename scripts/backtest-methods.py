@@ -123,6 +123,16 @@ _OPTS_BASE = dict(OPTS)
 # provider data, incomplete required inputs." Every §20 fault the loaded history carries, so a result can be
 # judged on the data that produced it. §38 owns what is finally done with these; §20's work was to make them
 # detectable at all, and this is the point where a backtest meets its data.
+#
+# CUTOFF-STABILITY ASSUMPTION (documented per fix-round-1 review item D, scripts/prop-search.py): `_ASSESSED`
+# is keyed by (symbol, timeframe) ONLY, not by `_PIT_CUTOFF` -- so the quality state cached for (sym, tf) on
+# the FIRST `load()` call in this process is served for every later call to the SAME (sym, tf), even if
+# `pit_cutoff()` were changed in between. This is safe today because every caller that sets `_PIT_CUTOFF`
+# (scripts/prop-search.py `_evaluate_candidate`) sets it to the SAME constant (VALIDATION_END) for the entire
+# lifetime of one process -- it is never changed mid-run. A future caller that varies the cutoff within a
+# single process (multiple validation boundaries in one run, say) would need to either clear `_ASSESSED`
+# between cutoffs or fold the cutoff into this cache's key; neither is needed while every caller holds the
+# cutoff fixed per process, so neither is done here speculatively (CLAUDE.md §57).
 QUALITY_FLAGS = []
 _ASSESSED = {}
 
