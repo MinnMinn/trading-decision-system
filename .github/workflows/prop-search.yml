@@ -1,8 +1,9 @@
 # The owner's PRE-REGISTERED prop-challenge setup search (docs/plans/2026-09-27-prop-setup-search-
 # preregistration.md). Modelled on .github/workflows/stability-full.yml: outputs land OUTSIDE the checkout
 # (a file written inside the work tree makes the run's own code_version read dirty=true, CLAUDE.md §46), and
-# results are collected onto a dedicated research-results/<run id>-<attempt> branch rather than committed back
-# to the source branch.
+# results are collected onto a dedicated research-results/prop-search/<run id>-<attempt> branch (this
+# workflow's OWN prefix, fix round 2 item 2 -- never the bare research-results/<run id>-<attempt> stability-
+# full.yml uses) rather than committed back to the source branch.
 #
 # `plan` is run FIRST and must match the committed docs/experiments/prop-search-2026-09-27/plan.json exactly
 # (scripts/prop-search.py load_plan() refuses a drifted plan with a nonzero exit) -- the candidate space is
@@ -44,30 +45,39 @@ jobs:
         # Records live OUTSIDE the checkout (see the `run` step below), so a fresh trigger -- a new push, or a
         # re-run of workflow_dispatch -- starts with an EMPTY $RUNNER_TEMP and would otherwise re-evaluate the
         # whole budget from zero every time, silently abandoning every candidate a previous run already paid
-        # for. The `collect` job already pushes every run's full output (records/, skipped.json, report) onto
-        # its own `research-results/<run id>-<attempt>` branch; this step finds the NEWEST such branch (by run
-        # id, which GITHUB_RUN_ID assigns monotonically per workflow) and restores its records/skipped.json
-        # into this run's store BEFORE `run` computes budget/pass counts from what's on disk -- exactly what
-        # `scripts/prop-search.py cmd_run`'s own resumability already assumes: "what's on disk in RECORDS_DIR"
-        # IS the source of truth for how much budget has been spent.
+        # for. The `collect` job pushes every run's full output (records/, skipped.json, report) onto its OWN
+        # results branch under the `research-results/prop-search/` PREFIX (fix round 2, item 2 -- NOT the bare
+        # `research-results/<run id>-<attempt>` stability-full.yml already uses for an unrelated workflow;
+        # restoring from that shared namespace would have silently mixed the two searches' records the first
+        # time both ran in the same window). This step finds the NEWEST such branch (by run id, which
+        # GITHUB_RUN_ID assigns monotonically per workflow) and restores its records/skipped.json into this
+        # run's store BEFORE `run` computes budget/pass counts from what's on disk.
+        #
+        # Trust, not just restore (item 2): a restored record is NOT assumed valid for the CURRENT plan merely
+        # because it came from `research-results/prop-search/*` -- `scripts/prop-search.py cmd_run`'s own
+        # `_existing_counts` (called first thing inside `run`, below) re-validates every record under
+        # RECORDS_DIR against the freshly loaded plan (experiment_id is one of ITS candidates, and the
+        # record's own recorded `parameters.plan_hash` equals the CURRENT plan_hash) and refuses the whole run
+        # loud on any mismatch -- so a stale or foreign record restored here is caught there, not trusted
+        # silently. This step's own job is only to make the RIGHT bytes available before that check runs.
         env:
           PROP_SEARCH_RECORDS_DIR: ${{ runner.temp }}/out/records
           PROP_SEARCH_SKIPPED_PATH: ${{ runner.temp }}/out/skipped.json
         run: |
           mkdir -p "$PROP_SEARCH_RECORDS_DIR"
-          latest=$(git ls-remote --heads origin 'research-results/*' \
-                    | awk -F'refs/heads/research-results/' '{print $2}' \
+          latest=$(git ls-remote --heads origin 'research-results/prop-search/*' \
+                    | awk -F'refs/heads/research-results/prop-search/' '{print $2}' \
                     | awk -F'-' '{print $1, $0}' | sort -k1,1n | tail -1 | awk '{print $2}')
           if [ -z "$latest" ]; then
-            echo "no previous research-results/* branch found -- starting this search from budget zero"
+            echo "no previous research-results/prop-search/* branch found -- starting this search from budget zero"
           else
-            echo "restoring records from research-results/$latest"
-            git fetch --depth 1 origin "refs/heads/research-results/$latest:refs/remotes/origin/research-results/$latest"
-            git worktree add /tmp/prev-results "origin/research-results/$latest"
+            echo "restoring records from research-results/prop-search/$latest"
+            git fetch --depth 1 origin "refs/heads/research-results/prop-search/$latest:refs/remotes/origin/research-results/prop-search/$latest"
+            git worktree add /tmp/prev-results "origin/research-results/prop-search/$latest"
             src="/tmp/prev-results/prop-search-results"
             if [ -d "$src/records" ] && compgen -G "$src/records/*.json" > /dev/null; then
               cp "$src"/records/*.json "$PROP_SEARCH_RECORDS_DIR"/
-              echo "restored $(ls "$src"/records/*.json | wc -l) record(s)"
+              echo "restored $(ls "$src"/records/*.json | wc -l) record(s) -- run will validate each against the current plan"
             fi
             if [ -f "$src/skipped.json" ]; then
               cp "$src/skipped.json" "$PROP_SEARCH_SKIPPED_PATH"
@@ -116,12 +126,15 @@ jobs:
         with:
           path: results
       - name: push results branch
+        # research-results/prop-search/<run id>-<attempt> -- prop-search's OWN prefix (fix round 2, item 2),
+        # never the bare research-results/<run id>-<attempt> stability-full.yml uses, so the restore step
+        # above can never pick up an unrelated workflow's results branch.
         run: |
           cd results
-          git init -q -b "research-results/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git init -q -b "research-results/prop-search/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           printf 'run %s attempt %s (prop-search)\nsource commit %s (%s)\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "$GITHUB_REF_NAME" > RUN.txt
           git add -A
           git commit -q -m "prop-search results: run ${GITHUB_RUN_ID} of ${GITHUB_SHA}"
-          git push -q "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/research-results/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git push -q "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/research-results/prop-search/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"

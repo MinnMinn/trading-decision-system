@@ -422,6 +422,41 @@ class InactivityBreach(unittest.TestCase):
         taken = [{"entry_time": "2024-04-10T10:00:00Z"}]
         self.assertTrue(ps.inactivity_breach_for("the5ers-high-stakes-step1", taken))
 
+    # ---- exact 29/30/31-day boundary (fix round 2, item 4). `_max_inactivity_gap_days` takes its window
+    # bounds explicitly, so these use a TIGHT window bracketing just the two trades under test -- avoiding a
+    # separate, much larger window-edge gap (the real validation window is a full year) from swamping the
+    # one gap actually being measured.
+
+    def test_a_29_day_gap_is_below_the_threshold(self):
+        ps = _ps()
+        taken = [{"entry_time": "2024-03-05T10:00:00Z"}, {"entry_time": "2024-04-03T10:00:00Z"}]
+        gap = ps._max_inactivity_gap_days(taken, "2024-03-05T00:00:00Z", "2024-04-03T00:00:00Z")
+        self.assertEqual(gap, 29)
+        self.assertLess(gap, 30)
+
+    def test_a_30_day_gap_is_at_the_threshold(self):
+        ps = _ps()
+        taken = [{"entry_time": "2024-03-05T10:00:00Z"}, {"entry_time": "2024-04-04T10:00:00Z"}]
+        gap = ps._max_inactivity_gap_days(taken, "2024-03-05T00:00:00Z", "2024-04-04T00:00:00Z")
+        self.assertEqual(gap, 30)
+
+    def test_a_31_day_gap_is_above_the_threshold(self):
+        ps = _ps()
+        taken = [{"entry_time": "2024-03-05T10:00:00Z"}, {"entry_time": "2024-04-05T10:00:00Z"}]
+        gap = ps._max_inactivity_gap_days(taken, "2024-03-05T00:00:00Z", "2024-04-05T00:00:00Z")
+        self.assertEqual(gap, 31)
+        self.assertGreater(gap, 30)
+
+    def test_inactivity_breach_for_is_a_strict_ge_30_comparison(self):
+        """Isolates the ACTUAL `>= 30` boundary comparison inside `inactivity_breach_for` from
+        `_max_inactivity_gap_days`'s own day arithmetic (tested directly, above) by stubbing the gap
+        function -- so this proves the comparison operator itself, independent of date math."""
+        ps = _ps()
+        for gap, expected in ((29, False), (30, True), (31, True)):
+            with self.subTest(gap=gap):
+                ps._max_inactivity_gap_days = lambda *a, **kw: gap
+                self.assertEqual(ps.inactivity_breach_for("the5ers-high-stakes-step1", []), expected)
+
 
 class EvaluatePass(unittest.TestCase):
     def _metrics(self, prob):
@@ -538,9 +573,11 @@ class SplitUnfinished(unittest.TestCase):
 # ============================================================================================ budget / resume
 
 
-def _fake_evaluate(candidate, sr=None, *, passed=False, skip=None):
+def _fake_evaluate(candidate, sr=None, *, passed=False, skip=None, plan_hash="fixture"):
     """A cheap stand-in for `_evaluate_candidate` that still produces a REAL sealed §42 record (so `X.write`/
-    `X.load`'s hash check is exercised faithfully) without running the engine at all."""
+    `X.load`'s hash check is exercised faithfully) without running the engine at all. `plan_hash="fixture"`
+    matches every test plan's own `plan_hash` in this file (`_set_plan`) unless a test overrides it, so
+    `_existing_counts`/`_validate_record_against_plan` (fix round 2, item 2) accepts these records by default."""
     if skip:
         return {"skip": skip}
     r = X.Record(hypothesis=f"hypothesis for {candidate['id']}", motivation="test fixture",
@@ -555,7 +592,7 @@ def _fake_evaluate(candidate, sr=None, *, passed=False, skip=None):
     filler["metrics"] = metrics
     filler["parameters"] = {"method": candidate["method"], "config": candidate["config"],
                             "timeframe": candidate["timeframe"], "group_kind": candidate["group_kind"],
-                            "group_id": candidate["group_id"]}
+                            "group_id": candidate["group_id"], "plan_hash": plan_hash}
     for k, v in filler.items():
         r.set(k, v)
     return {"record": dict(r.seal())}
@@ -589,13 +626,13 @@ class BudgetAndResume(unittest.TestCase):
         self._set_plan(_candidates(10))
         ps.BUDGET_MAX = 3
         ps.TARGET_PASSES = 100
-        ps._evaluate_candidate = lambda c, sr=None: _fake_evaluate(c, passed=False)
+        ps._evaluate_candidate = lambda c, sr=None, plan_hash=None: _fake_evaluate(c, passed=False)
         ps.cmd_run(workers=1)
         self.assertEqual(len(os.listdir(ps.RECORDS_DIR)), 3)
 
         calls = []
         real = ps._evaluate_candidate
-        ps._evaluate_candidate = lambda c, sr=None: (calls.append(c["id"]) or _fake_evaluate(c, passed=False))
+        ps._evaluate_candidate = lambda c, sr=None, plan_hash=None: (calls.append(c["id"]) or _fake_evaluate(c, passed=False))
         ps.cmd_run(workers=1)
         self.assertEqual(calls, [], "budget already spent -- a restart must evaluate nothing more")
         self.assertEqual(len(os.listdir(ps.RECORDS_DIR)), 3)
@@ -605,7 +642,7 @@ class BudgetAndResume(unittest.TestCase):
         self._set_plan(_candidates(10))
         ps.BUDGET_MAX = 100
         ps.TARGET_PASSES = 2
-        ps._evaluate_candidate = lambda c, sr=None: _fake_evaluate(c, passed=True)
+        ps._evaluate_candidate = lambda c, sr=None, plan_hash=None: _fake_evaluate(c, passed=True)
         ps.cmd_run(workers=1)
         recs = [X.load(f[:-5], store=ps.RECORDS_DIR) for f in os.listdir(ps.RECORDS_DIR)]
         self.assertEqual(len(recs), 2, "must stop the moment the 2nd pass is recorded, not run the other 8")
@@ -622,7 +659,7 @@ class BudgetAndResume(unittest.TestCase):
         X.write(types.MappingProxyType(pre), store=ps.RECORDS_DIR)
 
         calls = []
-        def spy(c, sr=None):
+        def spy(c, sr=None, plan_hash=None):
             calls.append(c["id"])
             return _fake_evaluate(c, passed=False)
         ps._evaluate_candidate = spy
@@ -637,7 +674,7 @@ class BudgetAndResume(unittest.TestCase):
         ps.BUDGET_MAX = 100
         ps.TARGET_PASSES = 100
         calls = []
-        ps._evaluate_candidate = lambda c, sr=None: (calls.append(c["id"]) or _fake_evaluate(c, passed=False))
+        ps._evaluate_candidate = lambda c, sr=None, plan_hash=None: (calls.append(c["id"]) or _fake_evaluate(c, passed=False))
         ps.cmd_run(only=["C2", "C4"], workers=1)
         self.assertEqual(sorted(calls), ["C2", "C4"])
 
@@ -646,7 +683,7 @@ class BudgetAndResume(unittest.TestCase):
         self._set_plan(_candidates(3))
         ps.BUDGET_MAX = 100
         ps.TARGET_PASSES = 100
-        ps._evaluate_candidate = lambda c, sr=None: _fake_evaluate(c, skip=f"no history for {c['id']}")
+        ps._evaluate_candidate = lambda c, sr=None, plan_hash=None: _fake_evaluate(c, skip=f"no history for {c['id']}")
         ps.cmd_run(workers=1)
         self.assertFalse(os.path.isdir(ps.RECORDS_DIR) and os.listdir(ps.RECORDS_DIR))
         skipped = json.load(open(ps.SKIPPED_PATH, encoding="utf-8"))
@@ -666,6 +703,92 @@ class BudgetAndResume(unittest.TestCase):
             ps.cmd_run(workers=1)
 
 
+class RestoredRecordsAreValidatedAgainstTheCurrentPlan(unittest.TestCase):
+    """Fix round 2, item 2: a record under RECORDS_DIR (whether it was written by THIS store or restored from
+    a results branch by the workflow) is trusted only after `experiment_id` is one of the current plan's own
+    candidates AND its recorded `parameters.plan_hash` matches the current plan's hash. Either check failing
+    refuses the whole run loud -- never silently skipped, never silently counted."""
+
+    def setUp(self):
+        self.ps = _ps()
+        self.d = tempfile.mkdtemp()
+        self.ps.EXPERIMENT_DIR = self.d
+        self.ps.PLAN_PATH = os.path.join(self.d, "plan.json")
+        self.ps.RECORDS_DIR = os.path.join(self.d, "records")
+        self.ps.SKIPPED_PATH = os.path.join(self.d, "skipped.json")
+        os.makedirs(self.ps.RECORDS_DIR, exist_ok=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def _set_plan(self, candidates, plan_hash="fixture"):
+        plan = {"candidates": candidates, "plan_hash": plan_hash, "candidate_count": len(candidates)}
+        self.ps.load_plan = lambda: plan
+        return plan
+
+    def _write(self, candidate, **fake_kwargs):
+        rec = _fake_evaluate(candidate, **fake_kwargs)["record"]
+        X.write(types.MappingProxyType(rec), store=self.ps.RECORDS_DIR)
+        return rec
+
+    def test_a_matching_record_is_accepted(self):
+        ps = self.ps
+        candidates = _candidates(1)
+        plan = self._set_plan(candidates, plan_hash="abc123")
+        self._write(candidates[0], passed=False, plan_hash="abc123")
+        evaluated, passed = ps._existing_counts(ps.RECORDS_DIR, plan)
+        self.assertEqual((evaluated, passed), (1, 0))
+
+    def test_a_record_whose_id_is_not_in_the_current_plan_is_refused(self):
+        ps = self.ps
+        plan = self._set_plan(_candidates(1))   # plan only knows "C0"
+        foreign = {"id": "FOREIGN-1", "method": "ICT", "config": "A", "timeframe": "1H",
+                  "group_kind": "instrument", "group_id": "FOREIGN-1", "symbols": ["FOREIGN-1"]}
+        self._write(foreign, passed=False)
+        with self.assertRaises(ps.RecordMismatch) as cm:
+            ps._existing_counts(ps.RECORDS_DIR, plan)
+        self.assertIn("FOREIGN-1", str(cm.exception))
+        self.assertIn("not one of", str(cm.exception))
+
+    def test_a_record_sealed_against_a_different_plan_hash_is_refused(self):
+        ps = self.ps
+        candidates = _candidates(1)
+        plan = self._set_plan(candidates, plan_hash="current-hash")
+        self._write(candidates[0], passed=False, plan_hash="stale-hash-from-an-old-plan")
+        with self.assertRaises(ps.RecordMismatch) as cm:
+            ps._existing_counts(ps.RECORDS_DIR, plan)
+        self.assertIn("C0", str(cm.exception))
+        self.assertIn("current-hash", str(cm.exception))
+
+    def test_a_record_with_no_recorded_plan_hash_at_all_is_refused(self):
+        """A record sealed before this fix (no `parameters.plan_hash` key) must not be silently trusted."""
+        ps = self.ps
+        candidates = _candidates(1)
+        plan = self._set_plan(candidates, plan_hash="current-hash")
+        self._write(candidates[0], passed=False, plan_hash=None)
+        with self.assertRaises(ps.RecordMismatch):
+            ps._existing_counts(ps.RECORDS_DIR, plan)
+
+    def test_cmd_run_refuses_loud_rather_than_silently_skipping_a_mismatched_record(self):
+        ps = self.ps
+        candidates = _candidates(2)
+        plan = self._set_plan(candidates, plan_hash="current-hash")
+        self._write(candidates[0], passed=False, plan_hash="stale-hash")
+        calls = []
+        ps._evaluate_candidate = lambda c, sr=None, plan_hash=None: (calls.append(c["id"]) or
+                                                                     _fake_evaluate(c, passed=False))
+        with self.assertRaises(ps.RecordMismatch):
+            ps.cmd_run(workers=1)
+        self.assertEqual(calls, [], "a run that refuses on a mismatched record must not evaluate anything")
+
+    def test_cmd_report_also_refuses_on_a_mismatched_record(self):
+        ps = self.ps
+        candidates = _candidates(1)
+        self._set_plan(candidates, plan_hash="current-hash")
+        self._write(candidates[0], passed=False, plan_hash="stale-hash")
+        with self.assertRaises(ps.RecordMismatch):
+            ps.cmd_report()
+
 class RunLock(unittest.TestCase):
     """Fix round 1, item C4: two concurrent `cmd_run()` on one store must not each dispatch work and jointly
     exceed the budget."""
@@ -679,7 +802,7 @@ class RunLock(unittest.TestCase):
         self.ps.SKIPPED_PATH = os.path.join(self.d, "skipped.json")
         plan = {"candidates": _candidates(3), "plan_hash": "fixture", "candidate_count": 3}
         self.ps.load_plan = lambda: plan
-        self.ps._evaluate_candidate = lambda c, sr=None: _fake_evaluate(c, passed=False)
+        self.ps._evaluate_candidate = lambda c, sr=None, plan_hash=None: _fake_evaluate(c, passed=False)
 
     def tearDown(self):
         shutil.rmtree(self.d, ignore_errors=True)
@@ -715,7 +838,7 @@ class RunLock(unittest.TestCase):
 
     def test_the_lock_is_released_even_when_a_candidate_raises(self):
         ps = self.ps
-        ps._evaluate_candidate = lambda c, sr=None: (_ for _ in ()).throw(RuntimeError("boom"))
+        ps._evaluate_candidate = lambda c, sr=None, plan_hash=None: (_ for _ in ()).throw(RuntimeError("boom"))
         with self.assertRaises(RuntimeError):
             ps.cmd_run(workers=1)
         self.assertFalse(os.path.exists(os.path.join(self.d, ".prop-search-run.lock")),
@@ -746,7 +869,7 @@ class FailLoudOnCandidateError(unittest.TestCase):
         candidates = _candidates(3)
         self._set_plan(candidates)
 
-        def flaky(c, sr=None):
+        def flaky(c, sr=None, plan_hash=None):
             if c["id"] == "C1":
                 raise RuntimeError("simulated engine crash")
             return _fake_evaluate(c, passed=False)
@@ -765,7 +888,7 @@ class FailLoudOnCandidateError(unittest.TestCase):
         self._set_plan(candidates)
         calls = []
 
-        def flaky_once(c, sr=None):
+        def flaky_once(c, sr=None, plan_hash=None):
             calls.append(c["id"])
             if c["id"] == "C1" and calls.count("C1") == 1:
                 raise RuntimeError("simulated transient failure")
@@ -782,7 +905,7 @@ class FailLoudOnCandidateError(unittest.TestCase):
         candidates = _candidates(2)
         self._set_plan(candidates)
 
-        def flaky(c, sr=None):
+        def flaky(c, sr=None, plan_hash=None):
             if c["id"] == "C1":
                 raise RuntimeError("simulated engine crash")
             return _fake_evaluate(c, passed=False)
@@ -878,15 +1001,21 @@ class RealEndToEndCandidateEvaluation(unittest.TestCase):
         sr = ps._load_sr()
         candidate = {"id": "TEST-ICT-A-4H-XAUUSD", "method": "ICT", "config": "A", "timeframe": "4H",
                     "group_kind": "instrument", "group_id": "XAUUSD", "symbols": ["XAUUSD"]}
-        outcome = ps._evaluate_candidate(candidate, sr=sr)
+        outcome = ps._evaluate_candidate(candidate, sr=sr, plan_hash="real-e2e-test-hash")
         self.assertIn("record", outcome, outcome.get("skip"))
         rec = outcome["record"]
+
+        # fix round 2, item 2: the REAL _evaluate_candidate (not just the test fixture) stamps plan_hash.
+        self.assertEqual(rec["parameters"]["plan_hash"], "real-e2e-test-hash")
 
         d = tempfile.mkdtemp()
         try:
             X.write(types.MappingProxyType(rec), store=d)
             back = X.load("TEST-ICT-A-4H-XAUUSD", store=d)
             self.assertEqual(back["experiment_id"], "TEST-ICT-A-4H-XAUUSD")
+            plan = {"candidates": [candidate], "plan_hash": "real-e2e-test-hash", "candidate_count": 1}
+            evaluated, passed = ps._existing_counts(d, plan)
+            self.assertEqual(evaluated, 1)   # the real record passes the fix-round-2 plan validation too
         finally:
             shutil.rmtree(d, ignore_errors=True)
 
@@ -962,7 +1091,7 @@ class ParallelWorkersRouteThroughTheSameOrchestration(unittest.TestCase):
             ps.load_plan = lambda: plan
             ps.BUDGET_MAX = 4
             ps.TARGET_PASSES = 100
-            ps._evaluate_candidate = lambda c, sr=None: _fake_evaluate(c, passed=False)
+            ps._evaluate_candidate = lambda c, sr=None, plan_hash=None: _fake_evaluate(c, passed=False)
             # patch.object, not assignment: ps._pool IS the process-wide isolated_pool module, and a leaked fake
             # executor made test_isolated_pool's crash test os._exit() the whole test process when run after this.
             with mock.patch.object(ps._pool, "IsolatedExecutor", _FakeExecutor):
@@ -982,7 +1111,7 @@ class ParallelWorkersRouteThroughTheSameOrchestration(unittest.TestCase):
             candidates = _candidates(2)
             plan = {"candidates": candidates, "plan_hash": "fixture", "candidate_count": len(candidates)}
             ps.load_plan = lambda: plan
-            ps._evaluate_candidate = lambda c, sr=None: _fake_evaluate(c, skip=f"no history for {c['id']}")
+            ps._evaluate_candidate = lambda c, sr=None, plan_hash=None: _fake_evaluate(c, skip=f"no history for {c['id']}")
             with mock.patch.object(ps._pool, "IsolatedExecutor", _FakeExecutor):
                 ps.cmd_run(workers=2)
             self.assertFalse(os.path.isdir(ps.RECORDS_DIR) and os.listdir(ps.RECORDS_DIR))

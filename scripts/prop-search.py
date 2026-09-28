@@ -408,7 +408,23 @@ def _max_inactivity_gap_days(taken, window_start_iso, window_end_iso):
 def inactivity_breach_for(fund, val_taken):
     """True when `fund`'s own inactivity rule (addendum §8.3, account-profiles.json custom_failure_conditions
     kind="inactivity_days") is breached somewhere in the validation window's REAL trade timeline. False for a
-    fund that declares no such rule (FTMO today) -- absence of a rule is never a breach."""
+    fund that declares no such rule (FTMO today) -- absence of a rule is never a breach.
+
+    NOT routed through `account_profile.account_state()`/`halt_check()` (fix round 2, item 4), even though the
+    `inactivity_days` KIND is registered there (`account_profile.FAILURE_KINDS`) and IS the evaluator a live
+    order path or a running backtest would use. The two ask different questions over different time shapes:
+    `account_state()` answers "is the account breached RIGHT NOW", from a single scalar fact
+    (`days_since_last_trade`, as of one instant) the CALLER must already have computed -- exactly right for a
+    live tick or a bar-by-bar backtest loop, which has a "now". This function answers "did the rule EVER
+    breach anywhere in the whole validation window", a retrospective scan over the complete, already-known
+    trade timeline -- there is no single "now" to hand `account_state()` a `days_since_last_trade` for; the
+    quantity it would need (the running gap at every point in time) is exactly what `_max_inactivity_gap_days`
+    computes by walking the whole timeline, which `account_state()`'s single-fact interface has no way to
+    express. Using the shared evaluator here would mean re-deriving this same walk just to produce the one
+    scalar it wants, at every candidate point in time, for no benefit over calling `_max_inactivity_gap_days`
+    directly once. `account_state()` remains the ONE evaluator for the ONLINE question (§33); this is the
+    OFFLINE, whole-window question, and it belongs in the research script that actually has the whole window.
+    """
     threshold = _inactivity_threshold_days(fund)
     if threshold is None:
         return False
@@ -549,7 +565,7 @@ def _system_version_for(tf):
         return None
 
 
-def _evaluate_candidate(candidate, sr=None):
+def _evaluate_candidate(candidate, sr=None, plan_hash=None):
     """Runs the existing engine (bt.scan + bt.simulate, unmodified semantics) over ONE candidate's symbols,
     truncated at the validation boundary (bt.pit_cutoff), and returns either `{"skip": reason}` (no history,
     doesn't count against budget) or `{"record": <plain dict, a sealed §42 record's fields>}`.
@@ -559,6 +575,12 @@ def _evaluate_candidate(candidate, sr=None):
     calls in the SAME process reuse `bt`'s own load/detection caches for speed, matching stability-report.py's
     own dedup philosophy. `bt.pit_cutoff` is reset to the SAME constant (VALIDATION_END) on every call
     regardless of which `bt` instance is used, so cache reuse changes nothing about what is measured.
+
+    `plan_hash` (fix round 2, item 2) is stamped into the sealed record's `parameters` field -- the ONE thing
+    that lets a LATER run (possibly on a different machine, after a restore from a results branch) tell
+    whether a record on disk was sealed against the plan currently loaded, or a stale/foreign one. Not one of
+    §42's 22 top-level fields (that list is fixed); folded into `parameters`, which already carries this
+    candidate's own identity, rather than inventing a 23rd top-level field.
     """
     sr = sr or _load_sr()
     bt = sr.bt
@@ -675,7 +697,10 @@ def _evaluate_candidate(candidate, sr=None):
         "method": method, "config": cfg_name, "timeframe": tf,
         "group_kind": candidate["group_kind"], "group_id": candidate["group_id"],
         "symbols_planned": candidate["symbols"], "symbols_used": usable,
-        "symbols_skipped_no_predevelopment_history": skipped_syms})
+        "symbols_skipped_no_predevelopment_history": skipped_syms,
+        # fix round 2, item 2: which committed plan this candidate was drawn from -- _existing_counts()
+        # refuses to trust a record whose plan_hash does not match the CURRENTLY loaded plan.
+        "plan_hash": plan_hash})
     r.set("random_seed", {"performance_bootstrap": _perf.BOOTSTRAP_SEED,
                           "expectancy_lower_bound_bootstrap": EXPECTANCY_BOOTSTRAP_SEED})
     r.set("test_periods", {
@@ -729,9 +754,39 @@ def _evaluate_candidate(candidate, sr=None):
 
 # --------------------------------------------------------------------------------------------------- `run`
 
-def _existing_counts(store):
+class RecordMismatch(RuntimeError):
+    """A record under RECORDS_DIR does not belong to the CURRENTLY LOADED plan -- either its `experiment_id`
+    is not one of the plan's own candidates, or its recorded `parameters.plan_hash` does not match the plan's
+    own hash (fix round 2, item 2). Raised rather than silently skipped or counted: a record restored from a
+    DIFFERENT search's results branch, or left over from before the candidate space changed, would otherwise
+    inflate (or misdirect) this plan's budget/pass count with evidence that is not evidence FOR this plan.
+    """
+
+
+def _validate_record_against_plan(rec, plan):
+    cid = rec["experiment_id"]
+    valid_ids = {c["id"] for c in plan["candidates"]}
+    if cid not in valid_ids:
+        raise RecordMismatch(
+            f"record {cid!r} under {RECORDS_DIR} is not one of the {len(valid_ids)} candidates in the "
+            f"currently loaded plan (hash {plan['plan_hash'][:12]}) -- refusing to trust it as evidence for "
+            f"this search. It may belong to a different plan revision or a different search entirely. Move "
+            f"or delete it, then re-run.")
+    rec_plan_hash = (rec.get("parameters") or {}).get("plan_hash")
+    if rec_plan_hash != plan["plan_hash"]:
+        raise RecordMismatch(
+            f"record {cid!r} under {RECORDS_DIR} was sealed against plan_hash "
+            f"{(rec_plan_hash[:12] + '...') if rec_plan_hash else '(none recorded)'!r}, but the currently "
+            f"loaded plan's hash is {plan['plan_hash'][:12]} -- refusing to trust it as evidence for THIS "
+            f"plan (fix round 2, item 2). Move or delete it, then re-run.")
+
+
+def _existing_counts(store, plan):
     """(evaluated, passed) re-derived from disk -- the source of truth for budget/pass tracking across
-    restarts (§42/§43: the running count must be visible and must survive a crash)."""
+    restarts (§42/§43: the running count must be visible and must survive a crash). Every record is validated
+    against `plan` (`_validate_record_against_plan`) BEFORE it is counted -- this is the ONE place local
+    resume and workflow-restored resume both pass through, so both get the same protection (fix round 2, item
+    2) with no separate YAML-side check needed."""
     if not os.path.isdir(store):
         return 0, 0
     evaluated = passed = 0
@@ -740,6 +795,7 @@ def _existing_counts(store):
             continue
         rec = X.load(f[:-5], store=store)   # Tampered propagates -- a search whose own evidence has been
                                             # altered must stop, not silently continue past it (§42 immutable)
+        _validate_record_against_plan(rec, plan)   # RecordMismatch propagates -- same reasoning, see its docstring
         evaluated += 1
         if rec["metrics"]["validation"]["passed"]:
             passed += 1
@@ -829,7 +885,7 @@ def _cmd_run_locked(only=None, workers=1):
     """
     plan = load_plan()
     os.makedirs(RECORDS_DIR, exist_ok=True)
-    evaluated, passed = _existing_counts(RECORDS_DIR)
+    evaluated, passed = _existing_counts(RECORDS_DIR, plan)   # RecordMismatch propagates -- fix round 2 item 2
     print(f"resuming: {evaluated} already evaluated, {passed} already passed "
           f"(budget {BUDGET_MAX}, target {TARGET_PASSES})")
     if evaluated >= BUDGET_MAX:
@@ -861,14 +917,14 @@ def _cmd_run_locked(only=None, workers=1):
         if workers == 1:
             cid = chunk[0]["id"]
             try:
-                results = [(cid, _evaluate_candidate(chunk[0], sr=sr))]
+                results = [(cid, _evaluate_candidate(chunk[0], sr=sr, plan_hash=plan["plan_hash"]))]
             except Exception as exc:
                 results = []
                 errors.append((cid, exc))
         else:
             results = []
             with _pool.IsolatedExecutor(max_workers=workers) as ex:
-                futs = {ex.submit(_evaluate_candidate, c): c["id"] for c in chunk}
+                futs = {ex.submit(_evaluate_candidate, c, None, plan["plan_hash"]): c["id"] for c in chunk}
                 for fut in concurrent.futures.as_completed(futs):
                     cid = futs[fut]
                     try:
@@ -910,7 +966,9 @@ def cmd_report():
     if os.path.isdir(RECORDS_DIR):
         for f in sorted(os.listdir(RECORDS_DIR)):
             if f.endswith(".json"):
-                recs.append(X.load(f[:-5], store=RECORDS_DIR))
+                rec = X.load(f[:-5], store=RECORDS_DIR)
+                _validate_record_against_plan(rec, plan)   # fix round 2, item 2 -- same refusal as `run`
+                recs.append(rec)
     skipped = json.load(open(SKIPPED_PATH, encoding="utf-8")) if os.path.exists(SKIPPED_PATH) else []
     evaluated = len(recs)
     passes = [r for r in recs if r["metrics"]["validation"]["passed"]]
