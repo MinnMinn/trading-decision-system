@@ -344,6 +344,25 @@ def _bootstrap_days(blocks, *, risk, horizon_days, iterations, seed, ruin_level,
     the same way `min_days` gates it for a plain trading-days fund. `min_days` and `min_profitable` are never
     both non-None for one real profile (account_profile._validate_rules refuses declaring both), but nothing
     here assumes that -- passing both would require BOTH conditions, which is the conservative combination.
+
+    ENTRY-DAY APPROXIMATION (fix round 2, item 3 -- decided and documented here, not silently done): the
+    addendum defines a profitable day by CLOSED profit, i.e. the trade's EXIT day. `blocks` is built by
+    `_day_blocks()`, which groups trades by ENTRY day -- required for `max_daily_loss`'s own correlation-
+    preserving purpose (a daily-loss rule is a statement about trades opened together on one real day, and
+    that grouping must not change underneath a rule this function ALSO evaluates in the very same loop). One
+    simulated day `d` here applies ONE resampled entry-day block ATOMICALLY; if that block's trades closed on
+    several different real calendar days, there is no single real "exit day" left within a resampled path to
+    attribute the block's profit to -- the day-block bootstrap discards real calendar continuity beyond the
+    entry-day grouping unit BY DESIGN (that is what makes it a bootstrap). So `min_profitable`'s counter here
+    necessarily reads ENTRY-day profit, an approximation of the addendum's exit-day rule, not the exit-day
+    figure itself. This is NOT the authoritative day count for the pass decision: `scripts/prop-search.py`
+    `day_counts_for()` computes the EXACT exit-day-attributed profitable-day count directly from the real
+    (non-bootstrapped) validation trades, and IS what `evaluate_pass()`'s day-requirement criterion checks.
+    This function's own `min_profitable` only affects the BOOTSTRAP's internal pass-event timing (i.e. the
+    `prop_pass_probability` VALUE), which is one input to a different criterion. `metrics()` stamps
+    `day_counting_approximation: "entry_day"` onto the `prop_pass_probability`/`account_failure_probability`/
+    `risk_of_ruin` result whenever `min_profitable` is supplied, so a reader of the record sees this without
+    having to already know it.
     """
     rng = random.Random(seed)
     ruined = failed = passed = 0
@@ -577,6 +596,19 @@ def metrics(trades, *, equity=None, account=None, breakeven_band=BREAKEVEN_BAND,
                                  "preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
                       "iterations": iterations, "seed": seed, "horizon_trades": hz, "horizon_unit": "days",
                       "risk_per_trade": risk, "sample": n}
+            if min_profitable is not None:
+                # fix round 2, item 3: this bootstrap's OWN profitable-day gating reads ENTRY-day profit (see
+                # _bootstrap_days's docstring for why exit-day attribution is not cleanly possible inside a
+                # day-block bootstrap) -- an approximation of the addendum's exit-day rule. The AUTHORITATIVE,
+                # exit-day-exact count is scripts/prop-search.py day_counts_for(), used by evaluate_pass()'s
+                # own day-requirement criterion; this value only affects prop_pass_probability's bootstrap
+                # timing, not the pass decision's day-count check itself.
+                common["day_counting_approximation"] = (
+                    "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this "
+                    "bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so "
+                    "its internal profitable-day gate reads entry-day profit as an approximation; the "
+                    "authoritative exit-day count is computed directly on the real trades elsewhere "
+                    "(scripts/prop-search.py day_counts_for)")
         else:
             hz = int(horizon or max(100, n))
             ruin, failed, passed = _bootstrap(rs, risk=risk, horizon=hz, iterations=iterations, seed=seed,
