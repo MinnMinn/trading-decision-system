@@ -274,7 +274,17 @@ def backtest_config_snapshot(bt, *, timeframes, methods, configs=None, fee_pct=N
             "modes (NORMAL/ENHANCED/STRICT/SOLO) gate the /analyze Confluence path; a mechanical-rule "
             "backtest engages no dimensions and has no mode (§16)"),
         "setup": {"timeframes": list(timeframes), "configs": configs or {},
-                  "ict_target": ict_target},
+                  "ict_target": ict_target,
+                  "ict_target_effective": (
+                      "scripts/ict-scan.py setup_candidate() ignores this label entirely and always targets "
+                      "the -2sigma projection first (models.md §2.1.5), falling back to the dealing-range edge "
+                      "(core-a.md R13) only when no projection exists on the trade's side. `ict_target` is kept "
+                      "here as a system-naming label ONLY (scripts/rank-setups.py reads it to name a system) "
+                      "-- it does not, and never did, select among std2/std25/std4/erl_next/irl target models; "
+                      "that switch was deleted from the engine 2026-09-13 (scripts/strategy-runner.py:22). "
+                      "A0b erratum: docs/experiments/prop-search-2026-09-27/ERRATUM-2026-09-28.md "
+                      "(docs/plans/2026-09-28-methodology-improvement-plan.md §A0b)."
+                  ) if ict_target is not None else None},
         "entry_rules": {"entry": opts.get("entry"), "combined_entry": opts.get("combined_entry"),
                         "sides": list(opts.get("sides") or ()), "varied_per_config": residual},
         "exit_rules": {"mgmt": opts.get("mgmt"), "varied_per_config": residual,
@@ -329,8 +339,12 @@ def backtest_config_snapshot(bt, *, timeframes, methods, configs=None, fee_pct=N
                       if calendar else not_applicable(
             "the backtest reads no news or calendar at all, so no news rule was in force (§24-§32); note "
             "this means its results contain no event-risk filtering whatsoever")),
+        # `range_touches` used to be captured here too (A0b, 2026-09-28): it was never a real scan()/simulate()
+        # read at ANY value (docs/experiments/prop-search-2026-09-27/ERRATUM-2026-09-28.md), so recording it
+        # was the same false-liveness defect as `ict_target` below -- except nothing names a system by it, so
+        # it is dropped outright rather than kept-and-disclosed.
         "custom_constraints": dict({k: opts.get(k) for k in
-                                    ("types", "range_touches", "htf", "sloped_gate", "st_min", "phase_d")},
+                                    ("types", "htf", "sloped_gate", "st_min", "phase_d")},
                                    varied_per_config=residual),
         "provider_selection": {"see": "dataset_snapshot_id", "note":
                                "which providers supplied the bars is recorded in the §10 dataset snapshot, "

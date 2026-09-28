@@ -49,12 +49,30 @@ def config_opts(cfg, ict_target):
     """The full `bt.OPTS` overlay one CONFIGS entry applies -- ONE definition, used both to actually run a
     config (main()'s `bt.OPTS.update(**config_opts(...))`, replacing the inline dict literal that used to be
     typed out at the call site) and, before anything runs, to recognise which configs will make `bt.scan()`
-    produce the same trades (see `_scan_cache_key` below). `combined_entry`/`range_touches`/`ict_target` are
-    included even though `scan()` never reads them, so this dict is always the complete, honest overlay a
-    config applies -- not a hand-picked subset that could quietly drift from what `bt.OPTS.update()` sets."""
-    return dict(mgmt=cfg["mgmt"], htf=cfg["htf"], sides=("long", "short"), types=(1, 2, 3), range_touches=0,
+    produce the same trades (see `_scan_cache_key` below). `combined_entry` is included even though `scan()`
+    never reads it, so this dict is always the complete, honest overlay a config applies to `bt.OPTS` -- not a
+    hand-picked subset that could quietly drift from what `bt.OPTS.update()` sets.
+
+    `range_touches` is NOT in this dict (A0b, 2026-09-28): it used to be included here at a hard-coded 0 for
+    the same "complete overlay" reason, but `range_touches` itself was never a real `bt.OPTS` key that
+    `scan()`/`simulate()` read at ANY value (see the note where `OPTS` is defined in backtest-methods.py) --
+    including a dead key in an "honest overlay" was the opposite of honest, so the key and its CLI/OPTS default
+    were removed rather than kept here.
+
+    `ict_target` is accepted, not returned in the overlay: `scripts/ict-scan.py`'s `setup_candidate()` reads no
+    target-model choice at all -- the six-way switch (`bt.ict_target()`) was deleted from the engine
+    2026-09-13 (`scripts/strategy-runner.py:22`) -- so folding it into `bt.OPTS` would plant the same kind of
+    dead key `range_touches` was. It is validated here (only "range", the scanner's one actual behaviour, is
+    accepted) so a caller asking for an unimplemented target model fails loudly instead of silently getting
+    ignored; callers pass it straight through to `snapshot.backtest_config_snapshot(ict_target=...)` for the
+    system-naming label (`scripts/rank-setups.py:156`)."""
+    if ict_target != "range":
+        raise ValueError(f"config_opts: ict_target={ict_target!r} is not implemented -- "
+                         f"scripts/ict-scan.py's setup_candidate() only ever targets -2sigma-then-range-edge "
+                         f"(A0b, docs/plans/2026-09-28-methodology-improvement-plan.md); pass 'range'")
+    return dict(mgmt=cfg["mgmt"], htf=cfg["htf"], sides=("long", "short"), types=(1, 2, 3),
                 entry="book", sloped_gate=False, st_gate=False, phase_b_gate=False, st_min=None, phase_d=True,
-                combined_entry="limit", ict_target=ict_target)
+                combined_entry="limit")
 
 
 # scan()-relevant keys: everything `bt.scan()` / `ict_setups_live()` / `_fires_from()` / `walk()` actually read
@@ -490,7 +508,20 @@ def metrics(curve, first, last, taken, final, dd, account=None, full_taken=None,
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tf", default="15m,30m,1H,2H,4H,1D"); ap.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT"); ap.add_argument("--out"); ap.add_argument("--json"); ap.add_argument("--ict-target", default="range", choices=["range", "std2", "std25", "std4", "erl_next", "irl"])
+    ap.add_argument("--tf", default="15m,30m,1H,2H,4H,1D"); ap.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT"); ap.add_argument("--out"); ap.add_argument("--json")
+    # A0b (docs/plans/2026-09-28-methodology-improvement-plan.md): `choices` used to list six target models
+    # (range/std2/std25/std4/erl_next/irl), but scripts/ict-scan.py's setup_candidate() has read none of them
+    # since the six-way switch (bt.ict_target()) was deleted from the engine 2026-09-13
+    # (scripts/strategy-runner.py:22; scripts/tests/test_live_rules.py test_ict_target_engine_is_gone) -- the
+    # scanner always targets the -2sigma projection first, falling back to the dealing-range edge. Restricted
+    # to the one value the scanner actually implements rather than removed outright, because
+    # scripts/rank-setups.py:156 reads run_params.ict_target to NAME a system, and every existing pilot
+    # selection was named from this default (docs/architecture/pilot-selection.json) -- keeping the label
+    # "range" stable preserves those names. See the recorded `ict_target_effective` note (scripts/snapshot.py)
+    # for what the scanner actually does.
+    ap.add_argument("--ict-target", default="range", choices=["range"],
+                    help="kept for scripts/rank-setups.py system-naming continuity only; the scanner does not "
+                         "read this value (A0b) -- see setup.ict_target_effective in the config snapshot")
     # CLAUDE.md §33: a personal account and a prop account do not lose the same way, so "did this setup
     # survive?" has no answer until you say WHOSE account. Without one the only loss condition is a blown
     # balance (the personal notion) and §39's money/ruin/failure/pass metrics stay UNAVAILABLE BY NAME.
