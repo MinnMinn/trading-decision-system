@@ -15,14 +15,15 @@
     "research"
   ],
   "_unroutable_environments_why": "Environments an order path can never ask for. The routable ones -- the values `for_venue(venue, environment)` is called with on a path that places orders -- have ONE source, trading_env.ENV_NAMES (demo, real); this list is the complement, and it is declared rather than inferred so that a typo ('reserch') is refused at import instead of quietly producing a profile no lookup can reach. Two consequences, both enforced by scripts/account_profile.py: (a) the (venue, environment) uniqueness rule applies only to routable environments, so several prop templates may share venue 'mt5' under 'research' -- a researcher names the template by id, nobody routes to it; (b) `for_venue()` refuses an unroutable environment outright, so a research template can never become the account an order is sized against, not even when it is the only one on that venue.",
-  "_rule_keys": "Every profile must declare ALL fifteen keys under `rules`, plus `max_trades_per_day_per_symbol`. A key whose value is null means THIS ACCOUNT HAS NO SUCH RULE -- a declared absence. A key that is MISSING is refused at import, because 'nobody wrote a daily-loss limit down' and 'this account has no daily-loss limit' are different facts and the reader must not have to guess which one it is looking at (the same three-valued discipline §20 applies to data).",
+  "_rule_keys": "Every profile must declare ALL sixteen keys under `rules`, plus `max_trades_per_day_per_symbol` and `min_profitable_days` (seventeen total as of 2026-09-28). A key whose value is null means THIS ACCOUNT HAS NO SUCH RULE -- a declared absence. A key that is MISSING is refused at import, because 'nobody wrote a daily-loss limit down' and 'this account has no daily-loss limit' are different facts and the reader must not have to guess which one it is looking at (the same three-valued discipline §20 applies to data).",
   "_rule_vocabulary": {
     "initial_balance": "null | {amount, currency}. The fixed number a prop account's rules key off. null where the account has no fixed starting figure and the drawdown basis is captured live instead (see max_total_drawdown.basis).",
     "max_daily_loss": "null | {pct, basis: initial_balance|day_start_equity, action}. pct is a FRACTION (0.05 = 5 %).",
     "max_total_drawdown": "null | {pct, basis: initial_balance|equity_start, action}. equity_start = the equity captured at the pilot's first live tick for this venue (strategy-runner state.venues.<v>.equity_start).",
     "trailing_drawdown": "null | {pct, basis: peak_equity, locks_at: null|{amount}, action}. locks_at models the prop rule where the trailing floor stops trailing once the account reaches a level.",
     "profit_target": "null | {pct, basis}. An OBJECTIVE, not a gate: reaching it never blocks an entry, it reports progress (§33 lists it beside the limits; conflating the two would make success halt trading).",
-    "min_trading_days": "null | integer. Also an objective, not a gate.",
+    "min_trading_days": "null | integer. Also an objective, not a gate: the count of days a trade was INITIATED (FTMO's own reading). A fund that instead requires PROFITABLE days (not merely traded days) declares this null and uses `min_profitable_days` instead -- the two are mutually exclusive readings of 'how many days', never both non-null on one profile.",
+    "min_profitable_days": "null | {count, profit_threshold_pct}. Added 2026-09-28 (pre-registration addendum §8.3): an OBJECTIVE, not a gate, for a fund whose day-count rule is PROFITABLE days rather than traded days (The5ers High Stakes Step 1). `profit_threshold_pct` is a FRACTION of `initial_balance` a day's CLOSED profit must reach to count. Read by scripts/performance.py (gates the day-block bootstrap's simulated PASS event, mirroring min_trading_days's role for a plain-trading-days fund) and scripts/prop-search.py (counts real profitable days in the observed validation trades).",
     "max_leverage": "null | number. null = this platform does not set leverage on this venue; the broker's own applies.",
     "max_risk_per_trade": "null | fraction. null = inherit the platform ceiling (docs/architecture/risk-config.json max_risk_pct via trading_env.MAX_RISK_PCT). A number here may only be LOWER than that ceiling; the reader refuses to load a profile that tries to raise it.",
     "max_positions": "null | {mode: full_book} | {mode: fixed, count}. full_book = one slot per symbol this account may trade, derived from the execution lists of every market whose unattended execution venue is this profile's venue.",
@@ -60,6 +61,7 @@
         "trailing_drawdown": null,
         "profit_target": null,
         "min_trading_days": null,
+        "min_profitable_days": null,
         "max_leverage": 3,
         "_max_leverage_why": "The runner's LEVERAGE constant. ISOLATED margin, notional capped at 25 % of equity x leverage.",
         "max_risk_per_trade": null,
@@ -103,6 +105,7 @@
         "trailing_drawdown": null,
         "profit_target": null,
         "min_trading_days": null,
+        "min_profitable_days": null,
         "max_leverage": null,
         "_max_leverage_why": "This platform sets no leverage on MT5: the bridge sizes in lots from the broker's contract data and the broker's own leverage applies. Declaring 3 here would be a number nothing reads.",
         "max_risk_per_trade": null,
@@ -163,6 +166,7 @@
           "basis": "initial_balance"
         },
         "min_trading_days": 4,
+        "min_profitable_days": null,
         "_min_trading_days_why": "2024+ sources report 4 minimum trading days for FTMO Challenge Phase 1; older sources report 10. 4 recorded, flagged for verification per _source (docs/plans/2026-09-18-close-feature-gaps.md §0.1).",
         "max_leverage": null,
         "max_risk_per_trade": null,
@@ -211,7 +215,13 @@
           "pct": 0.08,
           "basis": "initial_balance"
         },
-        "min_trading_days": 3,
+        "min_trading_days": null,
+        "_min_trading_days_why": "SUPERSEDED 2026-09-28 (pre-registration addendum §8.3, owner decision): The5ers High Stakes Step 1 does not count 'any day a trade was initiated' the way FTMO does -- it requires PROFITABLE days, below. Declaring both would let a candidate satisfy the weaker 'traded' reading and be reported as passing this fund's real rule; null here plus `min_profitable_days` below is the correct statement of what the fund actually requires. Kept as its own key (not deleted) so the supersession is visible in the profile itself, not only in a changelog.",
+        "min_profitable_days": {
+          "count": 3,
+          "profit_threshold_pct": 0.005
+        },
+        "_min_profitable_days_why": "Added 2026-09-28 (pre-registration addendum §8.3, owner decision, §33 account-rule change): The5ers High Stakes Step 1 requires at least 3 days with CLOSED profit >= 0.5% of the account's initial balance on that day -- not merely 3 days that traded. `profit_threshold_pct` is a FRACTION of `initial_balance` (0.005 = 0.5%), matching the fraction convention every other pct field in this file uses. Read by scripts/performance.py `_failure_thresholds`/`_bootstrap_days` (gates when the bootstrap's simulated PASS event may fire, mirroring how `min_trading_days` already gated it for FTMO) and by scripts/prop-search.py `evaluate_pass` (counts real profitable days in the actual validation trade population). scripts/account_profile.py RULE_KEYS gained this key; every OTHER profile declares it `null` (this account is the only one with such a rule) so account_profile._validate_rules's 'every profile declares every key' invariant (CLAUDE.md §33) still holds.",
         "max_leverage": null,
         "max_risk_per_trade": null,
         "max_positions": {
@@ -222,7 +232,16 @@
         "overnight_restrictions": null,
         "weekend_restrictions": null,
         "session_restrictions": null,
-        "custom_failure_conditions": [],
+        "custom_failure_conditions": [
+          {
+            "id": "inactivity-30-days",
+            "kind": "inactivity_days",
+            "threshold": 30,
+            "action": "HALT",
+            "what": "The5ers High Stakes evaluation accounts expire after 30 consecutive calendar days with no trade initiated (pre-registration addendum §8.3, owner decision 2026-09-28)."
+          }
+        ],
+        "_custom_failure_conditions_why": "The `inactivity_days` kind was added 2026-09-28 alongside `consecutive_losses`/`consecutive_errors` in scripts/account_profile.py FAILURE_KINDS -- evaluated against a NEW fact, `days_since_last_trade` (account_state()'s kind->fact mapping), read live/in a backtest the same way every other custom_failure_condition already is. scripts/prop-search.py evaluates the REAL validation-window trade timeline directly against this same threshold (the day-block bootstrap has no calendar-gap representation between resampled TRADING-day blocks, so a 'no trade for N calendar days' rule cannot be expressed inside it -- see prop-search.py _max_inactivity_gap_days's own docstring) rather than duplicating the number 30 as a second, separately-typed constant.",
         "max_trades_per_day_per_symbol": null
       }
     },
@@ -245,6 +264,7 @@
         "trailing_drawdown": null,
         "profit_target": null,
         "min_trading_days": null,
+        "min_profitable_days": null,
         "max_leverage": null,
         "max_risk_per_trade": null,
         "max_positions": {
@@ -286,6 +306,7 @@
           "basis": "initial_balance"
         },
         "min_trading_days": 4,
+        "min_profitable_days": null,
         "max_leverage": null,
         "max_risk_per_trade": null,
         "max_positions": {

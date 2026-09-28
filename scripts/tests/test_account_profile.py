@@ -64,6 +64,7 @@ PROP_RULES = {
     "trailing_drawdown": {"pct": 0.04, "basis": "peak_equity", "action": "HALT"},
     "profit_target": {"pct": 0.08, "basis": "initial_balance"},
     "min_trading_days": 5,
+    "min_profitable_days": None,   # this fixture's day rule reads min_trading_days; see MinProfitableDays below
     "max_leverage": 30,
     "max_risk_per_trade": 0.005,
     "max_positions": {"mode": "fixed", "count": 2},
@@ -85,7 +86,7 @@ PROP = {"what": "a prop challenge account, for tests only", "context_type": "PRO
 
 
 class RegistryShape(unittest.TestCase):
-    def test_every_profile_declares_all_sixteen_rule_keys(self):
+    def test_every_profile_declares_every_rule_key(self):
         for pid, prof in AP.PROFILES.items():
             with self.subTest(profile=pid):
                 for key in AP.RULE_KEYS:
