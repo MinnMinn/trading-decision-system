@@ -48,6 +48,7 @@ import normalized as _N         # CLAUDE.md §7/§10: provenance() + SNAPSHOT_IN
                                 # PIT-truncated dataset snapshot (fix round 1, review item B)
 import trading_system as _TS    # CLAUDE.md §35/§47: which Trading System (market, tf) resolves to
 import isolated_pool as _pool   # one process per candidate, matching stability-report.py's own convention
+import scan_cache as _sc        # PROP_SEARCH_SCAN_CACHE: a scan shared by candidates / jobs is computed once
 
 PREREG_DOC = "docs/plans/2026-09-27-prop-setup-search-preregistration.md"
 EXPERIMENT_DIR = os.path.join(ROOT, "docs", "experiments", "prop-search-2026-09-27")
@@ -60,6 +61,9 @@ PLAN_PATH = os.path.join(EXPERIMENT_DIR, "plan.json")
 # the checkout makes the run's own code_version read dirty=true (snapshot.code_version), and a dirty run is
 # not reproducible from its SHA alone (CLAUDE.md §46).
 RECORDS_DIR = os.environ.get("PROP_SEARCH_RECORDS_DIR") or os.path.join(EXPERIMENT_DIR, "records")
+# Optional scan cache (scripts/scan_cache.py, owner-approved 2026-09-28). Unset = every scan runs in place, as
+# before. Read from the environment, not a flag, so spawned candidate workers see the same directory.
+SCAN_CACHE_DIR = os.environ.get("PROP_SEARCH_SCAN_CACHE") or None
 SKIPPED_PATH = os.environ.get("PROP_SEARCH_SKIPPED_PATH") or os.path.join(EXPERIMENT_DIR, "skipped.json")
 REPORT_PATH = os.environ.get("PROP_SEARCH_REPORT_PATH") or os.path.join(
     ROOT, "docs", "backtests", "2026-09-27-prop-setup-search.md")
@@ -598,7 +602,7 @@ def _evaluate_candidate(candidate, sr=None, plan_hash=None):
     # test that wants a small, fast real run via bt.limit_bars(N) before invoking this function directly.)
     cfg = sr.CONFIGS[cfg_name]
     overlay = sr.config_opts(cfg, ict_target="range")
-    scans = [s for s in (bt.scan(sym, tf, only=(method,), opts=overlay) for sym in usable) if s]
+    scans = [s for s in (_scan(sr, sym, tf, method, overlay) for sym in usable) if s]
     if not scans:
         return {"skip": f"{candidate['id']}: bt.scan() produced no series for {usable} at {tf}"}
     trades = [t for s in scans for t in s["trades"][method]]
@@ -869,6 +873,52 @@ def cmd_run(only=None, workers=1):
         _cmd_run_locked(only=only, workers=workers)
 
 
+def _scan(sr, sym, tf, method, overlay):
+    """`bt.scan(sym, tf, only=(method,), opts=overlay)`, through PROP_SEARCH_SCAN_CACHE when it is set. The key
+    is stability-report's own in-process key plus `only`, the PIT cutoff and the data/code digests
+    (scripts/scan_cache.py), so a cached scan can only be served to a call that would have computed it."""
+    global _DISK
+    bt = sr.bt
+    if SCAN_CACHE_DIR and (_DISK is None or _DISK.dir != SCAN_CACHE_DIR):
+        _DISK = _sc.ScanCache(SCAN_CACHE_DIR, ROOT)     # one per process, so its hit/miss counters accumulate
+    disk = _DISK if SCAN_CACHE_DIR else None
+    key = sr._scan_cache_key(sym, tf, overlay, bt.resolve_methods(sym))
+    return _sc.cached_scan(disk, ROOT, bt, sym, tf, key, only=(method,), opts=overlay)
+
+
+_DISK = None
+
+
+def _distinct_scans(plan):
+    """Every distinct (symbol, timeframe, method, config) scan the plan's candidates need, in plan order --
+    pooled candidates reuse their members' scans, so this is what a GitHub Actions matrix fills in advance."""
+    out, seen = [], set()
+    for c in plan["candidates"]:
+        for sym in c["symbols"]:
+            if not _has_predevelopment_history(sym, c["timeframe"]):
+                continue
+            k = (sym, c["timeframe"], c["method"], c["config"])
+            if k not in seen:
+                seen.add(k); out.append(dict(symbol=sym, tf=c["timeframe"], method=c["method"], config=c["config"]))
+    return out
+
+
+def cmd_list_scans():
+    print(json.dumps(_distinct_scans(load_plan())))
+
+
+def cmd_fill_scan(symbol, tf, method, config):
+    """Compute ONE plan scan into PROP_SEARCH_SCAN_CACHE (required), under the same PIT cutoff and overlay
+    `_evaluate_candidate` uses -- so the later `run` finds it and scans nothing itself."""
+    if not SCAN_CACHE_DIR:
+        raise SystemExit("fill-scan needs PROP_SEARCH_SCAN_CACHE")
+    if dict(symbol=symbol, tf=tf, method=method, config=config) not in _distinct_scans(load_plan()):
+        raise SystemExit(f"fill-scan: {symbol} {tf} {method} {config} is not a scan of the committed plan")
+    sr = _load_sr()
+    sr.bt.pit_cutoff(VALIDATION_END)
+    _scan(sr, symbol, tf, method, sr.config_opts(sr.CONFIGS[config], ict_target="range"))
+
+
 def _cmd_run_locked(only=None, workers=1):
     """The actual `run` loop, always called with `RECORDS_DIR`'s own lock held (see `cmd_run`).
 
@@ -1061,6 +1111,10 @@ def main():
     rp.add_argument("--only", help="comma-separated candidate ids to (re)run instead of the whole plan")
     rp.add_argument("--workers", type=int, default=1, help="parallel candidate-evaluation worker processes")
     sub.add_parser("report", help="write the markdown report listing every evaluated candidate")
+    sub.add_parser("list-scans", help="print the plan's distinct scans as JSON (for a CI matrix)")
+    fp = sub.add_parser("fill-scan", help="compute one plan scan into PROP_SEARCH_SCAN_CACHE")
+    for arg in ("--symbol", "--tf", "--method", "--config"):
+        fp.add_argument(arg, required=True)
     a = ap.parse_args()
     if a.cmd == "plan":
         cmd_plan()
@@ -1069,6 +1123,10 @@ def main():
         cmd_run(only=only, workers=a.workers)
     elif a.cmd == "report":
         cmd_report()
+    elif a.cmd == "list-scans":
+        cmd_list_scans()
+    elif a.cmd == "fill-scan":
+        cmd_fill_scan(a.symbol, a.tf, a.method, a.config)
 
 
 if __name__ == "__main__":

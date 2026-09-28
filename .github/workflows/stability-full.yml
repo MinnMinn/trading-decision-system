@@ -1,9 +1,15 @@
 # Full-universe stability regeneration (owner, 2026-09-27): every crypto execution symbol, every MT5 CFD
-# execution symbol (metals + index CFDs; USOIL/UKOIL removed -- the MT5 account carries neither). Forex was
-# removed from the system by the owner the same day. Separate from research.yml, which stays pinned to the committed files' symbol sets so the
-# engine can be accepted byte-for-byte. One market per file: stability-report prices a run by the market of
-# its first symbol, so markets are never mixed in one run. (research.yml, the byte-for-byte engine acceptance on
-# the old symbol sets, passed 6/7 on run 36324703018 and was deleted with this change.)
+# execution symbol (metals + index CFDs; USOIL/UKOIL removed -- the MT5 account carries neither; forex removed
+# by the owner the same day). One market per file: stability-report prices a run by the market of its first
+# symbol, so markets are never mixed in one run.
+#
+# Three stages (owner-approved 2026-09-28, after all four CFD jobs hit the 6 h job limit on run 36361889130):
+#   plan    -- lists every distinct scan (stability-report.py --list-scans) and the report jobs;
+#   scan    -- ONE job per scan, filling a scan cache (scripts/scan_cache.py) uploaded as its own artifact, so
+#              no job runs 72 scans in a row and a crash or timeout costs one scan;
+#   report  -- one job per (market, account): downloads the market's scans and builds the stability file with
+#              --require-cached, so it simulates only and can never silently fall back to hours of scanning.
+# A scan does not depend on the account, so the four accounts of a market share every scan.
 name: stability-full
 
 on:
@@ -11,9 +17,9 @@ on:
     branches: ["research-full/**"]
   workflow_dispatch:
     inputs:
-      workers:
-        description: "scan worker processes per job"
-        default: "2"
+      markets:
+        description: "comma-separated markets to regenerate (CRYPTO, CFD)"
+        default: "CRYPTO,CFD"
 
 permissions:
   contents: read
@@ -21,42 +27,100 @@ permissions:
 env:
   CRYPTO: "BTCUSDT,ETHUSDT,SOLUSDT,ASTERUSDT,VIRTUALUSDT,SUIUSDT,TAOUSDT,RENDERUSDT,ONDOUSDT"
   CFD: "XAUUSD,XAGUSD,US500,US30,USTEC,DE40,FRA40,AUS200"
+  TFS: "15m,1H,4H"
+  MARKETS: ${{ inputs.markets || 'CRYPTO,CFD' }}
 
 jobs:
-  stability:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      scans: ${{ steps.plan.outputs.scans }}
+      reports: ${{ steps.plan.outputs.reports }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - id: plan
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          python - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, os, subprocess
+          accounts = {"CRYPTO": ["", "crypto-personal-v1", "crypto-prop-discipline", "pilot-binance-futures-testnet"],
+                      "CFD": ["", "ftmo-challenge-phase1", "the5ers-high-stakes-step1", "pilot-mt5-demo"]}
+          scans, reports = [], []
+          for m in [x.strip() for x in os.environ["MARKETS"].split(",") if x.strip()]:
+              out = subprocess.run(["python", "scripts/stability-report.py", "--list-scans", "--tf", os.environ["TFS"],
+                                    "--symbols", os.environ[m]], check=True, capture_output=True, text=True).stdout
+              scans += [dict(s, market=m) for s in json.loads(out.strip().splitlines()[-1])]
+              reports += [dict(market=m, account=a, name=f"{m.lower()}-{a or 'live'}") for a in accounts[m]]
+          print("scans=" + json.dumps(scans))
+          print("reports=" + json.dumps(reports))
+          EOF
+          cat "$GITHUB_OUTPUT" | cut -c1-300
+
+  scan:
+    needs: plan
+    name: scan ${{ matrix.market }} ${{ matrix.symbol }} ${{ matrix.tf }} ${{ matrix.config }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.scans) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: scan into the cache
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          # Outside the checkout: a file inside the work tree makes code_version read dirty=true (CLAUDE.md §46).
+          python -X faulthandler scripts/stability-report.py --scan-only --scan-cache "$RUNNER_TEMP/cache" \
+            --symbols "${{ matrix.symbol }}" --tf "${{ matrix.tf }}" --scan-configs "${{ matrix.config }}" \
+            --ict-target range --workers 1
+      - uses: actions/upload-artifact@v6
+        with:
+          name: scan-${{ matrix.market }}-${{ matrix.symbol }}-${{ matrix.tf }}-${{ matrix.config }}
+          path: ${{ runner.temp }}/cache/
+          retention-days: 7
+
+  report:
+    needs: [plan, scan]
+    # A failed scan job still lets the reports run (and --require-cached names what is missing); a failed plan
+    # does not -- there is no matrix to expand.
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
     name: stability ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 350
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {name: crypto-live, set: CRYPTO, account: ""}
-          - {name: crypto-crypto-personal-v1, set: CRYPTO, account: crypto-personal-v1}
-          - {name: crypto-crypto-prop-discipline, set: CRYPTO, account: crypto-prop-discipline}
-          - {name: crypto-pilot-binance-futures-testnet, set: CRYPTO, account: pilot-binance-futures-testnet}
-          - {name: cfd-live, set: CFD, account: ""}
-          - {name: cfd-ftmo-challenge-phase1, set: CFD, account: ftmo-challenge-phase1}
-          - {name: cfd-the5ers-high-stakes-step1, set: CFD, account: the5ers-high-stakes-step1}
-          - {name: cfd-pilot-mt5-demo, set: CFD, account: pilot-mt5-demo}
+        include: ${{ fromJSON(needs.plan.outputs.reports) }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: stability-report
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: scan-${{ matrix.market }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/cache
+      - name: stability-report (cached scans only)
         env:
           PYTHONUTF8: "1"
-          SYMBOLS: ${{ env[matrix.set] }}
+          SYMBOLS: ${{ env[matrix.market] }}
         run: |
-          # Outputs go to the runner's temp dir, NOT the checkout: a file written inside the work tree makes the
-          # run's own code_version read dirty=true (snapshot.code_version), and a dirty run is not reproducible
-          # from its SHA alone (CLAUDE.md §46).
           out="$RUNNER_TEMP/out"; mkdir -p "$out"
           acct=()
           if [ -n "${{ matrix.account }}" ]; then acct=(--account "${{ matrix.account }}"); fi
-          python -X faulthandler scripts/stability-report.py --tf 15m,1H,4H --symbols "$SYMBOLS" \
-            --ict-target range --json "$out/${{ matrix.name }}.json" --workers "${{ inputs.workers || 2 }}" "${acct[@]}" \
+          python -X faulthandler scripts/stability-report.py --tf "$TFS" --symbols "$SYMBOLS" \
+            --ict-target range --json "$out/${{ matrix.name }}.json" --workers 1 \
+            --scan-cache "$RUNNER_TEMP/cache" --require-cached "${acct[@]}" \
             > "$out/${{ matrix.name }}.stdout.md" 2> "$out/${{ matrix.name }}.log"
       - uses: actions/upload-artifact@v6
         if: always()
@@ -66,7 +130,7 @@ jobs:
           retention-days: 14
 
   collect:
-    needs: stability
+    needs: report
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -74,6 +138,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v7
         with:
+          pattern: stability-*
           path: results
       - name: push results branch
         run: |
