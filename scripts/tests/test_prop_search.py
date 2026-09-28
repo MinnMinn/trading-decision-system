@@ -20,6 +20,7 @@ import sys
 import tempfile
 import types
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -593,8 +594,10 @@ class ParallelWorkersRouteThroughTheSameOrchestration(unittest.TestCase):
             ps.BUDGET_MAX = 4
             ps.TARGET_PASSES = 100
             ps._evaluate_candidate = lambda c, sr=None: _fake_evaluate(c, passed=False)
-            ps._pool.IsolatedExecutor = _FakeExecutor
-            ps.cmd_run(workers=3)
+            # patch.object, not assignment: ps._pool IS the process-wide isolated_pool module, and a leaked fake
+            # executor made test_isolated_pool's crash test os._exit() the whole test process when run after this.
+            with mock.patch.object(ps._pool, "IsolatedExecutor", _FakeExecutor):
+                ps.cmd_run(workers=3)
             self.assertEqual(len(os.listdir(ps.RECORDS_DIR)), 4)
         finally:
             shutil.rmtree(d, ignore_errors=True)
@@ -611,8 +614,8 @@ class ParallelWorkersRouteThroughTheSameOrchestration(unittest.TestCase):
             plan = {"candidates": candidates, "plan_hash": "fixture", "candidate_count": len(candidates)}
             ps.load_plan = lambda: plan
             ps._evaluate_candidate = lambda c, sr=None: _fake_evaluate(c, skip=f"no history for {c['id']}")
-            ps._pool.IsolatedExecutor = _FakeExecutor
-            ps.cmd_run(workers=2)
+            with mock.patch.object(ps._pool, "IsolatedExecutor", _FakeExecutor):
+                ps.cmd_run(workers=2)
             self.assertFalse(os.path.isdir(ps.RECORDS_DIR) and os.listdir(ps.RECORDS_DIR))
             skipped = json.load(open(ps.SKIPPED_PATH, encoding="utf-8"))
             self.assertEqual({s["id"] for s in skipped}, {"C0", "C1"})
