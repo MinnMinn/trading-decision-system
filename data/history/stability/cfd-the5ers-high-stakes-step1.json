@@ -4,7 +4,7 @@
   "symbols": "XAUUSD,XAGUSD,US500,US30,USTEC,DE40,FRA40,AUS200",
   "tf": "15m,1H,4H",
   "ict_target": "range",
-  "account": null,
+  "account": "the5ers-high-stakes-step1",
   "account_file": null,
   "live_parity_sizing": true,
   "entry_pricing": "per-method (INT-4/PAR-2)"
@@ -21,7 +21,7 @@
  "dataset_snapshot": {
   "snapshot_format": 1,
   "snapshot_id": "bde0a600d2bb09db",
-  "created_at": "2026-09-28T08:29:33.140910Z",
+  "created_at": "2026-09-28T08:29:37.776051Z",
   "code_version": {
    "git_sha": "a235a7645989345d0a1638c22ca31c5afab8dc91",
    "dirty": false,
@@ -833,22 +833,22 @@
    "method": "WYCKOFF-BOOK",
    "first": "2018-03-20",
    "last": "2026-09-25",
-   "failed_by": null,
-   "account": null,
+   "failed_by": "drawdown: equity 89394.07 <= 90% of initial_balance 100000.00",
+   "account": "the5ers-high-stakes-step1",
    "n": 404,
-   "n_until_account_failure": 404,
-   "ann": -15.68782661683905,
-   "dd": 77.5004443776503,
-   "final": 2335.294069690404,
+   "n_until_account_failure": 17,
+   "ann": -1.3067921929165172,
+   "dd": 11.877303397613007,
+   "final": 8939.407114412574,
    "ruin": null,
-   "q_pos": 14.285714285714285,
-   "q_worst": -14.00862372604923,
-   "q_med": -3.6723606921063467,
-   "q_mean": -3.959385756056077,
-   "q_sd": 4.636500508153488,
-   "stab": -5.052095213556808,
+   "q_pos": 0.0,
+   "q_worst": -5.458396331682314,
+   "q_med": -0.9293287568669428,
+   "q_mean": -1.8298496504968658,
+   "q_sd": 2.038265464101221,
+   "stab": -2.1990256071497014,
    "y_pos": 0,
-   "y_n": 9,
+   "y_n": 3,
    "years": [
     [
      "2018",
@@ -856,35 +856,11 @@
     ],
     [
      "2019",
-     -11.602515118998824
-    ],
-    [
-     "2020",
-     -12.24859724666909
-    ],
-    [
-     "2021",
-     -14.032425948011785
-    ],
-    [
-     "2022",
-     -20.30309378974604
-    ],
-    [
-     "2023",
-     -12.871827814363524
-    ],
-    [
-     "2024",
-     -6.6824827807172476
-    ],
-    [
-     "2025",
-     -26.38026269799689
+     -0.7228172517663167
     ],
     [
      "2026",
-     -18.473996677391845
+     0.0
     ]
    ],
    "quarters": [
@@ -892,37 +868,8 @@
     -3.662044057564995,
     -5.458396331682314,
     -1.135840261967569,
-    -4.362370368079349,
-    -3.9896237280600655,
-    -1.777309754086187,
-    -1.98758095478766,
-    -3.0239159185482034,
-    -1.9565762793547825,
-    -2.923486337516157,
-    -4.927090487092656,
-    -4.442012992419264,
-    0.796572624772951,
-    -3.9743482303892463,
-    -7.0531555060987845,
-    -2.532256542780109,
-    -3.6723606921063467,
-    -3.303971189579935,
-    -12.21486215592199,
-    11.55890581687733,
-    -14.00862372604923,
-    -10.049421241159207,
-    0.9707298465325254,
-    1.0870512616929284,
-    1.3209697990502978,
-    -2.614404165242501,
-    -6.443582438983553,
-    -6.590910478621859,
-    -13.38552869214208,
-    -4.457642644672555,
-    -4.760147733639775,
-    -8.164637275522201,
-    -9.0744777531368,
-    -2.366152873683347
+    -0.7228172517663167,
+    0.0
    ],
    "perf": {
     "n": 404,
@@ -999,35 +946,63 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 351,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 404,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.486,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 351,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 404,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 1.0,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 351,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 404,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.095,
+     "profit_target": 0.08
     }
    },
    "w1y": {
-    "n": 72,
-    "n_until_account_failure": 72,
-    "ann": -22.747831021257948,
-    "dd": 25.64932132615886,
-    "final": 7725.216897874206,
-    "ruin": null,
+    "n": 27,
+    "n_until_account_failure": 27,
+    "ann": -10.613052167889602,
+    "dd": 11.97722386030709,
+    "final": 8938.69478321104,
+    "ruin": "2026-02-26T15:00:00Z",
     "q_pos": 0.0,
-    "q_worst": -9.0744777531368,
-    "q_med": -3.807061367357756,
-    "q_mean": -4.980873319295425,
-    "q_sd": 3.075078024364279,
-    "stab": -3.621882515180112,
+    "q_worst": -5.667883474394908,
+    "q_med": -2.6495493470673646,
+    "q_mean": -2.7417455421324095,
+    "q_sd": 2.166571037805524,
+    "stab": -2.5309537460719205,
     "y_pos": 0,
     "y_n": 2,
     "perf": {
-     "n": 72,
+     "n": 27,
      "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
      "_assumptions": {
       "breakeven_band_R": 0.05,
@@ -1038,66 +1013,66 @@
        "seed": 20260918
       }
      },
-     "total_trades": 72,
-     "wins": 14,
-     "losses": 58,
+     "total_trades": 27,
+     "wins": 5,
+     "losses": 22,
      "breakeven": 0,
-     "win_rate": 0.19444444444444445,
-     "expectancy": -0.5505277777777777,
-     "average_R": -0.5505277777777777,
-     "average_win_R": 3.090642857142857,
-     "average_loss_R": -1.4294310344827585,
-     "total_R": -39.638,
-     "profit_factor": 0.5218980303231332,
+     "win_rate": 0.18518518518518517,
+     "expectancy": -0.6431111111111112,
+     "average_R": -0.6431111111111112,
+     "average_win_R": 3.0648,
+     "average_loss_R": -1.485818181818182,
+     "total_R": -17.364,
+     "profit_factor": 0.4687958883994126,
      "consecutive_wins": 2,
-     "consecutive_losses": 11,
+     "consecutive_losses": 7,
      "mfe": {
-      "mean": 1.5480725576505021,
-      "n": 72,
-      "mean_on_winners": 4.10535301063445,
-      "mean_on_losers": 0.9307979655509285
+      "mean": 1.526024587041522,
+      "n": 27,
+      "mean_on_winners": 4.0428305356372665,
+      "mean_on_losers": 0.9540232350879438
      },
      "mae": {
-      "mean": -1.3820455370297555,
-      "n": 72,
-      "mean_on_winners": -0.5474861314634685,
-      "mean_on_losers": -1.5834909107871353
+      "mean": -1.5672478649249195,
+      "n": 27,
+      "mean_on_winners": -0.7337126805708067,
+      "mean_on_losers": -1.7566876795508541
      },
      "max_drawdown": {
-      "fraction": 0.2564932132615886,
+      "fraction": 0.1197722386030709,
       "in": "account"
      },
      "average_drawdown": {
-      "fraction": 0.1382985354141779,
+      "fraction": 0.06993804808491905,
       "episodes": 2,
       "includes_unrecovered": true
      },
      "time_in_drawdown": {
-      "fraction_of_series": 0.9583333333333334,
-      "longest_stretch": 68,
+      "fraction_of_series": 0.8888888888888888,
+      "longest_stretch": 23,
       "unit": "curve points"
      },
-     "recovery_factor": -0.8412597503011242,
+     "recovery_factor": -0.773064371814682,
      "sharpe": {
-      "value": -2.4932939305257324,
+      "value": -1.8233665457101296,
       "basis": "annualised",
       "risk_free_rate": 0.0
      },
      "sortino": {
-      "value": -3.578329911006347,
+      "value": -2.438997494441568,
       "basis": "annualised",
       "target_return": 0.0
      },
      "time_to_target": {
-      "median_bars": 32.0,
-      "mean_bars": 42.0,
-      "n_reached_target": 14,
-      "n_did_not": 58,
+      "median_bars": 29,
+      "mean_bars": 30.6,
+      "n_reached_target": 5,
+      "n_did_not": 22,
       "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
      },
      "pnl": {
-      "value": -2274.7831021257866,
-      "n_with_pnl": 72,
+      "value": -1061.3052167889557,
+      "n_with_pnl": 27,
       "basis": "realised, from the trades"
      },
      "risk_of_ruin": {
@@ -1120,22 +1095,22 @@
     "dataset_last_bar": "2026-09-25T20:45:00Z",
     "split": "entry_time",
     "in_sample": {
-     "n": 61,
-     "n_until_account_failure": 61,
-     "ann": -25.44366093375957,
-     "dd": 27.12453157541983,
-     "final": 7455.633906624043,
-     "ruin": null,
-     "q_pos": 20.0,
+     "n": 20,
+     "n_until_account_failure": 20,
+     "ann": -11.387768333112923,
+     "dd": 13.385528692142035,
+     "final": 8861.223166688707,
+     "ruin": "2025-06-26T09:00:00Z",
+     "q_pos": 33.33333333333333,
      "q_worst": -13.385528692142035,
-     "q_med": -4.760147733639808,
-     "q_mean": -5.56641288104657,
-     "q_sd": 5.0769481073167215,
-     "stab": -2.451645620508229,
+     "q_med": 0.0,
+     "q_mean": -3.6930104960265684,
+     "q_sd": 6.918027853591846,
+     "stab": -0.9246105895167941,
      "y_pos": 0,
      "y_n": 2,
      "perf": {
-      "n": 61,
+      "n": 20,
       "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
       "_assumptions": {
        "breakeven_band_R": 0.05,
@@ -1146,66 +1121,66 @@
         "seed": 20260918
        }
       },
-      "total_trades": 61,
-      "wins": 10,
-      "losses": 51,
+      "total_trades": 20,
+      "wins": 3,
+      "losses": 17,
       "breakeven": 0,
-      "win_rate": 0.16393442622950818,
-      "expectancy": -0.6857213114754098,
-      "average_R": -0.6857213114754098,
-      "average_win_R": 3.0466,
-      "average_loss_R": -1.417549019607843,
-      "total_R": -41.829,
-      "profit_factor": 0.42141226917490837,
-      "consecutive_wins": 2,
+      "win_rate": 0.15,
+      "expectancy": -0.9121,
+      "average_R": -0.9121,
+      "average_win_R": 2.1296666666666666,
+      "average_loss_R": -1.4488823529411765,
+      "total_R": -18.242,
+      "profit_factor": 0.2593885753724981,
+      "consecutive_wins": 1,
       "consecutive_losses": 11,
       "mfe": {
-       "mean": 1.4485032888147722,
-       "n": 61,
-       "mean_on_winners": 4.177085575044899,
-       "mean_on_losers": 0.9134871542598454
+       "mean": 1.1566940039011797,
+       "n": 20,
+       "mean_on_winners": 3.1876392115360854,
+       "mean_on_losers": 0.7982919084361965
       },
       "mae": {
-       "mean": -1.3623191073928809,
-       "n": 61,
-       "mean_on_winners": -0.5603736503628857,
-       "mean_on_losers": -1.5195633146536642
+       "mean": -1.2079312551218528,
+       "n": 20,
+       "mean_on_winners": -0.36352003375379877,
+       "mean_on_losers": -1.3569450000691565
       },
       "max_drawdown": {
-       "fraction": 0.2712453157541983,
+       "fraction": 0.13385528692142035,
        "in": "account"
       },
       "average_drawdown": {
-       "fraction": 0.2712453157541983,
+       "fraction": 0.13385528692142035,
        "episodes": 1,
        "includes_unrecovered": true
       },
       "time_in_drawdown": {
-       "fraction_of_series": 0.9836065573770492,
-       "longest_stretch": 60,
+       "fraction_of_series": 0.95,
+       "longest_stretch": 19,
        "unit": "curve points"
       },
       "recovery_factor": -1.0,
       "sharpe": {
-       "value": -3.05083357429805,
+       "value": -3.158182694475104,
        "basis": "annualised",
        "risk_free_rate": 0.0
       },
       "sortino": {
-       "value": -4.034464453250827,
+       "value": -3.0258318605688737,
        "basis": "annualised",
        "target_return": 0.0
       },
       "time_to_target": {
-       "median_bars": 31.0,
-       "mean_bars": 41.5,
-       "n_reached_target": 10,
-       "n_did_not": 51,
+       "median_bars": 81,
+       "mean_bars": 62.333333333333336,
+       "n_reached_target": 3,
+       "n_did_not": 17,
        "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
       },
       "pnl": {
-       "value": -2544.3660933759547,
-       "n_with_pnl": 61,
+       "value": -1138.7768333112956,
+       "n_with_pnl": 20,
        "basis": "realised, from the trades"
       },
       "risk_of_ruin": {
@@ -1223,9 +1198,9 @@
      },
      "since": "2025-03-25",
      "until": "2026-03-25",
-     "net_pnl": -2544.3660933759566,
-     "expectancy_R": -0.6857213114754098,
-     "profit_factor": 0.42141226917490837,
+     "net_pnl": -1138.7768333112926,
+     "expectancy_R": -0.9121,
+     "profit_factor": 0.2593885753724981,
      "months": [
       {
        "month": "2025-03",
@@ -1246,63 +1221,63 @@
       },
       {
        "month": "2025-07",
-       "ret_pct": -0.7137
+       "ret_pct": 0.0
       },
       {
        "month": "2025-08",
-       "ret_pct": -0.734
+       "ret_pct": 0.0
       },
       {
        "month": "2025-09",
-       "ret_pct": -3.0594
+       "ret_pct": 0.0
       },
       {
        "month": "2025-10",
-       "ret_pct": -1.9321
+       "ret_pct": 0.0
       },
       {
        "month": "2025-11",
-       "ret_pct": -1.2791
+       "ret_pct": 0.0
       },
       {
        "month": "2025-12",
-       "ret_pct": -1.6255
+       "ret_pct": 0.0
       },
       {
        "month": "2026-01",
-       "ret_pct": -0.0717
+       "ret_pct": 0.0
       },
       {
        "month": "2026-02",
-       "ret_pct": -4.3544
+       "ret_pct": 0.0
       },
       {
        "month": "2026-03",
-       "ret_pct": -3.2563,
+       "ret_pct": 0.0,
        "partial": true
       }
      ],
-     "m_mean_geo": -2.4187366915642716,
-     "m_losing": 12,
+     "m_mean_geo": -1.0031272050603057,
+     "m_losing": 3,
      "m_worst": -6.0843
     },
     "oos": {
-     "n": 37,
-     "n_until_account_failure": 37,
-     "ann": -20.23947402896954,
-     "dd": 14.881062554402952,
-     "final": 8922.578832011322,
-     "ruin": null,
+     "n": 20,
+     "n_until_account_failure": 20,
+     "ann": -19.434633859660856,
+     "dd": 12.467164125529877,
+     "final": 8967.85341844716,
+     "ruin": "2026-07-13T16:30:00Z",
      "q_pos": 0.0,
      "q_worst": -7.350523632442019,
-     "q_med": -2.366152873683358,
-     "q_mean": -3.6926828914032575,
-     "q_sd": 2.618809555464497,
-     "stab": -2.442298398829673,
+     "q_med": -1.8707431794674934,
+     "q_mean": -3.527546326664636,
+     "q_sd": 2.711239730845901,
+     "stab": -2.253540841233481,
      "y_pos": 0,
      "y_n": 1,
      "perf": {
-      "n": 37,
+      "n": 20,
       "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
       "_assumptions": {
        "breakeven_band_R": 0.05,
@@ -1313,66 +1288,66 @@
         "seed": 20260918
        }
       },
-      "total_trades": 37,
-      "wins": 7,
-      "losses": 30,
+      "total_trades": 20,
+      "wins": 2,
+      "losses": 18,
       "breakeven": 0,
-      "win_rate": 0.1891891891891892,
-      "expectancy": -0.639054054054054,
-      "average_R": -0.639054054054054,
-      "average_win_R": 2.7417142857142855,
-      "average_loss_R": -1.4279000000000002,
-      "total_R": -23.645,
-      "profit_factor": 0.4480239045684805,
-      "consecutive_wins": 2,
+      "win_rate": 0.1,
+      "expectancy": -0.91335,
+      "average_R": -0.91335,
+      "average_win_R": 3.1715,
+      "average_loss_R": -1.3672222222222221,
+      "total_R": -18.267,
+      "profit_factor": 0.2577407557903291,
+      "consecutive_wins": 1,
       "consecutive_losses": 11,
       "mfe": {
-       "mean": 1.5041346336703645,
-       "n": 37,
-       "mean_on_winners": 3.6095720047202233,
-       "mean_on_losers": 1.0128659137587308
+       "mean": 1.0618716564604118,
+       "n": 20,
+       "mean_on_winners": 3.418315881056473,
+       "mean_on_losers": 0.8000445203941827
       },
       "mae": {
-       "mean": -1.3131804956959783,
-       "n": 37,
-       "mean_on_winners": -0.4502327768744427,
-       "mean_on_losers": -1.514534963421003
+       "mean": -1.5374225485620532,
+       "n": 20,
+       "mean_on_winners": -0.1866439063233625,
+       "mean_on_losers": -1.687509064366352
       },
       "max_drawdown": {
-       "fraction": 0.14881062554402952,
+       "fraction": 0.12467164125529877,
        "in": "account"
       },
       "average_drawdown": {
-       "fraction": 0.14881062554402952,
+       "fraction": 0.12467164125529877,
        "episodes": 1,
        "includes_unrecovered": true
       },
       "time_in_drawdown": {
-       "fraction_of_series": 0.9459459459459459,
-       "longest_stretch": 35,
+       "fraction_of_series": 0.9,
+       "longest_stretch": 18,
        "unit": "curve points"
       },
-      "recovery_factor": -0.6412681786047668,
+      "recovery_factor": -0.7286145671090524,
       "sharpe": {
-       "value": -3.2647302187148393,
+       "value": -4.137127717488805,
        "basis": "annualised",
        "risk_free_rate": 0.0
       },
       "sortino": {
-       "value": -4.201650051848842,
+       "value": -4.394323192201493,
        "basis": "annualised",
        "target_return": 0.0
       },
       "time_to_target": {
-       "median_bars": 39,
-       "mean_bars": 51.42857142857143,
-       "n_reached_target": 7,
-       "n_did_not": 30,
+       "median_bars": 44.5,
+       "mean_bars": 44.5,
+       "n_reached_target": 2,
+       "n_did_not": 18,
        "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
       },
       "pnl": {
-       "value": -1077.4211679886769,
-       "n_with_pnl": 37,
+       "value": -1032.1465815528418,
+       "n_with_pnl": 20,
        "basis": "realised, from the trades"
       },
       "risk_of_ruin": {
@@ -1390,9 +1365,9 @@
      },
      "since": "2026-03-25",
      "until": "2026-09-25",
-     "net_pnl": -1077.4211679886776,
-     "expectancy_R": -0.639054054054054,
-     "profit_factor": 0.4480239045684805,
+     "net_pnl": -1032.1465815528409,
+     "expectancy_R": -0.91335,
+     "profit_factor": 0.2577407557903291,
      "months": [
       {
        "month": "2026-03",
@@ -1413,20 +1388,20 @@
       },
       {
        "month": "2026-07",
-       "ret_pct": -3.2461
+       "ret_pct": -1.8707
       },
       {
        "month": "2026-08",
-       "ret_pct": 3.5861
+       "ret_pct": 0.0
       },
       {
        "month": "2026-09",
-       "ret_pct": -2.584,
+       "ret_pct": 0.0,
        "partial": true
       }
      ],
-     "m_mean_geo": -1.8681329617900366,
-     "m_losing": 6,
+     "m_mean_geo": -1.7859375420193002,
+     "m_losing": 5,
      "m_worst": -4.7125
     }
    }
@@ -1438,7 +1413,7 @@
    "first": "2018-03-20",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 242,
    "n_until_account_failure": 242,
    "ann": -1.2226904630560753,
@@ -1602,16 +1577,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 217,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 242,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 217,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 242,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.9175,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 217,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 242,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.3715,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -2041,7 +2044,7 @@
    "first": "2018-03-20",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 1,
    "n_until_account_failure": 1,
    "ann": -0.1474681188338045,
@@ -2146,15 +2149,15 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 1 is below the 5 a bootstrap needs to resample at all -- with 1 outcomes every path is drawn from the same 1 numbers",
      "owner": "§39"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 1 is below the 5 a bootstrap needs to resample at all -- with 1 outcomes every path is drawn from the same 1 numbers",
      "owner": "§39"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 1 is below the 5 a bootstrap needs to resample at all -- with 1 outcomes every path is drawn from the same 1 numbers",
      "owner": "§39"
     }
    },
@@ -2601,22 +2604,22 @@
    "method": "WYCKOFF-BOOK",
    "first": "2018-03-20",
    "last": "2026-09-25",
-   "failed_by": null,
-   "account": null,
+   "failed_by": "drawdown: equity 89056.69 <= 90% of initial_balance 100000.00",
+   "account": "the5ers-high-stakes-step1",
    "n": 404,
-   "n_until_account_failure": 404,
-   "ann": -13.213807074205143,
-   "dd": 70.54383937938611,
-   "final": 2988.1134142241253,
+   "n_until_account_failure": 22,
+   "ann": -1.3505658122056619,
+   "dd": 12.209883015072334,
+   "final": 8905.669329335034,
    "ruin": null,
-   "q_pos": 8.571428571428571,
-   "q_worst": -11.341257737584753,
-   "q_med": -3.310346679171716,
-   "q_mean": -3.330762402290288,
-   "q_sd": 3.436555017211348,
-   "stab": -5.733956247407292,
+   "q_pos": 0.0,
+   "q_worst": -4.502832047013694,
+   "q_med": -1.5658400748433665,
+   "q_mean": -1.8979938884669367,
+   "q_sd": 1.7169607307788695,
+   "stab": -2.7077594020195965,
    "y_pos": 0,
-   "y_n": 9,
+   "y_n": 3,
    "years": [
     [
      "2018",
@@ -2624,35 +2627,11 @@
     ],
     [
      "2019",
-     -10.751341034588958
-    ],
-    [
-     "2020",
-     -7.241184580834159
-    ],
-    [
-     "2021",
-     -8.369840283071529
-    ],
-    [
-     "2022",
-     -12.690551867583299
-    ],
-    [
-     "2023",
-     -14.953048952386593
-    ],
-    [
-     "2024",
-     -12.152513818439692
-    ],
-    [
-     "2025",
-     -20.49518991078966
+     -3.7534511341011934
     ],
     [
      "2026",
-     -17.912390966784773
+     0.0
     ]
    ],
    "quarters": [
@@ -2661,36 +2640,7 @@
     -4.502832047013694,
     -1.434676874026053,
     -3.7534511341011934,
-    -3.678419478249484,
-    -1.7773097540861982,
-    -1.9875809547876822,
-    -1.5429578571876212,
-    -1.9565762793547714,
-    -0.44253454160460004,
-    -3.4802676506757724,
-    -2.6718036136908707,
-    0.796572624772951,
-    -3.4903293925242385,
-    -3.2205455385847626,
-    -2.454295596191869,
-    -2.2507044962436273,
-    2.2273009736202276,
-    -10.427939813915298,
-    5.683438504627625,
-    -9.996389550734275,
-    -9.353684497325176,
-    -1.362574959555718,
-    -3.388998262023457,
-    -3.6092602670073637,
-    -0.1278812539792229,
-    -5.545386214989656,
-    -3.536481777178768,
-    -11.341257737584753,
-    -3.8545496616114505,
-    -3.310346679171716,
-    -5.427977499205239,
-    -7.694084820320324,
-    -5.965894704595353
+    0.0
    ],
    "perf": {
     "n": 404,
@@ -2767,35 +2717,63 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 351,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 404,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.1275,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 351,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 404,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 1.0,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 351,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 404,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.07,
+     "profit_target": 0.08
     }
    },
    "w1y": {
-    "n": 72,
-    "n_until_account_failure": 72,
-    "ann": -21.031584194746213,
-    "dd": 22.236754301224355,
-    "final": 7896.841580525379,
-    "ruin": null,
+    "n": 41,
+    "n_until_account_failure": 41,
+    "ann": -10.319729480030315,
+    "dd": 11.688377692982687,
+    "final": 8968.027051996969,
+    "ruin": "2026-04-14T12:15:00Z",
     "q_pos": 0.0,
-    "q_worst": -7.694084820320346,
-    "q_med": -5.427977499205294,
-    "q_mean": -4.584549236490778,
-    "q_sd": 2.3185333122556275,
-    "stab": -4.421486499590085,
+    "q_worst": -5.427977499205294,
+    "q_med": -1.4920373267769738,
+    "q_mean": -2.1379334018021656,
+    "q_sd": 1.8088587408064358,
+    "stab": -2.6428622146943965,
     "y_pos": 0,
     "y_n": 2,
     "perf": {
-     "n": 72,
+     "n": 41,
      "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
      "_assumptions": {
       "breakeven_band_R": 0.05,
@@ -2806,66 +2784,66 @@
        "seed": 20260918
       }
      },
-     "total_trades": 72,
-     "wins": 11,
-     "losses": 40,
-     "breakeven": 21,
-     "win_rate": 0.1527777777777778,
-     "expectancy": -0.4057222222222222,
-     "average_R": -0.4057222222222222,
-     "average_win_R": 3.352909090909091,
-     "average_loss_R": -1.441925,
-     "total_R": -29.212,
-     "profit_factor": 0.6394576694349567,
+     "total_trades": 41,
+     "wins": 7,
+     "losses": 22,
+     "breakeven": 12,
+     "win_rate": 0.17073170731707318,
+     "expectancy": -0.2408048780487805,
+     "average_R": -0.2408048780487805,
+     "average_win_R": 3.6775714285714285,
+     "average_loss_R": -1.4689999999999999,
+     "total_R": -9.873000000000001,
+     "profit_factor": 0.7965530045176062,
      "consecutive_wins": 1,
-     "consecutive_losses": 7,
+     "consecutive_losses": 4,
      "mfe": {
-      "mean": 1.4277007270208886,
-      "n": 72,
-      "mean_on_winners": 4.3471969427135715,
-      "mean_on_losers": 0.4630787697245918
+      "mean": 1.5000140814450516,
+      "n": 41,
+      "mean_on_winners": 4.800349149963642,
+      "mean_on_losers": 0.45429081377809805
      },
      "mae": {
-      "mean": -1.1551704926428847,
-      "n": 72,
-      "mean_on_winners": -0.4824051699302104,
-      "mean_on_losers": -1.3888861483210477
+      "mean": -1.2407331206204806,
+      "n": 41,
+      "mean_on_winners": -0.5630691981614969,
+      "mean_on_losers": -1.3143023716743334
      },
      "max_drawdown": {
-      "fraction": 0.22236754301224357,
+      "fraction": 0.11688377692982688,
       "in": "account"
      },
      "average_drawdown": {
-      "fraction": 0.12123570028950538,
+      "fraction": 0.06849381724829703,
       "episodes": 2,
       "includes_unrecovered": true
      },
      "time_in_drawdown": {
-      "fraction_of_series": 0.9583333333333334,
-      "longest_stretch": 68,
+      "fraction_of_series": 0.926829268292683,
+      "longest_stretch": 37,
       "unit": "curve points"
      },
-     "recovery_factor": -0.892014169972585,
+     "recovery_factor": -0.7666931900539563,
      "sharpe": {
-      "value": -1.9831170970879786,
+      "value": -0.7952673493450588,
       "basis": "annualised",
       "risk_free_rate": 0.0
      },
      "sortino": {
-      "value": -3.0626763827939727,
+      "value": -1.3840786188753327,
       "basis": "annualised",
       "target_return": 0.0
      },
      "time_to_target": {
       "median_bars": 29,
-      "mean_bars": 33.63636363636363,
-      "n_reached_target": 11,
-      "n_did_not": 61,
+      "mean_bars": 38.857142857142854,
+      "n_reached_target": 7,
+      "n_did_not": 34,
       "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
      },
      "pnl": {
-      "value": -2103.1584194746156,
-      "n_with_pnl": 72,
+      "value": -1031.972948003026,
+      "n_with_pnl": 41,
       "basis": "realised, from the trades"
      },
      "risk_of_ruin": {
@@ -2888,22 +2866,22 @@
     "dataset_last_bar": "2026-09-25T20:45:00Z",
     "split": "entry_time",
     "in_sample": {
-     "n": 61,
-     "n_until_account_failure": 61,
-     "ann": -20.11198710008789,
-     "dd": 21.913060183688934,
-     "final": 7988.801289991211,
-     "ruin": null,
-     "q_pos": 20.0,
+     "n": 23,
+     "n_until_account_failure": 23,
+     "ann": -10.49130962725534,
+     "dd": 12.509280623488591,
+     "final": 8950.869037274466,
+     "ruin": "2025-08-29T14:30:00Z",
+     "q_pos": 25.0,
      "q_worst": -11.341257737584753,
-     "q_med": -3.854549661611484,
-     "q_mean": -4.291289315385742,
-     "q_sd": 4.366188788604787,
-     "stab": -2.1977095093470127,
+     "q_med": -0.658718393752239,
+     "q_mean": -2.5880493302567253,
+     "q_sd": 5.217463434667615,
+     "stab": -0.9920718612267956,
      "y_pos": 0,
      "y_n": 2,
      "perf": {
-      "n": 61,
+      "n": 23,
       "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
       "_assumptions": {
        "breakeven_band_R": 0.05,
@@ -2914,66 +2892,66 @@
         "seed": 20260918
        }
       },
-      "total_trades": 61,
-      "wins": 8,
-      "losses": 35,
-      "breakeven": 18,
-      "win_rate": 0.13114754098360656,
-      "expectancy": -0.5252131147540983,
-      "average_R": -0.5252131147540983,
-      "average_win_R": 3.283,
-      "average_loss_R": -1.485742857142857,
-      "total_R": -32.038,
-      "profit_factor": 0.5050672102459568,
+      "total_trades": 23,
+      "wins": 2,
+      "losses": 14,
+      "breakeven": 7,
+      "win_rate": 0.08695652173913043,
+      "expectancy": -0.8316086956521739,
+      "average_R": -0.8316086956521739,
+      "average_win_R": 2.193,
+      "average_loss_R": -1.4439285714285715,
+      "total_R": -19.127,
+      "profit_factor": 0.21696759831808063,
       "consecutive_wins": 1,
       "consecutive_losses": 5,
       "mfe": {
-       "mean": 1.3744722977004917,
-       "n": 61,
-       "mean_on_winners": 4.579877556549417,
-       "mean_on_losers": 0.3811589696003995
+       "mean": 1.311900820729839,
+       "n": 23,
+       "mean_on_winners": 3.5730167686483867,
+       "mean_on_losers": 0.3668224510340105
       },
       "mae": {
-       "mean": -1.1938859701217455,
-       "n": 61,
-       "mean_on_winners": -0.522628839697744,
-       "mean_on_losers": -1.3394364200338782
+       "mean": -1.074484679966073,
+       "n": 23,
+       "mean_on_winners": -0.25321679173825684,
+       "mean_on_losers": -1.3519664958882294
       },
       "max_drawdown": {
-       "fraction": 0.21913060183688934,
+       "fraction": 0.12509280623488592,
        "in": "account"
       },
       "average_drawdown": {
-       "fraction": 0.21913060183688934,
+       "fraction": 0.12509280623488592,
        "episodes": 1,
        "includes_unrecovered": true
       },
       "time_in_drawdown": {
-       "fraction_of_series": 0.9836065573770492,
-       "longest_stretch": 60,
+       "fraction_of_series": 0.9565217391304348,
+       "longest_stretch": 22,
        "unit": "curve points"
       },
       "recovery_factor": -1.0,
       "sharpe": {
-       "value": -2.48386080323477,
+       "value": -3.8037430801671634,
        "basis": "annualised",
        "risk_free_rate": 0.0
       },
       "sortino": {
-       "value": -3.5193238999028233,
+       "value": -3.4053634302987112,
        "basis": "annualised",
        "target_return": 0.0
       },
       "time_to_target": {
-       "median_bars": 20.5,
-       "mean_bars": 37.625,
-       "n_reached_target": 8,
-       "n_did_not": 53,
+       "median_bars": 53.0,
+       "mean_bars": 53.0,
+       "n_reached_target": 2,
+       "n_did_not": 21,
        "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
       },
       "pnl": {
-       "value": -2011.198710008786,
-       "n_with_pnl": 61,
+       "value": -1049.1309627255343,
+       "n_with_pnl": 23,
        "basis": "realised, from the trades"
       },
       "risk_of_ruin": {
@@ -2991,9 +2969,9 @@
      },
      "since": "2025-03-25",
      "until": "2026-03-25",
-     "net_pnl": -2011.198710008789,
-     "expectancy_R": -0.5252131147540983,
-     "profit_factor": 0.5050672102459568,
+     "net_pnl": -1049.1309627255341,
+     "expectancy_R": -0.8316086956521739,
+     "profit_factor": 0.21696759831808063,
      "months": [
       {
        "month": "2025-03",
@@ -3022,55 +3000,55 @@
       },
       {
        "month": "2025-09",
-       "ret_pct": -2.571
+       "ret_pct": 0.0
       },
       {
        "month": "2025-10",
-       "ret_pct": -0.938
+       "ret_pct": 0.0
       },
       {
        "month": "2025-11",
-       "ret_pct": -0.782
+       "ret_pct": 0.0
       },
       {
        "month": "2025-12",
-       "ret_pct": -1.6255
+       "ret_pct": 0.0
       },
       {
        "month": "2026-01",
-       "ret_pct": -1.2571
+       "ret_pct": 0.0
       },
       {
        "month": "2026-02",
-       "ret_pct": -1.8142
+       "ret_pct": 0.0
       },
       {
        "month": "2026-03",
-       "ret_pct": -2.2778,
+       "ret_pct": 0.0,
        "partial": true
       }
      ],
-     "m_mean_geo": -1.855062651574757,
-     "m_losing": 12,
+     "m_mean_geo": -0.9199950781934363,
+     "m_losing": 5,
      "m_worst": -5.5692
     },
     "oos": {
-     "n": 37,
-     "n_until_account_failure": 37,
-     "ann": -22.17936397449479,
-     "dd": 14.846674289060747,
-     "final": 8812.51425001704,
-     "ruin": null,
+     "n": 25,
+     "n_until_account_failure": 25,
+     "ann": -19.681364823371506,
+     "dd": 13.47954867871109,
+     "final": 8953.998024399112,
+     "ruin": "2026-08-10T10:15:00Z",
      "q_pos": 0.0,
-     "q_worst": -5.96589470459532,
-     "q_med": -5.943958355206735,
-     "q_mean": -4.090408409295484,
-     "q_sd": 2.6368420211881505,
-     "stab": -2.68684856039058,
+     "q_worst": -5.943958355206735,
+     "q_med": -4.456189328764671,
+     "q_mean": -3.5871732840186006,
+     "q_sd": 2.360467298182271,
+     "stab": -2.63217642890393,
      "y_pos": 0,
      "y_n": 1,
      "perf": {
-      "n": 37,
+      "n": 25,
       "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
       "_assumptions": {
        "breakeven_band_R": 0.05,
@@ -3081,66 +3059,66 @@
         "seed": 20260918
        }
       },
-      "total_trades": 37,
-      "wins": 5,
-      "losses": 21,
-      "breakeven": 11,
-      "win_rate": 0.13513513513513514,
-      "expectancy": -0.5405135135135135,
-      "average_R": -0.5405135135135135,
-      "average_win_R": 3.0008000000000004,
-      "average_loss_R": -1.3843809523809523,
-      "total_R": -19.999,
-      "profit_factor": 0.5160979636763897,
+      "total_trades": 25,
+      "wins": 2,
+      "losses": 17,
+      "breakeven": 6,
+      "win_rate": 0.08,
+      "expectancy": -0.7828399999999999,
+      "average_R": -0.7828399999999999,
+      "average_win_R": 3.1715,
+      "average_loss_R": -1.3714117647058823,
+      "total_R": -19.570999999999998,
+      "profit_factor": 0.2720682851505533,
       "consecutive_wins": 1,
       "consecutive_losses": 7,
       "mfe": {
-       "mean": 1.3791765604776285,
-       "n": 37,
-       "mean_on_winners": 3.6652358909501443,
-       "mean_on_losers": 0.5139926569892374
+       "mean": 1.096559515151701,
+       "n": 25,
+       "mean_on_winners": 3.418315881056473,
+       "mean_on_losers": 0.5641303349137204
       },
       "mae": {
-       "mean": -1.0323276541565396,
-       "n": 37,
-       "mean_on_winners": -0.32637194702537514,
-       "mean_on_losers": -1.4564512184315106
+       "mean": -1.1539229138837244,
+       "n": 25,
+       "mean_on_winners": -0.1866439063233625,
+       "mean_on_losers": -1.5072706603590451
       },
       "max_drawdown": {
-       "fraction": 0.14846674289060746,
+       "fraction": 0.1347954867871109,
        "in": "account"
       },
       "average_drawdown": {
-       "fraction": 0.14846674289060746,
+       "fraction": 0.1347954867871109,
        "episodes": 1,
        "includes_unrecovered": true
       },
       "time_in_drawdown": {
-       "fraction_of_series": 0.9459459459459459,
-       "longest_stretch": 35,
+       "fraction_of_series": 0.92,
+       "longest_stretch": 23,
        "unit": "curve points"
       },
-      "recovery_factor": -0.778305130028986,
+      "recovery_factor": -0.7519000737797398,
       "sharpe": {
-       "value": -3.122164572196984,
+       "value": -4.377363082980144,
        "basis": "annualised",
        "risk_free_rate": 0.0
       },
       "sortino": {
-       "value": -4.197941249039321,
+       "value": -4.734576827314054,
        "basis": "annualised",
        "target_return": 0.0
       },
       "time_to_target": {
-       "median_bars": 31,
-       "mean_bars": 35.0,
-       "n_reached_target": 5,
-       "n_did_not": 32,
+       "median_bars": 44.5,
+       "mean_bars": 44.5,
+       "n_reached_target": 2,
+       "n_did_not": 23,
        "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
       },
       "pnl": {
-       "value": -1187.4857499829652,
-       "n_with_pnl": 37,
+       "value": -1046.001975600891,
+       "n_with_pnl": 25,
        "basis": "realised, from the trades"
       },
       "risk_of_ruin": {
@@ -3158,9 +3136,9 @@
      },
      "since": "2026-03-25",
      "until": "2026-09-25",
-     "net_pnl": -1187.4857499829595,
-     "expectancy_R": -0.5405135135135135,
-     "profit_factor": 0.5160979636763897,
+     "net_pnl": -1046.0019756008878,
+     "expectancy_R": -0.7828399999999999,
+     "profit_factor": 0.2720682851505533,
      "months": [
       {
        "month": "2026-03",
@@ -3185,16 +3163,16 @@
       },
       {
        "month": "2026-08",
-       "ret_pct": -2.4176
+       "ret_pct": -1.7452
       },
       {
        "month": "2026-09",
-       "ret_pct": -0.902,
+       "ret_pct": 0.0,
        "partial": true
       }
      ],
-     "m_mean_geo": -2.069415047832368,
-     "m_losing": 7,
+     "m_mean_geo": -1.8110549825135824,
+     "m_losing": 6,
      "m_worst": -4.2329
     }
    }
@@ -3205,22 +3183,22 @@
    "method": "ICT",
    "first": "2018-03-20",
    "last": "2026-09-25",
-   "failed_by": null,
-   "account": null,
+   "failed_by": "drawdown: equity 89541.12 <= 90% of initial_balance 100000.00",
+   "account": "the5ers-high-stakes-step1",
    "n": 243,
-   "n_until_account_failure": 243,
-   "ann": -3.0727195228086868,
-   "dd": 29.66681609714939,
-   "final": 7664.354702545658,
+   "n_until_account_failure": 79,
+   "ann": -1.2877592292773299,
+   "dd": 13.076701640487157,
+   "final": 8954.111608422558,
    "ruin": null,
-   "q_pos": 26.47058823529412,
-   "q_worst": -5.894903273304375,
-   "q_med": -1.2659899870363256,
-   "q_mean": -0.7260384242778594,
-   "q_sd": 3.291948912400664,
-   "stab": -1.2860148314653495,
-   "y_pos": 3,
-   "y_n": 9,
+   "q_pos": 25.0,
+   "q_worst": -3.7116445177621915,
+   "q_med": -0.7179524744366172,
+   "q_mean": -0.5334920644538255,
+   "q_sd": 1.8615063978520086,
+   "stab": -1.281676520641528,
+   "y_pos": 2,
+   "y_n": 6,
    "years": [
     [
      "2018",
@@ -3240,23 +3218,11 @@
     ],
     [
      "2022",
-     2.1198196277541825
-    ],
-    [
-     "2023",
-     -5.72238789826277
-    ],
-    [
-     "2024",
-     -6.222927949442947
-    ],
-    [
-     "2025",
-     -10.643276287299974
+     -8.617616551325924
     ],
     [
      "2026",
-     -3.0443651262465843
+     0.0
     ]
    ],
    "quarters": [
@@ -3278,22 +3244,8 @@
     -1.3184197015435162,
     -1.213560272529135,
     -3.7116445177621915,
-    8.793472828152261,
-    7.65620238920075,
-    -3.303510923691866,
-    -3.7622043042366826,
-    -5.894903273304375,
-    -2.684098929246903,
-    -4.172655795937108,
-    2.7905816395612293,
-    -2.170443429016089,
-    -3.460291836168816,
-    -3.5189435640919697,
-    -2.4238747592359,
-    -1.6814110943290772,
-    4.80036038139422,
-    -3.426506874916746,
-    -4.202905327336159
+    -2.6456677368325243,
+    0.0
    ],
    "perf": {
     "n": 243,
@@ -3370,16 +3322,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 217,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 243,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 217,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 243,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.9885,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 217,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 243,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.201,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -3809,7 +3789,7 @@
    "first": "2018-03-20",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 1,
    "n_until_account_failure": 1,
    "ann": -0.02935948284513712,
@@ -3920,15 +3900,15 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 1 is below the 5 a bootstrap needs to resample at all -- with 1 outcomes every path is drawn from the same 1 numbers",
      "owner": "§39"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 1 is below the 5 a bootstrap needs to resample at all -- with 1 outcomes every path is drawn from the same 1 numbers",
      "owner": "§39"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 1 is below the 5 a bootstrap needs to resample at all -- with 1 outcomes every path is drawn from the same 1 numbers",
      "owner": "§39"
     }
    },
@@ -4387,22 +4367,22 @@
    "method": "WYCKOFF-BOOK",
    "first": "2018-03-20",
    "last": "2026-09-25",
-   "failed_by": null,
-   "account": null,
+   "failed_by": "drawdown: equity 89951.46 <= 90% of initial_balance 100000.00",
+   "account": "the5ers-high-stakes-step1",
    "n": 142,
-   "n_until_account_failure": 142,
-   "ann": -5.556281392932783,
-   "dd": 40.0548068789834,
-   "final": 6143.176688942784,
+   "n_until_account_failure": 17,
+   "ann": -1.2347913322617865,
+   "dd": 10.048539892285026,
+   "final": 8995.146010771497,
    "ruin": null,
-   "q_pos": 18.181818181818183,
-   "q_worst": -6.24248474450142,
-   "q_med": -1.2858048796769217,
-   "q_mean": -1.4451728920487217,
-   "q_sd": 2.007896959144884,
-   "stab": -4.134617653381974,
+   "q_pos": 11.11111111111111,
+   "q_worst": -3.252184932602087,
+   "q_med": -1.0201621470118938,
+   "q_mean": -1.1628275716197276,
+   "q_sd": 1.1693235018439725,
+   "stab": -2.983334132391932,
    "y_pos": 0,
-   "y_n": 9,
+   "y_n": 3,
    "years": [
     [
      "2018",
@@ -4413,32 +4393,8 @@
      -4.799880874358897
     ],
     [
-     "2020",
-     -0.006860305240741216
-    ],
-    [
-     "2021",
-     -4.70228879470943
-    ],
-    [
-     "2022",
-     -4.819850286106631
-    ],
-    [
-     "2023",
-     -8.09764142742172
-    ],
-    [
-     "2024",
-     -7.988750576067627
-    ],
-    [
-     "2025",
-     -8.442815184530373
-    ],
-    [
      "2026",
-     -2.7419148804295412
+     0.0
     ]
    ],
    "quarters": [
@@ -4450,31 +4406,7 @@
     0.19459493393934046,
     -0.43897927268991,
     -1.9982788575959698,
-    -0.66966032367064,
-    0.6672684504952286,
-    -1.2858048796769217,
-    -0.7318618042226666,
-    -0.724361807167162,
-    -2.0396569883989857,
-    -0.1538766460629004,
-    0.588878300937723,
-    -2.1244256420590246,
-    -3.1742460846477916,
-    3.9251821460201564,
-    -6.24248474450142,
-    -5.145016099242817,
-    -0.5649219492633417,
-    -3.343350041208515,
-    -1.3162190710936494,
-    -0.7954983676888627,
-    -2.7628930398986062,
-    -4.820982861715906,
-    -3.787505241510447,
-    -1.1780130202252659,
-    1.1733562211871496,
-    -2.739916613298643,
-    -1.4998702932079833,
-    1.5206231070910237
+    0.0
    ],
    "perf": {
     "n": 142,
@@ -4551,16 +4483,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 134,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 142,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 134,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 142,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 1.0,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 134,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 142,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0485,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -4990,7 +4950,7 @@
    "first": "2018-03-20",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 76,
    "n_until_account_failure": 76,
    "ann": -0.047883125438952234,
@@ -5151,16 +5111,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 72,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 76,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 72,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 76,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.442,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 72,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 76,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.5165,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -5588,7 +5576,7 @@
    "first": "2018-03-20",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 1,
    "n_until_account_failure": 1,
    "ann": -0.02935948284513712,
@@ -5699,15 +5687,15 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 1 is below the 5 a bootstrap needs to resample at all -- with 1 outcomes every path is drawn from the same 1 numbers",
      "owner": "§39"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 1 is below the 5 a bootstrap needs to resample at all -- with 1 outcomes every path is drawn from the same 1 numbers",
      "owner": "§39"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 1 is below the 5 a bootstrap needs to resample at all -- with 1 outcomes every path is drawn from the same 1 numbers",
      "owner": "§39"
     }
    },
@@ -6166,22 +6154,22 @@
    "method": "WYCKOFF-BOOK",
    "first": "2004-06-11",
    "last": "2026-09-25",
-   "failed_by": null,
-   "account": null,
+   "failed_by": "drawdown: equity 89072.79 <= 90% of initial_balance 100000.00",
+   "account": "the5ers-high-stakes-step1",
    "n": 302,
-   "n_until_account_failure": 302,
-   "ann": -4.043378875334991,
-   "dd": 60.17116049259914,
-   "final": 3982.8839507400858,
+   "n_until_account_failure": 16,
+   "ann": -0.5174680745438365,
+   "dd": 10.927211552031713,
+   "final": 8907.278844796829,
    "ruin": null,
-   "q_pos": 19.230769230769234,
-   "q_worst": -8.720921422633099,
-   "q_med": -0.968176516785646,
-   "q_mean": -1.1396839155923852,
-   "q_sd": 2.583507473109323,
-   "stab": -3.896027362211618,
-   "y_pos": 3,
-   "y_n": 23,
+   "q_pos": 0.0,
+   "q_worst": -1.9078563589843722,
+   "q_med": -0.9591361439036938,
+   "q_mean": -0.9579493601173652,
+   "q_sd": 0.5836574735261114,
+   "stab": -5.685584569927184,
+   "y_pos": 0,
+   "y_n": 6,
    "years": [
     [
      "2004",
@@ -6204,76 +6192,8 @@
      -2.976065120516147
     ],
     [
-     "2009",
-     -3.521663599449165
-    ],
-    [
-     "2010",
-     1.9433859940452658
-    ],
-    [
-     "2011",
-     -0.4938027583411664
-    ],
-    [
-     "2012",
-     -1.889713211363031
-    ],
-    [
-     "2013",
-     5.607704462671559
-    ],
-    [
-     "2014",
-     -6.380993677607682
-    ],
-    [
-     "2015",
-     -3.3957839460896477
-    ],
-    [
-     "2016",
-     -3.5602330291239825
-    ],
-    [
-     "2017",
-     -0.3484690807551205
-    ],
-    [
-     "2018",
-     -2.4688985537309915
-    ],
-    [
-     "2019",
-     -4.644395103607401
-    ],
-    [
-     "2020",
-     -8.918262001969001
-    ],
-    [
-     "2021",
-     -13.798755788183946
-    ],
-    [
-     "2022",
-     -8.084075126540835
-    ],
-    [
-     "2023",
-     -9.269314865216794
-    ],
-    [
-     "2024",
-     -6.775820996816185
-    ],
-    [
-     "2025",
-     0.11183235796274893
-    ],
-    [
      "2026",
-     -10.729060807873337
+     0.0
     ]
    ],
    "quarters": [
@@ -6288,73 +6208,7 @@
     -0.6111040528522405,
     -0.6767811014188885,
     -1.7143234181657085,
-    -0.5335057776918339,
-    -1.1307927947881935,
-    -0.6829959641326155,
-    -1.2201566626695248,
-    3.9665234007360883,
-    -1.9459508123520486,
-    2.0772036355481305,
-    -0.8940994492087739,
-    -0.5220227176860992,
-    -1.1230851875811632,
-    -0.5586523068486504,
-    -0.7115411999390142,
-    -0.6314907990077279,
-    -0.5645530588540004,
-    2.701878991726492,
-    3.413201464322757,
-    -2.8008262368678927,
-    -0.6514326164323458,
-    -0.6495961964530617,
-    -2.417889131373019,
-    -0.6728026276654919,
-    -0.6599747866369299,
-    -1.2388548928887855,
-    -0.8671672819949516,
-    -0.2246684631561524,
-    -4.893165785340292,
-    0.8298476273711941,
-    0.7934094987085638,
-    -2.08106066379512,
-    4.087239535796017,
-    -0.25958091642146464,
-    -1.9723492254033803,
-    -2.066991659153816,
-    5.525936919100305,
-    -4.888675517119223,
-    -0.7746619801683563,
-    0.16733149336671804,
-    2.2884826992287,
-    -5.4162803053063975,
-    -1.6041016155544985,
-    -0.30714235027045067,
-    -0.40788993070729473,
-    -5.446017695423455,
-    -2.9797240477359543,
-    -0.5518703041504258,
-    -4.781908569343251,
-    -5.57377345835749,
-    -3.593834887911329,
-    -4.617178511443654,
-    -2.8706287132487907,
-    0.25827370433622043,
-    -1.042253584362518,
-    2.5414689221709086,
-    -1.6380348516892962,
-    -8.720921422633099,
-    -1.4500946140606374,
-    -4.243936546309579,
-    -1.97716325834707,
-    -4.344794780520223,
-    3.8308499319647416,
-    6.861261263436358,
-    -4.080415514890678,
-    0.10878309129105368,
-    -2.4368882299920402,
-    -4.7919204544590315,
-    -3.1391664716403644,
-    -3.1971604439144596
+    0.0
    ],
    "perf": {
     "n": 302,
@@ -6431,35 +6285,63 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 288,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 302,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.001,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 288,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 302,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 1.0,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 288,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 302,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.124,
+     "profit_target": 0.08
     }
    },
    "w1y": {
-    "n": 22,
-    "n_until_account_failure": 22,
-    "ann": -13.924019844728496,
-    "dd": 13.9240198447285,
-    "final": 8607.59801552715,
-    "ruin": null,
+    "n": 16,
+    "n_until_account_failure": 16,
+    "ann": -10.416972678557634,
+    "dd": 10.41697267855763,
+    "final": 8958.302732144237,
+    "ruin": "2026-06-04T01:00:00Z",
     "q_pos": 0.0,
     "q_worst": -4.791920454459064,
-    "q_med": -3.1971604439144263,
-    "q_mean": -2.941438747817633,
-    "q_sd": 1.5866474252057787,
-    "stab": -4.145380307738537,
+    "q_med": -2.4156762704666823,
+    "q_mean": -2.1573086188000112,
+    "q_sd": 1.9150429872211803,
+    "stab": -2.518945398235003,
     "y_pos": 0,
     "y_n": 2,
     "perf": {
-     "n": 22,
+     "n": 16,
      "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
      "_assumptions": {
       "breakeven_band_R": 0.05,
@@ -6470,53 +6352,53 @@
        "seed": 20260918
       }
      },
-     "total_trades": 22,
+     "total_trades": 16,
      "wins": 2,
-     "losses": 20,
+     "losses": 14,
      "breakeven": 0,
-     "win_rate": 0.09090909090909091,
-     "expectancy": -0.9977727272727273,
-     "average_R": -0.9977727272727273,
+     "win_rate": 0.125,
+     "expectancy": -0.8749375,
+     "average_R": -0.8749375,
      "average_win_R": 2.3529999999999998,
-     "average_loss_R": -1.33285,
-     "total_R": -21.951,
-     "profit_factor": 0.17653899538582735,
+     "average_loss_R": -1.3360714285714284,
+     "total_R": -13.999,
+     "profit_factor": 0.25159048382785354,
      "consecutive_wins": 1,
-     "consecutive_losses": 10,
+     "consecutive_losses": 8,
      "mfe": {
-      "mean": 1.3485020173756548,
-      "n": 22,
+      "mean": 1.4182164725996182,
+      "n": 16,
       "mean_on_winners": 3.5035359476358297,
-      "mean_on_losers": 1.1329986243496373
+      "mean_on_losers": 1.120313690451588
      },
      "mae": {
-      "mean": -1.3231635209907227,
-      "n": 22,
+      "mean": -1.3402917791002744,
+      "n": 16,
       "mean_on_winners": -0.4012321032443386,
-      "mean_on_losers": -1.415356662765361
+      "mean_on_losers": -1.4744431613654079
      },
      "max_drawdown": {
-      "fraction": 0.12846018600648343,
+      "fraction": 0.09295049759680857,
       "in": "account"
      },
      "average_drawdown": {
-      "fraction": 0.12846018600648343,
+      "fraction": 0.09295049759680857,
       "episodes": 1,
       "includes_unrecovered": true
      },
      "time_in_drawdown": {
-      "fraction_of_series": 0.9545454545454546,
-      "longest_stretch": 21,
+      "fraction_of_series": 0.9375,
+      "longest_stretch": 15,
       "unit": "curve points"
      },
      "recovery_factor": -1.0,
      "sharpe": {
-      "value": -3.8780258545449446,
+      "value": -2.5124277344219115,
       "basis": "annualised",
       "risk_free_rate": 0.0
      },
      "sortino": {
-      "value": -3.645082290246109,
+      "value": -2.7658155100306208,
       "basis": "annualised",
       "target_return": 0.0
      },
@@ -6524,12 +6406,12 @@
       "median_bars": 46.5,
       "mean_bars": 46.5,
       "n_reached_target": 2,
-      "n_did_not": 20,
+      "n_did_not": 14,
       "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
      },
      "pnl": {
-      "value": -1392.401984472852,
-      "n_with_pnl": 22,
+      "value": -1041.697267855761,
+      "n_with_pnl": 16,
       "basis": "realised, from the trades"
      },
      "risk_of_ruin": {
@@ -6552,22 +6434,22 @@
     "dataset_last_bar": "2026-09-25T20:45:00Z",
     "split": "entry_time",
     "in_sample": {
-     "n": 20,
-     "n_until_account_failure": 20,
-     "ann": -10.805326589870024,
-     "dd": 10.805326589870019,
-     "final": 8919.467341012998,
-     "ruin": null,
+     "n": 19,
+     "n_until_account_failure": 19,
+     "ann": -10.173339586892638,
+     "dd": 10.173339586892634,
+     "final": 8982.666041310737,
+     "ruin": "2026-02-27T20:00:00Z",
      "q_pos": 20.0,
-     "q_worst": -4.791920454459064,
+     "q_worst": -4.117325587402965,
      "q_med": -2.4368882299920402,
-     "q_mean": -2.240088221610137,
-     "q_sd": 2.0234907570565266,
-     "stab": -2.475420024355937,
+     "q_mean": -2.105169248198917,
+     "q_sd": 1.8651397242810708,
+     "stab": -2.5238331916014296,
      "y_pos": 0,
      "y_n": 2,
      "perf": {
-      "n": 20,
+      "n": 19,
       "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
       "_assumptions": {
        "breakeven_band_R": 0.05,
@@ -6578,53 +6460,53 @@
         "seed": 20260918
        }
       },
-      "total_trades": 20,
+      "total_trades": 19,
       "wins": 3,
-      "losses": 17,
+      "losses": 16,
       "breakeven": 0,
-      "win_rate": 0.15,
-      "expectancy": -0.8709999999999999,
-      "average_R": -0.8709999999999999,
+      "win_rate": 0.15789473684210525,
+      "expectancy": -0.8427894736842104,
+      "average_R": -0.8427894736842104,
       "average_win_R": 1.5903333333333334,
-      "average_loss_R": -1.3053529411764706,
-      "total_R": -17.419999999999998,
-      "profit_factor": 0.21499707088459286,
+      "average_loss_R": -1.299,
+      "total_R": -16.012999999999998,
+      "profit_factor": 0.22955157813702848,
       "consecutive_wins": 2,
-      "consecutive_losses": 7,
+      "consecutive_losses": 6,
       "mfe": {
-       "mean": 1.0050229737108143,
-       "n": 20,
+       "mean": 0.8741425297594162,
+       "n": 19,
        "mean_on_winners": 2.519709013909725,
-       "mean_on_losers": 0.7377254372051241
+       "mean_on_losers": 0.5655988139812331
       },
       "mae": {
-       "mean": -1.851938027197989,
-       "n": 20,
+       "mean": -1.8938043111885836,
+       "n": 19,
        "mean_on_winners": -0.47696863770161974,
-       "mean_on_losers": -2.0945796841679365
+       "mean_on_losers": -2.159460999967389
       },
       "max_drawdown": {
-       "fraction": 0.09857540755905968,
+       "fraction": 0.09218838236118324,
        "in": "account"
       },
       "average_drawdown": {
-       "fraction": 0.09857540755905968,
+       "fraction": 0.09218838236118324,
        "episodes": 1,
        "includes_unrecovered": true
       },
       "time_in_drawdown": {
-       "fraction_of_series": 0.95,
-       "longest_stretch": 19,
+       "fraction_of_series": 0.9473684210526315,
+       "longest_stretch": 18,
        "unit": "curve points"
       },
       "recovery_factor": -1.0,
       "sharpe": {
-       "value": -3.5564442926630573,
+       "value": -3.2899939107740654,
        "basis": "annualised",
        "risk_free_rate": 0.0
       },
       "sortino": {
-       "value": -3.186126818584734,
+       "value": -3.030863304853096,
        "basis": "annualised",
        "target_return": 0.0
       },
@@ -6632,12 +6514,12 @@
        "median_bars": 32,
        "mean_bars": 40.666666666666664,
        "n_reached_target": 3,
-       "n_did_not": 17,
+       "n_did_not": 16,
        "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
       },
       "pnl": {
-       "value": -1080.5326589870033,
-       "n_with_pnl": 20,
+       "value": -1017.3339586892654,
+       "n_with_pnl": 19,
        "basis": "realised, from the trades"
       },
       "risk_of_ruin": {
@@ -6655,9 +6537,9 @@
      },
      "since": "2025-03-25",
      "until": "2026-03-25",
-     "net_pnl": -1080.532658987002,
-     "expectancy_R": -0.8709999999999999,
-     "profit_factor": 0.21499707088459286,
+     "net_pnl": -1017.3339586892635,
+     "expectancy_R": -0.8427894736842104,
+     "profit_factor": 0.22955157813702848,
      "months": [
       {
        "month": "2025-03",
@@ -6710,12 +6592,12 @@
       },
       {
        "month": "2026-03",
-       "ret_pct": -0.7036,
+       "ret_pct": 0.0,
        "partial": true
       }
      ],
-     "m_mean_geo": -0.9490279047875139,
-     "m_losing": 9,
+     "m_mean_geo": -0.8906917402232928,
+     "m_losing": 8,
      "m_worst": -2.8982
     },
     "oos": {
@@ -6870,7 +6752,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 137,
    "n_until_account_failure": 137,
    "ann": -0.2346681859017874,
@@ -7114,16 +6996,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 134,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 137,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 134,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 137,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.773,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 134,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 137,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.386,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -7551,7 +7461,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 2,
    "n_until_account_failure": 2,
    "ann": -0.10619581248931809,
@@ -7663,15 +7573,15 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 2 is below the 5 a bootstrap needs to resample at all -- with 2 outcomes every path is drawn from the same 2 numbers",
      "owner": "§39"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 2 is below the 5 a bootstrap needs to resample at all -- with 2 outcomes every path is drawn from the same 2 numbers",
      "owner": "§39"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 2 is below the 5 a bootstrap needs to resample at all -- with 2 outcomes every path is drawn from the same 2 numbers",
      "owner": "§39"
     }
    },
@@ -8146,22 +8056,22 @@
    "method": "WYCKOFF-BOOK",
    "first": "2004-06-11",
    "last": "2026-09-25",
-   "failed_by": null,
-   "account": null,
+   "failed_by": "drawdown: equity 89534.61 <= 90% of initial_balance 100000.00",
+   "account": "the5ers-high-stakes-step1",
    "n": 302,
-   "n_until_account_failure": 302,
-   "ann": -3.2922155656134655,
-   "dd": 52.60525124875297,
-   "final": 4739.474875124703,
+   "n_until_account_failure": 68,
+   "ann": -0.49439951632477275,
+   "dd": 10.465387389414408,
+   "final": 8953.46126105856,
    "ruin": null,
-   "q_pos": 15.384615384615385,
-   "q_worst": -5.4162803053063975,
-   "q_med": -0.7204731943182219,
-   "q_mean": -0.9315923880902972,
-   "q_sd": 2.0580240289039287,
-   "stab": -3.9978159054278306,
-   "y_pos": 4,
-   "y_n": 23,
+   "q_pos": 8.823529411764707,
+   "q_worst": -1.7143234181656974,
+   "q_med": -0.5951885527802458,
+   "q_mean": -0.31858392926542217,
+   "q_sd": 1.105578268655614,
+   "stab": -1.680249710657192,
+   "y_pos": 3,
+   "y_n": 13,
    "years": [
     [
      "2004",
@@ -8209,51 +8119,11 @@
     ],
     [
      "2015",
-     -1.923103879443544
-    ],
-    [
-     "2016",
-     -6.240393231886876
-    ],
-    [
-     "2017",
-     -3.7879740838761333
-    ],
-    [
-     "2018",
-     -6.912034568816184
-    ],
-    [
-     "2019",
-     -4.1649895213693
-    ],
-    [
-     "2020",
-     -8.635745586916721
-    ],
-    [
-     "2021",
-     -11.15135576120404
-    ],
-    [
-     "2022",
-     -5.30098382528158
-    ],
-    [
-     "2023",
-     -4.4416292325778155
-    ],
-    [
-     "2024",
-     -4.879091575344086
-    ],
-    [
-     "2025",
-     2.554293591033341
+     -1.3283370865959876
     ],
     [
      "2026",
-     -7.6512607374242485
+     0.0
     ]
    ],
    "quarters": [
@@ -8290,51 +8160,7 @@
     -1.4306738107419892,
     -0.6728026276654808,
     -0.6599747866369299,
-    -0.7421890455280189,
-    0.14045784939273886,
-    -0.30796931511835046,
-    -3.940287801252973,
-    0.8298476273712163,
-    -2.8987227146689,
-    -1.092542218700887,
-    -0.6598698256290225,
-    -0.10885285488583252,
-    -1.9723492254033803,
-    -2.066991659153816,
-    -0.29113190728172755,
-    -4.888675517119212,
-    0.23016080359405944,
-    0.6709282974348918,
-    2.2884826992287,
-    -5.4162803053063975,
-    -1.6041016155544874,
-    -1.648351906220269,
-    -0.7928263835904503,
-    -3.9231031371286695,
-    -2.5386039112079595,
-    -0.5518703041504258,
-    -3.816071301385282,
-    -4.13433150538599,
-    -3.107855509118518,
-    -1.6984201249810482,
-    -1.8909670046423632,
-    -1.533498830864355,
-    -0.2788064331976092,
-    3.2370890240585704,
-    -2.126969921147115,
-    -4.034807079834534,
-    -1.4500946140606374,
-    -3.761521868382278,
-    -0.48415712218362605,
-    -4.344794780520223,
-    3.8308499319647416,
-    7.9451345259361705,
-    -3.5980156666750696,
-    0.10878309129107588,
-    -1.5552365165743876,
-    -2.725840658873857,
-    -2.9109583417587737,
-    -2.2170195988045482
+    0.0
    ],
    "perf": {
     "n": 302,
@@ -8411,16 +8237,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 288,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 302,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 288,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 302,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 1.0,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 288,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 302,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0655,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -8850,7 +8704,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 137,
    "n_until_account_failure": 137,
    "ann": -0.27486425253123725,
@@ -9094,16 +8948,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 134,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 137,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 134,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 137,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.71,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 134,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 137,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.3815,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -9531,7 +9413,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 2,
    "n_until_account_failure": 2,
    "ann": -0.10619581248931809,
@@ -9643,15 +9525,15 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 2 is below the 5 a bootstrap needs to resample at all -- with 2 outcomes every path is drawn from the same 2 numbers",
      "owner": "§39"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 2 is below the 5 a bootstrap needs to resample at all -- with 2 outcomes every path is drawn from the same 2 numbers",
      "owner": "§39"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 2 is below the 5 a bootstrap needs to resample at all -- with 2 outcomes every path is drawn from the same 2 numbers",
      "owner": "§39"
     }
    },
@@ -10126,22 +10008,22 @@
    "method": "WYCKOFF-BOOK",
    "first": "2004-06-11",
    "last": "2026-09-25",
-   "failed_by": null,
-   "account": null,
+   "failed_by": "drawdown: equity 89831.25 <= 90% of initial_balance 100000.00",
+   "account": "the5ers-high-stakes-step1",
    "n": 119,
-   "n_until_account_failure": 119,
-   "ann": -1.747153369944543,
-   "dd": 32.50599421910788,
-   "final": 6749.400578089212,
+   "n_until_account_failure": 40,
+   "ann": -0.4796418758483245,
+   "dd": 10.168746170894629,
+   "final": 8983.125382910537,
    "ruin": null,
-   "q_pos": 15.0,
-   "q_worst": -5.040641861062611,
-   "q_med": -0.6062453008589097,
-   "q_mean": -0.6442555235882433,
-   "q_sd": 1.3238903029224407,
-   "stab": -3.769482876415608,
+   "q_pos": 6.666666666666667,
+   "q_worst": -1.3659919282652089,
+   "q_med": -0.33176942864194814,
+   "q_mean": -0.3544372070431541,
+   "q_sd": 0.692096796610964,
+   "stab": -2.805001474754536,
    "y_pos": 2,
-   "y_n": 22,
+   "y_n": 14,
    "years": [
     [
      "2004",
@@ -10196,40 +10078,8 @@
      -2.5585668718131616
     ],
     [
-     "2018",
-     -1.4201988035223212
-    ],
-    [
-     "2019",
-     -1.7367941278669918
-    ],
-    [
-     "2020",
-     -3.3758250944898816
-    ],
-    [
-     "2021",
-     -2.7716369436411314
-    ],
-    [
-     "2022",
-     -3.04526968353509
-    ],
-    [
-     "2023",
-     -1.4371811756093478
-    ],
-    [
-     "2024",
-     -7.536901042976174
-    ],
-    [
-     "2025",
-     -2.7668651668599664
-    ],
-    [
      "2026",
-     -3.901800118908394
+     0.0
     ]
    ],
    "quarters": [
@@ -10262,37 +10112,7 @@
     -1.092542218700887,
     -0.27033262834071925,
     -1.2151708912433112,
-    -0.6066459926630574,
-    -0.894036818755195,
-    -1.64049166529886,
-    1.7453233017575842,
-    2.864165780558303,
-    -1.539650071227694,
-    -2.979067206519126,
-    -0.8565871915358292,
-    -0.057226924883935215,
-    -1.7162491135024993,
-    -0.7823775282044143,
-    -0.605844609054762,
-    0.43654391717091734,
-    -2.6041692249738735,
-    -0.5649586212552737,
-    -1.2950837363835621,
-    -1.5330356481909169,
-    0.3229306285824851,
-    -2.483422977349936,
-    -0.10298865208097085,
-    -1.96933236034329,
-    3.2096276154690573,
-    -2.8785535462005907,
-    0.2571910750329476,
-    -5.040641861062611,
-    0.09202937345949014,
-    -2.7901124139933065,
-    -0.06805225715518226,
-    -2.575144107411731,
-    -0.7425626512277184,
-    -0.6237917167564277
+    0.0
    ],
    "perf": {
     "n": 119,
@@ -10369,16 +10189,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 115,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 119,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 115,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 119,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.9995,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 115,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 119,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0275,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -10804,7 +10652,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 44,
    "n_until_account_failure": 44,
    "ann": 0.2635190181138114,
@@ -10998,16 +10846,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 43,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 44,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 43,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 44,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.185,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 43,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 44,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.518,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -11431,7 +11307,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 0,
    "n_until_account_failure": 0,
    "ann": 0.0,
@@ -11546,19 +11422,19 @@
      "owner": "§39"
     },
     "pnl": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "value": 0.0,
+     "basis": "modelled: compounding at 0.01 of equity per trade from 100000"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 0 is below the 5 a bootstrap needs to resample at all -- with 0 outcomes every path is drawn from the same 0 numbers",
      "owner": "§39"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 0 is below the 5 a bootstrap needs to resample at all -- with 0 outcomes every path is drawn from the same 0 numbers",
      "owner": "§39"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 0 is below the 5 a bootstrap needs to resample at all -- with 0 outcomes every path is drawn from the same 0 numbers",
      "owner": "§39"
     }
    },
@@ -12033,22 +11909,22 @@
    "method": "WYCKOFF-BOOK",
    "first": "2004-06-11",
    "last": "2026-09-25",
-   "failed_by": null,
-   "account": null,
+   "failed_by": "drawdown: equity 89751.67 <= 90% of initial_balance 100000.00",
+   "account": "the5ers-high-stakes-step1",
    "n": 139,
-   "n_until_account_failure": 139,
-   "ann": -1.379388815950544,
-   "dd": 29.283531318277014,
-   "final": 7335.921734352712,
+   "n_until_account_failure": 54,
+   "ann": -0.4835965693840816,
+   "dd": 11.78373675548515,
+   "final": 8975.166915629065,
    "ruin": null,
-   "q_pos": 33.33333333333333,
+   "q_pos": 32.35294117647059,
    "q_worst": -3.8701371652182903,
-   "q_med": -0.6754847038412504,
-   "q_mean": -0.5019365736071487,
-   "q_sd": 1.6188841822180322,
-   "stab": -2.401644307586523,
-   "y_pos": 6,
-   "y_n": 22,
+   "q_med": -0.5739172116246083,
+   "q_mean": -0.30566459561186726,
+   "q_sd": 1.539288856693681,
+   "stab": -1.1578824502104619,
+   "y_pos": 4,
+   "y_n": 16,
    "years": [
     [
      "2004",
@@ -12108,35 +11984,11 @@
     ],
     [
      "2019",
-     -5.329223207952327
-    ],
-    [
-     "2020",
-     -8.573033555350829
-    ],
-    [
-     "2021",
-     -4.681575306936248
-    ],
-    [
-     "2022",
-     3.4740255404044573
-    ],
-    [
-     "2023",
-     2.6342429895256814
-    ],
-    [
-     "2024",
-     -2.656849380313353
-    ],
-    [
-     "2025",
-     -4.931595243624775
+     -2.4577006296927273
     ],
     [
      "2026",
-     -1.6729966528258644
+     0.0
     ]
    ],
    "quarters": [
@@ -12173,33 +12025,7 @@
     0.3682601868754132,
     0.9830730860042269,
     -2.4577006296927273,
-    -0.35234899250110585,
-    -2.600688700768383,
-    -1.7594179269185162,
-    -2.361918913610239,
-    -1.7085718277449313,
-    -3.027520072983003,
-    -1.1288554198915168,
-    0.011229784217037242,
-    -2.414602592736992,
-    -1.2189378173907306,
-    4.1414614419511775,
-    0.5614224152147074,
-    -0.6323559966452286,
-    -0.5668319706763403,
-    -1.6377586924696597,
-    1.2828545905390065,
-    3.0215154586160864,
-    -2.3177100331129075,
-    -1.312348027195298,
-    0.05573701296981426,
-    0.9217458655077504,
-    -1.0883747603772975,
-    -1.7683377806239298,
-    -2.1552843128853527,
-    -1.9425551281851194,
-    0.017192624387063482,
-    0.25766160768847524
+    0.0
    ],
    "perf": {
     "n": 139,
@@ -12276,16 +12102,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 135,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 139,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 135,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 139,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.951,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 135,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 139,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.2175,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -12713,7 +12567,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 40,
    "n_until_account_failure": 40,
    "ann": -0.4777647358359838,
@@ -12900,16 +12754,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 40,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 40,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 40,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 40,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.7015,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 40,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 40,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.056,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -13336,7 +13218,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 0,
    "n_until_account_failure": 0,
    "ann": 0.0,
@@ -13451,19 +13333,19 @@
      "owner": "§39"
     },
     "pnl": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "value": 0.0,
+     "basis": "modelled: compounding at 0.01 of equity per trade from 100000"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 0 is below the 5 a bootstrap needs to resample at all -- with 0 outcomes every path is drawn from the same 0 numbers",
      "owner": "§39"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 0 is below the 5 a bootstrap needs to resample at all -- with 0 outcomes every path is drawn from the same 0 numbers",
      "owner": "§39"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 0 is below the 5 a bootstrap needs to resample at all -- with 0 outcomes every path is drawn from the same 0 numbers",
      "owner": "§39"
     }
    },
@@ -13938,22 +13820,22 @@
    "method": "WYCKOFF-BOOK",
    "first": "2004-06-11",
    "last": "2026-09-25",
-   "failed_by": null,
-   "account": null,
+   "failed_by": "drawdown: equity 89796.15 <= 90% of initial_balance 100000.00",
+   "account": "the5ers-high-stakes-step1",
    "n": 139,
-   "n_until_account_failure": 139,
-   "ann": -1.0933291764012698,
-   "dd": 26.45976220385915,
-   "final": 7825.4784363502795,
+   "n_until_account_failure": 69,
+   "ann": -0.4813860359998978,
+   "dd": 13.957687377972505,
+   "final": 8979.614585998566,
    "ruin": null,
-   "q_pos": 25.0,
+   "q_pos": 23.076923076923077,
    "q_worst": -2.8960205003461525,
-   "q_med": -0.5577386052966204,
-   "q_mean": -0.3997661399469797,
-   "q_sd": 1.2739585492103456,
-   "stab": -2.4306718666034643,
-   "y_pos": 5,
-   "y_n": 22,
+   "q_med": -0.5510942063602364,
+   "q_mean": -0.266243559633936,
+   "q_sd": 1.3735373870947183,
+   "stab": -1.2105171017712797,
+   "y_pos": 4,
+   "y_n": 17,
    "years": [
     [
      "2004",
@@ -14017,31 +13899,11 @@
     ],
     [
      "2020",
-     -6.927787631519122
-    ],
-    [
-     "2021",
-     -2.0965354411190074
-    ],
-    [
-     "2022",
-     -1.2258998488396067
-    ],
-    [
-     "2023",
-     -1.7793673782301345
-    ],
-    [
-     "2024",
-     0.49559716177738355
-    ],
-    [
-     "2025",
-     -3.4930407514360273
+     -3.8212504958518023
     ],
     [
      "2026",
-     -2.2396485266895527
+     0.0
     ]
    ],
    "quarters": [
@@ -14082,29 +13944,8 @@
     -1.3045481678749082,
     -1.265507061137161,
     -1.8711346369553405,
-    -1.9307430961909344,
-    -2.0461578505701183,
-    -1.1288554198915057,
-    -0.9079681950559859,
-    0.25763519712274086,
-    -0.3281982657880267,
-    1.1299877765536426,
-    -1.642647559581334,
-    -0.13230632203654613,
-    -0.5668319706763403,
-    -1.6377586924696597,
-    0.42280272114378903,
-    -0.5643830042330045,
-    -0.1655799573940797,
-    -0.3126650665682962,
-    0.05573701296981426,
-    0.9217458655077504,
-    -0.08837476037728553,
-    -1.2799804222632938,
-    -2.155284312885364,
-    -2.2276095564094933,
-    -0.7926190203320638,
-    0.7865400244949416
+    -0.7310453038353759,
+    0.0
    ],
    "perf": {
     "n": 139,
@@ -14181,16 +14022,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 135,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 139,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 135,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 139,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.9575,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 135,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 139,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.131,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -14618,7 +14487,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 40,
    "n_until_account_failure": 40,
    "ann": -0.4081346212259418,
@@ -14806,16 +14675,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 40,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 40,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 40,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 40,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.6925,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 40,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 40,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0455,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -15242,7 +15139,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 0,
    "n_until_account_failure": 0,
    "ann": 0.0,
@@ -15357,19 +15254,19 @@
      "owner": "§39"
     },
     "pnl": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "value": 0.0,
+     "basis": "modelled: compounding at 0.01 of equity per trade from 100000"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 0 is below the 5 a bootstrap needs to resample at all -- with 0 outcomes every path is drawn from the same 0 numbers",
      "owner": "§39"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 0 is below the 5 a bootstrap needs to resample at all -- with 0 outcomes every path is drawn from the same 0 numbers",
      "owner": "§39"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 0 is below the 5 a bootstrap needs to resample at all -- with 0 outcomes every path is drawn from the same 0 numbers",
      "owner": "§39"
     }
    },
@@ -15845,7 +15742,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 58,
    "n_until_account_failure": 58,
    "ann": -0.3873346137021394,
@@ -16050,16 +15947,44 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 56,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 58,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 56,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 58,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.6765,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 56,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 58,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.144,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -16487,7 +16412,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 15,
    "n_until_account_failure": 15,
    "ann": -0.21937885271671176,
@@ -16645,16 +16570,92 @@
      "basis": "realised, from the trades"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 15,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 15,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "low_confidence": true,
+     "low_confidence_why": "sample size 15 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 15 observed trades with replacement, so it measures how much the answer depends on which 15 trades happened to occur",
+     "spread": {
+      "risk_of_ruin": [
+       0.0,
+       0.0
+      ],
+      "account_failure_probability": [
+       0.0,
+       0.6075
+      ],
+      "prop_pass_probability": [
+       0.0,
+       0.0825
+      ]
+     },
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 15,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 15,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "low_confidence": true,
+     "low_confidence_why": "sample size 15 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 15 observed trades with replacement, so it measures how much the answer depends on which 15 trades happened to occur",
+     "spread": {
+      "risk_of_ruin": [
+       0.0,
+       0.0
+      ],
+      "account_failure_probability": [
+       0.0,
+       0.6075
+      ],
+      "prop_pass_probability": [
+       0.0,
+       0.0825
+      ]
+     },
+     "value": 0.115,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 15,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 15,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "low_confidence": true,
+     "low_confidence_why": "sample size 15 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 15 observed trades with replacement, so it measures how much the answer depends on which 15 trades happened to occur",
+     "spread": {
+      "risk_of_ruin": [
+       0.0,
+       0.0
+      ],
+      "account_failure_probability": [
+       0.0,
+       0.6075
+      ],
+      "prop_pass_probability": [
+       0.0,
+       0.0825
+      ]
+     },
+     "value": 0.0105,
+     "profit_target": 0.08
     }
    },
    "w1y": {
@@ -17095,7 +17096,7 @@
    "first": "2004-06-11",
    "last": "2026-09-25",
    "failed_by": null,
-   "account": null,
+   "account": "the5ers-high-stakes-step1",
    "n": 0,
    "n_until_account_failure": 0,
    "ann": 0.0,
@@ -17210,19 +17211,19 @@
      "owner": "§39"
     },
     "pnl": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
-     "owner": "§39"
+     "value": 0.0,
+     "basis": "modelled: compounding at 0.01 of equity per trade from 100000"
     },
     "risk_of_ruin": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 0 is below the 5 a bootstrap needs to resample at all -- with 0 outcomes every path is drawn from the same 0 numbers",
      "owner": "§39"
     },
     "account_failure_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 0 is below the 5 a bootstrap needs to resample at all -- with 0 outcomes every path is drawn from the same 0 numbers",
      "owner": "§39"
     },
     "prop_pass_probability": {
-     "unavailable": "no account profile supplied; R is account-free but money, ruin and failure are not (§33)",
+     "unavailable": "sample size 0 is below the 5 a bootstrap needs to resample at all -- with 0 outcomes every path is drawn from the same 0 numbers",
      "owner": "§39"
     }
    },
