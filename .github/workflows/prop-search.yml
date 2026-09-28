@@ -18,7 +18,7 @@ on:
     inputs:
       workers:
         description: "parallel candidate-evaluation worker processes"
-        default: "2"
+        default: "4"
       only:
         description: "comma-separated candidate ids to (re)run instead of the whole plan (optional)"
         default: ""
@@ -27,7 +27,56 @@ permissions:
   contents: read
 
 jobs:
+  # Scan cache (owner-approved 2026-09-28, scripts/scan_cache.py): the plan's 180 candidates need only its
+  # distinct (symbol, tf, method, config) scans -- pooled candidates reuse their members' -- so each distinct
+  # scan runs ONCE, in its own job, before the search. The search then reads them from the cache
+  # (PROP_SEARCH_SCAN_CACHE) and only simulates; a scan that is somehow missing is computed in place, never
+  # skipped.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      scans: ${{ steps.plan.outputs.scans }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - id: plan
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          python scripts/prop-search.py plan
+          echo "scans=$(python scripts/prop-search.py list-scans | tail -1)" >> "$GITHUB_OUTPUT"
+
+  scan:
+    needs: plan
+    name: scan ${{ matrix.symbol }} ${{ matrix.tf }} ${{ matrix.method }} ${{ matrix.config }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.scans) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: scan into the cache
+        env:
+          PYTHONUTF8: "1"
+          PROP_SEARCH_SCAN_CACHE: ${{ runner.temp }}/cache
+        run: |
+          python -X faulthandler scripts/prop-search.py fill-scan --symbol "${{ matrix.symbol }}"             --tf "${{ matrix.tf }}" --method "${{ matrix.method }}" --config "${{ matrix.config }}"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: pscan-${{ matrix.symbol }}-${{ matrix.tf }}-${{ matrix.method }}-${{ matrix.config }}
+          path: ${{ runner.temp }}/cache/
+          retention-days: 7
+
   search:
+    needs: scan
+    if: ${{ !cancelled() }}
     name: prop-search
     runs-on: ubuntu-latest
     timeout-minutes: 350
@@ -36,6 +85,11 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: pscan-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/cache
       - name: plan (must match the committed plan)
         env:
           PYTHONUTF8: "1"
@@ -93,9 +147,10 @@ jobs:
           PROP_SEARCH_RECORDS_DIR: ${{ runner.temp }}/out/records
           PROP_SEARCH_SKIPPED_PATH: ${{ runner.temp }}/out/skipped.json
           PROP_SEARCH_REPORT_PATH: ${{ runner.temp }}/out/prop-search-report.md
+          PROP_SEARCH_SCAN_CACHE: ${{ runner.temp }}/cache
         run: |
           mkdir -p "$PROP_SEARCH_RECORDS_DIR"
-          args=(run --workers "${{ inputs.workers || 2 }}")
+          args=(run --workers "${{ inputs.workers || 4 }}")
           if [ -n "${{ inputs.only }}" ]; then args+=(--only "${{ inputs.only }}"); fi
           python -X faulthandler scripts/prop-search.py "${args[@]}" \
             > "$RUNNER_TEMP/out/run.stdout.log" 2> "$RUNNER_TEMP/out/run.stderr.log"
@@ -124,7 +179,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v7
         with:
-          path: results
+          name: prop-search-results
+          path: results/prop-search-results
       - name: push results branch
         # research-results/prop-search/<run id>-<attempt> -- prop-search's OWN prefix (fix round 2, item 2),
         # never the bare research-results/<run id>-<attempt> stability-full.yml uses, so the restore step

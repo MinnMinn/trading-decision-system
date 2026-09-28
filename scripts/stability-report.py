@@ -19,6 +19,7 @@ spec = importlib.util.spec_from_file_location("bt", os.path.join(ROOT, "scripts"
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import snapshot          # CLAUDE.md §10: every research run identifies the dataset it read
 import isolated_pool as _pool  # one process per scan: a hardware crash costs that scan, not the batch
+import scan_cache as _sc       # a scan computed once on disk is reused by every account / job (--scan-cache)
 import instruments as _I  # §35: the run's own symbols name the market, and (market, tf) names the system
 import performance as _perf  # CLAUDE.md §39: the ONE computer for the twenty-three metrics
 import providers as _P       # §4: which venue this market's orders go to -- and therefore what a fill costs
@@ -169,7 +170,7 @@ def build_scan_tasks(tfs, syms, cfg_overlays, methods_by_sym):
 
 
 def run_scans(tasks, workers, executor_cls=_pool.IsolatedExecutor, max_retries=2,
-              max_pool_rebuilds=6, max_crashes_per_task=5):
+              max_pool_rebuilds=6, max_crashes_per_task=5, disk=None, require_cached=False):
     """Execute every (sym, tf, overlay, key) in `tasks` (from `build_scan_tasks`), in parallel across
     `executor_cls` when `workers > 1` and there is more than one task, sequentially in THIS process otherwise
     (same `bt.scan(sym, tf, opts=overlay)` call either way -- see `_worker_scan`'s docstring for why the
@@ -213,8 +214,34 @@ def run_scans(tasks, workers, executor_cls=_pool.IsolatedExecutor, max_retries=2
     fails only the crashed task's future with `WorkerCrashed`. That is charged to THAT task
     (`max_crashes_per_task`, default 5 -- generous, because on this machine a crash says nothing about the
     task) and it is resubmitted; a task that crashes every time is a deterministic fault, and after five it
-    ends the run loudly rather than looping forever."""
+    ends the run loudly rather than looping forever.
+
+    `disk` (a `scan_cache.ScanCache`, `--scan-cache`): every task is looked up there first and only the misses
+    are scanned; each fresh result is written back the moment it arrives, so a run that dies later keeps what
+    it paid for. A hit is the stored `(result, loads)` pair `_worker_scan` itself returns, so the caller's
+    replay of `loads` works unchanged. `require_cached=True` makes any miss fatal instead: a report job that
+    expected every scan to be precomputed must not silently spend hours recomputing one."""
     cache = {}
+    disk_keys = {}
+    if disk is not None:
+        todo = []
+        for t in tasks:
+            sym, tf, overlay, key = t
+            disk_keys[key] = _sc.full_key(ROOT, bt, sym, key)
+            hit = disk.get(disk_keys[key])
+            if hit is not None:
+                cache[key] = hit
+            else:
+                todo.append(t)
+        if todo and require_cached:
+            raise SystemExit(f"--require-cached: {len(todo)} scan(s) not in {disk.dir}: "
+                             + ", ".join(f"{t[0]} {t[1]}" for t in todo))
+        tasks = todo
+
+    def _keep(key, res):
+        cache[key] = res
+        if disk is not None:
+            disk.put(disk_keys[key], *res)
     pool_breaks = 0
     crashes = {t[3]: 0 for t in tasks}
     remaining = list(tasks)
@@ -230,7 +257,7 @@ def run_scans(tasks, workers, executor_cls=_pool.IsolatedExecutor, max_retries=2
                 for fut in futures:
                     sym, tf, overlay, key = futures[fut]
                     try:
-                        cache[key] = fut.result()
+                        _keep(key, fut.result())
                     except concurrent.futures.process.BrokenProcessPool as exc:
                         broken = exc                        # charged to the run below, not to this task
                         still_remaining.append((sym, tf, overlay, key))
@@ -262,7 +289,7 @@ def run_scans(tasks, workers, executor_cls=_pool.IsolatedExecutor, max_retries=2
             still_remaining = []
             for sym, tf, overlay, key in remaining:
                 try:
-                    cache[key] = _worker_scan(sym, tf, overlay)
+                    _keep(key, _worker_scan(sym, tf, overlay))
                 except Exception as exc:
                     attempts[key] += 1
                     if attempts[key] > max_retries:
@@ -479,7 +506,46 @@ def main():
     # as before this option existed.
     ap.add_argument("--workers", type=int, default=min(4, os.cpu_count() or 1),
                     help="parallel bt.scan() worker processes (default: min(4, cpu_count)); 1 = sequential, in-process")
+    # Scan cache (owner-approved 2026-09-28, scripts/scan_cache.py): a scan does not depend on --account, so the
+    # four accounts of one market share it. On GitHub Actions one job per scan fills the cache (--scan-only
+    # --scan-configs X) and the report jobs read it (--require-cached), so no job runs 72 scans in a row.
+    ap.add_argument("--scan-cache", help="directory of precomputed scans to read and extend (scripts/scan_cache.py)")
+    ap.add_argument("--require-cached", action="store_true", help="fail if any scan is missing from --scan-cache")
+    ap.add_argument("--scan-only", action="store_true", help="fill --scan-cache and stop; no report")
+    ap.add_argument("--scan-configs", help="with --scan-only: only these CONFIGS letters, e.g. A or A,C")
+    ap.add_argument("--list-scans", action="store_true",
+                    help="print the distinct scans of this --tf/--symbols as JSON [{symbol, tf, config}] and stop")
     a = ap.parse_args(); today = datetime.date.today().isoformat(); rows = []
+    if a.scan_configs and not a.scan_only:
+        raise SystemExit("--scan-configs only restricts --scan-only: a report over some configs would be a partial "
+                         "stability file that looks complete")
+    if (a.scan_only or a.require_cached) and not a.scan_cache:
+        raise SystemExit("--scan-only / --require-cached need --scan-cache")
+    if a.list_scans:
+        syms, tfs = a.symbols.split(","), a.tf.split(",")
+        mbs = {sym: bt.resolve_methods(sym) for sym in syms}
+        out, seen = [], set()
+        for tf in tfs:
+            for cname, cfg in CONFIGS.items():
+                ov = config_opts(cfg, a.ict_target)
+                for sym in syms:
+                    k = _scan_cache_key(sym, tf, ov, mbs[sym])
+                    if k not in seen:
+                        seen.add(k); out.append(dict(symbol=sym, tf=tf, config=cname))
+        print(json.dumps(out))
+        return
+    disk = _sc.ScanCache(a.scan_cache, ROOT) if a.scan_cache else None
+    if a.scan_only:
+        wanted = a.scan_configs.split(",") if a.scan_configs else list(CONFIGS)
+        unknown = [c for c in wanted if c not in CONFIGS]
+        if unknown:
+            raise SystemExit(f"--scan-configs: unknown config(s) {unknown}; known {list(CONFIGS)}")
+        syms, tfs = a.symbols.split(","), a.tf.split(",")
+        mbs = {sym: bt.resolve_methods(sym) for sym in syms}
+        tasks = build_scan_tasks(tfs, syms, {c: config_opts(CONFIGS[c], a.ict_target) for c in wanted}, mbs)
+        run_scans(tasks, max(1, min(a.workers, len(tasks) or 1)), disk=disk)
+        print(disk.summary(), file=sys.stderr)
+        return
     # THE one loader (A3, docs/plans/2026-09-18-close-feature-gaps.md §0.3): this used to be five lines
     # duplicated inline here and again in backtest-methods.py main(); `bt.load_account` is now the only place
     # "--account and --account-file are two different answers" is enforced, so the two reports cannot drift
@@ -511,7 +577,10 @@ def main():
           f"config(s) x {len(syms)} symbol(s), {workers} worker process(es)", file=sys.stderr)
     # --workers 1 is the old engine, call for call: scans run lazily inside the loop exactly where they always
     # did, so its output (JSON, markdown AND stderr order) is the reference the parallel path is judged against.
-    scan_cache = run_scans(scan_tasks, workers) if workers > 1 else None
+    scan_cache = (run_scans(scan_tasks, workers, disk=disk, require_cached=a.require_cached)
+                  if workers > 1 or disk is not None else None)
+    if disk is not None:
+        print(disk.summary(), file=sys.stderr)
 
     def _scan_for(sym, tf, overlay):
         if scan_cache is None:
