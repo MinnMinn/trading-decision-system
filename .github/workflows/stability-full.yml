@@ -1,0 +1,87 @@
+# Full-universe stability regeneration (owner, 2026-09-27): every crypto execution symbol, every MT5 CFD
+# execution symbol (metals + index CFDs; USOIL/UKOIL removed -- the MT5 account carries neither). Forex was
+# removed from the system by the owner the same day. Separate from research.yml, which stays pinned to the committed files' symbol sets so the
+# engine can be accepted byte-for-byte. One market per file: stability-report prices a run by the market of
+# its first symbol, so markets are never mixed in one run. (research.yml, the byte-for-byte engine acceptance on
+# the old symbol sets, passed 6/7 on run 36324703018 and was deleted with this change.)
+name: stability-full
+
+on:
+  push:
+    branches: ["research-full/**"]
+  workflow_dispatch:
+    inputs:
+      workers:
+        description: "scan worker processes per job"
+        default: "2"
+
+permissions:
+  contents: read
+
+env:
+  CRYPTO: "BTCUSDT,ETHUSDT,SOLUSDT,ASTERUSDT,VIRTUALUSDT,SUIUSDT,TAOUSDT,RENDERUSDT,ONDOUSDT"
+  CFD: "XAUUSD,XAGUSD,US500,US30,USTEC,DE40,FRA40,AUS200"
+
+jobs:
+  stability:
+    name: stability ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: crypto-live, set: CRYPTO, account: ""}
+          - {name: crypto-crypto-personal-v1, set: CRYPTO, account: crypto-personal-v1}
+          - {name: crypto-crypto-prop-discipline, set: CRYPTO, account: crypto-prop-discipline}
+          - {name: crypto-pilot-binance-futures-testnet, set: CRYPTO, account: pilot-binance-futures-testnet}
+          - {name: cfd-live, set: CFD, account: ""}
+          - {name: cfd-ftmo-challenge-phase1, set: CFD, account: ftmo-challenge-phase1}
+          - {name: cfd-the5ers-high-stakes-step1, set: CFD, account: the5ers-high-stakes-step1}
+          - {name: cfd-pilot-mt5-demo, set: CFD, account: pilot-mt5-demo}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: stability-report
+        env:
+          PYTHONUTF8: "1"
+          SYMBOLS: ${{ env[matrix.set] }}
+        run: |
+          # Outputs go to the runner's temp dir, NOT the checkout: a file written inside the work tree makes the
+          # run's own code_version read dirty=true (snapshot.code_version), and a dirty run is not reproducible
+          # from its SHA alone (CLAUDE.md §46).
+          out="$RUNNER_TEMP/out"; mkdir -p "$out"
+          acct=()
+          if [ -n "${{ matrix.account }}" ]; then acct=(--account "${{ matrix.account }}"); fi
+          python -X faulthandler scripts/stability-report.py --tf 15m,1H,4H --symbols "$SYMBOLS" \
+            --ict-target range --json "$out/${{ matrix.name }}.json" --workers "${{ inputs.workers || 2 }}" "${acct[@]}" \
+            > "$out/${{ matrix.name }}.stdout.md" 2> "$out/${{ matrix.name }}.log"
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: stability-${{ matrix.name }}
+          path: ${{ runner.temp }}/out/
+          retention-days: 14
+
+  collect:
+    needs: stability
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: results
+      - name: push results branch
+        run: |
+          cd results
+          git init -q -b "research-results/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          printf 'run %s attempt %s (stability-full)\nsource commit %s (%s)\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "$GITHUB_REF_NAME" > RUN.txt
+          git add -A
+          git commit -q -m "stability-full results: run ${GITHUB_RUN_ID} of ${GITHUB_SHA}"
+          git push -q "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/research-results/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
