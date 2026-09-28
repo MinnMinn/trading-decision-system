@@ -16,6 +16,7 @@ the concept assumes). Score = mean(one_side, reverse|swept) − 0.5 × range sha
 """
 import argparse, datetime, json, os, statistics, zoneinfo
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys; _sys.path.insert(0, os.path.join(ROOT, "scripts"))  # importable when loaded by path from anywhere
 from repo_paths import repo_rel
 CANDS = {"tokyo_00_06": ("Asia/Tokyo", 0, 6), "ny_20_00": ("America/New_York", 20, 24), "utc_00_08": ("UTC", 0, 8), "tokyo_09_15": ("Asia/Tokyo", 9, 15), "sg_08_16": ("Asia/Singapore", 8, 16)}
 

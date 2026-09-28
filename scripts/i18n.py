@@ -35,6 +35,7 @@ import os
 import re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys; _sys.path.insert(0, os.path.join(ROOT, "scripts"))  # importable when loaded by path from anywhere
 from repo_paths import repo_rel
 PATH = os.path.join(ROOT, "docs", "architecture", "i18n.json")
 

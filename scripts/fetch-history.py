@@ -8,6 +8,7 @@ Separate directory from data/live/market-data on purpose: the launchd scanner is
 import json, os, sys, time, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys; _sys.path.insert(0, os.path.join(ROOT, "scripts"))  # importable when loaded by path from anywhere
 from repo_paths import repo_rel
 INTERVAL = {"1W": "1w", "1D": "1d", "4H": "4h", "2H": "2h", "1H": "1h", "30m": "30m", "15m": "15m", "5m": "5m", "1m": "1m"}
 MS = {"1W": 604800000, "1D": 86400000, "4H": 14400000, "2H": 7200000, "1H": 3600000, "30m": 1800000, "15m": 900000, "5m": 300000, "1m": 60000}

@@ -19,6 +19,7 @@ Usage: fetch-history-cfd.py [XAUUSD XAGUSD]
 import json, os, sys, time, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys; _sys.path.insert(0, os.path.join(ROOT, "scripts"))  # importable when loaded by path from anywhere
 from repo_paths import repo_rel
 # Symbol -> Yahoo ticker. This is a PROVIDER mapping, not an allowlist copy: the two keys happen to be a subset of the
 # cfd list today, but the values are Yahoo's own contract codes and only Yahoo can say what they are. A symbol

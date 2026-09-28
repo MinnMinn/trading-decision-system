@@ -96,6 +96,7 @@ except ImportError:                     # Windows has no fcntl (docs/plans/2026-
         msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys; _sys.path.insert(0, os.path.join(ROOT, "scripts"))  # importable when loaded by path from anywhere
 from repo_paths import repo_rel
 CONFIG = os.path.join(ROOT, "docs", "architecture", "automation-config.json")
 SCHEMA_VERSION = 3
