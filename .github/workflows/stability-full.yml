@@ -2,7 +2,8 @@
 # execution symbol (metals + index CFDs; USOIL/UKOIL removed -- the MT5 account carries neither). Forex was
 # removed from the system by the owner the same day. Separate from research.yml, which stays pinned to the committed files' symbol sets so the
 # engine can be accepted byte-for-byte. One market per file: stability-report prices a run by the market of
-# its first symbol, so markets are never mixed in one run.
+# its first symbol, so markets are never mixed in one run. (research.yml, the byte-for-byte engine acceptance on
+# the old symbol sets, passed 6/7 on run 36324703018 and was deleted with this change.)
 name: stability-full
 
 on:
@@ -39,8 +40,8 @@ jobs:
           - {name: cfd-the5ers-high-stakes-step1, set: CFD, account: the5ers-high-stakes-step1}
           - {name: cfd-pilot-mt5-demo, set: CFD, account: pilot-mt5-demo}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: stability-report
@@ -48,17 +49,20 @@ jobs:
           PYTHONUTF8: "1"
           SYMBOLS: ${{ env[matrix.set] }}
         run: |
-          mkdir -p out
+          # Outputs go to the runner's temp dir, NOT the checkout: a file written inside the work tree makes the
+          # run's own code_version read dirty=true (snapshot.code_version), and a dirty run is not reproducible
+          # from its SHA alone (CLAUDE.md §46).
+          out="$RUNNER_TEMP/out"; mkdir -p "$out"
           acct=()
           if [ -n "${{ matrix.account }}" ]; then acct=(--account "${{ matrix.account }}"); fi
           python -X faulthandler scripts/stability-report.py --tf 15m,1H,4H --symbols "$SYMBOLS" \
-            --ict-target range --json "out/${{ matrix.name }}.json" --workers "${{ inputs.workers || 2 }}" "${acct[@]}" \
-            > "out/${{ matrix.name }}.stdout.md" 2> "out/${{ matrix.name }}.log"
-      - uses: actions/upload-artifact@v4
+            --ict-target range --json "$out/${{ matrix.name }}.json" --workers "${{ inputs.workers || 2 }}" "${acct[@]}" \
+            > "$out/${{ matrix.name }}.stdout.md" 2> "$out/${{ matrix.name }}.log"
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: stability-${{ matrix.name }}
-          path: out/
+          path: ${{ runner.temp }}/out/
           retention-days: 14
 
   collect:
@@ -68,16 +72,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: results
       - name: push results branch
         run: |
           cd results
-          git init -q -b "research-results/${GITHUB_RUN_ID}"
+          git init -q -b "research-results/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          printf 'run %s (stability-full)\nsource commit %s (%s)\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" "$GITHUB_REF_NAME" > RUN.txt
+          printf 'run %s attempt %s (stability-full)\nsource commit %s (%s)\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SHA" "$GITHUB_REF_NAME" > RUN.txt
           git add -A
           git commit -q -m "stability-full results: run ${GITHUB_RUN_ID} of ${GITHUB_SHA}"
-          git push -q "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/research-results/${GITHUB_RUN_ID}"
+          git push -q "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/research-results/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
