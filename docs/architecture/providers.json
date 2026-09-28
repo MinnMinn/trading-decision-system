@@ -157,6 +157,42 @@
       "_server_timezone_why": "EET/EEST -- UTC+2 winter, UTC+3 summer, EU transition dates. MEASURED from the exported XAUUSD 1H series on 2026-09-18, not read off the server's name: (1) the week opens Monday 01:00 and closes Friday 23:00 server-local with hour 00 the daily break; (2) the most volatile hour is 16:00 server in BOTH summer and winter, so the clock moves with daylight saving rather than sitting at a fixed offset; (3) in the 12-25 March window, when the US is on DST and the EU is not, that hour drops to 15:00 and returns to 16:00 in April -- the EU transition date, not the US one. Consistent with the `_server_utc_offset_sec_now = 10800` the export recorded in September. scripts/import-mt5-history.py REFUSES to convert without this field, and refuses if a file's `_server` is not the one named here: applying one broker's zone to another's timestamps is a silent one-hour error in every bar, which is worse than no import at all. The evidence is written up in docs/architecture/mt5-history-export.md.",
       "_source_markers_why": "Two markers, one provider, because they are two different EXPORTS of the same broker feed and conflating them would hide which one a research result read. `mt5_bridge_live` is ExportOHLCV.mq5: an EA on a 60-second timer writing ~600 recent bars into the live path, where freshness is checked. `mt5_bridge_history` is ExportHistory.mq5: a one-shot Script writing years of bars, whose timestamps are RAW SERVER TIME with no `Z` and are only UTC once converted with the zone measured in docs/architecture/mt5-history-export.md. A file carrying the history marker has not been through that conversion yet; the importer is what turns it into a `data/history/` series."
     },
+    "mt5_bridge_ftmo": {
+      "label": "MetaTrader 5 file bridge -- FTMO-Demo (fund research history)",
+      "venue": "mt5",
+      "external": true,
+      "roles": [
+        "market_data"
+      ],
+      "capabilities": [
+        "ohlcv_historical"
+      ],
+      "markets": [
+        "cfd"
+      ],
+      "adapter": "scripts/import-mt5-history.py",
+      "market_data_adapter": "integrations/mt5/ExportHistory.mq5",
+      "auth": "terminal_session",
+      "status": "connected",
+      "note": "A SECOND mt5_bridge provider entry, not a modification of `mt5_bridge` -- this is a different server (FTMO-Demo, not MetaQuotes-Demo) and providers.json's server/server_timezone fields are singular per provider, so a second server needs its own entry. Owner decision 2026-09-28/29 (docs/plans/2026-09-28-methodology-improvement-plan.md §6 items 3, 7): fund setups are searched on 1m/5m/15m/30m against the fund's OWN feed, so FTMO-Demo -- not MetaQuotes-Demo -- is the research source for that search. Deliberately NOT `research_only` (code review, 2026-09-29, fixing a round-1 misuse of the flag): `_research_only_note` above defines it as supplying a DIFFERENT INSTRUMENT from the one traded (yahoo_finance/futures-vs-CFD is the example that flag exists for) -- this provider's `market_data_market_type` is CFD, the SAME type the venue trades, so marking it research_only made `providers.research_data_mismatch(\"cfd\")` report a futures/CFD mismatch that included THIS provider's own (matching) CFD type in the union, which is wrong. \"This account has not traded a single order yet\" (data/history/costs/ftmo/symbol-map.json's `_note`: \"no deals on this account yet\") is handled correctly already, with no flag needed: this provider declares no `execution` role at all, so `providers.for_role(\"execution\", ...)`/`providers.is_live()` for an execution purpose already cannot select it -- that is what actually keeps an unverified venue out of a live decision (CLAUDE.md §6), not `research_only`.",
+      "aggregation_scope": "single_venue",
+      "underlying_venues": [
+        "mt5_broker_ftmo"
+      ],
+      "market_data_market_type": "CFD",
+      "source_markers": [
+        "mt5_bridge_ftmo_history",
+        "mt5_bridge_ftmo_history_utc"
+      ],
+      "_source_markers_why": "Distinct from mt5_bridge's own `mt5_bridge_history` / `mt5_bridge_history_utc` markers so a converted FTMO series can never be mistaken for a MetaQuotes-Demo one by providers.by_source_marker() -- the raw exports both carry the generic `mt5_bridge_history` marker (ExportHistory.mq5 does not know which server it ran on), but scripts/import-mt5-history.py's OWN `_source` stamp on the WRITTEN series is provider-specific and is what this list resolves.",
+      "server": "FTMO-Demo",
+      "server_timezone": null,
+      "server_timezone_convention": "us_dst_dates_fixed_offset",
+      "server_utc_offset_standard_sec": 7200,
+      "server_utc_offset_dst_sec": 10800,
+      "_server_timezone_why": "MEASURED, not read off the server's name -- see docs/audits/2026-09-29-ftmo-server-timezone.md. Unlike `mt5_bridge` (MetaQuotes-Demo, Europe/Helsinki, EU transition dates), FTMO-Demo's clock changes on the US CALENDAR: the volatility-peak-by-local-hour test (CLAUDE.md's own method, reused) shows NO shift in the mid-March or late-Oct/early-Nov gap weeks -- the peak local hour tracks the baseline profile at shift=0 in both windows (correlation 0.92/0.93 at shift 0 vs 0.85/0.85 at shift -1, pooled 2013-2025 XAUUSD 15m Tue-Thu bars), which is the signature of a broker whose own DST transition happens on the SAME calendar weekend as the US market's, not the EU's. No real IANA zone has a permanent +02:00/+03:00 offset transitioning on US dates (every geography-tied zone's DST dates follow its own region), so this is declared as a NAMED CONVENTION (`server_timezone_convention`) rather than a `server_timezone` Region/City string -- scripts/mt5_time.py implements it as `UsDatesFixedOffsetZone`, whose transition INSTANTS are read from the real `America/New_York` zoneinfo (so historical US rule changes, e.g. the 2007 date change, are inherited correctly) with the OFFSET MAGNITUDE replaced by the fixed 7200s/10800s pair measured here. `_server_utc_offset_sec_now = 10801` in the 2026-09-28 export is consistent with this (deep in both EU and US summer, so it does not by itself distinguish the two conventions -- the gap-week evidence does).",
+      "_needed_symbols_why": "Only 7 of the FTMO account's 8 mapped symbols are imported (data/history/costs/ftmo/symbol-map.json): AUS200.cash was never exported by the owner and is DROPPED by owner decision (2026-09-29) -- not imported, not waited for. The needed set is XAUUSD, XAGUSD, US500, US30, USTEC, DE40, FRA40 (canonical names)."
+    },
     "coinglass": {
       "label": "CoinGlass",
       "venue": "aggregate",

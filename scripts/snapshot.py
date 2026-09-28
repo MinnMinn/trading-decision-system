@@ -35,11 +35,13 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import account_profile as _AP
 import instruments as I
 import normalized as N
 import providers as P
 import trading_system as _TS   # CLAUDE.md §35: which dependencies the system declares REQUIRED_FOR_DECISION
+import history_store as _HS    # shared reader/digest (single-file or split-gz), CLAUDE.md §58
 
 SNAPSHOT_FORMAT = 1
 
@@ -79,8 +81,14 @@ def series_snapshot(symbol, timeframe, base=None):
 
     Deliberately built on normalized.load() rather than re-reading the file: the provider, source venue,
     market type, canonical symbol and aggregation scope are exactly §7's provenance fields, and computing
-    them a second way here would be a second answer to the same question."""
-    path = N.path_for(symbol, timeframe, base)
+    them a second way here would be a second answer to the same question.
+
+    `sha256`/`split_parts` go through `history_store.digest()`/`history_store.part_digests()` rather than
+    `file_digest(path)` directly (code review, 2026-09-29): `path` may now be a split-gz DIRECTORY, and
+    `file_digest()` opening a directory in binary mode is an `IsADirectoryError`, not a wrong answer -- but a
+    wrong answer would have been worse. For a plain-file series `history_store.digest()` is byte-identical to
+    `file_digest(path)`, so no existing snapshot's recorded sha256 changes."""
+    path, shape = N.resolve_path(symbol, timeframe, base)
     s = N.load(symbol, timeframe, base=base)
     prov, scope = s["provenance"], s["provenance"]["data_scope"]
     return {
@@ -99,7 +107,17 @@ def series_snapshot(symbol, timeframe, base=None):
         "bars": scope["bars"],
         "first_open": scope["first_open"],
         "last_open": scope["last_open"],
-        "sha256": file_digest(path),
+        "sha256": _HS.digest(symbol, timeframe, root=base) if base else file_digest(path),
+        # Per-part breakdown for a split-gz series (one gz-year part per entry), else None -- §10
+        # reproducibility: `sha256` proves the WHOLE series is unchanged, but naming which YEAR a later
+        # discrepancy would live in needs the parts. None (not omitted) for a plain-file series, so a reader
+        # can tell "this series has one part, itself" from "this field was never computed".
+        "split_parts": _HS.part_digests(symbol, timeframe, root=base) if base else None,
+        # §10 "data version"/reproducibility: WHICH root these bytes were read from -- data/history vs a
+        # second provider's data/history/ftmo are different datasets for the same (symbol, timeframe), and a
+        # snapshot that does not name the root cannot be told apart from one that silently used the wrong one
+        # (code review, 2026-09-29: this is exactly the bug that motivated this module's split-shape support).
+        "history_root": repo_rel(base, ROOT) if base else None,
     }
 
 
@@ -118,6 +136,7 @@ def dataset_snapshot(series, base=None, now=None):
         "created_at": stamp,
         "code_version": code_version(),
         "preprocessing_version": N.SNAPSHOT_INPUTS_VERSION,
+        "history_root": repo_rel(base, ROOT) if base else None,
         "series": rows,
         "_note": ("CLAUDE.md §10. Identity of the DATA a result was computed from; the CONFIGURATION that "
                   "produced it is a separate block (§11). `sha256` is the version -- paths are overwritten "

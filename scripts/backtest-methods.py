@@ -52,6 +52,19 @@ import argparse, bisect, collections, heapq, importlib.util, datetime, json, os,
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from repo_paths import repo_rel
+import history_store as _HS      # CLAUDE.md §2/§58: THE shared history reader (single-file or split-gz) and
+                                  # HISTORY_ROOT resolution -- also used by normalized.py/snapshot.py/
+                                  # prop-search.py so a caller selecting an alternate root (a second
+                                  # provider's dataset, e.g. data/history/ftmo) is honoured by every research
+                                  # path that reads history, not just this engine (code review, 2026-09-29).
+HISTORY_ROOT = _HS.history_root() # frozen into THIS module's own namespace at exec time (this module is
+                                  # loaded fresh via importlib by every caller that wants a particular env
+                                  # state -- history_store.history_root() itself is deliberately NOT cached,
+                                  # see its own docstring for why). Re-exported as a plain attribute because
+                                  # scan_cache.py reads `getattr(bt, "HISTORY_ROOT", None)`, and this name
+                                  # predates the shared module. Unset BT_HISTORY_ROOT (the default, every
+                                  # existing caller) reproduces `os.path.join(ROOT, "data", "history")`
+                                  # exactly, unchanged.
 import wyckoff_rules as W
 import quality as _quality   # CLAUDE.md §20: the six data-quality states this loader flags its history against
 import research_validity as _RV
@@ -208,28 +221,13 @@ def pit_cutoff(cutoff):
     _PIT_CUTOFF = cutoff
 
 
-#: Parsed history files, keyed by (path, mtime_ns, size). htf_bias_gate() calls load() once per LTF bar, so
-#: without this every bar re-read and re-parsed a multi-MB JSON file -- hours of IO and allocator churn per
-#: stability run. The key includes the file's identity, so a rewritten file is re-read, never served stale.
-_LOAD_CACHE = {}
-
-
-def _read_history(p):
-    st = os.stat(p)
-    key = (p, st.st_mtime_ns, st.st_size)
-    d = _LOAD_CACHE.get(key)
-    if d is None:
-        with open(p) as fh:
-            d = json.load(fh)
-        _LOAD_CACHE[key] = d
-    return d
-
-
 def load(sym, tf):
-    p = f"{ROOT}/data/history/ohlcv.{sym}.{tf}.json"
-    if not os.path.exists(p):
+    # scripts/history_store.py: THE shared reader (single-file or split-gz) and its own load cache -- moved
+    # out of this module (code review, 2026-09-29) so normalized.py/snapshot.py/prop-search.py read history
+    # through the identical logic rather than a second copy that could drift (CLAUDE.md §58).
+    d, p = _HS.read_doc(sym, tf, root=HISTORY_ROOT)
+    if d is None:
         return None, None
-    d = _read_history(p)
     if _BARS_LIMIT and len(d.get("candles") or ()) > _BARS_LIMIT:
         d = dict(d, candles=d["candles"][-_BARS_LIMIT:])
     if _PIT_CUTOFF is not None:

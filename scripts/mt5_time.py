@@ -66,33 +66,140 @@ class Refused(Exception):
     """A conversion that must not happen, carrying the reason a human needs to act on."""
 
 
-def server_zone():
-    """(name, ZoneInfo) from the provider registry, or Refused. Never a default."""
-    prov = P.provider("mt5_bridge")
+class UsDatesFixedOffsetZone(datetime.tzinfo):
+    """A synthetic zone: FIXED +standard/+dst offsets (no geography), whose transition INSTANTS are the same
+    ones `America/New_York` uses -- i.e. the broker's own clock jumps at the same wall-clock moment the US
+    market's DST does, but the magnitude of the jump is whatever this provider measured (EET-sized for
+    FTMO-Demo: +02:00/+03:00), not New York's own -05:00/-04:00.
+
+    No real IANA zone does this (every geography-tied zone's DST dates follow its own region), which is why
+    `mt5_time.server_zone()` refuses a bare abbreviation -- but a *named convention* is not a guess, it is
+    what `docs/audits/2026-09-29-ftmo-server-timezone.md` measured from the data. Reading the transition
+    instants off the real `America/New_York` zoneinfo object (rather than hardcoding "2nd Sunday of March")
+    means historical US rule changes -- e.g. the 2007 shift -- are inherited correctly instead of silently
+    wrong for old bars.
+    """
+
+    _NY = zoneinfo.ZoneInfo("America/New_York")
+    _ZERO = datetime.timedelta(0)
+
+    def __init__(self, standard, dst):
+        self._std = standard
+        self._dst = dst
+
+    def _ny_dst_active(self, naive_utc):
+        aware = naive_utc.replace(tzinfo=UTC)
+        return aware.astimezone(self._NY).dst() != self._ZERO
+
+    def _offsets(self, dt):
+        """(offset_if_std_consistent, offset_if_dst_consistent) -- see utcoffset()."""
+        naive = dt.replace(tzinfo=None)
+        std_is_consistent = not self._ny_dst_active(naive - self._std)
+        dst_is_consistent = self._ny_dst_active(naive - self._dst)
+        return std_is_consistent, dst_is_consistent
+
+    def utcoffset(self, dt):
+        if dt is None:
+            return self._std
+        std_ok, dst_ok = self._offsets(dt)
+        if std_ok and not dst_ok:
+            return self._std
+        if dst_ok and not std_ok:
+            return self._dst
+        if not std_ok and not dst_ok:
+            # Neither guess is self-consistent -- the spring-forward GAP: this local wall-clock value never
+            # happens. Return a value (round-trip check in _local() is what actually refuses this) rather
+            # than raising here, so callers that only need SOME offset (e.g. dst()) do not crash.
+            return self._std
+        # Both guesses are self-consistent -- the autumn AMBIGUOUS hour, repeated once. PEP 495: fold=0 is
+        # the FIRST (chronologically earlier) occurrence, which is the one still on the old (DST) rules.
+        return self._dst if dt.fold == 0 else self._std
+
+    def dst(self, dt):
+        if dt is None:
+            return self._ZERO
+        return self.utcoffset(dt) - self._std
+
+    def tzname(self, dt):
+        return f"FTMO-US-DATES({self._std}/{self._dst})"
+
+    def classify(self, naive):
+        """(kind, offset) for a naive local wall-clock value, computed DIRECTLY from the std/dst consistency
+        test rather than through the generic tzinfo round-trip `_local()` uses for a real zoneinfo zone --
+        that round trip goes through the base class's default `fromutc()`, which is not reliable for a
+        hand-rolled zone at exactly the edge instants this whole module exists to get right. `kind` is one of
+        'normal' (offset is the one, unambiguous answer), 'gap' (offset is None -- this wall-clock value
+        never happens), 'ambiguous' (offset is (dst_offset, std_offset), the two answers in fold order)."""
+        std_ok, dst_ok = self._offsets(naive)
+        if std_ok and not dst_ok:
+            return "normal", self._std
+        if dst_ok and not std_ok:
+            return "normal", self._dst
+        if not std_ok and not dst_ok:
+            return "gap", None
+        return "ambiguous", (self._dst, self._std)   # fold=0 -> dst (first/earlier), fold=1 -> std (second)
+
+
+def server_zone(provider="mt5_bridge"):
+    """(name, tzinfo) from the provider registry, or Refused. Never a default.
+
+    `provider` generalizes this beyond `mt5_bridge` (MetaQuotes-Demo) so a second MT5 server -- e.g.
+    `mt5_bridge_ftmo` -- can declare its own zone the same way, without touching the first provider's
+    declaration. Two shapes are recognised:
+      * `server_timezone`: a real IANA `Region/City` string (unchanged behaviour, the only path before this).
+      * `server_timezone_convention`: a named convention this module implements when no real zone applies --
+        see `UsDatesFixedOffsetZone` and docs/audits/2026-09-29-ftmo-server-timezone.md.
+    Declaring neither, or declaring an unknown convention name, refuses exactly like a missing zone always
+    has -- a convention is not a second way to guess.
+    """
+    prov = P.provider(provider)
+    conv = prov.get("server_timezone_convention")
+    if conv:
+        return _convention_zone(provider, prov, conv)
     name = prov.get("server_timezone")
     if not name:
         raise Refused(
-            "docs/architecture/providers.json mt5_bridge declares no `server_timezone`. The export writes RAW "
-            "server time, so without the zone there is nothing to convert it with -- and a default here would "
-            "be a guess that reads as a fact in every bar it touches.")
+            f"docs/architecture/providers.json {provider} declares no `server_timezone` (and no "
+            f"`server_timezone_convention`). The export writes RAW server time, so without the zone there is "
+            f"nothing to convert it with -- and a default here would be a guess that reads as a fact in "
+            f"every bar it touches.")
     if "/" not in name:
-        raise Refused(f"mt5_bridge.server_timezone is {name!r}. A real IANA zone is Region/City; an "
+        raise Refused(f"{provider}.server_timezone is {name!r}. A real IANA zone is Region/City; an "
                       f"abbreviation like 'EET' is a permanent offset with no daylight saving, which is the "
                       f"exact error this conversion exists to prevent.")
     try:
         return name, zoneinfo.ZoneInfo(name)
     except Exception as exc:
-        raise Refused(f"mt5_bridge.server_timezone {name!r} is not a zone this system can load ({exc}).")
+        raise Refused(f"{provider}.server_timezone {name!r} is not a zone this system can load ({exc}).")
 
 
-def check_server(server, where):
+_CONVENTIONS = ("us_dst_dates_fixed_offset",)
+
+
+def _convention_zone(provider, prov, conv):
+    if conv not in _CONVENTIONS:
+        raise Refused(f"{provider}.server_timezone_convention is {conv!r}; this module implements "
+                      f"{list(_CONVENTIONS)}. An unimplemented convention name is not a fallback to guessing "
+                      f"-- either implement it (with measured evidence, docs/audits/) or fix the declaration.")
+    std_sec = prov.get("server_utc_offset_standard_sec")
+    dst_sec = prov.get("server_utc_offset_dst_sec")
+    if std_sec is None or dst_sec is None:
+        raise Refused(f"{provider} declares server_timezone_convention {conv!r} but is missing "
+                      f"server_utc_offset_standard_sec/server_utc_offset_dst_sec -- the convention names the "
+                      f"TRANSITION DATES only; the offset MAGNITUDE is still a separate measured fact.")
+    zone = UsDatesFixedOffsetZone(datetime.timedelta(seconds=std_sec), datetime.timedelta(seconds=dst_sec))
+    name = f"{provider}:{conv}(std={std_sec}s,dst={dst_sec}s)"
+    return name, zone
+
+
+def check_server(server, where, provider="mt5_bridge"):
     """The declared zone is a claim about ONE server. Any other server's timestamps refuse."""
-    declared = P.provider("mt5_bridge").get("server")
+    declared = P.provider(provider).get("server")
     if declared and server != declared:
         raise Refused(
-            f"{where}: exported from server {server!r}, but providers.json declares {declared!r} and its "
-            f"`server_timezone` is a claim about THAT server only. Applying one broker's zone to another's "
-            f"timestamps is a silent one-hour error in every bar.")
+            f"{where}: exported from server {server!r}, but providers.json declares {declared!r} for "
+            f"'{provider}' and its zone is a claim about THAT server only. Applying one broker's zone to "
+            f"another's timestamps is a silent one-hour error in every bar.")
 
 
 def _local(stamp, zone, zone_name, where):
@@ -110,6 +217,18 @@ def _local(stamp, zone, zone_name, where):
     except ValueError as exc:
         raise Refused(f"{where}: {stamp!r} is not a timestamp ({exc}).")
     local = naive.replace(tzinfo=zone)
+    if isinstance(zone, UsDatesFixedOffsetZone):
+        # `classify()` answers gap/ambiguous/normal DIRECTLY from the std/dst consistency test (see its own
+        # docstring) instead of the round-trip below -- that round trip depends on the base `tzinfo.fromutc()`
+        # default algorithm being correct for a hand-rolled zone at exactly the edge instants this module
+        # exists to get right, and it is not reliably so. zoneinfo.ZoneInfo (the branch below) has no such
+        # problem, so this branch does not touch it.
+        kind, offset = zone.classify(naive)
+        if kind == "gap":
+            raise Refused(f"{where}: local time {stamp} does not exist in {zone_name} (spring-forward gap).")
+        if kind == "ambiguous":
+            return naive, local, True
+        return naive, local, False
     # PEP 495. Both a NONEXISTENT local time (spring-forward gap) and an AMBIGUOUS one (autumn fall-back) have
     # two different `fold` offsets, so the offsets alone cannot tell them apart -- and `utcoffset()` never
     # returns None for a ZoneInfo. The round trip does separate them: a nonexistent time comes back as a

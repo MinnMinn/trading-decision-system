@@ -392,8 +392,12 @@ class WorkerScanReportsEveryLoadForReplay(unittest.TestCase):
             SR.bt.load(sym, tf); SR.bt.load(sym, "4H"); SR.bt.load(sym, tf)
             return {"trades": {}}
 
+        # `_read_history` moved to `history_store._read_file` (code review, 2026-09-29: one shared reader for
+        # backtest-methods.py/normalized.py/snapshot.py/prop-search.py) -- patched via `SR.bt._HS` rather
+        # than `SR.bt` directly. `os.path.exists` is the same global module either way (`SR.bt.os` and
+        # `SR.bt._HS.os` are both just names for Python's one `os` module), so that patch is unchanged.
         with mock.patch.object(SR.bt, "scan", side_effect=fake_scan), \
-                mock.patch.object(SR.bt, "_read_history", return_value={"candles": []}), \
+                mock.patch.object(SR.bt._HS, "_read_file", return_value={"candles": []}), \
                 mock.patch.object(SR.bt.os.path, "exists", return_value=True):
             _result, loads = SR._worker_scan("BTCUSDT", "1H", {})
         self.assertEqual(loads, [("BTCUSDT", "1H"), ("BTCUSDT", "4H")])

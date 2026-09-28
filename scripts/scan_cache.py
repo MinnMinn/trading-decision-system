@@ -36,8 +36,22 @@ FORMAT = 1   # bump when the entry layout or the key recipe changes; old entries
 _DIGESTS = {}
 
 
+def _expand_dirs(paths):
+    """Directories pass through as their own FILES, sorted -- a split-gz history series (a second provider's
+    large series, scripts/import-mt5-history.py `stream_write_split()`: `ohlcv.<SYM>.<TF>/index.json` +
+    `<year>.json.gz` parts) is a DIRECTORY, and a key built from "the directory exists" would not change when
+    a part inside it did. Plain files (the default, unchanged, case) pass through untouched."""
+    for p in paths:
+        if os.path.isdir(p):
+            for name in sorted(os.listdir(p)):
+                yield os.path.join(p, name)
+        else:
+            yield p
+
+
 def _digest_files(paths, root):
     """sha256 over (relative path, bytes) of `paths`, sorted -- memoised per (path, mtime, size) set."""
+    paths = list(_expand_dirs(paths))
     ident = tuple(sorted((os.path.relpath(p, root).replace(os.sep, "/"), os.stat(p).st_mtime_ns, os.stat(p).st_size)
                          for p in paths))
     if ident in _DIGESTS:
@@ -57,13 +71,21 @@ def code_digest(root):
     return _digest_files(paths, root)
 
 
-def data_digest(root, sym):
-    return _digest_files(glob.glob(os.path.join(root, "data", "history", f"ohlcv.{sym}.*.json")), root)
+def data_digest(root, sym, history_root=None):
+    """`history_root` (default None -> `root/data/history`, unchanged) lets a second provider's history root
+    (backtest-methods.HISTORY_ROOT, e.g. data/history/ftmo) be digested the same way -- `full_key()` passes
+    it automatically so a caller pointed at the alternate root never gets served a cache entry keyed on the
+    default root's files (or vice versa)."""
+    base = history_root or os.path.join(root, "data", "history")
+    paths = glob.glob(os.path.join(base, f"ohlcv.{sym}.*.json")) + \
+        [p for p in glob.glob(os.path.join(base, f"ohlcv.{sym}.*")) if os.path.isdir(p)]
+    return _digest_files(paths, root)
 
 
 def full_key(root, bt, sym, scan_key, only=None):
     return (FORMAT, repr(scan_key), repr(tuple(only) if only is not None else None),
-            repr(bt._PIT_CUTOFF), repr(bt._BARS_LIMIT), data_digest(root, sym), code_digest(root))
+            repr(bt._PIT_CUTOFF), repr(bt._BARS_LIMIT),
+            data_digest(root, sym, history_root=getattr(bt, "HISTORY_ROOT", None)), code_digest(root))
 
 
 def traced_scan(bt, sym, tf, only=None, opts=None):
