@@ -787,14 +787,26 @@ class FailLoudOnCandidateError(unittest.TestCase):
                 raise RuntimeError("simulated engine crash")
             return _fake_evaluate(c, passed=False)
         ps._evaluate_candidate = flaky
-        ps._pool.IsolatedExecutor = _FakeExecutor
-        with self.assertRaises(RuntimeError):
+        with mock.patch.object(ps._pool, "IsolatedExecutor", _FakeExecutor), self.assertRaises(RuntimeError):
             ps.cmd_run(workers=2)
         # C0 succeeded in the same chunk as the crashing C1 -- it must still be on disk.
         self.assertEqual({f[:-5] for f in os.listdir(ps.RECORDS_DIR)}, {"C0"})
 
 
 # ============================================================================================ report
+
+
+class NoTestLeaksTheFakeExecutor(unittest.TestCase):
+    """isolated_pool is ONE module per process: assigning a fake IsolatedExecutor onto it (instead of
+    mock.patch.object) leaks into every later test module -- twice this made test_isolated_pool's crash test
+    os._exit() the whole run. Source-level guard, so the next such assignment fails here, not mysteriously there."""
+
+    def test_no_plain_assignment_to_the_shared_pool(self):
+        import re
+        src = open(__file__, encoding="utf-8").read()
+        hits = [ln for ln in src.splitlines()
+                if re.search(r"_pool\.IsolatedExecutor\s*=", ln) and "re.search" not in ln]
+        self.assertEqual(hits, [])
 
 
 class ReportIncludesFailures(unittest.TestCase):
