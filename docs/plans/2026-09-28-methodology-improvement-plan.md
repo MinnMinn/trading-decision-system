@@ -178,3 +178,9 @@ Every item merges only after its tests pass and a code review.
 4. **Wyckoff volume matters per setup.** Wyckoff stays on CFD. Every result is split by `volume_kind`, and tick volume is labelled as a limitation, never presented as real volume. A real-volume source (for example the futures volume of the same underlying) is a separate provider decision with its own ADR, proposed later.
 5. **15m stays in scope.** The owner's reason was that a $10k account makes fees small. That was corrected: a fee in R is (round-trip cost % of price) / (stop distance % of price), which does not depend on account size. 15m therefore stays in scope, judged net of the REAL costs from A0.
 6. **Gate accepted** as in §4 with N from item 2: "we are building a loop to find the options that are really good."
+7. **Timeframes for fund setups: 1m, 5m, 15m, 30m** (owner, 2026-09-28, after the FTMO-Demo swap export; supersedes the {15m, 1H, 4H} cells in item 2). 1H, 4H and 1D are out of the fund search.
+   - **No overnight holding** is a FIXED rule in every fund cell, not a V item: a position is flat before the broker's daily rollover. This follows from the owner's reason (FTMO swaps) and costs nothing in N.
+   - **Cells:** {1m, 5m, 15m, 30m} × {metals, indices}, minus any cell without development history before 2024-03-01, as established by the MT5 export. N becomes 41 × cells (ICT) and 16 × cells (Wyckoff); the final cell count is recorded in research-ledger.json before any evaluation.
+   - **Data:** integrations/mt5/ExportHistory.mq5 now exports M30, M5 and M1, capped at 5,000,000 bars. M1 is stored gzip-compressed, split per year, because a single file would exceed GitHub's 100 MB limit. The FTMO symbol names are mapped with data/history/costs/ftmo/symbol-map.json.
+   - **1m** has no engine parameters yet: bt.P has no "1m" entry. Its R/K/T/H are project parameters, declared before any evaluation and labelled as project-defined.
+

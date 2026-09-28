@@ -29,13 +29,15 @@
 #property version   "1.00"
 #property script_show_inputs
 
-input int  InpBars       = 200000;  // Max bars per timeframe. CopyRates returns what the terminal HAS; ask for more than you expect.
+input int  InpBars       = 5000000; // Max bars per timeframe. CopyRates returns what the terminal HAS (bounded by Tools > Options > Charts > Max bars in chart -- set it to Unlimited for deep M1/M5).
 input bool InpW1         = true;
 input bool InpD1         = true;
 input bool InpH4         = true;
 input bool InpH1         = true;
 input bool InpM15        = true;
-input bool InpM5         = false;   // M5 over years is large and most CFD brokers do not keep it. Turn on only if you need it.
+input bool InpM30        = true;
+input bool InpM5         = true;    // owner 2026-09-28: fund setups are searched on 1m/5m/15m/30m
+input bool InpM1         = true;    // large: ~2.5M bars / ~300 MB per symbol for 2019->now; the importer gzips it per year
 
 //+------------------------------------------------------------------+
 void OnStart()
@@ -50,7 +52,9 @@ void OnStart()
    if(InpH4)  ExportOne(PERIOD_H4,  "4H");
    if(InpH1)  ExportOne(PERIOD_H1,  "1H");
    if(InpM15) ExportOne(PERIOD_M15, "15m");
+   if(InpM30) ExportOne(PERIOD_M30, "30m");
    if(InpM5)  ExportOne(PERIOD_M5,  "5m");
+   if(InpM1)  ExportOne(PERIOD_M1,  "1m");
 
    Print("ExportHistory: done. Copy history.*.json out of the Common\\Files folder, "
          "then run scripts/import-mt5-history.py in the repo.");
