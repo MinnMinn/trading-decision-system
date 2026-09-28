@@ -639,7 +639,9 @@ function legendHtml(lane, d, P){
 // =============================================================================================== page
 function init(DATA, P){
   P_DEFAULT=P.defaultLang||'en'; setLang(P);
-  let lane='wyckoff', C=colors(); const charts=[]; let focus=null;
+  // Open on the first lane that is actually drawn for some symbol (a CFD page has no Wyckoff read when only ICT
+  // is engaged -- opening on Wyckoff showed an empty page); 'wyckoff' only when nothing is drawn at all.
+  let lane=(P.laneOrder||[]).find(l=>(P.overlayLanes||[]).includes(l)&&Object.values(DATA).some(d=>(d.analysed||[]).includes(l)))||'wyckoff', C=colors(); const charts=[]; let focus=null;
   for(const key in DATA){ const d=DATA[key]; const entry=d.tiers.find(t=>t.key==='entry');
     d.tiers.forEach(t=>{ const block=document.getElementById(`${t.key}-${key}`); if(!block||!block.querySelector('.chart'))return; if(t.compact&&entry) t.window={from:entry.rows[0][ISO]};
       const h=makeChart(block,d,t,P,C); h.key=key; charts.push(h); block.addEventListener('pointerenter',()=>{ focus=h; }); }); }

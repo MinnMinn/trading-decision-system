@@ -1517,6 +1517,11 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
             # the `flag` test and nothing else; `engaged` is untouched, so what may gate a trade is unchanged.
             in_scope = m in _analysed_dims
             analysed = in_scope and (bool(avail and has) if coinglass else bool(avail)) and has
+            # A lane that is ENGAGED (traded) and has candles is read by code every scan -- the scanner facts
+            # and chart.js's own overlay need no model prose. Requiring prose here hid every chart of a market
+            # whose model reads had lapsed (2026-09-28: all eight CFD symbols showed `analysed: []` while ICT
+            # was engaged, so chart.js drew nothing). Engaged therefore implies analysed; the converse is §15.
+            analysed = analysed or (in_scope and engaged)
             # Three different states wore the same words before this. Saying "off in /automation" about a lane
             # the analysis scope keeps ON is a false claim about the system's own configuration -- the lane is
             # not traded, which is a different sentence from not read.
