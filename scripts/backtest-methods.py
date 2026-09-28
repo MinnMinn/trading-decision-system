@@ -53,6 +53,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from repo_paths import repo_rel
 import wyckoff_rules as W
+import structures as _structures  # A1 (docs/plans/2026-09-28-methodology-improvement-plan.md §2, ADR 0009):
+                                   # _wyckoff_candidates() below is routed through the one structure source.
 import quality as _quality   # CLAUDE.md §20: the six data-quality states this loader flags its history against
 import research_validity as _RV
 import normalized as _N       # CLAUDE.md §8: available_time() is the one place "when a bar becomes knowable" is computed
@@ -776,7 +778,15 @@ def _wyckoff_candidates(side, O, H, L, C, V, tf, sym):
     W.PARAMS["spring_max_bars_outside"] = P[tf]["sob"]
     last = len(C) - 1
     vkind = "tick" if (sym and _I.is_tick_volume(sym)) else "traded"   # wyckoff_rules R0 / WMT p131-133
-    recs = W.detect_accumulations(O, H, L, C, V, volume_kind=vkind) if side == "long" else W.detect_distributions(O, H, L, C, V, volume_kind=vkind)
+    # A1: routed through scripts/structures.py, the one structure source (ADR 0009), via its raw hot-path
+    # pass-through `wyckoff_records()` -- see structures.py's module docstring, "Hot-path / cold-path split"
+    # (A1 code review round 1, item 4): this runs once per window of a backtest (scan()'s _WY_CANDIDATES cache
+    # builder below calls it up to ~100 000 times), so it must not build the enriched trading_range envelope --
+    # and must not allocate a per-window `candles` list just to timestamp it -- when nothing on this path reads
+    # either. `wyckoff_records()` IS `W.detect_accumulations(...)`/`W.detect_distributions(...)` (P= left
+    # unpassed so the W.PARAMS mutation just above is what both this call and its default read) --
+    # byte-identical to the pre-A1 direct call.
+    recs = _structures.wyckoff_records(O, H, L, C, V, volume_kind=vkind, side=side)
     return [r for r in recs if (r["bu"] and r["bu"]["bar"] == last) or r["reclaim"] == last or r["test"] == last]
 
 

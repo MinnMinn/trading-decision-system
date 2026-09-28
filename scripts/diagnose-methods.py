@@ -362,6 +362,10 @@ class WyProbe:
             return r
 
         def _wyckoff_candidates(side, O, H, L, C, V, tf, sym):
+            # A1 (docs/plans/2026-09-28-methodology-improvement-plan.md §2, ADR 0009): bt._wyckoff_candidates()
+            # is routed through scripts/structures.py's raw `wyckoff_records()` pass-through (A1 code review
+            # round 1, item 4 -- the hot path builds no enriched/timestamped envelope), so its signature is
+            # unchanged from before A1. This wrapper's own signature therefore needed no change either.
             probe._last_recs = None
             out = o_cands(side, O, H, L, C, V, tf, sym)
             k = probe.win + probe.calls[side]; probe.calls[side] += 1; a = k - probe.win
