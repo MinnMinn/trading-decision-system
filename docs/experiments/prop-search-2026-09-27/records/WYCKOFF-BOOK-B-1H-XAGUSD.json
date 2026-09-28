@@ -1,0 +1,1285 @@
+{
+ "experiment_id": "WYCKOFF-BOOK-B-1H-XAGUSD",
+ "parent_trading_system_version": {
+  "unavailable": "this is a pre-registered space search over the existing runnable methods x configs x timeframes x instruments, not a change TO an existing approved Trading System (§47) -- see system_version for the registry this candidate was scanned against"
+ },
+ "candidate_version": "prop-search-candidate:WYCKOFF-BOOK-B-1H-XAGUSD",
+ "hypothesis": "WYCKOFF-BOOK config B on 1H (instrument=XAGUSD) passes BOTH FTMO Challenge Phase 1 and The5ers High Stakes Step 1 on the pre-registered validation window (2024-03-01T00:00:00Z..2025-03-01T00:00:00Z): prop_pass_probability >= 0.7 for EACH fund, each fund's own min_trading_days is met, and the one-sided 90% bootstrap lower bound of mean net R on the validation trades is > 0 -- falsified if any one of the three fails (docs/plans/2026-09-27-prop-setup-search-preregistration.md §2).",
+ "motivation": "Owner pre-registration 2026-09-27 (docs/plans/2026-09-27-prop-setup-search-preregistration.md §1): find at least 5 setups the EXISTING engine already produces that would pass both prop challenges, without relaxing any criterion to reach that count.",
+ "failure_pattern": {
+  "unavailable": "this candidate answers no §41 failure cluster -- it is a pre-registered parameter-space search (docs/plans/2026-09-27-prop-setup-search-preregistration.md §5), not a response to an observed trading failure"
+ },
+ "dataset_snapshot": {
+  "snapshot_format": 1,
+  "snapshot_id": "cfbb8ad2d6ca028f",
+  "created_at": "2026-09-28T09:13:03Z",
+  "code_version": {
+   "git_sha": "d40272da6abd6148ffc703e61a901001f3c9ab8d",
+   "dirty": false,
+   "modified_files": 0
+  },
+  "preprocessing_version": 1,
+  "series": [
+   {
+    "symbol": "XAGUSD",
+    "canonical_symbol": "XAG/USD",
+    "market": "cfd",
+    "market_type": "CFD",
+    "timeframe": "1H",
+    "provider": "mt5_bridge",
+    "source_venue": "mt5",
+    "aggregation_scope": "single_venue",
+    "underlying_venues": [
+     "mt5_broker"
+    ],
+    "source_identifier": "data/history/ohlcv.XAGUSD.1H.json",
+    "retrieval_state": "STALE",
+    "received_time": "2026-09-18T10:47:08.953441Z",
+    "bars": 95561,
+    "first_open": "2008-11-07T21:00:00Z",
+    "last_open": "2025-02-28T21:00:00Z",
+    "sha256": "1cf5fdfa9a672a041f89235011b3f438b99a79df7d2051396316620d9e08431c",
+    "quality_flags": [],
+    "_pit_truncated": true,
+    "_pit_cutoff": "2025-03-01T00:00:00Z",
+    "_note": "bars/first_open/last_open/sha256/quality_flags describe the PIT-TRUNCATED series bt.scan() actually read (CLAUDE.md §8), not the full on-disk file -- last_open is always <= the cutoff by construction (bt.pit_cutoff() / pit.series_as_of())."
+   }
+  ],
+  "_note": "CLAUDE.md §10, PIT-TRUNCATED variant (fix round 1, review item B): series[*].bars/first_open/last_open/sha256/quality_flags describe the validation-truncated candle list bt.scan() actually consumed for this candidate, not the raw on-disk file."
+ },
+ "configuration_snapshot": {
+  "config_format": 1,
+  "dataset_snapshot_id": "cfbb8ad2d6ca028f",
+  "fields": {
+   "trading_system_version": {
+    "systems": {
+     "1H": "cfd-day"
+    },
+    "versions": {
+     "1H": "v1"
+    },
+    "source": "docs/architecture/trading-systems.json"
+   },
+   "methodology": {
+    "runner_methods": [
+     "WYCKOFF-BOOK"
+    ],
+    "note": "mechanical rule families (scripts/wyckoff_rules.py / the ICT scanner), NOT the discretionary Confluence dimensions of the same name -- methods.json `_runner_note`"
+   },
+   "methodology_mode": {
+    "not_applicable": "modes (NORMAL/ENHANCED/STRICT/SOLO) gate the /analyze Confluence path; a mechanical-rule backtest engages no dimensions and has no mode (§16)"
+   },
+   "setup": {
+    "timeframes": [
+     "1H"
+    ],
+    "configs": {
+     "B": {
+      "side": "maker",
+      "mgmt": "be",
+      "htf": false
+     }
+    },
+    "ict_target": null
+   },
+   "entry_rules": {
+    "entry": "book",
+    "combined_entry": "limit",
+    "sides": [
+     "long",
+     "short"
+    ],
+    "varied_per_config": null
+   },
+   "exit_rules": {
+    "mgmt": "none",
+    "varied_per_config": null,
+    "horizon_and_time_stop_bars": {
+     "1H": {
+      "H": 72,
+      "T": 12
+     }
+    }
+   },
+   "session": {
+    "not_applicable": "the backtest applies no session/killzone filter: the ICT sources give no killzone rule for crypto or commodity CFDs (scripts/backtest-methods.py:27, knowledge/ict/core-a.md §6), and no --sessions flag was supplied for this run"
+   },
+   "required_evidence": {
+    "per_timeframe": {
+     "1H": [
+      "candles.entry",
+      "candles.htf",
+      "event_risk.calendar",
+      "account.equity",
+      "account.profile_rules",
+      "risk.net_rr",
+      "risk.position_size",
+      "venue.reconciliation"
+     ]
+    },
+    "declared_but_not_applied_by_this_engine": [
+     "account.profile_rules",
+     "event_risk.calendar",
+     "venue.reconciliation"
+    ],
+    "source": "docs/architecture/trading-systems.json (§35)"
+   },
+   "required_analytics": {
+    "per_timeframe": {
+     "1H": [
+      "analytics.ict_scan",
+      "analytics.wyckoff_rules",
+      "analytics.htf_bias"
+     ]
+    },
+    "source": "docs/architecture/trading-systems.json (§35)"
+   },
+   "risk_model": {
+    "risk_pct_of_equity": 0.01,
+    "risk_source": "docs/architecture/risk-config.json max_risk_pct via trading_env",
+    "min_planned_rr": 2.0,
+    "min_rr_source": "docs/architecture/analysis-params.json project_defined.ict.min_rr",
+    "account_start_usd": 10000.0,
+    "ruin_fraction": 0.1
+   },
+   "account_profile": {
+    "profile_id": "pilot-binance-futures-testnet",
+    "registry_version": 1,
+    "context_type": "DEMO",
+    "venue": "futures",
+    "environment": "demo",
+    "rules": {
+     "initial_balance": null,
+     "max_daily_loss": null,
+     "max_total_drawdown": {
+      "pct": 0.15,
+      "basis": "equity_start",
+      "action": "HALT"
+     },
+     "trailing_drawdown": null,
+     "profit_target": null,
+     "min_trading_days": null,
+     "min_profitable_days": null,
+     "max_leverage": 3,
+     "max_risk_per_trade": null,
+     "max_positions": {
+      "mode": "full_book"
+     },
+     "consistency_rules": [],
+     "news_restrictions": null,
+     "overnight_restrictions": null,
+     "weekend_restrictions": null,
+     "session_restrictions": null,
+     "custom_failure_conditions": [
+      {
+       "id": "consecutive-losses",
+       "kind": "consecutive_losses",
+       "threshold": 5,
+       "action": "HALT",
+       "what": "Five losing trades in a row on this venue stops the account (the runner's CONSEC_LOSS_HALT)."
+      }
+     ],
+     "max_trades_per_day_per_symbol": 3
+    },
+    "derived": {
+     "max_positions": 9,
+     "tradeable_symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "ASTERUSDT",
+      "VIRTUALUSDT",
+      "SUIUSDT",
+      "TAOUSDT",
+      "RENDERUSDT",
+      "ONDOUSDT"
+     ],
+     "effective_risk_pct": 0.01,
+     "risk_source": "docs/architecture/risk-config.json max_risk_pct via trading_env"
+    },
+    "note": "no --account was supplied for this run; recorded for reference is the account the pilot trades this research under -- the backtest engine itself applies only the risk fraction and the ruin threshold (see risk_model), not any account's entry gates"
+   },
+   "news_rules": {
+    "not_applicable": "the backtest reads no news or calendar at all, so no news rule was in force (§24-§32); note this means its results contain no event-risk filtering whatsoever"
+   },
+   "custom_constraints": {
+    "types": [
+     1,
+     2,
+     3
+    ],
+    "range_touches": 0,
+    "htf": false,
+    "sloped_gate": false,
+    "st_min": null,
+    "phase_d": true,
+    "varied_per_config": null
+   },
+   "provider_selection": {
+    "see": "dataset_snapshot_id",
+    "note": "which providers supplied the bars is recorded in the §10 dataset snapshot, by provider id per series; not duplicated here"
+   },
+   "execution_assumptions": {
+    "fee_pct_per_side": 0.05,
+    "stop_buffer_pct": 0.0005,
+    "slippage": "NOT MODELLED (scripts/backtest-methods.py:44)",
+    "funding": "NOT MODELLED -- the traded crypto contract is a perpetual (SYSTEM-DESIGN.md §20.1)",
+    "fill_model": "limit fills require the gap to be complete by the MSS close (causal cut, backtest-methods.py:180 fvg_fill)"
+   },
+   "parameters": {
+    "per_timeframe": {
+     "1H": {
+      "R": 48,
+      "K": 12,
+      "T": 12,
+      "H": 72,
+      "sob": 4
+     }
+    },
+    "volume_thresholds": {
+     "low_max_ratio": 0.7,
+     "high_min_ratio": 1.5,
+     "spike_min_ratio": 2.5,
+     "_basis": "ratio to the mean volume of the previous lookback_bars completed bars",
+     "upthrust_min_ratio": 1.0,
+     "_upthrust_basis": "Spring and Upthrust are typed by DIFFERENT tables in the book: Bảng 2.1 (WMT p049, Spring) runs low->type1 / moderate->type2 / high->type3, but Bảng 2.2 (WMT p064, Upthrust) runs the other way -- type1 'increases at the touch', type2 (UTAD) 'very high', type3 (Minor UTAD) 'strong but not as high as type 2'. There is NO low-volume Upthrust in the book. `upthrust_min_ratio` is the floor at which volume counts as having 'increased at the touch'; below it the bar is not any of the book's three Upthrust types and is refused rather than relabelled. Fixed 2026-09-19 after a knowledge audit found the Spring ladder being applied to shorts (knowledge/wyckoff/modern-tools.md:55-72)."
+    },
+    "displacement": {
+     "body_min_ratio": 0.6,
+     "range_min_median_ratio": 1.2,
+     "_basis": "'displacement is an aggressive move with full-bodied candles' (knowledge/ict/core-a.md section 2.16). Read as: body >= body_min_ratio of the candle range AND range >= range_min_median_ratio x the median bar range of the window. An MSS whose breaking candle fails this is reported as 'close beyond swing without displacement'."
+    },
+    "preprocessing_version": 1
+   }
+  },
+  "_note": "CLAUDE.md §11. The CONFIGURATION behind a result; the DATA is a separate block (§10), linked by dataset_snapshot_id. Values read from mutable files are captured here BY VALUE, so a later edit to risk-config.json or analysis-params.json cannot silently change what a recorded result says it measured."
+ },
+ "account_configuration": {
+  "ftmo-challenge-phase1": {
+   "profile_id": "ftmo-challenge-phase1",
+   "registry_version": 1,
+   "context_type": "PROP_CHALLENGE",
+   "venue": "mt5",
+   "environment": "research",
+   "rules": {
+    "initial_balance": {
+     "amount": 100000,
+     "currency": "USD"
+    },
+    "max_daily_loss": {
+     "pct": 0.05,
+     "basis": "day_start_equity",
+     "action": "HALT"
+    },
+    "max_total_drawdown": {
+     "pct": 0.1,
+     "basis": "initial_balance",
+     "action": "HALT"
+    },
+    "trailing_drawdown": null,
+    "profit_target": {
+     "pct": 0.1,
+     "basis": "initial_balance"
+    },
+    "min_trading_days": 4,
+    "min_profitable_days": null,
+    "max_leverage": null,
+    "max_risk_per_trade": null,
+    "max_positions": {
+     "mode": "full_book"
+    },
+    "consistency_rules": [],
+    "news_restrictions": null,
+    "overnight_restrictions": null,
+    "weekend_restrictions": null,
+    "session_restrictions": null,
+    "custom_failure_conditions": [],
+    "max_trades_per_day_per_symbol": null
+   },
+   "derived": {
+    "max_positions": 8,
+    "tradeable_symbols": [
+     "XAUUSD",
+     "XAGUSD",
+     "US500",
+     "US30",
+     "USTEC",
+     "DE40",
+     "FRA40",
+     "AUS200"
+    ],
+    "effective_risk_pct": 0.01,
+    "risk_source": "docs/architecture/risk-config.json max_risk_pct via trading_env"
+   }
+  },
+  "the5ers-high-stakes-step1": {
+   "profile_id": "the5ers-high-stakes-step1",
+   "registry_version": 1,
+   "context_type": "PROP_CHALLENGE",
+   "venue": "mt5",
+   "environment": "research",
+   "rules": {
+    "initial_balance": {
+     "amount": 100000,
+     "currency": "USD"
+    },
+    "max_daily_loss": {
+     "pct": 0.05,
+     "basis": "day_start_equity",
+     "action": "HALT"
+    },
+    "max_total_drawdown": {
+     "pct": 0.1,
+     "basis": "initial_balance",
+     "action": "HALT"
+    },
+    "trailing_drawdown": null,
+    "profit_target": {
+     "pct": 0.08,
+     "basis": "initial_balance"
+    },
+    "min_trading_days": null,
+    "min_profitable_days": {
+     "count": 3,
+     "profit_threshold_pct": 0.005
+    },
+    "max_leverage": null,
+    "max_risk_per_trade": null,
+    "max_positions": {
+     "mode": "full_book"
+    },
+    "consistency_rules": [],
+    "news_restrictions": null,
+    "overnight_restrictions": null,
+    "weekend_restrictions": null,
+    "session_restrictions": null,
+    "custom_failure_conditions": [
+     {
+      "id": "inactivity-30-days",
+      "kind": "inactivity_days",
+      "threshold": 30,
+      "action": "HALT",
+      "what": "The5ers High Stakes evaluation accounts expire after 30 consecutive calendar days with no trade initiated (pre-registration addendum §8.3, owner decision 2026-09-28)."
+     }
+    ],
+    "max_trades_per_day_per_symbol": null
+   },
+   "derived": {
+    "max_positions": 8,
+    "tradeable_symbols": [
+     "XAUUSD",
+     "XAGUSD",
+     "US500",
+     "US30",
+     "USTEC",
+     "DE40",
+     "FRA40",
+     "AUS200"
+    ],
+    "effective_risk_pct": 0.01,
+    "risk_source": "docs/architecture/risk-config.json max_risk_pct via trading_env"
+   }
+  }
+ },
+ "risk_configuration": {
+  "max_risk_pct": 0.01,
+  "fee_pct_per_side": 0.0005,
+  "entry_order_type": "taker",
+  "source": "docs/architecture/risk-config.json via scripts/trading_env.py and scripts/stability-report.py config_fee()"
+ },
+ "news_configuration": {
+  "unavailable": "this run applies no --calendar / news filter; docs/plans/2026-09-27-prop-setup-search-preregistration.md §2's pass rule does not require one"
+ },
+ "session_configuration": {
+  "unavailable": "this run applies no --sessions filter; docs/plans/2026-09-27-prop-setup-search-preregistration.md §2's pass rule does not require one"
+ },
+ "parameters": {
+  "method": "WYCKOFF-BOOK",
+  "config": "B",
+  "timeframe": "1H",
+  "group_kind": "instrument",
+  "group_id": "XAGUSD",
+  "symbols_planned": [
+   "XAGUSD"
+  ],
+  "symbols_used": [
+   "XAGUSD"
+  ],
+  "symbols_skipped_no_predevelopment_history": [],
+  "plan_hash": "8137a8b1a76ce16118519037fd9baf77449bfc51c6c5f807c52c42df08b2028d"
+ },
+ "random_seed": {
+  "performance_bootstrap": 20260918,
+  "expectancy_lower_bound_bootstrap": 20260927
+ },
+ "test_periods": {
+  "development": {
+   "end": "2024-03-01T00:00:00Z",
+   "note": "everything before this: free exploration (§4)"
+  },
+  "validation": {
+   "start": "2024-03-01T00:00:00Z",
+   "end": "2025-03-01T00:00:00Z",
+   "note": "evaluated ONCE for the pass decision; EXPOSED as of this record (§4)"
+  },
+  "exposed_reporting_only_after": "2025-03-01T00:00:00Z",
+  "source": "docs/plans/2026-09-27-prop-setup-search-preregistration.md §4"
+ },
+ "validation_method": "day-block bootstrap over validation-window trades under each fund's account rules (scripts/performance.py _bootstrap_days, CLAUDE.md §39), plus a one-sided 90% bootstrap lower bound of mean net R (scripts/prop-search.py expectancy_lower_bound) -- development/validation partition only, no further walk-forward/OOS split (docs/plans/2026-09-27-prop-setup-search-preregistration.md §4)",
+ "metrics": {
+  "validation": {
+   "gating_horizon_days": 120,
+   "ftmo-challenge-phase1": {
+    "n": 5,
+    "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
+    "_assumptions": {
+     "breakeven_band_R": 0.05,
+     "risk_free_rate": 0.0,
+     "annualised": false,
+     "bootstrap": {
+      "iterations": 2000,
+      "seed": 20260918
+     }
+    },
+    "total_trades": 5,
+    "wins": 1,
+    "losses": 4,
+    "breakeven": 0,
+    "win_rate": 0.2,
+    "expectancy": 0.6178000000000001,
+    "average_R": 0.6178000000000001,
+    "average_win_R": 7.621,
+    "average_loss_R": -1.133,
+    "total_R": 3.0890000000000004,
+    "profit_factor": 1.6815975286849074,
+    "consecutive_wins": 1,
+    "consecutive_losses": 4,
+    "mfe": {
+     "mean": 1.9935633418652365,
+     "n": 5,
+     "mean_on_winners": 8.119950593181718,
+     "mean_on_losers": 0.4619665290361162
+    },
+    "mae": {
+     "mean": -1.152211277480179,
+     "n": 5,
+     "mean_on_winners": -0.272664559878504,
+     "mean_on_losers": -1.3720979568805975
+    },
+    "max_drawdown": {
+     "fraction": 0.02267782273423663,
+     "in": "account"
+    },
+    "average_drawdown": {
+     "fraction": 0.02267782273423663,
+     "episodes": 1,
+     "includes_unrecovered": false
+    },
+    "time_in_drawdown": {
+     "fraction_of_series": 0.6,
+     "longest_stretch": 3,
+     "unit": "curve points"
+    },
+    "recovery_factor": 0.642067906962544,
+    "sharpe": {
+     "unavailable": "sample size 5 is below the 8 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "sortino": {
+     "unavailable": "sample size 5 is below the 8 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "time_to_target": {
+     "median_bars": 68,
+     "mean_bars": 68.0,
+     "n_reached_target": 1,
+     "n_did_not": 4,
+     "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
+    },
+    "pnl": {
+     "value": 31.61027784078079,
+     "n_with_pnl": 5,
+     "basis": "realised, from the trades"
+    },
+    "risk_of_ruin": {
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 120,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 5,
+     "low_confidence": true,
+     "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+     "spread": {
+      "risk_of_ruin": [
+       0.0,
+       0.0
+      ],
+      "account_failure_probability": [
+       0.0,
+       1.0
+      ],
+      "prop_pass_probability": [
+       0.0,
+       1.0
+      ]
+     },
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
+    },
+    "account_failure_probability": {
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 120,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 5,
+     "low_confidence": true,
+     "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+     "spread": {
+      "risk_of_ruin": [
+       0.0,
+       0.0
+      ],
+      "account_failure_probability": [
+       0.0,
+       1.0
+      ],
+      "prop_pass_probability": [
+       0.0,
+       1.0
+      ]
+     },
+     "value": 0.242,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
+    },
+    "prop_pass_probability": {
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 120,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 5,
+     "low_confidence": true,
+     "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+     "spread": {
+      "risk_of_ruin": [
+       0.0,
+       0.0
+      ],
+      "account_failure_probability": [
+       0.0,
+       1.0
+      ],
+      "prop_pass_probability": [
+       0.0,
+       1.0
+      ]
+     },
+     "value": 0.7965,
+     "profit_target": 0.1
+    }
+   },
+   "the5ers-high-stakes-step1": {
+    "n": 5,
+    "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
+    "_assumptions": {
+     "breakeven_band_R": 0.05,
+     "risk_free_rate": 0.0,
+     "annualised": false,
+     "bootstrap": {
+      "iterations": 2000,
+      "seed": 20260918
+     }
+    },
+    "total_trades": 5,
+    "wins": 1,
+    "losses": 4,
+    "breakeven": 0,
+    "win_rate": 0.2,
+    "expectancy": 0.6178000000000001,
+    "average_R": 0.6178000000000001,
+    "average_win_R": 7.621,
+    "average_loss_R": -1.133,
+    "total_R": 3.0890000000000004,
+    "profit_factor": 1.6815975286849074,
+    "consecutive_wins": 1,
+    "consecutive_losses": 4,
+    "mfe": {
+     "mean": 1.9935633418652365,
+     "n": 5,
+     "mean_on_winners": 8.119950593181718,
+     "mean_on_losers": 0.4619665290361162
+    },
+    "mae": {
+     "mean": -1.152211277480179,
+     "n": 5,
+     "mean_on_winners": -0.272664559878504,
+     "mean_on_losers": -1.3720979568805975
+    },
+    "max_drawdown": {
+     "fraction": 0.02267782273423663,
+     "in": "account"
+    },
+    "average_drawdown": {
+     "fraction": 0.02267782273423663,
+     "episodes": 1,
+     "includes_unrecovered": false
+    },
+    "time_in_drawdown": {
+     "fraction_of_series": 0.6,
+     "longest_stretch": 3,
+     "unit": "curve points"
+    },
+    "recovery_factor": 0.642067906962544,
+    "sharpe": {
+     "unavailable": "sample size 5 is below the 8 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "sortino": {
+     "unavailable": "sample size 5 is below the 8 this metric needs to mean anything",
+     "owner": "§39"
+    },
+    "time_to_target": {
+     "median_bars": 68,
+     "mean_bars": 68.0,
+     "n_reached_target": 1,
+     "n_did_not": 4,
+     "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
+    },
+    "pnl": {
+     "value": 31.61027784078079,
+     "n_with_pnl": 5,
+     "basis": "realised, from the trades"
+    },
+    "risk_of_ruin": {
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 120,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 5,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "low_confidence": true,
+     "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+     "spread": {
+      "risk_of_ruin": [
+       0.0,
+       0.0
+      ],
+      "account_failure_probability": [
+       0.0,
+       1.0
+      ],
+      "prop_pass_probability": [
+       0.0,
+       1.0
+      ]
+     },
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
+    },
+    "account_failure_probability": {
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 120,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 5,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "low_confidence": true,
+     "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+     "spread": {
+      "risk_of_ruin": [
+       0.0,
+       0.0
+      ],
+      "account_failure_probability": [
+       0.0,
+       1.0
+      ],
+      "prop_pass_probability": [
+       0.0,
+       1.0
+      ]
+     },
+     "value": 0.242,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
+    },
+    "prop_pass_probability": {
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 120,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 5,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "low_confidence": true,
+     "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+     "spread": {
+      "risk_of_ruin": [
+       0.0,
+       0.0
+      ],
+      "account_failure_probability": [
+       0.0,
+       1.0
+      ],
+      "prop_pass_probability": [
+       0.0,
+       1.0
+      ]
+     },
+     "value": 0.794,
+     "profit_target": 0.08
+    }
+   },
+   "informational_horizons": {
+    "_note": "addendum §8.1: 30/60/full-validation-window-weekday prop_pass_probability at each fund, REPORTED for information -- never read by evaluate_pass, never gate",
+    "days": [
+     30,
+     60,
+     261
+    ],
+    "ftmo-challenge-phase1": {
+     "30": {
+      "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+      "iterations": 2000,
+      "seed": 20260918,
+      "horizon_trades": 30,
+      "horizon_unit": "days",
+      "risk_per_trade": 0.01,
+      "sample": 5,
+      "low_confidence": true,
+      "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+      "spread": {
+       "risk_of_ruin": [
+        0.0,
+        0.0
+       ],
+       "account_failure_probability": [
+        0.0,
+        1.0
+       ],
+       "prop_pass_probability": [
+        0.0,
+        1.0
+       ]
+      },
+      "value": 0.739,
+      "profit_target": 0.1
+     },
+     "60": {
+      "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+      "iterations": 2000,
+      "seed": 20260918,
+      "horizon_trades": 60,
+      "horizon_unit": "days",
+      "risk_per_trade": 0.01,
+      "sample": 5,
+      "low_confidence": true,
+      "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+      "spread": {
+       "risk_of_ruin": [
+        0.0,
+        0.0
+       ],
+       "account_failure_probability": [
+        0.0,
+        1.0
+       ],
+       "prop_pass_probability": [
+        0.0,
+        1.0
+       ]
+      },
+      "value": 0.8,
+      "profit_target": 0.1
+     },
+     "261": {
+      "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+      "iterations": 2000,
+      "seed": 20260918,
+      "horizon_trades": 261,
+      "horizon_unit": "days",
+      "risk_per_trade": 0.01,
+      "sample": 5,
+      "low_confidence": true,
+      "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+      "spread": {
+       "risk_of_ruin": [
+        0.0,
+        1.0
+       ],
+       "account_failure_probability": [
+        0.0,
+        1.0
+       ],
+       "prop_pass_probability": [
+        0.0,
+        1.0
+       ]
+      },
+      "value": 0.7865,
+      "profit_target": 0.1
+     }
+    },
+    "the5ers-high-stakes-step1": {
+     "30": {
+      "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+      "iterations": 2000,
+      "seed": 20260918,
+      "horizon_trades": 30,
+      "horizon_unit": "days",
+      "risk_per_trade": 0.01,
+      "sample": 5,
+      "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+      "low_confidence": true,
+      "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+      "spread": {
+       "risk_of_ruin": [
+        0.0,
+        0.0
+       ],
+       "account_failure_probability": [
+        0.0,
+        1.0
+       ],
+       "prop_pass_probability": [
+        0.0,
+        1.0
+       ]
+      },
+      "value": 0.751,
+      "profit_target": 0.08
+     },
+     "60": {
+      "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+      "iterations": 2000,
+      "seed": 20260918,
+      "horizon_trades": 60,
+      "horizon_unit": "days",
+      "risk_per_trade": 0.01,
+      "sample": 5,
+      "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+      "low_confidence": true,
+      "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+      "spread": {
+       "risk_of_ruin": [
+        0.0,
+        0.0
+       ],
+       "account_failure_probability": [
+        0.0,
+        1.0
+       ],
+       "prop_pass_probability": [
+        0.0,
+        1.0
+       ]
+      },
+      "value": 0.7975,
+      "profit_target": 0.08
+     },
+     "261": {
+      "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+      "iterations": 2000,
+      "seed": 20260918,
+      "horizon_trades": 261,
+      "horizon_unit": "days",
+      "risk_per_trade": 0.01,
+      "sample": 5,
+      "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+      "low_confidence": true,
+      "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+      "spread": {
+       "risk_of_ruin": [
+        0.0,
+        1.0
+       ],
+       "account_failure_probability": [
+        0.0,
+        1.0
+       ],
+       "prop_pass_probability": [
+        0.0,
+        1.0
+       ]
+      },
+      "value": 0.788,
+      "profit_target": 0.08
+     }
+    }
+   },
+   "day_counts": {
+    "ftmo-challenge-phase1": 5,
+    "the5ers-high-stakes-step1": 1
+   },
+   "inactivity_breach": {
+    "ftmo-challenge-phase1": false,
+    "the5ers-high-stakes-step1": true
+   },
+   "excluded_unfinished_trades": 0,
+   "_excluded_unfinished_trades_note": "addendum §8.2: validation trades whose true outcome would need a bar after the PIT cutoff, excluded from every number above (not marked to market)",
+   "expectancy_lower_bound": {
+    "value": -1.1474,
+    "method": "bootstrap over the observed per-trade net R (5 trades), resampled with replacement; one-sided 90% CI lower bound = the 10th percentile of the resampled means",
+    "iterations": 2000,
+    "seed": 20260927,
+    "sample": 5
+   },
+   "pass_detail": {
+    "ftmo-challenge-phase1": {
+     "prop_pass_probability": {
+      "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+      "iterations": 2000,
+      "seed": 20260918,
+      "horizon_trades": 120,
+      "horizon_unit": "days",
+      "risk_per_trade": 0.01,
+      "sample": 5,
+      "low_confidence": true,
+      "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+      "spread": {
+       "risk_of_ruin": [
+        0.0,
+        0.0
+       ],
+       "account_failure_probability": [
+        0.0,
+        1.0
+       ],
+       "prop_pass_probability": [
+        0.0,
+        1.0
+       ]
+      },
+      "value": 0.7965,
+      "profit_target": 0.1
+     },
+     "threshold": 0.7,
+     "meets_threshold": true,
+     "day_requirement_kind": "trading_days",
+     "day_requirement_count": 4,
+     "days_observed": 5,
+     "meets_day_requirement": true,
+     "inactivity_breach": false,
+     "meets_inactivity_rule": true
+    },
+    "the5ers-high-stakes-step1": {
+     "prop_pass_probability": {
+      "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+      "iterations": 2000,
+      "seed": 20260918,
+      "horizon_trades": 120,
+      "horizon_unit": "days",
+      "risk_per_trade": 0.01,
+      "sample": 5,
+      "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+      "low_confidence": true,
+      "low_confidence_why": "sample size 5 is below 30: the estimate is computed and usable, but it is WIDE -- `spread` is the min-max across 9 NESTED bootstrap batches, each of which first resamples the 5 observed trades with replacement, so it measures how much the answer depends on which 5 trades happened to occur",
+      "spread": {
+       "risk_of_ruin": [
+        0.0,
+        0.0
+       ],
+       "account_failure_probability": [
+        0.0,
+        1.0
+       ],
+       "prop_pass_probability": [
+        0.0,
+        1.0
+       ]
+      },
+      "value": 0.794,
+      "profit_target": 0.08
+     },
+     "threshold": 0.7,
+     "meets_threshold": true,
+     "day_requirement_kind": "profitable_days",
+     "day_requirement_count": 3,
+     "days_observed": 1,
+     "meets_day_requirement": false,
+     "inactivity_breach": true,
+     "meets_inactivity_rule": false
+    },
+    "expectancy_lower_bound": {
+     "value": -1.1474,
+     "method": "bootstrap over the observed per-trade net R (5 trades), resampled with replacement; one-sided 90% CI lower bound = the 10th percentile of the resampled means",
+     "iterations": 2000,
+     "seed": 20260927,
+     "sample": 5
+    },
+    "expectancy_positive": false
+   },
+   "passed": false,
+   "n_trades": 5
+  },
+  "development": {
+   "ftmo-challenge-phase1": {
+    "n": 53,
+    "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
+    "_assumptions": {
+     "breakeven_band_R": 0.05,
+     "risk_free_rate": 0.0,
+     "annualised": false,
+     "bootstrap": {
+      "iterations": 2000,
+      "seed": 20260918
+     }
+    },
+    "total_trades": 53,
+    "wins": 9,
+    "losses": 27,
+    "breakeven": 17,
+    "win_rate": 0.16981132075471697,
+    "expectancy": -0.20881132075471698,
+    "average_R": -0.20881132075471698,
+    "average_win_R": 2.8395555555555556,
+    "average_loss_R": -1.2128518518518518,
+    "total_R": -11.067,
+    "profit_factor": 0.7804073655602041,
+    "consecutive_wins": 3,
+    "consecutive_losses": 4,
+    "mfe": {
+     "mean": 1.5078354176757638,
+     "n": 53,
+     "mean_on_winners": 3.6101695466424792,
+     "mean_on_losers": 0.5613443314694823
+    },
+    "mae": {
+     "mean": -1.0852019786803544,
+     "n": 53,
+     "mean_on_winners": -0.5731134517515264,
+     "mean_on_losers": -1.4892553873491612
+    },
+    "max_drawdown": {
+     "fraction": 0.12770141055314443,
+     "in": "account"
+    },
+    "average_drawdown": {
+     "fraction": 0.07966375456691036,
+     "episodes": 2,
+     "includes_unrecovered": true
+    },
+    "time_in_drawdown": {
+     "fraction_of_series": 0.9433962264150944,
+     "longest_stretch": 41,
+     "unit": "curve points"
+    },
+    "recovery_factor": -0.7652489489463542,
+    "sharpe": {
+     "value": -0.14147682502425638,
+     "basis": "per-trade",
+     "risk_free_rate": 0.0
+    },
+    "sortino": {
+     "value": -0.23524920671263658,
+     "basis": "per-trade",
+     "target_return": 0.0
+    },
+    "time_to_target": {
+     "median_bars": 22,
+     "mean_bars": 25.11111111111111,
+     "n_reached_target": 9,
+     "n_did_not": 44,
+     "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
+    },
+    "pnl": {
+     "value": -1078.08138185617,
+     "n_with_pnl": 53,
+     "basis": "realised, from the trades"
+    },
+    "risk_of_ruin": {
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 53,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 53,
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
+    },
+    "account_failure_probability": {
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 53,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 53,
+     "value": 0.6975,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
+    },
+    "prop_pass_probability": {
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 53,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 53,
+     "value": 0.0975,
+     "profit_target": 0.1
+    }
+   },
+   "the5ers-high-stakes-step1": {
+    "n": 53,
+    "_source": "docs/architecture/performance-metrics.json (CLAUDE.md §39)",
+    "_assumptions": {
+     "breakeven_band_R": 0.05,
+     "risk_free_rate": 0.0,
+     "annualised": false,
+     "bootstrap": {
+      "iterations": 2000,
+      "seed": 20260918
+     }
+    },
+    "total_trades": 53,
+    "wins": 9,
+    "losses": 27,
+    "breakeven": 17,
+    "win_rate": 0.16981132075471697,
+    "expectancy": -0.20881132075471698,
+    "average_R": -0.20881132075471698,
+    "average_win_R": 2.8395555555555556,
+    "average_loss_R": -1.2128518518518518,
+    "total_R": -11.067,
+    "profit_factor": 0.7804073655602041,
+    "consecutive_wins": 3,
+    "consecutive_losses": 4,
+    "mfe": {
+     "mean": 1.5078354176757638,
+     "n": 53,
+     "mean_on_winners": 3.6101695466424792,
+     "mean_on_losers": 0.5613443314694823
+    },
+    "mae": {
+     "mean": -1.0852019786803544,
+     "n": 53,
+     "mean_on_winners": -0.5731134517515264,
+     "mean_on_losers": -1.4892553873491612
+    },
+    "max_drawdown": {
+     "fraction": 0.12770141055314443,
+     "in": "account"
+    },
+    "average_drawdown": {
+     "fraction": 0.07966375456691036,
+     "episodes": 2,
+     "includes_unrecovered": true
+    },
+    "time_in_drawdown": {
+     "fraction_of_series": 0.9433962264150944,
+     "longest_stretch": 41,
+     "unit": "curve points"
+    },
+    "recovery_factor": -0.7652489489463542,
+    "sharpe": {
+     "value": -0.14147682502425638,
+     "basis": "per-trade",
+     "risk_free_rate": 0.0
+    },
+    "sortino": {
+     "value": -0.23524920671263658,
+     "basis": "per-trade",
+     "target_return": 0.0
+    },
+    "time_to_target": {
+     "median_bars": 22,
+     "mean_bars": 25.11111111111111,
+     "n_reached_target": 9,
+     "n_did_not": 44,
+     "_note": "averaged over the trades that REACHED target; the count that did not is beside it, because a mean over survivors alone is a survivorship claim"
+    },
+    "pnl": {
+     "value": -1078.08138185617,
+     "n_with_pnl": 53,
+     "basis": "realised, from the trades"
+    },
+    "risk_of_ruin": {
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 53,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 53,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.0,
+     "threshold": "equity <= 10% of start"
+    },
+    "account_failure_probability": {
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 53,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 53,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.6975,
+     "conditions": [
+      "max_daily_loss",
+      "max_total_drawdown"
+     ],
+     "_note": "a strictly wider event than ruin: any declared failure condition counts (§33)"
+    },
+    "prop_pass_probability": {
+     "method": "day-block bootstrap: resamples whole UTC trading days with replacement, preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
+     "iterations": 2000,
+     "seed": 20260918,
+     "horizon_trades": 53,
+     "horizon_unit": "days",
+     "risk_per_trade": 0.01,
+     "sample": 53,
+     "day_counting_approximation": "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so its internal profitable-day gate reads entry-day profit as an approximation; the authoritative exit-day count is computed directly on the real trades elsewhere (scripts/prop-search.py day_counts_for)",
+     "value": 0.1425,
+     "profit_target": 0.08
+    }
+   },
+   "n_trades": 53,
+   "_note": "informational only (CLAUDE.md §9/§37): never used for the pass decision or candidate selection"
+  }
+ },
+ "robustness_results": {
+  "unavailable": "§45 sensitivity/perturbation/regime testing is out of scope for this pre-registered pass/fail search -- docs/plans/2026-09-27-prop-setup-search-preregistration.md defines exactly one evaluation per candidate"
+ },
+ "decision": {
+  "decision": "PENDING",
+  "by": null
+ },
+ "timestamp": "2026-09-28T09:13:03Z",
+ "code_version": {
+  "commit": "d40272da6abd6148ffc703e61a901001f3c9ab8d",
+  "dirty": false,
+  "_note": null
+ },
+ "system_version": {
+  "id": "cfd-day",
+  "version": "v1",
+  "source": "docs/architecture/trading-systems.json"
+ },
+ "_source": "docs/architecture/experiments.json (CLAUDE.md §42)",
+ "content_sha256": "779c4aeeb1da9ad29dac4e784367b13231f47c22f66c9d927dcc1f7dccbb3644"
+}

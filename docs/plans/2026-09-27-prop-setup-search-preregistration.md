@@ -92,3 +92,21 @@ Recorded before the first candidate is evaluated (`docs/experiments/prop-search-
 4. **The implementer's other readings are confirmed:** pooled asset class = one shared simulated account over
    the class's symbols; expectancy bound = 10th percentile of 2000 bootstrap means of validation net R, seed
    20260927, minimum 5 trades; `parent_trading_system_version` unavailable for a from-scratch search.
+
+## 9. Result and owner decision, 2026-09-28 (after the search)
+
+**Result.** All 180 planned candidates evaluated (budget 180 / 200), **0 passed**. 130 had too few validation trades
+for the bootstrap to run; 8 reached prop_pass_probability ≥ 0.70 on both funds but every one of them had a
+negative expectancy lower bound (best: WYCKOFF-BOOK-B-4H-indices, 6 trades, LB −0.19 R). No candidate had a
+positive bound. Records: `docs/experiments/prop-search-2026-09-27/records/` (180, plan hash 8137a8b1a76c,
+GitHub Actions runs 36372364207 + 36400521687); report: `docs/backtests/2026-09-27-prop-setup-search.md`.
+
+**Owner decision (verbatim in substance).** Improve the methodology; do not change the evaluation window. A
+different time window is used only to CONFIRM a method that already works; moving the window while a method
+performs badly would only avoid the fact that the method is bad and does not deliver stable profit. Therefore:
+
+- the validation window [2024-03-01, 2025-03-01) stays EXPOSED and is not replaced by a fresh window to rescue
+  this result;
+- the remaining 20 budget slots are not spent on untouched variants of the same candidates;
+- the next work is methodology improvement on DEVELOPMENT data only (before 2024-03-01), as ADR 0007
+  extensions cited to `knowledge/`; any improved method re-enters through a new pre-registration.
