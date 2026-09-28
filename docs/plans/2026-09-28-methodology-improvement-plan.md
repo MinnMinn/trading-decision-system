@@ -1,4 +1,4 @@
-# Methodology improvement plan — after the 0 / 180 prop search (REVISED DRAFT 4, awaiting owner approval)
+# Methodology improvement plan — after the 0 / 180 prop search (APPROVED 2026-09-28 with the owner decisions in §6)
 
 Date: 2026-09-28. Owner direction: improve the methodology, and do not move the evaluation window to rescue a bad
 method (docs/plans/2026-09-27-prop-setup-search-preregistration.md §9). One structure source serves the decision
@@ -167,11 +167,13 @@ If the owner holds symbols out, the holdout is then read once. A NEW pre-registr
 
 Every item merges only after its tests pass and a code review.
 
-## 6. Owner decisions
+## 6. Owner decisions (2026-09-28)
 
-1. **Holdout:** keep XAGUSD and US30 untouched as a one-read cross-sectional holdout (recommended), or develop on all 8 and rely on forward demo alone?
-2. **Candidate cells:** one cell per method, ICT 1H and Wyckoff 4H (recommended; N = 41 / 15), or four cells per method ({1H, 4H} × {metals, indices}; N = 164 / 60)?
-3. **A0 source:** per-symbol spread, commission and swap. Have the EA export the MT5 symbol specification, or read it off the broker's contract specs?
-4. **Wyckoff on CFD with tick volume:** exclude it from tuning, or split every result by volume kind?
-5. **15m CFD scope:** decided after A0.
-6. **Confirm the §4 gate:** nested walk-forward, the N-adjusted lower bound (≈ 99.76 % for N = 41), the stability and frequency rules, and forward demo as the only pristine confirmation. This may mean no method qualifies soon; that would be the honest result.
+1. **Holdout: none.** All 8 CFD symbols are development symbols, to maximise the evidence. Forward demo is the only pristine confirmation. The `final_holdout` registration and its pass rule in §1.1 are therefore not used.
+2. **Candidate cells: five.** The owner asked for the option with the best chance of finding a good setup, and "tighten later". The cells are {15m, 1H, 4H} × {metals, indices}, minus 15m indices, which has no development history before 2022. Each cell is one pooled account over its asset class.
+   - This gives N_ICT = 41 × 5 = **205** and N_Wyckoff = 15 × 5 = **75**, a lower bound at about 99.95 % / 99.87 %.
+   - The owner's "tighten later" is honoured in one direction only. A check may be made stricter after data is seen; it may never be loosened.
+3. **Costs from MT5.** integrations/mt5/ExportSymbolSpec.mq5 exports the broker's contract specification, the spread recorded on every M15 bar (per UTC hour), and the commission actually charged on the account's deals. "Always prefer what is real."
+4. **Wyckoff volume matters per setup.** Wyckoff stays on CFD. Every result is split by `volume_kind`, and tick volume is labelled as a limitation, never presented as real volume. A real-volume source (for example the futures volume of the same underlying) is a separate provider decision with its own ADR, proposed later.
+5. **15m stays in scope.** The owner's reason was that a $10k account makes fees small. That was corrected: a fee in R is (round-trip cost % of price) / (stop distance % of price), which does not depend on account size. 15m therefore stays in scope, judged net of the REAL costs from A0.
+6. **Gate accepted** as in §4 with N from item 2: "we are building a loop to find the options that are really good."
