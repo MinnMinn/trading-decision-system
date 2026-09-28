@@ -692,7 +692,12 @@ def main():
             # history file -- USOIL/UKOIL have no 15m -- used to make the whole snapshot fail with
             # FileNotFoundError, leaving the CFD runs with no dataset identity at all. The requested-but-absent
             # pairs are listed beside it, so the omission is recorded rather than silent.
-            snap = snapshot.dataset_snapshot(present_series, base=os.path.join(ROOT, "data", "history"))
+            # bt.HISTORY_ROOT (code review, 2026-09-29), not a hardcoded data/history: `present_series` above
+            # was built from `bt.load()`, which already honours BT_HISTORY_ROOT/a second provider's root
+            # (data/history/ftmo) -- a hardcoded base here would either raise FileNotFoundError for a
+            # symbol that only exists under the alternate root, or (for one that exists under both, e.g.
+            # XAUUSD/XAGUSD) silently record the WRONG provider's provenance for bars bt.load() actually read.
+            snap = snapshot.dataset_snapshot(present_series, base=bt.HISTORY_ROOT)
             absent = [f"{s}:{t}" for t in a.tf.split(",") for s in a.symbols.split(",") if (s, t) not in present_series]
             if absent:
                 snap["requested_but_absent"] = absent

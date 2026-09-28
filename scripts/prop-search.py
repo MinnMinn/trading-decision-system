@@ -38,6 +38,7 @@ import types
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from repo_paths import repo_rel
 import experiment as X          # CLAUDE.md §42: the ONE reader/writer of the experiment store
 import instruments as _I        # docs/architecture/instruments.json: analysis.cfd, display().asset_class
 import methods as _M            # docs/architecture/methods.json: the runnable RUNNER_METHODS set
@@ -49,6 +50,8 @@ import normalized as _N         # CLAUDE.md §7/§10: provenance() + SNAPSHOT_IN
 import trading_system as _TS    # CLAUDE.md §35/§47: which Trading System (market, tf) resolves to
 import isolated_pool as _pool   # one process per candidate, matching stability-report.py's own convention
 import scan_cache as _sc        # PROP_SEARCH_SCAN_CACHE: a scan shared by candidates / jobs is computed once
+import history_store as _HS     # shared reader/HISTORY_ROOT (single-file or split-gz), CLAUDE.md §58 -- see
+                                # its own module docstring for why this file must not hardcode data/history
 
 PREREG_DOC = "docs/plans/2026-09-27-prop-setup-search-preregistration.md"
 EXPERIMENT_DIR = os.path.join(ROOT, "docs", "experiments", "prop-search-2026-09-27")
@@ -478,13 +481,20 @@ def evaluate_pass(metrics_by_fund, day_counts, inactivity_breach, expectancy_lb)
 # ------------------------------------------------------------------------------------------- one candidate
 
 def _has_predevelopment_history(sym, tf):
-    """§5: 'An instrument without history before 2024-03 cannot be developed on and is skipped, stated.'"""
-    path = os.path.join(ROOT, "data", "history", f"ohlcv.{sym}.{tf}.json")
-    if not os.path.exists(path):
-        return False
+    """§5: 'An instrument without history before 2024-03 cannot be developed on and is skipped, stated.'
+
+    Reads through `history_store` (code review, 2026-09-29) rather than a hardcoded `data/history` path:
+    this must agree with whichever root `bt.load()` is actually reading (`HISTORY_ROOT`/`BT_HISTORY_ROOT`),
+    or a symbol only present under an alternate root (e.g. an FTMO-only instrument, no MetaQuotes-Demo file
+    at all) is silently treated as having no predevelopment history and excluded from candidate development
+    -- a wrong default in the unsafe direction (a real instrument dropped, not a fake one kept), and the
+    scenario `history_store.history_root()`'s own docstring names as the first of the two failures this module
+    exists to fix."""
     try:
-        d = json.load(open(path, encoding="utf-8"))
+        d, _path = _HS.read_doc(sym, tf, root=_HS.history_root())
     except (OSError, ValueError):
+        return False
+    if d is None:
         return False
     candles = d.get("candles") or []
     return bool(candles) and candles[0]["time"] < VALIDATION_START
@@ -511,13 +521,20 @@ def _pit_series_snapshot(symbol, tf, bt):
     truncated, _src = bt.load(symbol, tf)
     if not truncated:
         return None
-    # bt.load() reads data/history/ohlcv.<sym>.<tf>.json (the research archive) -- normalized.load()'s OWN
-    # default reads data/live/<data_dir>/... (the live feed) instead, so `base` must be passed explicitly to
-    # point at the SAME file bt.load() just read, or provenance() would describe a different series.
-    hist_base = os.path.join(ROOT, "data", "history")
+    # bt.load() reads HISTORY_ROOT/ohlcv.<sym>.<tf>[.json|/] (the research archive, single-file or split-gz)
+    # -- normalized.load()'s OWN default reads data/live/<data_dir>/... (the live feed) instead, so `base`
+    # must be passed explicitly to point at the SAME root bt.load() just read, or provenance() could describe
+    # a DIFFERENT provider's series for the same symbol (code review, 2026-09-29: this was the exact bug --
+    # a hardcoded `data/history` here meant an FTMO-only symbol raised FileNotFoundError, and for a symbol
+    # present under BOTH roots (XAUUSD, XAGUSD) this silently attached MetaQuotes-Demo's provenance to bars
+    # `bt.load()` had actually read from FTMO). `bt.HISTORY_ROOT`, not a fresh `history_store.history_root()`
+    # read: the two are normally identical (same shared module, same env var), but reading it FROM `bt`
+    # guarantees agreement with the exact process state `bt.load()` two lines up just used, including in a
+    # test that constructs `bt` with a different env snapshot than this process's own.
+    hist_base = bt.HISTORY_ROOT
     full = _N.load(symbol, tf, base=hist_base)        # for static provenance facts + the raw file header only
     raw_for_prov = dict(full["raw_header"], candles=truncated)
-    path = _N.path_for(symbol, tf, base=hist_base)
+    path, _shape = _N.resolve_path(symbol, tf, base=hist_base)
     prov = _N.provenance(raw_for_prov, symbol, tf, path)
     digest = hashlib.sha256(json.dumps(truncated, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
     quality_flags = [dict(f) for f in bt.QUALITY_FLAGS if f["symbol"] == symbol and f["tf"] == tf]
@@ -527,6 +544,7 @@ def _pit_series_snapshot(symbol, tf, bt):
         "source_venue": prov["source_venue"], "aggregation_scope": prov["aggregation_scope"],
         "underlying_venues": prov["underlying_venues"], "source_identifier": prov["source_identifier"],
         "retrieval_state": prov["quality"], "received_time": prov["received_time"],
+        "history_root": repo_rel(hist_base, ROOT),
         "bars": len(truncated), "first_open": truncated[0]["time"], "last_open": truncated[-1]["time"],
         "sha256": digest,
         # CLAUDE.md §20/§38 (fix round 1, review item C1): every data-quality fault `bt.load()` flagged for

@@ -38,6 +38,8 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from repo_paths import repo_rel
 import instruments as I
 import providers as P
+import history_store as _HS   # THE shared reader (single-file or split-gz), CLAUDE.md §58 -- see its own
+                               # module docstring for why a second copy of the split logic was rejected.
 
 # automation.py already owns the timeframe vocabulary -- the ladder (TIERS/next_rung) and
 # docs/architecture/timeframe-mapping.md are generated from it. Reading the duration from there rather than
@@ -124,11 +126,28 @@ def available_time(candle, timeframe):
 
 
 def path_for(symbol, timeframe, base=None):
-    """Where this symbol's candles live. The directory is a property of the market's FEED, and
-    instruments.data_dir() already owns that mapping."""
+    """The CONVENTIONAL single-file path for this symbol's candles -- unchanged since before the split-gz
+    shape existed. `base=None` is the live feed (a small rolling file, never split); `instruments.data_dir()`
+    owns that directory mapping. With a `base` (a research-history root), this is a GUESS at the plain-file
+    location -- `resolve_path()`/`load()` below are the shape-aware entry points that also check for a
+    split-gz directory; use this only when you specifically want the conventional single-file guess (e.g. to
+    name where a NEW file would be written)."""
     if base:
         return os.path.join(base, f"ohlcv.{symbol}.{timeframe}.json")
     return os.path.join(ROOT, "data", "live", I.data_dir(symbol), f"ohlcv.{symbol}.{timeframe}.json")
+
+
+def resolve_path(symbol, timeframe, base=None):
+    """(path, shape) -- the REAL on-disk location, `shape` in {'file', 'split'}, or (None, None) if missing.
+
+    Only meaningful for a research-history `base` (data/history, data/history/ftmo, ...): the live feed
+    (`base=None`) is always a single rolling file written by the live bridge/fetcher and is never split, so
+    it is resolved directly rather than through `history_store` (whose own `HISTORY_ROOT` default is a
+    research root, not the live feed, and would be the wrong default here)."""
+    if not base:
+        p = path_for(symbol, timeframe, base=None)
+        return (p, "file") if os.path.exists(p) else (None, None)
+    return _HS.resolve(symbol, timeframe, root=base)
 
 
 def provenance(raw, symbol, timeframe, source_identifier, now=None):
@@ -190,10 +209,16 @@ def load(symbol, timeframe, base=None, now=None):
 
     Raises FileNotFoundError when there is no file -- deliberately, rather than returning an UNAVAILABLE
     record with no candles. "The file is missing" and "the file is there and empty" are different facts and a
-    caller that cannot tell them apart will eventually treat one as the other."""
-    path = path_for(symbol, timeframe, base)
-    with open(path, encoding="utf-8") as fh:
-        raw = json.load(fh)
+    caller that cannot tell them apart will eventually treat one as the other.
+
+    Shape-aware since the split-gz format (code review, 2026-09-29): `resolve_path()` finds either a plain
+    file or a split-gz directory under `base`, and `history_store.read_at()` parses whichever it is into the
+    same dict shape. The `path` recorded in `provenance()`'s `source_identifier` is therefore the REAL
+    location (a directory, for a split series) -- not a guess that may not even exist."""
+    path, shape = resolve_path(symbol, timeframe, base)
+    if shape is None:
+        raise FileNotFoundError(path_for(symbol, timeframe, base))
+    raw = _HS.read_at(path, shape)
     return {"candles": raw.get("candles") or [],
             "provenance": provenance(raw, symbol, timeframe, path, now=now),
             "raw_header": {k: v for k, v in raw.items() if k != "candles"}}

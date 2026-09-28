@@ -82,15 +82,28 @@ class SeamOffIsByteIdentical(unittest.TestCase):
 
 class PitCutoffFiltersAtLoadTime(unittest.TestCase):
     """`load()`'s own logic (bars trim, PIT trim, quality assessment) run for real against synthetic candles
-    injected below `_read_history` -- the file-existence check itself uses a REAL (symbol, timeframe) so
-    `load()` proceeds past it, but the bytes it reads are ours."""
+    injected below `history_store._read_file` -- the file-existence check itself uses a REAL (symbol,
+    timeframe) so `load()` proceeds past it, but the bytes it reads are ours.
+
+    Patches `bt._HS._read_file` (`history_store._read_file`, code review 2026-09-29: `bt.load()`'s own
+    file-reading/caching moved there so normalized.py/snapshot.py/prop-search.py share one reader instead of
+    a second copy) rather than something in the freshly-loaded `bt` module's own namespace: `history_store`
+    is a genuine process-wide singleton (`import history_store` is cached in `sys.modules` after the first
+    import in this process, unlike `bt` itself, which this file's `_bt()` reloads fresh every call) -- so a
+    patch left in place here would leak into every OTHER test in this process that reads history through it.
+    Hence the explicit `tearDown`, which the pre-refactor version of this test did not need: a fresh `bt`
+    module used to own its own reader function and cache, so discarding the module discarded the patch too."""
 
     def setUp(self):
         self.bt = _bt()
-        self._orig_read_history = self.bt._read_history
+        self._orig_read_file = self.bt._HS._read_file
+
+    def tearDown(self):
+        self.bt._HS._read_file = self._orig_read_file
+        self.bt._HS._LOAD_CACHE.clear()
 
     def _inject(self, candles):
-        self.bt._read_history = lambda p: {"candles": candles, "_source": "synthetic-pit-test"}
+        self.bt._HS._read_file = lambda p: {"candles": candles, "_source": "synthetic-pit-test"}
 
     def test_a_spike_after_the_cutoff_does_not_change_what_load_returns(self):
         """A synthetic 'spike' bar placed after the cutoff must not even be visible to the engine -- the
@@ -104,7 +117,7 @@ class PitCutoffFiltersAtLoadTime(unittest.TestCase):
         self.bt.pit_cutoff(cutoff)
         quiet_result, _ = self.bt.load("BTCUSDT", "1H")
 
-        self.bt._LOAD_CACHE.clear()
+        self.bt._HS._LOAD_CACHE.clear()
         self._inject(pre + spike_tail)
         self.bt.pit_cutoff(cutoff)
         spike_result, _ = self.bt.load("BTCUSDT", "1H")
@@ -140,9 +153,107 @@ class PitCutoffFiltersAtLoadTime(unittest.TestCase):
         self._inject(rows)
         self.bt.pit_cutoff("2026-01-01T01:30:00Z")
         self.assertEqual(len(self.bt.load("BTCUSDT", "1H")[0]), 1)
-        self.bt._LOAD_CACHE.clear()
+        self.bt._HS._LOAD_CACHE.clear()
         self.bt.pit_cutoff(None)
         self.assertEqual(len(self.bt.load("BTCUSDT", "1H")[0]), 5)
+
+
+class PitSeriesSnapshotHonoursTheSelectedHistoryRoot(unittest.TestCase):
+    """Code review fix (2026-09-29): `_pit_series_snapshot()` used to hardcode `data/history` for its
+    provenance half (`normalized.load()`/`path_for()`) while its DATA half (`bt.load()`) already honoured
+    `BT_HISTORY_ROOT` -- for an FTMO-only symbol that raised FileNotFoundError, and for a symbol present
+    under BOTH roots (XAUUSD, XAGUSD) it silently attached MetaQuotes-Demo's provenance to bars actually read
+    from FTMO. `_has_predevelopment_history()` had the identical bug independently of `bt`."""
+
+    FTMO_ROOT = os.path.join(ROOT, "data", "history", "ftmo")
+
+    def _skip_if_absent(self):
+        if not os.path.isdir(self.FTMO_ROOT):
+            self.skipTest("data/history/ftmo not present in this checkout (uncommitted local import)")
+
+    def test_reads_ftmo_for_both_data_and_provenance_when_the_root_is_selected(self):
+        self._skip_if_absent()
+        old = os.environ.get("BT_HISTORY_ROOT")
+        os.environ["BT_HISTORY_ROOT"] = self.FTMO_ROOT
+        try:
+            bt = _bt()   # HISTORY_ROOT frozen at THIS exec, from the env var just set
+            ps = _ps()
+            direct, _src = bt.load("XAUUSD", "15m")
+            if not direct:
+                self.skipTest("no XAUUSD 15m under data/history/ftmo")
+            row = ps._pit_series_snapshot("XAUUSD", "15m", bt)
+        finally:
+            if old is None:
+                os.environ.pop("BT_HISTORY_ROOT", None)
+            else:
+                os.environ["BT_HISTORY_ROOT"] = old
+        self.assertIsNotNone(row, "bt.load() found data, so the snapshot must not be None")
+        # DATA: matches what bt.load() itself returned from FTMO.
+        self.assertEqual(row["bars"], len(direct))
+        self.assertEqual(row["first_open"], direct[0]["time"])
+        self.assertEqual(row["last_open"], direct[-1]["time"])
+        # PROVENANCE: names the FTMO provider, not MetaQuotes-Demo's `mt5_bridge` -- the exact bug (XAUUSD
+        # exists under BOTH roots, so a hardcoded data/history base would silently answer "mt5_bridge" here).
+        self.assertEqual(row["provider"], "mt5_bridge_ftmo")
+        self.assertIn("ftmo", row["history_root"])
+
+    def test_ftmo_only_symbol_does_not_raise(self):
+        """The FileNotFoundError half of the bug: a symbol with no MetaQuotes-Demo file at all (e.g. US30,
+        DE40, FRA40 -- never had a data/history/ohlcv.<sym>.<tf>.json before this account's history existed)
+        must not crash `_pit_series_snapshot()` just because the hardcoded default root has no file for it."""
+        self._skip_if_absent()
+        old = os.environ.get("BT_HISTORY_ROOT")
+        os.environ["BT_HISTORY_ROOT"] = self.FTMO_ROOT
+        try:
+            bt = _bt()
+            ps = _ps()
+            direct, _src = bt.load("US30", "15m")
+            if not direct:
+                self.skipTest("no US30 15m under data/history/ftmo")
+            row = ps._pit_series_snapshot("US30", "15m", bt)   # must not raise FileNotFoundError
+        finally:
+            if old is None:
+                os.environ.pop("BT_HISTORY_ROOT", None)
+            else:
+                os.environ["BT_HISTORY_ROOT"] = old
+        self.assertEqual(row["provider"], "mt5_bridge_ftmo")
+        self.assertEqual(row["bars"], len(direct))
+
+    def test_default_root_is_unchanged(self):
+        """No BT_HISTORY_ROOT set: `_pit_series_snapshot()` must behave exactly as it always did, reading
+        `data/history` and naming the default provider."""
+        old = os.environ.pop("BT_HISTORY_ROOT", None)
+        try:
+            bt = _bt()
+            ps = _ps()
+            self.assertEqual(bt.HISTORY_ROOT, os.path.join(ROOT, "data", "history"))
+            direct, _src = bt.load("XAUUSD", "15m")
+            if not direct:
+                self.skipTest("no XAUUSD 15m under data/history")
+            row = ps._pit_series_snapshot("XAUUSD", "15m", bt)
+        finally:
+            if old is not None:
+                os.environ["BT_HISTORY_ROOT"] = old
+        self.assertEqual(row["bars"], len(direct))
+        self.assertNotEqual(row["provider"], "mt5_bridge_ftmo")
+
+    def test_has_predevelopment_history_also_honours_the_selected_root(self):
+        self._skip_if_absent()
+        old = os.environ.get("BT_HISTORY_ROOT")
+        os.environ["BT_HISTORY_ROOT"] = self.FTMO_ROOT
+        try:
+            ps = _ps()
+            # US30's FTMO history starts 2019-02, well after prop-search's VALIDATION_START (2024-03-01), so
+            # this is real evidence the FTMO root was actually consulted (a MISSING file would also return
+            # False, which is why test_ftmo_only_symbol_does_not_raise above pins the FileNotFoundError half
+            # separately with an existence assertion instead of relying on this boolean alone).
+            has_history_ftmo_root = ps._has_predevelopment_history("US30", "15m")
+        finally:
+            if old is None:
+                os.environ.pop("BT_HISTORY_ROOT", None)
+            else:
+                os.environ["BT_HISTORY_ROOT"] = old
+        self.assertIsInstance(has_history_ftmo_root, bool)
 
 
 # ============================================================================================ candidate space

@@ -176,6 +176,64 @@ class DatasetSnapshot(unittest.TestCase):
         self.assertEqual(s["preprocessing_version"], N.SNAPSHOT_INPUTS_VERSION)
 
 
+class SplitGzSeries(unittest.TestCase):
+    """Code review fix (2026-09-29): `series_snapshot()`/`dataset_snapshot()` must work on a split-gz series
+    (data/history/ftmo, scripts/import-mt5-history.py `stream_write_split()`), not just the plain-file shape
+    every series had before it -- and must name the RIGHT provider (`mt5_bridge_ftmo`, not `mt5_bridge`)."""
+
+    FTMO_ROOT = os.path.join(ROOT, "data", "history", "ftmo")
+
+    def _skip_if_absent(self):
+        if not os.path.isdir(self.FTMO_ROOT):
+            self.skipTest("data/history/ftmo not present in this checkout (uncommitted local import)")
+
+    def test_dataset_snapshot_on_an_ftmo_split_series_names_the_right_provider(self):
+        self._skip_if_absent()
+        try:
+            s = snapshot.dataset_snapshot([("XAUUSD", "1H")], base=self.FTMO_ROOT)
+        except FileNotFoundError:
+            self.skipTest("no XAUUSD 1H under data/history/ftmo")
+        row = s["series"][0]
+        self.assertEqual(row["provider"], "mt5_bridge_ftmo")
+        self.assertEqual(row["symbol"], "XAUUSD")
+        self.assertGreater(row["bars"], 0)
+        self.assertRegex(row["sha256"], r"^[0-9a-f]{64}$")
+
+    def test_the_sha256_covers_every_part_not_just_the_index(self):
+        """A digest that only hashed index.json would not change if a year part were silently corrupted or
+        swapped -- §10's whole point is that the recorded version identifies the BYTES actually read."""
+        self._skip_if_absent()
+        try:
+            before = snapshot.series_snapshot("XAUUSD", "1H", base=self.FTMO_ROOT)
+        except FileNotFoundError:
+            self.skipTest("no XAUUSD 1H under data/history/ftmo")
+        self.assertIsNotNone(before["split_parts"], "a split series must report per-part digests")
+        self.assertTrue(before["split_parts"], "at least one year part expected")
+        for part in before["split_parts"]:
+            self.assertIn("year", part)
+            self.assertRegex(part["sha256"], r"^[0-9a-f]{64}$")
+
+    def test_history_root_is_recorded(self):
+        """§10 reproducibility: WHICH root the bytes came from, so a snapshot cannot be silently ambiguous
+        between data/history and a second provider's data/history/ftmo for the same (symbol, timeframe)."""
+        self._skip_if_absent()
+        try:
+            s = snapshot.dataset_snapshot([("XAUUSD", "1H")], base=self.FTMO_ROOT)
+        except FileNotFoundError:
+            self.skipTest("no XAUUSD 1H under data/history/ftmo")
+        self.assertIn("ftmo", s["history_root"])
+        self.assertIn("ftmo", s["series"][0]["history_root"])
+
+    def test_a_plain_file_series_reports_no_split_parts(self):
+        """None (not a missing key, not an empty list) for the shape that has only ONE part: `sha256` already
+        covers it, and `split_parts: []` would read as 'zero parts', which is a different (wrong) claim."""
+        try:
+            s = snapshot.series_snapshot("BTCUSDT", "1D", base=os.path.join(ROOT, "data", "history"))
+        except FileNotFoundError:
+            self.skipTest("no BTCUSDT 1D history on disk")
+        self.assertIsNone(s["split_parts"])
+
+
 class WiredIntoTheResearchRun(unittest.TestCase):
     def test_the_stability_report_writes_a_snapshot_beside_its_rows(self):
         """Additive on purpose: rank-setups.py reads `rows` and must keep working."""
