@@ -1,0 +1,2 @@
+run 36395147597 attempt 1 (stability-full)
+source commit a235a7645989345d0a1638c22ca31c5afab8dc91 (research-full/2026-09-28-full-2)
