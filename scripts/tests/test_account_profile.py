@@ -283,6 +283,123 @@ class RuleShapeValidation(unittest.TestCase):
         AP._validate(AP._read())
 
 
+class MinProfitableDays(unittest.TestCase):
+    """docs/architecture/account-profiles.json `min_profitable_days` (addendum §8.3, 2026-09-28): The5ers
+    High Stakes Step 1's OWN reading of "how many days" -- profitable days, not merely traded ones. Shape
+    validation mirrors `RuleShapeValidation`'s own `_refuses` pattern; the live wiring (`account_state`'s
+    `inactivity_days` -> `days_since_last_trade` fact, and `halt_check` propagation) is driven through the
+    REAL `the5ers-high-stakes-step1` profile rather than a second synthetic fixture, so these tests prove the
+    shipped registry entry actually behaves as declared."""
+
+    def _refuses(self, **rule_overrides):
+        bad = copy.deepcopy(PROP_RULES); bad.update(rule_overrides)
+        with self.assertRaises(ValueError) as cm:
+            AP._validate(_registry({"p": dict(PROP, rules=bad)}))
+        return str(cm.exception)
+
+    # ---- _validate_rules shape checks
+
+    def test_a_zero_count_is_refused(self):
+        msg = self._refuses(min_trading_days=None,
+                            min_profitable_days={"count": 0, "profit_threshold_pct": 0.005})
+        self.assertIn("min_profitable_days.count", msg)
+
+    def test_a_negative_count_is_refused(self):
+        msg = self._refuses(min_trading_days=None,
+                            min_profitable_days={"count": -1, "profit_threshold_pct": 0.005})
+        self.assertIn("min_profitable_days.count", msg)
+
+    def test_a_non_integer_count_is_refused(self):
+        msg = self._refuses(min_trading_days=None,
+                            min_profitable_days={"count": 3.5, "profit_threshold_pct": 0.005})
+        self.assertIn("min_profitable_days.count", msg)
+
+    def test_a_boolean_count_is_refused(self):
+        """bool is a subclass of int in Python -- True/False must not silently pass as 1/0."""
+        msg = self._refuses(min_trading_days=None,
+                            min_profitable_days={"count": True, "profit_threshold_pct": 0.005})
+        self.assertIn("min_profitable_days.count", msg)
+
+    def test_a_zero_profit_threshold_pct_is_refused(self):
+        msg = self._refuses(min_trading_days=None,
+                            min_profitable_days={"count": 3, "profit_threshold_pct": 0.0})
+        self.assertIn("profit_threshold_pct", msg)
+        self.assertIn("FRACTION", msg)
+
+    def test_a_profit_threshold_pct_above_one_is_refused(self):
+        """Same discipline as every other pct field: a `5` typed for '5 %' must not become a 500 % rule."""
+        msg = self._refuses(min_trading_days=None,
+                            min_profitable_days={"count": 3, "profit_threshold_pct": 5})
+        self.assertIn("profit_threshold_pct", msg)
+
+    def test_a_negative_profit_threshold_pct_is_refused(self):
+        msg = self._refuses(min_trading_days=None,
+                            min_profitable_days={"count": 3, "profit_threshold_pct": -0.005})
+        self.assertIn("profit_threshold_pct", msg)
+
+    def test_declaring_both_min_trading_days_and_min_profitable_days_is_refused(self):
+        """Two different readings of 'how many days' on one profile leaves a reader to guess which the fund
+        actually enforces."""
+        msg = self._refuses(min_trading_days=5,   # PROP_RULES' own value; left in place on purpose
+                            min_profitable_days={"count": 3, "profit_threshold_pct": 0.005})
+        self.assertIn("BOTH min_trading_days", msg)
+
+    def test_a_missing_count_or_threshold_is_refused(self):
+        msg = self._refuses(min_trading_days=None, min_profitable_days={"count": 3})
+        self.assertIn("profit_threshold_pct", msg)
+
+    def test_a_well_formed_min_profitable_days_validates(self):
+        rules = dict(PROP_RULES, min_trading_days=None,
+                    min_profitable_days={"count": 3, "profit_threshold_pct": 0.005})
+        AP._validate(_registry({"p": dict(PROP, rules=rules)}))   # must not raise
+
+    # ---- account_state() / halt_check() wiring, driven through the REAL the5ers profile
+
+    @classmethod
+    def setUpClass(cls):
+        cls.the5ers = AP.get("the5ers-high-stakes-step1")
+
+    def _facts(self, **over):
+        facts = {"equity": 100_000.0, "day_start_equity": 100_000.0, "peak_equity": 100_000.0,
+                 "consec_losses": 0}
+        facts.update(over)
+        return facts
+
+    def test_inactivity_below_the_threshold_is_not_a_breach(self):
+        out = AP.account_state(self.the5ers, self._facts(days_since_last_trade=29))
+        self.assertEqual([f for f in out if f["rule"] == "inactivity-30-days"], [])
+        self.assertIsNone(AP.halt_check(self.the5ers, self._facts(days_since_last_trade=29))[0])
+
+    def test_inactivity_at_the_threshold_breaches(self):
+        out = [f for f in AP.account_state(self.the5ers, self._facts(days_since_last_trade=30))
+              if f["rule"] == "inactivity-30-days"]
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["state"], "HALT")
+
+    def test_inactivity_missing_the_fact_is_UNKNOWN_not_a_silent_pass(self):
+        """CLAUDE.md §20: an unevaluable rule must report UNKNOWN, never OK -- 'the fact was not supplied' is
+        not 'the account is active'."""
+        out = [f for f in AP.account_state(self.the5ers, self._facts())   # no days_since_last_trade key
+              if f["rule"] == "inactivity-30-days"]
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["state"], AP.UNKNOWN)
+
+    def test_an_unknown_inactivity_reading_is_never_treated_as_a_halt(self):
+        """Mirrors test_an_unevaluable_account_rule_is_UNKNOWN_and_never_a_halt: 'the fact was not supplied' is
+        never read as 'the account is down' -- halt_check only ever surfaces HALT/HUMAN/BLOCK_ENTRY findings
+        (its own docstring: "rules about the ACCOUNT's survival"), so a pure-UNKNOWN account_state() -- as
+        here, every OTHER survival fact supplied and fine -- correctly comes back (None, None) from halt_check
+        itself; the UNKNOWN is still visible to a caller that inspects account_state() directly (the
+        previous test)."""
+        self.assertEqual(AP.halt_check(self.the5ers, self._facts()), (None, None))
+
+    def test_a_breach_propagates_through_halt_check(self):
+        act, why = AP.halt_check(self.the5ers, self._facts(days_since_last_trade=45))
+        self.assertEqual(act, AP.HALT)
+        self.assertIn("30", why)
+        self.assertIn("inactivity days", why)
+
+
 class Lookup(unittest.TestCase):
     def test_each_venue_resolves_to_exactly_one_demo_account(self):
         self.assertEqual(AP.for_venue("futures")["id"], "pilot-binance-futures-testnet")
