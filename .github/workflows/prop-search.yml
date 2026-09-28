@@ -128,7 +128,10 @@ jobs:
             echo "restoring records from research-results/prop-search/$latest"
             git fetch --depth 1 origin "refs/heads/research-results/prop-search/$latest:refs/remotes/origin/research-results/prop-search/$latest"
             git worktree add /tmp/prev-results "origin/research-results/prop-search/$latest"
+            # Two layouts exist: runs up to 36372364207 stored the artifact at the branch root (download-artifact
+            # without `name:` flattens a single artifact); later runs store it under prop-search-results/.
             src="/tmp/prev-results/prop-search-results"
+            if [ ! -d "$src/records" ]; then src="/tmp/prev-results"; fi
             if [ -d "$src/records" ] && compgen -G "$src/records/*.json" > /dev/null; then
               cp "$src"/records/*.json "$PROP_SEARCH_RECORDS_DIR"/
               echo "restored $(ls "$src"/records/*.json | wc -l) record(s) -- run will validate each against the current plan"
