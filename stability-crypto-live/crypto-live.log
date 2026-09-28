@@ -1,0 +1,15 @@
+DATA-QUALITY FLAG (CLAUDE.md §20/§38): BTCUSDT 1H history is PARTIAL: 1 bar(s) missing between 2023-03-24T12:00:00Z and 2023-03-24T14:00:00Z on a market that never closes; the window has holes, so an indicator computed over it is not a degraded one, it is a different one
+DATA-QUALITY FLAG (CLAUDE.md §20/§38): ETHUSDT 1H history is PARTIAL: 1 bar(s) missing between 2023-03-24T12:00:00Z and 2023-03-24T14:00:00Z on a market that never closes; the window has holes, so an indicator computed over it is not a degraded one, it is a different one
+DATA-QUALITY FLAG (CLAUDE.md §20/§38): SOLUSDT 1H history is PARTIAL: 1 bar(s) missing between 2023-03-24T12:00:00Z and 2023-03-24T14:00:00Z on a market that never closes; the window has holes, so an indicator computed over it is not a degraded one, it is a different one
+OOS holdout (INT-5): dataset last bar 2026-09-13T06:15:00Z -> cutoff 2026-03-13T00:00:00Z; in-sample from 2025-03-13T00:00:00Z
+scan plan: 81 distinct scan(s) across 3 timeframe(s) x 3 config(s) x 9 symbol(s), 2 worker process(es)
+15m A done
+15m B done
+15m C done
+1H A done
+1H B done
+1H C done
+4H A done
+4H B done
+4H C done
+§38 FLAGGED: unavailable_historical_data: BTCUSDT 1H: 1 bar(s) missing between 2023-03-24T12:00:00Z and 2023-03-24T14:00:00Z on a market that never closes; the window has holes, so an indicator computed over it is not a degraded one, it is a different one; unavailable_historical_data: ETHUSDT 1H: 1 bar(s) missing between 2023-03-24T12:00:00Z and 2023-03-24T14:00:00Z on a market that never closes; the window has holes, so an indicator computed over it is not a degraded one, it is a different one; unavailable_historical_data: SOLUSDT 1H: 1 bar(s) missing between 2023-03-24T12:00:00Z and 2023-03-24T14:00:00Z on a market that never closes; the window has holes, so an indicator computed over it is not a degraded one, it is a different one (+2 more)

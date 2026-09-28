@@ -1,0 +1,3 @@
+account rules in force: ftmo-challenge-phase1 (PROP_CHALLENGE) -- a run ends when THIS account would have failed, not only when the balance is gone
+OOS holdout (INT-5): dataset last bar 2026-09-25T20:45:00Z -> cutoff 2026-03-25T00:00:00Z; in-sample from 2025-03-25T00:00:00Z
+scan plan: 72 distinct scan(s) across 3 timeframe(s) x 3 config(s) x 8 symbol(s), 2 worker process(es)
