@@ -51,12 +51,6 @@
           "entry": "test"
         },
         "why": "type 2 is the mid-volume Spring (Bang 2.1, WMT p049); when it clusters as a repeated loss this candidate keeps only the tightest type AND always waits for the retest (WA p80: the Test is the confirmation), the one existing knob that buys confirmation without new engine code."
-      },
-      "1": {
-        "override": {
-          "range_touches": 2
-        },
-        "why": "type 1 is the tightest volume type, so a repeated loss cluster on it is not a volume-quality fault -- it is a range-quality fault. Requiring two tests of EACH border before a Spring counts is the candidate (advance.md 2.11.2, Dau hieu 2)."
       }
     },
     "via": {

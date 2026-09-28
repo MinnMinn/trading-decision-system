@@ -85,8 +85,18 @@ RISK = _te.MAX_RISK_PCT   # per-trade risk of equity. It MUST equal strategy-run
 START = 10000.0      # account size in $ (user decision 2026-09-11: $10,000 for readability)
 RUIN_FRAC = 0.10     # the account is declared BLOWN (cháy) when equity <= 10 % of START; trading stops there and the report says so
 OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see the note there
-             types=(1, 2, 3), range_touches=0, htf=False, sides=("long", "short"), entry="book", mgmt="none", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit",
+             types=(1, 2, 3), htf=False, sides=("long", "short"), entry="book", mgmt="none", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit",
             st_gate=False, phase_b_gate=False, methods=None)
+# `range_touches` (require N tests of EACH TR border before a Spring counts) lived here until A0b
+# (docs/plans/2026-09-28-methodology-improvement-plan.md §A0b): it was set from --range-touches and echoed into
+# every run's config snapshot as though it gated Springs, but no scan()/simulate() code path ever read
+# OPTS["range_touches"] -- audited 2026-09-28 (docs/audits/2026-09-28-method-fidelity.md §2.3). Removed rather
+# than left as a documented no-op so a future config snapshot cannot silently repeat the same false claim
+# (CLAUDE.md §11: "do not rely on mutable external configuration" -- a key that looks live but is not is worse
+# than one that is simply absent). `docs/architecture/improve-candidates.json` candidate `vol_type.1` declared
+# an override on this key; with the key gone, scripts/improve-loop.py now REFUSES that candidate explicitly
+# (`_apply_override` raises "not an OPTS key") instead of silently running a no-op -- see
+# scripts/tests/test_improve_loop.py for the established pattern (the ict_disp removal did the same).
 _ICT = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"].get("ict", {})
 DISP = _ICT.get("displacement", {"body_min_ratio": 0.6, "range_min_median_ratio": 1.2})
 # The PLANNED-R:R floor. ONE reader for every path: trading_env.min_rr() validates and returns None rather than
@@ -1513,7 +1523,6 @@ def main():
     ap.add_argument("--fee-pct", type=float, default=0.05, help="taker fee per side in percent"); ap.add_argument("--out"); ap.add_argument("--json")
     ap.add_argument("--min-rr", type=float, default=MIN_RR, help="skip trades whose PLANNED R (target distance / stop distance) is below this")
     ap.add_argument("--types", default="1,2,3", help="Spring/Upthrust volume types allowed for WYCKOFF-BOOK/COMBINED-BOOK")
-    ap.add_argument("--range-touches", type=int, default=0, help="require this many tests of EACH border before a Spring counts (0 = off)")
     ap.add_argument("--htf", action="store_true", help="higher-timeframe boundary filter (long only when the HTF is in the lower third of its range or above it)")
     ap.add_argument("--sides", default="long,short")
     ap.add_argument("--entry", default="book", choices=["book", "test"], help="Wyckoff entry: 'book' = type-1 at reclaim, others at retest; 'test' = always wait for the retest (WA p80: Test = confirmation)")
@@ -1543,7 +1552,7 @@ def main():
                                      "-- never loosens the CLI's own flags")
     a = ap.parse_args(); fee = a.fee_pct / 100
     limit_bars(a.bars)
-    OPTS.update(min_rr=a.min_rr, types=tuple(int(x) for x in a.types.split(",")), range_touches=a.range_touches, htf=a.htf, sides=tuple(a.sides.split(",")), entry=a.entry, mgmt=a.mgmt, sloped_gate=a.sloped_gate, st_gate=a.st_gate, phase_b_gate=a.phase_b_gate, st_min=a.st_min, phase_d=not a.no_phase_d,
+    OPTS.update(min_rr=a.min_rr, types=tuple(int(x) for x in a.types.split(",")), htf=a.htf, sides=tuple(a.sides.split(",")), entry=a.entry, mgmt=a.mgmt, sloped_gate=a.sloped_gate, st_gate=a.st_gate, phase_b_gate=a.phase_b_gate, st_min=a.st_min, phase_d=not a.no_phase_d,
                 methods=tuple(a.methods.split(",")) if a.methods else None)
     account = load_account(a)
     calendar = _ER.load(path=a.calendar) if a.calendar else None
@@ -1573,7 +1582,7 @@ def main():
                    f"với cấu hình CLI ở trên._" if a.trader else
                    "_Không có trader (`--trader`): không áp ràng buộc riêng theo trader._")
     L = [f"# Wyckoff vs ICT vs kết hợp — lợi nhuận theo tháng/quý/năm, rủi ro {RISK * 100:g}%/lệnh — đo {today}", "",
-         f"_Bộ lọc: R/R kế hoạch ≥ {a.min_rr} · loại KL {a.types} · biên TR chạm ≥ {a.range_touches} lần mỗi bên · lọc khung lớn {'bật' if a.htf else 'tắt'} · chiều {a.sides} · vào lệnh Wyckoff {a.entry} · cổng đối nhãn D1 {'bật' if a.st_gate else 'tắt'}/D2 {'bật' if a.phase_b_gate else 'tắt'} (dấu hiệu luôn được ghi) · cấu trúc xiên {'bỏ' if a.sloped_gate else 'nhận'} · quản lý {a.mgmt} · phí {a.fee_pct}%/chiều · displacement bắt buộc (R10/R11) · P/D gate bắt buộc (R13)_", "",
+         f"_Bộ lọc: R/R kế hoạch ≥ {a.min_rr} · loại KL {a.types} · lọc khung lớn {'bật' if a.htf else 'tắt'} · chiều {a.sides} · vào lệnh Wyckoff {a.entry} · cổng đối nhãn D1 {'bật' if a.st_gate else 'tắt'}/D2 {'bật' if a.phase_b_gate else 'tắt'} (dấu hiệu luôn được ghi) · cấu trúc xiên {'bỏ' if a.sloped_gate else 'nhận'} · quản lý {a.mgmt} · phí {a.fee_pct}%/chiều · displacement bắt buộc (R10/R11) · P/D gate bắt buộc (R13)_", "",
          f"_`scripts/backtest-methods.py` trên nến lưu tại `data/history/`; phí taker {a.fee_pct}%/chiều; mọi định nghĩa và THAM SỐ DỰ ÁN ở docstring của script. Số ở đây là của proxy bằng code, không phải của phân tích đầy đủ — đọc caveats cuối file._", "",
          account_line, "", news_line, "", sessions_line, "", trader_line, "",
          # CLAUDE.md §38: the verdict goes ABOVE the tables, not in a footnote. "Never silently produce a

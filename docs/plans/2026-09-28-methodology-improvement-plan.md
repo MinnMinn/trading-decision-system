@@ -42,7 +42,7 @@ ICT produces about 1.5–1.9 trades per symbol-year on 1H. It is +0.21 R gross b
    - **Nested** rolling-origin walk-forward over the development span [M1]: V values are chosen inside each training fold only, and each test fold is scored with the values chosen on its own training fold. The lower bound is computed on the pooled test-fold trades only.
    - Each V item has one pre-declared primary metric: net expectancy per trade, in R.
    - Each walk-forward test fold needs at least 30 trades; below that the verdict is "insufficient".
-   - **N** counts every comparison that could be put forward [M2]: the §3 grid of the method × the number of pre-declared candidate cells (§3, "Candidate cells"). With the recommended one cell per method, **N_ICT = 41 and N_Wyckoff = 15**; with the alternative (four cells per method) it is 164 and 60. Prior counts (180 prop records, 30 diagnosis slices) are disclosed but not folded into N.
+   - **N** counts every comparison that could be put forward [M2]: the §3 grid of the method × the number of pre-declared candidate cells (§3, "Candidate cells"). With the recommended one cell per method, **N_ICT = 41 and N_Wyckoff = 16**; with the alternative (four cells per method) it is 164 and 64. Prior counts (180 prop records, 30 diagnosis slices) are disclosed but not folded into N.
    - The lower bound is taken at one-sided confidence 1 − 0.10/N (≈ 99.76 % for N = 41). A gate this strict may not be reachable with the current trade frequency. That is the honest price of the variants, and it is stated, not relaxed.
    - **Stability:** net expectancy > 0 on at least ⌈2m/3⌉ of the m symbols that have development data for the timeframe, and no single trade contributes more than 25 % of total net R.
    - **Frequency:** the longest gap between consecutive trades on one pooled account is ≤ 30 calendar days in ≥ 90 % of folds (preregistration §8.3).
@@ -73,7 +73,7 @@ ICT produces about 1.5–1.9 trades per symbol-year on 1H. It is +0.21 R gross b
   - A0 never re-evaluates [2024-03, 2025-03) as evidence. If the 180 prop records are re-priced, the result is only a disclosed erratum.
   - The 15m-scope question waits for A0.
 - **A0b Research-record honesty** [R7]:
-  - `ict_target="range"` is recorded in the 180 records, but the scanner targets −2σ. That key is removed or renamed, and so is `range_touches`, which has no reader.
+  - `ict_target="range"` is recorded in the stability files (the 180 prop records carry `ict_target: null` and a dead `range_touches: 0`; see docs/experiments/prop-search-2026-09-27/ERRATUM-2026-09-28.md), but the scanner targets −2σ. That key is removed or renamed, and so is `range_touches`, which has no reader.
   - An erratum successor record is written for the 180. The records themselves are immutable (§42).
   - A test fails when a snapshotted option has no reader.
 - **A1 Extract** into one module the structures the decision path already computes:
@@ -102,7 +102,7 @@ F items are adopted on source grounds. For V items, the value sets listed are th
 
 The three exit parameters act on the same exit, so they form **one joint factor** (B-EXIT = B-TGT × B-H × B5, 3 × 4 × 2 = 24 value sets) [M1]. Breakeven management, formerly config B, is a V item per method (B-MGMT, W-MGMT); config C's generic HTF gate is replaced by B4.
 
-Per method, N = 1 baseline + the non-baseline values + 1 combined: ICT 1 + 39 + 1 = **41**; Wyckoff 1 + 13 + 1 = **15**. Nothing is added after data is seen without a ledger event.
+Per method, N = 1 baseline + the non-baseline values + 1 combined: ICT 1 + 39 + 1 = **41**; Wyckoff 1 + 14 + 1 = **16**. Nothing is added after data is seen without a ledger event.
 
 **Candidate cells, pre-declared** [M2]. Recommended: ONE cell per method, on one pooled account over the development symbols. That cell is **ICT 1H** and **Wyckoff 4H**; 15m waits for A0 and has too little index history. Alternative: four cells per method ({1H, 4H} × {metals, indices}), which multiplies N by 4. Only the declared cells can be put forward.
 
@@ -145,6 +145,7 @@ Per method, N = 1 baseline + the non-baseline values + 1 combined: ICT 1 + 39 + 
 | W7 | Phase-D target = the HTF TR's AR/SOS. No P&F count (WA1-06). With no HTF TR there is no Phase-D trade. Needs the A1b HTF TR detector; it acts on 80 % of trades, so **owner sign-off is required in advance** [R13, M3] | F | WA2-19, WA p83–84 | — |
 | W-MGMT | Breakeven at +1R (formerly config B) | V | WMT p272 | none · BE |
 | W-SPT | Spring target (current code, AR, is faithful to WA p72) | V | WA p85; WMT p273 [R12c] | AR · ceiling · VAH |
+| W-TOUCH | Two tests of each TR border before a Spring counts: an unimplemented sourced rule (formerly the dead improve-loop candidate vol_type.1); a sign in the book, not a requirement | V | advance.md 2.11.2 | off · on |
 | W-TW | Test window × Phase-B swings | V | project | test {12, 8, 20} × swings {2, 3} |
 
 ## 4. Going back to validation [R4, R9]
@@ -171,7 +172,7 @@ Every item merges only after its tests pass and a code review.
 
 1. **Holdout: none.** All 8 CFD symbols are development symbols, to maximise the evidence. Forward demo is the only pristine confirmation. The `final_holdout` registration and its pass rule in §1.1 are therefore not used.
 2. **Candidate cells: five.** The owner asked for the option with the best chance of finding a good setup, and "tighten later". The cells are {15m, 1H, 4H} × {metals, indices}, minus 15m indices, which has no development history before 2022. Each cell is one pooled account over its asset class.
-   - This gives N_ICT = 41 × 5 = **205** and N_Wyckoff = 15 × 5 = **75**, a lower bound at about 99.95 % / 99.87 %.
+   - This gives N_ICT = 41 × 5 = **205** and N_Wyckoff = 16 × 5 = **80**, a lower bound at about 99.95 % / 99.88 %.
    - The owner's "tighten later" is honoured in one direction only. A check may be made stricter after data is seen; it may never be loosened.
 3. **Costs from MT5.** integrations/mt5/ExportSymbolSpec.mq5 exports the broker's contract specification, the spread recorded on every M15 bar (per UTC hour), and the commission actually charged on the account's deals. "Always prefer what is real."
 4. **Wyckoff volume matters per setup.** Wyckoff stays on CFD. Every result is split by `volume_kind`, and tick volume is labelled as a limitation, never presented as real volume. A real-volume source (for example the futures volume of the same underlying) is a separate provider decision with its own ADR, proposed later.

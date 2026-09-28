@@ -221,11 +221,19 @@ class ExposureIsOneWay(unittest.TestCase):
 
 
 class TheHonestCurrentState(unittest.TestCase):
-    def test_every_declared_period_is_development_data(self):
-        # Pinned so it cannot drift silently: if a period is later carved out, this test is where the claim
-        # in the registry's note has to be updated with it.
+    def test_every_declared_period_is_development_or_exposed(self):
+        # Updated 2026-09-28 (A0b, docs/plans/2026-09-28-methodology-improvement-plan.md §1.1): this is the
+        # update the old test's own comment asked for -- "if a period is later carved out, this test is
+        # where the claim ... has to be updated with it". cfd-development-pre-2024-03 (development) and
+        # cfd-prop-search-2024-03-2025-03 (oos_exposed, by the 2026-09-27 prop search -- the first period
+        # this repo has ever declared OOS and then exposed) are the new entries; still pinned so no OTHER
+        # period can drift to oos_untouched / final_holdout silently.
         for pid in RL.PERIODS:
-            self.assertEqual(RL.state_of(pid), RL.DEVELOPMENT, pid)
+            self.assertIn(RL.state_of(pid), (RL.DEVELOPMENT, RL.EXPOSED), pid)
+        self.assertEqual(RL.state_of("cfd-prop-search-2024-03-2025-03"), RL.EXPOSED,
+                         "the 2026-09-27 prop search (docs/experiments/prop-search-2026-09-27/) read and "
+                         "scored every trade in this window for candidate selection -- it cannot still claim "
+                         "oos_untouched")
 
     def test_no_period_can_currently_validate_anything_and_the_output_says_so(self):
         p = RL.periods()

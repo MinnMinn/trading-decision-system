@@ -1,74 +1,176 @@
 {
-  "_source": "CLAUDE.md §43 EXPERIMENT BUDGET and §44 OOS EXPOSURE. The seven counters, four bias accountings, four data states and five exposure triggers below are the spec's own lists, in its order and wording. scripts/tests/test_research_ledger.py parses them back out of CLAUDE.md.",
-  "_why_one_file": "§43 and §44 are two sections over ONE structure: the experiment history. §43 counts what was tried; §44 asks what those tries did to the validation data. Splitting them into two registries would duplicate the period model in both, and the copy would drift the first time a period changed state -- which is exactly the failure §44 is about. One registry, two sections, per docs/../rules single-source-of-truth.",
-  "_reader": "scripts/research_ledger.py is the ONE reader. Its inputs are the §42 experiment store (docs/experiments/) and this file's declared periods; it computes, it does not remember -- a counter kept by hand is a counter that disagrees with the store.",
-
-  "budget": {
-    "_spec": "CLAUDE.md §43: 'Track experimentation scope. Do not hide the number of experiments performed.'",
-    "counters": [
-      {"id": "hypothesis_count", "spec_name": "hypothesis count",
-       "definition": "Distinct hypotheses filed, counted by their text. Two experiments testing the same hypothesis on different data are one hypothesis and two candidates."},
-      {"id": "candidate_count", "spec_name": "candidate count",
-       "definition": "Distinct candidate versions evaluated (§47's v1.x). This is the multiple-testing denominator."},
-      {"id": "parameter_searches", "spec_name": "parameter searches",
-       "definition": "Experiments whose `parameters` diff names a value that was SWEPT rather than chosen -- a range, a list, or several experiments differing only in one number. The distinction matters because a sweep of twenty values is twenty tests wearing one hypothesis."},
-      {"id": "dataset_reuse", "spec_name": "dataset reuse",
-       "definition": "How many times each dataset snapshot id has been read by an experiment. Reuse is not wrong; hiding it is, because every reuse lowers what an additional pass over the same data can tell you."},
-      {"id": "oos_reuse", "spec_name": "OOS reuse",
-       "definition": "The same count restricted to periods declared out-of-sample. This is the number §44 turns into a state change."},
-      {"id": "exposed_oos_periods", "spec_name": "exposed OOS periods",
-       "definition": "Periods that have moved from `oos_untouched` to `oos_exposed`. Computed from the history, never asserted."},
-      {"id": "rejected_candidates", "spec_name": "rejected candidates",
-       "definition": "Candidates a human decided against. Recorded because a rejected candidate still consumed a test: §43's point is that the denominator includes everything that was tried, not everything that survived."}
+ "_source": "CLAUDE.md §43 EXPERIMENT BUDGET and §44 OOS EXPOSURE. The seven counters, four bias accountings, four data states and five exposure triggers below are the spec's own lists, in its order and wording. scripts/tests/test_research_ledger.py parses them back out of CLAUDE.md.",
+ "_why_one_file": "§43 and §44 are two sections over ONE structure: the experiment history. §43 counts what was tried; §44 asks what those tries did to the validation data. Splitting them into two registries would duplicate the period model in both, and the copy would drift the first time a period changed state -- which is exactly the failure §44 is about. One registry, two sections, per docs/../rules single-source-of-truth.",
+ "_reader": "scripts/research_ledger.py is the ONE reader. Its inputs are the §42 experiment store (docs/experiments/) and this file's declared periods; it computes, it does not remember -- a counter kept by hand is a counter that disagrees with the store.",
+ "budget": {
+  "_spec": "CLAUDE.md §43: 'Track experimentation scope. Do not hide the number of experiments performed.'",
+  "counters": [
+   {
+    "id": "hypothesis_count",
+    "spec_name": "hypothesis count",
+    "definition": "Distinct hypotheses filed, counted by their text. Two experiments testing the same hypothesis on different data are one hypothesis and two candidates."
+   },
+   {
+    "id": "candidate_count",
+    "spec_name": "candidate count",
+    "definition": "Distinct candidate versions evaluated (§47's v1.x). This is the multiple-testing denominator."
+   },
+   {
+    "id": "parameter_searches",
+    "spec_name": "parameter searches",
+    "definition": "Experiments whose `parameters` diff names a value that was SWEPT rather than chosen -- a range, a list, or several experiments differing only in one number. The distinction matters because a sweep of twenty values is twenty tests wearing one hypothesis."
+   },
+   {
+    "id": "dataset_reuse",
+    "spec_name": "dataset reuse",
+    "definition": "How many times each dataset snapshot id has been read by an experiment. Reuse is not wrong; hiding it is, because every reuse lowers what an additional pass over the same data can tell you."
+   },
+   {
+    "id": "oos_reuse",
+    "spec_name": "OOS reuse",
+    "definition": "The same count restricted to periods declared out-of-sample. This is the number §44 turns into a state change."
+   },
+   {
+    "id": "exposed_oos_periods",
+    "spec_name": "exposed OOS periods",
+    "definition": "Periods that have moved from `oos_untouched` to `oos_exposed`. Computed from the history, never asserted."
+   },
+   {
+    "id": "rejected_candidates",
+    "spec_name": "rejected candidates",
+    "definition": "Candidates a human decided against. Recorded because a rejected candidate still consumed a test: §43's point is that the denominator includes everything that was tried, not everything that survived."
+   }
+  ],
+  "account_for": [
+   {
+    "id": "multiple_testing",
+    "spec_name": "multiple testing",
+    "means": "the more candidates are tested against one dataset, the more likely the best of them looks good by chance; the count is what makes that assessable"
+   },
+   {
+    "id": "repeated_selection",
+    "spec_name": "repeated selection",
+    "means": "re-picking a winner from the same pool repeatedly is itself a fit to that pool"
+   },
+   {
+    "id": "data_snooping",
+    "spec_name": "data snooping",
+    "means": "choices made after looking at the data -- a threshold, a target model, a symbol set -- are fitted to it even when no optimiser ran"
+   },
+   {
+    "id": "candidate_selection_bias",
+    "spec_name": "candidate selection bias",
+    "means": "the candidates that reach an experiment are already a selection, and the ones that were never filed are invisible to every statistic computed here"
+   }
+  ],
+  "_known_unrecorded": [
+   {
+    "what": "7 ICT target-model variants (range / std2 / std25 / std4 / erl_next / irl and the pivot/highest origin switch) evaluated over one dataset",
+    "why_unrecorded": "they predate the §42 store; recorded in §9's bias register and in SPEC-COMPLIANCE row 9, and NOT silently folded into the counts below, which would make an unrecorded search look like a recorded one",
+    "bias": "data_snooping"
+   },
+   {
+    "what": "120 candidate rows narrowed to 6 selected setups by scripts/rank-setups.py, with nothing recorded about the 114",
+    "why_unrecorded": "the selection predates the store; the ranking is reproducible from the stability files but the SELECTION PRESSURE was never counted",
+    "bias": "candidate_selection_bias"
+   }
+  ]
+ },
+ "oos": {
+  "_spec": "CLAUDE.md §44: 'Do not continue treating exposed OOS data as untouched validation data.'",
+  "states": [
+   {
+    "id": "development",
+    "spec_name": "development / research data",
+    "means": "data the candidate was built on. Nothing measured here is validation."
+   },
+   {
+    "id": "oos_untouched",
+    "spec_name": "OOS data that is still untouched",
+    "means": "declared out-of-sample and not yet used for any choice. The only state in which an OOS result means what it claims."
+   },
+   {
+    "id": "oos_exposed",
+    "spec_name": "OOS data that has become exposed through candidate selection",
+    "means": "it influenced a choice. It may still be reported -- it must not be reported as untouched validation."
+   },
+   {
+    "id": "final_holdout",
+    "spec_name": "final holdout data",
+    "means": "reserved, never read, spent once. Reading it for anything other than a final confirmation converts it to `oos_exposed` like any other period."
+   }
+  ],
+  "exposure_triggers": [
+   {
+    "id": "candidate_selection",
+    "spec_name": "candidate selection"
+   },
+   {
+    "id": "parameter_selection",
+    "spec_name": "parameter selection"
+   },
+   {
+    "id": "hypothesis_refinement",
+    "spec_name": "hypothesis refinement"
+   },
+   {
+    "id": "methodology_changes",
+    "spec_name": "methodology changes"
+   },
+   {
+    "id": "setup_selection",
+    "spec_name": "setup selection"
+   }
+  ],
+  "_one_way": "The transition is ONE-WAY. `oos_untouched -> oos_exposed` is allowed; the reverse raises. There is no cooling-off period and no 'it was only a look': §44 says 'do not label it as pristine validation anymore', and a state machine that can go back is a label that can be restored by whoever needs it to be.",
+  "periods": [
+   {
+    "id": "crypto-history-2023-2026",
+    "range": [
+     "2023-09-13",
+     "2026-09-11"
     ],
-    "account_for": [
-      {"id": "multiple_testing", "spec_name": "multiple testing",
-       "means": "the more candidates are tested against one dataset, the more likely the best of them looks good by chance; the count is what makes that assessable"},
-      {"id": "repeated_selection", "spec_name": "repeated selection",
-       "means": "re-picking a winner from the same pool repeatedly is itself a fit to that pool"},
-      {"id": "data_snooping", "spec_name": "data snooping",
-       "means": "choices made after looking at the data -- a threshold, a target model, a symbol set -- are fitted to it even when no optimiser ran"},
-      {"id": "candidate_selection_bias", "spec_name": "candidate selection bias",
-       "means": "the candidates that reach an experiment are already a selection, and the ones that were never filed are invisible to every statistic computed here"}
+    "state": "development",
+    "why": "every stability report and every ranking run to date read this whole span; it built the six selected setups and cannot be validation for them.",
+    "instruments": "BTCUSDT, ETHUSDT, SOLUSDT (instruments.json `backtested` crypto set)"
+   },
+   {
+    "id": "cfd-history-2026",
+    "range": [
+     "2026-07-02",
+     "2026-09-11"
     ],
-    "_known_unrecorded": [
-      {"what": "7 ICT target-model variants (range / std2 / std25 / std4 / erl_next / irl and the pivot/highest origin switch) evaluated over one dataset",
-       "why_unrecorded": "they predate the §42 store; recorded in §9's bias register and in SPEC-COMPLIANCE row 9, and NOT silently folded into the counts below, which would make an unrecorded search look like a recorded one",
-       "bias": "data_snooping"},
-      {"what": "120 candidate rows narrowed to 6 selected setups by scripts/rank-setups.py, with nothing recorded about the 114",
-       "why_unrecorded": "the selection predates the store; the ranking is reproducible from the stability files but the SELECTION PRESSURE was never counted",
-       "bias": "candidate_selection_bias"}
+    "state": "development",
+    "why": "the CFD ranking window. Ten weeks, and the 2026-09-13 solvency rule was written after looking at what it contained -- which is data snooping, and is recorded as such rather than being called a validation period.",
+    "instruments": "XAUUSD, XAGUSD (Yahoo futures proxy, §23.1)"
+   },
+   {
+    "id": "cfd-development-pre-2024-03",
+    "range": [
+     null,
+     "2024-03-01"
+    ],
+    "state": "development",
+    "why": "owner decision 2026-09-28 (docs/plans/2026-09-28-methodology-improvement-plan.md §6 item 1): all 8 CFD symbols are development symbols to maximise the evidence -- everything before 2024-03-01 was read by docs/audits/2026-09-28-method-diagnosis.md's funnel/outcome audit and by every F/V item's funnel-count evidence in §3 of the plan; it built the candidate rule choices and cannot be validation for them.",
+    "instruments": "XAUUSD, XAGUSD, US500, US30, USTEC, DE40, FRA40, AUS200 (docs/plans/2026-09-28-methodology-improvement-plan.md §6 item 1); start is null because each symbol's own earliest available bar differs (e.g. XAUUSD from 2004) -- see each symbol's dataset snapshot for its actual first_open."
+   },
+   {
+    "id": "cfd-prop-search-2024-03-2025-03",
+    "range": [
+     "2024-03-01",
+     "2025-03-01"
+    ],
+    "state": "oos_exposed",
+    "why": "declared the validation window by docs/plans/2026-09-27-prop-setup-search-preregistration.md §4, before the 2026-09-27 prop search began; the `exposures` entry below records what happened to it (§44) -- exposed by candidate selection the same day it was declared, so it was never actually available as pristine validation data.",
+    "exposures": [
+     {
+      "trigger": "candidate_selection",
+      "experiment_id": null,
+      "note": "docs/experiments/prop-search-2026-09-27/ -- 180 sealed CLAUDE.md §42 records, plan_hash 8137a8b1a76ce16118519037fd9baf77449bfc51c6c5f807c52c42df08b2028d (docs/experiments/prop-search-2026-09-27/plan.json). Read and scored every trade in this window against two prop-firm pass rules to select candidates (docs/plans/2026-09-27-prop-setup-search-preregistration.md)."
+     }
     ]
-  },
-
-  "oos": {
-    "_spec": "CLAUDE.md §44: 'Do not continue treating exposed OOS data as untouched validation data.'",
-    "states": [
-      {"id": "development", "spec_name": "development / research data",
-       "means": "data the candidate was built on. Nothing measured here is validation."},
-      {"id": "oos_untouched", "spec_name": "OOS data that is still untouched",
-       "means": "declared out-of-sample and not yet used for any choice. The only state in which an OOS result means what it claims."},
-      {"id": "oos_exposed", "spec_name": "OOS data that has become exposed through candidate selection",
-       "means": "it influenced a choice. It may still be reported -- it must not be reported as untouched validation."},
-      {"id": "final_holdout", "spec_name": "final holdout data",
-       "means": "reserved, never read, spent once. Reading it for anything other than a final confirmation converts it to `oos_exposed` like any other period."}
-    ],
-    "exposure_triggers": [
-      {"id": "candidate_selection", "spec_name": "candidate selection"},
-      {"id": "parameter_selection", "spec_name": "parameter selection"},
-      {"id": "hypothesis_refinement", "spec_name": "hypothesis refinement"},
-      {"id": "methodology_changes", "spec_name": "methodology changes"},
-      {"id": "setup_selection", "spec_name": "setup selection"}
-    ],
-    "_one_way": "The transition is ONE-WAY. `oos_untouched -> oos_exposed` is allowed; the reverse raises. There is no cooling-off period and no 'it was only a look': §44 says 'do not label it as pristine validation anymore', and a state machine that can go back is a label that can be restored by whoever needs it to be.",
-    "periods": [
-      {"id": "crypto-history-2023-2026", "range": ["2023-09-13", "2026-09-11"], "state": "development",
-       "why": "every stability report and every ranking run to date read this whole span; it built the six selected setups and cannot be validation for them.",
-       "instruments": "BTCUSDT, ETHUSDT, SOLUSDT (instruments.json `backtested` crypto set)"},
-      {"id": "cfd-history-2026", "range": ["2026-07-02", "2026-09-11"], "state": "development",
-       "why": "the CFD ranking window. Ten weeks, and the 2026-09-13 solvency rule was written after looking at what it contained -- which is data snooping, and is recorded as such rather than being called a validation period.",
-       "instruments": "XAUUSD, XAGUSD (Yahoo futures proxy, §23.1)"}
-    ],
-    "_no_untouched_period_exists": "There is currently NO period in `oos_untouched` or `final_holdout`. That is the honest state and it is stated rather than implied by an empty list: every span of history this repo holds has already been read by the runs that produced the live selection. A genuine OOS period has to be CARVED OUT and left alone before it can validate anything, and doing that is a decision about what the pilot trades, not a documentation change (§59)."
-  }
+   }
+  ],
+  "_no_untouched_period_exists": "There is currently NO period in `oos_untouched` or `final_holdout`. That is the honest state and it is stated rather than implied by an empty list: every span of history this repo holds has already been read by the runs that produced the live selection. A genuine OOS period has to be CARVED OUT and left alone before it can validate anything, and doing that is a decision about what the pilot trades, not a documentation change (§59)."
+ }
 }
