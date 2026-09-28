@@ -1,0 +1,2115 @@
+{
+ "_source": "docs/plans/2026-09-27-prop-setup-search-preregistration.md",
+ "generated_at": "2026-09-28T01:04:22Z",
+ "development_window": {
+  "end": "2024-03-01T00:00:00Z",
+  "note": "everything before this is development: free exploration (§4)"
+ },
+ "validation_window": {
+  "start": "2024-03-01T00:00:00Z",
+  "end": "2025-03-01T00:00:00Z"
+ },
+ "budget_max": 200,
+ "target_passes": 5,
+ "pass_probability_threshold": 0.7,
+ "funds": {
+  "ftmo-challenge-phase1": {
+   "min_trading_days": 4
+  },
+  "the5ers-high-stakes-step1": {
+   "min_trading_days": 3
+  }
+ },
+ "candidate_count": 180,
+ "plan_hash": "8137a8b1a76ce16118519037fd9baf77449bfc51c6c5f807c52c42df08b2028d",
+ "candidates": [
+  {
+   "id": "ICT-A-15m-XAUUSD",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "ICT-A-15m-XAGUSD",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-A-15m-US500",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "ICT-A-15m-US30",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "ICT-A-15m-USTEC",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "ICT-A-15m-DE40",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "ICT-A-15m-FRA40",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "ICT-A-15m-AUS200",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-A-15m-indices",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-A-15m-metals",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-A-1H-XAUUSD",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "ICT-A-1H-XAGUSD",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-A-1H-US500",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "ICT-A-1H-US30",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "ICT-A-1H-USTEC",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "ICT-A-1H-DE40",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "ICT-A-1H-FRA40",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "ICT-A-1H-AUS200",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-A-1H-indices",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-A-1H-metals",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-A-4H-XAUUSD",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "ICT-A-4H-XAGUSD",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-A-4H-US500",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "ICT-A-4H-US30",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "ICT-A-4H-USTEC",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "ICT-A-4H-DE40",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "ICT-A-4H-FRA40",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "ICT-A-4H-AUS200",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-A-4H-indices",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-A-4H-metals",
+   "method": "ICT",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-B-15m-XAUUSD",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "ICT-B-15m-XAGUSD",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-B-15m-US500",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "ICT-B-15m-US30",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "ICT-B-15m-USTEC",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "ICT-B-15m-DE40",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "ICT-B-15m-FRA40",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "ICT-B-15m-AUS200",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-B-15m-indices",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-B-15m-metals",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-B-1H-XAUUSD",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "ICT-B-1H-XAGUSD",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-B-1H-US500",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "ICT-B-1H-US30",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "ICT-B-1H-USTEC",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "ICT-B-1H-DE40",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "ICT-B-1H-FRA40",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "ICT-B-1H-AUS200",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-B-1H-indices",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-B-1H-metals",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-B-4H-XAUUSD",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "ICT-B-4H-XAGUSD",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-B-4H-US500",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "ICT-B-4H-US30",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "ICT-B-4H-USTEC",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "ICT-B-4H-DE40",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "ICT-B-4H-FRA40",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "ICT-B-4H-AUS200",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-B-4H-indices",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-B-4H-metals",
+   "method": "ICT",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-C-15m-XAUUSD",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "ICT-C-15m-XAGUSD",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-C-15m-US500",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "ICT-C-15m-US30",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "ICT-C-15m-USTEC",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "ICT-C-15m-DE40",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "ICT-C-15m-FRA40",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "ICT-C-15m-AUS200",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-C-15m-indices",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-C-15m-metals",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-C-1H-XAUUSD",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "ICT-C-1H-XAGUSD",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-C-1H-US500",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "ICT-C-1H-US30",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "ICT-C-1H-USTEC",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "ICT-C-1H-DE40",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "ICT-C-1H-FRA40",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "ICT-C-1H-AUS200",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-C-1H-indices",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-C-1H-metals",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-C-4H-XAUUSD",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "ICT-C-4H-XAGUSD",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "ICT-C-4H-US500",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "ICT-C-4H-US30",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "ICT-C-4H-USTEC",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "ICT-C-4H-DE40",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "ICT-C-4H-FRA40",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "ICT-C-4H-AUS200",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-C-4H-indices",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "ICT-C-4H-metals",
+   "method": "ICT",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-15m-XAUUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-15m-XAGUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-15m-US500",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-15m-US30",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-15m-USTEC",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-15m-DE40",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-15m-FRA40",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-15m-AUS200",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-15m-indices",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-15m-metals",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "15m",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-1H-XAUUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-1H-XAGUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-1H-US500",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-1H-US30",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-1H-USTEC",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-1H-DE40",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-1H-FRA40",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-1H-AUS200",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-1H-indices",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-1H-metals",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "1H",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-4H-XAUUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-4H-XAGUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-4H-US500",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-4H-US30",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-4H-USTEC",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-4H-DE40",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-4H-FRA40",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-4H-AUS200",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-4H-indices",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-A-4H-metals",
+   "method": "WYCKOFF-BOOK",
+   "config": "A",
+   "timeframe": "4H",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-15m-XAUUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-15m-XAGUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-15m-US500",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-15m-US30",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-15m-USTEC",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-15m-DE40",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-15m-FRA40",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-15m-AUS200",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-15m-indices",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-15m-metals",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "15m",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-1H-XAUUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-1H-XAGUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-1H-US500",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-1H-US30",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-1H-USTEC",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-1H-DE40",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-1H-FRA40",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-1H-AUS200",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-1H-indices",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-1H-metals",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "1H",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-4H-XAUUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-4H-XAGUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-4H-US500",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-4H-US30",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-4H-USTEC",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-4H-DE40",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-4H-FRA40",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-4H-AUS200",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-4H-indices",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-B-4H-metals",
+   "method": "WYCKOFF-BOOK",
+   "config": "B",
+   "timeframe": "4H",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-15m-XAUUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-15m-XAGUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-15m-US500",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-15m-US30",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-15m-USTEC",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-15m-DE40",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-15m-FRA40",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-15m-AUS200",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-15m-indices",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-15m-metals",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "15m",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-1H-XAUUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-1H-XAGUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-1H-US500",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-1H-US30",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-1H-USTEC",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-1H-DE40",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-1H-FRA40",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-1H-AUS200",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-1H-indices",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-1H-metals",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "1H",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-4H-XAUUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "XAUUSD",
+   "symbols": [
+    "XAUUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-4H-XAGUSD",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "XAGUSD",
+   "symbols": [
+    "XAGUSD"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-4H-US500",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "US500",
+   "symbols": [
+    "US500"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-4H-US30",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "US30",
+   "symbols": [
+    "US30"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-4H-USTEC",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "USTEC",
+   "symbols": [
+    "USTEC"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-4H-DE40",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "DE40",
+   "symbols": [
+    "DE40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-4H-FRA40",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "FRA40",
+   "symbols": [
+    "FRA40"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-4H-AUS200",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "instrument",
+   "group_id": "AUS200",
+   "symbols": [
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-4H-indices",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "asset_class",
+   "group_id": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ]
+  },
+  {
+   "id": "WYCKOFF-BOOK-C-4H-metals",
+   "method": "WYCKOFF-BOOK",
+   "config": "C",
+   "timeframe": "4H",
+   "group_kind": "asset_class",
+   "group_id": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ]
+  }
+ ]
+}
