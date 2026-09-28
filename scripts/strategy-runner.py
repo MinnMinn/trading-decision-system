@@ -1788,8 +1788,9 @@ def venue_of(sym):
 
     Now: market comes from the instrument allowlist, venue comes from the provider registry's single
     unattended execution provider for that market, and an unknown symbol raises. The resolved values are
-    unchanged for every allowlisted symbol (crypto->futures, cfd->mt5, forex->mt5); scripts/tests/
-    test_execution_router.py pins that equivalence symbol by symbol.
+    unchanged for every allowlisted symbol (crypto->futures, cfd->mt5); scripts/tests/
+    test_execution_router.py pins that equivalence symbol by symbol. (A third market, forex, also resolved
+    to mt5 for its 2026-09-17..2026-09-27 life on the registry; removed with the market itself.)
     """
     market = instruments.market_of(sym)
     if market is None:

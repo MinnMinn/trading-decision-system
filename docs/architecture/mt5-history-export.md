@@ -83,7 +83,10 @@ XAUUSD 1H series:
 `_server_utc_offset_sec_now = 10800` the script recorded in September. This is the fact the importer needs, and
 it is now derived from the data rather than assumed from the server's name.
 
-### No oil on this account
+### No oil on this account (2026-09-18) — resolved 2026-09-27
+
+**Resolved:** USOIL and UKOIL were removed from the system on 2026-09-27 (owner decision; `instruments.json`
+`history`), together with their Yahoo futures history. The record below is how it stood on 2026-09-18.
 
 `USOIL` / `UKOIL` are not in this server's symbol list under those or any nearby names. Consequences, stated
 rather than worked around:

@@ -137,23 +137,30 @@ class S25_ImpactLevels(unittest.TestCase):
 
 
 class S26_Relevance(unittest.TestCase):
-    """§26: 'Do not apply every economic event globally to every instrument.'"""
+    """§26: 'Do not apply every economic event globally to every instrument.'
 
-    OIL = ev(id="eia", name="EIA petroleum status", currencies=[], countries=[], asset_classes=["oil"])
+    Was fixtured on USOIL/UKOIL (asset_classes=["oil"]) and EURUSD/USDJPY (the forex majors); both the oil
+    symbols and the whole `forex` market were deleted from the registry 2026-09-27 (instruments.json history).
+    METALS (XAUUSD/XAGUSD, asset_class "metals") replaces OIL for the asset-class-relevance case; DE40 (the
+    only remaining canonical id with a `/EUR` component -- `docs/architecture/instruments.json` `canonical`)
+    replaces EURUSD for the currency-relevance case.
+    """
+
+    METALS = ev(id="comex", name="COMEX metals inventory", currencies=[], countries=[], asset_classes=["metals"])
     EUR = ev(id="ecb", name="ECB decision", currencies=["EUR"], countries=["EU"])
 
-    def test_an_oil_event_does_not_reach_bitcoin(self):
-        self.assertEqual(ER.windows("BTCUSDT", cal=cal([self.OIL]), decision_time=NOW), [])
+    def test_a_metals_event_does_not_reach_bitcoin(self):
+        self.assertEqual(ER.windows("BTCUSDT", cal=cal([self.METALS]), decision_time=NOW), [])
 
-    def test_an_oil_event_reaches_oil(self):
-        self.assertTrue(ER.windows("USOIL", cal=cal([self.OIL]), decision_time=NOW))
+    def test_a_metals_event_reaches_metals(self):
+        self.assertTrue(ER.windows("XAUUSD", cal=cal([self.METALS]), decision_time=NOW))
 
-    def test_a_euro_event_reaches_eurusd_and_not_usdjpy(self):
-        self.assertTrue(ER.windows("EURUSD", cal=cal([self.EUR]), decision_time=NOW))
-        self.assertEqual(ER.windows("USDJPY", cal=cal([self.EUR]), decision_time=NOW), [])
+    def test_a_euro_event_reaches_de40_and_not_xauusd(self):
+        self.assertTrue(ER.windows("DE40", cal=cal([self.EUR]), decision_time=NOW))
+        self.assertEqual(ER.windows("XAUUSD", cal=cal([self.EUR]), decision_time=NOW), [])
 
     def test_a_dollar_event_reaches_every_dollar_quoted_instrument(self):
-        for sym in ("XAUUSD", "EURUSD", "USOIL"):
+        for sym in ("XAUUSD", "XAGUSD", "US500"):
             self.assertTrue(ER.windows(sym, cal=cal([ev()]), decision_time=NOW), sym)
 
     def test_the_stablecoin_alias_is_a_declared_decision_not_hidden_code(self):
@@ -166,7 +173,7 @@ class S26_Relevance(unittest.TestCase):
 
     def test_global_reaches_everything_but_must_be_typed(self):
         g = ev(id="war", currencies=["GLOBAL"], countries=[], asset_classes=[])
-        for sym in ("BTCUSDT", "XAUUSD", "EURUSD"):
+        for sym in ("BTCUSDT", "XAUUSD", "DE40"):
             self.assertTrue(ER.windows(sym, cal=cal([g]), decision_time=NOW), sym)
 
 

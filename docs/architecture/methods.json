@@ -10,8 +10,7 @@
       },
       "markets": [
         "crypto",
-        "cfd",
-        "forex"
+        "cfd"
       ],
       "agent": "structure-agent",
       "skill": "wyckoff-skill",
@@ -45,8 +44,7 @@
       },
       "markets": [
         "crypto",
-        "cfd",
-        "forex"
+        "cfd"
       ],
       "agent": "structure-agent",
       "skill": "ict-skill",

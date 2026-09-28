@@ -36,7 +36,7 @@ Run `knowledge/integrated/method.md` §2 steps A1–A8 in order. Condensed, with
 
 - Mark this dimension `eligible: true` only if the exchange market-data source was `AVAILABLE` (not `MOCK`, `STALE` or `UNAVAILABLE`) per `docs/architecture/data-sources.md`.
 - **This skill does not need footprint data.** Steps 1–9 all run on candles plus volume (`knowledge/integrated/method.md` §5). A `MOCK` or missing CoinGlass feed disables the Footprint dimension, not this one.
-- **Tick volume is not traded volume.** On `mt5_bridge_live` (XAUUSD/XAGUSD/USOIL/UKOIL), "volume" is tick count (`docs/architecture/mt5-bridge.md`). Say so explicitly and **reduce the step-8 effort/volume credit** — do not treat it as equivalent to Binance-sourced volume. This also weakens Wyckoff/ICT independence; see the next section.
+- **Tick volume is not traded volume.** On `mt5_bridge_live` (XAUUSD/XAGUSD), "volume" is tick count (`docs/architecture/mt5-bridge.md`). Say so explicitly and **reduce the step-8 effort/volume credit** — do not treat it as equivalent to Binance-sourced volume. This also weakens Wyckoff/ICT independence; see the next section.
 
 ## Independence discipline (mandatory, `knowledge/integrated/wyckoff-ict-mapping.md`)
 

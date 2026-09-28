@@ -117,8 +117,8 @@ class CanonicalInstrumentIdentity(unittest.TestCase):
                 self.assertTrue(I.canonical(sym), f"{sym} has no canonical id")
 
     def test_the_canonical_id_is_not_the_provider_spelling(self):
-        """BTCUSDT is Binance's spelling; USOIL is the MT5 broker's. Neither may be the domain's identity."""
-        for sym in ("BTCUSDT", "ETHUSDT", "USOIL", "UKOIL", "EURUSD"):
+        """BTCUSDT is Binance's spelling; XAUUSD is the MT5 broker's. Neither may be the domain's identity."""
+        for sym in ("BTCUSDT", "ETHUSDT", "XAUUSD", "XAGUSD"):
             self.assertNotEqual(I.canonical(sym), sym, f"{sym}'s canonical id is just the provider symbol")
 
     def test_canonical_ids_are_unique(self):
@@ -132,9 +132,16 @@ class CanonicalInstrumentIdentity(unittest.TestCase):
         self.assertIsNot(I.canonical, I.display)
         self.assertNotIn("label", I._CANONICAL, "canonical must be its own block, not part of display")
 
-    def test_the_oil_benchmarks_are_named_by_benchmark_not_by_broker_ticker(self):
-        self.assertEqual(I.canonical("USOIL"), "WTI/USD")
-        self.assertEqual(I.canonical("UKOIL"), "BRENT/USD")
+    def test_a_canonical_id_can_rename_the_broker_ticker_entirely(self):
+        """Was test_the_oil_benchmarks_are_named_by_benchmark_not_by_broker_ticker: USOIL/UKOIL -> WTI/USD,
+        BRENT/USD demonstrated a canonical id need not be a light reformat of the provider spelling -- it can
+        rename entirely. Both symbols were deleted from the registry 2026-09-27 (instruments.json history), so
+        this asserts the same property (id independence) against the index CFDs added the same day: MT5 spells
+        them without the space or the index's real name (`US500`, not `S&P 500`), and canonical only has to be
+        UNIQUE and PROVIDER-INDEPENDENT, not a specific rename -- it is allowed to equal the display label."""
+        for sym in ("US500", "US30", "USTEC", "DE40", "FRA40", "AUS200"):
+            self.assertTrue(I.canonical(sym), f"{sym} has no canonical id")
+            self.assertNotEqual(I.canonical(sym), sym, f"{sym}'s canonical id is just the provider symbol")
 
 
 class AccountContextsLiveInSection33(unittest.TestCase):

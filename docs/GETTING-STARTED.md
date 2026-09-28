@@ -74,7 +74,7 @@ Script này không đặt lệnh, không cài gì, không ghi file dừng. Nó b
 
 ### 3.4 MT5 (chỉ khi cần CFD)
 
-1. Mở MT5, mở một chart cho **mỗi** mã muốn quét (XAUUSD, XAGUSD, USOIL, UKOIL). EA gắn theo từng chart, nên một chart chỉ cho ra dữ liệu một mã.
+1. Mở MT5, mở một chart cho **mỗi** mã muốn quét (ví dụ XAUUSD, XAGUSD, hoặc bất kỳ mã nào trong `analysis.cfd` của `docs/architecture/instruments.json`). EA gắn theo từng chart, nên một chart chỉ cho ra dữ liệu một mã.
 2. Gắn `integrations/mt5/ExportOHLCV.mq5` vào từng chart, đặt `InpBarsToExport` từ 300 trở lên.
 3. Kiểm tra: `data/live/mt5-bridge/ohlcv.<MÃ>.15m.json` xuất hiện và được cập nhật.
 

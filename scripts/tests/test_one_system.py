@@ -124,7 +124,7 @@ HORIZON_TF = {"scalping": "15m", "day": "1h", "swing": "4h"}
 # The expected (market, tf) -> name table, spelled out from the two things this test is willing to assume:
 # the three horizons above and one prefix per market. It used to list six entries, so a new market's styles
 # were simply unasserted -- the table has to grow with MARKETS or it stops being a check.
-PREFIX = {"crypto": "", "cfd": "cfd-", "forex": "fx-"}
+PREFIX = {"crypto": "", "cfd": "cfd-"}
 STYLES = {(m, HORIZON_TF[h]): PREFIX[m] + h for m in PREFIX for h in HORIZONS}
 # No skip list. An earlier draft of these scans carried a PENDING_FLAT_CONSUMERS tuple while the six flat-name
 # consumers were still being renamed; it is deliberately gone rather than left empty, because a skip list that
@@ -288,9 +288,12 @@ class FlatStyleConsumersFollowTheVocabulary(unittest.TestCase):
         """The fallback list is the styles of the DEFAULT-ENABLED markets, not of every market.
 
         AUTO_STYLES fails OPEN -- an unreadable config means "run as before" -- so this default is what gets
-        scanned when /automation cannot be read. A market registered with default_enabled:false (forex: no MT5
-        chart attached, so no candle file exists) must therefore be absent from it: a fallback is the one place
-        that must never widen the scan on its own."""
+        scanned when /automation cannot be read. A market registered with default_enabled:false must therefore
+        be absent from it: a fallback is the one place that must never widen the scan on its own. (forex was
+        exactly this case, 2026-09-17..2026-09-27: no MT5 chart ever attached, so no candle file ever existed
+        for it; removed with the market -- docs/architecture/instruments.json history. Both markets that
+        remain, crypto and cfd, ship default_enabled:true, so this test currently has no live example of the
+        false case -- the assertion still proves the fallback tracks the registry rather than hand-listing.)"""
         src = open(os.path.join(ROOT, "scripts", "scan-loop.sh"), encoding="utf-8").read()
         m = re.search(r'AUTO_STYLES="\$\{AUTO_STYLES:-([^}"]*)\}"', src)
         self.assertIsNotNone(m, "AUTO_STYLES default not found")

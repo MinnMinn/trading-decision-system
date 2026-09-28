@@ -48,7 +48,10 @@ class VenueResolution(unittest.TestCase):
             for sym in I.analysis(market):
                 self.assertEqual(self.sr.venue_of(sym), old(sym), f"{sym} changed venue")
                 checked += 1
-        self.assertGreaterEqual(checked, 20, "the allowlist shrank; this equivalence check got weaker")
+        # Was >= 20 (9 crypto + 10 cfd incl. oil + 7 forex = 26). 2026-09-27 removed USOIL/UKOIL from cfd and
+        # deleted the whole forex market (9 symbols total; see docs/architecture/instruments.json history) --
+        # a real, intended shrink of the allowlist, not a weakening of this check. 17 = 9 crypto + 8 cfd today.
+        self.assertGreaterEqual(checked, 17, "the allowlist shrank; this equivalence check got weaker")
 
     def test_an_unknown_symbol_refuses_instead_of_defaulting_to_a_venue(self):
         """The fail-open that was there before: any unrecognised symbol -- a typo, or one removed from the
@@ -58,7 +61,7 @@ class VenueResolution(unittest.TestCase):
                 self.sr.venue_of(junk)
 
     def test_venue_comes_from_the_registry_not_from_a_symbol_set(self):
-        for market, expected in (("crypto", "futures"), ("cfd", "mt5"), ("forex", "mt5")):
+        for market, expected in (("crypto", "futures"), ("cfd", "mt5")):
             self.assertEqual(P.unattended_venue_for(market), expected)
 
     def test_a_manual_confirmation_venue_is_never_offered_to_the_unattended_pilot(self):

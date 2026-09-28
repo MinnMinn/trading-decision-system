@@ -80,8 +80,8 @@ Most CFD/commodity brokers report `real_volume = 0` to MT5 — there is no conso
 ## What this does — and doesn't — unlock
 
 - **Wyckoff + ICT dimensions**: fully usable once the bridge is live, with the volume caveat above applied to Wyckoff's Effort-vs-Result scoring.
-- **Footprint + Heatmap dimensions**: still **not available** for MT5/CFD instruments. CoinGlass (Footprint history, liquidation heatmap, orderbook heatmap) is crypto-derivatives-only — there is no equivalent wired up for MT5. `footprint-skill` and `heatmap-skill` must report `UNAVAILABLE` for XAUUSD/XAGUSD/USOIL/UKOIL regardless of how good the MT5 bridge is.
-- **Practical consequence**: even with this bridge fully live, XAUUSD/XAGUSD/USOIL/UKOIL analysis is capped at **2 of 4 dimensions (Wyckoff + ICT)** — enough for **NORMAL mode** (needs ≥2), but **ENHANCED and STRICT mode are structurally unreachable** for these instruments until a genuine order-flow/liquidity data source for MT5 markets is found (a tick-data-derived Footprint approximation is theoretically possible — some third-party MT5 indicators do this — but is a separate, unbuilt piece of work, not something this bridge provides).
+- **Footprint + Heatmap dimensions**: still **not available** for MT5/CFD instruments. CoinGlass (Footprint history, liquidation heatmap, orderbook heatmap) is crypto-derivatives-only — there is no equivalent wired up for MT5. `footprint-skill` and `heatmap-skill` must report `UNAVAILABLE` for XAUUSD/XAGUSD regardless of how good the MT5 bridge is.
+- **Practical consequence**: even with this bridge fully live, XAUUSD/XAGUSD analysis is capped at **2 of 4 dimensions (Wyckoff + ICT)** — enough for **NORMAL mode** (needs ≥2), but **ENHANCED and STRICT mode are structurally unreachable** for these instruments until a genuine order-flow/liquidity data source for MT5 markets is found (a tick-data-derived Footprint approximation is theoretically possible — some third-party MT5 indicators do this — but is a separate, unbuilt piece of work, not something this bridge provides).
 
 ## Execution (a separate, later question)
 
@@ -96,7 +96,7 @@ for 1W/1D/4H/1H/15m/5m, files refreshed every 60 s (`last_updated`), 300 candles
 Checked: timestamps are UTC (`_server_utc_offset_sec: 10800`, i.e. server UTC+3 — the 15m candle open times match
 the wall clock, the daily candle opens at 21:00Z = broker midnight), all six fields present, `_volume_caveat`
 present (tick volume, not traded volume — Effort-vs-Result reads on gold use it as a proxy only).
-The deterministic scanner reads the bridge directly (`scripts/ict-scan.py` `load()` routes XAUUSD/XAGUSD/USOIL/UKOIL
+The deterministic scanner reads the bridge directly (`scripts/ict-scan.py` `load()` routes XAUUSD/XAGUSD
 to `data/live/mt5-bridge/`); **since 2026-09-13 the CFD side runs the same three horizons as crypto and nothing
 else** — the launchd loop scans `cfd-scalping` (15m) at :01/:16/:31/:46, `cfd-day` (1H) at :02 every hour and
 `cfd-swing` (4H) at :03 of every 4th hour (`scan-loop.sh:106-110` (`run_style 15m scalping`)), emitting events to

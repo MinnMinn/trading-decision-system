@@ -43,7 +43,7 @@ convenience, not an authority: if it disagrees with `sessions.json`, the JSON is
 
 **Why `asia` is 20:00–00:00 New York (decided 2026-09-12 from data, replacing 00:00–06:00 Asia/Tokyo).** `scripts/asia-session-eval.py` scored five candidate clocks on 365 days of 15m BTC/ETH/SOL plus 70 days of XAUUSD by how much the session's high/low behave like liquidity: how often the rest of the day sweeps them, how often a sweep reverses back through the range (48% for this window vs 30% for the Tokyo 00–06 window, which is really the New York afternoon), and how narrow the session range is against the whole day (36% vs 55%). Results in `docs/backtests/2026-09-12-asia-session.md`. It is also the only Asia definition any ingested source gives. The `london`/`ny_*` windows were not part of that measurement.
 
-**The `ny_am` and `ny_pm` windows follow the *indices* set, not the forex set.** Choice, not a source: this project trades metals and oil, whose dominant scheduled catalyst is the 08:30 New York macro release, and the indices set is the only one whose NY AM window contains it. `knowledge/ict/core-a.md` §6 item 1 records that both sets exist and the decks do not reconcile them.
+**The `ny_am` and `ny_pm` windows follow the *indices* set, not the forex set.** Choice, not a source: this project trades metals, whose dominant scheduled catalyst is the 08:30 New York macro release, and the indices set is the only one whose NY AM window contains it. `knowledge/ict/core-a.md` §6 item 1 records that both sets exist and the decks do not reconcile them.
 
 ---
 
@@ -60,10 +60,9 @@ As with §2, the table below is a reader's convenience and `sessions.json` is th
 | Instrument | `london` | `ny_am` | `ny_pm` | `asia` / `off` |
 |---|---|---|---|---|
 | XAUUSD, XAGUSD | full | full | full | none |
-| USOIL, UKOIL | reduced | full | full | none |
 | BTCUSDT, ETHUSDT, SOLUSDT | reduced | reduced | none | none |
 
-**Why metals get a full London weight and oil does not.** Gold and silver have a physical London fixing at 10:30 London; crude's pricing centre and its scheduled inventory catalyst (the EIA petroleum status report, Wednesdays 10:30 New York) are both American.
+**Why metals get a full London weight.** Gold and silver have a physical London fixing at 10:30 London. (USOIL/UKOIL carried `reduced`/`full`/`full`/`none` here until 2026-09-27, when both were deleted from the instrument registry entirely -- see `docs/architecture/instruments.json` history. Crude's pricing centre and its scheduled inventory catalyst, the EIA petroleum status report Wednesdays 10:30 New York, were both American, which is why oil's London weight was `reduced` where metals' is `full`; the row is kept only as this note now that no instrument reads it. Indices, added the same day oil was removed, have no row here at all -- `sessions.json` `weights` has no `indices` key, so they fall back to `_default` (`none` everywhere) until someone measures a weight for them; a pre-existing gap, not something this removal changed.)
 
 **Why crypto never gets a full weight.** Crypto has no exchange open and trades continuously, so no window carries the structural meaning a killzone is supposed to carry. The reduced weights reflect that institutional crypto flow does cluster around the equity session, but that observation is not in any ingested source. If measurement later shows no edge in these windows, set crypto to `none` everywhere rather than defending the model.
 
@@ -72,7 +71,7 @@ As with §2, the table below is a reader's convenience and `sessions.json` is th
 ## 4. Gates
 
 - **Timeframe gate.** No timing credit below `analysis-params.json` → `timing.min_timeframe_minutes` (15m). A one-minute chart inside a three-hour window carries no timing information. This matches what the local-read brief already told the model.
-- **Weekend gate.** Crypto trades weekends; metals and oil do not. **No timing credit is awarded on Saturday or Sunday UTC for any instrument**, including crypto, because the sessions the windows name are not running.
+- **Weekend gate.** Crypto trades weekends; metals do not. **No timing credit is awarded on Saturday or Sunday UTC for any instrument**, including crypto, because the sessions the windows name are not running.
 - **Event overlap is not timing credit.** A scheduled release inside `ny_am` is an Event Risk input (`docs/architecture/event-calendar.md`, `SYSTEM-DESIGN.md` §6.3), not a reason to raise the timing score. Event Risk can force NO TRADE regardless of session.
 
 ---

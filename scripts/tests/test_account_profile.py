@@ -304,14 +304,16 @@ class DerivedCaps(unittest.TestCase):
         self.assertEqual(AP.max_positions(AP.for_venue("futures")), len(I.execution("crypto")))
 
     def test_the_mt5_book_counts_every_market_routed_to_that_account(self):
-        """The A1 defect: the old constant was len(CFD), so the seven FX majors that route to the SAME MT5
-        account were not counted by the cap that is supposed to bound that account's book."""
+        """The A1 defect: the old constant was len(CFD) as a literal, so when forex (2026-09-17..2026-09-27)
+        routed to the SAME MT5 account, the seven FX majors were not counted by the cap that is supposed to
+        bound that account's book. forex is gone now (instruments.json history), but the derivation must still
+        sum every market whose unattended venue is this profile's venue -- proven here by cfd being the ONLY
+        such market today, so the book equals exactly cfd's execution count with nothing left uncounted and
+        nothing double-counted."""
         prof = AP.for_venue("mt5")
         syms = AP.tradeable_symbols(prof)
         self.assertEqual(AP.max_positions(prof), len(syms))
-        for sym in I.execution("cfd") + I.execution("forex"):
-            self.assertIn(sym, syms)
-        self.assertGreater(len(syms), len(I.execution("cfd")), "forex is missing from the mt5 book again")
+        self.assertEqual(sorted(syms), sorted(I.execution("cfd")))
 
     def test_the_book_never_includes_an_analysis_only_symbol(self):
         """The execution list is the orderable subset; the allowlist is wider. A cap derived from the wrong

@@ -370,8 +370,9 @@ def max_positions(prof):
 
     `full_book` is DERIVED: one slot per symbol the account may trade, counted across every market whose
     unattended execution venue is this profile's venue. Deriving it is what keeps the cap correct when a
-    symbol is added, and what fixes the previous per-venue constant -- `len(CFD)` ignored the seven FX majors
-    that route to the same MT5 account.
+    symbol is added or removed -- it fixed a previous per-venue constant (`len(CFD)`) that silently went
+    stale, and needed no edit when `forex` (once a second market routed to the same MT5 account) was
+    removed 2026-09-27.
     """
     mp = rule(prof, "max_positions")
     if mp is None:

@@ -32,9 +32,8 @@ never taken from a db string:
 - Preset ids valid for `crypto`: all six above.
 - Preset ids valid for `cfd`: `wyckoff`, `ict`, `wyckoff+ict` only (CoinGlass-derived dimensions -- footprint,
   heatmap -- have no CFD source).
-- Instruments valid for `crypto`: `BTCUSDT`, `ETHUSDT`, `SOLUSDT`, `ASTERUSDT`, `VIRTUALUSDT`, `SUIUSDT`, `TAOUSDT`,
-  `RENDERUSDT`, `ONDOUSDT`.
-- Instruments valid for `cfd`: `XAUUSD`, `XAGUSD`, `USOIL`, `UKOIL`.
+- Instruments valid for a market: exactly `analysis.<market>` in `docs/architecture/instruments.json` (the one
+  allowlist -- read it at run time; never act on a symbol list typed into this prompt).
 
 1. **Gate already checked above.** If you reached this line, the gate exited 0 -- continue.
 

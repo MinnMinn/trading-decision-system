@@ -30,21 +30,6 @@
    "url": "https://claude.ai/code/artifact/b14d4a00-5539-4285-ac99-d5c4e2c0ea8d",
    "out": "data/live/.vi-cfd-swing-live.html",
    "favicon": "⚡"
-  },
-  "fx-scalping": {
-   "url": "PENDING",
-   "out": "data/live/.vi-fx-scalping-live.html",
-   "favicon": "⚡"
-  },
-  "fx-day": {
-   "url": "PENDING",
-   "out": "data/live/.vi-fx-day-live.html",
-   "favicon": "⚡"
-  },
-  "fx-swing": {
-   "url": "PENDING",
-   "out": "data/live/.vi-fx-swing-live.html",
-   "favicon": "⚡"
   }
  },
  "_pages_comment": "Non-style artifacts -- pages with no automation.py STYLE entry (scripts/tests/test_one_system.py pins `styles` above to exactly automation.STYLE's values, so a page like this cannot live there). Same convention as `styles` above: scripts/system-ranking.py writes ONE dual-locale file per key's `out` path (EN/VI toggle in-page, i18n.switch_html/css/js) -- not two separate per-locale files.",

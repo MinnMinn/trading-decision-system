@@ -48,27 +48,6 @@
         "1h": true,
         "4h": true
       }
-    },
-    "forex": {
-      "enabled": false,
-      "instruments": [
-        "EURUSD",
-        "GBPUSD",
-        "USDJPY",
-        "AUDUSD",
-        "USDCAD",
-        "USDCHF",
-        "NZDUSD"
-      ],
-      "dimensions": {
-        "wyckoff": false,
-        "ict": true
-      },
-      "timeframes": {
-        "15m": true,
-        "1h": true,
-        "4h": true
-      }
     }
   },
   "layers": {
@@ -90,7 +69,7 @@
     "launchd_label": "com.tyme.trading.pilot.futures",
     "stopped_at": "2026-09-12T18:25:54Z"
   },
-  "last_updated": "2026-09-20T02:31:12Z",
+  "last_updated": "2026-09-27T00:00:00Z",
   "history": [
     {
       "ts": "2026-09-10T10:06:03Z",
@@ -1400,6 +1379,13 @@
       "action": "real",
       "detail": null,
       "result": "refused"
+    },
+    {
+      "ts": "2026-09-27T00:00:00Z",
+      "actor": "claude-code (backend-engineer-subagent, remove-oil branch)",
+      "action": "markets.forex deleted (config surgery, not a CLI verb)",
+      "detail": "docs/architecture/instruments.json removed the `forex` market 2026-09-27 (owner decision); this file is normally written only by scripts/automation.py, but load()'s v3 _deep_merge keeps any key present in the file even if DEFAULTS/MARKETS no longer has it, so a stale markets.forex block would survive every future `/automation` call unless removed here directly. Edited by hand as the coordinator directed; the running scanner process (if any) in the checkout this branch merges into must reload this file, or be restarted, before the change takes effect there.",
+      "result": "applied"
     }
   ]
 }

@@ -10,7 +10,7 @@
   "dependencies": {
     "candles.entry": {
       "kind": "data",
-      "produced_by": "scripts/strategy-runner.py fetch_candles() over data/live/market-data (crypto) or data/live/mt5-bridge (cfd, forex); quality state from scripts/quality.py",
+      "produced_by": "scripts/strategy-runner.py fetch_candles() over data/live/market-data (crypto) or data/live/mt5-bridge (cfd); quality state from scripts/quality.py",
       "baseline_role": "OPTIONAL_FOR_ANALYSIS",
       "why": "The system's own timeframe bars. Every setup detector in this repo consumes them; there is no setup that can be evaluated without them (scripts/strategy-runner.py:413). A system that does not declare these required could not decide anything at all."
     },
@@ -81,7 +81,7 @@
       "baseline_role": "OPTIONAL_FOR_ANALYSIS",
       "only_when": "preset.engages",
       "else_role": "OPTIONAL_FOR_ANALYSIS",
-      "why": "Same rule. On cfd and forex the predicate is False structurally -- CoinGlass is crypto-derivatives only (SYSTEM-DESIGN.md §12 item 3) -- so the dimension cannot become a gate on a market that has no source for it. That is §35 doing its job, not §6 being bypassed: the unavailability is still reported by §6, this only settles whether it may block."
+      "why": "Same rule. On cfd the predicate is False structurally -- CoinGlass is crypto-derivatives only (SYSTEM-DESIGN.md §12 item 3) -- so the dimension cannot become a gate on a market that has no source for it. That is §35 doing its job, not §6 being bypassed: the unavailability is still reported by §6, this only settles whether it may block."
     },
     "methodology.heatmap": {
       "kind": "methodology",
@@ -201,16 +201,19 @@
     "swing":        {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "futures", "environment": "demo"}},
     "cfd-scalping": {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}},
     "cfd-day":      {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}},
-    "cfd-swing":    {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}},
-    "fx-scalping":  {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}},
-    "fx-day":       {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}},
-    "fx-swing":     {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}}
+    "cfd-swing":    {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}}
   },
-  "_systems_why": "One Trading System per style, and the style set is NOT declared here -- it is scripts/automation.py STYLE, derived from (market x horizon). The reader refuses to load if the key set differs, so a new market or horizon cannot appear with no Trading System governing it, and a Trading System cannot exist for a style that does not. Market, timeframe, instruments, setups, entry/exit rules, risk ceiling, custom constraints and event-risk buffers are all RESOLVED from their own registries by trading_system.describe() rather than copied here -- §35 asks the system to declare its composition, not to become a second copy of six other files. `account_profile` is declared because it is the one field with no derivation: cfd-scalping, cfd-day and the three fx styles have no pilot setup row today, so there is no execution venue to derive an account from, and naming it anyway is what makes the account's rules apply the day one of them is switched on rather than the day after.",
+  "_systems_why": "One Trading System per style, and the style set is NOT declared here -- it is scripts/automation.py STYLE, derived from (market x horizon). The reader refuses to load if the key set differs, so a new market or horizon cannot appear with no Trading System governing it, and a Trading System cannot exist for a style that does not. Market, timeframe, instruments, setups, entry/exit rules, risk ceiling, custom constraints and event-risk buffers are all RESOLVED from their own registries by trading_system.describe() rather than copied here -- §35 asks the system to declare its composition, not to become a second copy of six other files. `account_profile` is declared because it is the one field with no derivation: cfd-scalping and cfd-day have no pilot setup row today, so there is no execution venue to derive an account from, and naming it anyway is what makes the account's rules apply the day one of them is switched on rather than the day after. (The three fx-* systems that lived here 2026-09-17..2026-09-27 are gone with the `forex` market itself -- see the history entry below and docs/architecture/instruments.json history.)",
 
   "_version_why": "`version` is the CLAUDE.md §47 canonical Trading System version. Declared here so a configuration snapshot (§11) can record WHICH system produced a result; the rule for when it must be bumped is §47's and is not implemented yet -- scripts/tests/test_trading_system.py asserts only that the field exists and is vN.",
 
   "history": [
+    {
+      "date": "2026-09-27",
+      "change": "systems{}: fx-scalping, fx-day, fx-swing REMOVED (9 -> 6 Trading Systems).",
+      "reason": "Follows docs/architecture/instruments.json history (2026-09-27): the `forex` market was deleted from the registry, so scripts/automation.py STYLE no longer derives any fx-* style, and trading_system._validate() requires `systems` to carry exactly one entry per STYLE -- a stale fx-* entry is a load-time RegistryError, not a stale comment. These three systems never had a pilot setup row (no forex backtest ever existed, docs/architecture/instruments.json backtested.forex was empty by design) and never ran a single scan: forex's whole ten days on the registry were spent at default_enabled=false with no MT5 chart attached.",
+      "approved_by": "user (in session)"
+    },
     {
       "date": "2026-09-18",
       "change": "initial registry: 22 classified dependencies, 1 dependency profile, 9 Trading Systems (one per automation.STYLE)",

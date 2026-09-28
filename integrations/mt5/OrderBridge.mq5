@@ -29,7 +29,7 @@
 
 input int    InpPollMs        = 1000;                          // poll interval for command files
 input long   InpMagic         = 20260911;                      // magic number on every order
-input string InpAllowedSymbols = "XAUUSD,XAGUSD,EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD"; // allowlist -- must mirror the MT5-fed execution lists in docs/architecture/instruments.json (cfd + forex). COMPILED INPUT: editing this source changes nothing until the EA is recompiled and re-attached in MetaTrader.
+input string InpAllowedSymbols = "XAUUSD,XAGUSD,US500,US30,USTEC,DE40,FRA40,AUS200"; // allowlist -- must mirror the MT5-fed execution lists in docs/architecture/instruments.json (cfd; forex removed 2026-09-27, see instruments.json history -- it never fed a candle in its ten days on the registry). COMPILED INPUT: editing this source changes nothing until the EA is recompiled and re-attached in MetaTrader.
 input double InpMaxLots       = 1.0;                           // hard cap per order
 input bool   InpDemoOnly      = true;                          // refuse anything but a demo account
 input string InpBridgeDir     = "bridge";                      // command/response folder inside Common\Files. ONE PER ACCOUNT when several MT5 terminals share one Common folder: give each terminal its own name (e.g. "bridge-acc-001") and point that account's runner at the same name via MT5_BRIDGE_SUBDIR. Leaving every terminal on the default makes them read and DELETE each other's replies (scripts/mt5-order-bridge.py consumes res-<id>.json), so one account's fill could be reported to another. COMPILED INPUT: editing this source changes nothing until the EA is recompiled and re-attached.
