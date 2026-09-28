@@ -439,6 +439,99 @@ class MaxDailyLossDayBlockBootstrap(unittest.TestCase):
         self.assertIn("entry_time", str(res["account_failure_probability"]))
 
 
+class BootstrapDaysMinProfitable(unittest.TestCase):
+    """Fix round 2, item 3: direct unit tests for `_bootstrap_days(..., min_profitable=...)`, independent of
+    the full `metrics()` pipeline. `min_profitable`'s counter gates the bootstrap's PASS event on a running
+    count of days whose OWN return clears `profit_threshold_pct` -- see `_bootstrap_days`'s own docstring for
+    the entry-day-vs-exit-day approximation this counts against (proven separately, below)."""
+
+    def test_pass_requires_the_full_profitable_day_count_within_the_horizon(self):
+        block = [0.02]   # a "day" (one resampled block) whose own return is 2%, always >= a 1% threshold
+        kwargs = dict(risk=1.0, iterations=1, seed=1, ruin_level=0.0, failure={}, profit_target=0.01,
+                     min_profitable={"count": 3, "profit_threshold_pct": 0.01})
+        # Only 2 days fit in the horizon -- 3 profitable days can never accumulate -- no pass, even though the
+        # cumulative profit_target (1%) is blown past on day 1 alone.
+        _, _, passed_short = P._bootstrap_days([block], horizon_days=2, **kwargs)
+        self.assertEqual(passed_short, 0.0)
+        # Exactly 3 days fit -- the 3rd profitable day lands inside the horizon -- pass.
+        _, _, passed_enough = P._bootstrap_days([block], horizon_days=3, **kwargs)
+        self.assertEqual(passed_enough, 1.0)
+
+    def test_a_day_below_the_threshold_never_counts_even_though_profit_target_compounds_past_it(self):
+        block = [0.001]   # each day's OWN return (0.1%) is below the 1% profitable-day threshold
+        _, _, passed = P._bootstrap_days(
+            [block], risk=1.0, horizon_days=100, iterations=1, seed=1, ruin_level=0.0, failure={},
+            profit_target=0.01, min_profitable={"count": 3, "profit_threshold_pct": 0.01})
+        # (1.001)^100 ~= 1.105 -- the CUMULATIVE profit_target (1%) is reached well within 100 days by
+        # compounding alone, but no single day ever clears the per-day threshold, so profitable_so_far stays
+        # 0 forever and the gate must never let the pass event fire.
+        self.assertEqual(passed, 0.0)
+
+    def test_with_no_min_profitable_the_gate_is_a_no_op_matching_min_days_alone(self):
+        """Regression: min_profitable=None must reproduce exactly the pre-addendum-§8.3 behaviour (min_days
+        alone), proving this fix did not change FTMO's own reading."""
+        block = [0.02]
+        kwargs = dict(risk=1.0, iterations=1, seed=1, ruin_level=0.0, failure={}, profit_target=0.01)
+        _, _, passed_with_min_days = P._bootstrap_days([block], horizon_days=3, min_days=3, **kwargs)
+        self.assertEqual(passed_with_min_days, 1.0)
+        _, _, passed_too_short = P._bootstrap_days([block], horizon_days=2, min_days=3, **kwargs)
+        self.assertEqual(passed_too_short, 0.0)
+
+    def test_min_days_and_min_profitable_together_require_both(self):
+        """Not a real profile shape today (account_profile._validate_rules refuses declaring both), but
+        _bootstrap_days itself makes no such assumption -- documented as the conservative combination."""
+        profitable_block = [0.02]
+        _, _, passed = P._bootstrap_days(
+            [profitable_block], risk=1.0, horizon_days=5, iterations=1, seed=1, ruin_level=0.0, failure={},
+            profit_target=0.01, min_days=10, min_profitable={"count": 2, "profit_threshold_pct": 0.01})
+        # min_profitable's count (2) is satisfied by day 2, but min_days (10) is not satisfied within the
+        # 5-day horizon -- BOTH conditions are required, so no pass.
+        self.assertEqual(passed, 0.0)
+
+
+class DayBlocksGroupsByEntryDayNotExitDay(unittest.TestCase):
+    """Fix round 2, item 3: proves directly (not merely documented) the root cause of the entry-day
+    approximation `_bootstrap_days`'s own docstring names -- `_day_blocks` groups by ENTRY day, so a trade
+    that opens one day and closes the next is counted under its OPEN day, not its close day."""
+
+    def test_a_trade_that_closes_the_next_day_is_grouped_under_its_entry_day(self):
+        rows = [{"entry_time": "2026-01-01T23:00:00Z", "exit_time": "2026-01-02T01:00:00Z"}]
+        blocks = P._day_blocks(rows, [5.0])
+        self.assertEqual(blocks, [[5.0]])
+
+    def test_it_merges_with_a_same_entry_day_trade_rather_than_its_own_exit_day(self):
+        rows = [{"entry_time": "2026-01-01T23:00:00Z", "exit_time": "2026-01-02T01:00:00Z"},
+               {"entry_time": "2026-01-01T10:00:00Z", "exit_time": "2026-01-01T12:00:00Z"}]
+        blocks = P._day_blocks(rows, [5.0, 1.0])
+        self.assertEqual(blocks, [[5.0, 1.0]],
+                         "both trades share ENTRY day 2026-01-01 -> one block, even though the first trade's "
+                         "own EXIT day is 2026-01-02")
+
+
+class DayCountingApproximationIsDisclosedOnTheRecord(unittest.TestCase):
+    """Fix round 2, item 3: metrics() stamps `day_counting_approximation` onto the probability results
+    whenever min_profitable_days gates the bootstrap (The5ers), and NEVER for a fund whose day rule is plain
+    min_trading_days (FTMO) -- proving the disclosure is conditioned on the right thing, not always-on."""
+
+    def test_the5ers_carries_the_approximation_note(self):
+        prof = AP.get("the5ers-high-stakes-step1")
+        trades = [T(2.0, entry_time=f"2026-01-{1 + i:02d}T00:00:00Z", exit_time=f"2026-01-{1 + i:02d}T02:00:00Z")
+                 for i in range(10)]
+        res = P.metrics(trades, account=prof, iterations=50, horizon=10)
+        self.assertFalse(P.is_unavailable(res["prop_pass_probability"]), res["prop_pass_probability"])
+        note = res["prop_pass_probability"].get("day_counting_approximation")
+        self.assertIsNotNone(note)
+        self.assertIn("entry_day", note)
+        self.assertIn("day_counts_for", note)
+
+    def test_ftmo_never_carries_the_approximation_note(self):
+        prof = AP.get("ftmo-challenge-phase1")
+        trades = [T(2.0, entry_time=f"2026-01-{1 + i:02d}T00:00:00Z") for i in range(10)]
+        res = P.metrics(trades, account=prof, iterations=50, horizon=10)
+        self.assertFalse(P.is_unavailable(res["prop_pass_probability"]), res["prop_pass_probability"])
+        self.assertNotIn("day_counting_approximation", res["prop_pass_probability"])
+
+
 class NoUniversalScore(unittest.TestCase):
     def test_the_module_offers_no_score_function(self):
         self.assertFalse(hasattr(P, "score"))

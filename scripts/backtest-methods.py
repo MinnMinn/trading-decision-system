@@ -56,6 +56,7 @@ import wyckoff_rules as W
 import quality as _quality   # CLAUDE.md §20: the six data-quality states this loader flags its history against
 import research_validity as _RV
 import normalized as _N       # CLAUDE.md §8: available_time() is the one place "when a bar becomes knowable" is computed
+import pit as _pit            # CLAUDE.md §8: series_as_of() is THE point-in-time load-time cutoff (see pit_cutoff() below)
 import account_profile as _AP   # CLAUDE.md §33: a prop account and a personal account do not lose the same way  # CLAUDE.md §38: what those faults, and this engine's own gaps, do to a run
 import event_risk as _ER        # CLAUDE.md §24-§32: the ±10' news window, read PIT off entry_time only
 import sessions as _S            # CLAUDE.md §21: session labels, DST-aware
@@ -122,6 +123,16 @@ _OPTS_BASE = dict(OPTS)
 # provider data, incomplete required inputs." Every §20 fault the loaded history carries, so a result can be
 # judged on the data that produced it. §38 owns what is finally done with these; §20's work was to make them
 # detectable at all, and this is the point where a backtest meets its data.
+#
+# CUTOFF-STABILITY ASSUMPTION (documented per fix-round-1 review item D, scripts/prop-search.py): `_ASSESSED`
+# is keyed by (symbol, timeframe) ONLY, not by `_PIT_CUTOFF` -- so the quality state cached for (sym, tf) on
+# the FIRST `load()` call in this process is served for every later call to the SAME (sym, tf), even if
+# `pit_cutoff()` were changed in between. This is safe today because every caller that sets `_PIT_CUTOFF`
+# (scripts/prop-search.py `_evaluate_candidate`) sets it to the SAME constant (VALIDATION_END) for the entire
+# lifetime of one process -- it is never changed mid-run. A future caller that varies the cutoff within a
+# single process (multiple validation boundaries in one run, say) would need to either clear `_ASSESSED`
+# between cutoffs or fold the cutoff into this cache's key; neither is needed while every caller holds the
+# cutoff fixed per process, so neither is done here speculatively (CLAUDE.md §57).
 QUALITY_FLAGS = []
 _ASSESSED = {}
 
@@ -159,6 +170,34 @@ def limit_bars(n):
     _BARS_LIMIT = n
 
 
+#: A caller-set point-in-time cutoff applied to every subsequent `load()` call, or None (the default: every
+#: bar in the file, exactly as before this seam existed). Unlike `_BARS_LIMIT` (a SAMPLE-size convenience for
+#: test speed), this is a research-integrity control (CLAUDE.md §8): it drops every candle whose AVAILABLE
+#: time -- `normalized.available_time()`, open + one full period, the same rule `pit.series_as_of()` already
+#: enforces everywhere else in this repo -- falls after the cutoff, so a bar that OPENS before the cutoff but
+#: does not CLOSE until after it is excluded too (its high/low/close are not yet knowable at the cutoff). This
+#: is what lets a caller (scripts/prop-search.py) feed the engine a history genuinely truncated at a validation
+#: boundary, so nothing after that boundary can reach a decision, an indicator warm-up, or a data-quality
+#: verdict -- the same invariant `htf_bias_gate()`/`ict_setups_live()` already hold bar-by-bar for the LIVE
+#: read, now held at LOAD time for a whole archival run. Set via `pit_cutoff()`, never by assigning the module
+#: global directly, matching `limit_bars()`'s own convention. Left at its default (None), `load()`'s behaviour
+#: and output are BYTE-IDENTICAL to before this seam existed -- scripts/tests/test_prop_search.py proves this
+#: with a small real scan compared with the cutoff left unset vs explicitly reset to None.
+_PIT_CUTOFF = None
+
+
+def pit_cutoff(cutoff):
+    """Cap every subsequent `load()` call to candles whose AVAILABLE time (`normalized.available_time()`,
+    reused via `pit.series_as_of()` -- see `_PIT_CUTOFF`'s own docstring) is <= `cutoff` (or lift the cap with
+    `cutoff=None`). `cutoff` is an ISO-8601 `...Z` string or an aware `datetime` -- whatever `pit._aware()`
+    already accepts; a naive datetime is refused rather than assumed to be UTC (CLAUDE.md §8).
+
+    Global and process-wide, matching `limit_bars()`'s own convention -- a caller sets it once before
+    scanning, never per-symbol."""
+    global _PIT_CUTOFF
+    _PIT_CUTOFF = cutoff
+
+
 #: Parsed history files, keyed by (path, mtime_ns, size). htf_bias_gate() calls load() once per LTF bar, so
 #: without this every bar re-read and re-parsed a multi-MB JSON file -- hours of IO and allocator churn per
 #: stability run. The key includes the file's identity, so a rewritten file is re-read, never served stale.
@@ -183,6 +222,12 @@ def load(sym, tf):
     d = _read_history(p)
     if _BARS_LIMIT and len(d.get("candles") or ()) > _BARS_LIMIT:
         d = dict(d, candles=d["candles"][-_BARS_LIMIT:])
+    if _PIT_CUTOFF is not None:
+        # CLAUDE.md §8: reuse pit.series_as_of() -- the ONE definition of "was this knowable yet?" -- rather
+        # than re-deriving an availability rule here. `tf` is this call's own timeframe, matching every other
+        # available_time() call in this file (htf_bias_gate, htf_position: always the SERIES' OWN tf, never
+        # the caller's decision-bar tf).
+        d = dict(d, candles=_pit.series_as_of(d["candles"], tf, _PIT_CUTOFF, symbol=sym))
     # CLAUDE.md §7: provenance travels with the series. Recorded per (symbol, timeframe) because ONE
     # instrument's series can come from two providers -- which is exactly what happened on 2026-09-18, when the
     # MT5 CFD import replaced XAUUSD 15m/1H/4H/1D and left 2H/30m/5m on the Yahoo futures proxy. A ranking

@@ -246,6 +246,15 @@ def _failure_thresholds(terms):
     days = rules.get("min_trading_days")
     if isinstance(days, int) and not isinstance(days, bool) and days > 0:
         out["min_trading_days"] = days
+    # min_profitable_days (2026-09-28, pre-registration addendum §8.3): the5ers' day-count rule counts
+    # PROFITABLE days, not merely traded ones -- a fund declares AT MOST ONE of the two
+    # (account_profile._validate_rules refuses both non-null on one profile), so this and min_trading_days
+    # above are mutually exclusive in practice, but both are read independently here rather than an
+    # if/elif, so a future profile that legitimately wants neither still gets neither with no special case.
+    mpd = rules.get("min_profitable_days")
+    if isinstance(mpd, dict) and isinstance(mpd.get("count"), int) and isinstance(
+            mpd.get("profit_threshold_pct"), (int, float)):
+        out["min_profitable_days"] = {"count": mpd["count"], "profit_threshold_pct": float(mpd["profit_threshold_pct"])}
     return out
 
 
@@ -309,7 +318,7 @@ def _bootstrap(rs, *, risk, horizon, iterations, seed, ruin_level, failure, prof
 
 
 def _bootstrap_days(blocks, *, risk, horizon_days, iterations, seed, ruin_level, failure, profit_target,
-                    min_days=None):
+                    min_days=None, min_profitable=None):
     """Day-block twin of `_bootstrap`, for accounts that declare `max_daily_loss`.
 
     A daily-loss rule is a statement about trades taken TOGETHER on one day; independently resampling
@@ -322,20 +331,52 @@ def _bootstrap_days(blocks, *, risk, horizon_days, iterations, seed, ruin_level,
     `day_start_equity`); `max_total_drawdown` / `trailing_drawdown` / the profit target are checked once per
     day, at the day's close -- a day-granularity reading of the same rules `_bootstrap` checks per trade,
     which is the coarsest this can be without re-deriving intra-day equity paths the input does not carry.
+
     `min_days` (the account's `min_trading_days`, an OBJECTIVE per §33, not a gate) delays the earliest day
-    `prop_pass_probability`'s PASS event may fire, so reaching the target on day 1 of a 4-minimum-day account
-    is not reported as having passed on day 1.
+    `prop_pass_probability`'s PASS event may fire by a plain day-INDEX count -- every simulated day here IS a
+    trading day (`blocks` only ever holds days `_day_blocks` found a trade on), so `d + 1` already equals
+    "trading days elapsed in this path", matching a fund whose rule counts any day a trade was initiated.
+
+    `min_profitable` (2026-09-28, addendum §8.3: `{count, profit_threshold_pct}`) is the OTHER reading a fund
+    may use instead -- The5ers counts only days whose OWN closed profit (`eq` at day's close minus `eq` at the
+    day's start, in units of the account's starting balance = 1.0) reaches `profit_threshold_pct`. A separate
+    running counter (`profitable_so_far`), incremented only on a day that clears the bar, gates the pass event
+    the same way `min_days` gates it for a plain trading-days fund. `min_days` and `min_profitable` are never
+    both non-None for one real profile (account_profile._validate_rules refuses declaring both), but nothing
+    here assumes that -- passing both would require BOTH conditions, which is the conservative combination.
+
+    ENTRY-DAY APPROXIMATION (fix round 2, item 3 -- decided and documented here, not silently done): the
+    addendum defines a profitable day by CLOSED profit, i.e. the trade's EXIT day. `blocks` is built by
+    `_day_blocks()`, which groups trades by ENTRY day -- required for `max_daily_loss`'s own correlation-
+    preserving purpose (a daily-loss rule is a statement about trades opened together on one real day, and
+    that grouping must not change underneath a rule this function ALSO evaluates in the very same loop). One
+    simulated day `d` here applies ONE resampled entry-day block ATOMICALLY; if that block's trades closed on
+    several different real calendar days, there is no single real "exit day" left within a resampled path to
+    attribute the block's profit to -- the day-block bootstrap discards real calendar continuity beyond the
+    entry-day grouping unit BY DESIGN (that is what makes it a bootstrap). So `min_profitable`'s counter here
+    necessarily reads ENTRY-day profit, an approximation of the addendum's exit-day rule, not the exit-day
+    figure itself. This is NOT the authoritative day count for the pass decision: `scripts/prop-search.py`
+    `day_counts_for()` computes the EXACT exit-day-attributed profitable-day count directly from the real
+    (non-bootstrapped) validation trades, and IS what `evaluate_pass()`'s day-requirement criterion checks.
+    This function's own `min_profitable` only affects the BOOTSTRAP's internal pass-event timing (i.e. the
+    `prop_pass_probability` VALUE), which is one input to a different criterion. `metrics()` stamps
+    `day_counting_approximation: "entry_day"` onto the `prop_pass_probability`/`account_failure_probability`/
+    `risk_of_ruin` result whenever `min_profitable` is supplied, so a reader of the record sees this without
+    having to already know it.
     """
     rng = random.Random(seed)
     ruined = failed = passed = 0
     for _ in range(iterations):
         eq, peak = 1.0, 1.0
         t_ruin = t_fail = t_target = None
+        profitable_so_far = 0
         for d in range(horizon_days):
             day_start = eq
             for r in rng.choice(blocks):
                 eq *= (1.0 + risk * r)
             peak = max(peak, eq)
+            if min_profitable is not None and (eq - day_start) >= min_profitable["profit_threshold_pct"]:
+                profitable_so_far += 1
             if t_fail is None:
                 if "max_daily_loss" in failure and eq <= day_start * (1.0 - failure["max_daily_loss"]):
                     t_fail = d
@@ -344,7 +385,8 @@ def _bootstrap_days(blocks, *, risk, horizon_days, iterations, seed, ruin_level,
                 elif "trailing_drawdown" in failure and eq <= peak * (1.0 - failure["trailing_drawdown"]):
                     t_fail = d
             if (t_target is None and profit_target is not None and eq >= 1.0 + profit_target
-                    and (min_days is None or d + 1 >= min_days)):
+                    and (min_days is None or d + 1 >= min_days)
+                    and (min_profitable is None or profitable_so_far >= min_profitable["count"])):
                 t_target = d
             if eq <= ruin_level:
                 t_ruin = d
@@ -530,6 +572,7 @@ def metrics(trades, *, equity=None, account=None, breakeven_band=BREAKEVEN_BAND,
         rules = terms["rules"]
         fail = _failure_thresholds(terms)
         min_days = fail.pop("min_trading_days", None)   # an objective's delay, not a failure threshold (§33)
+        min_profitable = fail.pop("min_profitable_days", None)   # the5ers' own reading of the same objective
         pt = rules.get("profit_target")
         pt = float(pt["pct"]) if isinstance(pt, dict) and isinstance(pt.get("pct"), (int, float)) else None
         ruin_level = 0.10          # the repo's own ruin convention (backtest-methods.RUIN_FRAC)
@@ -547,11 +590,25 @@ def metrics(trades, *, equity=None, account=None, breakeven_band=BREAKEVEN_BAND,
             hz = int(horizon or max(5, len(blocks)))
             ruin, failed, passed = _bootstrap_days(blocks, risk=risk, horizon_days=hz, iterations=iterations,
                                                    seed=seed, ruin_level=ruin_level, failure=fail,
-                                                   profit_target=pt, min_days=min_days)
+                                                   profit_target=pt, min_days=min_days,
+                                                   min_profitable=min_profitable)
             common = {"method": "day-block bootstrap: resamples whole UTC trading days with replacement, "
                                  "preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
                       "iterations": iterations, "seed": seed, "horizon_trades": hz, "horizon_unit": "days",
                       "risk_per_trade": risk, "sample": n}
+            if min_profitable is not None:
+                # fix round 2, item 3: this bootstrap's OWN profitable-day gating reads ENTRY-day profit (see
+                # _bootstrap_days's docstring for why exit-day attribution is not cleanly possible inside a
+                # day-block bootstrap) -- an approximation of the addendum's exit-day rule. The AUTHORITATIVE,
+                # exit-day-exact count is scripts/prop-search.py day_counts_for(), used by evaluate_pass()'s
+                # own day-requirement criterion; this value only affects prop_pass_probability's bootstrap
+                # timing, not the pass decision's day-count check itself.
+                common["day_counting_approximation"] = (
+                    "entry_day -- min_profitable_days is defined by CLOSED (exit-day) profit, but this "
+                    "bootstrap resamples ENTRY-day blocks (required for max_daily_loss's own correlation), so "
+                    "its internal profitable-day gate reads entry-day profit as an approximation; the "
+                    "authoritative exit-day count is computed directly on the real trades elsewhere "
+                    "(scripts/prop-search.py day_counts_for)")
         else:
             hz = int(horizon or max(100, n))
             ruin, failed, passed = _bootstrap(rs, risk=risk, horizon=hz, iterations=iterations, seed=seed,
@@ -579,7 +636,7 @@ def metrics(trades, *, equity=None, account=None, breakeven_band=BREAKEVEN_BAND,
                     pseudo = [blocks[rng.randrange(len(blocks))] for _ in range(len(blocks))]
                     return _bootstrap_days(pseudo, risk=risk, horizon_days=hz, iterations=it,
                                            seed=seed + 1 + seed_i, ruin_level=ruin_level, failure=fail,
-                                           profit_target=pt, min_days=min_days)
+                                           profit_target=pt, min_days=min_days, min_profitable=min_profitable)
                 pseudo = [rs[rng.randrange(len(rs))] for _ in range(len(rs))]
                 return _bootstrap(pseudo, risk=risk, horizon=hz, iterations=it,
                                   seed=seed + 1 + seed_i, ruin_level=ruin_level, failure=fail, profit_target=pt)

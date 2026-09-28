@@ -52,15 +52,22 @@ OK, BLOCK_ENTRY, HALT, UNKNOWN, HUMAN = "OK", "BLOCK_ENTRY", "HALT", "UNKNOWN", 
 ACTIONS = (BLOCK_ENTRY, HALT, UNKNOWN, HUMAN)
 BLOCKING = (BLOCK_ENTRY, HALT, UNKNOWN, HUMAN)
 
-# The fifteen §33 attributes, plus this platform's own per-symbol churn cap. All sixteen are REQUIRED keys.
+# The fifteen §33 attributes, plus this platform's own per-symbol churn cap, plus `min_profitable_days`
+# (added 2026-09-28, pre-registration addendum §8.3, owner-approved §33 change: The5ers High Stakes Step 1's
+# day-count rule is PROFITABLE days, not merely traded days, which `min_trading_days` cannot express). All
+# seventeen are REQUIRED keys.
 RULE_KEYS = ("initial_balance", "max_daily_loss", "max_total_drawdown", "trailing_drawdown", "profit_target",
-             "min_trading_days", "max_leverage", "max_risk_per_trade", "max_positions", "consistency_rules",
-             "news_restrictions", "overnight_restrictions", "weekend_restrictions", "session_restrictions",
-             "custom_failure_conditions", "max_trades_per_day_per_symbol")
+             "min_trading_days", "min_profitable_days", "max_leverage", "max_risk_per_trade", "max_positions",
+             "consistency_rules", "news_restrictions", "overnight_restrictions", "weekend_restrictions",
+             "session_restrictions", "custom_failure_conditions", "max_trades_per_day_per_symbol")
 
 # Rule kinds `check` knows how to evaluate. An unrecognised kind is refused at import rather than ignored:
 # a consistency rule nobody evaluates is worse than no rule, because the profile claims it is enforced.
-FAILURE_KINDS = ("consecutive_losses", "consecutive_errors")
+# `inactivity_days` added 2026-09-28 (pre-registration addendum §8.3): The5ers High Stakes evaluation accounts
+# expire after N consecutive calendar days with no trade initiated -- the same shape as `consecutive_losses`
+# (a threshold on a running count), so it is one more entry here and one more fact-name mapping in
+# `account_state()`, not a new mechanism.
+FAILURE_KINDS = ("consecutive_losses", "consecutive_errors", "inactivity_days")
 CONSISTENCY_KINDS = ("max_share_of_profit_from_best_day", "max_share_of_profit_from_one_symbol")
 
 DRAWDOWN_BASES = ("initial_balance", "equity_start", "day_start_equity", "peak_equity")
@@ -203,6 +210,24 @@ def _validate_rules(pid, rules, path):
     d = rules.get("min_trading_days")
     if d is not None and (not isinstance(d, int) or isinstance(d, bool) or d < 1):
         raise ValueError(f"{path}: profile {pid!r} min_trading_days is {d!r}.")
+
+    mpd = rules.get("min_profitable_days")
+    if mpd is not None:
+        _need(pid, "min_profitable_days", mpd, ("count", "profit_threshold_pct"), path)
+        cnt = mpd["count"]
+        if not isinstance(cnt, int) or isinstance(cnt, bool) or cnt < 1:
+            raise ValueError(f"{path}: profile {pid!r} min_profitable_days.count is {cnt!r}.")
+        pct = mpd["profit_threshold_pct"]
+        if not isinstance(pct, (int, float)) or isinstance(pct, bool) or not 0 < pct <= 1:
+            raise ValueError(f"{path}: profile {pid!r} min_profitable_days.profit_threshold_pct is {pct!r}; "
+                             f"express it as a FRACTION of initial_balance in (0, 1].")
+        if d is not None:
+            raise ValueError(
+                f"{path}: profile {pid!r} declares BOTH min_trading_days ({d}) and min_profitable_days "
+                f"({mpd}). These are two different readings of 'how many days' -- one counts days a trade was "
+                f"INITIATED, the other counts days that were PROFITABLE -- and a profile stating both leaves "
+                f"a reader to guess which one the fund actually enforces. Declare the one this fund's rules "
+                f"actually use and null the other.")
 
     for k, kinds in (("consistency_rules", CONSISTENCY_KINDS), ("custom_failure_conditions", FAILURE_KINDS)):
         items = rules.get(k)
@@ -507,7 +532,8 @@ def account_state(prof, facts):
                                 f"{lim['basis']} {basis:.2f}"))
 
     for item in rule(prof, "custom_failure_conditions") or ():
-        fact = {"consecutive_losses": "consec_losses", "consecutive_errors": "consec_errors"}[item["kind"]]
+        fact = {"consecutive_losses": "consec_losses", "consecutive_errors": "consec_errors",
+               "inactivity_days": "days_since_last_trade"}[item["kind"]]
         v = facts.get(fact)
         if v is None:
             out.append(_finding(item["id"], UNKNOWN, f"{item['kind']}: không đọc được"))
@@ -560,6 +586,12 @@ def objectives(prof, facts):
         out.append({"objective": "min_trading_days",
                     "state": UNKNOWN if have is None else ("REACHED" if have >= days else "OPEN"),
                     "progress": None if have is None else have / days, "required": days})
+    mpd = rule(prof, "min_profitable_days")
+    if mpd is not None:
+        have = facts.get("profitable_days")
+        out.append({"objective": "min_profitable_days",
+                    "state": UNKNOWN if have is None else ("REACHED" if have >= mpd["count"] else "OPEN"),
+                    "progress": None if have is None else have / mpd["count"], "required": mpd["count"]})
     return out
 
 

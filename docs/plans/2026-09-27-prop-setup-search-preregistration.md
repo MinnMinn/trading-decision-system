@@ -69,3 +69,26 @@ are therefore leads, not evidence. They are listed here so they cannot later be 
 ## 7. Not in scope
 
 Real-money or funded execution; changing risk above 1 % per trade; changing ADR 0008's pilot criteria.
+
+## 8. Addendum 2026-09-28 — owner decisions after the pre-run review (still before any evaluation)
+
+Recorded before the first candidate is evaluated (`docs/experiments/prop-search-2026-09-27/` holds only
+`plan.json`), so none of these was chosen after seeing a result.
+
+1. **Challenge horizon = 120 trading days.** `prop_pass_probability` is computed over a 120-trading-day horizon
+   (≈ 6 months), trading days = Mon–Fri, for BOTH funds. Why: neither fund imposes a time limit today (FTMO removed
+   its 30-day limit in late 2024; The5ers High Stakes has none — third-party 2026 summaries, to be checked
+   against the funds' own pages), so the horizon is the owner's maximum acceptable wait. 30, 60 and 261 days are
+   REPORTED for information and never gate. The earlier implementer reading (horizon = every weekday in the
+   validation window, ~261) is superseded.
+2. **Trades not finished at the cutoff are excluded.** A validation trade whose exit (stop, target or the
+   H-bar time stop) would need a bar after 2025-03-01 is excluded from the pass decision, and the number
+   excluded is recorded per candidate. It is not marked to market at the truncated last bar.
+3. **The5ers rules modelled as the fund states them.** Step 1 requires at least 3 *profitable* days (closed
+   profit ≥ 0.5 % of the initial balance on the day), not 3 trading days, and an evaluation account expires
+   after 30 consecutive calendar days without a trade — both enter the The5ers pass event.
+   (`docs/architecture/account-profiles.json` `the5ers-high-stakes-step1` is updated accordingly; that is an
+   account-rule change, §33, approved by the owner 2026-09-28.)
+4. **The implementer's other readings are confirmed:** pooled asset class = one shared simulated account over
+   the class's symbols; expectancy bound = 10th percentile of 2000 bootstrap means of validation net R, seed
+   20260927, minimum 5 trades; `parent_trading_system_version` unavailable for a from-scratch search.
