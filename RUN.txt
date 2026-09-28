@@ -1,0 +1,2 @@
+run 36400521687 attempt 1 (prop-search)
+source commit d40272da6abd6148ffc703e61a901001f3c9ab8d (research-prop/2026-09-28-run-2)
