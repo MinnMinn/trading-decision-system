@@ -40,6 +40,40 @@ jobs:
           PYTHONUTF8: "1"
         run: |
           python scripts/prop-search.py plan
+      - name: restore records from the latest previous run (resumability across triggers, fix round 1 item C3)
+        # Records live OUTSIDE the checkout (see the `run` step below), so a fresh trigger -- a new push, or a
+        # re-run of workflow_dispatch -- starts with an EMPTY $RUNNER_TEMP and would otherwise re-evaluate the
+        # whole budget from zero every time, silently abandoning every candidate a previous run already paid
+        # for. The `collect` job already pushes every run's full output (records/, skipped.json, report) onto
+        # its own `research-results/<run id>-<attempt>` branch; this step finds the NEWEST such branch (by run
+        # id, which GITHUB_RUN_ID assigns monotonically per workflow) and restores its records/skipped.json
+        # into this run's store BEFORE `run` computes budget/pass counts from what's on disk -- exactly what
+        # `scripts/prop-search.py cmd_run`'s own resumability already assumes: "what's on disk in RECORDS_DIR"
+        # IS the source of truth for how much budget has been spent.
+        env:
+          PROP_SEARCH_RECORDS_DIR: ${{ runner.temp }}/out/records
+          PROP_SEARCH_SKIPPED_PATH: ${{ runner.temp }}/out/skipped.json
+        run: |
+          mkdir -p "$PROP_SEARCH_RECORDS_DIR"
+          latest=$(git ls-remote --heads origin 'research-results/*' \
+                    | awk -F'refs/heads/research-results/' '{print $2}' \
+                    | awk -F'-' '{print $1, $0}' | sort -k1,1n | tail -1 | awk '{print $2}')
+          if [ -z "$latest" ]; then
+            echo "no previous research-results/* branch found -- starting this search from budget zero"
+          else
+            echo "restoring records from research-results/$latest"
+            git fetch --depth 1 origin "refs/heads/research-results/$latest:refs/remotes/origin/research-results/$latest"
+            git worktree add /tmp/prev-results "origin/research-results/$latest"
+            src="/tmp/prev-results/prop-search-results"
+            if [ -d "$src/records" ] && compgen -G "$src/records/*.json" > /dev/null; then
+              cp "$src"/records/*.json "$PROP_SEARCH_RECORDS_DIR"/
+              echo "restored $(ls "$src"/records/*.json | wc -l) record(s)"
+            fi
+            if [ -f "$src/skipped.json" ]; then
+              cp "$src/skipped.json" "$PROP_SEARCH_SKIPPED_PATH"
+            fi
+            git worktree remove /tmp/prev-results --force
+          fi
       - name: run
         env:
           PYTHONUTF8: "1"
