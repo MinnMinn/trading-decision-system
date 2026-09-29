@@ -66,8 +66,12 @@ def _check_cutoff(cutoff):
         raise ValueError(f"cutoff {cutoff!r} refused: this diagnosis may only read data before {DEV_CUTOFF}")
 
 
+# Engine options to switch on for this run (the fx_ fidelity keys), set by `run --set KEY`. Empty = v1.
+EXTRA_OVERLAY = {}
+
+
 def _overlay(sr, cfg):
-    return sr.config_opts(sr.CONFIGS[cfg], ict_target="range")
+    return {**sr.config_opts(sr.CONFIGS[cfg], ict_target="range"), **EXTRA_OVERLAY}
 
 
 # ------------------------------------------------------------------------------------------ instrumentation
@@ -377,8 +381,12 @@ class WyProbe:
                 probe.win_with_cand[side] += 1
             return out
 
-        def _fires_from(side, recs, C, Tm):
-            out = o_fires(side, recs, C, Tm)
+        def _fires_from(side, recs, C, Tm, sym=None, tf=None):
+            # W7 (fx_w7_htf_target, docs/plans/2026-09-28-methodology-improvement-plan.md §3): backtest-methods
+            # now passes sym/tf through to `_fires_from` so its Phase-D branch can load the HTF companion
+            # series -- forwarded unchanged here; this probe's own SPRING-leg replication (`_leg_reason`) does
+            # not need either (phase_d is observed-only in this probe, per its own docstring).
+            out = o_fires(side, recs, C, Tm, sym=sym, tf=tf)
             n_spring_inferred = 0
             for r in recs:
                 key = (side, Tm[r["sc"]], Tm[r["ar"]])
@@ -604,7 +612,7 @@ def run_slice(sym, tf, method, cfg, cutoff=DEV_CUTOFF, sr=None):
     H = bt.P[tf]["H"]
     return dict(
         symbol=sym, tf=tf, method=method, config=cfg, cutoff=cutoff, status="ok",
-        overlay={k: v for k, v in _overlay(sr, cfg).items() if k in ("mgmt", "htf", "sides", "types", "entry", "phase_d")},
+        overlay={k: v for k, v in _overlay(sr, cfg).items() if k in ("mgmt", "htf", "sides", "types", "entry", "phase_d") or k.startswith("fx_")},
         params=bt.P[tf], bars=res["bars"], first_bar=res["first"], last_bar=res["last"], source=res["source"],
         bias_methods=list(bt.resolve_methods(sym)),
         elapsed_s=round(time.time() - t0, 1),
@@ -687,12 +695,18 @@ def main(argv=None):
         p.add_argument("--cutoff", default=DEV_CUTOFF)
         if name == "run":
             p.add_argument("--out", required=True)
+            p.add_argument("--set", action="append", default=[], metavar="FX_KEY",
+                           help="switch on a bool fx_ fidelity key (repeatable); default is v1 with none set")
     b = sub.add_parser("batch"); b.add_argument("--out-dir", required=True); b.add_argument("--timeout", type=int, default=1800)
     b.add_argument("--only", help="comma list of slugs to run (default: all audit slices)")
     r = sub.add_parser("report"); r.add_argument("--in-dir", required=True)
     a = ap.parse_args(argv)
 
     if a.cmd == "run":
+        for k in a.set:
+            if not k.startswith("fx_"):
+                ap.error(f"--set takes fx_ keys only, got {k!r}")
+            EXTRA_OVERLAY[k] = True
         res = run_slice(a.symbol, a.tf, a.method, a.config, a.cutoff)
         os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
         json.dump(res, open(a.out, "w", encoding="utf-8"), indent=1, default=str)

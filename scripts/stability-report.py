@@ -74,7 +74,13 @@ def config_opts(cfg, ict_target):
                 entry="book", sloped_gate=False, st_gate=False, phase_b_gate=False, st_min=None, phase_d=True,
                 combined_entry="limit",
                 # A0: the v1 defaults, stated so the scan cache key always sees them (_SCAN_RELEVANT_KEYS).
-                flat_before_rollover=False, rollover_provider=None)
+                flat_before_rollover=False, rollover_provider=None,
+                # Batch 1(b) F items (docs/plans/2026-09-28-methodology-improvement-plan.md §3; the shared fx_
+                # key contract, docs/plans/2026-09-29-execution-plan.md): the v1 defaults, stated so this stays
+                # the COMPLETE, honest bt.OPTS overlay a config applies -- not a hand-picked subset that could
+                # silently omit a scan-cache-relevant key (see _SCAN_RELEVANT_KEYS below).
+                fx_w1_tr_low_st=False, fx_w2_st_below_sc=False, fx_w3_mSOW_spring=False, fx_w5_vp_abandon=False,
+                fx_w7_htf_target=False)
 
 
 # scan()-relevant keys: everything `bt.scan()` / `ict_setups_live()` / `_fires_from()` / `walk()` actually read
@@ -100,7 +106,14 @@ def config_opts(cfg, ict_target):
 _SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "sloped_gate", "st_min", "types", "entry", "phase_d",
                        # A0 (2026-09-29): walk() closes a position before the server's daily rollover when these are
                        # set, so they change R/outcome/exit_time inside scan() and MUST separate cache entries.
-                       "flat_before_rollover", "rollover_provider")
+                       "flat_before_rollover", "rollover_provider",
+                       # Batch 1(b) F items (2026-09-29, docs/plans/2026-09-28-methodology-improvement-plan.md
+                       # §3): fx_w1/w2/w3/w5 change `_wyckoff_candidates` detection itself (bridged into
+                       # wyckoff_rules.PARAMS -- see backtest-methods._FX_WYCKOFF_DETECTION_KEYS and the
+                       # `_WY_CANDIDATES` cache key in scan()); fx_w7 changes `_fires_from`'s Phase-D
+                       # target/placeability. All five change scan()'s trades and MUST separate cache entries.
+                       "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon",
+                       "fx_w7_htf_target")
 
 
 def _hashable(v):
