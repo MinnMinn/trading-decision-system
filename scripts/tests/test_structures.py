@@ -336,6 +336,180 @@ class WyckoffStructuresMatchDetect(unittest.TestCase):
                 self.assertEqual(ev["available_at"], N.available_time(c, "4H").isoformat().replace("+00:00", "Z"))
 
 
+class A1bInvalidatedAt(unittest.TestCase):
+    """A1b: a pool/FVG's `invalidated_at` is set only when the wrapped function's own forward scan already
+    found the level consumed (pool state "closed_through" / fvg "mitigated"), timestamped at that confirming
+    bar -- never earlier than the structure's own formed_at/available_at (CLAUDE.md §8)."""
+
+    def setUp(self):
+        self.window = _aus200_4h(480)
+        self.env = structures.ict_structures(self.window, 4, "4H", methods=("ict",))
+
+    def test_pool_invalidated_at_only_when_closed_through(self):
+        a = self.env["analysis"]
+        pools = [s for s in self.env["structures"] if s["kind"] == "pool"]
+        self.assertEqual(len(pools), len(a["pools"]))
+        saw_invalidated = saw_live = 0
+        for wrapped, raw in zip(pools, a["pools"]):
+            if raw["state"] == "closed_through":
+                self.assertIsNotNone(wrapped["invalidated_at"])
+                self.assertEqual(wrapped["invalidated_at"], _iso(self.window[raw["closed_at"]], "4H"))
+                saw_invalidated += 1
+            else:
+                self.assertIsNone(wrapped["invalidated_at"], f"a {raw['state']!r} pool must not carry invalidated_at")
+                saw_live += 1
+        self.assertGreater(saw_invalidated, 0, "fixture must exercise at least one closed_through pool")
+        self.assertGreater(saw_live, 0, "fixture must exercise at least one intact/swept pool")
+
+    def test_fvg_invalidated_at_only_when_mitigated(self):
+        a = self.env["analysis"]
+        fvgs = [s for s in self.env["structures"] if s["kind"] == "fvg"]
+        self.assertEqual(len(fvgs), len(a["fvgs_all"]))
+        saw_mitigated = 0
+        for wrapped, raw in zip(fvgs, a["fvgs_all"]):
+            if raw["mitigated"]:
+                self.assertIsNotNone(wrapped["invalidated_at"])
+                self.assertEqual(wrapped["invalidated_at"], _iso(self.window[raw["end"]], "4H"))
+                saw_mitigated += 1
+            else:
+                self.assertIsNone(wrapped["invalidated_at"])
+        self.assertGreater(saw_mitigated, 0, "fixture must exercise at least one mitigated FVG")
+
+    def test_invalidated_at_never_before_the_structures_own_available_at(self):
+        for s in self.env["structures"]:
+            if s["kind"] not in ("pool", "fvg") or not s.get("invalidated_at"):
+                continue
+            available = datetime.datetime.fromisoformat(s["available_at"].replace("Z", "+00:00"))
+            invalidated = datetime.datetime.fromisoformat(s["invalidated_at"].replace("Z", "+00:00"))
+            self.assertGreaterEqual(invalidated, available)
+
+
+class A1bWyckoffPhases(unittest.TestCase):
+    """A1b: phase labels (A..E) are boundaries read off the trading_range record's own already-detected event
+    bars -- never earlier than their own available_time, and an open (unconfirmed) phase is "hypothesis"."""
+
+    def setUp(self):
+        self.window = _aus200_4h(600)
+        O = [x["open"] for x in self.window]; H = [x["high"] for x in self.window]
+        L = [x["low"] for x in self.window]; C = [x["close"] for x in self.window]
+        V = [x.get("volume", 0) for x in self.window]
+        self.env = structures.wyckoff_structures(O, H, L, C, V, self.window, "4H", volume_kind="traded", side="short")
+
+    def test_every_trading_range_carries_at_least_phase_a_and_b(self):
+        self.assertGreater(len(self.env["structures"]), 0)
+        for tr in self.env["structures"]:
+            labels = [p["label"] for p in tr["phases"]]
+            self.assertIn("A", labels)
+            self.assertIn("B", labels)
+            self.assertEqual(labels, sorted(labels), "phases must be returned in A..E order")
+
+    def test_phase_letters_are_a_prefix_of_a_b_c_d_e(self):
+        for tr in self.env["structures"]:
+            labels = [p["label"] for p in tr["phases"]]
+            self.assertEqual(labels, list("ABCDE")[:len(labels)])
+
+    def test_open_phase_is_hypothesis_and_closed_phase_is_tested(self):
+        for tr in self.env["structures"]:
+            for p in tr["phases"]:
+                if p["to"] is None:
+                    self.assertEqual(p["status"], "hypothesis")
+                else:
+                    self.assertEqual(p["status"], "tested")
+
+    def test_phase_available_at_never_before_formed_at(self):
+        for tr in self.env["structures"]:
+            for p in tr["phases"]:
+                formed = datetime.datetime.fromisoformat(p["formed_at"].replace("Z", "+00:00"))
+                available = datetime.datetime.fromisoformat(p["available_at"].replace("Z", "+00:00"))
+                self.assertGreaterEqual(available, formed)
+
+    def test_last_phase_status_matches_the_record_shape(self):
+        """A record with no `bu` has no Phase E band at all; a record with `bu` does, and it is always open."""
+        for r, tr in zip(self.env["records"], self.env["structures"]):
+            labels = [p["label"] for p in tr["phases"]]
+            if r.get("bu") and r["bu"].get("bar") is not None:
+                self.assertEqual(labels[-1], "E")
+                self.assertEqual(tr["phases"][-1]["status"], "hypothesis")
+            else:
+                self.assertNotIn("E", labels)
+
+
+def _history(sym, tf, n=600):
+    path = os.path.join(ROOT, "data", "history", f"ohlcv.{sym}.{tf}.json")
+    return json.load(open(path, encoding="utf-8"))["candles"][-n:]
+
+
+def _wy_env(candles, tf, side):
+    O = [x["open"] for x in candles]; H = [x["high"] for x in candles]; L = [x["low"] for x in candles]
+    C = [x["close"] for x in candles]; V = [x.get("volume", 0) for x in candles]
+    return structures.wyckoff_structures(O, H, L, C, V, candles, tf, volume_kind="traded", side=side)
+
+
+class A1bWyckoffPhaseAvailabilityAcrossSymbols(unittest.TestCase):
+    """I3 (code-review fix round 1), CLAUDE.md section 8 / point-in-time: the SOS is only KNOWABLE at
+    `sos = sos_bar + COMMIT - 1` (wyckoff_rules.py requires follow-through closes after the breakout candle), so a
+    Phase D band -- and any band whose end is that SOS -- and the `sos_bar` event may not be stamped available at
+    `sos_bar`. Every phase is also never available before its own trading range (`tr.available_at`, the CHoCH).
+    Asserted over several symbols and both sides, not only the AUS200 4H fixture, and the SOS-confirmed
+    case is asserted to actually occur (a vacuous pass would pin nothing)."""
+
+    CASES = [("AUS200", "4H"), ("BTCUSDT", "4H"), ("ETHUSDT", "4H"), ("DE40", "4H"), ("FRA40", "4H"),
+             ("BTCUSDT", "1H"), ("ONDOUSDT", "4H")]
+
+    def _envs(self):
+        for sym, tf in self.CASES:
+            path = os.path.join(ROOT, "data", "history", f"ohlcv.{sym}.{tf}.json")
+            if not os.path.exists(path):
+                continue
+            candles = _history(sym, tf)
+            for side in ("long", "short"):
+                yield sym, tf, side, candles, _wy_env(candles, tf, side)
+
+    def test_phase_available_at_is_never_before_the_range_or_the_confirming_bar(self):
+        sos_phases = ranges = 0
+        for sym, tf, side, candles, env in self._envs():
+            for r, tr in zip(env["records"], env["structures"]):
+                ranges += 1
+                tr_at = tr["available_at"]
+                for p in tr["phases"]:
+                    self.assertGreaterEqual(p["available_at"], tr_at, f"{sym} {tf} {side} phase {p['label']}")
+                    self.assertGreaterEqual(p["available_at"], p["formed_at"], f"{sym} {tf} {side} phase {p['label']}")
+                    if p["label"] == "D" and r.get("sos") is not None:
+                        sos_phases += 1
+                        self.assertGreaterEqual(p["available_at"], _iso(candles[r["sos"]], tf),
+                                                f"{sym} {tf} {side}: Phase D is stamped before the SOS is confirmed")
+        self.assertGreater(ranges, 0, "no trading range across any symbol: the test proved nothing")
+        self.assertGreater(sos_phases, 0, "no Phase D with a confirmed SOS across any symbol: the SOS rule is unpinned")
+
+    def test_sos_bar_event_is_available_at_the_confirming_bar_not_the_breakout_candle(self):
+        seen = 0
+        for sym, tf, side, candles, env in self._envs():
+            for r, tr in zip(env["records"], env["structures"]):
+                if r.get("sos") is None or r.get("sos_bar") is None:
+                    continue
+                ev = next(e for e in tr["events"] if e["kind"] == "sos_bar")
+                self.assertEqual(ev["formed_at"], candles[r["sos_bar"]]["time"])
+                self.assertEqual(ev["available_at"], _iso(candles[r["sos"]], tf), f"{sym} {tf} {side}")
+                self.assertGreaterEqual(r["sos"], r["sos_bar"])
+                seen += 1
+        self.assertGreater(seen, 0, "no SOS-confirmed range across any symbol")
+
+    def test_a_pool_or_fvg_is_never_invalidated_before_it_is_available(self):
+        """S5: `invalidated_at` is clamped to `available_at` -- an object cannot be consumed before it is knowable."""
+        checked = 0
+        for sym, tf in self.CASES:
+            path = os.path.join(ROOT, "data", "history", f"ohlcv.{sym}.{tf}.json")
+            if not os.path.exists(path):
+                continue
+            candles = _history(sym, tf, 480)
+            env = structures.ict_structures(candles, {"4H": 4, "1H": 1}[tf], tf, methods=("ict",))
+            for s in env["structures"]:
+                if s["kind"] in ("pool", "fvg") and s.get("invalidated_at"):
+                    checked += 1
+                    self.assertGreaterEqual(s["invalidated_at"], s["available_at"], f"{sym} {tf} {s['kind']}")
+        self.assertGreater(checked, 0)
+
+
 class LiveRulesRoutesThroughStructures(unittest.TestCase):
     """live_rules.read_at() must return the byte-identical object a direct ict_scan.analyze() call on the same
     window would -- routing through structures.py must not change what the decision path reads (A1)."""
