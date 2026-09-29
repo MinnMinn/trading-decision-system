@@ -86,7 +86,11 @@ def config_opts(cfg, ict_target):
                 fx_w1_tr_low_st=False, fx_w2_st_below_sc=False, fx_w3_mSOW_spring=False, fx_w5_vp_abandon=False,
                 fx_w7_htf_target=False,
                 # A2b decision side (plan §2): v1 default, stated so the overlay stays complete.
-                fx_a2b_stale_htf_block=False)
+                fx_a2b_stale_htf_block=False,
+                # Batch 2(a) ICT V items (docs/plans/2026-09-28-methodology-improvement-plan.md §3): each key's
+                # declared BASELINE value = v1 (scripts/ict-scan.py V_ICT), stated so the overlay stays complete.
+                fx_b_ex="iofed", fx_b_pd="r15", fx_b_pool="off", fx_b_buf="0", fx_b_exit="-2.0|H|floor",
+                fx_b_lb="12|K", fx_b6="no", fx_b3="entry_tf", fx_b7="all_hours")
 
 
 # scan()-relevant keys: everything `bt.scan()` / `ict_setups_live()` / `_fires_from()` / `walk()` actually read
@@ -126,7 +130,13 @@ _SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "slope
                        "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon",
                        "fx_w7_htf_target",
                        # A2b decision side: htf_bias_gate refuses a stale HTF tier, so scans with it on/off differ.
-                       "fx_a2b_stale_htf_block")
+                       "fx_a2b_stale_htf_block",
+                       # Batch 2(a) ICT V items: fx_b_ex/pd/pool/buf/exit(target)/lb/b6/b3/b7 all change which ICT
+                       # trades scan() emits (entry/stop/target, setups, expiry, fills, horizon), so all nine
+                       # separate scan-cache entries. (fx_b_exit's 2R-floor component acts in simulate(), but it
+                       # is one joint key, so it is keyed here whole.)
+                       "fx_b_ex", "fx_b_pd", "fx_b_pool", "fx_b_buf", "fx_b_exit", "fx_b_lb", "fx_b6", "fx_b3",
+                       "fx_b7")
 
 
 def _hashable(v):

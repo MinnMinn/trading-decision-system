@@ -379,7 +379,9 @@ def backtest_config_snapshot(bt, *, timeframes, methods, configs=None, fee_pct=N
                                      "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring",
                                      "fx_w5_vp_abandon", "fx_w7_htf_target")
                                     + ("fx_a2b_stale_htf_block",)
-                                    + tuple(getattr(bt, "FX_ICT_KEYS", ()))},
+                                    + tuple(getattr(bt, "FX_ICT_KEYS", ()))
+                                    # Batch 2(a) ICT V items (bt.FX_ICT_V_KEYS): recorded as their declared value.
+                                    + tuple(getattr(bt, "FX_ICT_V_KEYS", ()))},
                                    varied_per_config=residual),
         "provider_selection": {"see": "dataset_snapshot_id", "note":
                                "which providers supplied the bars is recorded in the §10 dataset snapshot, "

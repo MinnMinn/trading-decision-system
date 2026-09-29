@@ -1,0 +1,89 @@
+{
+  "method": "ICT",
+  "plan": "docs/plans/2026-09-28-methodology-improvement-plan.md §3 (ICT table); shared key contract docs/plans/2026-09-29-execution-plan.md",
+  "declaration": "scripts/ict-scan.py V_ICT is the code-side declaration of every value set below; scripts/tests/test_v_items_ict.py asserts the two are equal. The first value of every item is the baseline = v1 behaviour and the key's default.",
+  "n": 41,
+  "n_formula": "N = 1 baseline + sum over items of (len(values) - 1) + 1 combined = 1 + 39 + 1. Every item is ONE factor: the joint exit factor B-EXIT counts as one item of 24 value sets (23 non-baseline), B-LB as one item of 6 value sets (5 non-baseline). B-DISP is sensitivity-only and is not in this file or in N. B4 counts in N although implemented=false.",
+  "items": [
+    {
+      "id": "B-EX", "key": "fx_b_ex", "existing_opts_key": null,
+      "values": ["iofed", "ce", "fill"], "joint_group": null,
+      "source": "core-a.md §2.23 R19", "implemented": true,
+      "note": "entry price on the FVG: iofed = near edge (v1), ce = 0.5 of the gap, fill = far edge"
+    },
+    {
+      "id": "B-PD", "key": "fx_b_pd", "existing_opts_key": null,
+      "values": ["r15", "r13"], "joint_group": null,
+      "source": "core-a.md §2.18-2.19, R13, R15", "implemented": true,
+      "note": "premium/discount range framing: r15 = nearest BSL/SSL pair (v1); r13 = swept extreme to opposing pool (the nearest unswept pool beyond the entry; keeps the r15 edge on that side when there is none)"
+    },
+    {
+      "id": "B-POOL", "key": "fx_b_pool", "existing_opts_key": null,
+      "values": ["off", "on"], "joint_group": null,
+      "source": "core-a.md §2.8-2.9", "implemented": true,
+      "note": "on = PDH/PDL (UTC previous day) and Asian/London session highs/lows (session registry windows) join the pools; only completed days/sessions inside the window"
+    },
+    {
+      "id": "B-BUF", "key": "fx_b_buf", "existing_opts_key": null,
+      "values": ["0", "0.1atr", "0.25atr"], "joint_group": null,
+      "source": "core-a.md R22", "implemented": true,
+      "note": "stop buffer beyond the swept wick; ATR = simple mean true range over the 14 bars ending at the MSS bar (ATR_PERIOD is project-defined: the plan declares only the multiples)"
+    },
+    {
+      "id": "B-EXIT", "key": "fx_b_exit", "existing_opts_key": null,
+      "values": [
+        "-2.0|H|floor", "-2.0|H|no_floor", "-2.0|1.5H|floor", "-2.0|1.5H|no_floor",
+        "-2.0|2H|floor", "-2.0|2H|no_floor", "-2.0|none|floor", "-2.0|none|no_floor",
+        "-2.25|H|floor", "-2.25|H|no_floor", "-2.25|1.5H|floor", "-2.25|1.5H|no_floor",
+        "-2.25|2H|floor", "-2.25|2H|no_floor", "-2.25|none|floor", "-2.25|none|no_floor",
+        "-2.5|H|floor", "-2.5|H|no_floor", "-2.5|1.5H|floor", "-2.5|1.5H|no_floor",
+        "-2.5|2H|floor", "-2.5|2H|no_floor", "-2.5|none|floor", "-2.5|none|no_floor"
+      ],
+      "joint_group": "B-EXIT",
+      "source": "models.md §2.1.5; core-b.md §2.12 (target); project (time stop H); models.md §3.1 rule 23 (2R)", "implemented": true,
+      "components": {
+        "value_format": "<target sigma>|<time stop>|<2R floor>",
+        "target": ["-2.0", "-2.25", "-2.5"],
+        "time_stop": ["H", "1.5H", "2H", "none"],
+        "floor": ["floor", "no_floor"]
+      },
+      "note": "ONE joint key, 3 x 4 x 2 = 24 value sets. H = bt.P[tf]['H'] bars (none = until the end of history); the 2R component skips simulate()'s planned-R:R entry floor (OPTS min_rr) for ICT trades only, so min_rr itself is not a second knob"
+    },
+    {
+      "id": "B-LB", "key": "fx_b_lb", "existing_opts_key": null,
+      "values": ["12|K", "12|2K", "8|K", "8|2K", "16|K", "16|2K"], "joint_group": null,
+      "source": "project", "implemented": true,
+      "note": "<setup lookback>|<K-bar expiry>. 12 is the live default lookback (max(12, recent*6) at recent=2); 8 and 16 scale the live default by 8/12 and 16/12, so on 1m/5m (live default 24) they are 16 and 32 bars. K = bt.P[tf]['K']"
+    },
+    {
+      "id": "B6", "key": "fx_b6", "existing_opts_key": null,
+      "values": ["no", "yes"], "joint_group": null,
+      "source": "core-b.md §3.1 R3 (fidelity N3)", "implemented": true,
+      "note": "yes = cancel the pending limit when the target trades before the limit fills (bars after the MSS up to, not including, the fill bar)"
+    },
+    {
+      "id": "B3", "key": "fx_b3", "existing_opts_key": null,
+      "values": ["entry_tf", "tfa_p5"], "joint_group": null,
+      "source": "models.md §2.8; core-a.md §2.11-2.12", "implemented": true,
+      "note": "tfa_p5 reads the bias on the paired higher timeframe (1m<-15m, 5m<-1H, 15m<-4H, 1H<-1D) instead of the entry timeframe; an entry timeframe the table does not pair (30m, 2H, 4H, 1D) has no bias tier and refuses every setup"
+    },
+    {
+      "id": "B4", "key": "fx_b4_htf_level", "existing_opts_key": null,
+      "values": ["tag_only", "required"], "joint_group": null,
+      "source": "core-b.md §3.1 R1, R23", "implemented": false,
+      "reason": "the sources state 'a higher-timeframe level must be engaged before the LTF MSS' but never define what an HTF level is (swing, PDH/PDL, key level) or what 'engaged' means (touched, swept, inside a distance); any operationalisation would invent a rule or a threshold. No key is registered."
+    },
+    {
+      "id": "B-MGMT", "key": "mgmt", "existing_opts_key": "mgmt",
+      "values": ["none", "be"], "joint_group": null,
+      "source": "WMT p272 (as used by config B)", "implemented": true,
+      "note": "the existing OPTS knob: walk() moves the stop to entry at +1R when 'be'; no fx_ key was added"
+    },
+    {
+      "id": "B7", "key": "fx_b7", "existing_opts_key": null,
+      "values": ["all_hours", "killzone"], "joint_group": null,
+      "source": "core-a.md R1, §2.1", "implemented": true,
+      "note": "killzone = an index (asset_class 'indices') entry must fall inside a session-registry window (docs/architecture/sessions.json, DST-aware) at its fill bar; metals (XAUUSD) are never restricted"
+    }
+  ]
+}

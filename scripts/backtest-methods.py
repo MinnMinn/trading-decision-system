@@ -115,6 +115,11 @@ RUIN_FRAC = 0.10     # the account is declared BLOWN (cháy) when equity <= 10 %
 # FX_ICT_KEYS out of OPTS. The live runner (scripts/strategy-runner.py) never sets any of these -- it calls
 # lr.read_at()/lr.ict_scan.setup_candidate() with no opts= at all, so it always gets v1 (§1.6 live safety).
 FX_ICT_KEYS = ("fx_b2a_fvg_in_leg", "fx_b2b_ce_fail", "fx_b1_pivot1", "fx_braid_optional")
+# Batch 2(a): one key per ICT V item (docs/plans/2026-09-28-methodology-improvement-plan.md §3), each holding one
+# value of the set DECLARED in scripts/ict-scan.py `V_ICT` (the single declaration; a check right after `lr` is
+# loaded below asserts these defaults are that declaration's first = baseline = v1 values). Same rule as the F
+# keys above: the live runner never sets any of them. B-MGMT is NOT a key here -- it is the existing `mgmt` knob.
+FX_ICT_V_KEYS = ("fx_b_ex", "fx_b_pd", "fx_b_pool", "fx_b_buf", "fx_b_exit", "fx_b_lb", "fx_b6", "fx_b3", "fx_b7")
 OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see the note there
              types=(1, 2, 3), htf=False, sides=("long", "short"), entry="book", mgmt="none", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit",
             st_gate=False, phase_b_gate=False, methods=None,
@@ -134,7 +139,10 @@ OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see
             fx_w7_htf_target=False,
             # A2b decision side (plan §2, knowledge R20): default v1 = the HTF gate ignores staleness; the live
             # runner never sets it. See htf_bias_gate.
-            fx_a2b_stale_htf_block=False)
+            fx_a2b_stale_htf_block=False,
+            # Batch 2(a) ICT V items: the baseline (first declared) value of each = v1. See FX_ICT_V_KEYS above.
+            fx_b_ex="iofed", fx_b_pd="r15", fx_b_pool="off", fx_b_buf="0", fx_b_exit="-2.0|H|floor",
+            fx_b_lb="12|K", fx_b6="no", fx_b3="entry_tf", fx_b7="all_hours")
 # The four fx_ keys that change WYCKOFF-BOOK/COMBINED-BOOK DETECTION (not just gating) -- read once per
 # `_WY_CANDIDATES` cache build, bridged into the module-level wyckoff_rules.PARAMS the same way
 # `spring_max_bars_outside` already is (see `_wyckoff_candidates`'s own docstring: it must stay OPTS-
@@ -591,6 +599,9 @@ HTF_OF = {tf: _auto.next_rung(tf, _RUNGS) for tf in _RUNGS if _auto.next_rung(tf
 # re-deriving pivots/MSS/FVG itself (audit 2026-09-13 -- see docstring at the top of this file's ICT section).
 _lspec = _iu.spec_from_file_location("live_rules", os.path.join(ROOT, "scripts", "live_rules.py"))
 lr = _iu.module_from_spec(_lspec); _lspec.loader.exec_module(lr)
+if {k: OPTS[k] for k in FX_ICT_V_KEYS} != lr.ict_scan.V_ICT_DEFAULTS:
+    raise SystemExit("OPTS defaults for the ICT V keys differ from scripts/ict-scan.py V_ICT_DEFAULTS -- the "
+                     "baseline (first declared value) of every V key must be v1 behaviour")
 
 
 def htf_position(sym, tf):
@@ -650,7 +661,14 @@ def bias_allows(bias, side):
 _HTF_TIMES = {}
 
 
-def htf_bias_gate(sym, tf, side, decision_time, methods):
+# B3 (fx_b3="tfa_p5"): the higher-timeframe pairing of knowledge/ict/models.md §2.8 "Pairing table -- TFA p5 (3):
+# Weekly->H4, Daily->H1, H4->M15, H1->M5, M30->M3, M15->M1", written as ENTRY timeframe -> BIAS timeframe in this
+# engine's names. An entry timeframe the table does not pair (30m, 2H, 4H whose W1 has no live scan window, 1D)
+# has NO bias tier under it: the gate is structurally unable to judge and refuses (never a silent fallback).
+TFA_P5_BIAS_TF = {"1m": "15m", "5m": "1H", "15m": "4H", "1H": "1D"}
+
+
+def htf_bias_gate(sym, tf, side, decision_time, methods, h=None):
     """INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): THE htf gate, shared by every RUNNER_METHODS
     branch in `scan()` -- exactly the function strategy-runner.htf_pass() calls live
     (`bt.bias_allows(bt.lr.bias_at(candles_htf, len(candles_htf)-1, htf_tf, methods))`), except `candles_htf`
@@ -672,7 +690,9 @@ def htf_bias_gate(sym, tf, side, decision_time, methods):
     explicit True (`is not True`), matching strategy-runner.py's own fail-closed htf_pass() caller -- None is
     not permission.
     """
-    h = HTF_OF.get(tf)
+    # `h` (B3 only): an explicit bias tier overriding the next-rung default -- None (every existing caller) is
+    # exactly the pre-B3 behaviour.
+    h = h or HTF_OF.get(tf)
     if not h:
         return None
     c, _ = load(sym, h)
@@ -791,16 +811,40 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
     # `inverted_at` field is only present on an fvg when analyze() itself was called with fx_b2b_ce_fail, so a
     # caller that set the key for one but not the other would silently get v1 setup_candidate() behaviour.
     fx_opts = {k: OPTS[k] for k in FX_ICT_KEYS}
+    # A V key travels to analyze()/setup_candidate() only when it is NOT at its baseline: the baseline is what
+    # they do when the key is absent, so an untouched run hands them the very same overlay it always did.
+    fx_opts.update({k: OPTS[k] for k in FX_ICT_V_KEYS if OPTS[k] != lr.ict_scan.V_ICT_DEFAULTS[k]})
+    # Batch 2(a) ICT V items (scripts/ict-scan.py V_ICT declares every value set; each key's baseline = v1, so
+    # every branch below is a no-op unless a caller set a key). fx_b_ex / fx_b_pd / fx_b_pool / fx_b_buf and the
+    # target part of fx_b_exit act inside analyze()/setup_candidate() through `fx_opts`; the rest act here.
+    lr.ict_scan.check_v_opts({k: OPTS[k] for k in FX_ICT_V_KEYS})
+    lb_tok, k_tok = lr.ict_scan.b_lb_parts(OPTS["fx_b_lb"])          # B-LB
+    lb_base = lr.setup_lookback(tf)
+    lookback = lb_base if lb_tok == "12" else int(round(lb_base * int(lb_tok) / 12))
+    _, hold_tok, _floor = lr.ict_scan.b_exit_parts(OPTS["fx_b_exit"])   # B-EXIT time stop
+    hz = {"H": HZ, "1.5H": int(round(1.5 * HZ)), "2H": 2 * HZ, "none": n}[hold_tok]
+    b3_tfa = OPTS["fx_b3"] == "tfa_p5"                                # B3
+    b7_kz = OPTS["fx_b7"] == "killzone" and (_I.display(sym).get("asset_class") == "indices")   # B7: indices only
     for i in range(n):
         a = lr.read_at(c, i, tf, methods, opts=fx_opts)
         if a is None:            # window not yet the full live window -- live would not have scanned here at all
             continue
-        su = lr.ict_scan.setup_candidate(a, lr.window(c, i, tf), lr.setup_lookback(tf), opts=fx_opts)
+        su = lr.ict_scan.setup_candidate(a, lr.window(c, i, tf), lookback, opts=fx_opts)
         if not su or not su.get("complete") or not su.get("pd_ok"):
             continue
-        bias, _ = lr.bias_at(c, i, tf, methods, facts=a)      # facts reused: no second analyze()
-        if not bias_allows(bias, su["side"]):
-            continue
+        if b3_tfa:
+            # B3 (knowledge/ict/models.md §2.8, TFA p5): the bias is read on the PAIRED higher timeframe instead of
+            # the entry timeframe -- same gate function the HTF filter uses, keyed on this bar's own close. No
+            # pairing for this timeframe, or no readable/closed bias bar = cannot judge = refuse.
+            pair = TFA_P5_BIAS_TF.get(tf)
+            if pair is None or htf_bias_gate(sym, tf, su["side"],
+                                             _N.available_time(c[i], tf).isoformat().replace("+00:00", "Z"),
+                                             methods, h=pair) is not True:
+                continue
+        else:
+            bias, _ = lr.bias_at(c, i, tf, methods, facts=a)      # facts reused: no second analyze()
+            if not bias_allows(bias, su["side"]):
+                continue
         # INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): the SAME htf gate function live uses
         # (strategy-runner.htf_pass -> bt.bias_allows(bt.lr.bias_at(...))), keyed on the HTF bar closed at or
         # before THIS bar's own decision time -- not the Wyckoff engine's legacy percentile proxy, and not
@@ -852,7 +896,7 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
         # K - (n-1)). The old (2) scanned mss_i+1..i+K -- i.e. i-mss_i bars LONGER than live's own window -- so
         # the backtest could still book a fill live would already have expired. A setup detected after its own
         # window has already closed is refused outright, exactly as live refuses a `bars_left < 0` order.
-        K = P[tf]["K"]
+        K = P[tf]["K"] * (2 if k_tok == "2K" else 1)      # B-LB: K-bar expiry K (v1) or 2K
         if i > mss_i + K:
             continue              # ICT-8/PAR-7: already expired by the time the setup is even detectable -- live would never place this order
         if fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, i + 1) is not None:
@@ -861,6 +905,11 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
         if fill is None:         # the limit never filled within its K-bar window: live would hold/expire an unfilled order, not a position
             continue
         fill_bar, outcome = fill
+        if OPTS["fx_b6"] == "yes" and any((H[j] >= target) if su["side"] == "long" else (L[j] <= target)
+                                          for j in range(mss_i + 1, fill_bar)):
+            continue             # B6: the target traded before the limit filled -- the pending order is cancelled
+        if b7_kz and not _S.active(Tm[fill_bar]):
+            continue             # B7: an index entry outside every session-registry window is not taken
         # INT-7 (docs/audits/2026-09-24-system-audit.md): every ICT trade record needs an `event` id, or
         # simulate()'s one-position-per-symbol rule (`t.get("event") != ev`, both None for two different ICT
         # trades) compares None != None -- False -- and never skips an overlapping ICT trade on the same
@@ -876,7 +925,7 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
                             stop=stop, target=target, exit_time=Tm[fill_bar], vol_type=None,
                             outcome="loss", R=-1.0, R_planned=su.get("R"), exit=fill_bar, mfe=0.0, mae=-1.0, bars_held=1))
             continue
-        w = walk(su["side"], entry, stop, target, H, L, C, fill_bar + 1, HZ, Tm=Tm)
+        w = walk(su["side"], entry, stop, target, H, L, C, fill_bar + 1, hz, Tm=Tm)
         if not w:
             continue
         out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], event=event, entry=entry, entry_time=Tm[fill_bar],
@@ -1491,6 +1540,11 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
             allowed = set(sr["allowed_sessions"])
             eff_sessions = allowed if eff_sessions is None else (eff_sessions & allowed)
     refused_news = refused_session = 0
+    # B-EXIT's 2R component (fx_b_exit "...|no_floor", knowledge/ict/models.md §3.1 rule 23: 2R is "the minimum
+    # requirement before taking profit on an open position", not an entry filter): the planned-R:R ENTRY floor
+    # below is skipped for ICT trades. Baseline "floor" = v1. ICT trades only (their `event` ids carry "-ict-",
+    # INT-7), so a Wyckoff run under the same OPTS keeps its floor.
+    no_floor_ict = lr.ict_scan.b_exit_parts(OPTS["fx_b_exit"])[2] == "no_floor"
     ts = sorted(trades, key=lambda t: t["entry_time"])
     equity = START; open_pos = {}; curve = []; taken = []; ruin = None
     peak = START; day_start = START; day = None; failed_by = None
@@ -1561,7 +1615,8 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
                 fee_R = 2 * fee_pct / dist
         else:
             fee_R = 2 * fee_pct / dist
-        if t.get("R_planned", 99) - fee_R < OPTS["min_rr"]:
+        if t.get("R_planned", 99) - fee_R < OPTS["min_rr"] and not (
+                no_floor_ict and "-ict-" in (t.get("event") or "")):
             continue
         # §24-§32 / §21 admission-time refusal, PIT on entry_time alone. Refused candidates never reach the
         # account-stop check below and never touch equity -- a refusal is not a loss, it is a trade that was
