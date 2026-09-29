@@ -1502,6 +1502,18 @@ def js_block(data_json, params_json):
 
 
 # ----------------------------------------------------------------------------------------------- assembly
+def chart_params(P):
+    """Add the lane / pane / i18n facts scripts/chart.js reads to the numeric params dict `P`, in place, and return it.
+    Shared with scripts/build-pit-page.py (A3t) so the point-in-time page is drawn by the same chart.js contract."""
+    # lane facts chart.js reads instead of hand-keeping its own copy (Task 10b item 4)
+    P.update(laneOrder=[m for m, _ in LANES], laneLabels=dict(LANES),
+             overlayLanes=list(OVERLAY_LANES), panes=PANES,
+             # chart.js draws its labels after load, so they cannot be lang-tagged siblings in the HTML; the
+             # catalog slice and the locale records (which carry the display timezone) ride in here instead.
+             i18n=i18n.js_catalog("chart.", "legend."), locales=i18n.js_locales(), defaultLang=i18n.DEFAULT)
+    return P
+
+
 def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_only=False):
     S = dict(STYLES[style])
     # §6/§15: draw every allowlisted symbol whose feed exists, name the ones whose feed does not, and refuse
@@ -1529,11 +1541,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                   eqtol=f'{(ict_p.get("equal_level_tolerance_pct") or {}).get("value", 0.08):g}%',
                   fvgmin=f'{(ict_p.get("fvg_min_size_median_ratio") or {}).get("value", 0.6):g}')
     # lane facts chart.js reads instead of hand-keeping its own copy (Task 10b item 4)
-    P.update(laneOrder=[m for m, _ in LANES], laneLabels=dict(LANES),
-             overlayLanes=list(OVERLAY_LANES), panes=PANES,
-             # chart.js draws its labels after load, so they cannot be lang-tagged siblings in the HTML; the
-             # catalog slice and the locale records (which carry the display timezone) ride in here instead.
-             i18n=i18n.js_catalog("chart.", "legend."), locales=i18n.js_locales(), defaultLang=i18n.DEFAULT)
+    chart_params(P)
     cfg = read_json(f"{ROOT}/docs/architecture/automation-config.json", {}) or {}
     market = _auto.market_of_style(style)
     dim_flags = ((cfg.get("markets") or {}).get(market) or {}).get("dimensions") or {}
