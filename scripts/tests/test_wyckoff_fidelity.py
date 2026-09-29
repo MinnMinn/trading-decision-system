@@ -19,6 +19,7 @@ A note on W1: with W2 off it is unobservable. A structure whose ST[A] dips below
 loop's `broke` exit before ST[A] is even looked up, so `tr_lo = min(SC, ST)` can only differ from `tr_lo = SC`
 when W2 has let such a structure through. `test_w1_alone_is_inert_without_w2` pins that coupling.
 """
+import copy
 import importlib.util
 import os
 import sys
@@ -95,6 +96,20 @@ def st_below_sc_bars(final_low):
     return bars
 
 
+def mirror(bars, k=200.0):
+    """The price-inverted twin of `bars` (o,h,l,c -> k-o, k-l, k-h, k-c; volume unchanged): an accumulation on
+    `bars` is a distribution on the twin (WA p101: the schematics are mirror images), which is exactly the
+    inversion `detect_distributions` applies internally."""
+    return [(k - o, k - l, k - h, k - c, v) for (o, h, l, c, v) in bars]
+
+
+def detect_short(bars, **fx):
+    """detect_distributions on `bars` with the given PARAMS overrides."""
+    O, H, L, C, V = cols(bars)
+    W.STATS.clear()
+    return W.detect_distributions(O, H, L, C, V, P=dict(W.PARAMS, **fx))
+
+
 class DefaultsAreV1(unittest.TestCase):
     """The mechanism must be inert until a caller sets a key (plan section 1.6 'live safety')."""
 
@@ -160,6 +175,25 @@ class W1TrLowIsMinOfScAndSt(unittest.TestCase):
         bars = st_below_sc_bars(75.0)
         self.assertEqual(len(detect(bars, fx_w2_st_below_sc=True)), 1)
         self.assertEqual(len(detect(bars, fx_w2_st_below_sc=True, fx_w1_tr_low_st=True)), 0)
+
+    def test_short_side_tr_hi_widens_to_the_st_high_when_on(self):
+        """The distribution mirror of the widening: `detect_distributions` runs the accumulation detector on
+        inverted prices, so W1's `st[2] < tr_lo` (wyckoff_rules.py) is the ST-high-above-BC comparison for a
+        short. Mirror of test_tr_lo_widens_...: BC high 120.05 (mirror of SC low 79.95), ST high 130.05."""
+        bars = mirror(st_below_sc_bars(65.0))
+        off = detect_short(bars, fx_w2_st_below_sc=True)
+        on = detect_short(bars, fx_w2_st_below_sc=True, fx_w1_tr_low_st=True)
+        self.assertEqual((len(off), len(on)), (1, 1))
+        self.assertAlmostEqual(off[0]["tr_hi"], 120.05, places=6)   # BC high
+        self.assertAlmostEqual(on[0]["tr_hi"], 130.05, places=6)    # ST high
+        self.assertAlmostEqual(on[0]["tr_lo"], off[0]["tr_lo"], places=6)   # the far border is untouched
+
+    def test_short_side_break_between_the_two_borders_is_a_break_only_when_off(self):
+        """Mirror of test_a_break_between_the_two_borders_...: the final bar's high (125) is above the BC high
+        (120.05) but below the ST high (130.05)."""
+        bars = mirror(st_below_sc_bars(75.0))
+        self.assertEqual(len(detect_short(bars, fx_w2_st_below_sc=True)), 1)
+        self.assertEqual(len(detect_short(bars, fx_w2_st_below_sc=True, fx_w1_tr_low_st=True)), 0)
 
     def test_w1_alone_is_inert_without_w2(self):
         """ST below SC never reaches the ST lookup while the R1 loop still discards it (see module docstring)."""
@@ -261,6 +295,20 @@ class W5AbandonWithoutTheUnsourcedTwoBarClause(unittest.TestCase):
         diff = {k for k in off if off[k] != on[k]}
         self.assertEqual(diff, {"abandon"})
 
+    def test_short_side_val_swap_and_abandon_on_the_inverted_path(self):
+        """`detect_distributions` swaps vah/val after inverting, so the REAL-price value area is ordered
+        (val < vah) and W5's `C[rec] > val` (on inverted prices) is `C[rec] < real VAH` for a short. Mirror of
+        the long fixture: reclaim close 115 sits ABOVE the real VAH 111.02 (mirror of VAL 88.98) -> abandoned."""
+        bars = mirror(self._bars())
+        off = detect_short(bars)[0]
+        on = detect_short(bars, fx_w5_vp_abandon=True)[0]
+        self.assertLess(on["val"], on["vah"])                       # the swap: without it val > vah after negation
+        self.assertAlmostEqual(on["vah"], 200.0 - 88.98, places=2)  # real VAH = mirror of the long VAL
+        self.assertFalse(off["abandon"])
+        self.assertTrue(on["abandon"])
+        self.assertGreater(cols(bars)[3][on["reclaim"]], on["vah"])
+        self.assertEqual({k for k in off if off[k] != on[k]}, {"abandon"})
+
     def test_a_reclaim_bar_that_closes_above_val_is_not_abandoned_either_way(self):
         bars = base_accumulation() + leg(92, 65, 2, vol=20.0) + [(66, 96, 65, 95.0, 15.0)]
         for on in (False, True):
@@ -287,10 +335,19 @@ class W7HtfTargetIsBuiltButNotAdopted(unittest.TestCase):
                      open=b[0], high=b[1], low=b[2], close=b[3], volume=b[4]) for i, b in enumerate(bars)]
 
     def _patch_load(self, candles):
-        self.bt.load = lambda sym, tf: ((candles, None) if candles is not None else (None, None))
+        p = mock.patch.object(self.bt, "load", lambda sym, tf: ((candles, None) if candles is not None else (None, None)))
+        p.start()
+        self.addCleanup(p.stop)
 
     def _htf_bars(self):
         return _HtfFixture.bars()
+
+    def _w7_on(self, target_fn):
+        """W7 key on + `_htf_wyckoff_target` stubbed, both restored on cleanup (no module state leaks)."""
+        p1 = mock.patch.dict(self.bt.OPTS, {"fx_w7_htf_target": True})
+        p2 = mock.patch.object(self.bt, "_htf_wyckoff_target", target_fn)
+        p1.start(); p2.start()
+        self.addCleanup(p1.stop); self.addCleanup(p2.stop)
 
     def test_no_higher_rung_no_symbol_or_no_history_is_none(self):
         self._patch_load(None)
@@ -349,20 +406,96 @@ class W7HtfTargetIsBuiltButNotAdopted(unittest.TestCase):
         self.assertAlmostEqual(f[0]["target"], 110.0 + self.bt.W.PARAMS["d_target_tr"] * 30.0)
 
     def test_on_and_no_htf_tr_means_no_phase_d_trade(self):
-        self.bt.OPTS["fx_w7_htf_target"] = True
-        self.bt._htf_wyckoff_target = lambda *a: None
+        self._w7_on(lambda *a: None)
         self.assertEqual(self.bt._fires_from("long", [self._phase_d_rec()], self.C, self.Tm, sym="XAUUSD", tf="15m"), [])
 
     def test_on_and_htf_tr_replaces_the_target(self):
-        self.bt.OPTS["fx_w7_htf_target"] = True
-        self.bt._htf_wyckoff_target = lambda *a: 125.0
+        self._w7_on(lambda *a: 125.0)
         f = self.bt._fires_from("long", [self._phase_d_rec()], self.C, self.Tm, sym="XAUUSD", tf="15m")
         self.assertEqual([x["target"] for x in f], [125.0])
 
     def test_on_and_htf_target_below_entry_is_not_placeable(self):
-        self.bt.OPTS["fx_w7_htf_target"] = True
-        self.bt._htf_wyckoff_target = lambda *a: 104.0      # below the 105 entry: the existing placeability check applies
+        self._w7_on(lambda *a: 104.0)      # below the 105 entry: the existing placeability check applies
         self.assertEqual(self.bt._fires_from("long", [self._phase_d_rec()], self.C, self.Tm, sym="XAUUSD", tf="15m"), [])
+
+    def test_decision_time_passed_to_w7_is_the_bar_close_not_its_open(self):
+        """Review round 1, item 1: htf_bias_gate requires the decision time to be the decision bar's CLOSE
+        (normalized.available_time, ISO 'Z'); `Tm[last]` is its OPEN. The last bar here opens 04:00 on the 15m
+        rung, so W7 must be asked at 04:15 -- and that string must be what htf_bias_gate itself would build."""
+        seen = []
+        self._w7_on(lambda sym, tf, side, dt: seen.append(dt) or 125.0)
+        self.bt._fires_from("long", [self._phase_d_rec()], self.C, self.Tm, sym="XAUUSD", tf="15m")
+        self.assertEqual(seen, ["2024-01-05T04:15:00Z"])
+        self.assertEqual(seen[0], self.bt._N.available_time({"time": self.Tm[-1]}, "15m").isoformat().replace("+00:00", "Z"))
+        self.assertNotEqual(seen[0], self.Tm[-1])
+
+    # -- review round 1, items 2-3: cache key + PARAMS isolation ---------------------------------------------------
+
+    def _spy_records(self, recs=()):
+        """Patch structures.wyckoff_records with a recorder; returns the list of P dicts it was called with."""
+        calls = []
+
+        def fake(O, H, L, C, V, P=None, volume_kind="traded", side="long"):
+            calls.append(P)
+            return list(recs)
+        p = mock.patch.object(self.bt._structures, "wyckoff_records", fake)
+        p.start(); self.addCleanup(p.stop)
+        return calls
+
+    def _ask(self, dt="2024-01-31T00:00:00Z"):
+        return self.bt._htf_wyckoff_target("XAUUSD", "15m", "long", dt)
+
+    def test_cache_hit_when_nothing_differs_recomputes_nothing(self):
+        self._patch_load(self._htf_candles(self._htf_bars()))
+        calls = self._spy_records([dict(sos=None, tr_hi=110.0, tr_lo=80.0)])
+        self.assertEqual(self._ask(), 110.0)
+        self.assertEqual(self._ask(), 110.0)
+        self.assertEqual(len(calls), 1)
+
+    def test_cache_is_keyed_on_each_detection_fx_key(self):
+        """Two calls differing in ONE detection key must re-detect (own cache entry) and detect under that key."""
+        self._patch_load(self._htf_candles(self._htf_bars()))
+        calls = self._spy_records([dict(sos=None, tr_hi=110.0, tr_lo=80.0)])
+        for k in self.bt._FX_WYCKOFF_DETECTION_KEYS:
+            with self.subTest(key=k):
+                self._ask()                                            # all keys False (or already cached)
+                n0 = len(calls)
+                with mock.patch.dict(self.bt.OPTS, {k: True}):
+                    self._ask()
+                    self._ask()                                        # the second is a hit on the widened entry
+                self.assertEqual(len(calls), n0 + 1, k)
+                self.assertIs(calls[-1][k], True)
+                self.assertTrue(all(calls[-1][o] is False for o in self.bt._FX_WYCKOFF_DETECTION_KEYS if o != k))
+
+    def test_cache_is_keyed_on_history_identity(self):
+        bars = self._htf_bars()
+        self._patch_load(self._htf_candles(bars))
+        calls = self._spy_records([dict(sos=None, tr_hi=110.0, tr_lo=80.0)])
+        self._ask()
+        with mock.patch.object(self.bt, "load", lambda s, t: (self._htf_candles(bars, start_hour=1), None)):
+            self._ask("2024-02-01T00:00:00Z")                          # different history AND decision time
+            self._ask()                                                # same decision time, shifted history
+        self.assertEqual(len(calls), 3)
+
+    def test_w7_does_not_write_the_global_sob_and_uses_the_htf_rungs_value(self):
+        """The old code did `W.PARAMS["spring_max_bars_outside"] = P[h]["sob"]` and never restored it."""
+        self._patch_load(self._htf_candles(self._htf_bars()))
+        calls = self._spy_records([])
+        with mock.patch.dict(self.bt.W.PARAMS, {"spring_max_bars_outside": 99}):
+            self._ask()
+            self.assertEqual(self.bt.W.PARAMS["spring_max_bars_outside"], 99)      # global untouched
+        self.assertEqual(calls[0]["spring_max_bars_outside"], self.bt.P["1H"]["sob"])   # HTF rung's own value
+
+    def test_params_restored_after_an_exception_in_w7_detection(self):
+        self._patch_load(self._htf_candles(self._htf_bars()))
+        boom = mock.patch.object(self.bt._structures, "wyckoff_records", mock.Mock(side_effect=RuntimeError("boom")))
+        boom.start(); self.addCleanup(boom.stop)
+        with mock.patch.dict(self.bt.W.PARAMS, {"spring_max_bars_outside": 99}), \
+                mock.patch.dict(self.bt.OPTS, {"fx_w5_vp_abandon": True}):
+            snap = copy.deepcopy(self.bt.W.PARAMS)
+            with self.assertRaises(RuntimeError):
+                self._ask()
+            self.assertEqual(self.bt.W.PARAMS, snap)
 
     def test_spring_leg_is_never_affected(self):
         """W7 only re-targets Phase D; the Spring leg's target stays the opposite TR border (WMT p273)."""
@@ -385,27 +518,104 @@ class DetectionKeysSeparateTheScanCache(unittest.TestCase):
     """`_wyckoff_candidates` must stay OPTS-independent; the four detection keys widen the `_WY_CANDIDATES` key
     instead, so two configs differing only in one key never share a cached detection."""
 
+    def _scan_fixture(self, bt):
+        """A tiny scan() setup: 15m history = the W7 fixture bars, window shrunk to fit, methods pinned (no
+        /automation lookup), fresh scan cache. Everything patched is restored on cleanup."""
+        import datetime
+        t0 = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+        c = [dict(time=(t0 + datetime.timedelta(minutes=15 * i)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                  open=b[0], high=b[1], low=b[2], close=b[3], volume=b[4]) for i, b in enumerate(_HtfFixture.bars())]
+        for p in (mock.patch.object(bt, "load", lambda sym, tf: (c, None)),
+                  mock.patch.object(bt, "WYCKOFF_WINDOW", 60),
+                  mock.patch.dict(bt.OPTS, {"methods": ("WYCKOFF",)}),
+                  mock.patch.dict(bt._WY_CANDIDATES, clear=True)):
+            p.start(); self.addCleanup(p.stop)
+
+    def _spy(self, bt):
+        calls = []
+        real = bt._structures.wyckoff_records
+
+        def spy(*a, **k):
+            calls.append(k.get("P"))
+            return real(*a, **k)
+        p = mock.patch.object(bt._structures, "wyckoff_records", spy)
+        p.start(); self.addCleanup(p.stop)
+        return calls
+
     def test_cache_key_is_widened_by_each_detection_key(self):
+        """Behavioural (replaces a source-substring assertion): scan() under two configs that differ in ONE
+        detection key must run detection twice, each under its own key value; a repeat of either is a cache hit."""
         bt = _load("bt_fx_cachekey", "backtest-methods.py")
         self.assertEqual(bt._FX_WYCKOFF_DETECTION_KEYS,
                          ("fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon"))
-        src = open(os.path.join(ROOT, "scripts", "backtest-methods.py"), encoding="utf-8").read()
-        self.assertIn("ck = (sym, tf, n, Tm[0], Tm[-1]) + tuple(OPTS.get(_k, False) for _k in _FX_WYCKOFF_DETECTION_KEYS)", src)
+        self._scan_fixture(bt)
+        calls = self._spy(bt)
+        for k in bt._FX_WYCKOFF_DETECTION_KEYS:
+            with self.subTest(key=k):
+                bt._WY_CANDIDATES.clear()
+                bt.scan("XAUUSD", "15m", only=("WYCKOFF-BOOK",))
+                n_off = len(calls)
+                self.assertGreater(n_off, 0)
+                with mock.patch.dict(bt.OPTS, {k: True}):
+                    bt.scan("XAUUSD", "15m", only=("WYCKOFF-BOOK",))
+                    n_on = len(calls)
+                    bt.scan("XAUUSD", "15m", only=("WYCKOFF-BOOK",))
+                bt.scan("XAUUSD", "15m", only=("WYCKOFF-BOOK",))
+                self.assertGreater(n_on, n_off, k)                # the key change re-detected
+                self.assertEqual(len(calls), n_on, k)             # and both repeats were cache hits
+                self.assertIs(calls[-1][k], True)
+                self.assertIs(calls[0][k], False)
 
-    def test_wyckoff_fires_bridges_the_opts_into_the_detector(self):
-        """wyckoff_fires is the live runner's entry: with OPTS at v1 it must leave PARAMS False; a scan()/caller
-        that set a key gets it bridged, and it is restored to OPTS's value on the next call."""
+    def test_wyckoff_fires_passes_the_opts_to_the_detector_without_touching_params(self):
+        """wyckoff_fires is the live runner's entry: with OPTS at v1 the detector sees every fx key False EVEN IF
+        the shared PARAMS was left True by someone else, and a caller that set a key gets it -- in both cases via
+        a per-call copy: W.PARAMS itself is never written."""
         bt = _load("bt_fx_bridge", "backtest-methods.py")
-        W.PARAMS["fx_w5_vp_abandon"] = True                  # simulate a leaked setting from an earlier scan
-        bt.wyckoff_fires("long", [dict(time="2024-01-01T00:%02d:00Z" % (i % 60), open=1, high=2, low=1, close=1.5, volume=1)
-                                  for i in range(30)], "15m", sym="XAUUSD")
-        self.assertIs(W.PARAMS["fx_w5_vp_abandon"], False)
+        calls = self._spy(bt)
+        candles = [dict(time="2024-01-01T00:%02d:00Z" % (i % 60), open=1, high=2, low=1, close=1.5, volume=1) for i in range(30)]
+        with mock.patch.dict(W.PARAMS, {"fx_w5_vp_abandon": True}):      # a "leaked" setting from elsewhere
+            snap = copy.deepcopy(W.PARAMS)
+            bt.wyckoff_fires("long", candles, "15m", sym="XAUUSD")
+            self.assertIs(calls[-1]["fx_w5_vp_abandon"], False)          # OPTS (v1) wins in the detector's view
+            with mock.patch.dict(bt.OPTS, {"fx_w1_tr_low_st": True}):
+                bt.wyckoff_fires("long", candles, "15m", sym="XAUUSD")
+            self.assertIs(calls[-1]["fx_w1_tr_low_st"], True)
+            self.assertEqual(W.PARAMS, snap)                              # global never written
+
+    def test_scan_never_writes_params_on_a_cache_miss_or_a_cache_hit(self):
+        bt = _load("bt_fx_scanparams", "backtest-methods.py")
+        self._scan_fixture(bt)
+        calls = self._spy(bt)
+        with mock.patch.dict(bt.OPTS, {"fx_w5_vp_abandon": True, "fx_w2_st_below_sc": True}), \
+                mock.patch.dict(W.PARAMS, {"spring_max_bars_outside": 99}):
+            snap = copy.deepcopy(W.PARAMS)
+            bt.scan("XAUUSD", "15m", only=("WYCKOFF-BOOK",))               # miss: detection runs
+            n = len(calls)
+            self.assertGreater(n, 0)
+            self.assertEqual(W.PARAMS, snap)
+            bt.scan("XAUUSD", "15m", only=("WYCKOFF-BOOK",))               # hit: nothing runs, nothing written
+            self.assertEqual(len(calls), n)
+            self.assertEqual(W.PARAMS, snap)
+            self.assertEqual(calls[0]["spring_max_bars_outside"], bt.P["15m"]["sob"])   # the tf's own value, per call
+
+    def test_params_restored_after_an_exception_in_detection(self):
+        bt = _load("bt_fx_exc", "backtest-methods.py")
+        candles = [dict(time="2024-01-01T00:%02d:00Z" % (i % 60), open=1, high=2, low=1, close=1.5, volume=1) for i in range(30)]
+        boom = mock.patch.object(bt._structures, "wyckoff_records", mock.Mock(side_effect=RuntimeError("boom")))
+        boom.start(); self.addCleanup(boom.stop)
+        with mock.patch.dict(bt.OPTS, {"fx_w5_vp_abandon": True}), mock.patch.dict(W.PARAMS, {"spring_max_bars_outside": 99}):
+            snap = copy.deepcopy(W.PARAMS)
+            with self.assertRaises(RuntimeError):
+                bt.wyckoff_fires("long", candles, "15m", sym="XAUUSD")
+            self.assertEqual(W.PARAMS, snap)
 
     def test_an_isolated_scan_does_not_leak_its_keys_into_the_shared_detector(self):
         bt = _load("bt_fx_leak", "backtest-methods.py")
-        bt.load = lambda sym, tf: (None, None)               # scan() returns None right after the opts= wrapper
-        self.assertIsNone(bt.scan("XAUUSD", "15m", opts={"fx_w5_vp_abandon": True}))
-        self.assertIs(W.PARAMS["fx_w5_vp_abandon"], False)
+        self._scan_fixture(bt)
+        snap = copy.deepcopy(W.PARAMS)
+        bt.scan("XAUUSD", "15m", only=("WYCKOFF-BOOK",), opts={"fx_w5_vp_abandon": True})
+        self.assertEqual(W.PARAMS, snap)
+        self.assertIs(bt.OPTS["fx_w5_vp_abandon"], False)              # and OPTS itself is back to the caller's
 
 
 if __name__ == "__main__":

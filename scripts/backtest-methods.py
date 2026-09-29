@@ -131,6 +131,14 @@ OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see
 # here: it never touches detection, only `_fires_from`'s Phase-D target/placeability, so it needs no cache-key
 # widening of `_WY_CANDIDATES`.
 _FX_WYCKOFF_DETECTION_KEYS = ("fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon")
+
+
+def _fx_detection_opts():
+    """The four detection fx_ keys as the CURRENT OPTS states them, for a per-call `P=` copy of
+    wyckoff_rules.PARAMS (see `_wyckoff_candidates`, `_htf_wyckoff_target`). Nothing in this file writes wyckoff_rules.PARAMS any more
+    (code review round 1, item 3): a per-call copy cannot leak past its call, on a cache hit, or through an
+    exception. The live runner never sets these keys, so this reads False (v1) there."""
+    return {k: OPTS.get(k, False) for k in _FX_WYCKOFF_DETECTION_KEYS}
 # `range_touches` (require N tests of EACH TR border before a Spring counts) lived here until A0b
 # (docs/plans/2026-09-28-methodology-improvement-plan.md §A0b): it was set from --range-touches and echoed into
 # every run's config snapshot as though it gated Springs, but no scan()/simulate() code path ever read
@@ -673,8 +681,11 @@ def htf_bias_gate(sym, tf, side, decision_time, methods):
     return bias_allows(bias, side)
 
 
-#: (sym, htf, decision_time, side) -> target price or None, memoized per process -- W7 (below) re-detects the
-#: HTF series on every distinct decision it is asked about; this avoids repeating that for the same question.
+#: (sym, htf, decision_time, side, history identity, sob, w1, w2, w3, w5) -> target price or None, memoized per
+#: process -- W7 (below) re-detects the HTF series on every distinct decision it is asked about; this avoids
+#: repeating that for the same question. The key is built the way `_WY_CANDIDATES`' is in scan(): the four
+#: detection fx_ keys change DETECTION, so two configs differing in one of them must not share an entry, and the
+#: HTF history identity keeps a reloaded/extended series from serving a stale one.
 _HTF_TR_CACHE = {}
 
 
@@ -686,9 +697,10 @@ def _htf_wyckoff_target(sym, tf, side, decision_time):
     as the target" (WA2-19). Reads the HTF structure's own SOS breakout close if one has already occurred by
     `decision_time` (the more refined "already broke out to here" level), else its AR level (`tr_hi` for a
     long/accumulation read, `tr_lo` for a short/distribution read) -- the two literal alternatives WA2-19
-    names. `decision_time` is the LTF Phase-D decision bar's own close (`Tm[last]`, matching every other
-    decision_time this file passes to an HTF read -- see htf_bias_gate's docstring for why the OPEN would be
-    wrong here).
+    names. `decision_time` is the LTF Phase-D decision bar's own CLOSE -- `normalized.available_time(bar, tf)`
+    as an ISO string with "+00:00"->"Z", exactly what htf_bias_gate's `decision_time` is -- NEVER the bar's raw
+    `"time"` (its OPEN); see htf_bias_gate's docstring for why the OPEN would be wrong here. `_fires_from` builds
+    it from `Tm[last]` + `tf` before calling this.
 
     Returns None -- "no HTF TR, no Phase-D trade" (plan §3 W7 row) -- when: `tf` has no higher rung (HTF_OF);
     `sym` is not given; the HTF series has no history; the PIT-truncated HTF prefix is too short to detect
@@ -707,11 +719,12 @@ def _htf_wyckoff_target(sym, tf, side, decision_time):
     h = HTF_OF.get(tf)
     if not h or not sym:
         return None
-    key = (sym, h, decision_time, side)
+    c, _ = load(sym, h)
+    key = ((sym, h, decision_time, side, (len(c), c[0]["time"], c[-1]["time"]) if c else None, P[h]["sob"])
+           + tuple(OPTS.get(_k, False) for _k in _FX_WYCKOFF_DETECTION_KEYS))
     if key in _HTF_TR_CACHE:
         return _HTF_TR_CACHE[key]
     target = None
-    c, _ = load(sym, h)
     if c:
         trunc = _pit.series_as_of(c, h, decision_time, symbol=sym)
         if len(trunc) >= 2 * W.PARAMS["pivot"] + 5:
@@ -719,10 +732,10 @@ def _htf_wyckoff_target(sym, tf, side, decision_time):
             C_ = [x["close"] for x in trunc]; V_ = [x.get("volume", 0) for x in trunc]
             vkind = "tick" if _I.is_tick_volume(sym) else "traded"
             # spring_max_bars_outside is per-timeframe (P[h], not the LTF's P[tf]) -- the same convention
-            # `_wyckoff_candidates` already uses for its own tf. The next `_wyckoff_candidates` call (for the
-            # LTF) resets this back to P[tf]["sob"] before it next matters, exactly as it already does today.
-            W.PARAMS["spring_max_bars_outside"] = P[h]["sob"]
-            recs = _structures.wyckoff_records(O_, H_, L_, C_, V_, volume_kind=vkind, side=side)
+            # `_wyckoff_candidates` already uses for its own tf -- and the detection fx_ keys are read from
+            # OPTS, both via a per-call copy of W.PARAMS: nothing global is written, so nothing needs restoring.
+            wp = dict(W.PARAMS, spring_max_bars_outside=P[h]["sob"], **_fx_detection_opts())
+            recs = _structures.wyckoff_records(O_, H_, L_, C_, V_, P=wp, volume_kind=vkind, side=side)
             if recs:
                 htf_r = recs[-1]   # the most recently formed HTF structure knowable as of decision_time
                 target = C_[htf_r["sos"]] if htf_r["sos"] is not None else (
@@ -881,21 +894,23 @@ def wyckoff_fires(side, candles, tf, sym=None):
     wyckoff_rules record, indexes local to `candles`)."""
     O = [x["open"] for x in candles]; H = [x["high"] for x in candles]; L = [x["low"] for x in candles]
     C = [x["close"] for x in candles]; V = [x.get("volume", 0) for x in candles]; Tm = [x["time"] for x in candles]
-    # Batch 1(b) F items: bridge bt.OPTS's detection-relevant fx_ keys into wyckoff_rules.PARAMS BEFORE calling
-    # `_wyckoff_candidates` -- the same seam `spring_max_bars_outside` already uses, and done at THIS caller
-    # (not inside `_wyckoff_candidates`) because that function's own docstring requires it to stay
-    # OPTS-independent. The live runner (strategy-runner.setups_wyckoff -> this function) never sets these
-    # keys, so bt.OPTS.get(k, False) reads v1 there unchanged.
-    for _k in _FX_WYCKOFF_DETECTION_KEYS:
-        W.PARAMS[_k] = OPTS.get(_k, False)
+    # Batch 1(b) F items: `_wyckoff_candidates` reads bt.OPTS's detection-relevant fx_ keys into a per-call copy
+    # of wyckoff_rules.PARAMS (nothing global is written). The live runner (strategy-runner.setups_wyckoff ->
+    # this function) never sets these keys, so bt.OPTS.get(k, False) reads v1 there unchanged.
     return _fires_from(side, _wyckoff_candidates(side, O, H, L, C, V, tf, sym), C, Tm, sym=sym, tf=tf)
 
 
 def _wyckoff_candidates(side, O, H, L, C, V, tf, sym):
     """The wyckoff_rules records of this window that COULD fire on its last bar (a reclaim, test or BU sitting on
     it) -- everything OPTS-independent, so scan() can cache it per window and re-run the gates cheaply for each
-    config (stability-report's A/B/C, improve-loop's candidates) instead of re-detecting 100 000 windows apiece."""
-    W.PARAMS["spring_max_bars_outside"] = P[tf]["sob"]
+    config (stability-report's A/B/C, improve-loop's candidates) instead of re-detecting 100 000 windows apiece.
+
+    "OPTS-independent" has ONE sanctioned exception: the four detection fx_ keys, read here through
+    `_fx_detection_opts()` and applied, with this tf's spring_max_bars_outside, to a PER-CALL COPY of
+    wyckoff_rules.PARAMS -- the global dict is never written, so there is no state to restore on a cache hit or
+    after an exception. Every caller that caches this function's output (scan()) keys the cache on those four
+    keys (`ck`); the signature is unchanged so diagnose-methods.py's counting wrapper still fits it."""
+    wp = dict(W.PARAMS, spring_max_bars_outside=P[tf]["sob"], **_fx_detection_opts())
     last = len(C) - 1
     vkind = "tick" if (sym and _I.is_tick_volume(sym)) else "traded"   # wyckoff_rules R0 / WMT p131-133
     # A1: routed through scripts/structures.py, the one structure source (ADR 0009), via its raw hot-path
@@ -903,10 +918,9 @@ def _wyckoff_candidates(side, O, H, L, C, V, tf, sym):
     # (A1 code review round 1, item 4): this runs once per window of a backtest (scan()'s _WY_CANDIDATES cache
     # builder below calls it up to ~100 000 times), so it must not build the enriched trading_range envelope --
     # and must not allocate a per-window `candles` list just to timestamp it -- when nothing on this path reads
-    # either. `wyckoff_records()` IS `W.detect_accumulations(...)`/`W.detect_distributions(...)` (P= left
-    # unpassed so the W.PARAMS mutation just above is what both this call and its default read) --
-    # byte-identical to the pre-A1 direct call.
-    recs = _structures.wyckoff_records(O, H, L, C, V, volume_kind=vkind, side=side)
+    # either. `wyckoff_records()` IS `W.detect_accumulations(...)`/`W.detect_distributions(...)` (P= the per-call
+    # `wp` copy of W.PARAMS built above) -- byte-identical to the pre-A1 direct call when no fx_ key is set.
+    recs = _structures.wyckoff_records(O, H, L, C, V, P=wp, volume_kind=vkind, side=side)
     return [r for r in recs if (r["bu"] and r["bu"]["bar"] == last) or r["reclaim"] == last or r["test"] == last]
 
 
@@ -984,7 +998,10 @@ def _fires_from(side, recs, C, Tm, sym=None, tf=None):
                 # (WA1-06: the book defers P&F counting to a later book, so `d_target_tr` was never a sourced
                 # number). "With no HTF TR there is no Phase-D trade" (plan §3 W7 row) -- AWAITING OWNER
                 # SIGN-OFF (docs/audits/2026-09-29-wyckoff-fidelity-funnel.md), not adopted.
-                htf_t = _htf_wyckoff_target(sym, tf, side, Tm[last])
+                # decision_time = the decision bar's CLOSE (normalized.available_time), never Tm[last] (its
+                # OPEN) -- the same computation as scan()'s htf_bias_gate call; see _htf_wyckoff_target.
+                htf_t = _htf_wyckoff_target(sym, tf, side,
+                                            _N.available_time({"time": Tm[last]}, tf).isoformat().replace("+00:00", "Z") if tf else None)
                 if htf_t is None:
                     continue
                 target = htf_t
@@ -1030,12 +1047,6 @@ def scan(sym, tf, only=None, opts=None):
             return scan(sym, tf, only=only, opts=None)
         finally:
             OPTS = saved
-            # Batch 1(b): the isolated call bridged ITS fx_ detection keys into the module-level
-            # wyckoff_rules.PARAMS; put them back to the caller's OPTS so an opts= scan never leaks into a
-            # later direct wyckoff_rules / structures caller in the same process (the same isolation this
-            # parameter exists to give OPTS itself).
-            for _k in _FX_WYCKOFF_DETECTION_KEYS:
-                W.PARAMS[_k] = OPTS.get(_k, False)
     want = set(RUNNER_METHODS) if only is None else set(only)
     c, src = load(sym, tf)
     if not c:
@@ -1061,8 +1072,6 @@ def scan(sym, tf, only=None, opts=None):
         # OPTS-independent in the way this comment used to claim for every key).
         ck = (sym, tf, n, Tm[0], Tm[-1]) + tuple(OPTS.get(_k, False) for _k in _FX_WYCKOFF_DETECTION_KEYS)
         if ck not in _WY_CANDIDATES:
-            for _k in _FX_WYCKOFF_DETECTION_KEYS:
-                W.PARAMS[_k] = OPTS.get(_k, False)
             _WY_CANDIDATES[ck] = {(side, k): _wyckoff_candidates(side, O[k - WIN:k], H[k - WIN:k], L[k - WIN:k], C[k - WIN:k], V[k - WIN:k], tf, sym)
                                   for k in range(WIN, n + 1) for side in ("long", "short")}
         cands = _WY_CANDIDATES[ck]
