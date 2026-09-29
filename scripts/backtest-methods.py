@@ -83,6 +83,10 @@ import methods as _M             # RUNNER_METHODS[method]["requires"]: which met
 import trader_constraints as _TC  # CLAUDE.md §0.9: per-trader, per-methodology constraints, tighten-only
 import providers as _P           # §4: which venue a market's orders go to (INT-4/PAR-2, PAR-4/DEC-4 fee/sizing)
 import risk_model as _RM         # CLAUDE.md §34: THE fee/cost source (risk-config.json), shared with strategy-runner
+import real_costs as _RC         # A0 (docs/plans/2026-09-28-methodology-improvement-plan.md §2): real, sourced
+                                  # per-symbol/per-hour spread + per-night swap, selected by name via
+                                  # `--cost-profile`/OPTS["cost_profile"] -- unset (default) leaves every
+                                  # existing caller's fee/cost path exactly as it was (§1.6 live safety)
 P = {"5m": dict(R=60, K=18, T=20, H=120, sob=8), "15m": dict(R=48, K=16, T=16, H=96, sob=6), "30m": dict(R=48, K=14, T=14, H=84, sob=5), "1H": dict(R=48, K=12, T=12, H=72, sob=4),
      "2H": dict(R=36, K=10, T=10, H=48, sob=3), "4H": dict(R=30, K=8, T=8, H=30, sob=3), "1D": dict(R=20, K=6, T=6, H=20, sob=2)}  # sob = bars a Spring may stay outside the TR (wyckoff_rules R6)
 VOL = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"]["volume"]
@@ -101,7 +105,10 @@ START = 10000.0      # account size in $ (user decision 2026-09-11: $10,000 for 
 RUIN_FRAC = 0.10     # the account is declared BLOWN (cháy) when equity <= 10 % of START; trading stops there and the report says so
 OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see the note there
              types=(1, 2, 3), htf=False, sides=("long", "short"), entry="book", mgmt="none", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit",
-            st_gate=False, phase_b_gate=False, methods=None)
+            st_gate=False, phase_b_gate=False, methods=None,
+            # A0 (plan §2): both False/None by default -- v1 behaviour is byte-identical until a caller sets
+            # these explicitly (main()'s --cost-profile/--flat-before-rollover, or a test's opts= override).
+            flat_before_rollover=False, rollover_provider=None)
 # `range_touches` (require N tests of EACH TR border before a Spring counts) lived here until A0b
 # (docs/plans/2026-09-28-methodology-improvement-plan.md §A0b): it was set from --range-touches and echoed into
 # every run's config snapshot as though it gated Springs, but no scan()/simulate() code path ever read
@@ -382,7 +389,13 @@ def last_pivot(piv, upto):
     return piv[k] if k >= 0 else None
 
 
-def walk(side, entry, stop, target, H_, L_, C_, start, horizon):
+def walk(side, entry, stop, target, H_, L_, C_, start, horizon, Tm=None):
+    """`Tm` (A0, plan §2): the series' own bar-close timestamps, parallel to `H_`/`L_`/`C_` -- only consulted
+    when `OPTS["flat_before_rollover"]` is set (every existing caller passes nothing, or `Tm=None`, and gets
+    byte-identical behaviour). When set, a position still open at the last bar that closes before the
+    server's own daily rollover (`OPTS["rollover_provider"]`, via `real_costs.crosses_rollover`) is closed at
+    THAT bar's close -- `outcome="rollover_flat"` -- rather than carried into the next bar. This is a clock
+    decision only: it never looks at a later bar's price, matching CLAUDE.md §8."""
     r = (entry - stop) if side == "long" else (stop - entry)
     if r <= 0:
         return None
@@ -418,6 +431,16 @@ def walk(side, entry, stop, target, H_, L_, C_, start, horizon):
             return dict(outcome="win", R=rp, exit=j, R_planned=rp, mfe=mfe, mae=mae, bars_held=j - start + 1)
         if OPTS["mgmt"] == "be" and not be and ((H_[j] >= be_level) if side == "long" else (L_[j] <= be_level)):
             be = True; cur_stop = entry
+        if OPTS.get("flat_before_rollover") and Tm is not None:
+            # A0 fund-cell rule (plan §2, §6 items 3/5/7): bar j neither stopped nor targeted -- is it the
+            # LAST bar closing before the server's own daily rollover? Only asks about bar j+1 if bar j+1 is
+            # still inside this trade's own horizon/history window (mirroring the ordinary timeout bound
+            # below); an end-of-window bar is left to the ordinary timeout path, not flattened early.
+            nxt = j + 1
+            if nxt < min(len(C_), start + horizon) and _RC.crosses_rollover(Tm[j], Tm[nxt], OPTS["rollover_provider"]):
+                return dict(outcome="rollover_flat",
+                            R=((C_[j] - entry) if side == "long" else (entry - C_[j])) / r, exit=j,
+                            R_planned=rp, mfe=mfe, mae=mae, bars_held=j - start + 1)
     j = min(len(C_) - 1, start + horizon - 1)
     return dict(outcome="timeout", R=((C_[j] - entry) if side == "long" else (entry - C_[j])) / r, exit=j,
                 R_planned=rp, mfe=mfe, mae=mae, bars_held=j - start + 1)
@@ -734,7 +757,7 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
                             stop=stop, target=target, exit_time=Tm[fill_bar], vol_type=None,
                             outcome="loss", R=-1.0, R_planned=su.get("R"), exit=fill_bar, mfe=0.0, mae=-1.0, bars_held=1))
             continue
-        w = walk(su["side"], entry, stop, target, H, L, C, fill_bar + 1, HZ)
+        w = walk(su["side"], entry, stop, target, H, L, C, fill_bar + 1, HZ, Tm=Tm)
         if not w:
             continue
         out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], event=event, entry=entry, entry_time=Tm[fill_bar],
@@ -960,12 +983,12 @@ def scan(sym, tf, only=None, opts=None):
                                 st_pct=r["st_pct"], sot=r["sot"], path=r["path"])
                     if f["leg"] == "phase_d":
                         if "WYCKOFF-BOOK" in want:
-                            w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ)
+                            w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ, Tm=Tm)
                             if w:
                                 trades["WYCKOFF-BOOK"].append(dict(base, event=base["event"] + "-D", entry=f["entry"], entry_time=Tm[last], stop=f["stop"], target=f["target"], exit_time=Tm[w["exit"]], leg="phase_d", **w))
                         continue
                     if "WYCKOFF-BOOK" in want:
-                        w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ)
+                        w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ, Tm=Tm)
                         if w:
                             trades["WYCKOFF-BOOK"].append(dict(base, entry=f["entry"], entry_time=Tm[last], stop=f["stop"], target=f["target"], exit_time=Tm[w["exit"]], leg="spring", **w))
                     if "COMBINED-BOOK" in want and r["reclaim"] is not None:
@@ -1003,7 +1026,7 @@ def scan(sym, tf, only=None, opts=None):
                                                                     exit_time=Tm[e_bar], via="fvg", outcome="loss", R=-1.0, R_planned=rp,
                                                                     exit=e_bar, mfe=0.0, mae=-1.0, bars_held=1))
                                 continue
-                            cw = walk(side, edge, f["stop"], f["target"], H, L, C, e_bar + 1, HZ)
+                            cw = walk(side, edge, f["stop"], f["target"], H, L, C, e_bar + 1, HZ, Tm=Tm)
                             if cw:
                                 trades["COMBINED-BOOK"].append(dict(base, entry=edge, entry_time=Tm[e_bar], stop=f["stop"], target=f["target"], exit_time=Tm[cw["exit"]], via="fvg", **cw))
     # ---------- ICT only ----------
@@ -1250,8 +1273,17 @@ def _risk_scale(sym, entry, stop, equity, risk_mult, entry_order_type, exit_orde
 
 
 def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader=None, entry_order_type=None,
-             live_parity_sizing=False):
-    """Chronological RISK-per-trade compounding account (a trade's own `size` field scales its risk, default
+             live_parity_sizing=False, cost_profile=None, spread_stat="median"):
+    """`cost_profile` (A0, plan §2): a `real_costs.PROFILES` name. `None` (the default, unchanged from before
+    this parameter existed) prices every trade with the existing flat `fee_pct`/`risk_model.cost_r` path
+    below -- v1 behaviour, byte-identical. When given, every trade's symbol/side/entry/stop/entry_time/
+    exit_time is priced through `real_costs.cost_r` (real per-hour spread + per-night swap) INSTEAD of the
+    flat fee for that trade; a symbol this profile has no export for RAISES `real_costs.CostRefused` rather
+    than silently falling back to the flat fee, because a caller that asked for real costs and got a guessed
+    one would not know it. `spread_stat` ("median" default, "p90" the disclosed stress option) passes through
+    to `real_costs.cost_r`.
+
+    Chronological RISK-per-trade compounding account (a trade's own `size` field scales its risk, default
     1.0 -- no current runnable method sets it below 1.0; kept generic rather than hard-coded so a future
     multi-leg method is not a second copy of this loop); one open position per symbol (a trade whose entry
     falls inside an open trade of the same symbol is skipped, except a later trade sharing the SAME `event` id
@@ -1361,7 +1393,13 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
         # produced before this date was computed under the gross convention and is NOT comparable to a run
         # after it. They are deliberately not regenerated here -- see SYSTEM-DESIGN.md §45.
         dist = abs(t["entry"] - t["stop"]) / t["entry"]
-        if entry_order_type is not None:
+        if cost_profile is not None:
+            # A0 (plan §2): real per-hour spread + per-night swap REPLACES the flat fee for this trade --
+            # refuses rather than falling back, see the parameter's own docstring.
+            cr = _RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"], t["side"],
+                            cost_profile, spread_stat=spread_stat)
+            fee_R = cr["total_R"]
+        elif entry_order_type is not None:
             # INT-4/PAR-2: entry and exit priced SEPARATELY -- the entry pays this run's own order type, the
             # exit ALWAYS pays taker (every exit on this venue is a market-on-trigger order).
             venue = _venue_for_symbol(t["symbol"])
@@ -1529,6 +1567,19 @@ def main():
                                                             "bars (test/sandbox speed only, see load()/"
                                                             "limit_bars() -- changes the SAMPLE, not PIT)")
     ap.add_argument("--fee-pct", type=float, default=0.05, help="taker fee per side in percent"); ap.add_argument("--out"); ap.add_argument("--json")
+    ap.add_argument("--cost-profile", default=os.environ.get("BT_COST_PROFILE") or None,
+                    help="A0 (plan §2): a named real-cost profile (scripts/real_costs.py PROFILES, e.g. "
+                         "ftmo_demo_2026_09) priced instead of --fee-pct/the flat mt5 assumption. Unset "
+                         "(the default) leaves v1 behaviour byte-identical. Env var BT_COST_PROFILE is the "
+                         "fallback default, matching BT_HISTORY_ROOT's own convention.")
+    ap.add_argument("--spread-stat", default="median", choices=["median", "p90"],
+                    help="which recorded_spread_m15 statistic --cost-profile prices spread from; p90 is the "
+                         "disclosed stress option (default median)")
+    ap.add_argument("--flat-before-rollover", action="store_true",
+                    help="A0 fund-cell rule (plan §2, §6 items 3/5/7): close a position still open at the "
+                         "last bar closing before --cost-profile's own server daily rollover, at that bar's "
+                         "close (exit_reason=rollover_flat). Off by default (v1 unchanged). Requires "
+                         "--cost-profile (the server clock is the profile's own provider).")
     ap.add_argument("--min-rr", type=float, default=MIN_RR, help="skip trades whose PLANNED R (target distance / stop distance) is below this")
     ap.add_argument("--types", default="1,2,3", help="Spring/Upthrust volume types allowed for WYCKOFF-BOOK/COMBINED-BOOK")
     ap.add_argument("--htf", action="store_true", help="higher-timeframe boundary filter (long only when the HTF is in the lower third of its range or above it)")
@@ -1559,9 +1610,14 @@ def main():
                                      "and narrows --sessions by whatever `sessions` items the trader declares "
                                      "-- never loosens the CLI's own flags")
     a = ap.parse_args(); fee = a.fee_pct / 100
+    if a.flat_before_rollover and not a.cost_profile:
+        raise SystemExit("--flat-before-rollover requires --cost-profile: the server daily-rollover clock "
+                         "comes from the profile's own provider (scripts/real_costs.py PROFILES).")
     limit_bars(a.bars)
     OPTS.update(min_rr=a.min_rr, types=tuple(int(x) for x in a.types.split(",")), htf=a.htf, sides=tuple(a.sides.split(",")), entry=a.entry, mgmt=a.mgmt, sloped_gate=a.sloped_gate, st_gate=a.st_gate, phase_b_gate=a.phase_b_gate, st_min=a.st_min, phase_d=not a.no_phase_d,
-                methods=tuple(a.methods.split(",")) if a.methods else None)
+                methods=tuple(a.methods.split(",")) if a.methods else None,
+                flat_before_rollover=a.flat_before_rollover,
+                rollover_provider=(_RC.PROFILES[a.cost_profile]["provider"] if a.flat_before_rollover else None))
     account = load_account(a)
     calendar = _ER.load(path=a.calendar) if a.calendar else None
     sessions = tuple(a.sessions.split(",")) if a.sessions else None
@@ -1616,7 +1672,8 @@ def main():
             # (WYCKOFF-BOOK, COMBINED-BOOK). The exit is always taker inside simulate() itself.
             entry_order_type = "maker" if _M.RUNNER_METHODS[m]["entry"] == "limit" else "taker"
             eq, curve, taken = simulate(tr, fee, account=account, calendar=calendar, sessions=sessions, trader=a.trader,
-                                        entry_order_type=entry_order_type, live_parity_sizing=True)
+                                        entry_order_type=entry_order_type, live_parity_sizing=True,
+                                        cost_profile=a.cost_profile, spread_stat=a.spread_stat)
             res[m] = dict(final=eq, curve=curve, taken=taken, stats=summarize(taken, curve=curve), dd=max_dd(curve), ruin=SIM_LAST["ruin"], failed_by=SIM_LAST["failed_by"],
                           refused=dict(SIM_LAST["refused"]),
                           months=period_returns(curve, first, last, month_key), quarters=period_returns(curve, first, last, quarter_key), years=period_returns(curve, first, last, year_key))
@@ -1678,7 +1735,7 @@ def main():
             sys.modules[__name__], timeframes=a.tf.split(","),
             methods=RUNNER_METHODS,
             fee_pct=a.fee_pct, market=_I.market_of(a.symbols.split(",")[0]),
-            calendar=calendar, sessions=sessions, account=account)
+            calendar=calendar, sessions=sessions, account=account, cost_profile=a.cost_profile)
     except (OSError, ValueError, KeyError, AttributeError) as exc:
         cfg_snap = {"snapshot_error": f"{type(exc).__name__}: {exc}"}
     validity = assess_run(cfg_snap, run=f"backtest-methods {a.symbols} {a.tf} ({today})", calendar=calendar)

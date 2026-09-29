@@ -72,7 +72,9 @@ def config_opts(cfg, ict_target):
                          f"(A0b, docs/plans/2026-09-28-methodology-improvement-plan.md); pass 'range'")
     return dict(mgmt=cfg["mgmt"], htf=cfg["htf"], sides=("long", "short"), types=(1, 2, 3),
                 entry="book", sloped_gate=False, st_gate=False, phase_b_gate=False, st_min=None, phase_d=True,
-                combined_entry="limit")
+                combined_entry="limit",
+                # A0: the v1 defaults, stated so the scan cache key always sees them (_SCAN_RELEVANT_KEYS).
+                flat_before_rollover=False, rollover_provider=None)
 
 
 # scan()-relevant keys: everything `bt.scan()` / `ict_setups_live()` / `_fires_from()` / `walk()` actually read
@@ -95,7 +97,10 @@ def config_opts(cfg, ict_target):
 # carried as `_scan_cache_key()`'s own separate parameter, not a member of this tuple: it comes from
 # /automation per-SYMBOL, not from a CONFIGS overlay, so it has no `overlay[k]` to read here -- folding it into
 # this list would make every lookup site pass a fake key into `overlay` just to satisfy the loop.
-_SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "sloped_gate", "st_min", "types", "entry", "phase_d")
+_SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "sloped_gate", "st_min", "types", "entry", "phase_d",
+                       # A0 (2026-09-29): walk() closes a position before the server's daily rollover when these are
+                       # set, so they change R/outcome/exit_time inside scan() and MUST separate cache entries.
+                       "flat_before_rollover", "rollover_provider")
 
 
 def _hashable(v):

@@ -120,6 +120,46 @@ class UsDatesFixedOffsetZone(datetime.tzinfo):
             return self._ZERO
         return self.utcoffset(dt) - self._std
 
+    def fromutc(self, dt):
+        """UTC -> local, called by `aware_utc_dt.astimezone(this_zone)` (Python's default `astimezone()`
+        implementation always routes through the TARGET zone's `fromutc()`). Overridden because the base
+        `tzinfo.fromutc()` guesses the offset from `dt`'s OWN wall-clock digits treated as local time -- and
+        near a transition that is exactly backwards: `dt` here still carries the UTC digits (only its
+        `tzinfo` has been swapped to `self`), so the default algorithm's self-consistency check reads the
+        WRONG side of the transition for instants up to `dst - std` after the true UTC transition (code
+        review 2026-09-29: 2026-03-08 06:00-08:00Z round-tripped one hour late and jumped by TWO hours
+        instead of one -- `real_costs.crosses_rollover`/`nights_held`, which convert stored UTC bar times to
+        this zone via `.astimezone()`, inherited the error). The correct question is not "what does this
+        wall-clock value look like" but "is THIS UTC INSTANT inside NY's DST season" -- answered directly by
+        asking the real `America/New_York` zone (whose own transition handling is correct) rather than by
+        re-deriving US DST rules a second time (CLAUDE.md §58), then applying THIS zone's own std/dst
+        magnitude.
+
+        `fold` MUST be set on the result (fix within the fix, caught by `FromUtcIsExactAcrossDstTransitions`
+        in scripts/tests/test_real_costs.py): the UTC instant itself is never ambiguous, but the LOCAL
+        wall-clock value this method returns can be -- this zone's own fall-back hour repeats a wall-clock
+        label just like a real zone's does (e.g. FTMO's own 08:00-08:59 local happens once under +03:00 and
+        again, an hour later in UTC, under +02:00). Without an explicit `fold`, `utcoffset()`/`dst()` called
+        on the RESULT (e.g. by `isoformat()`/`strftime()`, or by a second `.astimezone()`) re-derive the
+        offset from `_offsets()`'s wall-clock self-consistency check, which is ambiguous on exactly that
+        repeated label and silently defaulted to `fold=0` (`self._dst`) -- so a `fromutc()` that had
+        correctly computed the STD side still rendered as DST the moment its wall-clock digits were
+        re-interpreted. `fold=0` for the DST (earlier) interpretation, `fold=1` for STD (later) --
+        matching `utcoffset()`'s own existing convention (`self._dst if dt.fold == 0 else self._std`).
+
+        Does NOT change `utcoffset()`/`dst()`/`classify()` themselves or anything built on them: `_local()`'s
+        LOCAL -> UTC path (the MT5 history/live importers) uses `classify()`, never `fromutc()`, and is
+        unaffected -- confirmed by `scripts/tests/test_ftmo_history.py` / `test_audit_par5_mt5_time.py`
+        still passing byte-for-byte after this change."""
+        if not isinstance(dt, datetime.datetime):
+            raise TypeError("fromutc() argument must be a datetime")
+        if dt.tzinfo is not self:
+            raise ValueError("dt.tzinfo is not self")
+        aware_utc = dt.replace(tzinfo=UTC)
+        dst_active = aware_utc.astimezone(self._NY).dst() != self._ZERO
+        result = dt + (self._dst if dst_active else self._std)
+        return result.replace(fold=0 if dst_active else 1)
+
     def tzname(self, dt):
         return f"FTMO-US-DATES({self._std}/{self._dst})"
 

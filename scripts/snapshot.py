@@ -42,6 +42,7 @@ import normalized as N
 import providers as P
 import trading_system as _TS   # CLAUDE.md §35: which dependencies the system declares REQUIRED_FOR_DECISION
 import history_store as _HS    # shared reader/digest (single-file or split-gz), CLAUDE.md §58
+import real_costs as _RC       # A0 (plan §2 2026-09-28): cost_profile name + its source files' sha256
 
 SNAPSHOT_FORMAT = 1
 
@@ -233,7 +234,7 @@ def _trading_systems(market, timeframes):
 
 def backtest_config_snapshot(bt, *, timeframes, methods, configs=None, fee_pct=None,
                              ict_target=None, dataset_snapshot_id=None, market=None,
-                             calendar=None, sessions=None, account=None):
+                             calendar=None, sessions=None, account=None, cost_profile=None):
     """A §11 record for a `scripts/backtest-methods.py`-driven run, built from its RESOLVED state.
 
     Captured by value, which is the point. `bt.RISK` and `bt.MIN_RR` are read at import from
@@ -375,7 +376,16 @@ def backtest_config_snapshot(bt, *, timeframes, methods, configs=None, fee_pct=N
                                   "funding": "NOT MODELLED -- the traded crypto contract is a perpetual "
                                              "(SYSTEM-DESIGN.md §20.1)",
                                   "fill_model": "limit fills require the gap to be complete by the MSS close "
-                                                "(causal cut, backtest-methods.py:180 fvg_fill)"},
+                                                "(causal cut, backtest-methods.py:180 fvg_fill)",
+                                  # A0 (plan §2, §11): which real-cost profile (if any) priced this run, and
+                                  # the sha256 of the exact export files it read -- so a report can be traced
+                                  # to the broker export it was measured against, not merely a profile name
+                                  # that might later be re-exported under the same name.
+                                  "cost_profile": (_RC.profile_snapshot(cost_profile) if cost_profile else
+                                                   not_applicable("--cost-profile not supplied; every trade "
+                                                                  "priced by the flat fee_pct_per_side above "
+                                                                  "(v1 unchanged, A0 plan §1.6)")),
+                                  "flat_before_rollover": bool(opts.get("flat_before_rollover"))},
         "parameters": {"per_timeframe": {tf: dict(bt.P[tf]) for tf in timeframes if tf in bt.P},
                        "volume_thresholds": dict(bt.VOL), "displacement": dict(bt.DISP),
                        "preprocessing_version": N.SNAPSHOT_INPUTS_VERSION},
