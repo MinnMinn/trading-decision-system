@@ -370,8 +370,15 @@ def backtest_config_snapshot(bt, *, timeframes, methods, configs=None, fee_pct=N
         # raises on an unknown field), not an open extension point. Each key's own source is knowledge/ict/*.md
         # -- see docs/plans/2026-09-28-methodology-improvement-plan.md §3 for the item-by-item citation table.
         "custom_constraints": dict({k: opts.get(k) for k in
-                                    ("types", "htf", "sloped_gate", "st_min", "phase_d")
-                                    + getattr(bt, "FX_ICT_KEYS", ())},
+                                    ("types", "htf", "sloped_gate", "st_min", "phase_d",
+                                     # Batch 1(b) F items (docs/plans/2026-09-28-methodology-improvement-plan.md
+                                     # §3; shared fx_ contract, docs/plans/2026-09-29-execution-plan.md): read
+                                     # on the scan/simulate path (backtest-methods._wyckoff_candidates callers /
+                                     # _fires_from) and default to v1 (False) -- the live/pilot path never sets
+                                     # them, so a residual snapshot never claims one was applied that was not.
+                                     "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring",
+                                     "fx_w5_vp_abandon", "fx_w7_htf_target")
+                                    + tuple(getattr(bt, "FX_ICT_KEYS", ()))},
                                    varied_per_config=residual),
         "provider_selection": {"see": "dataset_snapshot_id", "note":
                                "which providers supplied the bars is recorded in the §10 dataset snapshot, "

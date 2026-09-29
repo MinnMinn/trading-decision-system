@@ -78,7 +78,13 @@ def config_opts(cfg, ict_target):
                 # B1/Batch-1a (docs/plans/2026-09-29-execution-plan.md "Shared contract"): the v1 default
                 # (False) for every ICT fx_ key (scripts/backtest-methods.py FX_ICT_KEYS), stated here for the
                 # same "always the complete, honest overlay" reason as every other key in this dict.
-                fx_b2a_fvg_in_leg=False, fx_b2b_ce_fail=False, fx_b1_pivot1=False, fx_braid_optional=False)
+                fx_b2a_fvg_in_leg=False, fx_b2b_ce_fail=False, fx_b1_pivot1=False, fx_braid_optional=False,
+                # Batch 1(b) F items (docs/plans/2026-09-28-methodology-improvement-plan.md §3; the shared fx_
+                # key contract, docs/plans/2026-09-29-execution-plan.md): the v1 defaults, stated so this stays
+                # the COMPLETE, honest bt.OPTS overlay a config applies -- not a hand-picked subset that could
+                # silently omit a scan-cache-relevant key (see _SCAN_RELEVANT_KEYS below).
+                fx_w1_tr_low_st=False, fx_w2_st_below_sc=False, fx_w3_mSOW_spring=False, fx_w5_vp_abandon=False,
+                fx_w7_htf_target=False)
 
 
 # scan()-relevant keys: everything `bt.scan()` / `ict_setups_live()` / `_fires_from()` / `walk()` actually read
@@ -109,7 +115,14 @@ _SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "slope
                        # four directly off OPTS (backtest-methods.py FX_ICT_KEYS) and passes them into
                        # ict-scan.py's analyze()/setup_candidate(), which can change which ICT setups fire --
                        # MUST separate cache entries, same reasoning as every other key above.
-                       "fx_b2a_fvg_in_leg", "fx_b2b_ce_fail", "fx_b1_pivot1", "fx_braid_optional")
+                       "fx_b2a_fvg_in_leg", "fx_b2b_ce_fail", "fx_b1_pivot1", "fx_braid_optional",
+                       # Batch 1(b) F items (2026-09-29, docs/plans/2026-09-28-methodology-improvement-plan.md
+                       # §3): fx_w1/w2/w3/w5 change `_wyckoff_candidates` detection itself (bridged into
+                       # wyckoff_rules.PARAMS -- see backtest-methods._FX_WYCKOFF_DETECTION_KEYS and the
+                       # `_WY_CANDIDATES` cache key in scan()); fx_w7 changes `_fires_from`'s Phase-D
+                       # target/placeability. All five change scan()'s trades and MUST separate cache entries.
+                       "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon",
+                       "fx_w7_htf_target")
 
 
 def _hashable(v):

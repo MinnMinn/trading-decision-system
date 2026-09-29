@@ -60,6 +60,39 @@ Rules implemented (knowledge/wyckoff/advance.md = WA, knowledge/wyckoff/modern-t
   R12 Stop under the Spring low (WMT p271); first target = opposite border (WMT p273, WA p83–84); breakeven
       handled by the caller's walk(). NOTE: the book (WMT p272) says "move to entry once price has moved
       favorably or consolidated" and gives NO number -- the +1R trigger is a PROJECT parameter.
+
+FIDELITY CORRECTIONS (docs/plans/2026-09-28-methodology-improvement-plan.md §3 batch 1(b); the shared `fx_`
+key contract, docs/plans/2026-09-29-execution-plan.md). Each is a bool in PARAMS, default False = v1 (the
+funnel/trade-count delta between False and True is recorded in docs/audits/2026-09-29-wyckoff-fidelity-funnel.md
+per item, and the live/pilot path never sets any of them -- backtest-methods.py's OPTS carries the caller-facing
+copy and bridges it into this module's PARAMS before every detection call, exactly like `spring_max_bars_outside`
+already is):
+  fx_w1_tr_low_st   W1 (WA p72): "Mức thấp của SC và ST và mức cao của AR thiết lập ranh giới của TR" -- the TR
+                     low is min(SC low, ST low), not SC low alone (the code drew tr_lo from SC only, before ST
+                     is even known). Widens tr_lo/tr for every downstream Phase B/C/D read once ST is found;
+                     st_pct/st_sign (WA p150's đối nhãn thirds, framed over the Phase-A SC-AR range) are computed
+                     BEFORE the widening and are unaffected by this key.
+  fx_w2_st_below_sc W2 (WA2-06, WA p72, p74-75, p77): "Nếu ST[A] holds above SC (most common), supply is drying
+                     up; IF ST[A] breaks below SC, THEN expect new lows or a prolonged consolidation with many
+                     further STs" -- the book does not say discard the structure. The R1 CHoBEV loop's `broke`
+                     early-exit currently discards ANY structure where a low-swing dips below SC before the 3rd
+                     CHoBEV (docs/audits/2026-09-28-method-fidelity.md finding W-8); this key removes only that
+                     discard, the CHoBEV search itself is unchanged.
+  fx_w3_mSOW_spring W3 (WA p166 boxed method summary): "Hoặc ở vị trí MSOW[B] cũng là Spring tiềm năng trong
+                     tích lũy để xem hành động ở biên dưới có cạn kiệt/hấp thụ phán đoán sự từ chối để mở vị
+                     thế Long tại đây" -- an early Phase-B border break (R4's mSOW[B]) is ALSO a potential
+                     Spring, not "never Spring/UT" (WA3-08, WA p189-190, read together: at the time you cannot
+                     assert MSOW vs Spring, which is exactly "also potential", not "discard"). When set, an
+                     early break feeds the SAME Spring/Shakeout/vol-type/reclaim/test/Phase-D pipeline below
+                     instead of being discarded at R4.
+  fx_w5_vp_abandon  W5 (WMT p243-249, Step 4): "If price crosses cleanly through VAH/VAL into LVN WITHOUT a
+                     reversal reaction, ... abandon the Spring/Upthrust plan" -- the book states no bar count
+                     for "reversal reaction". The code's "back above VAL within 2 bars of the reclaim" window
+                     is UNSOURCED and is removed: the reclaim bar itself (`rec`, the same close-back-inside-the-
+                     TR event R6 already defines) is tested against VAL instead of a separate fixed window.
+  (W7 -- Phase-D target from the higher-timeframe TR's AR/SOS, WA2-19 -- is a SEPARATE key,
+  `fx_w7_htf_target`, read by backtest-methods.py `_fires_from`/`_htf_wyckoff_target`, not by this module: it
+  needs a second, higher-timeframe candle series this module has no access to. See that module's docstring.)
 """
 import bisect, json, os
 
@@ -83,6 +116,15 @@ PARAMS = dict(
     phase_d_window=40,          # bars to wait for SOS + BU after the Spring/Test (project)
     d_target_tr=1.0,            # Phase D target = TR top + this × TR (project)
     lookback=20,                # average window for volume/spread ratios (analysis-params lookback_bars)
+    # F items (module docstring, "FIDELITY CORRECTIONS"): v1 default False everywhere. A caller that never sets
+    # these (every test, check-narrative.py, the live runner via backtest-methods.OPTS left at its defaults)
+    # reads exactly v1 behaviour -- backtest-methods._wyckoff_candidates'/wyckoff_fires' callers bridge
+    # bt.OPTS["fx_w*"] into this dict before every detection call, the same way they already do for
+    # spring_max_bars_outside.
+    fx_w1_tr_low_st=False,
+    fx_w2_st_below_sc=False,
+    fx_w3_mSOW_spring=False,
+    fx_w5_vp_abandon=False,
 )
 
 
@@ -229,8 +271,12 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
             lo_s, hi_s = sw[j], sw[j + 1]
             if lo_s[1] != "L" or hi_s[1] != "H":
                 j += 1; continue
-            if lo_s[2] < sc_low - 1e-12 and lo_s[0] != sc_i:
+            if lo_s[2] < sc_low - 1e-12 and lo_s[0] != sc_i and not P.get("fx_w2_st_below_sc"):
                 broke = True; break            # downtrend continues: the CHoCH never completed
+            # W2 (WA2-06, module docstring): fx_w2_st_below_sc on -- a low-swing below SC before the 3rd CHoBEV
+            # (which may become ST[A] itself, found below) does not discard the structure; the book's own
+            # reading of that case is "expect new lows or a prolonged consolidation with many further STs", not
+            # "this was never an accumulation". The CHoBEV search below is otherwise unchanged.
             sp = hi_s[2] - lo_s[2]; vol = sum(V[lo_s[0]:hi_s[0] + 1])
             if sp > ref_spread and vol > ref_vol:
                 chobev.append(hi_s[0])
@@ -253,6 +299,13 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
         # --- đối nhãn Dấu hiệu 1 (R3, WA p150): which third of the TR is ST[A] sitting in? ---
         third = P["doi_nhan_third"]
         st_sign = "supports" if st_pct >= 2 * third else ("contradicts" if st_pct <= third else "neutral")
+        # W1 (WA p72, module docstring): "Mức thấp của SC và ST và mức cao của AR thiết lập ranh giới của TR" --
+        # the TR low is min(SC low, ST low), not SC low alone. st_pct/st_sign above are framed over the
+        # Phase-A SC-AR range (WA p150's đối nhãn thirds) and are computed BEFORE this widening, so they are
+        # unaffected; only the boundary every DOWNSTREAM Phase B/C/D read below uses (the break test, the
+        # đối nhãn Dấu hiệu 2 thirds, the Test-after-Spring zone, the Phase-D target multiplier) is widened.
+        if P.get("fx_w1_tr_low_st") and st[2] < tr_lo:
+            tr_lo = st[2]; tr = tr_hi - tr_lo
         # --- Phase B: swings after ST; sloped check (R4, R5) ---
         after = [s for s in sw if s[0] > st[0]]
         if not after:
@@ -289,7 +342,12 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
                 b_swings += 1
             if L[b] < tr_lo:
                 if b_swings < P["min_phase_b_swings"]:
-                    bump("4_break_before_phase_b"); break  # mSOW[B]: too early to be Phase C (R4) → discard this structure
+                    if not P.get("fx_w3_mSOW_spring"):
+                        bump("4_break_before_phase_b"); break  # mSOW[B]: too early to be Phase C (R4) → discard this structure
+                    # W3 (WA p166, module docstring): "MSOW[B] cũng là Spring tiềm năng" -- an early break is
+                    # ALSO a potential Spring, not "never Spring/UT" (R4). Feed it through the SAME
+                    # Spring/Shakeout/vol-type/reclaim/test/Phase-D pipeline below instead of discarding here.
+                    bump("4b_mSOW_as_spring")
                 if max(b_lows) - min(b_lows) > P["slope_max_tr"] * tr:
                     sloped = True
                 spring = b; break
@@ -349,7 +407,14 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
         abandon = False
         if lvn is not None and rec is not None:
             crossed = any(C[q] < lvn for q in range(spring, rec + 1))
-            back = any(C[q] > val for q in range(rec, min(rec + 3, n)))
+            if P.get("fx_w5_vp_abandon"):
+                # W5 (WMT p243-249, module docstring): the book gives no bar count for "without a reversal
+                # reaction" -- the unsourced fixed "within 2 bars" window below is removed; the reclaim bar
+                # itself (`rec`, the same close-back-inside-the-TR event R6 already defines) is tested against
+                # VAL instead of a separate window.
+                back = C[rec] > val
+            else:
+                back = any(C[q] > val for q in range(rec, min(rec + 3, n)))
             abandon = crossed and not back
         # --- Test after the Spring (R8) ---
         test = None

@@ -384,8 +384,12 @@ class WyProbe:
                 probe.win_with_cand[side] += 1
             return out
 
-        def _fires_from(side, recs, C, Tm):
-            out = o_fires(side, recs, C, Tm)
+        def _fires_from(side, recs, C, Tm, sym=None, tf=None):
+            # W7 (fx_w7_htf_target, docs/plans/2026-09-28-methodology-improvement-plan.md §3): backtest-methods
+            # now passes sym/tf through to `_fires_from` so its Phase-D branch can load the HTF companion
+            # series -- forwarded unchanged here; this probe's own SPRING-leg replication (`_leg_reason`) does
+            # not need either (phase_d is observed-only in this probe, per its own docstring).
+            out = o_fires(side, recs, C, Tm, sym=sym, tf=tf)
             n_spring_inferred = 0
             for r in recs:
                 key = (side, Tm[r["sc"]], Tm[r["ar"]])
