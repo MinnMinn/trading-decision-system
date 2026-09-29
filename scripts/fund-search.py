@@ -114,13 +114,36 @@ def load_grids(grid_dir=None):
     return grids, paths
 
 
+#: Existing (non-fx_) OPTS keys a grid item may drive. Everything else must be a new `fx_` key (execution plan
+#: "Shared contract"). An ALLOW-LIST, not a deny-list (fix round 1, S1): a key nobody listed cannot be set.
+#: Extending it is a deliberate, reviewed edit -- e.g. B-MGMT / W-MGMT use `mgmt`.
+ALLOWED_EXISTING_OPTS = ("mgmt",)
+
+
 def validate_grid(grid, where="grid"):
-    """A grid item may not touch a FIXED rule (real costs / flat-before-rollover stay on in every cell)."""
+    """Only grid-declared item keys plus the listed existing OPTS keys may be set, and never a FIXED rule (real
+    costs / flat-before-rollover stay on in every cell)."""
     for it in grid.items:
         key = grid.opts_key(it["id"])
         if key in FIXED_KEYS:
             raise GridRefused(f"{where}: item {it['id']!r} sets OPTS key {key!r}, which is FIXED in every fund cell "
                               f"(plan §6 item 7): refusing")
+        if not (key.startswith("fx_") or key in ALLOWED_EXISTING_OPTS):
+            raise GridRefused(f"{where}: item {it['id']!r} sets OPTS key {key!r}, which is neither an `fx_` key nor "
+                              f"in the allow-list {ALLOWED_EXISTING_OPTS} (fix round 1, S1): refusing")
+
+
+def build_overlay(grid, values):
+    """The OPTS overlay for one full V assignment: fixed rules + ONLY the keys the grid declares."""
+    allowed = {grid.opts_key(i["id"]) for i in grid.items}
+    unknown = [i for i in values if i not in grid.by_id]
+    if unknown:
+        raise GridRefused(f"V assignment names items not in the grid: {unknown}")
+    overlay = grid.overlay(values)
+    extra = set(overlay) - allowed
+    if extra:
+        raise GridRefused(f"overlay keys {sorted(extra)} are not declared by the grid")
+    return dict(overlay, **fixed_opts())
 
 
 # -------------------------------------------------------------------------------------------- cell enumeration
@@ -164,10 +187,13 @@ def build_cells(first_bar=None):
                                  "reason": "no symbol has development history before " + FS.DEV_CUTOFF,
                                  "symbols_without_development": without})
                 continue
+            dev_start = min((fb for _, fb in with_dev), key=FS.ts)
+            nf = len(FS.make_folds(dev_start))
             cells.append({"id": cid, "timeframe": tf, "asset_class": ac,
                           "symbols": [s for s, _ in with_dev],
                           "symbols_without_development": without,
-                          "development_start": min((fb for _, fb in with_dev), key=FS.ts)})
+                          "development_start": dev_start,
+                          "n_folds": nf, "frequency_rule": FS.fold_arithmetic(nf)})
     return cells, excluded
 
 
@@ -211,8 +237,11 @@ def format_dry_run(plan, grid_note=""):
     L = [f"fund-search plan --dry-run: NOTHING is evaluated; no file is written{grid_note}",
          f"cells ({plan['cell_count']}), cost profile {plan['cost_profile']}, development cutoff {plan['dev_cutoff']}:"]
     for c in plan["cells"]:
+        fr = c["frequency_rule"]
         L.append(f"  {c['id']:<14} m={len(c['symbols'])} symbols {','.join(c['symbols'])}  "
-                 f"dev start {c['development_start']}")
+                 f"dev start {c['development_start']}  folds {c['n_folds']} (frequency rule: >= "
+                 f"{fr['folds_required_within_gap']} of {fr['n_folds']} folds with every gap <= "
+                 f"{fr['max_gap_days']}d; {fr['folds_allowed_to_fail']} may fail)")
         for s, why in c["symbols_without_development"].items():
             L.append(f"      not in m: {s} ({why})")
     for e in plan["excluded_cells"]:
@@ -300,6 +329,41 @@ def require_declaration(plan):
     return decl
 
 
+def _git(*a):
+    import subprocess
+    try:
+        out = subprocess.run(["git", "-C", ROOT, *a], capture_output=True, text=True, timeout=20)
+        return out.stdout.strip() if out.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+FINGERPRINT_FILES = ("scripts/fund_stats.py", "scripts/fund-search.py", "scripts/prop-search.py")
+
+
+def code_fingerprint(files=FINGERPRINT_FILES):
+    """I4: the last-commit SHA of each file that decides a result, plus whether it has uncommitted changes. A
+    missing git yields None, never a guess."""
+    out = {}
+    for f in files:
+        sha = _git("log", "-1", "--format=%H", "--", f)
+        status = _git("status", "--porcelain", "--", f)
+        out[f] = {"git_sha": sha or None, "dirty": (bool(status) if status is not None else None)}
+    return out
+
+
+def evaluation_config(plan):
+    """I4: every setting that decides a verdict, stated once so the declaration pins it."""
+    ps = _prop_search()
+    return {"stability_fraction": list(FS.STABILITY_FRACTION), "block_days": FS.BLOCK_DAYS,
+            "live_parity_sizing": {"trades_for": False, "prop_pass": True}, "spread_stat": "median",
+            "prop_funds": list(ps.FUNDS), "prop_horizon_days": ps.CHALLENGE_HORIZON_DAYS,
+            "prop_pass_min": FS.PASS_PROB_MIN, "verdict_precedence": FS.VERDICT_PRECEDENCE,
+            "regime_split": FS.REGIME_SPLIT_DEFINITION,
+            "ruin_handling": "bt.RUIN_FRAC = 0.0 on the harness's own bt instance; post_ruin trades fail loud",
+            "grid_sha256": {m: g["sha256"] for m, g in plan["grids"].items()}}
+
+
 def cmd_declare():
     """Record the final cell count in the ledger. Refuses if any evaluation record already exists (the count must
     precede evaluation) or if a different declaration is already there (a ledger event, not an overwrite)."""
@@ -311,6 +375,7 @@ def cmd_declare():
     new = {"plan_hash": plan["plan_hash"], "cell_count": plan["cell_count"],
            "cells": [c["id"] for c in plan["cells"]], "n_by_method": plan["n_by_method"],
            "confidence_by_method": plan["confidence_by_method"], "excluded_cells": plan["excluded_cells"],
+           "code": code_fingerprint(), "evaluation_config": evaluation_config(plan),
            "source": PLAN_DOC + " §6 items 2, 7", "declared_at": _now_iso()}
     old = data.get(LEDGER_SECTION)
     if old:
@@ -347,6 +412,68 @@ def _load_bt():
     return bt
 
 
+# ------------------------------------------------------------------ simulate() guards (fix round 1: I1, I2, I6, S1)
+def neutralise_ruin(bt):
+    """I1: simulate()'s account=None path stops at RUIN_FRAC and silently moves later trades to
+    SIM_LAST["post_ruin"]. R does not depend on equity, so a research run turns the ruin stop off on ITS OWN
+    freshly-loaded `bt` instance (RUIN_FRAC = 0.0); no other caller's v1 output changes."""
+    bt.RUIN_FRAC = 0.0
+
+
+def checked_simulate(bt, trades, fee, **kw):
+    """`bt.simulate` that FAILS LOUD when the run ended in ruin / dropped trades (I1), so a lost trade is never a
+    silent outcome. Returns simulate's own (equity, curve, taken)."""
+    out = bt.simulate(trades, fee, **kw)
+    last = getattr(bt, "SIM_LAST", None) or {}
+    post = last.get("post_ruin") or []
+    if post or last.get("ruin") is not None:
+        raise RuntimeError(f"simulate() stopped the account (ruin={last.get('ruin')!r}, failed_by="
+                           f"{last.get('failed_by')!r}) and moved {len(post)} later trade(s) to post_ruin: a "
+                           f"research run must never lose trades silently (fix round 1, I1)")
+    return out
+
+
+def assert_no_rollover_crossing(taken, provider):
+    """S1: flat-before-rollover is FIXED on; a taken trade whose entry and exit fall on different server-local
+    dates was held over the daily rollover -- fail loud rather than report it."""
+    import real_costs as _RC
+    bad = [t for t in taken if _RC.crosses_rollover(t["entry_time"], t["exit_time"], provider)]
+    if bad:
+        raise RuntimeError(f"{len(bad)} taken trade(s) cross the server rollover although flat_before_rollover is "
+                           f"fixed on (first: {bad[0]['symbol']} {bad[0]['entry_time']} -> {bad[0]['exit_time']})")
+
+
+NEAR_FLOOR_MARGIN = 0.25
+
+
+def admission_stats(rows, min_rr, fold=None):
+    """I2: simulate()'s admission test is `R_planned - fee_R < min_rr` with fee_R INCLUDING the exit-hour spread,
+    i.e. admission depends on the future exit time (plan §37 look-ahead). simulate() is not changed (v1 stays
+    byte-identical); this only MEASURES it: candidates, how many the filter refused, and the margin
+    (R_planned - fee_R - min_rr) near the floor."""
+    if fold is not None:
+        a, b = FS.ts(fold["test_start"]), FS.ts(fold["test_end"])
+        rows = [r for r in rows if a <= FS.ts(r["entry_time"]) < b]
+    margins = [r["R_planned"] - r["fee_R"] - min_rr for r in rows]
+    near = sorted(m for m in margins if abs(m) < NEAR_FLOOR_MARGIN)
+    return {"candidates": len(rows), "refused_min_rr": sum(1 for m in margins if m < 0),
+            "min_rr": min_rr, "near_floor_margin": NEAR_FLOOR_MARGIN, "near_floor_n": len(near),
+            "near_floor_refused": sum(1 for m in near if m < 0),
+            "near_floor_margin_min": near[0] if near else None,
+            "near_floor_margin_median": near[len(near) // 2] if near else None,
+            "near_floor_margin_max": near[-1] if near else None}
+
+
+def prop_row_from_metric(p):
+    """I6: a performance.metrics prop_pass_probability entry -> {value, reason, low_confidence, spread_min}."""
+    if isinstance(p, dict) and isinstance(p.get("value"), (int, float)):
+        spread = (p.get("spread") or {}).get("prop_pass_probability")
+        return {"value": p["value"], "low_confidence": bool(p.get("low_confidence")),
+                "spread_min": spread[0] if isinstance(spread, (list, tuple)) and spread else None}
+    reason = p.get("unavailable") if isinstance(p, dict) else None
+    return {"value": None, "reason": reason or "metric absent"}
+
+
 class BtEngine:
     """scripts/backtest-methods.py `scan` + `simulate`, unmodified, truncated at DEV_CUTOFF (`bt.pit_cutoff`,
     the load-time PIT seam), with REAL costs and flat-before-rollover fixed on. `trades_for(values)` returns the
@@ -361,6 +488,8 @@ class BtEngine:
                               f"keys absent from bt._OPTS_BASE={missing}): refusing to evaluate a partial grid "
                               f"(N counts every declared item)")
         self.bt.pit_cutoff(FS.DEV_CUTOFF)
+        neutralise_ruin(self.bt)
+        self._admission = {}
         self._adx, self._last = {}, {}
         for s in self.symbols:
             candles, _src = self.bt.load(s, tf)
@@ -370,7 +499,7 @@ class BtEngine:
             self._last[s] = candles[-1]["time"]
 
     def trades_for(self, values):
-        overlay = dict(self.grid.overlay(values), **fixed_opts())
+        overlay = build_overlay(self.grid, values)
         raw = []
         for s in self.symbols:
             scan = self.bt.scan(s, self.tf, only=(self.method,), opts=overlay)
@@ -379,24 +508,33 @@ class BtEngine:
         # excluded, exactly as prop-search excludes it (addendum §8.2) -- horizon-independent, because the
         # time-stop H is itself a V item.
         raw = [t for t in raw if not (t.get("outcome") == "timeout" and t["exit_time"] >= self._last[t["symbol"]])]
-        _final, _curve, taken = self.bt.simulate(raw, 0.0, cost_profile=COST_PROFILE, live_parity_sizing=False)
-        out = []
-        for t in taken:
-            out.append(dict(t, adx14=FS.adx_before(self._adx[t["symbol"]], t["entry_time"])))
-        return out
+        import real_costs as _RC
+        self._admission[FS.CountingSource._key(values)] = [
+            {"entry_time": t["entry_time"], "R_planned": t.get("R_planned", 99),
+             "fee_R": _RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"], t["side"],
+                                 COST_PROFILE)["total_R"]} for t in raw]
+        taken = checked_simulate(self.bt, raw, 0.0, cost_profile=COST_PROFILE, live_parity_sizing=False)[2]
+        assert_no_rollover_crossing(taken, fixed_opts()["rollover_provider"])
+        return [dict(t, adx14=FS.adx_before(self._adx[t["symbol"]], t["entry_time"])) for t in taken]
+
+    def admission_stats(self, values, fold=None):
+        """I2: how many candidates the simulate() min_rr filter refused for this V assignment (optionally inside
+        one fold's test window), and how the R_planned margin behaves near the floor."""
+        rows = self._admission.get(FS.CountingSource._key(values), [])
+        return admission_stats(rows, self.bt.OPTS["min_rr"], fold)
 
     def prop_pass(self, pooled):
-        """prop_pass_probability per fund at the pre-registration's gating horizon, over the pooled test trades."""
+        """prop_pass_probability per fund at the pre-registration's gating horizon, over the pooled test trades,
+        as explicit rows: value, status/reason when unavailable, low_confidence and the bootstrap spread minimum."""
         ps = _prop_search()
         if not pooled:
-            return {f: None for f in ps.FUNDS}
-        _final, curve, taken = self.bt.simulate(list(pooled), 0.0, cost_profile=COST_PROFILE,
+            return {f: {"value": None, "reason": "no pooled test trades"} for f in ps.FUNDS}
+        _final, curve, taken = checked_simulate(self.bt, list(pooled), 0.0, cost_profile=COST_PROFILE,
                                                 live_parity_sizing=True)
         out = {}
         for f in ps.FUNDS:
             m = ps._perf.metrics(taken, equity=curve, account=ps._AP.get(f), horizon=ps.CHALLENGE_HORIZON_DAYS)
-            p = m.get("prop_pass_probability")
-            out[f] = p["value"] if isinstance(p, dict) and "value" in p else None
+            out[f] = prop_row_from_metric(m.get("prop_pass_probability"))
         return out
 
     def dataset_snapshot(self):
@@ -416,6 +554,13 @@ class BtEngine:
 
 
 # ------------------------------------------------------------------------------------- one candidate (pure glue)
+ADMISSION_LIMITATION = ("simulate()'s min_rr admission subtracts a cost that includes the EXIT-hour spread, so whether "
+                        "a candidate is admitted depends on when it exits (a look-ahead against plan §37). The "
+                        "engine is unchanged (v1 output byte-identical); the refusal counts and near-floor margins "
+                        "are disclosed here. OPEN owner item: an fx_ key making admission use the entry-hour cost "
+                        "only (docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md).")
+
+
 def evaluate_with_engine(engine, grid, cell, n_comparisons):
     """Nested walk-forward -> perturbation sets -> every §1.4 rule. `engine` needs `trades_for(values)` and
     `prop_pass(pooled)`; nothing else touches data, so the whole path is testable with a synthetic engine."""
@@ -426,6 +571,12 @@ def evaluate_with_engine(engine, grid, cell, n_comparisons):
     prop = engine.prop_pass(FS.pooled_test_trades(fold_results))
     res = FS.evaluate_cell(fold_results, perturbs, cell["symbols"], n_comparisons, prop, runs=src.runs)
     res["folds_geometry"] = folds
+    if hasattr(engine, "admission_stats"):             # I2: measured, disclosed, never used to change a verdict
+        res["admission"] = {
+            "by_fold_chosen": [dict(engine.admission_stats(fr["chosen"], fr["fold"]), test_start=fr["fold"]["test_start"])
+                               for fr in fold_results],
+            "by_value_set": {k: engine.admission_stats(v) for k, v in src.evaluated()},
+            "limitation": ADMISSION_LIMITATION}
     return res
 
 
@@ -476,6 +627,10 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
                  "items": [{k: it.get(k) for k in ("id", "key", "existing_opts_key", "values", "joint_group",
                                                    "source")} for it in grid.items]},
         "code_version": _snap.code_version(), "plan_hash": plan_hash,
+        "ruin_handling": "bt.RUIN_FRAC = 0.0 (R does not depend on equity); post_ruin trades fail loud",
+        "min_rr_semantics": ADMISSION_LIMITATION,
+        "lower_bound": "min(iid t, CR1 block by UTC date, CR1 block by 30-day window) at 1 - 0.10/N",
+        "regime_split": FS.REGIME_SPLIT_DEFINITION, "verdict_precedence": FS.VERDICT_PRECEDENCE,
         "constants": {k: getattr(FS, k) for k in ("FAMILY_ALPHA", "MIN_FOLD_TRADES", "MIN_TRAIN_TRADES",
                                                    "MAX_TRADE_SHARE", "MAX_GAP_DAYS", "MIN_FOLD_SHARE_OK",
                                                    "PASS_PROB_MIN", "TEST_FOLD_DAYS", "MIN_TRAIN_DAYS")}})
@@ -583,23 +738,30 @@ def cmd_run(cell_id, method=None, workers=1, grid_dir=None):
         done = {f[:-5] for f in os.listdir(RECORDS_DIR) if f.endswith(".json")}
         todo = [c for c in todo if c["id"] not in done]
         errors, results = [], []
+
+        def _persist(cid, out):        # S2: written the moment a candidate completes -- a CI timeout keeps it
+            X.write(types.MappingProxyType(out["record"]), store=RECORDS_DIR)
+            results.append(cid)
+            print(f"{out['record']['metrics']['evaluation']['verdict'].upper():<12} {cid}", flush=True)
+
         if workers <= 1:
             for c in todo:
                 try:
-                    results.append((c["id"], _evaluate_candidate(c, plan["plan_hash"], grid_dir)))
+                    out = _evaluate_candidate(c, plan["plan_hash"], grid_dir)
                 except Exception as exc:  # noqa: BLE001
                     errors.append((c["id"], exc))
+                    continue
+                _persist(c["id"], out)
         else:
             with _pool.IsolatedExecutor(max_workers=workers) as ex:
                 futs = {ex.submit(_evaluate_candidate, c, plan["plan_hash"], grid_dir): c["id"] for c in todo}
                 for fut in concurrent.futures.as_completed(futs):
                     try:
-                        results.append((futs[fut], fut.result()))
+                        out = fut.result()
                     except Exception as exc:  # noqa: BLE001
                         errors.append((futs[fut], exc))
-        for cid, out in results:                    # every finished candidate is written BEFORE any failure raises
-            X.write(types.MappingProxyType(out["record"]), store=RECORDS_DIR)
-            print(f"{out['record']['metrics']['evaluation']['verdict'].upper():<12} {cid}")
+                        continue
+                    _persist(futs[fut], out)
         if errors:
             raise RuntimeError("fund-search: candidate(s) raised -- FAILING LOUD (an exception is never recorded "
                                "as a fail): " + "; ".join(f"{c}: {type(e).__name__}: {e}" for c, e in errors))
@@ -657,6 +819,28 @@ def cmd_report(grid_dir=None):
     if not_run:
         L += [f"**Incomplete:** {len(not_run)} planned candidate(s) have no record yet; the counts above are "
               f"over what was evaluated, not over the plan.", ""]
+    cv = {}
+    for r in recs:
+        c = r.get("code_version")
+        key = (c.get("commit"), bool(c.get("dirty"))) if isinstance(c, dict) and "commit" in c else ("unavailable", True)
+        cv.setdefault(key, []).append(r["experiment_id"])
+    if len(cv) > 1 or any(k[1] for k in cv):
+        L += ["## WARNING: records sealed under different code versions or a dirty tree", ""]
+        for (commit, dirty), ids in sorted(cv.items(), key=lambda kv: str(kv[0])):
+            L.append(f"- commit `{str(commit)[:12]}` dirty={dirty}: {ids}")
+        L += ["", "Records from different code, or from a dirty tree, are not reproducible from one SHA "
+              "(CLAUDE.md §46) and must not be pooled as one evaluation.", ""]
+    L += ["## Folds per cell and the frequency-rule arithmetic", "",
+          "| cell | folds | folds required with every gap <= 30d | may fail |", "|---|---|---|---|"]
+    for c in plan["cells"]:
+        fr = c["frequency_rule"]
+        L.append(f"| {c['id']} | {c['n_folds']} | {fr['folds_required_within_gap']} | {fr['folds_allowed_to_fail']} |")
+    L += ["", "## What a PASS certifies", "",
+          "A PASS certifies a SELECTION PROCEDURE (choose V values on each training fold, score them on the next "
+          "test fold), NOT a fixed configuration. The values differ from fold to fold (see the per-item stability "
+          "below). PROPOSED, NOT DECIDED: deploy the values chosen in the FINAL fold -- a pre-registration item "
+          "for the owner (docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md).", "",
+          f"Regime split, as pre-registered: {FS.REGIME_SPLIT_DEFINITION}.", ""]
     L += ["## Every evaluated candidate", "",
           "| candidate | verdict | test trades | pooled mean net R | lower bound (conf) | failed checks |",
           "|---|---|---|---|---|---|"]
@@ -674,6 +858,25 @@ def cmd_report(grid_dir=None):
         L.append("|---|---|---|")
         for s, v in ev["per_symbol"].items():
             L.append(f"| {s} | {v['n']} | {_fmt(v['mean_R'])} |")
+        L.append("")
+        cs = ev.get("chosen_value_stability") or {}
+        if cs:
+            changed = {i: v for i, v in cs.items() if v["changes"]}
+            L.append(f"Chosen-value stability across folds: {len(changed)} of {len(cs)} items changed value at "
+                     f"least once; changes per item: "
+                     + (", ".join(f"{i} {v['changes']}/{v['transitions']}" for i, v in sorted(changed.items()))
+                        or "none") + ".")
+        pp = ev["checks"]["prop_pass_probability"]["funds"]
+        L.append("prop_pass_probability: " + "; ".join(
+            f"{f} {row['status']}" + (f" ({_fmt(row['value'], '.2f')})" if row.get("value") is not None else "")
+            + (f" -- {row['reason']}" if row.get("reason") else "") for f, row in pp.items()))
+        adm = ev.get("admission")
+        if adm:
+            byf = adm["by_fold_chosen"]
+            L.append(f"min_rr admission (chosen values, per test fold): refused "
+                     f"{[f['refused_min_rr'] for f in byf]} of candidates {[f['candidates'] for f in byf]}; "
+                     f"near-floor (|margin| < {NEAR_FLOOR_MARGIN}) counts {[f['near_floor_n'] for f in byf]}, of which "
+                     f"refused {[f['near_floor_refused'] for f in byf]}. LIMITATION: {adm['limitation']}")
         vk = ev.get("by_volume_kind")
         if vk:
             L.append("")
@@ -686,8 +889,10 @@ def cmd_report(grid_dir=None):
     L += ["## Limitations, stated", "",
           "- FTMO commission is UNKNOWN; net R is net of the recorded spread and swap only.",
           "- Wyckoff on CFD uses TICK volume (see the per-volume_kind rows).",
-          "- The lower bound is a Student-t bound on pooled trades treated as independent; it is backed by the "
-          "single-trade cap and the perturbation check, not trusted alone.",
+          "- The lower bound is the MINIMUM of an iid Student-t bound and two cluster-robust (CR1) bounds (by UTC "
+          "entry date and by 30-day window); the single-trade cap and the perturbation check back it.",
+          "- The min_rr admission filter uses a cost that includes the exit-hour spread (see the per-candidate "
+          "admission lines): a look-ahead already present in v1 that this harness measures and discloses but does not change.",
           "- The development span is exposed by this search; only the forward demo is pristine "
           f"({PLAN_DOC} §1.1)."]
     md = "\n".join(L) + "\n"

@@ -53,7 +53,18 @@ TEST_FOLD_DAYS = 365                  # interpretation: one calendar-year test f
 MIN_TRAIN_DAYS = 730                  # interpretation: the first training window is at least two years
 MIN_TEST_FOLDS = 2                    # interpretation: fewer than two folds is not a walk-forward
 
+BLOCK_DAYS = 30                       # fix round 1 (C1): the second block clustering is a 30-day window
+
 INSUFFICIENT, PASS, FAIL = "insufficient", "pass", "fail"
+
+#: `verdict_from`'s rule, stated so it can be pre-registered and recorded in the ledger declaration (I4).
+VERDICT_PRECEDENCE = ("insufficient (any test fold < MIN_FOLD_TRADES, or fewer than MIN_TEST_FOLDS folds) "
+                      "overrides everything; otherwise pass only if EVERY check is ok, else fail")
+
+#: The regime split's pre-registered definition (fix round 1, S6): stated in the report and the draft.
+REGIME_SPLIT_DEFINITION = ("ADX(14) (Wilder) of the last bar that opened strictly before the entry; split at the "
+                           "MEDIAN of the pooled TEST trades' ADX values (<= median = low half, > median = high "
+                           "half); BOTH halves must have positive mean net R")
 
 
 # ------------------------------------------------------------------------------------------------ time
@@ -166,6 +177,55 @@ def lower_bound(net_rs, confidence):
     t = t_quantile(confidence, n - 1)
     out.update(mean=m, sd=sd, t=t, value=m - t * sd / math.sqrt(n))
     return out
+
+
+def _block_bound(trades, confidence, key_fn):
+    """Cluster-robust (CR1) one-sided bound on the mean net R (fix round 1, C1). Trades sharing a block are
+    dependent (same-day correlated entries, regime persistence), so the iid standard error understates the
+    truth. With blocks g of sums S_g = sum_{i in g}(r_i - mean): se = sqrt(G/(G-1) * sum_g S_g^2) / n, bound =
+    mean - t_{confidence, G-1} * se. G < 2 blocks -> no bound (value None), never a guess."""
+    n = len(trades)
+    out = {"blocks": None, "value": None, "se": None, "t": None}
+    if n < 2:
+        return out
+    m = sum(t["net_R"] for t in trades) / n
+    sums = {}
+    for t in trades:
+        k = key_fn(t)
+        sums[k] = sums.get(k, 0.0) + (t["net_R"] - m)
+    g = len(sums)
+    out["blocks"] = g
+    if g < 2:
+        return out
+    se = math.sqrt(g / (g - 1.0) * sum(v * v for v in sums.values())) / n
+    tq = t_quantile(confidence, g - 1)
+    out.update(se=se, t=tq, value=m - tq * se)
+    return out
+
+
+def _date_key(t):
+    return ts(t["entry_time"]).date()
+
+
+def _window_key(t):
+    return int(ts(t["entry_time"]).timestamp() // (BLOCK_DAYS * 86400))
+
+
+def robust_lower_bound(trades, confidence):
+    """bound = min(iid Student-t bound, block bound by UTC entry date, block bound by 30-day window), all at the
+    same confidence (fix round 1, C1). The min can only LOWER the bound relative to the iid one -- it never
+    loosens. Any component that cannot be computed makes the bound None (fail closed)."""
+    rs = [t["net_R"] for t in trades]
+    iid = lower_bound(rs, confidence)
+    by_date = _block_bound(trades, confidence, _date_key)
+    by_window = _block_bound(trades, confidence, _window_key)
+    comps = [iid["value"], by_date["value"], by_window["value"]]
+    value = None if any(c is None for c in comps) else min(comps)
+    return {"n": len(rs), "confidence": confidence, "value": value, "mean": iid["mean"],
+            "method": ("min(iid one-sided Student-t bound, cluster-robust CR1 bound by UTC entry date, "
+                       f"cluster-robust CR1 bound by {BLOCK_DAYS}-day window)"),
+            "iid": iid["value"], "block_date": by_date["value"], "block_30d": by_window["value"],
+            "blocks_date": by_date["blocks"], "blocks_30d": by_window["blocks"]}
 
 
 # --------------------------------------------------------------------------------------------- the grid
@@ -300,6 +360,7 @@ class CountingSource:
     def __init__(self, trades_for):
         self._f = trades_for
         self._cache = {}
+        self._values = {}
 
     @staticmethod
     def _key(values):
@@ -309,7 +370,12 @@ class CountingSource:
         k = self._key(values)
         if k not in self._cache:
             self._cache[k] = self._f(dict(values))
+            self._values[k] = dict(values)
         return self._cache[k]
+
+    def evaluated(self):
+        """[(key, values)] of every distinct V assignment scored, in first-use order."""
+        return list(self._values.items())
 
     @property
     def runs(self):
@@ -389,7 +455,7 @@ def check_fold_sufficiency(fold_results):
 
 
 def check_lower_bound(trades, confidence):
-    lb = lower_bound([t["net_R"] for t in trades], confidence)
+    lb = robust_lower_bound(trades, confidence)
     return {"ok": lb["value"] is not None and lb["value"] > 0, "bound": lb}
 
 
@@ -458,17 +524,59 @@ def check_regime_split(trades):
 def check_perturbation(perturbations, confidence):
     rows = []
     for p in perturbations:
-        lb = lower_bound([t["net_R"] for t in p["trades"]], confidence)
+        lb = robust_lower_bound(p["trades"], confidence)
         rows.append({"item": p["item"], "direction": p["direction"], "n": lb["n"], "lower_bound": lb["value"],
                      "ok": lb["value"] is not None and lb["value"] > 0})
     return {"ok": bool(rows) and all(r["ok"] for r in rows), "n_perturbations": len(rows), "rows": rows}
 
 
+def _prop_row(v):
+    """One fund's prop_pass_probability as an explicit status (fix round 1, I6): `unavailable` (with a reason) is
+    a DIFFERENT state from a numeric `below_threshold`; both block a PASS. A `low_confidence` estimate (performance
+    .py: a small sample makes it WIDE) must ALSO clear the threshold at the MINIMUM of its bootstrap spread --
+    stricter only."""
+    if isinstance(v, dict):
+        value, reason = v.get("value"), v.get("reason")
+        low, smin = bool(v.get("low_confidence")), v.get("spread_min")
+    else:
+        value, reason, low, smin = v, None, False, None
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return {"value": None, "status": "unavailable", "ok": False,
+                "reason": reason or "prop_pass_probability was not computed or is unavailable"}
+    row = {"value": value, "low_confidence": low, "spread_min": smin}
+    if value < PASS_PROB_MIN:
+        return dict(row, status="below_threshold", ok=False)
+    if low and not (isinstance(smin, (int, float)) and smin >= PASS_PROB_MIN):
+        return dict(row, status="low_confidence_spread_below_threshold", ok=False)
+    return dict(row, status="ok", ok=True)
+
+
 def check_prop_pass(prop_by_fund):
-    """prop_pass_probability >= PASS_PROB_MIN on EVERY fund; a missing/unavailable value fails."""
-    rows = {f: {"value": v, "ok": isinstance(v, (int, float)) and v >= PASS_PROB_MIN}
-            for f, v in (prop_by_fund or {}).items()}
+    """prop_pass_probability >= PASS_PROB_MIN on EVERY fund (see `_prop_row` for the status vocabulary)."""
+    rows = {f: _prop_row(v) for f, v in (prop_by_fund or {}).items()}
     return {"ok": bool(rows) and all(r["ok"] for r in rows.values()), "threshold": PASS_PROB_MIN, "funds": rows}
+
+
+def chosen_value_stability(fold_results):
+    """Fix round 1, I3: per item, the value each fold chose and how many times it changed between consecutive
+    folds. A PASS certifies a SELECTION PROCEDURE; a procedure whose choice flips every fold is not a
+    configuration, and this is where that shows."""
+    items = sorted({i for fr in fold_results for i in fr["chosen"]})
+    out = {}
+    for i in items:
+        vals = [fr["chosen"].get(i) for fr in fold_results]
+        changes = sum(1 for a, b in zip(vals, vals[1:]) if a != b)
+        out[i] = {"values_by_fold": vals, "changes": changes, "transitions": max(len(vals) - 1, 0)}
+    return out
+
+
+def fold_arithmetic(n_folds):
+    """Fix round 1, I5: the frequency rule's arithmetic for a cell with `n_folds` folds -- how many folds must
+    keep every gap <= MAX_GAP_DAYS, and how many may fail."""
+    need = math.ceil(round(n_folds * MIN_FOLD_SHARE_OK, 9)) if n_folds else 0
+    return {"n_folds": n_folds, "folds_required_within_gap": need,
+            "folds_allowed_to_fail": max(n_folds - need, 0), "max_gap_days": MAX_GAP_DAYS,
+            "required_share": MIN_FOLD_SHARE_OK}
 
 
 def split_by_volume_kind(trades, confidence):
@@ -478,8 +586,9 @@ def split_by_volume_kind(trades, confidence):
         return None
     out = {}
     for k in kinds:
-        rs = [t["net_R"] for t in trades if t.get("volume_kind") == k]
-        out[k] = {"n": len(rs), "mean_R": mean(rs), "lower_bound": lower_bound(rs, confidence)["value"]}
+        sub = [t for t in trades if t.get("volume_kind") == k]
+        rs = [t["net_R"] for t in sub]
+        out[k] = {"n": len(rs), "mean_R": mean(rs), "lower_bound": robust_lower_bound(sub, confidence)["value"]}
     out["_limitation"] = ("tick volume is a count of price changes at the broker, NOT real traded volume "
                           "(plan §6 item 4); results on it are labelled a limitation, never real volume")
     return out
@@ -513,6 +622,8 @@ def evaluate_cell(fold_results, perturbations, symbols, n_comparisons, prop_by_f
             "pooled": {"n_trades": len(pooled), "mean_R": mean([t["net_R"] for t in pooled])},
             "per_symbol": per_symbol(pooled, symbols),
             "by_volume_kind": split_by_volume_kind(pooled, conf),
+            "chosen_value_stability": chosen_value_stability(fold_results),
+            "verdict_precedence": VERDICT_PRECEDENCE,
             "folds": [{"test_start": fr["fold"]["test_start"], "test_end": fr["fold"]["test_end"],
                        "n_test_trades": len(fr["test_trades"]), "chosen": fr["chosen"], "changed": fr["changed"]}
                       for fr in fold_results],

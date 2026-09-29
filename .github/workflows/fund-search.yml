@@ -59,9 +59,16 @@ jobs:
         env:
           PYTHONUTF8: "1"
           FUND_SEARCH_RECORDS_DIR: ${{ runner.temp }}/out/records
+          # Inputs reach the shell through env, never interpolated into the script text (fix round 1, S5).
+          INPUT_WORKERS: ${{ inputs.workers }}
+          MATRIX_CELL: ${{ matrix.cell }}
         run: |
+          WORKERS="${INPUT_WORKERS:-2}"
+          case "$WORKERS" in ''|*[!0-9]*) echo "workers must be a positive integer, got: $WORKERS" >&2; exit 1;; esac
+          if [ "$WORKERS" -lt 1 ]; then echo "workers must be >= 1" >&2; exit 1; fi
+          case "$MATRIX_CELL" in *[!A-Za-z0-9_-]*|'') echo "bad cell id" >&2; exit 1;; esac
           mkdir -p "$FUND_SEARCH_RECORDS_DIR"
-          python -X faulthandler scripts/fund-search.py run --cell "${{ matrix.cell }}" --workers "${{ inputs.workers || 2 }}" \
+          python -X faulthandler scripts/fund-search.py run --cell "$MATRIX_CELL" --workers "$WORKERS" \
             > "$RUNNER_TEMP/out/run.stdout.log" 2> "$RUNNER_TEMP/out/run.stderr.log"
       - uses: actions/upload-artifact@v6
         if: always()

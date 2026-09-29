@@ -89,6 +89,11 @@ class SynthEngine:
     def prop_pass(self, pooled):
         return dict(self.prop)
 
+    def admission_stats(self, values, fold=None):
+        rows = [{"entry_time": t["entry_time"], "R_planned": 3.0 + (i % 5) * 0.1, "fee_R": 0.05 * (i % 7)}
+                for i, t in enumerate(self.trades_for(values))]
+        return _fs().admission_stats(rows, 3.0, fold)
+
 
 # ==================================================================================== statistics primitives
 class TQuantile(unittest.TestCase):
@@ -739,6 +744,307 @@ class EngineAdapter(_Tmp):
         with self.assertRaises(SystemExit) as cm:
             self.fs.BtEngine(g, "ICT", "5m", ["XAUUSD"], bt=fake_bt)
         self.assertIn("not implemented in the engine", str(cm.exception))
+
+
+# ================================================================================== fix round 1 (statistical review)
+def clustered_trades(seed, days=100, per=4, rho=0.8):
+    """Zero-edge trades, `per` same-day trades with correlation rho (reviewer scenario (a))."""
+    rng = random.Random(seed)
+    out, d0 = [], datetime.datetime(2022, 3, 1, tzinfo=datetime.timezone.utc)
+    for d in range(days):
+        z = rng.gauss(0, 1)
+        for k in range(per):
+            t = d0 + datetime.timedelta(days=d, hours=8 + k)
+            out.append({"entry_time": FS.iso(t), "exit_time": FS.iso(t + datetime.timedelta(hours=1)),
+                        "net_R": math.sqrt(rho) * z + math.sqrt(1 - rho) * rng.gauss(0, 1), "symbol": "XAUUSD"})
+    return out
+
+
+def regime_trades(seed, days=360, sd_reg=0.35):
+    """Zero-edge trades with a persistent 30-day regime effect (reviewer scenario (b))."""
+    rng = random.Random(seed)
+    out, d0, eff = [], datetime.datetime(2022, 3, 1, tzinfo=datetime.timezone.utc), 0.0
+    for d in range(days):
+        if d % 30 == 0:
+            eff = rng.gauss(0, sd_reg)
+        t = d0 + datetime.timedelta(days=d, hours=8)
+        out.append({"entry_time": FS.iso(t), "exit_time": FS.iso(t + datetime.timedelta(hours=1)),
+                    "net_R": eff + rng.gauss(0, 1), "symbol": "XAUUSD"})
+    return out
+
+
+class BlockRobustBound(unittest.TestCase):
+    CONF = FS.n_adjusted_confidence(205)
+
+    def test_same_day_clustered_zero_edge_passes_iid_but_not_the_robust_bound(self):
+        tr = clustered_trades(1)                                       # fixed seed: iid t-bound alone PASSES
+        lb = FS.robust_lower_bound(tr, self.CONF)
+        self.assertGreater(lb["iid"], 0)                               # the reviewer's false positive
+        self.assertLessEqual(lb["block_date"], 0)
+        self.assertLessEqual(lb["value"], 0)
+        self.assertFalse(FS.check_lower_bound(tr, self.CONF)["ok"])
+
+    def test_regime_persistence_zero_edge_is_stopped_by_the_30_day_block_bound(self):
+        tr = regime_trades(1)
+        lb = FS.robust_lower_bound(tr, self.CONF)
+        self.assertGreater(lb["iid"], 0)
+        self.assertLessEqual(lb["block_30d"], 0)
+        self.assertFalse(FS.check_lower_bound(tr, self.CONF)["ok"])
+
+    def test_min_can_only_lower_the_bound(self):
+        for seed in range(25):
+            tr = clustered_trades(seed, days=40) if seed % 2 else regime_trades(seed, days=200)
+            lb = FS.robust_lower_bound(tr, self.CONF)
+            self.assertLessEqual(lb["value"], lb["iid"] + 1e-12)
+            self.assertLessEqual(lb["value"], lb["block_date"] + 1e-12)
+            self.assertLessEqual(lb["value"], lb["block_30d"] + 1e-12)
+
+    def test_fewer_than_two_blocks_fails_closed(self):
+        one_day = clustered_trades(3, days=1)
+        self.assertIsNone(FS.robust_lower_bound(one_day, self.CONF)["value"])
+        self.assertFalse(FS.check_lower_bound(one_day, self.CONF)["ok"])
+
+    def test_perturbation_check_uses_the_robust_bound(self):
+        tr = clustered_trades(1)
+        chk = FS.check_perturbation([{"item": "a", "direction": 1, "trades": tr}], self.CONF)
+        self.assertFalse(chk["ok"])                                    # iid alone would have passed it
+
+    def test_true_edge_still_passes_the_robust_bound(self):
+        tr = gen(DEV_START, FS.DEV_CUTOFF, 600, 0.6, 1.0, "edge")
+        self.assertTrue(FS.check_lower_bound(tr, self.CONF)["ok"])
+
+
+class PropPassStatus(unittest.TestCase):
+    def test_unavailable_is_distinct_from_below_threshold_and_both_block(self):
+        c = FS.check_prop_pass({"a": {"value": None, "reason": "no profit target"}, "b": 0.5, "c": 0.9})
+        self.assertEqual(c["funds"]["a"]["status"], "unavailable")
+        self.assertEqual(c["funds"]["a"]["reason"], "no profit target")
+        self.assertEqual(c["funds"]["b"]["status"], "below_threshold")
+        self.assertEqual(c["funds"]["c"]["status"], "ok")
+        self.assertFalse(c["ok"])
+        self.assertFalse(FS.check_prop_pass({"a": None, "b": 0.9})["ok"])
+
+    def test_low_confidence_needs_the_spread_minimum_to_clear_too(self):
+        low = {"value": 0.9, "low_confidence": True, "spread_min": 0.55}
+        self.assertFalse(FS.check_prop_pass({"a": low})["ok"])
+        self.assertEqual(FS.check_prop_pass({"a": low})["funds"]["a"]["status"],
+                         "low_confidence_spread_below_threshold")
+        self.assertFalse(FS.check_prop_pass({"a": dict(low, spread_min=None)})["ok"])
+        self.assertTrue(FS.check_prop_pass({"a": dict(low, spread_min=0.70)})["ok"])
+        self.assertTrue(FS.check_prop_pass({"a": {"value": 0.9, "low_confidence": False}})["ok"])
+
+    def test_metric_entry_conversion(self):
+        fs = _fs()
+        self.assertEqual(fs.prop_row_from_metric({"value": 0.8, "low_confidence": True,
+                                                  "spread": {"prop_pass_probability": [0.6, 0.9]}}),
+                         {"value": 0.8, "low_confidence": True, "spread_min": 0.6})
+        r = fs.prop_row_from_metric({"unavailable": "no profit_target", "owner": "x"})
+        self.assertIsNone(r["value"])
+        self.assertEqual(r["reason"], "no profit_target")
+
+
+class SimulateGuards(unittest.TestCase):
+    def _trades(self, n=6):
+        d0 = datetime.datetime(2022, 3, 1, tzinfo=datetime.timezone.utc)
+        return [{"symbol": "XAUUSD", "side": "long", "entry": 100.0, "stop": 99.0, "R": -1.0, "R_planned": 99,
+                 "entry_time": FS.iso(d0 + datetime.timedelta(hours=2 * i)),
+                 "exit_time": FS.iso(d0 + datetime.timedelta(hours=2 * i + 1)), "outcome": "loss"} for i in range(n)]
+
+    def test_ruin_is_neutralised_on_the_harness_own_instance_only(self):
+        fs = _fs()
+        a, b = fs._load_bt(), fs._load_bt()
+        default = a.RUIN_FRAC
+        fs.neutralise_ruin(a)
+        self.assertEqual(a.RUIN_FRAC, 0.0)
+        self.assertEqual(b.RUIN_FRAC, default)                          # v1 untouched everywhere else
+
+    def test_a_ruin_stop_fails_loud_and_neutralising_it_keeps_every_trade(self):
+        fs = _fs()
+        bt = fs._load_bt()
+        bt.RUIN_FRAC = 0.9999                                            # ruin after the first loss
+        with self.assertRaises(RuntimeError) as cm:
+            fs.checked_simulate(bt, self._trades(), 0.0)
+        self.assertIn("never lose trades silently", str(cm.exception))
+        fs.neutralise_ruin(bt)
+        taken = fs.checked_simulate(bt, self._trades(), 0.0)[2]
+        self.assertEqual(len(taken), 6)
+
+    def test_post_ruin_trades_fail_loud_even_without_a_ruin_stamp(self):
+        fs = _fs()
+        bt = mock.Mock()
+        bt.simulate.return_value = (1.0, [], [])
+        bt.SIM_LAST = {"post_ruin": [{"symbol": "X"}], "ruin": None}
+        with self.assertRaises(RuntimeError):
+            fs.checked_simulate(bt, [], 0.0)
+
+    def test_a_trade_held_over_the_server_rollover_fails_loud(self):
+        fs = _fs()
+        prov = "mt5_bridge_ftmo"
+        held = {"symbol": "X", "entry_time": "2022-01-10T20:00:00Z", "exit_time": "2022-01-10T23:00:00Z"}
+        flat = {"symbol": "X", "entry_time": "2022-01-10T19:00:00Z", "exit_time": "2022-01-10T21:30:00Z"}
+        fs.assert_no_rollover_crossing([flat], prov)
+        with self.assertRaises(RuntimeError):
+            fs.assert_no_rollover_crossing([flat, held], prov)
+
+
+class AllowListAndOverlay(_Tmp):
+    def _g(self, key, existing=None):
+        return FS.Grid({"method": "ICT", "items": [
+            {"id": "x", "key": key, "existing_opts_key": existing, "values": [1, 2]}]})
+
+    def test_only_fx_keys_and_the_listed_existing_keys_are_allowed(self):
+        self.fs.validate_grid(self._g("fx_ok"))
+        self.fs.validate_grid(self._g("fx_mgmt", "mgmt"))
+        for bad in ("min_rr", "methods", "entry", "sides"):
+            with self.assertRaises(SystemExit):
+                self.fs.validate_grid(self._g("fx_x", bad))
+        with self.assertRaises(SystemExit):
+            self.fs.validate_grid(self._g("plain_key"))
+
+    def test_overlay_carries_only_declared_keys_plus_the_fixed_rules(self):
+        g = self._g("fx_ok")
+        o = self.fs.build_overlay(g, {"x": 2})
+        self.assertEqual(set(o), {"fx_ok", "flat_before_rollover", "rollover_provider"})
+        with self.assertRaises(SystemExit):
+            self.fs.build_overlay(g, {"x": 2, "min_rr": 0})
+
+
+class AdmissionDisclosure(_Tmp):
+    def test_admission_stats_counts_refusals_and_near_floor_margins(self):
+        rows = [{"entry_time": "2022-06-01T00:00:00Z", "R_planned": 3.10, "fee_R": 0.2},   # margin -0.10 refused
+                {"entry_time": "2022-06-02T00:00:00Z", "R_planned": 3.30, "fee_R": 0.1},   # +0.20 near, admitted
+                {"entry_time": "2022-06-03T00:00:00Z", "R_planned": 6.00, "fee_R": 0.1}]   # far above
+        st = self.fs.admission_stats(rows, 3.0)
+        self.assertEqual(st["candidates"], 3)
+        self.assertEqual(st["refused_min_rr"], 1)
+        self.assertEqual(st["near_floor_n"], 2)
+        self.assertEqual(st["near_floor_refused"], 1)
+        self.assertAlmostEqual(st["near_floor_margin_min"], -0.10)
+        fold = {"test_start": "2022-06-02T00:00:00Z", "test_end": "2022-06-04T00:00:00Z"}
+        self.assertEqual(self.fs.admission_stats(rows, 3.0, fold)["candidates"], 2)
+
+    def test_result_and_report_carry_the_admission_counts_and_the_limitation(self):
+        cell = {"id": "5m-metals", "symbols": SYMS, "development_start": DEV_START}
+        res = self.fs.evaluate_with_engine(SynthEngine(mean=0.0), grid_two_items(), cell, 205)
+        adm = res["admission"]
+        self.assertEqual(len(adm["by_fold_chosen"]), 2)
+        self.assertIn("EXIT-hour spread", adm["limitation"])
+        self.assertIn("OPEN owner item", adm["limitation"])
+        self.assertTrue(adm["by_value_set"])
+
+
+class Disclosures(_Helpers):
+    def setUp(self):
+        super().setUp()
+        self._plan_file()
+
+    def test_declaration_pins_code_shas_grid_hashes_and_the_evaluation_config(self):
+        self.fs.cmd_declare()
+        d = json.load(open(self.ledger))["fund_search"]
+        for f in ("scripts/fund_stats.py", "scripts/fund-search.py", "scripts/prop-search.py"):
+            self.assertIn(f, d["code"])
+            self.assertIsInstance(d["code"][f]["dirty"], bool)
+            self.assertRegex(d["code"][f]["git_sha"] or "", r"^[0-9a-f]{40}$")
+        cfg = d["evaluation_config"]
+        self.assertEqual(cfg["stability_fraction"], [2, 3])
+        self.assertEqual(cfg["spread_stat"], "median")
+        self.assertEqual(cfg["live_parity_sizing"], {"trades_for": False, "prop_pass": True})
+        self.assertEqual(cfg["prop_horizon_days"], 120)
+        self.assertIn("insufficient", cfg["verdict_precedence"])
+        self.assertEqual(set(cfg["grid_sha256"]), {"ict", "wyckoff"})
+        self.assertTrue(all(len(h) == 64 for h in cfg["grid_sha256"].values()))
+
+    def test_report_flags_mixed_code_versions_and_a_dirty_tree(self):
+        self.fs.cmd_declare()
+        with mock.patch.object(X, "code_version", return_value={"commit": "a" * 40, "dirty": False}):
+            self._run_cell("5m-metals")
+        with mock.patch.object(X, "code_version", return_value={"commit": "b" * 40, "dirty": True}):
+            self._run_cell("15m-metals")
+        md = self.fs.cmd_report()
+        self.assertIn("WARNING: records sealed under different code versions", md)
+        self.assertIn("dirty=True", md)
+
+    def test_report_is_quiet_when_every_record_shares_one_clean_code_version(self):
+        self.fs.cmd_declare()
+        with mock.patch.object(X, "code_version", return_value={"commit": "a" * 40, "dirty": False}):
+            self._run_cell("5m-metals")
+        self.assertNotIn("WARNING: records sealed", self.fs.cmd_report())
+
+    def _run_cell(self, cell):
+        with mock.patch.object(self.fs, "_evaluate_candidate",
+                               side_effect=lambda c, h, g=None: self._fake_out(c, h)):
+            self.fs.cmd_run(cell, grid_dir=FIXTURES)
+
+    def test_report_states_folds_frequency_arithmetic_pass_meaning_stability_and_regime(self):
+        self.fs.cmd_declare()
+        self._run_cell("5m-metals")
+        md = self.fs.cmd_report()
+        self.assertIn("Folds per cell and the frequency-rule arithmetic", md)
+        self.assertIn("What a PASS certifies", md)
+        self.assertIn("SELECTION PROCEDURE", md)
+        self.assertIn("FINAL fold", md)
+        self.assertIn("Chosen-value stability across folds", md)
+        self.assertIn("MEDIAN of the pooled TEST trades", md)                 # S6, stated as a definition
+        self.assertIn("min_rr admission", md)
+        self.assertIn("prop_pass_probability: ", md)
+
+    def test_fold_counts_and_frequency_arithmetic_per_cell(self):
+        self.assertEqual(FS.fold_arithmetic(17), {"n_folds": 17, "folds_required_within_gap": 16,
+                                                  "folds_allowed_to_fail": 1, "max_gap_days": 30,
+                                                  "required_share": 0.9})
+        self.assertEqual(FS.fold_arithmetic(4)["folds_required_within_gap"], 4)
+        self.assertEqual(FS.fold_arithmetic(4)["folds_allowed_to_fail"], 0)
+        self.assertEqual(FS.fold_arithmetic(10)["folds_required_within_gap"], 9)
+        p = self.plan()
+        for c in p["cells"]:
+            self.assertEqual(c["n_folds"], len(FS.make_folds(c["development_start"])))
+            self.assertIn("frequency_rule", c)
+
+    def test_dry_run_prints_folds_and_the_frequency_rule(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.fs.cmd_plan(dry_run=True, grid_dir=FIXTURES)
+        self.assertRegex(buf.getvalue(), r"folds \d+ \(frequency rule: >= \d+ of \d+ folds")
+
+    def test_chosen_value_stability_counts_changes_between_folds(self):
+        res = [{"chosen": {"a": "x", "b": 0}}, {"chosen": {"a": "y", "b": 0}}, {"chosen": {"a": "x", "b": 0}}]
+        st = FS.chosen_value_stability(res)
+        self.assertEqual(st["a"]["changes"], 2)
+        self.assertEqual(st["a"]["transitions"], 2)
+        self.assertEqual(st["b"]["changes"], 0)
+
+
+class RecordsPersistAsTheyComplete(_Helpers):
+    def test_the_first_record_is_on_disk_before_the_second_candidate_starts(self):
+        self._plan_file()
+        self.fs.cmd_declare()
+        seen = {}
+
+        def fake(c, h, g=None):
+            seen[c["id"]] = sorted(os.listdir(self.records)) if os.path.isdir(self.records) else []
+            return self._fake_out(c, h)
+        with mock.patch.object(self.fs, "_evaluate_candidate", side_effect=fake):
+            self.fs.cmd_run("5m-metals", grid_dir=FIXTURES)
+        self.assertEqual(seen["ict-5m-metals"], [])
+        self.assertEqual(seen["wyckoff-5m-metals"], ["ict-5m-metals.json"])
+
+
+class WorkflowHardening(unittest.TestCase):
+    def test_no_expression_is_interpolated_into_a_shell_script_and_workers_is_validated(self):
+        lines = open(os.path.join(ROOT, ".github", "workflows", "fund-search.yml")).read().splitlines()
+        in_run, run_indent = False, 0
+        for ln in lines:
+            ind = len(ln) - len(ln.lstrip())
+            if in_run and ln.strip() and ind <= run_indent:
+                in_run = False
+            if in_run:
+                self.assertNotIn("${{", ln, "expression interpolated into a shell script: " + ln)
+            if ln.strip().startswith("run:"):
+                in_run, run_indent = True, ind
+        text = "\n".join(lines)
+        self.assertIn("INPUT_WORKERS: ${{ inputs.workers }}", text)
+        self.assertIn("*[!0-9]*", text)                                       # integer validation
+        self.assertNotIn("workflow_dispatch:\n    inputs:\n      workers:\n        description: x", "x")
 
 
 if __name__ == "__main__":
