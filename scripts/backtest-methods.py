@@ -109,12 +109,20 @@ RISK = _te.MAX_RISK_PCT   # per-trade risk of equity. It MUST equal strategy-run
                      # must be re-run, not rescaled by eye.
 START = 10000.0      # account size in $ (user decision 2026-09-11: $10,000 for readability)
 RUIN_FRAC = 0.10     # the account is declared BLOWN (cháy) when equity <= 10 % of START; trading stops there and the report says so
+# B1/Batch-1a (docs/plans/2026-09-29-execution-plan.md "Shared contract"): one OPTS key per ICT F item, bool,
+# default = v1 behaviour (False). Threaded to scripts/ict-scan.py's analyze()/setup_candidate() via
+# scripts/live_rules.py's read_at(opts=...) -- see ict_setups_live() below, the one call site that reads
+# FX_ICT_KEYS out of OPTS. The live runner (scripts/strategy-runner.py) never sets any of these -- it calls
+# lr.read_at()/lr.ict_scan.setup_candidate() with no opts= at all, so it always gets v1 (§1.6 live safety).
+FX_ICT_KEYS = ("fx_b2a_fvg_in_leg", "fx_b2b_ce_fail", "fx_b1_pivot1", "fx_braid_optional")
 OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see the note there
              types=(1, 2, 3), htf=False, sides=("long", "short"), entry="book", mgmt="none", sloped_gate=False, st_min=None, phase_d=True, combined_entry="limit",
             st_gate=False, phase_b_gate=False, methods=None,
             # A0 (plan §2): both False/None by default -- v1 behaviour is byte-identical until a caller sets
             # these explicitly (main()'s --cost-profile/--flat-before-rollover, or a test's opts= override).
-            flat_before_rollover=False, rollover_provider=None)
+            flat_before_rollover=False, rollover_provider=None,
+            # B1/Batch-1a: v1 default (False) for every fx_ ICT key -- see FX_ICT_KEYS just above.
+            fx_b2a_fvg_in_leg=False, fx_b2b_ce_fail=False, fx_b1_pivot1=False, fx_braid_optional=False)
 # `range_touches` (require N tests of EACH TR border before a Spring counts) lived here until A0b
 # (docs/plans/2026-09-28-methodology-improvement-plan.md §A0b): it was set from --range-touches and echoed into
 # every run's config snapshot as though it gated Springs, but no scan()/simulate() code path ever read
@@ -680,11 +688,15 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
     out, seen = [], set()
     n = len(c)
     idx_of_time = {t: j for j, t in enumerate(Tm)}
+    # B1/Batch-1a: the same fx_ overlay goes to BOTH read_at() (analyze()) and setup_candidate() -- B2b's
+    # `inverted_at` field is only present on an fvg when analyze() itself was called with fx_b2b_ce_fail, so a
+    # caller that set the key for one but not the other would silently get v1 setup_candidate() behaviour.
+    fx_opts = {k: OPTS[k] for k in FX_ICT_KEYS}
     for i in range(n):
-        a = lr.read_at(c, i, tf, methods)
+        a = lr.read_at(c, i, tf, methods, opts=fx_opts)
         if a is None:            # window not yet the full live window -- live would not have scanned here at all
             continue
-        su = lr.ict_scan.setup_candidate(a, lr.window(c, i, tf), lr.setup_lookback(tf))
+        su = lr.ict_scan.setup_candidate(a, lr.window(c, i, tf), lr.setup_lookback(tf), opts=fx_opts)
         if not su or not su.get("complete") or not su.get("pd_ok"):
             continue
         bias, _ = lr.bias_at(c, i, tf, methods, facts=a)      # facts reused: no second analyze()

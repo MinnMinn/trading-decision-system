@@ -74,7 +74,11 @@ def config_opts(cfg, ict_target):
                 entry="book", sloped_gate=False, st_gate=False, phase_b_gate=False, st_min=None, phase_d=True,
                 combined_entry="limit",
                 # A0: the v1 defaults, stated so the scan cache key always sees them (_SCAN_RELEVANT_KEYS).
-                flat_before_rollover=False, rollover_provider=None)
+                flat_before_rollover=False, rollover_provider=None,
+                # B1/Batch-1a (docs/plans/2026-09-29-execution-plan.md "Shared contract"): the v1 default
+                # (False) for every ICT fx_ key (scripts/backtest-methods.py FX_ICT_KEYS), stated here for the
+                # same "always the complete, honest overlay" reason as every other key in this dict.
+                fx_b2a_fvg_in_leg=False, fx_b2b_ce_fail=False, fx_b1_pivot1=False, fx_braid_optional=False)
 
 
 # scan()-relevant keys: everything `bt.scan()` / `ict_setups_live()` / `_fires_from()` / `walk()` actually read
@@ -100,7 +104,12 @@ def config_opts(cfg, ict_target):
 _SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "sloped_gate", "st_min", "types", "entry", "phase_d",
                        # A0 (2026-09-29): walk() closes a position before the server's daily rollover when these are
                        # set, so they change R/outcome/exit_time inside scan() and MUST separate cache entries.
-                       "flat_before_rollover", "rollover_provider")
+                       "flat_before_rollover", "rollover_provider",
+                       # B1/Batch-1a (2026-09-29): ict_setups_live() (called from inside scan()) reads these
+                       # four directly off OPTS (backtest-methods.py FX_ICT_KEYS) and passes them into
+                       # ict-scan.py's analyze()/setup_candidate(), which can change which ICT setups fire --
+                       # MUST separate cache entries, same reasoning as every other key above.
+                       "fx_b2a_fvg_in_leg", "fx_b2b_ce_fail", "fx_b1_pivot1", "fx_braid_optional")
 
 
 def _hashable(v):

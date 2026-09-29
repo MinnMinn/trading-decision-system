@@ -141,11 +141,15 @@ def _ts(window, i, tf):
 # ---------------------------------------------------------------------------------------------------- ICT
 
 
-def ict_analysis(window, recent, tf, methods=("ict",)):
+def ict_analysis(window, recent, tf, methods=("ict",), opts=None):
     """The RAW scripts/ict-scan.py `analyze()` call -- for hot-path callers (scripts/live_rules.py `read_at()`)
     that need only `a`, never the enriched structure objects. This IS that call: zero extra allocation over
-    calling `ict_scan.analyze()` directly (see the module docstring, "Hot-path / cold-path split")."""
-    return ict_scan.analyze(window, recent, tf=tf, methods=methods)
+    calling `ict_scan.analyze()` directly (see the module docstring, "Hot-path / cold-path split").
+
+    `opts` -- passthrough only (docs/plans/2026-09-29-execution-plan.md "Shared contract" fx_ keys); this
+    module does not read or default any fx_ key itself, so `opts=None` reproduces v1 exactly, same as
+    `ict_scan.analyze()`'s own default."""
+    return ict_scan.analyze(window, recent, tf=tf, methods=methods, opts=opts)
 
 
 def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
