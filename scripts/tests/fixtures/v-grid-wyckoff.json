@@ -1,0 +1,117 @@
+{
+ "_note": "TEST FIXTURE ONLY -- same shape as docs/architecture/v-grid-wyckoff.json (produced by the Batch 2a agent); item ids/values follow docs/plans/2026-09-28-methodology-improvement-plan.md section 3. NOT the pre-registered grid.",
+ "method": "Wyckoff",
+ "items": [
+  {
+   "id": "W-STOP",
+   "key": "fx_wstop_bu_lps_stop",
+   "existing_opts_key": null,
+   "values": [
+    "current",
+    "spring_low"
+   ],
+   "joint_group": null,
+   "source": "WMT p271",
+   "implemented": true
+  },
+  {
+   "id": "W4a",
+   "key": "fx_w4a_shakeout_lingering",
+   "existing_opts_key": null,
+   "values": [
+    2,
+    3,
+    4
+   ],
+   "joint_group": null,
+   "source": "WA p80,p83",
+   "implemented": true
+  },
+  {
+   "id": "W4b",
+   "key": "fx_w4b_ltf_local_spring",
+   "existing_opts_key": null,
+   "values": [
+    false,
+    true
+   ],
+   "joint_group": null,
+   "source": "WA2-12,WA2-18",
+   "implemented": true
+  },
+  {
+   "id": "W6",
+   "key": "fx_w6_structure_window",
+   "existing_opts_key": null,
+   "values": [
+    300,
+    600
+   ],
+   "joint_group": null,
+   "source": "fidelity 3.3 B1",
+   "implemented": true
+  },
+  {
+   "id": "W-MGMT",
+   "key": "fx_wmgmt_be",
+   "existing_opts_key": "mgmt",
+   "values": [
+    "none",
+    "be"
+   ],
+   "joint_group": null,
+   "source": "WMT p272",
+   "implemented": true
+  },
+  {
+   "id": "W-SPT",
+   "key": "fx_wspt_spring_target",
+   "existing_opts_key": null,
+   "values": [
+    "AR",
+    "ceiling",
+    "VAH"
+   ],
+   "joint_group": null,
+   "source": "WA p85",
+   "implemented": true
+  },
+  {
+   "id": "W-TOUCH",
+   "key": "fx_wtouch_two_tests",
+   "existing_opts_key": null,
+   "values": [
+    false,
+    true
+   ],
+   "joint_group": null,
+   "source": "advance.md 2.11.2",
+   "implemented": true
+  },
+  {
+   "id": "W-TW-TEST",
+   "key": "fx_wtw_test_window",
+   "existing_opts_key": null,
+   "values": [
+    12,
+    8,
+    20
+   ],
+   "joint_group": "W-TW",
+   "source": "project",
+   "implemented": true
+  },
+  {
+   "id": "W-TW-SWINGS",
+   "key": "fx_wtw_swings",
+   "existing_opts_key": null,
+   "values": [
+    2,
+    3
+   ],
+   "joint_group": "W-TW",
+   "source": "project",
+   "implemented": true
+  }
+ ]
+}

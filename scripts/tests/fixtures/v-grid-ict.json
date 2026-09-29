@@ -1,0 +1,180 @@
+{
+ "_note": "TEST FIXTURE ONLY -- same shape as docs/architecture/v-grid-ict.json (produced by the Batch 2a agent); item ids/values follow docs/plans/2026-09-28-methodology-improvement-plan.md section 3. NOT the pre-registered grid.",
+ "method": "ICT",
+ "items": [
+  {
+   "id": "B-EX",
+   "key": "fx_bex_entry_model",
+   "existing_opts_key": null,
+   "values": [
+    "IOFED",
+    "CE",
+    "Fill"
+   ],
+   "joint_group": null,
+   "source": "core-a.md 2.23",
+   "implemented": true
+  },
+  {
+   "id": "B-PD",
+   "key": "fx_bpd_dealing_range",
+   "existing_opts_key": null,
+   "values": [
+    "R15",
+    "R13"
+   ],
+   "joint_group": null,
+   "source": "core-a.md 2.18-2.19",
+   "implemented": true
+  },
+  {
+   "id": "B-POOL",
+   "key": "fx_bpool_extra_pools",
+   "existing_opts_key": null,
+   "values": [
+    false,
+    true
+   ],
+   "joint_group": null,
+   "source": "core-a.md 2.8-2.9",
+   "implemented": true
+  },
+  {
+   "id": "B-BUF",
+   "key": "fx_bbuf_stop_buffer_atr",
+   "existing_opts_key": null,
+   "values": [
+    0.0,
+    0.1,
+    0.25
+   ],
+   "joint_group": null,
+   "source": "core-a.md R22",
+   "implemented": true
+  },
+  {
+   "id": "B-EXIT-TGT",
+   "key": "fx_bexit_target_sigma",
+   "existing_opts_key": null,
+   "values": [
+    -2.0,
+    -2.25,
+    -2.5
+   ],
+   "joint_group": "B-EXIT",
+   "source": "models.md 2.1.5",
+   "implemented": true
+  },
+  {
+   "id": "B-EXIT-H",
+   "key": "fx_bexit_time_stop",
+   "existing_opts_key": null,
+   "values": [
+    "H",
+    "1.5H",
+    "2H",
+    "none"
+   ],
+   "joint_group": "B-EXIT",
+   "source": "project",
+   "implemented": true
+  },
+  {
+   "id": "B-EXIT-2R",
+   "key": "fx_bexit_2r_floor",
+   "existing_opts_key": null,
+   "values": [
+    "floor",
+    "no_floor"
+   ],
+   "joint_group": "B-EXIT",
+   "source": "models.md rule 23",
+   "implemented": true
+  },
+  {
+   "id": "B-LB-LOOKBACK",
+   "key": "fx_blb_lookback",
+   "existing_opts_key": null,
+   "values": [
+    12,
+    8,
+    16
+   ],
+   "joint_group": "B-LB",
+   "source": "project",
+   "implemented": true
+  },
+  {
+   "id": "B-LB-K",
+   "key": "fx_blb_expiry",
+   "existing_opts_key": null,
+   "values": [
+    "K",
+    "2K"
+   ],
+   "joint_group": "B-LB",
+   "source": "project",
+   "implemented": true
+  },
+  {
+   "id": "B6",
+   "key": "fx_b6_cancel_on_target",
+   "existing_opts_key": null,
+   "values": [
+    false,
+    true
+   ],
+   "joint_group": null,
+   "source": "core-b.md 3.1 R3",
+   "implemented": true
+  },
+  {
+   "id": "B3",
+   "key": "fx_b3_bias_tf",
+   "existing_opts_key": null,
+   "values": [
+    "entry_tf",
+    "tfa_p5"
+   ],
+   "joint_group": null,
+   "source": "models.md 2.8",
+   "implemented": true
+  },
+  {
+   "id": "B4",
+   "key": "fx_b4_htf_level",
+   "existing_opts_key": null,
+   "values": [
+    "tag_only",
+    "required"
+   ],
+   "joint_group": null,
+   "source": "core-b.md 3.1 R1,R23",
+   "implemented": true
+  },
+  {
+   "id": "B-MGMT",
+   "key": "fx_bmgmt_be",
+   "existing_opts_key": "mgmt",
+   "values": [
+    "none",
+    "be"
+   ],
+   "joint_group": null,
+   "source": "WMT p272",
+   "implemented": true
+  },
+  {
+   "id": "B7",
+   "key": "fx_b7_killzone",
+   "existing_opts_key": null,
+   "values": [
+    "all_hours",
+    "killzone_only"
+   ],
+   "joint_group": null,
+   "source": "core-a.md R1",
+   "implemented": true
+  }
+ ]
+}
