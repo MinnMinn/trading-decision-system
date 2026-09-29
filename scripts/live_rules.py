@@ -64,7 +64,7 @@ def window(candles, i, tf):
     return candles[max(0, i - bars + 1):i + 1]
 
 
-def read_at(candles, i, tf, methods):
+def read_at(candles, i, tf, methods, opts=None):
     """The live scanner's facts for bar i, or None unless the trailing window is the FULL live window for `tf`
     (len(window) == bars from scan_spec). Live never scans on a partial window, so neither does this. Depends
     only on candles[:i+1].
@@ -72,7 +72,12 @@ def read_at(candles, i, tf, methods):
     `methods` is required, not defaulted: it must be exactly the methods live has engaged for the run being
     reproduced (scripts/htf_context.py's engaged_methods(style), resolved from /automation), not an
     independently-guessed default. analyze()'s own default is ("wyckoff","ict"); bias_of()'s is ("wyckoff",);
-    a third default here would be the same silent-mismatch bug this whole module exists to kill."""
+    a third default here would be the same silent-mismatch bug this whole module exists to kill.
+
+    `opts` -- passthrough only (docs/plans/2026-09-29-execution-plan.md "Shared contract" fx_ keys). The live
+    runner (scripts/strategy-runner.py) never passes this, so `opts=None` here reproduces v1 exactly; a
+    backtest caller (scripts/backtest-methods.py) passes its own OPTS-derived overlay so every fx_ key stays a
+    single per-call override, never a module-level mutation on this path."""
     bars, recent = scan_spec(tf)
     w = window(candles, i, tf)
     if len(w) != bars:
@@ -81,8 +86,8 @@ def read_at(candles, i, tf, methods):
     # `ict_scan.analyze(w, recent, tf=tf, methods=methods)` -- see structures.py's module docstring, "Hot-path
     # / cold-path split" (A1 code review round 1, item 4): this runs once per bar of a backtest, so it must not
     # pay to build the enriched structure envelope (pivots/pools/MSS/FVGs/dealing range/bias) that nothing on
-    # this path reads. Byte-identical to the pre-A1 direct call.
-    return _structures.ict_analysis(w, recent, tf, methods=methods)
+    # this path reads. Byte-identical to the pre-A1 direct call when opts is None/empty.
+    return _structures.ict_analysis(w, recent, tf, methods=methods, opts=opts)
 
 
 def setup_lookback(tf):

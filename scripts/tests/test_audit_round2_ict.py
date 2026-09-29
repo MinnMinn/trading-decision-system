@@ -431,7 +431,9 @@ class ICT8BacktestFillWindowAnchoredOnMss(unittest.TestCase):
               "entry": entry, "stop": stop, "target": target, "R": 2.0,
               "entry_models": {"iofed": entry, "ce": entry - 1, "fill": entry - 2}}
 
-        def fake_read_at(candles, i, tf_, methods):
+        def fake_read_at(candles, i, tf_, methods, opts=None):
+            # B1/Batch-1a: ict_setups_live() now calls lr.read_at(..., opts=fx_opts) -- accept and ignore the
+            # extra keyword so this pre-existing mock keeps matching the real signature.
             return {} if i >= detect_i else None
 
         with mock.patch.object(bt.lr, "read_at", side_effect=fake_read_at), \

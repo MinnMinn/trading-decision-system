@@ -363,8 +363,15 @@ def backtest_config_snapshot(bt, *, timeframes, methods, configs=None, fee_pct=N
         # read at ANY value (docs/experiments/prop-search-2026-09-27/ERRATUM-2026-09-28.md), so recording it
         # was the same false-liveness defect as `ict_target` below -- except nothing names a system by it, so
         # it is dropped outright rather than kept-and-disclosed.
+        # B1/Batch-1a (docs/plans/2026-09-29-execution-plan.md "Shared contract", rule 3: "every key is ...
+        # recorded by the config snapshot"): the ICT fx_ keys (scripts/backtest-methods.py FX_ICT_KEYS) are
+        # folded into custom_constraints, the existing bucket for every other OPTS overlay knob, rather than a
+        # new CONFIG_FIELDS entry -- CONFIG_FIELDS is §11's closed, exact-match registry (config_snapshot()
+        # raises on an unknown field), not an open extension point. Each key's own source is knowledge/ict/*.md
+        # -- see docs/plans/2026-09-28-methodology-improvement-plan.md §3 for the item-by-item citation table.
         "custom_constraints": dict({k: opts.get(k) for k in
-                                    ("types", "htf", "sloped_gate", "st_min", "phase_d")},
+                                    ("types", "htf", "sloped_gate", "st_min", "phase_d")
+                                    + getattr(bt, "FX_ICT_KEYS", ())},
                                    varied_per_config=residual),
         "provider_selection": {"see": "dataset_snapshot_id", "note":
                                "which providers supplied the bars is recorded in the §10 dataset snapshot, "

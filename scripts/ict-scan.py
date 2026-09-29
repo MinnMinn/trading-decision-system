@@ -102,11 +102,21 @@ def load_anchors(style):
         return None
 
 
-def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
+def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
     """`methods` = the dimensions /automation has engaged. A disengaged one's work is SKIPPED, not merely hidden:
     the FVG-mitigation and pool-sweep scans are the quadratic part of this function and the volume-outlier scan is
     Wyckoff's alone, so paying for a read nothing will show slows down the methods that are on (2026-09-13).
-    The shared window facts (last, window extremes, median range) are neither method's and are always computed."""
+    The shared window facts (last, window extremes, median range) are neither method's and are always computed.
+
+    `opts` -- the fx_ fidelity-correction keys (docs/plans/2026-09-29-execution-plan.md "Shared contract").
+    `opts=None` (every existing caller) is exactly `{}`: every key defaults to v1 behaviour, so this function's
+    output is byte-identical to before these keys existed unless a caller explicitly sets one.
+      fx_b1_pivot1     -- ICT pivots are 1 bar each side (knowledge/ict/core-a.md §2.5, §5), not PIV (v1: 3).
+                          ICT only; wyckoff_rules.py keeps its own pivot width regardless of this key.
+      fx_b2b_ce_fail   -- a traded FVG fails on a body close through its 0.5 CE, then through the far edge
+                          (core-a.md §2.26, R23). Off by default: no `ce_failed_at`/`inverted_at` fields, and
+                          no extra O(n) scan per FVG (the fields are read by setup_candidate(), not here)."""
+    opts = opts or {}
     ict, wyk = "ict" in methods, "wyckoff" in methods
     n = len(c)
     O = [x["open"] for x in c]; H = [x["high"] for x in c]; L = [x["low"] for x in c]; C = [x["close"] for x in c]
@@ -115,11 +125,15 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
     med = sorted(h - l for h, l in zip(H, L))[n // 2]
     avgv = sum(V) / n if n else 0
 
+    # B1 (core-a.md §2.5 "a high with a lower high to the left and right"; §5 "Swing definition width 1 candle
+    # each side"). v1's PIV=3 is a project parameter, not the deck's own width -- fidelity finding I-1.
+    piv_bars = 1 if (ict and opts.get("fx_b1_pivot1")) else PIV
     sh, sl = [], []
-    for i in (range(PIV, n - PIV) if ict else ()):
-        if all(H[j] <= H[i] for j in range(i - PIV, i + PIV + 1) if j != i): sh.append(i)
-        if all(L[j] >= L[i] for j in range(i - PIV, i + PIV + 1) if j != i): sl.append(i)
+    for i in (range(piv_bars, n - piv_bars) if ict else ()):
+        if all(H[j] <= H[i] for j in range(i - piv_bars, i + piv_bars + 1) if j != i): sh.append(i)
+        if all(L[j] >= L[i] for j in range(i - piv_bars, i + piv_bars + 1) if j != i): sl.append(i)
 
+    fx_b2b = bool(opts.get("fx_b2b_ce_fail"))
     fvgs = []
     for i in (range(1, n - 1) if ict else ()):
         f = None
@@ -130,6 +144,23 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
         for j in range(i + 2, n):
             if (f["type"] == "bull" and L[j] <= f["hi"]) or (f["type"] == "bear" and H[j] >= f["lo"]):
                 f["end"] = j; f["mitigated"] = True; break
+        # B2b (core-a.md §2.26, R23): "IF a pullback body-closes through the 0.5 (CE) of the FVG you are
+        # trading, THEN treat the FVG as failing; a subsequent close through the far edge completes the
+        # failure and inverts the gap." Causal: walk forward from i+2 (the same bar the mitigation scan above
+        # starts from -- the gap cannot be traded before its own 3rd candle closes), record the FIRST body
+        # close through the CE, then the FIRST body close through the far edge AFTER that. Gated behind the
+        # key: this is an extra O(n) walk per FVG on top of the mitigation scan already noted above as "the
+        # quadratic part of this function", so an untouched run pays nothing for it.
+        if fx_b2b and f["size"] >= FVG_MIN * med:
+            ce_failed_at = inverted_at = None
+            for j in range(i + 2, n):
+                if ce_failed_at is None:
+                    if (f["type"] == "bull" and C[j] < f["ce"]) or (f["type"] == "bear" and C[j] > f["ce"]):
+                        ce_failed_at = j
+                elif inverted_at is None:
+                    if (f["type"] == "bull" and C[j] < f["lo"]) or (f["type"] == "bear" and C[j] > f["hi"]):
+                        inverted_at = j; break
+            f["ce_failed_at"] = ce_failed_at; f["inverted_at"] = inverted_at
         if f["size"] >= FVG_MIN * med: fvgs.append(f)
 
     tol = eq * EQ_TOL
@@ -202,15 +233,18 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
     # leg extreme `ext`, per the fix critique: "too loose" to scan the whole ext..j span) for EITHER a
     # single-candle displacement OR a same-direction FVG left inside that run.
     def leg_disp(ext, j, bull):
+        """Returns (displaced, lo_r, hi_r): lo_r/hi_r are the leg's own bar-index bounds, additive output kept
+        for setup_candidate()'s B2a FVG-in-leg selection (core-a.md §3.3 R12) -- the caller decides whether to
+        use them; this function's own return value (`disp`) is unchanged."""
         is_dir = (lambda q: C[q] >= O[q]) if bull else (lambda q: C[q] <= O[q])
         q = j
         while q > ext and is_dir(q - 1):
             q -= 1
         lo_r, hi_r = q, j
         if any(is_disp(k) for k in range(lo_r, hi_r + 1)):
-            return True
+            return True, lo_r, hi_r
         want = "bull" if bull else "bear"
-        return any(f["type"] == want and lo_r <= f["i"] <= hi_r for f in fvgs)
+        return any(f["type"] == want and lo_r <= f["i"] <= hi_r for f in fvgs), lo_r, hi_r
     def run_start(e, down):
         k = e
         if (C[k] >= O[k]) if down else (C[k] <= O[k]): k -= 1
@@ -233,8 +267,12 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
                 frm = lastL or 0; e = min(range(frm, j), key=lambda q: L[q]); oi = max(range(lastH if lastH <= e else frm, e + 1), key=lambda q: H[q])
                 r = run_start(e, True)
                 cisd = {"level": O[r], "time": T[r], "confirmed": next((T[q] for q in range(r + 1, n) if C[q] > O[r]), None)} if r is not None else None
-                disp = leg_disp(e, j, True)
-                mss.append({"type": "bull", "i": j, "level": H[lastH], "disp": disp, "ext": L[e], "ext_time": T[e], "origin": H[oi], "cisd": cisd,
+                disp, leg_lo, leg_hi = leg_disp(e, j, True)
+                # leg_lo/leg_hi/ext_i: additive fields only (B2a/B-RAID; setup_candidate() reads them). No
+                # existing reader of this dict is affected -- same additive-field convention as A1's pivots_high/
+                # pivots_low/mss_all (see this function's return statement).
+                mss.append({"type": "bull", "i": j, "level": H[lastH], "disp": disp, "ext": L[e], "ext_time": T[e], "ext_i": e, "origin": H[oi], "cisd": cisd,
+                            "leg_lo": leg_lo, "leg_hi": leg_hi,
                             "vol_mult": round(V[j] / avgv, 2) if avgv else None})
                 if not disp:
                     continue   # ICT-4/ICT-5: a grab, not an MSS -- keep scanning (bias stays -1) for a LATER displaced close through the SAME swing
@@ -243,8 +281,9 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict")):
                 frm = lastH or 0; e = max(range(frm, j), key=lambda q: H[q]); oi = min(range(lastL if lastL <= e else frm, e + 1), key=lambda q: L[q])
                 r = run_start(e, False)
                 cisd = {"level": O[r], "time": T[r], "confirmed": next((T[q] for q in range(r + 1, n) if C[q] < O[r]), None)} if r is not None else None
-                disp = leg_disp(e, j, False)
-                mss.append({"type": "bear", "i": j, "level": L[lastL], "disp": disp, "ext": H[e], "ext_time": T[e], "origin": L[oi], "cisd": cisd,
+                disp, leg_lo, leg_hi = leg_disp(e, j, False)
+                mss.append({"type": "bear", "i": j, "level": L[lastL], "disp": disp, "ext": H[e], "ext_time": T[e], "ext_i": e, "origin": L[oi], "cisd": cisd,
+                            "leg_lo": leg_lo, "leg_hi": leg_hi,
                             "vol_mult": round(V[j] / avgv, 2) if avgv else None})
                 if not disp:
                     continue   # ICT-4/ICT-5: a grab, not an MSS -- keep scanning (bias stays 1) for a LATER displaced close through the SAME swing
@@ -370,41 +409,89 @@ def anchor_facts(c, spec):
             "ref_close": {"time": T[ref_i], "close": ref}, "verdict_key": key, "verdict": txt, "verdict_short": short}
 
 
-def setup_candidate(a, c, lookback):
+def setup_candidate(a, c, lookback, opts=None):
     """entry/stop/target/R for the classic chain sweep -> MSS (same direction) -> FVG, with the sweep inside the
-    last `lookback` bars. None if no recent sweep+MSS."""
+    last `lookback` bars. None if no recent sweep+MSS (unless `opts["fx_braid_optional"]`, see B-RAID below).
+
+    `opts` -- the fx_ fidelity-correction keys (docs/plans/2026-09-29-execution-plan.md "Shared contract").
+    `opts=None` (every existing caller) is exactly `{}`: every key defaults to v1 behaviour.
+      fx_braid_optional  -- core-b.md §2.2, R2: "a stop raid before the MSS is preferred" -- the deck states
+                            it as preferred, not required. v1 makes it mandatory (no matching swept pool in
+                            `lookback` => no candidate at all, fidelity finding I-5). Under the key, a displaced
+                            MSS with no matching raid still forms a candidate: side comes straight from the MSS
+                            type, and `sweep` is populated with `raid: False`, `pool: None`, `level: None` (kept
+                            as a dict, not None, so every existing reader of `su["sweep"]["time"]` stays safe).
+      fx_b2a_fvg_in_leg  -- core-a.md §3.3 R12: use the FVG inside the displacement leg as the entry array, not
+                            the latest same-direction FVG after the sweep (fidelity finding I-6). Reads the
+                            `leg_lo`/`leg_hi` bar bounds analyze() now always attaches to each mss record.
+      fx_b2b_ce_fail     -- core-a.md §2.26, R23: a candidate FVG that has already fully failed (body close
+                            through 0.5 CE, then through the far edge) as of this window is not offered as a
+                            NEW setup's entry array. Reads the `inverted_at` field analyze() only attaches when
+                            IT was called with `fx_b2b_ce_fail` too -- the caller must pass the same opts to
+                            both, exactly as backtest-methods.py's ict_setups_live() does."""
+    opts = opts or {}
     H = [x["high"] for x in c]; L = [x["low"] for x in c]; T = [x["time"] for x in c]
     n = len(c)
+    if not a["mss"]:
+        return None
+    m = a["mss"][-1]
+    s = None; side = None
     sweeps = [p for p in a["pools"] if p["swept"] >= max(0, n - lookback)]
-    if not sweeps or not a["mss"]: return None
-    s = max(sweeps, key=lambda p: p["swept"]); m = a["mss"][-1]
-    if m["i"] <= s["swept"]: return None
-    if s["kind"] == "SSL" and m["type"] == "bull": side = "long"
-    elif s["kind"] == "BSL" and m["type"] == "bear": side = "short"
-    else: return None
+    if sweeps:
+        cand = max(sweeps, key=lambda p: p["swept"])
+        if m["i"] > cand["swept"]:
+            if cand["kind"] == "SSL" and m["type"] == "bull": s, side = cand, "long"
+            elif cand["kind"] == "BSL" and m["type"] == "bear": s, side = cand, "short"
+    # B-RAID: v1 requires `s` (a matching stop raid) to exist at all -- no fallback, no candidate. Under the
+    # key, fall back to the MSS type alone when no matching raid was found in `lookback`.
+    if s is None:
+        if not opts.get("fx_braid_optional"):
+            return None
+        side = "long" if m["type"] == "bull" else "short"
+    # ref_i replaces the old hard-coded `s["swept"]` bound everywhere below: it is `s["swept"]` whenever a raid
+    # was found (byte-identical to v1), and the MSS's own leg-extreme bar (`ext_i`, analyze()'s `e`) when
+    # fx_braid_optional supplied a candidate with no raid -- the closest analogue to "the originating swing"
+    # (core-a.md R22) available without a swept pool to anchor on.
+    ref_i = s["swept"] if s is not None else m.get("ext_i", 0)
     O = [x["open"] for x in c]; Cc = [x["close"] for x in c]
     # ICT-3 (docs/audits/2026-09-24-system-audit.md; knowledge/ict/core-a.md §3.4 R13: "require entry in the
     # discount (below 0.5)"; R14/§2.19: PD arrays are framed by the ENTRY, not the latest close). This
     # provisional, close-based reading is only ever surfaced when the candidate is INCOMPLETE (no entry price
     # exists yet); the final `pd_ok` below overrides it with the real, entry-based gate once `entry` is known.
     pd_ok_provisional = (a["pct"] < 0.5) if side == "long" else (a["pct"] > 0.5)
-    base = {"side": side, "sweep": {"pool": s["kind"], "level": s["level"], "time": T[s["swept"]]},
+    base = {"side": side,
+            "sweep": ({"pool": s["kind"], "level": s["level"], "time": T[s["swept"]], "raid": True} if s is not None
+                      else {"pool": None, "level": None, "time": T[ref_i], "raid": False}),
             "mss": {"level": m["level"], "time": T[m["i"]], "vol_mult": m.get("vol_mult"), "displacement": m.get("disp"), "cisd": m.get("cisd")},
             "in_discount": a["pct"] < 0.5, "pd_ok": pd_ok_provisional, "dr_source": a["dr_source"]}
     if not m.get("disp"):
         base.update({"complete": False, "missing": "displacement trên nến phá swing (thân nến nhỏ / biên độ nhỏ — chưa phải MSS theo knowledge/ict/core-a.md §2.16)"}); return base
-    fv = [f for f in a["fvgs_all"] if f["i"] > s["swept"] and f["type"] == ("bull" if side == "long" else "bear")]
+    want_type = "bull" if side == "long" else "bear"
+    fv_all = [f for f in a["fvgs_all"] if f["i"] > ref_i and f["type"] == want_type]
+    # B2b: a candidate FVG that has already fully failed (CE close-through, then far-edge close-through) is not
+    # a live entry array to trade FROM -- it is what R23 calls "inverted". `inverted_at` only exists on fvgs_all
+    # entries when analyze() was itself called with fx_b2b_ce_fail (see that function's docstring).
+    if opts.get("fx_b2b_ce_fail"):
+        fv_all = [f for f in fv_all if f.get("inverted_at") is None]
+    # B2a: the entry array is the FVG INSIDE the displacement leg (core-a.md §3.3 R12), not the latest
+    # same-direction FVG after the sweep/raid reference point -- v1's `fv[-1]` over the whole post-ref_i span.
+    if opts.get("fx_b2a_fvg_in_leg") and m.get("leg_lo") is not None:
+        fv = [f for f in fv_all if m["leg_lo"] <= f["i"] <= m["leg_hi"]]
+        missing_note = " trong đợt displacement (core-a.md §3.3 R12)"
+    else:
+        fv = fv_all
+        missing_note = ""
     if not fv:
-        base.update({"complete": False, "missing": "FVG cùng chiều sau cú quét"}); return base
+        base.update({"complete": False, "missing": f"FVG cùng chiều sau cú quét{missing_note}"}); return base
     f = fv[-1]
     # OB = last opposing-close candle before the MSS candle (knowledge/ict/core-b.md §2.5): open line, 0.5 mean threshold, body low/high
     ob = None
-    for q in range(m["i"] - 1, s["swept"] - 1, -1):
+    for q in range(m["i"] - 1, ref_i - 1, -1):
         if (Cc[q] < O[q]) if side == "long" else (Cc[q] > O[q]):
             ob = {"open": O[q], "mt": (O[q] + Cc[q]) / 2, "body_low": min(O[q], Cc[q]), "body_high": max(O[q], Cc[q]), "time": T[q]}; break
     leg = abs(m["origin"] - m["ext"])
     if side == "long":
-        entry = f["hi"]; stop = min(L[s["swept"]:m["i"] + 1])
+        entry = f["hi"]; stop = min(L[ref_i:m["i"] + 1])
         entries = {"iofed": f["hi"], "ce": f["ce"], "fill": f["lo"]}
         stops = {"gap_far_edge": f["lo"], "ob_body_low": ob["body_low"] if ob else None, "sweep_extreme": stop}
         std = {"-2": m["origin"] + 2 * leg, "-2.5": m["origin"] + 2.5 * leg, "-4": m["origin"] + 4 * leg} if leg > 0 else None
@@ -433,7 +520,7 @@ def setup_candidate(a, c, lookback):
             return None
         risk, reward = entry - stop, target - entry
     else:
-        entry = f["lo"]; stop = max(H[s["swept"]:m["i"] + 1])
+        entry = f["lo"]; stop = max(H[ref_i:m["i"] + 1])
         entries = {"iofed": f["lo"], "ce": f["ce"], "fill": f["hi"]}
         stops = {"gap_far_edge": f["hi"], "ob_body_high": ob["body_high"] if ob else None, "sweep_extreme": stop}
         std = {"-2": m["origin"] - 2 * leg, "-2.5": m["origin"] - 2.5 * leg, "-4": m["origin"] - 4 * leg} if leg > 0 else None

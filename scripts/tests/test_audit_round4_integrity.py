@@ -266,7 +266,7 @@ class INT7ICTTradesCarryAnEventId(unittest.TestCase):
         n, tf = 40, "15m"
         H, L, C, O, Tm, c, su = _ict_fixture(mss_i=mss_i, detect_i=detect_i, fill_bar=fill_bar, n=n)
 
-        def fake_read_at(candles, i, tf_, methods):
+        def fake_read_at(candles, i, tf_, methods, opts=None):
             return {} if i >= detect_i else None
 
         with mock.patch.object(bt.lr, "read_at", side_effect=fake_read_at), \
@@ -549,7 +549,7 @@ class INT6PAR3UnifiedHtfGate(unittest.TestCase):
         bt = self.bt
         H, L, C, O, Tm, c, su = _ict_fixture()
 
-        def fake_read_at(candles, i, tf_, methods):
+        def fake_read_at(candles, i, tf_, methods, opts=None):
             return {} if i >= 6 else None
 
         bt.OPTS["htf"] = True
@@ -568,7 +568,7 @@ class INT6PAR3UnifiedHtfGate(unittest.TestCase):
         bt = self.bt
         H, L, C, O, Tm, c, su = _ict_fixture()
 
-        def fake_read_at(candles, i, tf_, methods):
+        def fake_read_at(candles, i, tf_, methods, opts=None):
             return {} if i >= 6 else None
 
         bt.reset_opts()
