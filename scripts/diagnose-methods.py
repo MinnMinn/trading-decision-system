@@ -699,7 +699,9 @@ def main(argv=None):
         if name == "run":
             p.add_argument("--out", required=True)
             p.add_argument("--set", action="append", default=[], metavar="FX_KEY",
-                           help="switch on a bool fx_ fidelity key (repeatable); default is v1 with none set")
+                           help="switch on a BOOL fx_ fidelity key (repeatable); default is v1 with none set. The ICT V keys (fx_b_ex, "
+                                "fx_b_pd, fx_b_pool, fx_b_buf, fx_b_exit, fx_b_lb, fx_b6, fx_b3, fx_b7) hold declared string values "
+                                "and cannot be switched on here")
     b = sub.add_parser("batch"); b.add_argument("--out-dir", required=True); b.add_argument("--timeout", type=int, default=1800)
     b.add_argument("--only", help="comma list of slugs to run (default: all audit slices)")
     r = sub.add_parser("report"); r.add_argument("--in-dir", required=True)
@@ -708,10 +710,14 @@ def main(argv=None):
     if a.cmd == "run":
         # Validated against the engine's own fx_ keys (every ICT and Wyckoff item), not just the prefix: a typo
         # would otherwise run as v1, be echoed in `overlay` as if active, and still count toward N.
-        valid = sorted(k for k in load_sr().bt._OPTS_BASE if k.startswith("fx_"))
+        base = load_sr().bt._OPTS_BASE
+        valid = sorted(k for k in base if k.startswith("fx_") and isinstance(base[k], bool))
         for k in a.set:
+            if k in base and k.startswith("fx_") and not isinstance(base[k], bool):
+                ap.error(f"--set only switches on BOOL fx_ keys; {k!r} holds one of a declared set of values "
+                         f"(baseline {base[k]!r}) and cannot be set to True")
             if k not in valid:
-                ap.error(f"--set takes one of the engine's fx_ keys {valid}, got {k!r}")
+                ap.error(f"--set takes one of the engine's bool fx_ keys {valid}, got {k!r}")
             EXTRA_OVERLAY[k] = True
         res = run_slice(a.symbol, a.tf, a.method, a.config, a.cutoff)
         os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)

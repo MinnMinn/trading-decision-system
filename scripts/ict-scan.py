@@ -81,15 +81,18 @@ MIN_RR = trading_env.min_rr()
 #   fx_b_ex    B-EX   entry model on the FVG (core-a.md §2.23 R19): iofed = near edge (v1), ce = 0.5, fill = far edge
 #   fx_b_pd    B-PD   dealing-range framing for the premium/discount gate: r15 = nearest BSL/SSL pair (v1, core-a.md
 #                     R15); r13 = swept extreme <-> opposing pool (core-a.md §2.19 diagram, R13)
-#   fx_b_pool  B-POOL PDH/PDL and Asian/London session highs/lows join the liquidity pools (core-a.md §2.8-2.9)
+#   fx_b_pool  B-POOL the most recent completed UTC day's PDH/PDL and the most recent completed asia/london session
+#                     high/low join the liquidity pools (core-a.md §2.8-2.9; UTC 00:00 day boundary = project choice)
 #   fx_b_buf   B-BUF  stop buffer beyond the swept wick, as a multiple of ATR (core-a.md R22 says only "below")
 #   fx_b_exit  B-EXIT the JOINT exit factor "target|time-stop|2R": target sigma projection (models.md §2.1.5) x
 #                     time stop H (project) x 2R floor (models.md §3.1 rule 23). 3 x 4 x 2 = 24 value sets, ONE key
 #   fx_b_lb    B-LB   setup lookback x K-bar expiry (project): "<lookback>|<K>"; lookback 12 = the live default
 #                     (scripts/live_rules.setup_lookback), 8/16 scale it by 8/12 and 16/12
-#   fx_b6      B6     cancel the pending limit when the target trades before the fill (core-b.md §3.1 R3 idea)
+#   fx_b6      B6     PROJECT rule: cancel the pending limit when the target trades before the fill (core-b.md §3.1
+#                     R3 is the invalidation idea, not an order-cancel rule)
 #   fx_b3      B3     bias timeframe: the entry TF (v1) or the TFA p5 higher-TF pairing (models.md §2.8)
-#   fx_b7      B7     indices only: take entries inside the session-registry windows only (core-a.md R1, §2.1)
+#   fx_b7      B7     indices only: entries inside a session-registry window only (docs/architecture/sessions.json v2,
+#                     NOT core-a.md R1's literal 02:00-05:00 EST windows; instant = fill bar OPEN, a proxy)
 # B4 ("HTF level engaged before the LTF MSS") is NOT here: the sources never define an HTF level nor "engaged",
 # so no key is registered (docs/architecture/v-grid-ict.json states it as implemented=false).
 V_ICT = {
@@ -323,10 +326,16 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
             r = day_rng.setdefault(T[i][:10], [i, i, i, i]); r[1] = i
             if H[i] > H[r[2]]: r[2] = i
             if L[i] < L[r[3]]: r[3] = i
-        for d in sorted(day_rng)[1:-1]:
-            _, d_end, d_hi, d_lo = day_rng[d]
+        # Scope (owner decision, pre-registered): ONLY the most recent completed UTC day's PDH/PDL. `sorted(..)[1:-1]`
+        # drops the window-first day (the window may open mid-day) and the still-forming last day; its final
+        # element is that most recent completed day.
+        done = sorted(day_rng)[1:-1]
+        if done:
+            _, d_end, d_hi, d_lo = day_rng[done[-1]]
             add("BSL", [d_hi, d_end], H[d_hi], "pdh"); add("SSL", [d_lo, d_end], L[d_lo], "pdl")
+        # ...and ONLY the most recent completed session of each configured type (asia, london).
         for w in SESSION_POOL_WINDOWS:
+            last_run = None
             i = 0
             while i < n:
                 if w not in _session_active(T[i]):
@@ -337,7 +346,10 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
                     if L[i] < L[s_lo]: s_lo = i
                     i += 1
                 if s0 > 0 and i < n:     # complete run only: it did not open the window and a later bar has left it
-                    add("BSL", [s_hi, i - 1], H[s_hi], "session_high"); add("SSL", [s_lo, i - 1], L[s_lo], "session_low")
+                    last_run = (s_hi, s_lo, i - 1)
+            if last_run:
+                s_hi, s_lo, s_end = last_run
+                add("BSL", [s_hi, s_end], H[s_hi], "session_high"); add("SSL", [s_lo, s_end], L[s_lo], "session_low")
     hi_i, lo_i = H.index(hi), L.index(lo)
 
     # MSS = body close beyond the swing preceding the raid (knowledge/ict/core-a.md §2.17, knowledge/ict/core-b.md §2.2). displacement = full-bodied

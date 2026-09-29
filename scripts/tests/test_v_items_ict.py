@@ -363,7 +363,11 @@ class BEXIT_Target(unittest.TestCase):
 
 
 class BPOOL_ReferencePools(unittest.TestCase):
-    """B-POOL -- knowledge/ict/core-a.md §2.8 (PDH/PDL) and §2.9 (session highs and lows are liquidity levels)."""
+    """B-POOL -- knowledge/ict/core-a.md §2.8 (PDH/PDL) and §2.9 (session highs and lows are liquidity levels).
+    Scope (owner decision, pre-registered): the MOST RECENT completed UTC day and the MOST RECENT completed session
+    of each type (asia, london) only; a still-forming day/session and a window-opening partial one contribute
+    nothing. Every fixture level below is one NO pivot pool shares (a level at a bar with a higher neighbour inside
+    its 3-bar window is not a pivot), so `add()`'s same-level dedup cannot mask a wrongly included pool."""
 
     @staticmethod
     def hourly(days, spikes=None, start="2026-01-05T00:00:00Z", lows=None):
@@ -377,11 +381,18 @@ class BPOOL_ReferencePools(unittest.TestCase):
             out.append({"time": t, "open": 100.0, "high": h, "low": (lows or {}).get(i, 99.5), "close": cl, "volume": 10.0})
         return out
 
+    def on(self, c):
+        return SCAN.analyze(c, 4, tf="1h", methods=("ict",), opts={"fx_b_pool": "on"})
+
+    @staticmethod
+    def kinds(a, *types):
+        return [p for p in a["pools"] if p["type"] in types]
+
     def pdh_fixture(self):
         # Day 2 (bars 24-47) tops out at its LAST bar (47, high 111) -- not a pivot, because bar 48's higher high (112)
-        # sits inside its 3-bar window -- and bar 48 (day 3) wicks through 111 and closes back under it: a PDH sweep.
-        # The mirror for the low: day 2's lowest wick is its last bar (97), bar 48 wicks to 96 and closes back above.
-        return self.hourly(4, spikes={47: (111.0, 100.0), 48: (112.0, 100.0)}, lows={47: 97.0, 48: 96.0})
+        # sits inside its 3-bar window -- and bar 48 (day 3, forming) wicks through 111 and closes back under it.
+        # The mirror for the low: day 2's lowest wick is bar 47 (97), bar 48 wicks to 96 and closes back above.
+        return self.hourly(3, spikes={47: (111.0, 100.0), 48: (112.0, 100.0)}, lows={47: 97.0, 48: 96.0})
 
     def test_default_off_equals_v1_and_the_actual_pre_batch_code(self):
         c = self.pdh_fixture()
@@ -392,36 +403,60 @@ class BPOOL_ReferencePools(unittest.TestCase):
     def test_on_adds_pdh_and_pdl_pools_that_can_be_swept(self):
         c = self.pdh_fixture()
         off = SCAN.analyze(c, 4, tf="1h", methods=("ict",))
-        on = SCAN.analyze(c, 4, tf="1h", methods=("ict",), opts={"fx_b_pool": "on"})
-        self.assertFalse([p for p in off["pools"] if p["type"] in ("pdh", "pdl")])
-        pdh = [p for p in on["pools"] if p["type"] == "pdh"]
-        self.assertTrue(pdh)
-        self.assertTrue(any(p["level"] == 111.0 and p["swept"] == 48 for p in pdh), "PDH 111 swept by bar 48's wick")
-        self.assertTrue([p for p in on["pools"] if p["type"] == "pdl"])
-        self.assertGreater(len(on["pools"]), len(off["pools"]))
+        on = self.on(c)
+        self.assertFalse(self.kinds(off, "pdh", "pdl"))
+        self.assertEqual([(p["level"], p["swept"]) for p in self.kinds(on, "pdh")], [(111.0, 48)], "PDH 111 swept by bar 48")
+        self.assertEqual([(p["level"], p["swept"]) for p in self.kinds(on, "pdl")], [(97.0, 48)], "PDL 97 swept by bar 48")
 
-    def test_the_still_forming_day_and_the_first_partial_day_are_not_pools(self):
-        c = self.hourly(2, spikes={5: (120.0, 100.0), 30: (130.0, 100.0)})   # day 1 = first (partial), day 2 = forming
-        on = SCAN.analyze(c, 4, tf="1h", methods=("ict",), opts={"fx_b_pool": "on"})
-        self.assertFalse([p for p in on["pools"] if p["type"] in ("pdh", "pdl")])
+    def test_only_the_most_recent_completed_day_is_a_pool(self):
+        # days d0..d3 (bars 0-95); d3 forming. d1 (24-47) and d2 (48-71) are completed: only d2's extremes count.
+        c = self.hourly(4, spikes={47: (111.0, 100.0), 48: (112.0, 100.0), 71: (121.0, 100.0), 72: (122.0, 100.0)},
+                        lows={47: 97.0, 48: 96.0, 71: 87.0, 72: 86.0})
+        on = self.on(c)
+        self.assertEqual([p["level"] for p in self.kinds(on, "pdh")], [121.0])
+        self.assertEqual([p["level"] for p in self.kinds(on, "pdl")], [87.0])
 
-    def test_on_adds_completed_session_highs_and_lows_only(self):
+    def test_the_still_forming_day_is_not_a_pool(self):
+        # PIT (mutation M3: [1:-1] -> [1:]). Last day (bars 48-71) is forming; its extremes sit at its LAST bar, which is
+        # never a pivot, so nothing but the day rule could add them.
+        c = self.hourly(3, spikes={71: (130.0, 100.0)}, lows={71: 70.0})
+        on = self.on(c)
+        self.assertFalse([p for p in self.kinds(on, "pdh", "pdl") if p["level"] in (130.0, 70.0)])
+        self.assertFalse([p for p in self.kinds(on, "pdh", "pdl") if p["to"] == len(c) - 1])
+
+    def test_the_window_first_partial_day_is_not_a_pool(self):
+        # Day 1's extremes sit at ITS last bar (23) under a higher/lower neighbour (24): not pivots; day 3 forming.
+        c = self.hourly(3, spikes={23: (120.0, 100.0), 24: (121.0, 100.0)}, lows={23: 80.0, 24: 79.0})
+        on = self.on(c)
+        self.assertFalse([p for p in self.kinds(on, "pdh", "pdl") if p["level"] in (120.0, 80.0)])
+
+    def test_session_pool_is_the_most_recent_completed_run_only(self):
         import sessions as S
-        c = self.hourly(4, spikes={2: (108.0, 100.0), 9: (109.0, 100.0)})      # bar 2 = 02:00Z in asia, bar 9 = 09:00Z in london (winter)
-        self.assertIn("asia", S.active(c[2]["time"]))
-        self.assertIn("london", S.active(c[9]["time"]))
-        # window = days 1-3 so the asia/london windows of day 2+ are complete inside it
-        on = SCAN.analyze(c[:72], 4, tf="1h", methods=("ict",), opts={"fx_b_pool": "on"})
-        self.assertTrue([p for p in on["pools"] if p["type"] in ("session_high", "session_low")])
-        # PIT: a window that ENDS inside the london run has no pool from that unfinished run
-        cut = c[:34]                                        # last bar = day 2 10:00Z, still inside london (08-11Z)
-        self.assertIn("london", S.active(cut[-1]["time"]))
-        part = SCAN.analyze(cut, 4, tf="1h", methods=("ict",), opts={"fx_b_pool": "on"})
-        self.assertFalse([p for p in part["pools"] if p["type"].startswith("session_") and p["to"] == len(cut) - 1])
-        self.assertFalse([p for p in part["pools"] if p["type"].startswith("session_") and p["from"] >= 32],
-                         "the unfinished london run of day 2 must not have produced a pool")
+        # asia = 01:00-05:00Z (winter). Each day's asia run tops at its LAST bar (04:00Z) under a higher 05:00Z bar.
+        sp = {28: (108.0, 100.0), 29: (109.0, 100.0), 52: (106.0, 100.0), 53: (107.0, 100.0)}
+        c = self.hourly(3, spikes=sp)
+        self.assertIn("asia", S.active(c[52]["time"]))
+        self.assertNotIn("asia", S.active(c[53]["time"]))
+        on = self.on(c)
+        levels = [p["level"] for p in self.kinds(on, "session_high")]
+        self.assertIn(106.0, levels, "the most recent completed asia run (day 3)")
+        self.assertNotIn(108.0, levels, "an older completed asia run is out of scope")
 
-    def test_off_never_imports_or_reads_the_session_registry_path(self):
+    def test_a_window_opening_session_run_is_not_a_pool(self):
+        # PIT (mutation M7, part 1). The window opens INSIDE an asia run (03:00Z); its high (bar 1) can never be a pivot.
+        c = self.hourly(1, start="2026-01-05T03:00:00Z", spikes={1: (108.0, 100.0)})   # 24 bars: the next asia run is unfinished
+        self.assertFalse([p for p in self.kinds(self.on(c), "session_high") if p["level"] == 108.0])
+
+    def test_an_unfinished_session_run_is_not_a_pool(self):
+        # PIT (mutation M7, part 2). The window ends inside the london run (08-11Z): last bar 10:00Z, unique high there.
+        import sessions as S
+        c = self.hourly(2, spikes={24 + 10: (109.5, 100.0)})[:35]
+        self.assertIn("london", S.active(c[-1]["time"]))
+        on = self.on(c)
+        self.assertFalse([p for p in self.kinds(on, "session_high") if p["level"] == 109.5])
+        self.assertFalse([p for p in self.kinds(on, "session_high", "session_low") if p["to"] == len(c) - 1])
+
+    def test_off_never_reads_the_session_registry_path(self):
         c = self.hourly(3)
         SCAN._SESS_ACTIVE.clear()
         SCAN.analyze(c, 4, tf="1h", methods=("ict",))
@@ -448,10 +483,18 @@ class EngineHarness(unittest.TestCase):
             c.append({"time": Tm[i], "open": cl, "high": h, "low": l, "close": cl, "volume": 1.0})
         return Tm, c
 
-    def run_engine(self, sym, tf, Tm, c, overrides=None, detect_i=6, mss_i=5, bias=("long", "x"), gate=None,
-                   lookback_stub=lambda tf: 12, entry=100.0, stop=90.0, target=130.0):
-        su = {"complete": True, "pd_ok": True, "side": "long", "sweep": {"time": Tm[2]}, "mss": {"time": Tm[mss_i]},
-              "entry": entry, "stop": stop, "target": target, "entry_models": {"fill": 95.0}, "R": 3.0}
+    def run_engine(self, sym, tf, Tm, c, overrides=None, detect_i=6, mss_i=5, bias=None, gate=None,
+                   lookback_stub=lambda tf: 12, entry=100.0, stop=90.0, target=130.0, short=False):
+        """`short=True` runs the exact price mirror (p -> 200 - p) of the long scenario as a SHORT: entry 100, stop 110,
+        target 70; bars built for the long case are mirrored (highs <-> lows)."""
+        if short:
+            m = lambda p: 200.0 - p
+            c = [dict(x, open=m(x["open"]), close=m(x["close"]), high=m(x["low"]), low=m(x["high"])) for x in c]
+            stop, target = m(stop), m(target)
+        side = "short" if short else "long"
+        bias = bias or (side, "x")
+        su = {"complete": True, "pd_ok": True, "side": side, "sweep": {"time": Tm[2]}, "mss": {"time": Tm[mss_i]},
+              "entry": entry, "stop": stop, "target": target, "entry_models": {"fill": 95.0 if not short else 105.0}, "R": 3.0}
         got = {"lookback": []}
 
         def fake_setup(a, w, lookback, opts=None):
@@ -591,7 +634,14 @@ class B3_BiasTimeframe(EngineHarness):
     def test_tfa_p5_uses_the_paired_tier_instead_of_the_entry_tier(self):
         calls = []
         Tm, c = self.build("1H", 40, 10)
-        gate = lambda sym, tf, side, dt, methods, h=None: calls.append((tf, side, h)) or True
+        def gate(sym, tf, side, dt, methods, h=None):
+            # PIT (mutation M6): the gate is keyed on the LTF bar's own CLOSE (available_time), never its OPEN.
+            close = BT._N.available_time(c[6], "1H").isoformat().replace("+00:00", "Z")
+            self.assertNotEqual(close, c[6]["time"])
+            self.assertEqual(dt, close, "decision_time must be the LTF bar's CLOSE, not its OPEN")
+            self.assertEqual((c[6]["time"], dt), ("2026-01-05T10:00:00Z", "2026-01-05T11:00:00Z"))
+            calls.append((tf, side, h))
+            return True
         out, _ = self.run_engine("XAUUSD", "1H", Tm, c, {"fx_b3": "tfa_p5"}, bias=("short", "x"), gate=gate)
         self.assertEqual(len(out), 1, "entry-TF bias (short) is ignored under tfa_p5; the paired 1D tier says yes")
         self.assertTrue(calls and all(k == ("1H", "long", "1D") for k in calls))
@@ -668,6 +718,141 @@ class BEXIT_TimeStopAndFloor(EngineHarness):
     def test_no_floor_is_ict_only(self):
         t = self.trade("US500-long-book-2026-01-05")
         self.assertEqual(self.taken(t, "no_floor"), [], "a Wyckoff trade keeps its floor whatever fx_b_exit says")
+
+
+class ShortSidePaths(EngineHarness):
+    """The `L[j] <= target` / mirrored branches of B6, B7, B3 and the B-EXIT time stop: the exact price mirror of the
+    long scenarios, run as shorts (entry 100, stop 110, target 70)."""
+
+    def test_b6_short_default_fills_after_the_target_traded(self):
+        Tm, c = self.build("1H", 40, 10, target_bar=7)
+        out, _ = self.run_engine("XAUUSD", "1H", Tm, c, short=True)
+        self.assertEqual([o["side"] for o in out], ["short"])
+
+    def test_b6_short_yes_cancels_when_the_target_traded_first(self):
+        Tm, c = self.build("1H", 40, 10, target_bar=7)
+        out, _ = self.run_engine("XAUUSD", "1H", Tm, c, {"fx_b6": "yes"}, short=True)
+        self.assertEqual(out, [])
+
+    def test_b6_short_yes_keeps_a_target_that_trades_only_after_the_fill(self):
+        Tm, c = self.build("1H", 40, 10, target_bar=14)
+        out, _ = self.run_engine("XAUUSD", "1H", Tm, c, {"fx_b6": "yes"}, short=True)
+        self.assertEqual((len(out), out[0]["outcome"]), (1, "win"))
+
+    def test_b7_short(self):
+        for hour, sym, opts, want in ((6, "US500", {"fx_b7": "killzone"}, 0), (14, "US500", {"fx_b7": "killzone"}, 1),
+                                      (6, "XAUUSD", {"fx_b7": "killzone"}, 1), (6, "US500", {}, 1)):
+            Tm, c = self.build("1H", 40, 10, fill_hour=hour)
+            out, _ = self.run_engine(sym, "1H", Tm, c, opts, short=True)
+            self.assertEqual(len(out), want, (hour, sym, opts))
+
+    def test_b3_short_reads_the_paired_tier_at_the_bar_close(self):
+        calls = []
+        Tm, c = self.build("1H", 40, 10)
+
+        def gate(sym, tf, side, dt, methods, h=None):
+            self.assertEqual(dt, "2026-01-05T11:00:00Z", "the LTF bar's CLOSE")
+            calls.append((side, h))
+            return True
+        out, _ = self.run_engine("XAUUSD", "1H", Tm, c, {"fx_b3": "tfa_p5"}, bias=("long", "x"), gate=gate, short=True)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(set(calls), {("short", "1D")})
+        out2, _ = self.run_engine("XAUUSD", "1H", Tm, c, bias=("long", "x"), short=True)     # v1: entry-TF bias disagrees
+        self.assertEqual(out2, [])
+
+    def test_time_stop_short(self):
+        h = BT.P["4H"]["H"]
+        Tm, c = self.build("4H", 110, 10, step_h=4)
+        got = {}
+        for tok in ("H", "1.5H", "2H", "none"):
+            out, _ = self.run_engine("XAUUSD", "4H", Tm, c, {"fx_b_exit": f"-2.0|{tok}|floor"}, short=True)
+            self.assertEqual(len(out), 1)
+            got[tok] = out[0]["exit"]
+        self.assertEqual(got, {"H": 11 + h - 1, "1.5H": 11 + int(round(1.5 * h)) - 1, "2H": 11 + 2 * h - 1, "none": 109})
+
+
+class UnregisteredOrTypoedKeysAreRefused(unittest.TestCase):
+    """A typo'd or unimplemented fx_ key must never silently run the baseline while looking like a variant."""
+
+    def test_scan_refuses_an_unregistered_fx_key_via_opts(self):
+        with self.assertRaises(ValueError) as cm:
+            BT.scan("XAUUSD", "1H", only=("ICT",), opts={"fx_b_exx": "ce"})
+        self.assertIn("fx_b_exx", str(cm.exception))
+
+    def test_scan_refuses_an_unregistered_fx_key_set_on_the_module_opts(self):
+        with mock.patch.dict(BT.OPTS, {"fx_typo": True}):
+            with self.assertRaises(ValueError):
+                BT.scan("XAUUSD", "1H", only=("ICT",))
+
+    def test_scan_refuses_b4_by_name(self):
+        for k in ("fx_b4", "fx_b4_htf_level"):
+            with self.assertRaises(ValueError) as cm:
+                BT.scan("XAUUSD", "1H", only=("ICT",), opts={k: "required"})
+            self.assertIn("not implemented", str(cm.exception))
+
+    def test_scan_still_accepts_every_registered_key_at_baseline(self):
+        BT._check_fx_registered(BT._OPTS_BASE)
+
+    def test_simulate_refuses_a_typoed_floor_token_or_value(self):
+        t = BEXIT_TimeStopAndFloor.trade(None, "US500-long-ict-a-b")
+        for bad in ("-2.0|H|nofloor", "-2.0|H|", "-3.0|H|floor", "floor"):
+            with mock.patch.dict(BT.OPTS, {"fx_b_exit": bad}):
+                with self.assertRaises((ValueError,), msg=bad):
+                    BT.simulate([t], 0.0)
+
+    def test_diagnose_set_rejects_a_non_bool_key_at_parse_time(self):
+        import io, contextlib
+        dm = load("diagnose-methods.py")
+        for key in V:
+            with contextlib.redirect_stderr(io.StringIO()) as err:
+                with self.assertRaises(SystemExit) as cm:
+                    dm.main(["run", "--symbol", "US500", "--tf", "15m", "--method", "ICT", "--config", "A",
+                             "--out", os.devnull, "--set", key])
+            self.assertEqual(cm.exception.code, 2, key)
+            self.assertIn("BOOL", err.getvalue(), key)
+            self.assertIn(key, err.getvalue())
+
+    def test_diagnose_help_says_bool_only(self):
+        import io, contextlib
+        dm = load("diagnose-methods.py")
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            with self.assertRaises(SystemExit):
+                dm.main(["run", "--help"])
+        self.assertIn("BOOL", out.getvalue())
+
+
+class NoFloorTradeIdentification(unittest.TestCase):
+    """The no_floor component keys on the trade's event id form (an explicit `method` field would change every v1
+    trade record). Pin every id form the engine emits."""
+
+    def test_the_engine_emits_exactly_these_id_forms(self):
+        src = open(os.path.join(ROOT, "scripts", "backtest-methods.py"), encoding="utf-8").read()
+        self.assertIn('event = f"{sym}-{su[\'side\']}-ict-{su[\'sweep\'][\'time\']}-{su[\'mss\'][\'time\']}"', src)
+        self.assertIn('event=f"{sym}-{side}-book-{t0}"', src)
+        self.assertIn('base["event"] + "-D"', src)
+
+    def test_only_ict_ids_lose_the_floor(self):
+        t = BEXIT_TimeStopAndFloor.trade(None, "")
+        for event, admitted in (("US500-long-ict-2026-01-05T01:00:00Z-2026-01-05T03:00:00Z", 1),
+                                ("US500-long-book-2026-01-05T01:00:00Z", 0),
+                                ("US500-long-book-2026-01-05T01:00:00Z-D", 0)):
+            with mock.patch.dict(BT.OPTS, {"fx_b_exit": "-2.0|H|no_floor"}):
+                self.assertEqual(len(BT.simulate([dict(t, event=event)], 0.0)[2]), admitted, event)
+
+    def test_engine_ict_trades_carry_the_ict_id_form(self):
+        h = EngineHarness("run_engine")
+        Tm, c = h.build("1H", 40, 10)
+        out, _ = h.run_engine("XAUUSD", "1H", Tm, c)
+        self.assertIn("-ict-", out[0]["event"])
+
+    def test_snapshot_records_the_baseline_for_an_opts_dict_lacking_a_key(self):
+        import snapshot
+        with mock.patch.dict(BT.OPTS):
+            for k in V:
+                del BT.OPTS[k]
+            cc = snapshot.backtest_config_snapshot(BT, timeframes=["1H"], methods={"ICT"}, market="crypto")["fields"]["custom_constraints"]
+        for k, vals in V.items():
+            self.assertEqual(cc[k], vals[0], k)
 
 
 class BMGMT_ExistingKnob(unittest.TestCase):

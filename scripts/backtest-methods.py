@@ -1096,6 +1096,19 @@ def reset_opts():
     OPTS = dict(_OPTS_BASE)
 
 
+def _check_fx_registered(o):
+    """A typo'd or unimplemented `fx_` key would run the baseline while looking like a variant (and still count toward
+    N): refuse any `fx_` key not registered in _OPTS_BASE, and refuse B4 (`fx_b4*`) by name -- the grid declares it
+    implemented=false, so no key exists for it."""
+    for k in o:
+        if k.startswith("fx_b4"):
+            raise ValueError(f"{k!r}: B4 (HTF level engaged before the LTF MSS) is not implemented "
+                             f"(docs/architecture/v-grid-ict.json, implemented=false); there is no such key")
+        if k.startswith("fx_") and k not in _OPTS_BASE:
+            raise ValueError(f"{k!r} is not a registered engine key (registered fx_ keys: "
+                             f"{sorted(x for x in _OPTS_BASE if x.startswith('fx_'))})")
+
+
 def scan(sym, tf, only=None, opts=None):
     """`only`: which of RUNNER_METHODS to compute; None (default) computes all three. A caller that needs exactly
     one method's trades should pass e.g. only=("ICT",) so scan() SKIPS the other methods' work rather than
@@ -1120,6 +1133,7 @@ def scan(sym, tf, only=None, opts=None):
             return scan(sym, tf, only=only, opts=None)
         finally:
             OPTS = saved
+    _check_fx_registered(OPTS)
     want = set(RUNNER_METHODS) if only is None else set(only)
     c, src = load(sym, tf)
     if not c:
@@ -1542,8 +1556,10 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
     refused_news = refused_session = 0
     # B-EXIT's 2R component (fx_b_exit "...|no_floor", knowledge/ict/models.md §3.1 rule 23: 2R is "the minimum
     # requirement before taking profit on an open position", not an entry filter): the planned-R:R ENTRY floor
-    # below is skipped for ICT trades. Baseline "floor" = v1. ICT trades only (their `event` ids carry "-ict-",
-    # INT-7), so a Wyckoff run under the same OPTS keeps its floor.
+    # below is skipped for ICT trades. Baseline "floor" = v1. ICT trades only, identified by their `event` id form
+    # "<sym>-<side>-ict-<sweep>-<mss>" (INT-7; Wyckoff ids are "<sym>-<side>-book-<t0>[-D]", test_v_items_ict pins
+    # both forms) -- an explicit `method` field would change every v1 trade record, so the id form is kept.
+    lr.ict_scan.check_v_opts({"fx_b_exit": OPTS["fx_b_exit"]})     # a typo'd floor token raises, never runs "floor"
     no_floor_ict = lr.ict_scan.b_exit_parts(OPTS["fx_b_exit"])[2] == "no_floor"
     ts = sorted(trades, key=lambda t: t["entry_time"])
     equity = START; open_pos = {}; curve = []; taken = []; ruin = None
