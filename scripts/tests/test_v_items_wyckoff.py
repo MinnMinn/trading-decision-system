@@ -471,6 +471,13 @@ class W6StructureWindow(unittest.TestCase):
                 wide = self.scan(bars, fx_w6_window=600)
                 self.assertEqual([t["side"] for t in wide], [side])
 
+    def test_window_longer_than_the_history_is_refused_not_an_empty_result(self):
+        """Review round 1 (I3): 600 on a 400-bar series must raise, while the default window never does."""
+        short = _w6_bars()[:400]
+        with self.assertRaises(ValueError):
+            self.scan(short, fx_w6_window=600)
+        self.scan(short)                                  # baseline: no refusal (v1 behaviour)
+
     def test_the_trade_record_carries_volume_kind_the_split_seam_for_fund_search(self):
         """Plan section 6 item 4: every WYCKOFF-BOOK trade already carries `volume_kind` (backtest-methods.py, the
         `base` trade dict). No new code was needed; this pins the seam a per-volume_kind split will read. XAUUSD is a

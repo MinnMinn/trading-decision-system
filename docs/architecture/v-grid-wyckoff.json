@@ -1,133 +1,133 @@
 {
-  "method": "WYCKOFF-BOOK",
-  "items": [
-    {
-      "id": "W-STOP",
-      "key": "fx_w_stop",
-      "existing_opts_key": null,
-      "values": [
-        "current",
-        "spring_low"
-      ],
-      "joint_group": null,
-      "source": "WMT p271",
-      "implemented": true,
-      "note": "Phase-D (BU/LPS) stop only; a structure with no Spring (LPS[C] path) keeps the BU stop."
-    },
-    {
-      "id": "W4a",
-      "key": "fx_w4a_linger_closes",
-      "existing_opts_key": null,
-      "values": [
-        2,
-        3,
-        4
-      ],
-      "joint_group": null,
-      "source": "WA2-12; WA p80, p83",
-      "implemented": true,
-      "note": "Shakeout iff no reclaim or >= N closes below the border before the reclaim bar. The grid's baseline 2 is the plan's declared baseline and is run as v1 (key unset, engine default null = v1's own 'more than half of the excursion window' typing, which is not a count); explicit 2 is a distinct rule and is only reached by setting the key."
-    },
-    {
-      "id": "W4b",
-      "key": "fx_w4b_ltf_spring",
-      "existing_opts_key": null,
-      "values": [
-        "off",
-        "on"
-      ],
-      "joint_group": null,
-      "source": "WA2-12; WA2-18",
-      "implemented": false,
-      "note": "Not implemented: WA2-12/WA2-18 name a lower-timeframe local Spring[C]/LPS[C] but define no entry bar, stop or target for it, and the engine walks one timeframe; building it would invent placement rules. No OPTS key is registered (no dead key). Counts toward N."
-    },
-    {
-      "id": "W6",
-      "key": "fx_w6_window",
-      "existing_opts_key": null,
-      "values": [
-        300,
-        600
-      ],
-      "joint_group": null,
-      "source": "fidelity 3.3 B1 (project)",
-      "implemented": true,
-      "note": "Wyckoff side only. To be decided together with ICT SCAN_WINDOW (scripts/automation.py); the coupling is not implemented here. Baseline 300 = bt.WYCKOFF_WINDOW, the live runner's window; a cell needs >= 600 bars of history."
-    },
-    {
-      "id": "W-MGMT",
-      "key": "mgmt",
-      "existing_opts_key": "mgmt",
-      "values": [
-        "none",
-        "be"
-      ],
-      "joint_group": null,
-      "source": "WMT p272",
-      "implemented": true,
-      "note": "Existing OPTS knob mgmt; no new key."
-    },
-    {
-      "id": "W-SPT",
-      "key": "fx_w_spt",
-      "existing_opts_key": null,
-      "values": [
-        "AR",
-        "ceiling",
-        "VAH"
-      ],
-      "joint_group": null,
-      "source": "WA p85; WMT p273",
-      "implemented": true,
-      "note": "Spring-leg target only. VAH is the value-area high of the TR (VAL, its mirror, for a short)."
-    },
-    {
-      "id": "W-TOUCH",
-      "key": "fx_w_touch",
-      "existing_opts_key": null,
-      "values": [
-        "off",
-        "on"
-      ],
-      "joint_group": null,
-      "source": "advance.md 2.11.2 (WA p154)",
-      "implemented": true,
-      "note": "on = at least 2 recorded Phase-B tests (phase_b_tests) of EACH border third before a Spring-path structure counts."
-    },
-    {
-      "id": "W-TW",
-      "key": "fx_w_tw",
-      "existing_opts_key": null,
-      "values": [
-        [
-          12,
-          2
-        ],
-        [
-          8,
-          2
-        ],
-        [
-          20,
-          2
-        ],
-        [
-          12,
-          3
-        ],
-        [
-          8,
-          3
-        ],
-        [
-          20,
-          3
-        ]
-      ],
-      "joint_group": null,
-      "source": "project",
-      "implemented": true,
-      "note": "[test_window, min_phase_b_swings]: the full cross {12,8,20} x {2,3}; baseline first, 5 non-baseline cells."
-    }
-  ]
+ "method": "WYCKOFF-BOOK",
+ "items": [
+  {
+   "id": "W-STOP",
+   "key": "fx_w_stop",
+   "existing_opts_key": null,
+   "values": [
+    "current",
+    "spring_low"
+   ],
+   "joint_group": null,
+   "source": "WMT p271",
+   "implemented": true,
+   "note": "Phase-D (BU/LPS) stop only; a structure with no Spring (LPS[C] path) keeps the BU stop."
+  },
+  {
+   "id": "W4a",
+   "key": "fx_w4a_linger_closes",
+   "existing_opts_key": null,
+   "values": [
+    2,
+    3,
+    4
+   ],
+   "joint_group": null,
+   "source": "WA2-12; WA p80, p83",
+   "implemented": true,
+   "note": "Shakeout iff no reclaim or >= N closes below the border before the reclaim bar. The grid's baseline 2 is the plan's declared baseline and is run as v1 (key unset, engine default null = v1's own 'more than half of the excursion window' typing, which is not a count); explicit 2 is a distinct rule and is only reached by setting the key. Degenerate cells (review I1): the linger count before the reclaim is at most spring_max_bars_outside bars (4H sob=3, 1D sob=2), so on those timeframes 4 (and 3 on 1D) can only trigger through 'no reclaim' and collapses into the same behaviour; label such cells when reading results. The explicit rule REPLACES v1's 'more than half outside' test rather than adding to it."
+  },
+  {
+   "id": "W4b",
+   "key": "fx_w4b_ltf_spring",
+   "existing_opts_key": null,
+   "values": [
+    "off",
+    "on"
+   ],
+   "joint_group": null,
+   "source": "WA2-12; WA2-18",
+   "implemented": false,
+   "note": "Not implemented: WA2-12/WA2-18 name a lower-timeframe local Spring[C]/LPS[C] but define no entry bar, stop or target for it, and the engine walks one timeframe; building it would invent placement rules. No OPTS key is registered (no dead key). Counts toward N."
+  },
+  {
+   "id": "W6",
+   "key": "fx_w6_window",
+   "existing_opts_key": null,
+   "values": [
+    300,
+    600
+   ],
+   "joint_group": null,
+   "source": "fidelity 3.3 B1 (project)",
+   "implemented": true,
+   "note": "Wyckoff side only. To be decided together with ICT SCAN_WINDOW (scripts/automation.py); the coupling is not implemented here. Baseline 300 = bt.WYCKOFF_WINDOW, the live runner's window; a cell needs >= 600 bars of history. The engine raises ValueError when history has fewer bars than the window (an empty cell is never reported as a result)."
+  },
+  {
+   "id": "W-MGMT",
+   "key": "mgmt",
+   "existing_opts_key": "mgmt",
+   "values": [
+    "none",
+    "be"
+   ],
+   "joint_group": null,
+   "source": "WMT p272",
+   "implemented": true,
+   "note": "Existing OPTS knob mgmt; no new key."
+  },
+  {
+   "id": "W-SPT",
+   "key": "fx_w_spt",
+   "existing_opts_key": null,
+   "values": [
+    "AR",
+    "ceiling",
+    "VAH"
+   ],
+   "joint_group": null,
+   "source": "WA p85; WMT p273",
+   "implemented": true,
+   "note": "Spring-leg target only. VAH is the value-area high of the TR (VAL, its mirror, for a short)."
+  },
+  {
+   "id": "W-TOUCH",
+   "key": "fx_w_touch",
+   "existing_opts_key": null,
+   "values": [
+    "off",
+    "on"
+   ],
+   "joint_group": null,
+   "source": "advance.md 2.11.2 (WA p154)",
+   "implemented": true,
+   "note": "on = at least 2 recorded Phase-B tests (phase_b_tests) of EACH border third before a Spring-path structure counts. It also gates the Phase-D leg of Spring-path structures (broader than 'before a Spring counts'); LPS[C] is untouched."
+  },
+  {
+   "id": "W-TW",
+   "key": "fx_w_tw",
+   "existing_opts_key": null,
+   "values": [
+    [
+     12,
+     2
+    ],
+    [
+     8,
+     2
+    ],
+    [
+     20,
+     2
+    ],
+    [
+     12,
+     3
+    ],
+    [
+     8,
+     3
+    ],
+    [
+     20,
+     3
+    ]
+   ],
+   "joint_group": null,
+   "source": "project",
+   "implemented": true,
+   "note": "[test_window, min_phase_b_swings]: the full cross {12,8,20} x {2,3}; baseline first, 5 non-baseline cells."
+  }
+ ]
 }

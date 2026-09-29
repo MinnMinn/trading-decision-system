@@ -1061,7 +1061,7 @@ def _fires_from(side, recs, C, Tm, sym=None, tf=None):
             continue
         if OPTS["st_min"] is not None and r["st_pct"] < OPTS["st_min"]:
             continue
-        if OPTS["fx_w_touch"] == "on" and r["path"] == "spring":
+        if OPTS.get("fx_w_touch", "off") == "on" and r["path"] == "spring":
             # W-TOUCH (advance.md 2.11.2, WA p154): "two tests of each TR border before a Spring counts" -- the
             # RECORDED Phase-B test counts (R3b `phase_b_tests`), both thirds needing W_TOUCH_MIN. Symmetric, so
             # it reads the same on the inverted (short) frame.
@@ -1086,7 +1086,7 @@ def _fires_from(side, recs, C, Tm, sym=None, tf=None):
             if w_bar == last:
                 stop = r["spring_low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["spring_low"] * (1 + STOP_BUFFER_PCT)
                 target = r["tr_hi"] if side == "long" else r["tr_lo"]
-                spt = OPTS["fx_w_spt"]
+                spt = OPTS.get("fx_w_spt", "AR")
                 if spt == "ceiling":
                     # W-SPT (WA p85; WMT p273): the running Phase-B UA ceiling (the floor, for a short) instead of AR.
                     target = r["ceiling"]
@@ -1098,7 +1098,7 @@ def _fires_from(side, recs, C, Tm, sym=None, tf=None):
                     out.append(dict(leg="spring", t0=t0, entry=C[last], stop=stop, target=target, rec=r))
         if OPTS["phase_d"] and r["bu"] and r["bu"]["bar"] == last:
             stop = r["bu"]["low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["bu"]["low"] * (1 + STOP_BUFFER_PCT)
-            if OPTS["fx_w_stop"] == "spring_low" and r["spring_low"] is not None:
+            if OPTS.get("fx_w_stop", "current") == "spring_low" and r["spring_low"] is not None:
                 # W-STOP (WMT p271): the stop sits beyond the Spring low, not just the BU/LPS pullback low. A
                 # structure with no Spring (the LPS[C] path) has no Spring low, so it keeps the BU stop.
                 stop = r["spring_low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["spring_low"] * (1 + STOP_BUFFER_PCT)
@@ -1177,6 +1177,11 @@ def scan(sym, tf, only=None, opts=None):
         # ONE number the live runner also reads; 600 is the V value. It is a component of the cache key below.
         _check_wy_v_opts()
         seen = set(); WIN = WYCKOFF_WINDOW if OPTS["fx_w6_window"] == 300 else OPTS["fx_w6_window"]
+        if WIN != WYCKOFF_WINDOW and n < WIN:
+            # Review round 1 (I3): a window longer than the history yields ZERO windows, which would read as a real
+            # "no edge" cell. Refuse instead; the default window is untouched (v1 behaviour byte-identical).
+            raise ValueError(f"fx_w6_window={WIN} needs at least {WIN} bars of history, {sym} {tf} has {n}; "
+                             f"refusing to report an empty cell as a result")
         # Detection is the cost (~0.5 ms/window) and does not depend on the GATING half of OPTS; the gates do.
         # So the per-window candidates are computed once per history in this process and every config re-runs
         # only the gates -- EXCEPT the four fx_w1/w2/w3/w5 keys (Batch 1(b) F items), which change DETECTION
