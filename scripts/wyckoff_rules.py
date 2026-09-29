@@ -93,6 +93,19 @@ already is):
   (W7 -- Phase-D target from the higher-timeframe TR's AR/SOS, WA2-19 -- is a SEPARATE key,
   `fx_w7_htf_target`, read by backtest-methods.py `_fires_from`/`_htf_wyckoff_target`, not by this module: it
   needs a second, higher-timeframe candle series this module has no access to. See that module's docstring.)
+
+V ITEMS READ BY THIS MODULE (Batch 2(a); docs/plans/2026-09-28-methodology-improvement-plan.md section 3, the V grid;
+docs/architecture/v-grid-wyckoff.json). Each is a PER-CALL override of the caller's PARAMS copy -- this module never
+writes PARAMS -- and each default reproduces v1 exactly:
+  fx_w4a_linger_closes  W4a (WA2-12, WA p80, p83): "most candles of the break close BELOW the lower border and price
+                     lingers there" = Shakeout. None (default) = v1's typing (no reclaim within
+                     `spring_max_bars_outside` bars, or more than half of the excursion window closing below the
+                     border). An int N in the declared set {2, 3, 4} types a break a Shakeout when it has NO
+                     reclaim, or when N or more closes below the border precede the reclaim bar. The count is
+                     the V threshold; the book prints none.
+  test_window, min_phase_b_swings (W-TW, project parameters, PARAMS above): the V item `fx_w_tw` of
+                     backtest-methods.py overrides both in the per-call copy: test window {12, 8, 20} x
+                     Phase-B swings {2, 3}.
 """
 import bisect, json, os
 
@@ -125,6 +138,8 @@ PARAMS = dict(
     fx_w2_st_below_sc=False,
     fx_w3_mSOW_spring=False,
     fx_w5_vp_abandon=False,
+    # V item W4a (module docstring "V ITEMS"): None = v1 Shakeout typing; an int = the lingering-closes threshold.
+    fx_w4a_linger_closes=None,
 )
 
 
@@ -393,6 +408,10 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
         outside = [q for q in range(spring, min(spring + P["spring_max_bars_outside"] + 1, n)) if C[q] < tr_lo]
         rec = next((q for q in range(spring, min(spring + P["spring_max_bars_outside"] + 1, n)) if C[q] > tr_lo), None)
         shakeout = rec is None or len(outside) > (rec - spring + 1) / 2
+        if P.get("fx_w4a_linger_closes") is not None:
+            # W4a (WA2-12, module docstring "V ITEMS"): lingering = closes below the border BEFORE the reclaim bar
+            # (every bar in [spring, rec) failed to close back inside). No reclaim at all is always a Shakeout.
+            shakeout = rec is None or sum(1 for q in range(spring, rec) if C[q] < tr_lo) >= P["fx_w4a_linger_closes"]
         spring_low = min(L[spring:(rec if rec is not None else spring) + 1])
         # --- volume type (R7 / WY-1): Spring table on the long side, Upthrust table on the short side --
         # see vol_type() above. `side` comes from the caller (detect_distributions passes "short"). ---
