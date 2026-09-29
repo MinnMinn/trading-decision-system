@@ -117,5 +117,30 @@ class InstrumentationChangesNothing(unittest.TestCase):
         self.assertEqual(summ["walk_calls"].get("trade", 0), len(trades))
 
 
+class SetFlagValidation(unittest.TestCase):
+    """`run --set` accepts exactly the engine's fx_ keys (ICT + Wyckoff after the Batch-1 merge)."""
+
+    def _main(self, key):
+        import io, contextlib
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            with self.assertRaises(SystemExit) as cm:
+                dm.main(["run", "--symbol", "US500", "--tf", "15m", "--method", "ICT", "--config", "A",
+                        "--out", os.path.join(os.devnull), "--set", key])
+        return cm.exception.code, err.getvalue()
+
+    def test_a_typo_in_an_fx_key_is_refused(self):
+        code, err = self._main("fx_b2a_fvg_in_lag")
+        self.assertEqual(code, 2)
+        self.assertIn("fx_b2a_fvg_in_lag", err)
+
+    def test_a_non_fx_key_is_refused(self):
+        code, _ = self._main("mgmt")
+        self.assertEqual(code, 2)
+
+    def test_every_engine_fx_key_is_accepted_as_valid(self):
+        keys = {k for k in dm.load_sr().bt._OPTS_BASE if k.startswith("fx_")}
+        self.assertTrue({"fx_b2a_fvg_in_leg", "fx_braid_optional", "fx_w1_tr_low_st", "fx_w7_htf_target"} <= keys)
+
+
 if __name__ == "__main__":
     unittest.main()

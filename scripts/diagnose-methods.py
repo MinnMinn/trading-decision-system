@@ -706,9 +706,12 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     if a.cmd == "run":
+        # Validated against the engine's own fx_ keys (every ICT and Wyckoff item), not just the prefix: a typo
+        # would otherwise run as v1, be echoed in `overlay` as if active, and still count toward N.
+        valid = sorted(k for k in load_sr().bt._OPTS_BASE if k.startswith("fx_"))
         for k in a.set:
-            if not k.startswith("fx_"):
-                ap.error(f"--set takes fx_ keys only, got {k!r}")
+            if k not in valid:
+                ap.error(f"--set takes one of the engine's fx_ keys {valid}, got {k!r}")
             EXTRA_OVERLAY[k] = True
         res = run_slice(a.symbol, a.tf, a.method, a.config, a.cutoff)
         os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
