@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Deterministic Wyckoff/ICT event scanner + preliminary read + FACTS (no LLM).
 
-Mirrors the artifacts' client-side ictAnalyze() so the preliminary read matches what the chart draws:
+This is the ONE ICT detector (ADR 0009): scripts/structures.py wraps its output and the chart draws exactly that (the chart's own
+ictAnalyze() was removed in A2), so the preliminary read and the chart cannot disagree. It computes:
 3-bar pivots, old + equal highs/lows (BSL/SSL, knowledge/ict/core-a.md §2.7) + external range liquidity (ERL), sweeps (wick through a
 level, close back), 3-candle FVGs until mitigation, MSS (close beyond last swing after a lower-low /
 higher-high), premium/discount vs equilibrium, and volume outliers (Effort-vs-Result hint).

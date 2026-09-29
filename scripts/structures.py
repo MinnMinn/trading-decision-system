@@ -72,7 +72,8 @@ decision call (`ict_analysis`/`wyckoff_records`), only by the enriched envelope 
   * A pool's/FVG's `invalidated_at` is set only when the wrapped function's OWN forward scan already found the
     level consumed: a pool whose `state` is "closed_through" (ict-scan.py `add()`, a completed body close
     beyond the level -- never "swept", which is a level that held), or an FVG whose `mitigated` is true (a
-    later bar's wick traded back into the gap). The timestamp is that confirming bar's own `available_time()`
+    later bar's wick traded back into the gap). The timestamp is that confirming bar's own `available_time()`,
+    clamped to >= the object's own `available_at` (S5: never invalidated before it is available)
     -- no PIV/i+1 confirmation delay applies here (both tests are single-bar wick/close tests against an
     already-known level, the same "no look-ahead beyond its own bar" case `mss`/`sweep`/`closed_through`
     already are, module docstring above). A2 (chart.js) draws an invalidated pool/FVG ending at this bar, not
@@ -82,8 +83,9 @@ decision call (`ict_analysis`/`wyckoff_records`), only by the enriched envelope 
     cause; spring/test = Phase C testing supply/demand; sos/sos_bar..bu = Phase D; after bu = Phase E markup)
     -- knowledge/wyckoff/advance.md's own event vocabulary (WA p68-96), which is exactly why wyckoff_rules.py
     already names its record fields sc/ar/st/spring/sos/bu. No new detection: a phase's boundary is one of
-    those already-detected bars, and a phase's `available_at` is that boundary bar's own `available_time()` --
-    never earlier. A phase whose closing event has not happened yet in this record (Phase E always; Phase D
+    those already-detected bars, and a phase's `available_at` is the `available_time()` of the bar that CONFIRMS its
+    boundaries (the SOS boundary is confirmed at `sos = sos_bar + COMMIT - 1`, not at `sos_bar`), clamped to
+    >= the parent trading range's own `available_at` -- never earlier. A phase whose closing event has not happened yet in this record (Phase E always; Phase D
     when `bu` is None; Phase C/B when the next event is None) is `status: "hypothesis"` -- open, not yet
     confirmed closed -- matching chart.js's existing hypothesis/tested rendering (P6.2, docs/audits/
     2026-09-24-wyckoff-label-review.md; WA p166 warns against labelling mechanically). This is a NEW,
@@ -178,11 +180,13 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
         # break, never a "swept" wick-and-hold), timestamped at that confirming bar, same as the separate
         # closed_through structure object below carries.
         to = p.get("to", p["from"])
-        pool_invalidated_at = (_avail(window, p["closed_at"], tf)
+        pool_available_at = _avail(window, min(to + PIV, n - 1), tf)
+        # S5: an object can never be invalidated before it is available (CLAUDE.md §8) -- clamp to available_at.
+        pool_invalidated_at = (max(_avail(window, p["closed_at"], tf), pool_available_at)
                                 if p.get("state") == "closed_through" and p.get("closed_at") is not None else None)
         structs.append({"kind": "pool", "pool_kind": p["kind"], "level": p["level"], "from": p["from"], "to": to,
                          "type": p["type"], "formed_at": _formed(window, p["from"]),
-                         "available_at": _avail(window, min(to + PIV, n - 1), tf),
+                         "available_at": pool_available_at,
                          "invalidated_at": pool_invalidated_at})
         if p["swept"] >= 0:
             sf, sa = _ts(window, p["swept"], tf)
@@ -204,9 +208,10 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
         # first j with L[j]<=f["hi"] (bull) / H[j]>=f["lo"] (bear)), a single-bar wick test against an
         # already-known range, so no further confirmation delay applies (same reasoning as the pool's
         # closed_through above).
-        fvg_invalidated_at = _avail(window, f["end"], tf) if f.get("mitigated") else None
+        fvg_available_at = _avail(window, min(f["i"] + 1, n - 1), tf)
+        fvg_invalidated_at = (max(_avail(window, f["end"], tf), fvg_available_at) if f.get("mitigated") else None)
         structs.append(dict(f, kind="fvg", formed_at=_formed(window, f["i"]),
-                             available_at=_avail(window, min(f["i"] + 1, n - 1), tf),
+                             available_at=fvg_available_at,
                              invalidated_at=fvg_invalidated_at))
 
     dr_formed_at, dr_available_at = _ts(window, n - 1, tf)
@@ -267,7 +272,8 @@ def _wy_bar(v):
 
 
 def _wy_phase_bounds(r):
-    """Phase boundaries (A1b), as (letter, start_bar, end_bar_or_None) -- book basis: knowledge/wyckoff/
+    """Phase boundaries (A1b), as (letter, start_bar, end_bar_or_None, start_conf_bar, end_conf_bar_or_None) -- the
+    last two are the bars that CONFIRM each boundary (equal to the boundary bar itself except the SOS, I3) -- book basis: knowledge/wyckoff/
     advance.md's own WA event vocabulary, the SAME vocabulary wyckoff_rules.py already names its record fields
     after (module docstring above): SC/AR/ST = Phase A stopping action (WA p68-72); ST..Spring/Test = Phase B
     building the cause (WA p79-83, R4 "Phase B must exist before a Phase C call"); Spring/Test = Phase C (WA
@@ -281,44 +287,51 @@ def _wy_phase_bounds(r):
     sc, ar, st, c_bar = r.get("sc"), r.get("ar"), r.get("st"), _wy_bar(r.get("spring"))
     if c_bar is None:
         c_bar = _wy_bar(r.get("test"))
-    # `sos_bar` (the breakout candle itself -- ict-scan-style single-bar close-beyond-ceiling test) starts
-    # Phase D; `sos_bar` alone is also what CONFIRMS it (a single completed close beyond an already-known
-    # level, the same "no look-ahead beyond its own bar" case pool closed_through/mss already are) -- `sos`
-    # (sos_bar + COMMIT - 1 in wyckoff_rules.py) is a LATER bar the record keeps for its OWN downstream
-    # look-ahead-guarded logic (Phase-D target search), not a PIT requirement for labelling that Phase D began.
-    d_start = r.get("sos_bar") if r.get("sos_bar") is not None else r.get("sos")
+    # `sos_bar` (the breakout candle itself) STARTS Phase D, but the SOS is not KNOWABLE at that bar:
+    # wyckoff_rules.py requires `C[q+m] > ceiling for m in 1..COMMIT-1` after it (~L300, ~L370), so the SOS is
+    # confirmed only at `sos = sos_bar + COMMIT - 1`. Every boundary below therefore carries its own CONFIRMING
+    # bar (`conf`), which for the SOS boundary is `sos`, never `sos_bar` (I3, code-review fix round 1).
+    sos_bar, sos = r.get("sos_bar"), r.get("sos")
+    d_start = sos_bar if sos_bar is not None else sos
+    d_conf = sos if sos is not None else d_start
     bu_bar = _wy_bar(r.get("bu"))
 
+    # (letter, start_bar, end_bar_or_None, start_conf_bar, end_conf_bar_or_None)
     bounds = []
     if sc is not None and st is not None:
-        bounds.append(("A", sc, st))
+        bounds.append(("A", sc, st, sc, st))
     if st is not None:
-        b_end = c_bar if c_bar is not None else d_start
-        bounds.append(("B", st, b_end))
+        if c_bar is not None:
+            bounds.append(("B", st, c_bar, st, c_bar))
+        else:
+            bounds.append(("B", st, d_start, st, d_conf))
     if c_bar is not None:
-        bounds.append(("C", c_bar, d_start))
+        bounds.append(("C", c_bar, d_start, c_bar, d_conf))
     if d_start is not None:
-        bounds.append(("D", d_start, bu_bar))
+        bounds.append(("D", d_start, bu_bar, d_conf, bu_bar))
     if bu_bar is not None:
-        bounds.append(("E", bu_bar, None))
+        bounds.append(("E", bu_bar, None, bu_bar, None))
     return bounds
 
 
-def _wy_phases(r, candles, tf):
+def _wy_phases(r, candles, tf, tr_available_at):
     """Phase structure objects (A1b) for one trading_range record -- see `_wy_phase_bounds` for the boundary
-    rule. `available_at` is the bar that actually CONFIRMS the phase exists: the end bar's own available_time
-    when the phase is closed by a later event (`to_at` and `available_at` are therefore always the SAME bar --
-    a phase can never be SHOWN as ending later than it is CONFIRMED), else the start bar's (still open --
-    `status: "hypothesis"`, same convention chart.js already renders, P6.2; WA p166 warns against labelling a
-    phase mechanically past what the record has actually shown)."""
+    rule. `available_at` is the bar that actually CONFIRMS the phase exists: the later of its start's and (when
+    closed by a later event) its end's CONFIRMING bar -- for the SOS boundary that is `sos`, not `sos_bar` (I3)
+    -- and never earlier than the parent trading range's own `available_at` (a phase of a range that is not yet
+    knowable cannot be knowable; CLAUDE.md §8). `to` stays the end event's own bar (where the phase is DRAWN to);
+    a phase can never be SHOWN as ending later than it is CONFIRMED because `available_at` >= that bar. Still-
+    open phases are `status: "hypothesis"` (chart.js P6.2 convention; WA p166 warns against labelling a phase
+    mechanically past what the record has actually shown)."""
     out = []
-    for letter, start, end in _wy_phase_bounds(r):
-        from_at, from_avail = _ts(candles, start, tf)
+    for letter, start, end, s_conf, e_conf in _wy_phase_bounds(r):
+        from_at = _formed(candles, start)
+        conf_bar = max(s_conf, e_conf) if e_conf is not None else s_conf
+        available_at = max(_avail(candles, conf_bar, tf), tr_available_at)
         if end is not None:
-            to_at, available_at = _ts(candles, end, tf)
-            status = "tested"
+            to_at, status = _formed(candles, end), "tested"
         else:
-            to_at, available_at, status = None, from_avail, "hypothesis"
+            to_at, status = None, "hypothesis"
         out.append({"kind": "phase", "label": letter, "from": from_at, "to": to_at,
                      "formed_at": from_at, "available_at": available_at, "status": status})
     return out
@@ -343,6 +356,10 @@ def wyckoff_structures(O, H, L, C, V, candles, tf, P=None, volume_kind="traded",
             if i is None:
                 continue
             formed_at, available_at = _ts(candles, i, tf)
+            if key == "sos_bar" and r.get("sos") is not None:
+                # I3: the breakout candle is only KNOWABLE as an SOS at `sos = sos_bar + COMMIT - 1` (the follow-
+                # through closes wyckoff_rules.py requires); formed_at stays the breakout candle's own time.
+                available_at = _avail(candles, r["sos"], tf)
             events.append({"kind": key, "i": i, "formed_at": formed_at, "available_at": available_at})
         bu = r.get("bu")
         if bu and bu.get("bar") is not None:
@@ -353,7 +370,7 @@ def wyckoff_structures(O, H, L, C, V, candles, tf, P=None, volume_kind="traded",
         # even though the lower border (formed_at) was set earlier at SC.
         tr_formed_at, _ = _ts(candles, r["sc"], tf)
         _, tr_available_at = _ts(candles, r["choch"], tf)
-        phases = _wy_phases(r, candles, tf)
+        phases = _wy_phases(r, candles, tf, tr_available_at)
         structs.append(dict(r, kind="trading_range", events=events, phases=phases,
                              formed_at=tr_formed_at, available_at=tr_available_at))
     return {"records": recs, "structures": structs}

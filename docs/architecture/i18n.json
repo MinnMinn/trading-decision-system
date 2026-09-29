@@ -982,10 +982,6 @@
       "en": "{pct}% dealing range",
       "vi": "{pct}% dealing range"
     },
-    "chart.ob_open_mt": {
-      "en": " open · 0.5 MT",
-      "vi": " mở · 0.5 MT"
-    },
     "chart.invalidation": {
       "en": "invalidated",
       "vi": "vô hiệu"
@@ -1033,10 +1029,6 @@
     "chart.entry_window": {
       "en": "entry window →",
       "vi": "vào lệnh →"
-    },
-    "chart.not_closed_through": {
-      "en": "not closed through yet",
-      "vi": "chưa đóng qua"
     },
     "chart.dr.window": {
       "en": "window edges",
@@ -1130,25 +1122,13 @@
       "en": "FVG down (dotted = CE 0.5)",
       "vi": "FVG giảm (nét chấm = CE 0.5)"
     },
-    "legend.ob": {
-      "en": "OB: open line + 0.5 mean threshold (faded = the open has been touched)",
-      "vi": "OB: đường open + 0.5 mean threshold (mờ = đã chạm open)"
-    },
     "legend.liquidity": {
       "en": "BSL / SSL / old high-low / ERL (× = swept, body did not close through)",
       "vi": "BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)"
     },
-    "legend.prev_levels": {
-      "en": "PDH/PDL · PWH/PWL · ASIA/LDN H-L (× swept · ✓ closed through)",
-      "vi": "PDH/PDL · PWH/PWL · ASIA/LDN H-L (× quét · ✓ đóng qua)"
-    },
     "legend.eq": {
       "en": "EQ of the nearest BSL↔SSL dealing range · premium above / discount below",
       "vi": "EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới"
-    },
-    "legend.cisd": {
-      "en": "CISD (● = a candle closed through)",
-      "vi": "CISD (● = nến đóng qua)"
     },
     "legend.killzone": {
       "en": "killzone LDN / NY AM / NY PM per session-model (½ = reduced weight)",
@@ -1161,10 +1141,6 @@
     "legend.mss": {
       "en": "MSS↑/↓ solid = displacement present; dashed = closed past the swing but displacement missing",
       "vi": "MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement"
-    },
-    "legend.ote": {
-      "en": "OTE .62/.705/.79 and −2σ/−2.5σ/−4σ are drawn only for the latest MSS still in force",
-      "vi": "OTE .62/.705/.79 và −2σ/−2.5σ/−4σ chỉ vẽ cho MSS mới nhất còn hiệu lực"
     },
     "legend.pane_range": {
       "en": "lower pane: the close's % position in the current dealing range (0% = lower edge, 100% = upper edge), EQ = 50%",

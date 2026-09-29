@@ -1130,9 +1130,14 @@ def wy_json_engine(rows, tf, sym, kind):
                     label=f'{labels.get(e["kind"], e["kind"].upper())} {fmtn(rows[e["i"]]["high"] if e["kind"] in top else rows[e["i"]]["low"], kind)}',
                     up=e["kind"] in top)
               for e in tr.get("events", [])]
-    phases = [{"from": p["from"], "to": p["to"], "label": p["label"], "status": p["status"]} for p in tr.get("phases", [])]
+    # I4: every shipped Wyckoff object carries the engine's own `available_at` so replay (chart.js) can filter by
+    # availability, never by formed time.
+    for ev, e in zip(events, tr.get("events", [])):
+        ev["available_at"] = e["available_at"]
+    phases = [{"from": p["from"], "to": p["to"], "label": p["label"], "status": p["status"],
+               "available_at": p["available_at"]} for p in tr.get("phases", [])]
     return {"tr": {"high": tr["tr_hi"], "low": tr["tr_lo"], "high_label": high_label, "low_label": low_label,
-                    "from": tr["formed_at"]},
+                    "from": tr["formed_at"], "available_at": tr["available_at"]},
             "events": events, "phases": phases}
 
 
@@ -1140,14 +1145,24 @@ def _parse_iso(s):
     return datetime.datetime.fromisoformat(s.replace("Z", "+00:00")) if s else None
 
 
-def tier_quality(sym, tf, clock_iso):
+def tier_quality(sym, tf, clock_iso, snap=None):
     """A2b: this HTF tier's own §20 quality state, refreshed to the ENTRY tier's clock (`clock_iso`) rather
     than wall time -- the same assessor (scripts/quality.py, CLAUDE.md §20) the decision path's data-quality
     gate uses, so the page and a decision cannot disagree about what "stale" means. `now=clock_iso` (not
     `None`) is the point: on a point-in-time/snapshot build the wall clock is not the chart's own clock, and a
     higher-timeframe fact must be judged stale or fresh AGAINST THE WINDOW BEING SHOWN, never against whatever
-    day the build happened to run on."""
-    d = read_json(_series_path(sym, tf), None)
+    day the build happened to run on.
+
+    I6 (code-review fix round 1): (1) with NO clock the age cannot be judged against anything, and
+    `quality.assess(now=None)` would silently fall back to the wall clock -- a FRESH/STALE verdict by guess. So
+    a missing clock returns UNKNOWN (CLAUDE.md §20: unknown is a state, never silently FRESH/STALE). (2) When the
+    build wrote a snapshot (`snap`, `candles()` copies each series there), the verdict is read from THAT copy --
+    the exact bytes the page was drawn from -- not from the live file, which the scanner may have rewritten since."""
+    if not clock_iso:
+        return dict(state="UNKNOWN", reason="no entry-tier clock to judge this tier's age against (never the wall clock)",
+                    clock=None)
+    path = os.path.join(snap, f"ohlcv.{sym}.{tf}.json") if snap else _series_path(sym, tf)
+    d = read_json(path, None)
     state, reason = Q.assess(d, tf, symbol=sym, now=_parse_iso(clock_iso))
     return dict(state=state, reason=reason, clock=clock_iso)
 
@@ -1649,7 +1664,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
             # reaching a live/backtest decision -> WAIT/BLOCK, behind fx_a2b_stale_htf_block) is out of this
             # module's scope (docs/audits/2026-09-29-a2-chart-from-engine.md) -- backtest-methods.py/
             # live_rules.py/htf_context.py were not touched here.
-            tier_q[tname] = tier_quality(sym, t["tf"], upd)
+            tier_q[tname] = tier_quality(sym, t["tf"], upd, snap)
         tiers_js = []
         for tname in ("bias", "structure"):
             if tname in tier_rows:
@@ -1703,10 +1718,12 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
             # time -- see tier_quality(). FRESH is not called out (the unmarked common case); every other
             # state (STALE/PARTIAL/MISSING/INVALID/UNKNOWN) gets a visible badge, CLAUDE.md §20's own
             # vocabulary, unmarked machine words like syms_quality's existing data-quality cell.
+            # The badge TEXT is the machine state word only (same in both languages); the English reason is in
+            # the title tooltip -- printing it visibly put an untranslated sentence on a Vietnamese page (test_i18n).
             tq = tier_q.get(tname)
             q_badge = (f'<span class="tier-quality tier-quality-{tq["state"].lower()}" '
                        f'title="{esc(tname)} {esc(t["tf"])}: {esc(tq["state"])} vs entry clock {esc(upd or "")} -- {esc(tq["reason"])}">'
-                       f'{esc(tq["state"])} · {esc(tq["reason"])}</span>'
+                       f'{esc(tq["state"])}</span>'
                        if tq and tq["state"] != "FRESH" else "")
             charts_html += (f'<div class="chart-block" id="{tname}-{key}"><div class="chart-title"><span><b>{i18n.tx(TIER_KEY[tname])}</b> · '
                             f'{DUAL(lambda l: horizon(t, l) + " · " + range_label(trows[0]["time"], trows[-1]["time"], t["lbl"], l))}{q_badge}</span>'

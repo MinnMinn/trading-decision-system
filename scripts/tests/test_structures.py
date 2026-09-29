@@ -434,6 +434,82 @@ class A1bWyckoffPhases(unittest.TestCase):
                 self.assertNotIn("E", labels)
 
 
+def _history(sym, tf, n=600):
+    path = os.path.join(ROOT, "data", "history", f"ohlcv.{sym}.{tf}.json")
+    return json.load(open(path, encoding="utf-8"))["candles"][-n:]
+
+
+def _wy_env(candles, tf, side):
+    O = [x["open"] for x in candles]; H = [x["high"] for x in candles]; L = [x["low"] for x in candles]
+    C = [x["close"] for x in candles]; V = [x.get("volume", 0) for x in candles]
+    return structures.wyckoff_structures(O, H, L, C, V, candles, tf, volume_kind="traded", side=side)
+
+
+class A1bWyckoffPhaseAvailabilityAcrossSymbols(unittest.TestCase):
+    """I3 (code-review fix round 1), CLAUDE.md section 8 / point-in-time: the SOS is only KNOWABLE at
+    `sos = sos_bar + COMMIT - 1` (wyckoff_rules.py requires follow-through closes after the breakout candle), so a
+    Phase D band -- and any band whose end is that SOS -- and the `sos_bar` event may not be stamped available at
+    `sos_bar`. Every phase is also never available before its own trading range (`tr.available_at`, the CHoCH).
+    Asserted over several symbols and both sides, not only the AUS200 4H fixture, and the SOS-confirmed
+    case is asserted to actually occur (a vacuous pass would pin nothing)."""
+
+    CASES = [("AUS200", "4H"), ("BTCUSDT", "4H"), ("ETHUSDT", "4H"), ("DE40", "4H"), ("FRA40", "4H"),
+             ("BTCUSDT", "1H"), ("ONDOUSDT", "4H")]
+
+    def _envs(self):
+        for sym, tf in self.CASES:
+            path = os.path.join(ROOT, "data", "history", f"ohlcv.{sym}.{tf}.json")
+            if not os.path.exists(path):
+                continue
+            candles = _history(sym, tf)
+            for side in ("long", "short"):
+                yield sym, tf, side, candles, _wy_env(candles, tf, side)
+
+    def test_phase_available_at_is_never_before_the_range_or_the_confirming_bar(self):
+        sos_phases = ranges = 0
+        for sym, tf, side, candles, env in self._envs():
+            for r, tr in zip(env["records"], env["structures"]):
+                ranges += 1
+                tr_at = tr["available_at"]
+                for p in tr["phases"]:
+                    self.assertGreaterEqual(p["available_at"], tr_at, f"{sym} {tf} {side} phase {p['label']}")
+                    self.assertGreaterEqual(p["available_at"], p["formed_at"], f"{sym} {tf} {side} phase {p['label']}")
+                    if p["label"] == "D" and r.get("sos") is not None:
+                        sos_phases += 1
+                        self.assertGreaterEqual(p["available_at"], _iso(candles[r["sos"]], tf),
+                                                f"{sym} {tf} {side}: Phase D is stamped before the SOS is confirmed")
+        self.assertGreater(ranges, 0, "no trading range across any symbol: the test proved nothing")
+        self.assertGreater(sos_phases, 0, "no Phase D with a confirmed SOS across any symbol: the SOS rule is unpinned")
+
+    def test_sos_bar_event_is_available_at_the_confirming_bar_not_the_breakout_candle(self):
+        seen = 0
+        for sym, tf, side, candles, env in self._envs():
+            for r, tr in zip(env["records"], env["structures"]):
+                if r.get("sos") is None or r.get("sos_bar") is None:
+                    continue
+                ev = next(e for e in tr["events"] if e["kind"] == "sos_bar")
+                self.assertEqual(ev["formed_at"], candles[r["sos_bar"]]["time"])
+                self.assertEqual(ev["available_at"], _iso(candles[r["sos"]], tf), f"{sym} {tf} {side}")
+                self.assertGreaterEqual(r["sos"], r["sos_bar"])
+                seen += 1
+        self.assertGreater(seen, 0, "no SOS-confirmed range across any symbol")
+
+    def test_a_pool_or_fvg_is_never_invalidated_before_it_is_available(self):
+        """S5: `invalidated_at` is clamped to `available_at` -- an object cannot be consumed before it is knowable."""
+        checked = 0
+        for sym, tf in self.CASES:
+            path = os.path.join(ROOT, "data", "history", f"ohlcv.{sym}.{tf}.json")
+            if not os.path.exists(path):
+                continue
+            candles = _history(sym, tf, 480)
+            env = structures.ict_structures(candles, {"4H": 4, "1H": 1}[tf], tf, methods=("ict",))
+            for s in env["structures"]:
+                if s["kind"] in ("pool", "fvg") and s.get("invalidated_at"):
+                    checked += 1
+                    self.assertGreaterEqual(s["invalidated_at"], s["available_at"], f"{sym} {tf} {s['kind']}")
+        self.assertGreater(checked, 0)
+
+
 class LiveRulesRoutesThroughStructures(unittest.TestCase):
     """live_rules.read_at() must return the byte-identical object a direct ict_scan.analyze() call on the same
     window would -- routing through structures.py must not change what the decision path reads (A1)."""

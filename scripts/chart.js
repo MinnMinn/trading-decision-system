@@ -85,7 +85,7 @@ function killzoneSpans(rows, cfg){
 // forwarded verbatim by build-artifact.py `ict_json()` -- plus its `dealing_range`, regrouped into the shape
 // `ictShapes()` already knows how to draw. NO DETECTION happens here: every pivot/pool/sweep/MSS/FVG is
 // exactly what the engine computed on the SAME rows this tier draws; this function only regroups by `kind`
-// and resolves an ISO `invalidated_at` into THIS view's own bar index (`idxOf`) -- the same pattern
+// and resolves an ISO `invalidated_at` (an AVAILABILITY time: bar open + tf) into THIS view's own bar index (`idxOfAvail`) -- the same pattern
 // wyckoffShapes/levelShapes already use for a Wyckoff read's invalidation. A pool/FVG with no `invalidated_at`
 // draws to the right edge (`to:null`, the open/still-valid case); one WITH it ends exactly there (A2: "an
 // invalidated structure is drawn ended at invalidated_at, not edge to edge"). Lines the engine does not
@@ -93,20 +93,56 @@ function killzoneSpans(rows, cfg){
 // are not in `structs` at all (ADR 0009's own list: pivots, liquidity, sweeps, MSS, FVG, dealing range, bias),
 // so `obs`/`cisd`/`levels`/`sess`/`ote`/`std` below are always empty/null, and ictShapes() no longer has any
 // rendering code that reads them (see ictShapes below).
-function ictFromStructures(structs, dealingRange, rows){
-  structs = structs||[]; const dr = dealingRange||{};
+//
+// POINT-IN-TIME (CLAUDE.md §8; code-review I1/I2): `opts.cutIso` is the reader's replay cursor as an availability
+// time. When given, an object is kept only if its `available_at` <= cutIso (an object with NO available_at is
+// dropped -- unknown availability is not availability), and every ATTRIBUTE that happens after the cursor shows
+// as not-yet-happened: a pool's `invalidated_at` after the cursor leaves the pool open, an FVG whose mitigation
+// (`invalidated_at`) is after the cursor is drawn unmitigated and ends at the cursor bar, and a dealing range
+// whose `available_at` is after the cursor is ABSENT (lo/hi/eq/pct null), because the engine computes it on the
+// full window's last bar -- it is not recomputed here (that would be detection). `opts.tfMin` (the tier's
+// timeframe in minutes) is what turns an availability time back into the bar whose close made it available.
+function idxOfAvail(rows, iso, tfMin){
+  // the bar whose AVAILABILITY (open + tf) is `iso`; the greatest bar available at or before it when the engine
+  // clamped the timestamp forward (structures.py S5). -1 = not in these rows.
+  if(!iso||!rows.length) return -1; const step=(tfMin||0)*60000; let best=-1;
+  for(let i=0;i<rows.length;i++){ if(utcDate(rows[i][ISO]).getTime()+step<=utcDate(iso).getTime()) best=i; else break; }
+  return best;
+}
+function ictFromStructures(structs, dealingRange, rows, opts){
+  opts = opts||{}; const tfMin=opts.tfMin||0, cut=opts.cutIso||null;
+  const done = iso => !!iso && (!cut || iso<=cut);          // has this attribute already happened at the cursor?
+  structs = (structs||[]).filter(s=>!cut || (s.available_at && s.available_at<=cut));
+  let dr = dealingRange||{}; if(cut && !(dr.available_at && dr.available_at<=cut)) dr = {};
   const bySweep = {};   // "pool_kind|level" -> earliest sweep bar index, for the pool's own 'x' mark
   structs.filter(s=>s.kind==='sweep').forEach(s=>{ const k=s.pool_kind+'|'+s.level; if(!(k in bySweep)) bySweep[k]=s.i; });
   const pools = structs.filter(s=>s.kind==='pool').map(p=>{
-    const idx = p.invalidated_at ? idxOf(rows,p.invalidated_at) : -1;
+    const idx = done(p.invalidated_at) ? idxOfAvail(rows,p.invalidated_at,tfMin) : -1;
     const sweptI = bySweep[p.pool_kind+'|'+p.level];
     return {kind:p.pool_kind, type:p.type, level:p.level, from:p.from, to: idx>=0?idx+0.5:null, swept: sweptI!=null?sweptI:-1};
   });
-  const fvgs = structs.filter(s=>s.kind==='fvg').map(f=>({type:f.type,i:f.i,lo:f.lo,hi:f.hi,size:f.size,ce:f.ce,end:f.end,mitigated:f.mitigated}));
+  const last=rows.length-1;
+  const fvgs = structs.filter(s=>s.kind==='fvg').map(f=>{
+    const mitigated = !!f.mitigated && (!cut || done(f.invalidated_at));
+    return {type:f.type,i:f.i,lo:f.lo,hi:f.hi,size:f.size,ce:f.ce,end:mitigated?f.end:Math.min(f.end,last),mitigated};
+  });
   const mss = structs.filter(s=>s.kind==='mss').map(m=>({type:m.type,i:m.i,level:m.level,disp:m.disp}));
-  const n=rows.length, lastC=n?rows[n-1][CLOSE]:0, span=((dr.hi!=null&&dr.lo!=null)?(dr.hi-dr.lo):0)||1;
-  return {lo:dr.lo, hi:dr.hi, eq:dr.eq, pct:(lastC-(dr.lo||0))/span, drSource:dr.source,
+  const hasDR = dr.hi!=null && dr.lo!=null, lastC=rows.length?rows[last][CLOSE]:0, span=(hasDR?(dr.hi-dr.lo):0)||1;
+  return {lo:hasDR?dr.lo:null, hi:hasDR?dr.hi:null, eq:hasDR?dr.eq:null, pct:hasDR?(lastC-dr.lo)/span:null, drSource:hasDR?dr.source:null,
           fvgs, pools, mss, obs:[], cisd:[], levels:[], sess:[], ote:null, std:null};
+}
+
+// Wyckoff replay filter (I4): the engine's trading range, events and phases each carry their own `available_at`
+// (scripts/structures.py). At a replay cursor (`cutIso`, an availability time) only those already available are
+// kept -- never a formed-time comparison, which would let a range or an SOS show before it was knowable. An object
+// with no `available_at` is dropped. The range itself is drawable only once its own `available_at` (the CHoCH)
+// has passed; before that the whole read is "not established at the cursor", so its events/phases go too.
+// No cutIso (the full, live view) returns the read unchanged.
+function wyckoffAt(wy, cutIso){
+  wy = wy||{}; if(!cutIso) return wy;
+  const ok = o => !!o && !!o.available_at && o.available_at<=cutIso;
+  if(!ok(wy.tr)) return Object.assign({}, wy, {tr:null, events:[], phases:[]});
+  return Object.assign({}, wy, {events:(wy.events||[]).filter(ok), phases:(wy.phases||[]).filter(ok)});
 }
 
 // Wyckoff volume read: rolling mean of the previous P.lookback completed bars (project parameter).
@@ -122,6 +158,7 @@ function volStats(rows, P){
 // -computed range, not a new judgement; EQ (0.5 of the range, R13) sits at 50. No volume input -- the ICT
 // corpus has none (knowledge/integrated/method.md §4.1).
 function rangePctSeries(rows, ict){
+  if(ict.lo==null||ict.hi==null) return [];   // no dealing range available at this cursor: nothing to normalise against
   const lo=ict.lo, hi=ict.hi, span=(hi-lo)||1;
   return rows.map(r=>({time:unix(r[ISO]), value:Math.max(0,Math.min(100,(r[CLOSE]-lo)/span*100))}));
 }
@@ -158,6 +195,7 @@ const invalidationState = (rows, invalidatedAt) => {
 //   mark  {i, price, glyph:'x'|'check'|'dot', color, r?}
 //   flag  {i, price, text, up, color}      (event flag with collision avoidance, done in pixel space by the renderer)
 const ictShapes = (rows, ict, cfg) => {
+  if(!rows.length) return [];   // S3: nothing to anchor a shape to
   const S=[], n=rows.length, compact=!!cfg.compact, fmt=cfg.fmt||(v=>String(v));
   (ict.kz||[]).forEach(z=>{ S.push({kind:'rect',i1:z.from-0.5,i2:z.to+0.5,p1:null,p2:null,fill:'i',alpha:z.weight==='full'?0.10:0.06, label:compact?null:z.name+(z.weight==='reduced'?' ½':''), labelColor:'faint', labelPos:'tl'}); });
   // A2: "structure not established" -- the engine found no pivot/pool/FVG/MSS at all on this tier's window.
@@ -169,13 +207,14 @@ const ictShapes = (rows, ict, cfg) => {
     S.push({kind:'mark',i:li,price:rows[li][CLOSE],glyph:'dot',color:'ink',r:3,ring:true});
     return S;
   }
-  S.push({kind:'rect',i1:null,i2:null,p1:ict.hi,p2:ict.eq,fill:'down',alpha:0.04});
-  S.push({kind:'rect',i1:null,i2:null,p1:ict.eq,p2:ict.lo,fill:'up',alpha:0.04});
+  const hasDR = ict.hi!=null && ict.lo!=null && ict.eq!=null;   // absent at a replay cursor before the engine's range is available (I1)
+  if(hasDR){ S.push({kind:'rect',i1:null,i2:null,p1:ict.hi,p2:ict.eq,fill:'down',alpha:0.04});
+    S.push({kind:'rect',i1:null,i2:null,p1:ict.eq,p2:ict.lo,fill:'up',alpha:0.04}); }
   ict.fvgs.forEach(f=>{ const col=f.type==='bull'?'up':'down'; S.push({kind:'rect',i1:f.i-0.5,i2:f.end+0.5,p1:f.hi,p2:f.lo,fill:col,alpha:f.mitigated?0.14:0.28,stroke:col,sw:0.6});
     if(!f.mitigated) S.push({kind:'hseg',i1:f.i-0.5,i2:f.end+0.5,price:f.ce,stroke:col,sw:0.8,dash:[2,2],alpha:0.8}); });
-  S.push({kind:'hseg',i1:null,i2:null,price:ict.eq,stroke:'i',sw:1.4,dash:[6,4],label:'EQ '+fmt(ict.eq),labelAt:'axis'});
+  if(hasDR){ S.push({kind:'hseg',i1:null,i2:null,price:ict.eq,stroke:'i',sw:1.4,dash:[6,4],label:'EQ '+fmt(ict.eq),labelAt:'axis'});
   S.push({kind:'label',i:null,price:ict.hi,text:'premium'+(ict.drSource==='window'?' ('+L('chart.dr.window')+')':ict.drSource==='mixed'?' ('+L('chart.dr.mixed')+')':' (BSL↔SSL)'),color:'faint',anchor:'end',dx:-4,dy:7});
-  S.push({kind:'label',i:null,price:ict.lo,text:'discount',color:'faint',anchor:'end',dx:-4,dy:-6});
+  S.push({kind:'label',i:null,price:ict.lo,text:'discount',color:'faint',anchor:'end',dx:-4,dy:-6}); }
   // A2: `p.to` is null (open -- draws to the right edge) unless the engine's own invalidated_at (A1b, a
   // closed_through pool) resolved to a bar in THIS view -- an invalidated pool ends there, never edge to edge.
   ict.pools.forEach(p=>{ const isHigh=p.kind==='BSL'||p.kind==='ERL-high'||p.kind==='OLD-H', col=isHigh?'down':'up', old=p.kind.startsWith('OLD');
@@ -185,7 +224,7 @@ const ictShapes = (rows, ict, cfg) => {
   ict.mss.forEach(m=>{ const col=m.type==='bull'?'up':'down', c=rows[m.i][CLOSE]; S.push({kind:'vseg',i:m.i,p1:m.level,p2:c,stroke:col,sw:m.disp?2:1,dash:m.disp?null:[3,2]});
     if(!compact) S.push({kind:'label',i:m.i,price:c,text:(m.disp?'MSS':L('chart.mss.no_displacement'))+(m.type==='bull'?'↑':'↓'),color:col,anchor:'middle',dx:0,dy:m.type==='bull'?-9:11,bold:true}); });
   if(!compact) ict.fvgs.filter(f=>!f.mitigated).sort((a,b)=>b.size-a.size).slice(0,2).forEach(f=>{ S.push({kind:'label',i:f.i+1,price:(f.hi+f.lo)/2,text:'FVG',color:f.type==='bull'?'up':'down',anchor:'start',dx:0,dy:0}); });
-  S.push({kind:'mark',i:li,price:rows[li][CLOSE],glyph:'dot',color:'ink',r:3,ring:true}); S.push({kind:'label',i:li,price:rows[li][CLOSE],text:L('chart.now_pct',{pct:(ict.pct*100).toFixed(0)}),color:'ink',anchor:'end',dx:-6,dy:-10,bold:true});
+  S.push({kind:'mark',i:li,price:rows[li][CLOSE],glyph:'dot',color:'ink',r:3,ring:true}); if(ict.pct!=null) S.push({kind:'label',i:li,price:rows[li][CLOSE],text:L('chart.now_pct',{pct:(ict.pct*100).toFixed(0)}),color:'ink',anchor:'end',dx:-6,dy:-10,bold:true});
   return S;
 };
 
@@ -196,6 +235,7 @@ const ictShapes = (rows, ict, cfg) => {
 // idxOf returns -1 (draw normally) until the reader's own cursor reaches the break: replay stays point-in-time
 // without any extra cursor plumbing here.
 const wyckoffShapes = (rows, wy, cfg) => {
+  if(!rows.length) return [];   // S3: nothing to anchor a shape to
   const S=[], n=rows.length, compact=!!cfg.compact, fmt=cfg.fmt||(v=>String(v)); wy=wy||{};
   // A2: "structure not established" -- the engine (scripts/structures.py wyckoff_structures(), both sides)
   // found no trading range at all on this tier's window. Drawn instead of a blank lane whose legend still
@@ -362,7 +402,7 @@ const rulerShapes = (entry, stop, i1, i2, fmt) => {
   return S;
 };
 
-const api = {killzoneSpans, ictFromStructures, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, invalidationState, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, expectationShapes, rulerShapes, unix, dateShort};
+const api = {killzoneSpans, ictFromStructures, idxOfAvail, wyckoffAt, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, invalidationState, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, expectationShapes, rulerShapes, unix, dateShort};
 if(!root || typeof document==='undefined') return api;   // node: pure API only
 
 // =============================================================================================== browser: rendering
@@ -504,7 +544,7 @@ function makeChart(block, d, t, P, C){
   // a chart-owned detector -- ictFromStructures() only regroups them, it detects nothing.
   const cfg={kz:t.kz, tfMin:t.tfMin, market:d.market};
   const tierStructs=(t.ict||{}).structures||[], tierDR=(t.ict||{}).dealing_range||{};
-  const full={ict:Object.assign(ictFromStructures(tierStructs,tierDR,rows),{kz:killzoneSpans(rows,cfg)}), vs:volStats(rows,P)};
+  const full={ict:Object.assign(ictFromStructures(tierStructs,tierDR,rows,{tfMin:t.tfMin}),{kz:killzoneSpans(rows,cfg)}), vs:volStats(rows,P)};
   // `P` is seeded here, not only in applyLane: render() calls applyLane on a chart ONLY when the lane is drawn
   // for that symbol, so on a symbol disengaged from the opening lane h.P stayed undefined and the first R or P
   // keypress threw on P.panes -- the mode line announced a mode whose overlay could never draw.
@@ -514,7 +554,7 @@ function makeChart(block, d, t, P, C){
     if(!h.view){ tip.style.display='none'; return; } const c=rows[i], up=c[CLOSE]>=c[OPEN], vs=h.view.vs, ict=h.view.ict, ratio=vs.ratio[i];
     let s=`<div class="t">${fmtTime(unix(c[ISO]),true)}</div><div>O ${fmt(c[OPEN])} · H ${fmt(c[HIGH])} · L ${fmt(c[LOW])}</div><div class="${up?'u':'d'}">C ${fmt(c[CLOSE])} (${((c[CLOSE]-c[OPEN])/c[OPEN]*100).toFixed(2)}%)</div>`;
     if(h.lane==='wyckoff') s+=`<div>${L('chart.vol')} ${c[VOL].toLocaleString(numLocale(),{maximumFractionDigits:2})}${ratio!=null?` · ${ratio.toFixed(2)}× ${L('chart.mean')}`:''}</div>`;
-    if(h.lane==='ict'&&ict&&i<ict.n) s+=`<div class="t">${L('chart.dealing_range_pct',{pct:((c[CLOSE]-ict.lo)/((ict.hi-ict.lo)||1)*100).toFixed(0)})}</div>`;
+    if(h.lane==='ict'&&ict&&ict.lo!=null&&i<ict.n) s+=`<div class="t">${L('chart.dealing_range_pct',{pct:((c[CLOSE]-ict.lo)/((ict.hi-ict.lo)||1)*100).toFixed(0)})}</div>`;
     if(h.cursor!=null) s+=`<div class="t">${L('chart.replay.count',{i:i+1,n:h.cursor+1})}</div>`;
     tip.innerHTML=s; tip.style.display='block'; const r=el.getBoundingClientRect(), x=p.point.x, y=p.point.y; tip.style.left=(el.offsetLeft+(x>r.width*0.65?x-tip.offsetWidth-14:x+14))+'px'; tip.style.top=(el.offsetTop+y+12)+'px'; });
   el.addEventListener('mouseleave',()=>{ tip.style.display='none'; });
@@ -536,8 +576,7 @@ const availableTimeOf = (rows, i, tfMin) => new Date(utcDate(rows[i][ISO]).getTi
 function viewFor(h){ if(h.cursor==null) return {ict:Object.assign({n:h.rows.length},h.full.ict), vs:h.full.vs};
   const rows=h.rows.slice(0,h.cursor+1);
   const cutIso=availableTimeOf(h.rows,h.cursor,h.cfg.tfMin);
-  const visible=(h.tierStructs||[]).filter(s=>s.available_at<=cutIso);
-  const ict=Object.assign(ictFromStructures(visible,h.tierDR,rows),{n:rows.length,kz:killzoneSpans(rows,h.cfg)});
+  const ict=Object.assign(ictFromStructures(h.tierStructs||[],h.tierDR,rows,{tfMin:h.cfg.tfMin,cutIso}),{n:rows.length,kz:killzoneSpans(rows,h.cfg)});
   return {ict, vs:volStats(rows,h.P||{})}; }
 
 function applyLane(h, lane, P){
@@ -549,7 +588,8 @@ function applyLane(h, lane, P){
   const invalidatedAt=null;
   const compact=!!t.compact, cfgS={compact,fmt,invalidatedAt,narrativeUpdated:t.key==='entry'?d.updated:null};
   candlesData(h);
-  const wy=h.cursor==null?(t.wy||{}):{...(t.wy||{}), events:((t.wy||{}).events||[]).filter(e=>idxOf(rows,e.time)<=h.cursor), phases:((t.wy||{}).phases||[]).filter(p=>spanOf(rows,p.from)<=h.cursor)};
+  // I4: replay filters the Wyckoff read by the engine's own availability (tr/events/phases), never by formed time.
+  const wy=wyckoffAt(t.wy, h.cursor==null?null:availableTimeOf(h.rows,h.cursor,h.cfg.tfMin));
   let S=[]; if(t.window) S=S.concat(windowShape(rowsV,t.window.from));
   if(lane==='ict') S=S.concat(ictShapes(rowsV,h.view.ict,cfgS)); else S=S.concat(wyckoffShapes(rowsV,wy,cfgS));
   S=S.concat(levelShapes(rowsV,t.levels,lane,fmt,invalidatedAt));

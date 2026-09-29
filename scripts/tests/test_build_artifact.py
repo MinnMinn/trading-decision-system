@@ -1084,3 +1084,226 @@ class A2bStaleHtfTierIsMarkedStaleAgainstTheEntryClock(unittest.TestCase):
         src = open(os.path.join(ROOT, "scripts", "build-artifact.py"), encoding="utf-8").read()
         self.assertIn('tier-quality tier-quality-{tq["state"].lower()}', src)
         self.assertIn('if tq and tq["state"] != "FRESH" else ""', src)
+
+
+def _hist(sym, tf, n):
+    d = json.load(open(os.path.join(ROOT, "data", "history", f"ohlcv.{sym}.{tf}.json"), encoding="utf-8"))
+    return d["candles"][-n:]
+
+
+def _rows6(candles):
+    return [[c["open"], c["high"], c["low"], c["close"], c.get("volume", 0), c["time"]] for c in candles]
+
+
+def _avail_iso(candle, tf_min):
+    import datetime
+    t = datetime.datetime.fromisoformat(candle["time"].replace("Z", "+00:00")) + datetime.timedelta(minutes=tf_min)
+    return t.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class A1bReplayNeverLeaksTheFuture(unittest.TestCase):
+    """Code-review I1/I2 (CLAUDE.md section 8): at a replay cursor the chart shows only what the ENGINE had made
+    available by then. An ATTRIBUTE that happens after the cursor (a pool's invalidation, an FVG's mitigation, the
+    dealing range itself) shows as not-yet-happened, and `invalidated_at` -- an AVAILABILITY time (bar open + tf)
+    -- is resolved to the bar whose availability it is, not one bar late."""
+
+    run_js = Engine.run_js
+
+    T15 = 15
+
+    def _rows(self, n=40):
+        return [[100 + i, 102 + i, 98 + i, 101 + i, 10, f"2026-09-01T{(i * 15) // 60:02d}:{(i * 15) % 60:02d}:00Z"] for i in range(n)]
+
+    def _avail(self, rows, i):
+        return _avail_iso({"time": rows[i][5]}, self.T15)
+
+    def _ict(self, rows, structs, dr, cut=None):
+        opts = {"tfMin": self.T15}
+        if cut:
+            opts["cutIso"] = cut
+        return self.run_js(f"const rows={json.dumps(rows)}, s={json.dumps(structs)}, dr={json.dumps(dr)};"
+                           f"console.log(JSON.stringify(T.ictFromStructures(s,dr,rows,{json.dumps(opts)})))")
+
+    def test_a_pool_line_ends_on_the_bar_whose_availability_is_invalidated_at(self):
+        """I2 on synthetic rows: invalidated_at == availability of bar 12 -> the line ends on bar 12 (`to`=12.5)."""
+        rows = self._rows()
+        structs = [{"kind": "pool", "pool_kind": "BSL", "level": 110.0, "from": 3, "type": "eq",
+                    "available_at": self._avail(rows, 6), "invalidated_at": self._avail(rows, 12)}]
+        out = self._ict(rows, structs, {})["pools"]
+        self.assertEqual(out[0]["to"], 12.5, "one bar late (13.5) is the I2 defect: idxOf matched the OPEN time")
+
+    def test_a_pool_line_end_matches_the_engine_on_real_candles(self):
+        """I2 pinned against the engine: for every closed_through pool of a real window, the drawn `to` is the
+        engine's own closing bar + 0.5 (structures.py: invalidated_at = availability of `closed_at`, clamped to
+        the pool's own availability by S5)."""
+        structures = load("structures.py")
+        candles = _hist("AUS200", "4H", 480)
+        env = structures.ict_structures(candles, 4, "4H", methods=("ict",))
+        pools = [s for s in env["structures"] if s["kind"] == "pool"]
+        raw = env["analysis"]["pools"]
+        self.assertEqual(len(pools), len(raw))
+        self.assertTrue([r for r in raw if r["state"] == "closed_through"], "fixture must contain a closed_through pool")
+        # a whole real window does not fit on a Windows command line: hand it to node through a file
+        with tempfile.TemporaryDirectory() as td:
+            f = os.path.join(td, "in.json")
+            json.dump({"rows": _rows6(candles), "s": env["structures"]}, open(f, "w"))
+            drawn = self.run_js(f"const d=JSON.parse(require('fs').readFileSync({json.dumps(f)},'utf8'));"
+                                "console.log(JSON.stringify(T.ictFromStructures(d.s,{},d.rows,{tfMin:240}).pools))")
+        self.assertEqual(len(drawn), len(pools))
+        for d, w, r in zip(drawn, pools, raw):
+            if r["state"] == "closed_through":
+                own = next(i for i in range(len(candles)) if _avail_iso(candles[i], 240) >= w["available_at"])
+                self.assertEqual(d["to"], max(r["closed_at"], own) + 0.5, (w["level"], r["closed_at"]))
+            else:
+                self.assertIsNone(d["to"])
+
+    def test_an_invalidation_after_the_cursor_leaves_the_pool_open(self):
+        rows = self._rows()
+        structs = [{"kind": "pool", "pool_kind": "SSL", "level": 90.0, "from": 2, "type": "eq",
+                    "available_at": self._avail(rows, 5), "invalidated_at": self._avail(rows, 20)}]
+        out = self._ict(rows[:11], structs, {}, cut=self._avail(rows, 10))["pools"]
+        self.assertEqual(len(out), 1)
+        self.assertIsNone(out[0]["to"], "the invalidation had not happened at the cursor")
+
+    def test_an_fvg_mitigated_after_the_cursor_is_drawn_open_and_ends_at_the_cursor_bar(self):
+        rows = self._rows()
+        f = {"kind": "fvg", "type": "bull", "i": 8, "lo": 100.0, "hi": 101.0, "size": 1.0, "ce": 100.5, "end": 30,
+             "mitigated": True, "available_at": self._avail(rows, 9), "invalidated_at": self._avail(rows, 30)}
+        out = self._ict(rows[:16], [f], {}, cut=self._avail(rows, 15))["fvgs"]
+        self.assertFalse(out[0]["mitigated"], "mitigated after the cursor must not show as mitigated")
+        self.assertEqual(out[0]["end"], 15, "an open FVG runs only to the last bar the reader can see")
+        out2 = self._ict(rows, [f], {}, cut=self._avail(rows, 35))["fvgs"]
+        self.assertTrue(out2[0]["mitigated"])
+        self.assertEqual(out2[0]["end"], 30)
+
+    def test_the_dealing_range_is_absent_before_its_available_at(self):
+        rows = self._rows()
+        dr = {"hi": 110.0, "lo": 95.0, "eq": 102.5, "source": "pools", "available_at": self._avail(rows, 39)}
+        cut = self._avail(rows, 20)
+        out = self.run_js(f"const rows={json.dumps(rows[:21])}, dr={json.dumps(dr)};"
+                          f"const a=T.ictFromStructures([],dr,rows,{{tfMin:{self.T15},cutIso:{json.dumps(cut)}}});"
+                          "console.log(JSON.stringify({lo:a.lo,hi:a.hi,eq:a.eq,pct:a.pct,src:a.drSource,"
+                          "shapes:T.ictShapes(rows,a,{compact:false,fmt:v=>String(v)}).map(s=>s.kind+':'+(s.text||''))}))")
+        self.assertEqual([out["lo"], out["hi"], out["eq"], out["pct"], out["src"]], [None] * 5)
+        self.assertFalse([x for x in out["shapes"] if "premium" in x or "discount" in x], out["shapes"])
+        out2 = self._ict(rows, [], dr, cut=self._avail(rows, 39))
+        self.assertEqual([out2["lo"], out2["hi"]], [95.0, 110.0])
+
+    def test_an_object_with_no_available_at_is_dropped_at_a_cursor_never_assumed_available(self):
+        rows = self._rows()
+        structs = [{"kind": "mss", "type": "bull", "i": 5, "level": 101.0, "disp": True}]
+        self.assertEqual(len(self._ict(rows, structs, {}, cut=self._avail(rows, 20))["mss"]), 0)
+        self.assertEqual(len(self._ict(rows, structs, {})["mss"]), 1)
+
+    def test_idx_of_avail_resolves_the_bar_whose_availability_is_the_time(self):
+        rows = self._rows()
+        iso = self._avail(rows, 7)
+        out = self.run_js(f"const rows={json.dumps(rows)};"
+                          f"console.log(JSON.stringify([T.idxOfAvail(rows,{json.dumps(iso)},{self.T15}), T.idxOfAvail(rows,null,{self.T15}), "
+                          f"T.idxOfAvail(rows,'2000-01-01T00:00:00Z',{self.T15})]))")
+        self.assertEqual(out, [7, -1, -1])
+
+
+class A1bWyckoffReplayUsesAvailability(unittest.TestCase):
+    """Code-review I4: replay filters the Wyckoff read by the engine's own `available_at` -- never by formed time,
+    which would show a range or an SOS before it was knowable. Objects with no `available_at` are dropped."""
+
+    run_js = Engine.run_js
+
+    WY = {"tr": {"high": 110, "low": 90, "from": "2026-09-01T00:00:00Z", "available_at": "2026-09-01T10:00:00Z"},
+          "events": [{"time": "2026-09-01T02:00:00Z", "label": "SC", "up": False, "available_at": "2026-09-01T03:00:00Z"},
+                     {"time": "2026-09-01T09:00:00Z", "label": "SOS", "up": True, "available_at": "2026-09-01T12:00:00Z"},
+                     {"time": "2026-09-01T04:00:00Z", "label": "ST", "up": False}],
+          "phases": [{"from": "2026-09-01T02:00:00Z", "to": "2026-09-01T05:00:00Z", "label": "A", "status": "tested",
+                      "available_at": "2026-09-01T10:00:00Z"},
+                     {"from": "2026-09-01T09:00:00Z", "to": None, "label": "D", "status": "hypothesis",
+                      "available_at": "2026-09-01T12:00:00Z"}]}
+
+    def _at(self, cut):
+        return self.run_js(f"console.log(JSON.stringify(T.wyckoffAt({json.dumps(self.WY)},{json.dumps(cut)})))")
+
+    def test_no_cursor_returns_the_read_unchanged(self):
+        self.assertEqual(self._at(None), self.WY)
+
+    def test_before_the_range_is_available_nothing_is_shown_even_if_an_event_formed_earlier(self):
+        out = self._at("2026-09-01T09:00:00Z")
+        self.assertIsNone(out["tr"])
+        self.assertEqual(out["events"], [])
+        self.assertEqual(out["phases"], [])
+
+    def test_once_the_range_is_available_only_available_events_and_phases_show(self):
+        out = self._at("2026-09-01T11:00:00Z")
+        self.assertIsNotNone(out["tr"])
+        self.assertEqual([e["label"] for e in out["events"]], ["SC"], "SOS formed at 09:00 but is available at 12:00; ST has no available_at")
+        self.assertEqual([p["label"] for p in out["phases"]], ["A"], "Phase D is available at 12:00")
+
+    def test_everything_shows_once_everything_is_available(self):
+        out = self._at("2026-09-01T12:00:00Z")
+        self.assertEqual([e["label"] for e in out["events"]], ["SC", "SOS"])
+        self.assertEqual([p["label"] for p in out["phases"]], ["A", "D"])
+
+    def test_a_range_with_no_available_at_is_not_shown_at_a_cursor(self):
+        wy = {"tr": {"high": 1, "low": 0, "from": "2026-09-01T00:00:00Z"}, "events": [], "phases": []}
+        out = self.run_js(f"console.log(JSON.stringify(T.wyckoffAt({json.dumps(wy)},'2026-09-02T00:00:00Z')))")
+        self.assertIsNone(out["tr"])
+
+    def test_the_built_read_carries_available_at_on_every_object(self):
+        """build-artifact.py's wy_json_engine ships available_at on tr, events and phases (what wyckoffAt reads)."""
+        b = load("build-artifact.py")
+        seen = 0
+        for sym, tf, kind in (("AUS200", "4H", "cfd"), ("BTCUSDT", "4H", "crypto"), ("ETHUSDT", "4H", "crypto")):
+            wy = b.wy_json_engine(_hist(sym, tf, 600), tf, sym, kind)
+            if not wy["tr"]:
+                continue
+            seen += 1
+            self.assertTrue(wy["tr"]["available_at"])
+            for o in wy["events"] + wy["phases"]:
+                self.assertTrue(o.get("available_at"), o)
+        self.assertGreater(seen, 0)
+
+
+class A1bEmptyRowsAreGuarded(unittest.TestCase):
+    """Code-review S3: ictShapes/wyckoffShapes on an empty window draw nothing and do not throw."""
+
+    run_js = Engine.run_js
+
+    def test_empty_rows_give_no_shapes(self):
+        out = self.run_js("const cfg={compact:false,fmt:v=>String(v)};"
+                          "console.log(JSON.stringify({i:T.ictShapes([],T.ictFromStructures([],{},[]),cfg),"
+                          "w:T.wyckoffShapes([],{tr:null,events:[],phases:[]},cfg)}))")
+        self.assertEqual(out, {"i": [], "w": []})
+
+
+class A2bTierQualityNeverGuessesTheClock(unittest.TestCase):
+    """Code-review I6 (CLAUDE.md section 20): no entry-tier clock -> UNKNOWN, never a verdict against the wall
+    clock; and when the build wrote a snapshot the verdict comes from THAT copy, not the live file."""
+
+    def _series(self, last_updated, n=40):
+        return {"candles": synth(n, step_min=240), "last_updated": last_updated}
+
+    def test_no_clock_is_unknown_never_fresh_or_stale(self):
+        b = load("build-artifact.py")
+        b.read_json = lambda path, default=None: self._series("2026-09-20T00:00:00Z")
+        for clock in (None, ""):
+            q = b.tier_quality("BTCUSDT", "4H", clock)
+            self.assertEqual(q["state"], "UNKNOWN", q)
+            self.assertIsNone(q["clock"])
+
+    def test_the_verdict_is_read_from_the_snapshot_copy_not_the_live_file(self):
+        b = load("build-artifact.py")
+        read = []
+        snap = os.path.join(tempfile.gettempdir(), "a2b-snap-test")
+        snap_series = self._series("2026-09-25T00:00:00Z")            # fresh vs the clock below
+        live_series = self._series("2026-09-01T00:00:00Z")            # would be stale if the live file were read
+
+        def fake_read(path, default=None):
+            read.append(path)
+            return snap_series if os.path.dirname(path) == snap else live_series
+        b.read_json = fake_read
+        q = b.tier_quality("BTCUSDT", "4H", "2026-09-25T01:00:00Z", snap)
+        self.assertEqual(q["state"], "FRESH", q)
+        self.assertEqual(read, [os.path.join(snap, "ohlcv.BTCUSDT.4H.json")])
+        read.clear()
+        q2 = b.tier_quality("BTCUSDT", "4H", "2026-09-25T01:00:00Z")
+        self.assertEqual(q2["state"], "STALE", q2)
+        self.assertNotEqual(os.path.dirname(read[0]), snap)
