@@ -38,3 +38,4 @@ Carried from the handoff (`docs/plans/2026-09-29-handoff-macbook.md`, trades / s
 - Costs are the generic fee model; the FTMO real commission is unknown and is not guessed.
 - Selection risk: 9 new + 9 carried runs; N-adjustment belongs to `fund-search` (Batch 2), not this doc.
 - No verdict on adopting any key: all remain default v1 and off.
+- `diagnose-methods.py run --set` only checks the `fx_` prefix, so a mistyped key runs as v1 and is echoed in `overlay`. Validation against the union of ICT and Wyckoff key sets is scheduled for the merge; until then, check the `overlay` of each JSON.
