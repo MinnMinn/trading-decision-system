@@ -31,7 +31,9 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from repo_paths import repo_rel
 import instruments as I  # noqa: E402
 # Feed directory comes from instruments.py (I.data_dir), keyed by market -- was a hard-coded symbol set.
-P = {"15m": dict(R=48, K=16, H=96), "4H": dict(R=30, K=8, H=30), "1D": dict(R=20, K=6, H=20), "1H": dict(R=48, K=12, H=72), "5m": dict(R=60, K=18, H=120)}
+# "1m": owner decision 2026-09-29 (docs/plans/2026-09-28-methodology-improvement-plan.md §6 item 7) -- mirrors
+# backtest-methods.P["1m"]'s R/K/H (this table has no T/sob keys, unlike that one).
+P = {"15m": dict(R=48, K=16, H=96), "4H": dict(R=30, K=8, H=30), "1D": dict(R=20, K=6, H=20), "1H": dict(R=48, K=12, H=72), "5m": dict(R=60, K=18, H=120), "1m": dict(R=60, K=20, H=144)}
 VOL = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"]["volume"]
 STOP_BUFFER_PCT = 0.0005
 

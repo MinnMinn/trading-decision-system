@@ -122,7 +122,11 @@ mreg = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(mreg)
 # STRUCTURE tier = the next runner timeframe >= 4x (scripts/automation.py next_rung -- the one ladder rule, docs/architecture/
 # timeframe-mapping.md). Over the runner's rungs this yields 5m->30m, 15m->1H, 30m->2H, 1H->4H, 2H->1D, 4H->1D, 1D->None,
 # identical to the table the backtests were run with (scripts/tests/test_timeframe_ladder.py pins it).
-RUNNER_TFS = ["5m", "15m", "30m", "1H", "2H", "4H", "1D"]
+# "1m" added 2026-09-29 (docs/plans/2026-09-28-methodology-improvement-plan.md §6 item 7, mirrors
+# backtest-methods._RUNGS) -> HTF_OF["1m"] = "5m". This table only feeds this ladder computation and the
+# TF_SEC/due()/ict_scan_bars() lookups below -- it does NOT itself enable a 1m live setup: what actually runs
+# live is load_setups()'s enabled list (docs/architecture/pilot-selection.json), which this task does not touch.
+RUNNER_TFS = ["1m", "5m", "15m", "30m", "1H", "2H", "4H", "1D"]
 # CLAUDE.md §40 latency instrumentation. ONE active trace per tick, held here so the helpers further down
 # (fetch_candles, risk_precheck, place_*) can time their own stage without threading a parameter through
 # every call site of a 1,600-line order path. `_span` is a no-op when no tick is active -- a --report or a
@@ -178,7 +182,7 @@ NOTIONAL_CAP_PCT = 0.25
 # config/env.<env>, or the book by editing the profile -- not by editing this file.
 ERROR_HALT = 3   # NOT an account rule: a connector that errors three times running is an infrastructure fault
 STOP_BUFFER_PCT = bt.STOP_BUFFER_PCT
-TF_SEC = {"5m": 300, "15m": 900, "30m": 1800, "1H": 3600, "2H": 7200, "4H": 14400, "1D": 86400}
+TF_SEC = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1H": 3600, "2H": 7200, "4H": 14400, "1D": 86400}
 VENUES = ("futures", "mt5")
 METHODS = tuple(sorted(mreg.runnable()))   # ICT = limit at the FVG edge; WYCKOFF-BOOK = market at the bar close
 
@@ -826,7 +830,7 @@ def due(tf, t, market="crypto"):
     """A setup on `tf` is evaluated on the tick right after its candle closed (ticks run at :01 / :31). MT5 bars close on the
     broker's clock (XAUUSD 4H bars close at 01:00/05:00/... UTC on this broker), so CFD 2H/4H/1D setups are evaluated on every
     hour tick -- the signal cache (`seen`) makes repeated evaluation harmless and drop_forming() keeps only closed bars."""
-    if tf in ("5m", "15m", "30m"):
+    if tf in ("1m", "5m", "15m", "30m"):
         return True                      # the loop ticks at the fastest selected timeframe; the signal cache makes extra ticks harmless
     if t.minute >= 30:
         return False

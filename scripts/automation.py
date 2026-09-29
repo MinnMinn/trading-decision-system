@@ -186,6 +186,11 @@ SCAN_WINDOW = {
     "1m":  {"bars": 360, "recent": 4},
     "5m":  {"bars": 576, "recent": 4},
     "15m": {"bars": 576, "recent": 2},
+    # 30m: owner decision 2026-09-29 (docs/plans/2026-09-28-methodology-improvement-plan.md §6 item 7) -- fund
+    # setups are now searched on 1m/5m/15m/30m, and this table had no 30m entry at all (a pre-existing gap,
+    # live_rules.scan_spec("30m") and bt.scan(sym, "30m", only=("ICT",)) both raised KeyError before this).
+    # 1m and 5m above are UNCHANGED by this decision.
+    "30m": {"bars": 480, "recent": 2},
     "1H":  {"bars": 480, "recent": 2},
     "4H":  {"bars": 360, "recent": 2},
     "1D":  {"bars": 240, "recent": 1},
