@@ -49,9 +49,12 @@ def _utc(iso):
     if not isinstance(iso, str) or not iso.endswith("Z"):
         raise Refused(f"time {iso!r} refused: give an ISO-8601 UTC time ending in Z, e.g. 2023-06-15T14:00:00Z")
     try:
-        return datetime.datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        dt = datetime.datetime.fromisoformat(iso.replace("Z", "+00:00"))
     except ValueError:
         raise Refused(f"time {iso!r} refused: not an ISO-8601 UTC time")
+    if dt.tzinfo is None:       # e.g. a date-only "<date>Z" parses naive; comparing it to an aware cutoff would raise
+        raise Refused(f"time {iso!r} refused: give a full ISO-8601 UTC time ending in Z, e.g. 2023-06-15T14:00:00Z")
+    return dt
 
 
 def check_at(at):
@@ -76,7 +79,10 @@ def pit_rows(sym, tf, at, root=None, n=None):
         raise Refused(f"{sym} {tf} has no bar available at or before {at} in {path}: the requested window lies "
                       f"outside this symbol's development history. Nothing was drawn.")
     if n is None:
-        n = _load("build-artifact.py", "build_artifact_pit").TF_SPEC[tf][0]
+        spec = _load("build-artifact.py", "build_artifact_pit").TF_SPEC
+        if tf not in spec:
+            raise Refused(f"unknown timeframe {tf!r}: one of {sorted(spec)}")
+        n = spec[tf][0]
     return prefix[-n:]
 
 

@@ -108,6 +108,20 @@ class DevOnly(Fixture):
             r = self.run_cli("--symbol", "XAUUSD", "--tf", "15m", "--at", at, "--out", self.out + ".z")
             self.assertNotEqual(r.returncode, 0, at)
 
+    def test_cutoff_boundary_and_offset_forms(self):
+        """Review round 1: a date-only time is a clean REFUSED (no traceback); a +07:00 form mapping to the cutoff is
+        refused; the last second before the cutoff is accepted by the time check."""
+        for at in ("2024-03-01Z", "2024-03-01T07:00:00+07:00", "2024-03-01T00:00:00.000Z", "20240301T000000Z"):
+            r = self.run_cli("--symbol", "XAUUSD", "--tf", "15m", "--at", at, "--out", self.out + ".b")
+            self.assertNotEqual(r.returncode, 0, at)
+            self.assertNotIn("Traceback", r.stderr, at)
+            self.assertFalse(os.path.exists(self.out + ".b"), at)
+        self.mod.check_at("2024-02-29T23:59:59Z")          # does not raise
+
+    def test_unknown_timeframe_is_a_clean_refusal(self):
+        r = self.run_cli("--symbol", "XAUUSD", "--tf", "7m", "--at", T_ISO, "--out", self.out + ".u")
+        self.assertNotEqual(r.returncode, 0); self.assertNotIn("Traceback", r.stderr)
+
     def test_missing_history_refused(self):
         r = self.run_cli("--symbol", "XAUUSD", "--tf", "1H", "--at", T_ISO, "--out", self.out + ".w")
         self.assertNotEqual(r.returncode, 0); self.assertIn("no history", r.stderr)
