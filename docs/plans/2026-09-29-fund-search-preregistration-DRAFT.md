@@ -14,17 +14,23 @@ event, and thresholds may only be tightened.
    metals 1m 9 folds; metals 5m/15m/30m 17; indices (all timeframes) 4. The plan output and the report carry
    these per cell. Not changed in this round.
 2. **The statistic.** Primary metric = net expectancy per trade in R after REAL costs. Lower bound =
-   `min(iid one-sided Student-t bound, CR1 cluster-robust bound by UTC entry date, CR1 cluster-robust bound by
-   30-day window)`, all at one-sided confidence `1 - 0.10/N`. CR1: `se = sqrt(G/(G-1) * sum_g S_g^2) / n`,
+   `min(iid one-sided Student-t bound, and CR1 cluster-robust bounds by UTC entry date, by 30-day window, by
+   calendar quarter, by half-year)`, all at one-sided confidence `1 - 0.10/N`. CR1: `se = sqrt(G/(G-1) * sum_g S_g^2) / n`,
    `S_g = sum_{i in g}(r_i - mean)`, `df = G-1`, `G` = number of blocks; fewer than 2 blocks = no bound (fail).
    Computed on POOLED TEST-fold trades only. N = (1 + non-baseline values + 1 combined) per method x cells
    (ICT 41/cell, Wyckoff 16/cell). Reason for the block bounds: with dependent trades the iid bound had a false
-   positive rate 10-90x nominal in the reviewer's simulations.
+   positive rate 10-90x nominal in the reviewer's simulations; the quarter and half-year bounds were added after
+   AR(1) 30-day and 180-day persistence scenarios still passed the first three (owner default: tighten).
+   **DISCLOSED PRICE (power).** Measured by the harness author on 20 seeds of iid +0.30R at n=600: the five-way min
+   passed 20/20 over 6 development years, 17/20 over 4, 9/20 over 2 (the reviewer's figures for a 90-day bound:
+   0.99 -> 0.91; persistent-regime edges lose more). A cell with few quarters/half-years (e.g. indices, 4 folds)
+   is structurally harder to pass. Not loosened.
 3. **Selection rule.** One factor at a time against the baseline, on the TRAINING window only; a value is eligible
    with >= 30 training trades and is chosen only if its training expectancy STRICTLY beats the baseline's (ties keep
    the baseline); joint-group items are one factor (cartesian product); the combined candidate merges the winners.
-4. **Purge / embargo.** A training trade must have EXITED strictly before the test fold starts (purge). An optional
-   additional embargo (e.g. one time-stop horizon) is NOT implemented -- OPEN: add it or not.
+4. **Purge / embargo.** Trade times are bar OPEN labels, so a training trade must have its exit label strictly
+   before `test_start - one bar of the cell's timeframe` (purge). An optional additional embargo (e.g. one
+   time-stop horizon) is NOT implemented -- OPEN: add it or not.
 5. **Perturbation.** For every item and each direction, in every fold, move the value the fold chose one step on the
    item's axis (numbers sorted ascending, other values in listed order; an edge has no neighbour that side); pool the
    test trades; the robust lower bound at the same confidence must stay > 0 for every (item, direction).
@@ -47,8 +53,11 @@ event, and thresholds may only be tightened.
    Ruin handling: the harness sets `RUIN_FRAC=0.0` on its own engine instance (R does not depend on equity) and
    fails loud if any trade would have gone to `post_ruin`. **min_rr semantics: see OPEN item O1.**
 10. **Code SHAs and grid hashes.** The declaration pins the last-commit SHA and dirty flag of `fund_stats.py`,
-    `fund-search.py`, `prop-search.py`, the sha256 of both grid files, STABILITY_FRACTION, `live_parity_sizing`,
-    `spread_stat`, FUNDS/horizon and the verdict-precedence rule. The report flags records sealed under a different
+    `fund-search.py`, `prop-search.py`, `backtest-methods.py`, `real_costs.py`, `performance.py`, `mt5_time.py`,
+    `ict-scan.py`, `wyckoff_rules.py`, `live_rules.py`, the sha256 of both grid files, STABILITY_FRACTION, `live_parity_sizing`,
+    `spread_stat`, FUNDS/horizon and the verdict-precedence rule. `run` REFUSES (non-zero exit) when the current fingerprint or
+    evaluation settings differ from the declaration; `--allow-drift` proceeds but stamps every record
+    `drifted=true` and the report header says so. The report also flags records sealed under a different
     code_version or a dirty tree.
 11. **What a PASS certifies, and the deployment rule.** A PASS certifies a SELECTION PROCEDURE (choose on each
     training fold, score on the next test fold), not a configuration. The report shows how often each item's chosen
@@ -70,3 +79,15 @@ event, and thresholds may only be tightened.
   (`ALLOWED_EXISTING_OPTS`); extend the list only by a reviewed edit when the real grids merge.
 - **O6 (commission).** Provide the real FTMO commission (or accept the disclosed limitation).
 - **O7 (regime split threshold).** Median of pooled TEST trades as defined in A7, or a fixed ADX level?
+- **O8 (ICT rollover gap).** The engine asks about the daily rollover only after each WALKED bar, never for the
+  entry bar. Wyckoff enters at the previous bar's label (legitimate). An ICT limit fill INSIDE the last bar of a
+  server day can therefore be held past midnight although flat-before-rollover is on. The harness compares on the
+  walked-bar basis (entry label + one bar -> exit label, so it neither false-trips on legitimate last-bar entries
+  nor misses trades held across a walked bar) and RECORDS, per V value set and per fold, how many entries sit on
+  the last bar of a server day (report line "Entries on the last bar of a server day"); it does not raise on
+  them. OPTION for the owner: an engine fix behind an `fx_` key (default v1) that also flattens a fill inside the
+  last bar, adopted before Batch 3.
+- **O9 (merge-time guards, implemented).** `run` refuses any grid item with `implemented:false` (plan/dry-run
+  list it as "declared, not runnable, counted in N"), refuses a grid whose time-stop item declares "none" unless
+  flat_before_rollover is fixed on (asserted for every candidate in `checked_simulate`), and refuses any V value
+  the grid did not declare, before scanning.

@@ -211,21 +211,35 @@ def _window_key(t):
     return int(ts(t["entry_time"]).timestamp() // (BLOCK_DAYS * 86400))
 
 
+def _quarter_key(t):
+    d = ts(t["entry_time"])
+    return (d.year, (d.month - 1) // 3)
+
+
+def _half_key(t):
+    d = ts(t["entry_time"])
+    return (d.year, (d.month - 1) // 6)
+
+
 def robust_lower_bound(trades, confidence):
-    """bound = min(iid Student-t bound, block bound by UTC entry date, block bound by 30-day window), all at the
-    same confidence (fix round 1, C1). The min can only LOWER the bound relative to the iid one -- it never
+    """bound = min(iid Student-t bound, block bounds by UTC entry date, 30-day window, calendar quarter and
+    half-year), all at the same confidence (fix rounds 1-2, C1). The min can only LOWER the bound relative to the iid one -- it never
     loosens. Any component that cannot be computed makes the bound None (fail closed)."""
     rs = [t["net_R"] for t in trades]
     iid = lower_bound(rs, confidence)
     by_date = _block_bound(trades, confidence, _date_key)
     by_window = _block_bound(trades, confidence, _window_key)
-    comps = [iid["value"], by_date["value"], by_window["value"]]
+    by_quarter = _block_bound(trades, confidence, _quarter_key)
+    by_half = _block_bound(trades, confidence, _half_key)
+    comps = [iid["value"], by_date["value"], by_window["value"], by_quarter["value"], by_half["value"]]
     value = None if any(c is None for c in comps) else min(comps)
     return {"n": len(rs), "confidence": confidence, "value": value, "mean": iid["mean"],
             "method": ("min(iid one-sided Student-t bound, cluster-robust CR1 bound by UTC entry date, "
-                       f"cluster-robust CR1 bound by {BLOCK_DAYS}-day window)"),
+                       f"cluster-robust CR1 bound by {BLOCK_DAYS}-day window, by calendar quarter, by half-year)"),
             "iid": iid["value"], "block_date": by_date["value"], "block_30d": by_window["value"],
-            "blocks_date": by_date["blocks"], "blocks_30d": by_window["blocks"]}
+            "block_quarter": by_quarter["value"], "block_half": by_half["value"],
+            "blocks_date": by_date["blocks"], "blocks_30d": by_window["blocks"],
+            "blocks_quarter": by_quarter["blocks"], "blocks_half": by_half["blocks"]}
 
 
 # --------------------------------------------------------------------------------------------- the grid
@@ -342,10 +356,22 @@ def make_folds(data_start_iso, cutoff_iso=DEV_CUTOFF, test_days=TEST_FOLD_DAYS, 
     return folds
 
 
-def train_window(trades, fold):
-    """Training trades of a fold: entered at/after the data start AND exited strictly BEFORE the test fold starts
-    (purge). A trade the test fold could still change is not evidence the training side may use."""
-    a, b = ts(fold["train_start"]), ts(fold["test_start"])
+TF_MINUTES = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1H": 60, "2H": 120, "4H": 240, "1D": 1440}
+
+
+def bar_delta(tf):
+    """One bar of `tf` as a timedelta (fail loud on an unknown timeframe: a purge margin is never guessed)."""
+    if tf not in TF_MINUTES:
+        raise ValueError(f"unknown timeframe {tf!r}; known: {sorted(TF_MINUTES)}")
+    return datetime.timedelta(minutes=TF_MINUTES[tf])
+
+
+def train_window(trades, fold, margin=datetime.timedelta(0)):
+    """Training trades of a fold: entered at/after the data start AND with exit label strictly BEFORE
+    `test_start - margin` (purge). Exit times are bar OPEN labels, so the caller passes one bar of the cell's
+    timeframe as `margin` (fix round 2): a trade whose last bar closes at/after the test start is not evidence
+    the training side may use."""
+    a, b = ts(fold["train_start"]), ts(fold["test_start"]) - margin
     return [t for t in trades if ts(t["entry_time"]) >= a and ts(t["exit_time"]) < b]
 
 
@@ -408,13 +434,13 @@ def select_values(grid, train_trades_for):
     return chosen, scores
 
 
-def nested_walk_forward(grid, trades_for, folds):
+def nested_walk_forward(grid, trades_for, folds, purge_margin):
     """For each fold: choose on the training window, score the chosen values on that fold's OWN test window.
     Returns [{"fold", "chosen", "changed", "train_scores", "test_trades"}]. `trades_for(full_values)` may be a
     CountingSource; the selection step sees only `train_window` output."""
     out = []
     for fold in folds:
-        chosen, scores = select_values(grid, lambda v, f=fold: train_window(trades_for(grid.full(v)), f))
+        chosen, scores = select_values(grid, lambda v, f=fold: train_window(trades_for(grid.full(v)), f, purge_margin))
         base = grid.baseline()
         out.append({"fold": fold, "chosen": chosen,
                     "changed": sorted(i for i in chosen if chosen[i] != base[i]),

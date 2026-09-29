@@ -34,6 +34,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import sys
 import time
 import types
@@ -133,17 +134,45 @@ def validate_grid(grid, where="grid"):
                               f"in the allow-list {ALLOWED_EXISTING_OPTS} (fix round 1, S1): refusing")
 
 
+_TIME_STOP_RE = re.compile(r"time[_\- ]?stop", re.I)
+
+
+def grid_has_no_time_stop_value(grid):
+    """True when a time-stop item (id or key names it) declares the value "none" (no time exit)."""
+    return any(_TIME_STOP_RE.search(f"{it['id']} {it['key']} {it.get('existing_opts_key') or ''}")
+               and "none" in it["values"] for it in grid.items)
+
+
+def assert_grid_runnable(grid):
+    """Merge-time guards (round 2, item 5): (a) no unimplemented item; (b) a grid that can remove the time stop
+    runs only with flat_before_rollover fixed on."""
+    if grid.unimplemented:
+        raise GridRefused(f"grid has unimplemented items {grid.unimplemented}: declared, not runnable, counted in N "
+                          f"-- refusing to evaluate a partial grid")
+    if grid_has_no_time_stop_value(grid):
+        assert_flat_overlay(fixed_opts())
+
+
 def build_overlay(grid, values):
-    """The OPTS overlay for one full V assignment: fixed rules + ONLY the keys the grid declares."""
+    """The OPTS overlay for one full V assignment: fixed rules + ONLY the keys the grid declares, each at a value
+    the grid declares (a V value nobody pre-declared is refused BEFORE any scan -- item 5c)."""
     allowed = {grid.opts_key(i["id"]) for i in grid.items}
     unknown = [i for i in values if i not in grid.by_id]
     if unknown:
         raise GridRefused(f"V assignment names items not in the grid: {unknown}")
+    for i, v in values.items():
+        if v not in grid.by_id[i]["values"]:
+            raise GridRefused(f"V assignment sets item {i!r} to {v!r}, which the grid does not declare "
+                              f"({grid.by_id[i]['values']}): refusing before scanning (plan §3: the value sets are "
+                              f"the whole grid)")
     overlay = grid.overlay(values)
     extra = set(overlay) - allowed
     if extra:
         raise GridRefused(f"overlay keys {sorted(extra)} are not declared by the grid")
-    return dict(overlay, **fixed_opts())
+    out = dict(overlay, **fixed_opts())
+    if grid_has_no_time_stop_value(grid):
+        assert_flat_overlay(out)
+    return out
 
 
 # -------------------------------------------------------------------------------------------- cell enumeration
@@ -252,7 +281,7 @@ def format_dry_run(plan, grid_note=""):
         conf = plan["confidence_by_method"][m]
         L.append(f"  {m:<8} N per cell {g['n_per_cell']} x {plan['cell_count']} cells = N {n}; one-sided "
                  f"confidence 1 - {FS.FAMILY_ALPHA}/{n} = {conf:.6f}"
-                 + (f"; UNIMPLEMENTED items: {g['unimplemented']}" if g["unimplemented"] else ""))
+                 + (f"; declared, not runnable, counted in N: {g['unimplemented']}" if g["unimplemented"] else ""))
     L.append(f"plan_hash {plan['plan_hash'][:16]}")
     return "\n".join(L)
 
@@ -338,7 +367,10 @@ def _git(*a):
         return None
 
 
-FINGERPRINT_FILES = ("scripts/fund_stats.py", "scripts/fund-search.py", "scripts/prop-search.py")
+FINGERPRINT_FILES = ("scripts/fund_stats.py", "scripts/fund-search.py", "scripts/prop-search.py",
+                     "scripts/backtest-methods.py", "scripts/real_costs.py", "scripts/performance.py",
+                     "scripts/mt5_time.py", "scripts/ict-scan.py", "scripts/wyckoff_rules.py",
+                     "scripts/live_rules.py")
 
 
 def code_fingerprint(files=FINGERPRINT_FILES):
@@ -362,6 +394,42 @@ def evaluation_config(plan):
             "regime_split": FS.REGIME_SPLIT_DEFINITION,
             "ruin_handling": "bt.RUIN_FRAC = 0.0 on the harness's own bt instance; post_ruin trades fail loud",
             "grid_sha256": {m: g["sha256"] for m, g in plan["grids"].items()}}
+
+
+class DeclarationDrift(SystemExit):
+    """`run` refused: the code or evaluation settings differ from what `declare` recorded (fix round 2, item 3)."""
+
+
+def detect_drift(decl, plan):
+    """Every difference between the declaration and the code/settings that would run NOW. Empty = no drift."""
+    out = []
+    dc = decl.get("code")
+    if not isinstance(dc, dict) or not dc:
+        out.append("declaration has no `code` fingerprint")
+    else:
+        now = code_fingerprint(tuple(sorted(set(dc) | set(FINGERPRINT_FILES))))
+        for f in sorted(now):
+            if dc.get(f) != now[f]:
+                out.append(f"code {f}: declared {dc.get(f)!r}, now {now[f]!r}")
+    dcfg = decl.get("evaluation_config")
+    if not isinstance(dcfg, dict) or not dcfg:
+        out.append("declaration has no `evaluation_config`")
+    else:
+        cfg = evaluation_config(plan)
+        for k in sorted(set(dcfg) | set(cfg)):
+            if dcfg.get(k) != cfg.get(k):
+                out.append(f"evaluation_config.{k}: declared {dcfg.get(k)!r}, now {cfg.get(k)!r}")
+    return out
+
+
+def check_drift(decl, plan, allow_drift=False):
+    drift = detect_drift(decl, plan)
+    if drift and not allow_drift:
+        raise DeclarationDrift(
+            "refusing to run: the code or evaluation settings differ from what `declare` recorded in the ledger:\n  "
+            + "\n  ".join(drift) + "\nRe-declare through a ledger event, or pass --allow-drift to proceed with "
+            "every record stamped drifted=true.")
+    return drift
 
 
 def cmd_declare():
@@ -420,9 +488,19 @@ def neutralise_ruin(bt):
     bt.RUIN_FRAC = 0.0
 
 
-def checked_simulate(bt, trades, fee, **kw):
+def assert_flat_overlay(overlay):
+    """Item 5(b): every candidate is simulated under flat_before_rollover=True. A grid value that removes the time
+    stop ("none") is only safe because no position may then be held overnight; refuse if the overlay says otherwise."""
+    if not isinstance(overlay, dict) or overlay.get("flat_before_rollover") is not True:
+        raise GridRefused("flat_before_rollover is not True in the candidate's OPTS overlay: refusing to simulate "
+                          "(no overnight holding is a FIXED rule, plan §6 item 7)")
+
+
+def checked_simulate(bt, trades, fee, *, overlay, **kw):
     """`bt.simulate` that FAILS LOUD when the run ended in ruin / dropped trades (I1), so a lost trade is never a
-    silent outcome. Returns simulate's own (equity, curve, taken)."""
+    silent outcome, and when the candidate's overlay does not have flat_before_rollover on (round 2, item 5b).
+    Returns simulate's own (equity, curve, taken)."""
+    assert_flat_overlay(overlay)
     out = bt.simulate(trades, fee, **kw)
     last = getattr(bt, "SIM_LAST", None) or {}
     post = last.get("post_ruin") or []
@@ -433,14 +511,38 @@ def checked_simulate(bt, trades, fee, **kw):
     return out
 
 
-def assert_no_rollover_crossing(taken, provider):
-    """S1: flat-before-rollover is FIXED on; a taken trade whose entry and exit fall on different server-local
-    dates was held over the daily rollover -- fail loud rather than report it."""
+def assert_no_rollover_crossing(taken, provider, tf):
+    """S1 (round 2 corrected): flat-before-rollover is FIXED on. `entry_time`/`exit_time` are bar OPEN labels and
+    the engine checks the rollover only AFTER each walked bar, never between the entry bar and the first walked
+    bar. So the comparison is on the walked-bar basis: from the entry bar's CLOSE (entry label + one bar) to the
+    exit label. A trade whose exit label is not after that close has no walked-bar span to cross."""
     import real_costs as _RC
-    bad = [t for t in taken if _RC.crosses_rollover(t["entry_time"], t["exit_time"], provider)]
+    dt = FS.bar_delta(tf)
+    bad = []
+    for t in taken:
+        start = FS.ts(t["entry_time"]) + dt
+        if FS.ts(t["exit_time"]) >= start and _RC.crosses_rollover(FS.iso(start), t["exit_time"], provider):
+            bad.append(t)
     if bad:
         raise RuntimeError(f"{len(bad)} taken trade(s) cross the server rollover although flat_before_rollover is "
                            f"fixed on (first: {bad[0]['symbol']} {bad[0]['entry_time']} -> {bad[0]['exit_time']})")
+
+
+def last_bar_entry_times(taken, tf, provider):
+    """Entry labels whose entry bar is the LAST bar of a server day (the next bar opens on a new server date).
+    Recorded, never raised on: the Wyckoff entry there is legitimate, but an ICT fill INSIDE that bar can be held
+    past midnight because the engine never asks about the entry bar -- OPEN owner item O8."""
+    import real_costs as _RC
+    dt = FS.bar_delta(tf)
+    return [t["entry_time"] for t in taken
+            if _RC.crosses_rollover(t["entry_time"], FS.iso(FS.ts(t["entry_time"]) + dt), provider)]
+
+
+def rollover_edge_stats(times, fold=None):
+    if fold is not None:
+        a, b = FS.ts(fold["test_start"]), FS.ts(fold["test_end"])
+        times = [x for x in times if a <= FS.ts(x) < b]
+    return {"entries_on_last_bar_of_server_day": len(times)}
 
 
 NEAR_FLOOR_MARGIN = 0.25
@@ -489,7 +591,7 @@ class BtEngine:
                               f"(N counts every declared item)")
         self.bt.pit_cutoff(FS.DEV_CUTOFF)
         neutralise_ruin(self.bt)
-        self._admission = {}
+        self._admission, self._edge = {}, {}
         self._adx, self._last = {}, {}
         for s in self.symbols:
             candles, _src = self.bt.load(s, tf)
@@ -513,8 +615,11 @@ class BtEngine:
             {"entry_time": t["entry_time"], "R_planned": t.get("R_planned", 99),
              "fee_R": _RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"], t["side"],
                                  COST_PROFILE)["total_R"]} for t in raw]
-        taken = checked_simulate(self.bt, raw, 0.0, cost_profile=COST_PROFILE, live_parity_sizing=False)[2]
-        assert_no_rollover_crossing(taken, fixed_opts()["rollover_provider"])
+        taken = checked_simulate(self.bt, raw, 0.0, overlay=overlay, cost_profile=COST_PROFILE,
+                                 live_parity_sizing=False)[2]
+        provider = fixed_opts()["rollover_provider"]
+        assert_no_rollover_crossing(taken, provider, self.tf)
+        self._edge[FS.CountingSource._key(values)] = last_bar_entry_times(taken, self.tf, provider)
         return [dict(t, adx14=FS.adx_before(self._adx[t["symbol"]], t["entry_time"])) for t in taken]
 
     def admission_stats(self, values, fold=None):
@@ -523,14 +628,17 @@ class BtEngine:
         rows = self._admission.get(FS.CountingSource._key(values), [])
         return admission_stats(rows, self.bt.OPTS["min_rr"], fold)
 
+    def rollover_edge_stats(self, values, fold=None):
+        return rollover_edge_stats(self._edge.get(FS.CountingSource._key(values), []), fold)
+
     def prop_pass(self, pooled):
         """prop_pass_probability per fund at the pre-registration's gating horizon, over the pooled test trades,
         as explicit rows: value, status/reason when unavailable, low_confidence and the bootstrap spread minimum."""
         ps = _prop_search()
         if not pooled:
             return {f: {"value": None, "reason": "no pooled test trades"} for f in ps.FUNDS}
-        _final, curve, taken = checked_simulate(self.bt, list(pooled), 0.0, cost_profile=COST_PROFILE,
-                                                live_parity_sizing=True)
+        _final, curve, taken = checked_simulate(self.bt, list(pooled), 0.0, overlay=fixed_opts(),
+                                                cost_profile=COST_PROFILE, live_parity_sizing=True)
         out = {}
         for f in ps.FUNDS:
             m = ps._perf.metrics(taken, equity=curve, account=ps._AP.get(f), horizon=ps.CHALLENGE_HORIZON_DAYS)
@@ -561,12 +669,19 @@ ADMISSION_LIMITATION = ("simulate()'s min_rr admission subtracts a cost that inc
                         "only (docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md).")
 
 
+ROLLOVER_EDGE_NOTE = ("entries whose entry bar is the LAST bar of a server day. The engine asks about the rollover only "
+                      "after each WALKED bar, never for the entry bar itself, so an ICT limit fill inside that bar "
+                      "can be held past midnight. Wyckoff enters at the previous bar's label and is legitimate. "
+                      "Recorded, not raised on -- OPEN owner item O8 (option: an engine fix behind an fx_ key; "
+                      "docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md).")
+
+
 def evaluate_with_engine(engine, grid, cell, n_comparisons):
     """Nested walk-forward -> perturbation sets -> every §1.4 rule. `engine` needs `trades_for(values)` and
     `prop_pass(pooled)`; nothing else touches data, so the whole path is testable with a synthetic engine."""
     src = FS.CountingSource(engine.trades_for)
     folds = FS.make_folds(cell["development_start"])
-    fold_results = FS.nested_walk_forward(grid, src, folds)
+    fold_results = FS.nested_walk_forward(grid, src, folds, FS.bar_delta(cell["timeframe"]))
     perturbs = FS.perturbation_trade_sets(grid, src, fold_results)
     prop = engine.prop_pass(FS.pooled_test_trades(fold_results))
     res = FS.evaluate_cell(fold_results, perturbs, cell["symbols"], n_comparisons, prop, runs=src.runs)
@@ -577,6 +692,11 @@ def evaluate_with_engine(engine, grid, cell, n_comparisons):
                                for fr in fold_results],
             "by_value_set": {k: engine.admission_stats(v) for k, v in src.evaluated()},
             "limitation": ADMISSION_LIMITATION}
+    if hasattr(engine, "rollover_edge_stats"):         # round 2: the ICT engine gap, visible (OPEN owner item O8)
+        res["rollover_edge"] = {
+            "by_fold_chosen": [engine.rollover_edge_stats(fr["chosen"], fr["fold"]) for fr in fold_results],
+            "by_value_set": {k: engine.rollover_edge_stats(v) for k, v in src.evaluated()},
+            "note": ROLLOVER_EDGE_NOTE}
     return res
 
 
@@ -601,6 +721,13 @@ def _evaluate_candidate(candidate, plan_hash, grid_dir=None):
     result = evaluate_with_engine(engine, grid, cell, candidate["n_comparisons"])
     return {"record": dict(build_record(candidate, plan_hash, grid, paths[candidate["method"]], result,
                                         engine.dataset_snapshot(), cell))}
+
+
+def _drift_from_env():
+    try:
+        return json.loads(os.environ.get(DRIFT_ENV) or "[]")
+    except ValueError:
+        return ["unreadable drift stamp"]
 
 
 def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot, cell):
@@ -648,7 +775,8 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
                          "cell": candidate["cell"], "timeframe": candidate["timeframe"],
                          "asset_class": candidate["asset_class"], "symbols_planned": candidate["symbols"],
                          "symbols_evaluated": list(cell["symbols"]), "n_comparisons": candidate["n_comparisons"],
-                         "plan_hash": plan_hash})
+                         "plan_hash": plan_hash,
+                         "drifted": bool(_drift_from_env()), "drift": _drift_from_env()})
     r.set("random_seed", {"lower_bound": "none: closed-form Student-t bound, no resampling",
                           "prop_pass_probability_bootstrap": "scripts/performance.py BOOTSTRAP_SEED"})
     r.set("test_periods", {"development": {"end": FS.DEV_CUTOFF, "period_id": DEV_PERIOD_ID},
@@ -718,14 +846,29 @@ def validate_record(rec, plan):
                              f"{cell['symbols']}: no symbol may be added or dropped after the plan (plan §1.7)")
 
 
-def cmd_run(cell_id, method=None, workers=1, grid_dir=None):
+def cmd_run(cell_id, method=None, workers=1, grid_dir=None, allow_drift=False):
     plan = load_plan(grid_dir)
-    require_declaration(plan)                       # refuses BEFORE anything is evaluated
+    decl = require_declaration(plan)                # refuses BEFORE anything is evaluated
+    drift = check_drift(decl, plan, allow_drift)    # refuses on code / settings drift unless --allow-drift
     grids, _paths = load_grids(grid_dir)
     for m, g in grids.items():
-        if g.unimplemented:
-            raise GridRefused(f"{m} grid has unimplemented items {g.unimplemented}: refusing to evaluate a partial "
-                              f"grid (N counts every declared item)")
+        assert_grid_runnable(g)
+    if drift:
+        print("WARNING: --allow-drift: every record will be stamped drifted=true:\n  " + "\n  ".join(drift),
+              file=sys.stderr)
+        os.environ[DRIFT_ENV] = json.dumps(drift)
+    else:
+        os.environ.pop(DRIFT_ENV, None)
+    try:
+        _cmd_run_inner(plan, cell_id, method, workers, grid_dir)
+    finally:
+        os.environ.pop(DRIFT_ENV, None)
+
+
+DRIFT_ENV = "FUND_SEARCH_DRIFT"
+
+
+def _cmd_run_inner(plan, cell_id, method, workers, grid_dir):
     todo = [c for c in plan["candidates"] if c["cell"] == cell_id and (method is None or c["method"] == method)]
     if not todo:
         raise SystemExit(f"no candidate for cell {cell_id!r}"
@@ -809,6 +952,11 @@ def cmd_report(grid_dir=None):
          f"- Prior searches on the same history, disclosed and NOT folded into N: {plan['prior_counts_disclosed']}.",
          "- No symbol was dropped after its result was seen: each candidate's symbols equal the plan's "
          "(`validate_record`).", ""]
+    drifted = [r["experiment_id"] for r in recs if (r.get("parameters") or {}).get("drifted")]
+    if drifted:
+        L[2:2] = [f"**WARNING: DRIFTED RECORDS -- {len(drifted)} record(s) were produced with code or settings that "
+                  f"differ from the ledger declaration (`--allow-drift`): {drifted}. They are not evidence under the "
+                  f"declared pre-registration.**", ""]
     if not recs:
         L += ["**No candidate has been evaluated yet.** Zero results, zero passes.", ""]
     elif not passes:
@@ -877,6 +1025,10 @@ def cmd_report(grid_dir=None):
                      f"{[f['refused_min_rr'] for f in byf]} of candidates {[f['candidates'] for f in byf]}; "
                      f"near-floor (|margin| < {NEAR_FLOOR_MARGIN}) counts {[f['near_floor_n'] for f in byf]}, of which "
                      f"refused {[f['near_floor_refused'] for f in byf]}. LIMITATION: {adm['limitation']}")
+        re_ = ev.get("rollover_edge")
+        if re_:
+            L.append("Entries on the last bar of a server day (chosen values, per test fold): "
+                     f"{[f['entries_on_last_bar_of_server_day'] for f in re_['by_fold_chosen']]}. NOTE: {re_['note']}")
         vk = ev.get("by_volume_kind")
         if vk:
             L.append("")
@@ -890,7 +1042,11 @@ def cmd_report(grid_dir=None):
           "- FTMO commission is UNKNOWN; net R is net of the recorded spread and swap only.",
           "- Wyckoff on CFD uses TICK volume (see the per-volume_kind rows).",
           "- The lower bound is the MINIMUM of an iid Student-t bound and two cluster-robust (CR1) bounds (by UTC "
-          "entry date and by 30-day window); the single-trade cap and the perturbation check back it.",
+          "entry date, by 30-day window, by calendar quarter and by half-year). It is not backed by the "
+          "single-trade cap or the perturbation check: those are separate gates, each required on its own. "
+          "DISCLOSED PRICE: the quarter and half-year bounds cost power -- measured on 20 seeds of iid +0.30R at "
+          "n=600, the bound passed 20/20 over 6 years, 17/20 over 4 years and 9/20 over 2 years; persistent-regime "
+          "edges fare worse. This is accepted as the tightening the owner chose.",
           "- The min_rr admission filter uses a cost that includes the exit-hour spread (see the per-candidate "
           "admission lines): a look-ahead already present in v1 that this harness measures and discloses but does not change.",
           "- The development span is exposed by this search; only the forward demo is pristine "
@@ -917,6 +1073,9 @@ def main(argv=None):
     rp.add_argument("--method", choices=sorted(METHODS))
     rp.add_argument("--workers", type=int, default=1)
     rp.add_argument("--grid-dir")
+    rp.add_argument("--allow-drift", action="store_true",
+                    help="proceed although the code/settings differ from the declaration; every record is "
+                         "stamped drifted=true and the report says so")
     sub.add_parser("report", help="write the markdown report over every record")
     a = ap.parse_args(argv)
     os.environ.setdefault("BT_HISTORY_ROOT", FTMO_HISTORY_ROOT)     # the fund search reads the FTMO feed (§6 item 8)
@@ -927,7 +1086,7 @@ def main(argv=None):
     elif a.cmd == "list-cells":
         print(json.dumps([{"cell": c["id"]} for c in load_plan()["cells"]]))
     elif a.cmd == "run":
-        cmd_run(a.cell, method=a.method, workers=a.workers, grid_dir=a.grid_dir)
+        cmd_run(a.cell, method=a.method, workers=a.workers, grid_dir=a.grid_dir, allow_drift=a.allow_drift)
     elif a.cmd == "report":
         cmd_report()
 

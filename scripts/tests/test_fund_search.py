@@ -40,6 +40,7 @@ def _fs():
 
 SYMS = ["XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "FRA40"]
 DEV_START = "2020-03-01T00:00:00Z"
+LONG_START = "2014-03-01T00:00:00Z"   # ten development years: enough quarters/half-years for the block bounds
 
 
 def gen(start, end, n, mean, sd, seed, symbols=SYMS, extra=None):
@@ -82,12 +83,15 @@ class SynthEngine:
 
     def trades_for(self, values):
         self.calls.append(dict(values))
-        years = 4
-        return gen(DEV_START, FS.DEV_CUTOFF, self.per_year * years, self.mean_by(values), self.sd,
+        years = 10
+        return gen(LONG_START, FS.DEV_CUTOFF, self.per_year * years, self.mean_by(values), self.sd,
                    seed=f"{self.salt}:" + json.dumps(values, sort_keys=True), symbols=self.symbols)
 
     def prop_pass(self, pooled):
         return dict(self.prop)
+
+    def rollover_edge_stats(self, values, fold=None):
+        return _fs().rollover_edge_stats([t["entry_time"] for t in self.trades_for(values)][:7], fold)
 
     def admission_stats(self, values, fold=None):
         rows = [{"entry_time": t["entry_time"], "R_planned": 3.0 + (i % 5) * 0.1, "fee_R": 0.05 * (i % 7)}
@@ -235,7 +239,7 @@ class NestedWalkForward(unittest.TestCase):
         y_all = trades_for(grid.full({"a": "y"}))
         self.assertGreater(sum(t["net_R"] for t in z_all), sum(t["net_R"] for t in y_all))
 
-        res = FS.nested_walk_forward(grid, FS.CountingSource(trades_for), folds)
+        res = FS.nested_walk_forward(grid, FS.CountingSource(trades_for), folds, FS.bar_delta("5m"))
         self.assertEqual([r["chosen"]["a"] for r in res], ["y", "y"])
         # ... and the selected values are unchanged when the test fold's data is replaced by garbage
         def clean(values):
@@ -243,7 +247,7 @@ class NestedWalkForward(unittest.TestCase):
             for t in FS.test_window(tr, last):
                 t["net_R"] = -7.0
             return tr
-        res2 = FS.nested_walk_forward(grid, FS.CountingSource(clean), folds)
+        res2 = FS.nested_walk_forward(grid, FS.CountingSource(clean), folds, FS.bar_delta("5m"))
         self.assertEqual([r["chosen"] for r in res], [r["chosen"] for r in res2])
 
     def test_each_test_fold_is_scored_with_the_values_chosen_on_its_own_training_fold(self):
@@ -257,7 +261,7 @@ class NestedWalkForward(unittest.TestCase):
                 mean = 0.4
             return gen(DEV_START, FS.DEV_CUTOFF, 600, mean, 0.5, json.dumps(values, sort_keys=True))
 
-        res = FS.nested_walk_forward(grid, FS.CountingSource(trades_for), folds)
+        res = FS.nested_walk_forward(grid, FS.CountingSource(trades_for), folds, FS.bar_delta("5m"))
         for r in res:
             for t in r["test_trades"]:
                 self.assertTrue(r["fold"]["test_start"] <= t["entry_time"] < r["fold"]["test_end"])
@@ -279,7 +283,7 @@ class NestedWalkForward(unittest.TestCase):
             return tr
 
         src = FS.CountingSource(trades_for)
-        res = FS.nested_walk_forward(grid, src, folds)
+        res = FS.nested_walk_forward(grid, src, folds, FS.bar_delta("5m"))
         pooled = FS.pooled_test_trades(res)
         self.assertTrue(pooled)
         for t in pooled:
@@ -295,17 +299,17 @@ class NestedWalkForward(unittest.TestCase):
         grid = grid_two_items()
         folds = FS.make_folds(DEV_START)
         same = lambda values: gen(DEV_START, FS.DEV_CUTOFF, 600, 0.2, 0.5, "same")   # every value identical
-        res = FS.nested_walk_forward(grid, FS.CountingSource(same), folds)
+        res = FS.nested_walk_forward(grid, FS.CountingSource(same), folds, FS.bar_delta("5m"))
         self.assertTrue(all(r["changed"] == [] for r in res))         # ties keep the baseline
         sparse = lambda values: gen(DEV_START, FS.DEV_CUTOFF, 6, 3.0, 0.1, json.dumps(values, sort_keys=True))
-        res = FS.nested_walk_forward(grid, FS.CountingSource(sparse), folds)
+        res = FS.nested_walk_forward(grid, FS.CountingSource(sparse), folds, FS.bar_delta("5m"))
         self.assertTrue(all(r["changed"] == [] for r in res))         # < MIN_TRAIN_TRADES: not eligible
 
     def test_every_distinct_run_is_counted(self):
         grid = grid_two_items()
         folds = FS.make_folds(DEV_START)
         src = FS.CountingSource(lambda v: gen(DEV_START, FS.DEV_CUTOFF, 300, 0.0, 1.0, json.dumps(v, sort_keys=True)))
-        FS.nested_walk_forward(grid, src, folds)
+        FS.nested_walk_forward(grid, src, folds, FS.bar_delta("5m"))
         self.assertGreaterEqual(src.runs, 1 + 2 + 1)                  # baseline + non-baseline a (2) + b (1)
 
 
@@ -313,7 +317,7 @@ class NestedWalkForward(unittest.TestCase):
 class EndToEndVerdicts(unittest.TestCase):
     def _run(self, engine, n=205):
         fs = _fs()
-        cell = {"id": "5m-indices", "symbols": SYMS, "development_start": DEV_START}
+        cell = {"id": "5m-indices", "timeframe": "5m", "symbols": SYMS, "development_start": LONG_START}
         return fs.evaluate_with_engine(engine, grid_two_items(), cell, n)
 
     def test_no_edge_strategy_does_not_pass_at_n_205(self):
@@ -582,7 +586,7 @@ class _Helpers(_Tmp):
         grids, paths = self.fs.load_grids(FIXTURES)
         plan = json.load(open(self.fs.PLAN_PATH))
         cell = next(x for x in plan["cells"] if x["id"] == c["cell"])
-        cell = dict(cell, development_start=DEV_START)
+        cell = dict(cell, development_start=LONG_START)
         eng = SynthEngine(mean=mean)
         grid = grid_two_items()
         res = self.fs.evaluate_with_engine(eng, grid, cell, c["n_comparisons"])
@@ -781,7 +785,7 @@ class BlockRobustBound(unittest.TestCase):
         lb = FS.robust_lower_bound(tr, self.CONF)
         self.assertGreater(lb["iid"], 0)                               # the reviewer's false positive
         self.assertLessEqual(lb["block_date"], 0)
-        self.assertLessEqual(lb["value"], 0)
+        self.assertTrue(lb["value"] is None or lb["value"] <= 0)         # None = fail closed (< 2 quarters)
         self.assertFalse(FS.check_lower_bound(tr, self.CONF)["ok"])
 
     def test_regime_persistence_zero_edge_is_stopped_by_the_30_day_block_bound(self):
@@ -795,9 +799,10 @@ class BlockRobustBound(unittest.TestCase):
         for seed in range(25):
             tr = clustered_trades(seed, days=40) if seed % 2 else regime_trades(seed, days=200)
             lb = FS.robust_lower_bound(tr, self.CONF)
-            self.assertLessEqual(lb["value"], lb["iid"] + 1e-12)
-            self.assertLessEqual(lb["value"], lb["block_date"] + 1e-12)
-            self.assertLessEqual(lb["value"], lb["block_30d"] + 1e-12)
+            if lb["value"] is None:                                       # fail closed: nothing to compare
+                continue
+            for k in ("iid", "block_date", "block_30d", "block_quarter", "block_half"):
+                self.assertLessEqual(lb["value"], lb[k] + 1e-12)
 
     def test_fewer_than_two_blocks_fails_closed(self):
         one_day = clustered_trades(3, days=1)
@@ -863,10 +868,10 @@ class SimulateGuards(unittest.TestCase):
         bt = fs._load_bt()
         bt.RUIN_FRAC = 0.9999                                            # ruin after the first loss
         with self.assertRaises(RuntimeError) as cm:
-            fs.checked_simulate(bt, self._trades(), 0.0)
+            fs.checked_simulate(bt, self._trades(), 0.0, overlay=fs.fixed_opts())
         self.assertIn("never lose trades silently", str(cm.exception))
         fs.neutralise_ruin(bt)
-        taken = fs.checked_simulate(bt, self._trades(), 0.0)[2]
+        taken = fs.checked_simulate(bt, self._trades(), 0.0, overlay=fs.fixed_opts())[2]
         self.assertEqual(len(taken), 6)
 
     def test_post_ruin_trades_fail_loud_even_without_a_ruin_stamp(self):
@@ -875,16 +880,43 @@ class SimulateGuards(unittest.TestCase):
         bt.simulate.return_value = (1.0, [], [])
         bt.SIM_LAST = {"post_ruin": [{"symbol": "X"}], "ruin": None}
         with self.assertRaises(RuntimeError):
-            fs.checked_simulate(bt, [], 0.0)
+            fs.checked_simulate(bt, [], 0.0, overlay=fs.fixed_opts())
 
-    def test_a_trade_held_over_the_server_rollover_fails_loud(self):
+    PROV = "mt5_bridge_ftmo"     # FTMO-Demo server = UTC+2 in winter: server midnight is 22:00Z
+
+    def test_a_last_bar_of_the_server_day_wyckoff_entry_does_not_trip(self):
         fs = _fs()
-        prov = "mt5_bridge_ftmo"
-        held = {"symbol": "X", "entry_time": "2022-01-10T20:00:00Z", "exit_time": "2022-01-10T23:00:00Z"}
+        # entry label = OPEN of the last bar of the server day (21:55Z = 23:55 server); the first walked bar
+        # opens at 22:00Z = 00:00 server and the trade is stopped in it -- legitimate, nothing held overnight
+        legit = {"symbol": "X", "entry_time": "2022-01-10T21:55:00Z", "exit_time": "2022-01-10T22:00:00Z"}
+        fs.assert_no_rollover_crossing([legit], self.PROV, "5m")
+        # the OLD label-to-label comparison false-trips on exactly this trade
+        import real_costs as RC
+        self.assertTrue(RC.crosses_rollover(legit["entry_time"], legit["exit_time"], self.PROV))
+
+    def test_a_genuinely_overnight_held_trade_trips(self):
+        fs = _fs()
+        held = {"symbol": "X", "entry_time": "2022-01-10T10:00:00Z", "exit_time": "2022-01-11T03:00:00Z"}
+        with self.assertRaises(RuntimeError) as cm:
+            fs.assert_no_rollover_crossing([held], self.PROV, "5m")
+        self.assertIn("cross the server rollover", str(cm.exception))
         flat = {"symbol": "X", "entry_time": "2022-01-10T19:00:00Z", "exit_time": "2022-01-10T21:30:00Z"}
-        fs.assert_no_rollover_crossing([flat], prov)
-        with self.assertRaises(RuntimeError):
-            fs.assert_no_rollover_crossing([flat, held], prov)
+        fs.assert_no_rollover_crossing([flat], self.PROV, "5m")
+
+    def test_an_exit_on_the_entry_bar_itself_has_no_walked_span_to_cross(self):
+        fs = _fs()
+        t = {"symbol": "X", "entry_time": "2022-01-10T21:55:00Z", "exit_time": "2022-01-10T21:55:00Z"}
+        fs.assert_no_rollover_crossing([t], self.PROV, "5m")
+
+    def test_entries_on_the_last_bar_of_a_server_day_are_counted_not_raised(self):
+        fs = _fs()
+        taken = [{"symbol": "X", "entry_time": "2022-01-10T21:55:00Z", "exit_time": "2022-01-10T22:00:00Z"},
+                 {"symbol": "X", "entry_time": "2022-01-10T10:00:00Z", "exit_time": "2022-01-10T11:00:00Z"}]
+        times = fs.last_bar_entry_times(taken, "5m", self.PROV)
+        self.assertEqual(times, ["2022-01-10T21:55:00Z"])
+        self.assertEqual(fs.rollover_edge_stats(times)["entries_on_last_bar_of_server_day"], 1)
+        fold = {"test_start": "2022-02-01T00:00:00Z", "test_end": "2022-03-01T00:00:00Z"}
+        self.assertEqual(fs.rollover_edge_stats(times, fold)["entries_on_last_bar_of_server_day"], 0)
 
 
 class AllowListAndOverlay(_Tmp):
@@ -924,10 +956,10 @@ class AdmissionDisclosure(_Tmp):
         self.assertEqual(self.fs.admission_stats(rows, 3.0, fold)["candidates"], 2)
 
     def test_result_and_report_carry_the_admission_counts_and_the_limitation(self):
-        cell = {"id": "5m-metals", "symbols": SYMS, "development_start": DEV_START}
+        cell = {"id": "5m-metals", "timeframe": "5m", "symbols": SYMS, "development_start": LONG_START}
         res = self.fs.evaluate_with_engine(SynthEngine(mean=0.0), grid_two_items(), cell, 205)
         adm = res["admission"]
-        self.assertEqual(len(adm["by_fold_chosen"]), 2)
+        self.assertEqual(len(adm["by_fold_chosen"]), len(FS.make_folds(LONG_START)))
         self.assertIn("EXIT-hour spread", adm["limitation"])
         self.assertIn("OPEN owner item", adm["limitation"])
         self.assertTrue(adm["by_value_set"])
@@ -1045,6 +1077,258 @@ class WorkflowHardening(unittest.TestCase):
         self.assertIn("INPUT_WORKERS: ${{ inputs.workers }}", text)
         self.assertIn("*[!0-9]*", text)                                       # integer validation
         self.assertNotIn("workflow_dispatch:\n    inputs:\n      workers:\n        description: x", "x")
+
+
+# ==================================================================================== fix round 2
+def persistent_trades(seed, days=720, rho=0.7, sd=0.40, blk=30):
+    """Zero-edge trades whose regime effect is AR(1) across `blk`-day blocks (reviewer persistence scenario)."""
+    rng = random.Random(seed)
+    eff_rng = random.Random(seed * 7 + 1)
+    eff = eff_rng.gauss(0, sd)
+    out, d0 = [], datetime.datetime(2022, 3, 1, tzinfo=datetime.timezone.utc)
+    for d in range(days):
+        if d % blk == 0 and d > 0:
+            eff = rho * eff + math.sqrt(1 - rho * rho) * sd * eff_rng.gauss(0, 1)
+        t = d0 + datetime.timedelta(days=d, hours=8)
+        out.append({"entry_time": FS.iso(t), "exit_time": FS.iso(t + datetime.timedelta(hours=1)),
+                    "net_R": eff + rng.gauss(0, 1), "symbol": "XAUUSD"})
+    return out
+
+
+def old_three_bound(lb):
+    """The round-1 bound: min(iid, UTC date, 30-day window)."""
+    return min(lb["iid"], lb["block_date"], lb["block_30d"])
+
+
+class QuarterAndHalfYearBounds(unittest.TestCase):
+    CONF = FS.n_adjusted_confidence(205)
+
+    def test_ar1_persistence_over_30_day_blocks_is_rejected_by_the_new_min(self):
+        tr = persistent_trades(1)
+        lb = FS.robust_lower_bound(tr, self.CONF)
+        self.assertGreater(old_three_bound(lb), 0)                        # the round-1 bound PASSED this
+        self.assertLessEqual(lb["value"], 0)
+        self.assertFalse(FS.check_lower_bound(tr, self.CONF)["ok"])
+
+    def test_180_day_persistence_is_rejected_by_the_new_min(self):
+        tr = persistent_trades(1, rho=0.0, blk=180)
+        lb = FS.robust_lower_bound(tr, self.CONF)
+        self.assertGreater(old_three_bound(lb), 0)
+        self.assertLessEqual(min(lb["block_quarter"], lb["block_half"]), 0)
+        self.assertFalse(FS.check_lower_bound(tr, self.CONF)["ok"])
+
+    def test_the_perturbation_check_uses_the_same_five_way_min(self):
+        tr = persistent_trades(1, rho=0.0, blk=180)
+        chk = FS.check_perturbation([{"item": "a", "direction": 1, "trades": tr}], self.CONF)
+        self.assertFalse(chk["ok"])
+
+    def test_the_min_never_exceeds_any_component_and_fewer_than_two_quarters_fail_closed(self):
+        for seed in range(12):
+            lb = FS.robust_lower_bound(persistent_trades(seed, days=400), self.CONF)
+            for k in ("iid", "block_date", "block_30d", "block_quarter", "block_half"):
+                self.assertLessEqual(lb["value"], lb[k] + 1e-12)
+        one_quarter = gen("2022-01-05T00:00:00Z", "2022-03-20T00:00:00Z", 200, 1.0, 0.1, "q")
+        lb = FS.robust_lower_bound(one_quarter, self.CONF)
+        self.assertEqual(lb["blocks_quarter"], 1)
+        self.assertIsNone(lb["value"])                                    # G < 2 => no bound => fail closed
+        self.assertFalse(FS.check_lower_bound(one_quarter, self.CONF)["ok"])
+
+    def test_a_genuine_iid_edge_of_point_three_at_n_600_still_passes(self):
+        tr = gen("2018-03-01T00:00:00Z", FS.DEV_CUTOFF, 600, 0.30, 1.0, "iid-edge-0")
+        lb = FS.robust_lower_bound(tr, self.CONF)
+        self.assertGreater(lb["value"], 0)
+        self.assertTrue(FS.check_lower_bound(tr, self.CONF)["ok"])
+
+
+class ReportWording(_Helpers):
+    def test_result_carries_the_rollover_edge_counts_and_report_states_o8_and_the_power_price(self):
+        cell = {"id": "5m-metals", "timeframe": "5m", "symbols": SYMS, "development_start": LONG_START}
+        res = self.fs.evaluate_with_engine(SynthEngine(), grid_two_items(), cell, 205)
+        edge = res["rollover_edge"]
+        self.assertEqual(len(edge["by_fold_chosen"]), len(FS.make_folds(LONG_START)))
+        self.assertIn("O8", edge["note"])
+        self._plan_file()
+        self.fs.cmd_declare()
+        with mock.patch.object(self.fs, "_evaluate_candidate",
+                               side_effect=lambda c, h, g=None: self._fake_out(c, h)):
+            self.fs.cmd_run("5m-metals", grid_dir=FIXTURES)
+        md = self.fs.cmd_report()
+        self.assertIn("Entries on the last bar of a server day", md)
+        self.assertIn("DISCLOSED PRICE", md)
+        self.assertIn("calendar quarter and by half-year", md)
+        self.assertNotIn("perturbation check back it", md)              # the cap/perturbation do NOT back the bound
+        self.assertIn("not backed by the single-trade cap", md)
+
+
+class PurgeMargin(unittest.TestCase):
+    def test_a_trade_ending_within_one_bar_of_the_test_start_is_purged(self):
+        fold = FS.make_folds(DEV_START)[-1]
+        t0 = FS.ts(fold["test_start"])
+        mk = lambda mins: {"entry_time": FS.iso(t0 - datetime.timedelta(days=1)),
+                           "exit_time": FS.iso(t0 - datetime.timedelta(minutes=mins)), "net_R": 1.0, "symbol": "X"}
+        inside, outside = mk(2), mk(6)
+        self.assertEqual(FS.train_window([inside, outside], fold), [inside, outside])          # old rule (no margin)
+        self.assertEqual(FS.train_window([inside, outside], fold, FS.bar_delta("5m")), [outside])
+        self.assertEqual(FS.train_window([mk(5)], fold, FS.bar_delta("5m")), [])                  # exactly one bar: not <
+        self.assertEqual(FS.train_window([mk(20)], fold, FS.bar_delta("30m")), [])
+
+    def test_unknown_timeframe_is_refused_not_guessed(self):
+        with self.assertRaises(ValueError):
+            FS.bar_delta("7m")
+
+    def test_evaluate_with_engine_passes_the_cells_bar_as_the_margin(self):
+        fs = _fs()
+        cell = {"id": "15m-metals", "timeframe": "15m", "symbols": SYMS, "development_start": LONG_START}
+        with mock.patch.object(FS, "nested_walk_forward", wraps=FS.nested_walk_forward) as spy:
+            fs.evaluate_with_engine(SynthEngine(), grid_two_items(), cell, 205)
+        self.assertEqual(spy.call_args[0][3], datetime.timedelta(minutes=15))
+
+
+class DeclarationEnforcement(_Helpers):
+    def setUp(self):
+        super().setUp()
+        self._plan_file()
+        self.fs.cmd_declare()
+
+    def _run(self, **kw):
+        with mock.patch.object(self.fs, "_evaluate_candidate",
+                               side_effect=lambda c, h, g=None: self._fake_out(c, h)) as ev:
+            try:
+                self.fs.cmd_run("5m-metals", grid_dir=FIXTURES, **kw)
+            finally:
+                self.ev = ev
+
+    def test_fingerprint_covers_the_engine_files_and_they_all_exist(self):
+        for f in ("scripts/backtest-methods.py", "scripts/real_costs.py", "scripts/performance.py",
+                  "scripts/mt5_time.py", "scripts/ict-scan.py", "scripts/wyckoff_rules.py", "scripts/live_rules.py"):
+            self.assertIn(f, self.fs.FINGERPRINT_FILES)
+            self.assertTrue(os.path.exists(os.path.join(ROOT, f)), f)
+        d = json.load(open(self.ledger))["fund_search"]["code"]
+        self.assertEqual(set(d), set(self.fs.FINGERPRINT_FILES))
+
+    def test_an_unchanged_tree_runs(self):
+        self._run()
+        self.assertEqual(self.ev.call_count, 2)
+
+    def test_code_drift_refuses_with_a_clear_message_and_evaluates_nothing(self):
+        real = self.fs.code_fingerprint
+
+        def drifted(files=self.fs.FINGERPRINT_FILES):
+            out = real(files)
+            out["scripts/backtest-methods.py"] = {"git_sha": "f" * 40, "dirty": False}
+            return out
+        with mock.patch.object(self.fs, "code_fingerprint", drifted):
+            with self.assertRaises(SystemExit) as cm:
+                self._run()
+        self.assertIn("scripts/backtest-methods.py", str(cm.exception))
+        self.assertIn("--allow-drift", str(cm.exception))
+        self.assertNotEqual(str(cm.exception), "0")
+        self.ev.assert_not_called()
+        self.assertFalse(os.path.isdir(self.records) and os.listdir(self.records))
+
+    def test_a_dirty_file_now_is_drift_too(self):
+        real = self.fs.code_fingerprint
+
+        def dirty(files=self.fs.FINGERPRINT_FILES):
+            out = real(files)
+            out["scripts/fund_stats.py"] = dict(out["scripts/fund_stats.py"], dirty=not out["scripts/fund_stats.py"]["dirty"])
+            return out
+        with mock.patch.object(self.fs, "code_fingerprint", dirty):
+            with self.assertRaises(SystemExit):
+                self._run()
+
+    def test_evaluation_config_drift_refuses(self):
+        with mock.patch.object(FS, "STABILITY_FRACTION", (3, 4)):
+            with self.assertRaises(SystemExit) as cm:
+                self._run()
+        self.assertIn("stability_fraction", str(cm.exception))
+        self.ev.assert_not_called()
+
+    def test_allow_drift_proceeds_stamps_every_record_and_the_report_header_says_so(self):
+        with mock.patch.object(FS, "STABILITY_FRACTION", (3, 4)):
+            self._run(allow_drift=True)
+            self.assertEqual(self.ev.call_count, 2)
+            for cid in ("ict-5m-metals", "wyckoff-5m-metals"):
+                rec = X.load(cid, store=self.records)
+                self.assertTrue(rec["parameters"]["drifted"])
+                self.assertTrue(any("stability_fraction" in d for d in rec["parameters"]["drift"]))
+        self.assertNotIn(self.fs.DRIFT_ENV, os.environ)                    # the stamp does not leak
+        with mock.patch.object(FS, "STABILITY_FRACTION", (3, 4)):
+            md = self.fs.cmd_report()
+        self.assertIn("WARNING: DRIFTED RECORDS", md.splitlines()[2])
+
+    def test_undrifted_records_are_not_stamped(self):
+        self._run()
+        rec = X.load("ict-5m-metals", store=self.records)
+        self.assertFalse(rec["parameters"]["drifted"])
+        self.assertNotIn("DRIFTED RECORDS", self.fs.cmd_report())
+
+
+class MergeTimeGuards(_Helpers):
+    def _bad_grid_dir(self):
+        bad = os.path.join(self.tmp, "grids")
+        shutil.copytree(FIXTURES, bad)
+        p = os.path.join(bad, "v-grid-ict.json")
+        d = json.load(open(p))
+        d["items"][0]["implemented"] = False
+        json.dump(d, open(p, "w"))
+        return bad
+
+    def test_an_unimplemented_item_is_listed_as_not_runnable_and_refuses_run(self):
+        bad = self._bad_grid_dir()
+        with mock.patch.object(self.fs, "GRID_DIR", bad):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                self.fs.cmd_plan(dry_run=True)
+            self.assertIn("declared, not runnable, counted in N: ['B-EX']", buf.getvalue())
+            self.assertIn("N 328", buf.getvalue())                          # still counted in N
+            self.fs.cmd_plan()
+            self.fs.cmd_declare()
+            with mock.patch.object(self.fs, "_evaluate_candidate") as ev:
+                with self.assertRaises(SystemExit) as cm:
+                    self.fs.cmd_run("5m-metals")
+        self.assertIn("not runnable", str(cm.exception))
+        ev.assert_not_called()
+
+    def test_a_grid_that_can_drop_the_time_stop_needs_flat_before_rollover(self):
+        ict = FS.load_grid(os.path.join(FIXTURES, "v-grid-ict.json"))
+        self.assertTrue(self.fs.grid_has_no_time_stop_value(ict))            # B-EXIT-H has "none"
+        mgmt_only = FS.Grid({"method": "ICT", "items": [
+            {"id": "B-MGMT", "key": "fx_m", "existing_opts_key": "mgmt", "values": ["none", "be"]}]})
+        self.assertFalse(self.fs.grid_has_no_time_stop_value(mgmt_only))     # breakeven "none" is not a time stop
+        self.fs.assert_grid_runnable(ict)
+        unfixed = lambda: {"flat_before_rollover": False, "rollover_provider": "mt5_bridge_ftmo"}
+        with mock.patch.object(self.fs, "fixed_opts", unfixed):
+            with self.assertRaises(SystemExit):
+                self.fs.assert_grid_runnable(ict)
+            with self.assertRaises(SystemExit):
+                self.fs.build_overlay(ict, ict.baseline())
+
+    def test_checked_simulate_refuses_an_overlay_without_flat_before_rollover(self):
+        bt = mock.Mock()
+        bt.simulate.return_value = (1.0, [], [])
+        bt.SIM_LAST = {}
+        with self.assertRaises(SystemExit):
+            self.fs.checked_simulate(bt, [], 0.0, overlay={"flat_before_rollover": False})
+        with self.assertRaises(SystemExit):
+            self.fs.checked_simulate(bt, [], 0.0, overlay={})
+        bt.simulate.assert_not_called()
+        self.fs.checked_simulate(bt, [], 0.0, overlay=self.fs.fixed_opts())
+        bt.simulate.assert_called_once()
+
+    def test_a_v_value_nobody_declared_is_refused_before_any_scan(self):
+        g = grid_two_items()
+        g.by_id["a"]["key"] = "fx_a"
+        with self.assertRaises(SystemExit) as cm:
+            self.fs.build_overlay(g, {"a": "bogus", "b": 0})
+        self.assertIn("does not declare", str(cm.exception))
+        bt = mock.Mock()
+        bt._OPTS_BASE = {"fx_a": None, "fx_b": None}
+        eng = object.__new__(self.fs.BtEngine)
+        eng.grid, eng.method, eng.tf, eng.symbols, eng.bt = g, "ICT", "5m", ["XAUUSD"], bt
+        with self.assertRaises(SystemExit):
+            eng.trades_for({"a": "bogus", "b": 0})
+        bt.scan.assert_not_called()
 
 
 if __name__ == "__main__":
