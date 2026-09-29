@@ -84,7 +84,9 @@ def config_opts(cfg, ict_target):
                 # the COMPLETE, honest bt.OPTS overlay a config applies -- not a hand-picked subset that could
                 # silently omit a scan-cache-relevant key (see _SCAN_RELEVANT_KEYS below).
                 fx_w1_tr_low_st=False, fx_w2_st_below_sc=False, fx_w3_mSOW_spring=False, fx_w5_vp_abandon=False,
-                fx_w7_htf_target=False)
+                fx_w7_htf_target=False,
+                # A2b decision side (plan §2): v1 default, stated so the overlay stays complete.
+                fx_a2b_stale_htf_block=False)
 
 
 # scan()-relevant keys: everything `bt.scan()` / `ict_setups_live()` / `_fires_from()` / `walk()` actually read
@@ -122,7 +124,9 @@ _SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "slope
                        # `_WY_CANDIDATES` cache key in scan()); fx_w7 changes `_fires_from`'s Phase-D
                        # target/placeability. All five change scan()'s trades and MUST separate cache entries.
                        "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon",
-                       "fx_w7_htf_target")
+                       "fx_w7_htf_target",
+                       # A2b decision side: htf_bias_gate refuses a stale HTF tier, so scans with it on/off differ.
+                       "fx_a2b_stale_htf_block")
 
 
 def _hashable(v):

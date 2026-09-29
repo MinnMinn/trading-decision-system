@@ -131,7 +131,10 @@ OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see
             # `_htf_wyckoff_target`). See scripts/wyckoff_rules.py's module docstring ("FIDELITY CORRECTIONS")
             # for each key's source and reading.
             fx_w1_tr_low_st=False, fx_w2_st_below_sc=False, fx_w3_mSOW_spring=False, fx_w5_vp_abandon=False,
-            fx_w7_htf_target=False)
+            fx_w7_htf_target=False,
+            # A2b decision side (plan §2, knowledge R20): default v1 = the HTF gate ignores staleness; the live
+            # runner never sets it. See htf_bias_gate.
+            fx_a2b_stale_htf_block=False)
 # The four fx_ keys that change WYCKOFF-BOOK/COMBINED-BOOK DETECTION (not just gating) -- read once per
 # `_WY_CANDIDATES` cache build, bridged into the module-level wyckoff_rules.PARAMS the same way
 # `spring_max_bars_outside` already is (see `_wyckoff_candidates`'s own docstring: it must stay OPTS-
@@ -682,6 +685,15 @@ def htf_bias_gate(sym, tf, side, decision_time, methods):
     i = bisect.bisect_right(times, decision_time) - 1
     if i < 0:
         return None
+    if OPTS.get("fx_a2b_stale_htf_block"):
+        # A2b (CLAUDE.md §20: never silently convert STALE to FRESH): a last-closed HTF bar older than
+        # STALE_AFTER_BARS x the HTF timeframe -- quality.assess's own threshold -- is an unmet gate, never a pass.
+        # Measured on bar-close time, so a market-closed gap (weekend) also counts as stale: stricter than v1 by
+        # design, and stricter than the live feed's received-time check. Judge it with that in mind.
+        age = (datetime.datetime.fromisoformat(decision_time.replace("Z", "+00:00"))
+               - datetime.datetime.fromisoformat(times[i].replace("Z", "+00:00"))).total_seconds()
+        if age > _N.STALE_AFTER_BARS * _N.tf_seconds(h):
+            return False
     try:
         bias, _ = lr.bias_at(c, i, h, methods)
     except (IndexError, KeyError):
