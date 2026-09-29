@@ -73,6 +73,100 @@ _tespec = _teu.spec_from_file_location("trading_env", f"{ROOT}/scripts/trading_e
 trading_env = _teu.module_from_spec(_tespec); _tespec.loader.exec_module(trading_env)
 MIN_RR = trading_env.min_rr()
 
+# ---- Batch 2(a): the ICT V items (docs/plans/2026-09-28-methodology-improvement-plan.md §3 "ICT" table; shared
+# contract docs/plans/2026-09-29-execution-plan.md). ONE key per item, holding one value of the DECLARED set, the
+# FIRST (baseline) value = v1 behaviour, so an unset key changes nothing. This dict is THE declaration the engine
+# validates against (`check_v_opts`) and that docs/architecture/v-grid-ict.json must equal (test_v_items_ict.py);
+# the live runner (scripts/strategy-runner.py) never sets any of these keys, so it always runs the baseline.
+#   fx_b_ex    B-EX   entry model on the FVG (core-a.md §2.23 R19): iofed = near edge (v1), ce = 0.5, fill = far edge
+#   fx_b_pd    B-PD   dealing-range framing for the premium/discount gate: r15 = nearest BSL/SSL pair (v1, core-a.md
+#                     R15); r13 = swept extreme <-> opposing pool (core-a.md §2.19 diagram, R13)
+#   fx_b_pool  B-POOL the most recent completed UTC day's PDH/PDL and the most recent completed asia/london session
+#                     high/low join the liquidity pools (core-a.md §2.8-2.9; UTC 00:00 day boundary = project choice)
+#   fx_b_buf   B-BUF  stop buffer beyond the swept wick, as a multiple of ATR (core-a.md R22 says only "below")
+#   fx_b_exit  B-EXIT the JOINT exit factor "target|time-stop|2R": target sigma projection (models.md §2.1.5) x
+#                     time stop H (project) x 2R floor (models.md §3.1 rule 23). 3 x 4 x 2 = 24 value sets, ONE key
+#   fx_b_lb    B-LB   setup lookback x K-bar expiry (project): "<lookback>|<K>"; lookback 12 = the live default
+#                     (scripts/live_rules.setup_lookback), 8/16 scale it by 8/12 and 16/12
+#   fx_b6      B6     PROJECT rule: cancel the pending limit when the target trades before the fill (core-b.md §3.1
+#                     R3 is the invalidation idea, not an order-cancel rule)
+#   fx_b3      B3     bias timeframe: the entry TF (v1) or the TFA p5 higher-TF pairing (models.md §2.8)
+#   fx_b7      B7     indices only: entries inside a session-registry window only (docs/architecture/sessions.json v2,
+#                     NOT core-a.md R1's literal 02:00-05:00 EST windows; instant = fill bar OPEN, a proxy)
+# B4 ("HTF level engaged before the LTF MSS") is NOT here: the sources never define an HTF level nor "engaged",
+# so no key is registered (docs/architecture/v-grid-ict.json states it as implemented=false).
+V_ICT = {
+    "fx_b_ex": ("iofed", "ce", "fill"),
+    "fx_b_pd": ("r15", "r13"),
+    "fx_b_pool": ("off", "on"),
+    "fx_b_buf": ("0", "0.1atr", "0.25atr"),
+    "fx_b_exit": tuple(f"{t}|{h}|{f}" for t in ("-2.0", "-2.25", "-2.5")
+                       for h in ("H", "1.5H", "2H", "none") for f in ("floor", "no_floor")),
+    "fx_b_lb": tuple(f"{lb}|{k}" for lb in ("12", "8", "16") for k in ("K", "2K")),
+    "fx_b6": ("no", "yes"),
+    "fx_b3": ("entry_tf", "tfa_p5"),
+    "fx_b7": ("all_hours", "killzone"),
+}
+V_ICT_DEFAULTS = {k: v[0] for k, v in V_ICT.items()}
+# ATR period for B-BUF: PROJECT-DEFINED. The plan declares only the multiples (0.1 / 0.25) of "ATR", not its length.
+ATR_PERIOD = 14
+# The two session windows the deck names as liquidity (core-a.md §2.9: "Asian Session High/Low, London Session
+# High/Low"), read from the ONE session registry (docs/architecture/sessions.json); the boundaries are the
+# registry's, which core-a.md §2.9 itself says the source does not define.
+SESSION_POOL_WINDOWS = ("asia", "london")
+_SESS_ACTIVE = {}      # bar time string -> tuple of session windows active at it (analyze() runs once per bar)
+
+
+def check_v_opts(opts):
+    """Refuse an fx_ V key holding a value outside its declared set (a typo, or a bool from a generic `--set`),
+    loudly: a silently ignored value would measure the baseline while claiming a variant."""
+    for k, vals in V_ICT.items():
+        v = (opts or {}).get(k, vals[0])
+        if v not in vals:
+            raise ValueError(f"{k}={v!r} is not one of the declared values {vals}")
+
+
+def b_exit_parts(v):
+    """(target sigma MAGNITUDE -- 2.0 for "-2.0" --, time-stop token, 2R-floor token) of an fx_b_exit value."""
+    t, h, f = v.split("|")
+    return abs(float(t)), h, f
+
+
+def b_lb_parts(v):
+    """(lookback token, K token) of an fx_b_lb value."""
+    lb, k = v.split("|")
+    return lb, k
+
+
+def _atr(H, L, C, end, period=ATR_PERIOD):
+    """Simple mean of the true range over the `period` bars ending at bar `end` (inclusive), using only bars
+    <= `end` (point-in-time). Fewer bars near the window start; bar 0's true range is its own high-low."""
+    a = max(0, end - period + 1)
+    trs = []
+    for j in range(a, end + 1):
+        tr = H[j] - L[j]
+        if j > 0:
+            tr = max(tr, abs(H[j] - C[j - 1]), abs(L[j] - C[j - 1]))
+        trs.append(tr)
+    return sum(trs) / len(trs)
+
+
+def _sd_target(std, origin, leg, sign, mult):
+    """The standard-deviation projection at `mult` sigma from the manipulation leg's origin (models.md §2.1.5):
+    -2 (v1) is the `std` dict's own entry, so the baseline is that exact number; -2.25 / -2.5 are the same
+    projection at that multiple. None when there is no leg to project from (`std` is None)."""
+    if not std:
+        return None
+    return std["-2"] if mult == 2.0 else origin + sign * mult * leg
+
+
+def _session_active(t):
+    v = _SESS_ACTIVE.get(t)
+    if v is None:
+        import sessions as _S
+        v = _SESS_ACTIVE[t] = _S.active(t)
+    return v
+
 
 def load(sym, tf):
     """Crypto from the Binance connector (data/live/market-data); commodities from the MT5 file bridge
@@ -116,7 +210,9 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
                           ICT only; wyckoff_rules.py keeps its own pivot width regardless of this key.
       fx_b2b_ce_fail   -- a traded FVG fails on a body close through its 0.5 CE, then through the far edge
                           (core-a.md §2.26, R23). Off by default: no `ce_failed_at`/`inverted_at` fields, and
-                          no extra O(n) scan per FVG (the fields are read by setup_candidate(), not here)."""
+                          no extra O(n) scan per FVG (the fields are read by setup_candidate(), not here).
+      fx_b_pool        -- B-POOL (Batch 2a V item, `V_ICT`): "on" adds PDH/PDL and Asian/London session
+                          highs/lows to `pools` (core-a.md §2.8-2.9); "off" (v1) adds nothing."""
     opts = opts or {}
     ict, wyk = "ict" in methods, "wyckoff" in methods
     n = len(c)
@@ -218,6 +314,42 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
             if abs(L[sl[a]] - L[sl[b]]) <= tol and sl[b] - sl[a] >= 4: add("SSL", [sl[a], sl[b]], min(L[sl[a]], L[sl[b]]), "equal"); break
     for i in sh: add("BSL", [i], H[i], "old")
     for i in sl: add("SSL", [i], L[i], "old")
+    # B-POOL (fx_b_pool="on"; knowledge/ict/core-a.md §2.8 "Previous Day High & Low are liquidity levels", §2.9
+    # "Session Highs & Lows are liquidity levels"): PDH/PDL and the Asian/London session extremes join the pools,
+    # so they can be swept, targeted and frame the dealing range like any pivot pool. Point-in-time: a level is a
+    # pool only once its day/session has COMPLETED inside the window (a still-forming day/session, and the first
+    # one -- the window may open mid-way through it -- contribute nothing), and its sweep scan starts at the bar
+    # AFTER the period ended (the same `last + 1` rule every pool here uses). Off (the default) adds nothing.
+    if ict and opts.get("fx_b_pool", "off") == "on":
+        day_rng = {}
+        for i in range(n):
+            r = day_rng.setdefault(T[i][:10], [i, i, i, i]); r[1] = i
+            if H[i] > H[r[2]]: r[2] = i
+            if L[i] < L[r[3]]: r[3] = i
+        # Scope (owner decision, pre-registered): ONLY the most recent completed UTC day's PDH/PDL. `sorted(..)[1:-1]`
+        # drops the window-first day (the window may open mid-day) and the still-forming last day; its final
+        # element is that most recent completed day.
+        done = sorted(day_rng)[1:-1]
+        if done:
+            _, d_end, d_hi, d_lo = day_rng[done[-1]]
+            add("BSL", [d_hi, d_end], H[d_hi], "pdh"); add("SSL", [d_lo, d_end], L[d_lo], "pdl")
+        # ...and ONLY the most recent completed session of each configured type (asia, london).
+        for w in SESSION_POOL_WINDOWS:
+            last_run = None
+            i = 0
+            while i < n:
+                if w not in _session_active(T[i]):
+                    i += 1; continue
+                s0 = i; s_hi = s_lo = i
+                while i < n and w in _session_active(T[i]):
+                    if H[i] > H[s_hi]: s_hi = i
+                    if L[i] < L[s_lo]: s_lo = i
+                    i += 1
+                if s0 > 0 and i < n:     # complete run only: it did not open the window and a later bar has left it
+                    last_run = (s_hi, s_lo, i - 1)
+            if last_run:
+                s_hi, s_lo, s_end = last_run
+                add("BSL", [s_hi, s_end], H[s_hi], "session_high"); add("SSL", [s_lo, s_end], L[s_lo], "session_low")
     hi_i, lo_i = H.index(hi), L.index(lo)
 
     # MSS = body close beyond the swing preceding the raid (knowledge/ict/core-a.md §2.17, knowledge/ict/core-b.md §2.2). displacement = full-bodied
@@ -429,7 +561,11 @@ def setup_candidate(a, c, lookback, opts=None):
                             through 0.5 CE, then through the far edge) as of this window is not offered as a
                             NEW setup's entry array. Reads the `inverted_at` field analyze() only attaches when
                             IT was called with `fx_b2b_ce_fail` too -- the caller must pass the same opts to
-                            both, exactly as backtest-methods.py's ict_setups_live() does."""
+                            both, exactly as backtest-methods.py's ict_setups_live() does.
+
+    Batch 2(a) V keys read here (declared value sets and sources: `V_ICT` above; default = first value = v1):
+      fx_b_ex (entry price on the FVG), fx_b_pd (range framing of the premium/discount gate), fx_b_buf (stop
+      buffer beyond the swept wick), fx_b_exit (only its target-sigma part is read here)."""
     opts = opts or {}
     H = [x["high"] for x in c]; L = [x["low"] for x in c]; T = [x["time"] for x in c]
     n = len(c)
@@ -467,6 +603,10 @@ def setup_candidate(a, c, lookback, opts=None):
             "in_discount": a["pct"] < 0.5, "pd_ok": pd_ok_provisional, "dr_source": a["dr_source"]}
     if not m.get("disp"):
         base.update({"complete": False, "missing": "displacement trên nến phá swing (thân nến nhỏ / biên độ nhỏ — chưa phải MSS theo knowledge/ict/core-a.md §2.16)"}); return base
+    v_ex = opts.get("fx_b_ex", "iofed"); v_pd = opts.get("fx_b_pd", "r15")
+    buf = opts.get("fx_b_buf", "0"); buf_mult = 0.0 if buf == "0" else float(buf[:-3])   # "0.1atr" -> 0.1
+    t_mult = b_exit_parts(opts.get("fx_b_exit", V_ICT_DEFAULTS["fx_b_exit"]))[0]      # B-EXIT target sigma multiple
+    sd_tk = ("dự phóng −2σ (models.md §2.1.5)" if t_mult == 2.0 else f"dự phóng −{t_mult:g}σ (models.md §2.1.5)")
     want_type = "bull" if side == "long" else "bear"
     fv_all = [f for f in a["fvgs_all"] if f["i"] > ref_i and f["type"] == want_type]
     # B2b: a candidate FVG that has already fully failed (CE close-through, then far-edge close-through) is not
@@ -492,8 +632,11 @@ def setup_candidate(a, c, lookback, opts=None):
             ob = {"open": O[q], "mt": (O[q] + Cc[q]) / 2, "body_low": min(O[q], Cc[q]), "body_high": max(O[q], Cc[q]), "time": T[q]}; break
     leg = abs(m["origin"] - m["ext"])
     if side == "long":
-        entry = f["hi"]; stop = min(L[ref_i:m["i"] + 1])
         entries = {"iofed": f["hi"], "ce": f["ce"], "fill": f["lo"]}
+        entry = entries[v_ex]                       # B-EX: "iofed" (v1) is f["hi"], the near edge
+        sweep_ext = stop = min(L[ref_i:m["i"] + 1])
+        if buf_mult:                                # B-BUF: below the wick by a multiple of ATR; 0 (v1) leaves it exact
+            stop = stop - buf_mult * _atr(H, L, Cc, m["i"])
         stops = {"gap_far_edge": f["lo"], "ob_body_low": ob["body_low"] if ob else None, "sweep_extreme": stop}
         std = {"-2": m["origin"] + 2 * leg, "-2.5": m["origin"] + 2.5 * leg, "-4": m["origin"] + 4 * leg} if leg > 0 else None
         tg = [p["level"] for p in a["unswept"] if p["kind"] == "BSL" and p["level"] > entry]
@@ -514,21 +657,26 @@ def setup_candidate(a, c, lookback, opts=None):
         # trade against +0.64R, and NINE trades over the floor. The scanner is the one seam both the backtest
         # (ict_setups_live) and the live runner (ict_live_setups) read, so this is the whole fix.
         objective = min(tg) if tg else None
-        target, tk = ((std["-2"], "dự phóng −2σ (models.md §2.1.5)") if std and std["-2"] > entry
+        sd_t = _sd_target(std, m["origin"], leg, +1, t_mult)
+        target, tk = ((sd_t, sd_tk) if std and sd_t > entry
                       else (a["hi"], "biên trên dealing range (core-a.md R13)") if a["hi"] > entry
                       else (None, "không có mục tiêu: không dự phóng σ, biên range không ở trên entry"))
         if target is None:
             return None
         risk, reward = entry - stop, target - entry
     else:
-        entry = f["lo"]; stop = max(H[ref_i:m["i"] + 1])
         entries = {"iofed": f["lo"], "ce": f["ce"], "fill": f["hi"]}
+        entry = entries[v_ex]
+        sweep_ext = stop = max(H[ref_i:m["i"] + 1])
+        if buf_mult:
+            stop = stop + buf_mult * _atr(H, L, Cc, m["i"])
         stops = {"gap_far_edge": f["hi"], "ob_body_high": ob["body_high"] if ob else None, "sweep_extreme": stop}
         std = {"-2": m["origin"] - 2 * leg, "-2.5": m["origin"] - 2.5 * leg, "-4": m["origin"] - 4 * leg} if leg > 0 else None
         tg = [p["level"] for p in a["unswept"] if p["kind"] == "SSL" and p["level"] < entry]
         # Mirror of the long branch above -- see that comment for the order and for what changed.
         objective = max(tg) if tg else None
-        target, tk = ((std["-2"], "dự phóng −2σ (models.md §2.1.5)") if std and std["-2"] < entry
+        sd_t = _sd_target(std, m["origin"], leg, -1, t_mult)
+        target, tk = ((sd_t, sd_tk) if std and sd_t < entry
                       else (a["lo"], "biên dưới dealing range (core-a.md R13)") if a["lo"] < entry
                       else (None, "không có mục tiêu: không dự phóng σ, biên range không ở dưới entry"))
         if target is None:
@@ -539,8 +687,17 @@ def setup_candidate(a, c, lookback, opts=None):
     # latest close -- the order is a LIMIT at the FVG near edge (`entry`), and by the time a displaced MSS has
     # formed the close is usually far from it. Clamped to [0,1] for display only (an entry outside the range's
     # own lo/hi is still unambiguously in its half; the clamp only keeps the printed percentage sane).
-    rng = a["hi"] - a["lo"]
-    entry_pct = (entry - a["lo"]) / rng if rng > 0 else 0.5
+    r_lo, r_hi = a["lo"], a["hi"]
+    if v_pd == "r13":
+        # B-PD (core-a.md §2.19 diagram, R13): "the stop is at the range extreme behind the entry and the target is
+        # the opposite range extreme" -- the range runs from the SWEPT extreme to the OPPOSING pool (the nearest
+        # unswept pool beyond the entry, `objective`); with no opposing pool it keeps the R15 range edge on that side.
+        if side == "long":
+            r_lo = sweep_ext; r_hi = objective if objective is not None else a["hi"]
+        else:
+            r_hi = sweep_ext; r_lo = objective if objective is not None else a["lo"]
+    rng = r_hi - r_lo
+    entry_pct = (entry - r_lo) / rng if rng > 0 else 0.5
     entry_pct_disp = max(0.0, min(1.0, entry_pct))
     pd_ok = (entry_pct < 0.5) if side == "long" else (entry_pct > 0.5)
     base.update({"complete": True, "fvg": {"lo": f["lo"], "hi": f["hi"], "ce": f["ce"], "time": T[f["i"]], "mitigated": f["mitigated"]}, "ob": ob,
