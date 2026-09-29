@@ -1,0 +1,230 @@
+{
+  "pit_cutoff": "2024-03-01T00:00:00Z",
+  "history_root": "data/history/ftmo",
+  "profile": "ftmo_demo_2026_09",
+  "latest_trade_exit_time_seen": "2024-02-20T12:30:00Z",
+  "rows": [
+    {
+      "symbol": "XAUUSD",
+      "method": "ICT",
+      "baseline": {
+        "n": 96,
+        "gross_R": 3.748153815679755,
+        "net_R": -32.054,
+        "spread_R": 0.0,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 35.80215381567976,
+        "refused": 0,
+        "last_exit_time": "2023-10-26T08:45:00Z"
+      },
+      "real_no_flat": {
+        "n": 100,
+        "gross_R": 5.95537535540386,
+        "net_R": -5.755,
+        "spread_R": 6.771082482357556,
+        "swap_R": 4.938929120089977,
+        "commission_R": 0.0,
+        "cost_R_total": 11.71037535540386,
+        "refused": 0,
+        "last_exit_time": "2023-10-26T08:45:00Z"
+      },
+      "real_flat": {
+        "n": 103,
+        "gross_R": 10.382035260707108,
+        "net_R": 3.241,
+        "spread_R": 7.141334094971355,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 7.141035260707108,
+        "refused": 0,
+        "last_exit_time": "2023-10-26T08:45:00Z"
+      }
+    },
+    {
+      "symbol": "XAUUSD",
+      "method": "WYCKOFF-BOOK",
+      "baseline": {
+        "n": 129,
+        "gross_R": -22.485652865188438,
+        "net_R": -86.167,
+        "spread_R": 0.0,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 63.68134713481156,
+        "refused": 0,
+        "last_exit_time": "2024-01-11T19:15:00Z"
+      },
+      "real_no_flat": {
+        "n": 145,
+        "gross_R": -24.98807559202755,
+        "net_R": -45.608,
+        "spread_R": 11.02157791010307,
+        "swap_R": 9.598699321037031,
+        "commission_R": 0.0,
+        "cost_R_total": 20.619924407972448,
+        "refused": 0,
+        "last_exit_time": "2024-01-11T19:15:00Z"
+      },
+      "real_flat": {
+        "n": 148,
+        "gross_R": 0.803865645201506,
+        "net_R": -10.281999999999998,
+        "spread_R": 11.087120553517392,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 11.085865645201505,
+        "refused": 0,
+        "last_exit_time": "2024-01-11T19:15:00Z"
+      }
+    },
+    {
+      "symbol": "US500",
+      "method": "ICT",
+      "baseline": {
+        "n": 25,
+        "gross_R": -1.2510249198866346,
+        "net_R": -8.053,
+        "spread_R": 0.0,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 6.801975080113366,
+        "refused": 0,
+        "last_exit_time": "2024-01-30T21:00:00Z"
+      },
+      "real_no_flat": {
+        "n": 28,
+        "gross_R": 2.8405888926574883,
+        "net_R": 1.5330000000000001,
+        "spread_R": 0.9081729792794617,
+        "swap_R": 0.3981989021468497,
+        "commission_R": 0.0,
+        "cost_R_total": 1.3075888926574881,
+        "refused": 0,
+        "last_exit_time": "2024-01-30T21:00:00Z"
+      },
+      "real_flat": {
+        "n": 29,
+        "gross_R": -0.8547321955986518,
+        "net_R": -1.7619999999999998,
+        "spread_R": 0.9075398056103636,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 0.907267804401348,
+        "refused": 0,
+        "last_exit_time": "2024-01-30T21:00:00Z"
+      }
+    },
+    {
+      "symbol": "US500",
+      "method": "WYCKOFF-BOOK",
+      "baseline": {
+        "n": 27,
+        "gross_R": 6.947108175292315,
+        "net_R": -7.547000000000001,
+        "spread_R": 0.0,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 14.494108175292315,
+        "refused": 0,
+        "last_exit_time": "2024-01-11T15:00:00Z"
+      },
+      "real_no_flat": {
+        "n": 31,
+        "gross_R": 7.402114493239159,
+        "net_R": 5.278,
+        "spread_R": 1.7161875891683274,
+        "swap_R": 0.4081881675591743,
+        "commission_R": 0.0,
+        "cost_R_total": 2.1241144932391594,
+        "refused": 0,
+        "last_exit_time": "2024-01-11T15:00:00Z"
+      },
+      "real_flat": {
+        "n": 33,
+        "gross_R": 7.317473957443372,
+        "net_R": 5.538,
+        "spread_R": 1.7830723093408807,
+        "swap_R": -0.0033979618255445708,
+        "commission_R": 0.0,
+        "cost_R_total": 1.779473957443372,
+        "refused": 0,
+        "last_exit_time": "2024-01-10T21:45:00Z"
+      }
+    },
+    {
+      "symbol": "DE40",
+      "method": "ICT",
+      "baseline": {
+        "n": 11,
+        "gross_R": 1.7152557986330896,
+        "net_R": -1.819,
+        "spread_R": 0.0,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 3.5342557986330894,
+        "refused": 0,
+        "last_exit_time": "2024-02-02T09:45:00Z"
+      },
+      "real_no_flat": {
+        "n": 11,
+        "gross_R": 1.7152557986330896,
+        "net_R": 1.3570000000000002,
+        "spread_R": 0.28867900042554684,
+        "swap_R": 0.06775044914322181,
+        "commission_R": 0.0,
+        "cost_R_total": 0.35825579863308943,
+        "refused": 0,
+        "last_exit_time": "2024-02-02T09:45:00Z"
+      },
+      "real_flat": {
+        "n": 11,
+        "gross_R": -1.644075013882879,
+        "net_R": -1.9649999999999996,
+        "spread_R": 0.3204727558237914,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 0.3209249861171206,
+        "refused": 0,
+        "last_exit_time": "2024-02-01T21:45:00Z"
+      }
+    },
+    {
+      "symbol": "DE40",
+      "method": "WYCKOFF-BOOK",
+      "baseline": {
+        "n": 27,
+        "gross_R": 22.793337064105728,
+        "net_R": 9.786,
+        "spread_R": 0.0,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 13.007337064105728,
+        "refused": 0,
+        "last_exit_time": "2024-02-20T12:30:00Z"
+      },
+      "real_no_flat": {
+        "n": 31,
+        "gross_R": 22.613431394226517,
+        "net_R": 19.459,
+        "spread_R": 1.6758794583764327,
+        "swap_R": 1.4785400375707944,
+        "commission_R": 0.0,
+        "cost_R_total": 3.154431394226517,
+        "refused": 0,
+        "last_exit_time": "2024-02-20T12:30:00Z"
+      },
+      "real_flat": {
+        "n": 32,
+        "gross_R": 26.74035576360688,
+        "net_R": 24.985999999999997,
+        "spread_R": 1.753678799228321,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 1.7543557636068812,
+        "refused": 0,
+        "last_exit_time": "2024-02-20T12:30:00Z"
+      }
+    }
+  ]
+}

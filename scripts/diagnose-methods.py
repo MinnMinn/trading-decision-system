@@ -236,8 +236,8 @@ class IctProbe:
                 probe.ctx["fvg_calls"].append(r)
             return r
 
-        def walk(side, entry, stop, target, H_, L_, C_, start, horizon):
-            r = o_walk(side, entry, stop, target, H_, L_, C_, start, horizon)
+        def walk(side, entry, stop, target, H_, L_, C_, start, horizon, Tm=None):
+            r = o_walk(side, entry, stop, target, H_, L_, C_, start, horizon, Tm=Tm)
             if probe.ctx is not None and r:
                 probe.ctx["walked"] = True
             return r
@@ -404,8 +404,8 @@ class WyProbe:
             probe.htf_results[repr(r)] += 1
             return r
 
-        def walk(side, entry, stop, target, H_, L_, C_, start, horizon):
-            r = o_walk(side, entry, stop, target, H_, L_, C_, start, horizon)
+        def walk(side, entry, stop, target, H_, L_, C_, start, horizon, Tm=None):
+            r = o_walk(side, entry, stop, target, H_, L_, C_, start, horizon, Tm=Tm)
             probe.walk_calls["trade" if r else "none"] += 1
             return r
 
