@@ -1274,7 +1274,9 @@ class MergeTimeGuards(_Helpers):
         json.dump(d, open(p, "w"))
         return bad
 
-    def test_an_unimplemented_item_is_listed_as_not_runnable_and_refuses_run(self):
+    def test_an_unimplemented_item_is_counted_in_n_but_never_evaluated(self):
+        """Declared-but-unimplemented items (real grids: B4, W4b) stay in N (stricter) and are excluded from selection
+        and from the engine's grid; `run` no longer refuses the whole cell because of them."""
         bad = self._bad_grid_dir()
         with mock.patch.object(self.fs, "GRID_DIR", bad):
             buf = io.StringIO()
@@ -1282,13 +1284,17 @@ class MergeTimeGuards(_Helpers):
                 self.fs.cmd_plan(dry_run=True)
             self.assertIn("declared, not runnable, counted in N: ['B-EX']", buf.getvalue())
             self.assertIn("N 328", buf.getvalue())                          # still counted in N
-            self.fs.cmd_plan()
-            self.fs.cmd_declare()
-            with mock.patch.object(self.fs, "_evaluate_candidate") as ev:
-                with self.assertRaises(SystemExit) as cm:
-                    self.fs.cmd_run("5m-metals")
-        self.assertIn("not runnable", str(cm.exception))
-        ev.assert_not_called()
+        full = FS.load_grid(os.path.join(bad, "v-grid-ict.json"))
+        run = full.runnable()
+        self.assertEqual(full.unimplemented, ["B-EX"])
+        self.assertNotIn("B-EX", run.by_id)                                # not evaluated
+        self.assertEqual(run.unimplemented, [])
+        self.assertLess(FS.n_per_method(run), FS.n_per_method(full))       # N is only ever taken on the FULL grid
+        self.fs.assert_grid_runnable(full)                                 # does not raise
+
+    def test_a_fully_implemented_grid_is_its_own_runnable_grid(self):
+        g = FS.load_grid(os.path.join(FIXTURES, "v-grid-ict.json"))
+        self.assertIs(g.runnable(), g)
 
     def test_a_grid_that_can_drop_the_time_stop_needs_flat_before_rollover(self):
         ict = FS.load_grid(os.path.join(FIXTURES, "v-grid-ict.json"))

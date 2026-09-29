@@ -310,6 +310,15 @@ class Grid:
     def unimplemented(self):
         return [it["id"] for it in self.items if it.get("implemented") is False]
 
+    def runnable(self):
+        """The grid the engine can actually evaluate: every item minus the declared-but-unimplemented ones. N is
+        ALWAYS computed on the FULL grid (n_per_method(self)), so leaving an item out of selection can only make
+        the multiple-testing level stricter, never looser."""
+        if not self.unimplemented:
+            return self
+        data = {"method": self.method, "items": [dict(it) for it in self.items if it.get("implemented") is not False]}
+        return Grid(data)
+
 
 def load_grid(path):
     with open(path, encoding="utf-8") as fh:

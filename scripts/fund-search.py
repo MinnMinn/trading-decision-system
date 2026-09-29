@@ -146,10 +146,10 @@ def grid_has_no_time_stop_value(grid):
 def assert_grid_runnable(grid):
     """Merge-time guards (round 2, item 5): (a) no unimplemented item; (b) a grid that can remove the time stop
     runs only with flat_before_rollover fixed on."""
-    if grid.unimplemented:
-        raise GridRefused(f"grid has unimplemented items {grid.unimplemented}: declared, not runnable, counted in N "
-                          f"-- refusing to evaluate a partial grid")
-    if grid_has_no_time_stop_value(grid):
+    # Items declared but not implemented (implemented:false: B4, W4b) are NEVER evaluated -- selection and the
+    # engine see grid.runnable() -- yet they stay counted in N (n_per_method on the FULL grid), which only makes
+    # the bound stricter. They are listed in `plan` and in every record.
+    if grid_has_no_time_stop_value(grid.runnable()):
         assert_flat_overlay(fixed_opts())
 
 
@@ -714,11 +714,13 @@ def _commission_status(symbols):
 def _evaluate_candidate(candidate, plan_hash, grid_dir=None):
     """Real path: the worker entry point (one process per candidate). Loads its own engine."""
     grids, paths = load_grids(grid_dir)
-    grid = grids[candidate["method"]]
+    full_grid = grids[candidate["method"]]
+    grid = full_grid.runnable()          # N (candidate["n_comparisons"]) was fixed on the FULL grid at plan time
     plan = load_plan(grid_dir)
     cell = next(c for c in plan["cells"] if c["id"] == candidate["cell"])
     engine = BtEngine(grid, candidate["runner_method"], candidate["timeframe"], candidate["symbols"])
     result = evaluate_with_engine(engine, grid, cell, candidate["n_comparisons"])
+    result["declared_not_run"] = full_grid.unimplemented
     return {"record": dict(build_record(candidate, plan_hash, grid, paths[candidate["method"]], result,
                                         engine.dataset_snapshot(), cell))}
 
