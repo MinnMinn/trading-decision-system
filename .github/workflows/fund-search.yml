@@ -1,0 +1,102 @@
+# The FUND-SETUP search (docs/plans/2026-09-28-methodology-improvement-plan.md §1.4, §3, §6; execution plan
+# Batch 2(b)). Cell-sharded: `plan` lists the committed cells, one `evaluate` job runs one cell (both methods) and
+# uploads its sealed records as an artifact, and a final `report` job merges every cell's records and writes the
+# report over ALL of them -- including the failures and any cell that did not finish (reported as NOT RUN).
+#
+# NOT triggered by a push: workflow_dispatch only. Batch 3 (the single evaluation) needs owner sign-off, so nothing
+# here starts on its own. `run` itself also refuses unless (a) docs/experiments/fund-search/plan.json matches the
+# recomputed cell space and (b) docs/architecture/research-ledger.json records the final cell count
+# (scripts/fund-search.py `declare`) -- the ledger declaration precedes every evaluation.
+#
+# Outputs land OUTSIDE the checkout (a file written inside the work tree makes the run's own code_version read
+# dirty=true, CLAUDE.md §46), matching prop-search.yml and stability-full.yml. Nothing is pushed: results leave as
+# artifacts only.
+name: fund-search
+
+on:
+  workflow_dispatch:
+    inputs:
+      workers:
+        description: "parallel candidate worker processes inside a cell (one process per candidate)"
+        default: "2"
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      cells: ${{ steps.plan.outputs.cells }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - id: plan
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          # `plan` must match the committed plan exactly (load_plan refuses a drifted one with a nonzero exit).
+          python scripts/fund-search.py plan
+          echo "cells=$(python scripts/fund-search.py list-cells | tail -1)" >> "$GITHUB_OUTPUT"
+
+  evaluate:
+    needs: plan
+    name: evaluate ${{ matrix.cell }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.cells) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: run one cell (refuses without the ledger declaration)
+        env:
+          PYTHONUTF8: "1"
+          FUND_SEARCH_RECORDS_DIR: ${{ runner.temp }}/out/records
+        run: |
+          mkdir -p "$FUND_SEARCH_RECORDS_DIR"
+          python -X faulthandler scripts/fund-search.py run --cell "${{ matrix.cell }}" --workers "${{ inputs.workers || 2 }}" \
+            > "$RUNNER_TEMP/out/run.stdout.log" 2> "$RUNNER_TEMP/out/run.stderr.log"
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: fund-cell-${{ matrix.cell }}
+          path: ${{ runner.temp }}/out/
+          retention-days: 90
+
+  report:
+    needs: evaluate
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: fund-cell-*
+          path: ${{ runner.temp }}/cells
+      - name: merge every cell's records, then report over ALL of them
+        env:
+          PYTHONUTF8: "1"
+          FUND_SEARCH_RECORDS_DIR: ${{ runner.temp }}/merged/records
+          FUND_SEARCH_REPORT_PATH: ${{ runner.temp }}/merged/fund-search-report.md
+        run: |
+          mkdir -p "$FUND_SEARCH_RECORDS_DIR"
+          for d in "$RUNNER_TEMP"/cells/*/; do
+            if compgen -G "$d/records/*.json" > /dev/null; then cp "$d"/records/*.json "$FUND_SEARCH_RECORDS_DIR"/; fi
+          done
+          python scripts/fund-search.py report
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: fund-search-report
+          path: ${{ runner.temp }}/merged/
+          retention-days: 90
