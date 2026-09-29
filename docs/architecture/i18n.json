@@ -1006,6 +1006,14 @@
       "en": "invalidated: close {close}",
       "vi": "vô hiệu: đóng {close}"
     },
+    "chart.wyckoff.not_established": {
+      "en": "Wyckoff structure not established on this window",
+      "vi": "Cấu trúc Wyckoff chưa xác lập trong cửa sổ này"
+    },
+    "chart.ict.not_established": {
+      "en": "ICT structure not established on this window",
+      "vi": "Cấu trúc ICT chưa xác lập trong cửa sổ này"
+    },
     "chart.phase.before_entry": {
       "en": "before entry",
       "vi": "trước khi vào lệnh"

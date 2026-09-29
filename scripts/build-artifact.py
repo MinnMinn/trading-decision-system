@@ -90,6 +90,9 @@ def horizon(spec, lang):
 import importlib.util as _iu
 _as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py")); _auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
 _ms = _iu.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py")); _methods = _iu.module_from_spec(_ms); _ms.loader.exec_module(_methods)
+# ADR 0009 / A2: the chart draws structures.py's engine objects, never a chart-owned detector or the narrative's
+# own levels (see ict_json/wy_json_engine below, which replace the narrative-sourced wy_json).
+_ss = _iu.spec_from_file_location("structures", os.path.join(ROOT, "scripts", "structures.py")); structures = _iu.module_from_spec(_ss); _ss.loader.exec_module(structures)
 
 
 def _style(tf, syms, name, kz):
@@ -1071,14 +1074,82 @@ def invalidated_at(n3, fsym):
     return None
 
 
-def wy_json(wy):
-    """Narrative wyckoff -> the chart overlay (TR, events, phases), addressed by candle time.
-    `status` (P6.2, docs/audits/2026-09-24-wyckoff-label-review.md) rides through so chart.js can draw a
-    'hypothesis' band differently from a 'tested' one (WA p166: do not label mechanically)."""
-    tr = (wy or {}).get("trading_range") or None
-    return dict(tr=(dict(high=tr.get("high"), low=tr.get("low"), high_label=tr.get("high_label", "AR"), low_label=tr.get("low_label", "SC")) | {"from": tr.get("from")} if tr else None),
-                events=[dict(time=e.get("time"), label=e.get("label", ""), up=bool(e.get("up"))) for e in (wy or {}).get("events", [])],
-                phases=[{"from": p.get("from"), "to": p.get("to"), "label": p.get("label", ""), "status": p.get("status")} for p in (wy or {}).get("phases", [])])
+def ict_json(rows, tf):
+    """The chart's ICT overlay (A2 / ADR 0009): scripts/structures.py `ict_structures()`, called on the SAME
+    `rows` this tier draws -- never chart.js's own detector (removed, A2). `recent` (an events-list lookback)
+    is passed as ict-scan.py's own CLI default (4): nothing `ict_structures()` returns for the chart (pivots,
+    pools, sweeps, MSS, FVGs, dealing range, bias) is affected by it (structures.py module docstring, "Hot-path
+    / cold-path split" -- `recent` only scopes `analyze()`'s own `events` list, which this never reads)."""
+    env = structures.ict_structures(rows, 4, tf, methods=("ict",))
+    return {"structures": env["structures"], "dealing_range": env["dealing_range"], "bias": env["bias"]}
+
+
+# A2: distribution's record fields are computed on MIRRORED prices (wyckoff_rules.py detect_distributions()),
+# so the SAME field names (sc/ar/spring/sos/...) sit on the OPPOSITE side of the range in real price terms --
+# knowledge/wyckoff/advance.md p101's own mirror schematic (Buying Climax/Upthrust/Sign-of-Weakness are
+# distribution's names for accumulation's Selling Climax/Spring/Sign-of-Strength). These two tables are this
+# project's chart-label choice for that mirroring (VISUALIZATION_ONLY -- the letters never reach a decision);
+# disclosed as a project convention, not a page citation, in docs/audits/2026-09-29-a2-chart-from-engine.md.
+_WY_EVENT_LABEL = {
+    "long": {"sc": "SC", "ar": "AR", "st": "ST", "choch": "CHoCH", "spring": "Spring", "reclaim": "Reclaim",
+             "test": "Test", "sos": "SOS", "sos_bar": "SOS", "bu": "BU"},
+    "short": {"sc": "BC", "ar": "AR", "st": "ST", "choch": "CHoCH", "spring": "UT", "reclaim": "Reclaim",
+              "test": "Test", "sos": "SOW", "sos_bar": "SOW", "bu": "BU"},
+}
+# Which side of the candle (high=top / low=bottom) an event's flag anchors on -- support-context events anchor
+# at the low, resistance/breakout-context events at the high; mirrored for distribution (A2 project choice).
+_WY_EVENT_TOP = {"long": {"ar", "sos", "sos_bar", "bu"}, "short": {"sc", "spring", "reclaim", "test"}}
+_WY_TR_LABELS = {"long": ("AR", "SC"), "short": ("BC", "AR")}   # (high_label, low_label)
+
+
+def wy_json_engine(rows, tf, sym, kind):
+    """The chart's Wyckoff overlay (A2 / ADR 0009): scripts/structures.py `wyckoff_structures()` on the SAME
+    `rows` this tier draws, in BOTH directions (accumulation and distribution -- the chart does not know in
+    advance which one is live), picking the MOST RECENT trading_range across both by its own `available_at` as
+    "the current read". "Most recent" is this project's choice for what a single-TR overlay shows when more
+    than one candidate exists; it is not itself a sourced page citation (docs/audits/2026-09-29-a2-chart-from-
+    engine.md). Replaces the narrative-authored wy_json(): the model's own TR/events/phase text stops being
+    drawn as chart analysis (A2) -- the narrative's prose blocks are untouched elsewhere on the page (CLAUDE.md
+    §17: original records are immutable), only this chart overlay changes source.
+
+    Returns {"tr": None, "events": [], "phases": []} when nothing was detected -- chart.js's "structure not
+    established" state (A2) reads an absent/empty `tr` exactly this way."""
+    O = [r["open"] for r in rows]; H = [r["high"] for r in rows]; L = [r["low"] for r in rows]
+    C = [r["close"] for r in rows]; V = [r.get("volume", 0) for r in rows]
+    vkind = "tick" if I.is_tick_volume(sym) else "traded"
+    candidates = []
+    for side in ("long", "short"):
+        env = structures.wyckoff_structures(O, H, L, C, V, rows, tf, volume_kind=vkind, side=side)
+        candidates += [(side, tr) for tr in env["structures"]]
+    if not candidates:
+        return {"tr": None, "events": [], "phases": []}
+    side, tr = max(candidates, key=lambda st: (st[1]["available_at"], st[1]["formed_at"]))
+    high_label, low_label = _WY_TR_LABELS[side]
+    labels, top = _WY_EVENT_LABEL[side], _WY_EVENT_TOP[side]
+    events = [dict(time=e["formed_at"],
+                    label=f'{labels.get(e["kind"], e["kind"].upper())} {fmtn(rows[e["i"]]["high"] if e["kind"] in top else rows[e["i"]]["low"], kind)}',
+                    up=e["kind"] in top)
+              for e in tr.get("events", [])]
+    phases = [{"from": p["from"], "to": p["to"], "label": p["label"], "status": p["status"]} for p in tr.get("phases", [])]
+    return {"tr": {"high": tr["tr_hi"], "low": tr["tr_lo"], "high_label": high_label, "low_label": low_label,
+                    "from": tr["formed_at"]},
+            "events": events, "phases": phases}
+
+
+def _parse_iso(s):
+    return datetime.datetime.fromisoformat(s.replace("Z", "+00:00")) if s else None
+
+
+def tier_quality(sym, tf, clock_iso):
+    """A2b: this HTF tier's own §20 quality state, refreshed to the ENTRY tier's clock (`clock_iso`) rather
+    than wall time -- the same assessor (scripts/quality.py, CLAUDE.md §20) the decision path's data-quality
+    gate uses, so the page and a decision cannot disagree about what "stale" means. `now=clock_iso` (not
+    `None`) is the point: on a point-in-time/snapshot build the wall clock is not the chart's own clock, and a
+    higher-timeframe fact must be judged stale or fresh AGAINST THE WINDOW BEING SHOWN, never against whatever
+    day the build happened to run on."""
+    d = read_json(_series_path(sym, tf), None)
+    state, reason = Q.assess(d, tf, symbol=sym, now=_parse_iso(clock_iso))
+    return dict(state=state, reason=reason, clock=clock_iso)
 
 
 BIAS_CLS = {"long": "long", "short": "short", "neutral": "wait", "unknown": "wait"}
@@ -1299,6 +1370,10 @@ section.symbol{background:var(--surface);border:1px solid var(--line);border-rad
 .chart-block{border:1px solid var(--line);border-radius:8px;background:var(--surface-2);position:relative}
 .chart-title{display:flex;justify-content:space-between;align-items:center;padding:8px 12px 0;font-family:var(--mono);font-size:11px;color:var(--muted)}
 .chart-title b{color:var(--ink-2);font-weight:600}
+/* A2b: a non-FRESH higher-timeframe tier, relative to the entry tier's own clock -- CLAUDE.md §20 vocabulary. */
+.tier-quality{margin-left:6px;padding:1px 6px;border-radius:3px;font-weight:700;letter-spacing:.02em;border:1px solid var(--warn)}
+.tier-quality-stale,.tier-quality-partial,.tier-quality-unknown{color:var(--warn)}
+.tier-quality-missing,.tier-quality-invalid{color:var(--down);border-color:var(--down)}
 .zoom{display:inline-flex;align-items:center;gap:4px} .zoom .muted{margin-right:6px}
 .zoom button{font-family:var(--mono);font-size:12px;font-weight:700;width:24px;height:22px;border-radius:5px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);cursor:pointer;line-height:1}
 .zoom button:hover{background:var(--surface-3)} .zoom button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
@@ -1547,36 +1622,43 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
         res = mp.check_blocks(blocks)
         if res:
             purity[sym] = res
-        # levels for the charts: anchors by method
-        levels = []
-        for L in ((anchors.get("symbols") or {}).get(sym) or {}).get("levels", []):
-            m = anchor_method(L)
-            levels.append(dict(price=L["price"], time=L.get("time"), method=("neutral" if m in ("mixed", "neutral") else m), short=esc((L.get("short") or L.get("name", "")).replace("_", " ")[:14])))
+        # A2 / ADR 0009: the model-owned anchors (anchors.<style>.json) are NOT drawn as chart analysis any more --
+        # the entry tier ships `levels=[]`. The engine's own structures are the only analysis on the chart.
         # P7.1 (docs/audits/2026-09-24-wyckoff-label-review.md §7): computed at build time from the scanner's own
         # facts, never stored in the narrative -- the narrative file stays exactly as written (CLAUDE.md §17).
         inv_at = invalidated_at(n3, fsym)
-        wy_js = wy_json((n3 or {}).get("wyckoff"))
-        # Wyckoff overlay per tier: the tier style's own full analysis (one read per candle series, two pages never disagree);
-        # the gate tier falls back to this style's narrative.context when that style has no page yet
+        # A2 / ADR 0009: the chart's Wyckoff and ICT overlays are the ENGINE's own structures, computed on the
+        # same candles this tier draws -- never the model narrative's TR/events/phases (removed, A2) and never
+        # a chart-owned detector (chart.js's own ICT engine, removed, A2). The narrative's prose blocks
+        # elsewhere on the page are untouched (CLAUDE.md §17); only the chart overlay's SOURCE changed.
+        wy_js = wy_json_engine(rows, S["tf"], sym, kind)
+        ict_js = ict_json(rows, S["tf"])
         gate_style, gate_name = _auto.gate_style(style)
         # The bias the ladder shows must be read by the SAME methods whose columns the page draws -- `dims` is the
         # page's own engaged set (it also accounts for availability, which the config flags alone do not).
         bias_methods = tuple(m for m in OVERLAY_LANES if dims.get(m, {}).get("engaged"))
         tier_ctx = {tn: htf.load_tier(style, tn, sym, methods=bias_methods) for tn in ("bias", "structure")}
-        tier_wy = {}
+        tier_wy, tier_ict, tier_q = {}, {}, {}
         for tname in tier_rows:
-            t = S["tiers"][tname]; twy = {}
-            if t["style"]:
-                twy = (((read_json(f"{ROOT}/data/live/narrative/{t['style']}.json") or {}).get("symbols") or {}).get(sym) or {}).get("wyckoff") or {}
-            if not twy.get("events") and tname == gate_name:
-                twy = ((n3 or {}).get("context") or {}).get("wyckoff") or {}
-            tier_wy[tname] = wy_json(twy)
+            t = S["tiers"][tname]; trows = tier_rows[tname]
+            tier_wy[tname] = wy_json_engine(trows, t["tf"], sym, kind)
+            tier_ict[tname] = ict_json(trows, t["tf"])
+            # A2b: this HTF tier's own §20 quality, refreshed to the ENTRY tier's clock (`upd`) -- surfaced on
+            # the page (chart title badge below) so a stale higher-timeframe fact is visible where it is drawn,
+            # not silently treated as fresh. Wiring this into the DECISION path's own gate (a stale HTF fact
+            # reaching a live/backtest decision -> WAIT/BLOCK, behind fx_a2b_stale_htf_block) is out of this
+            # module's scope (docs/audits/2026-09-29-a2-chart-from-engine.md) -- backtest-methods.py/
+            # live_rules.py/htf_context.py were not touched here.
+            tier_q[tname] = tier_quality(sym, t["tf"], upd)
         tiers_js = []
         for tname in ("bias", "structure"):
             if tname in tier_rows:
                 t = S["tiers"][tname]
-                tiers_js.append(dict(key=tname, tf=t["tf"], kz=(t["tf"] in ("15m", "1H")), tfMin=TF_MIN.get(t["tf"], 0), wy=tier_wy[tname], levels=[], compact=True, rows="__ROWS__" + key + tname))
-        tiers_js.append(dict(key="entry", tf=S["tf"], kz=S["kz"], tfMin=TF_MIN.get(S["tf"], 0), wy=wy_js, levels=levels, compact=False, rows="__ROWS__" + key + "entry"))
+                tiers_js.append(dict(key=tname, tf=t["tf"], kz=(t["tf"] in ("15m", "1H")), tfMin=TF_MIN.get(t["tf"], 0),
+                                      wy=tier_wy[tname], ict=tier_ict[tname], quality=tier_q[tname], levels=[],
+                                      compact=True, rows="__ROWS__" + key + tname))
+        tiers_js.append(dict(key="entry", tf=S["tf"], kz=S["kz"], tfMin=TF_MIN.get(S["tf"], 0), wy=wy_js, ict=ict_js,
+                              quality=None, levels=[], compact=False, rows="__ROWS__" + key + "entry"))
         # chart.js draws the lane-status text at runtime, so it gets every locale of each reason and picks one.
         data_js[key] = dict(fmt=kind, tick=I.is_tick_volume(sym), market=I.display(sym)["asset_class"],
                             dims={m: {l: reason_text(dims[m]["reason"], l) for l in i18n.LOCALES} for m, _ in LANES},
@@ -1617,8 +1699,17 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                                 f'<div class="lane-status">{DUAL(lambda l: T("chart.no_candles", l, tf=t["tf"], sym=disp))}</div></div>')
                 continue
             trows = tier_rows[tname]
+            # A2b: this tier's §20 quality state, relative to the ENTRY tier's own clock (`upd`), not wall
+            # time -- see tier_quality(). FRESH is not called out (the unmarked common case); every other
+            # state (STALE/PARTIAL/MISSING/INVALID/UNKNOWN) gets a visible badge, CLAUDE.md §20's own
+            # vocabulary, unmarked machine words like syms_quality's existing data-quality cell.
+            tq = tier_q.get(tname)
+            q_badge = (f'<span class="tier-quality tier-quality-{tq["state"].lower()}" '
+                       f'title="{esc(tname)} {esc(t["tf"])}: {esc(tq["state"])} vs entry clock {esc(upd or "")} -- {esc(tq["reason"])}">'
+                       f'{esc(tq["state"])} · {esc(tq["reason"])}</span>'
+                       if tq and tq["state"] != "FRESH" else "")
             charts_html += (f'<div class="chart-block" id="{tname}-{key}"><div class="chart-title"><span><b>{i18n.tx(TIER_KEY[tname])}</b> · '
-                            f'{DUAL(lambda l: horizon(t, l) + " · " + range_label(trows[0]["time"], trows[-1]["time"], t["lbl"], l))}</span>'
+                            f'{DUAL(lambda l: horizon(t, l) + " · " + range_label(trows[0]["time"], trows[-1]["time"], t["lbl"], l))}{q_badge}</span>'
                             f'<span class="zoom"><span class="muted">{i18n.tx("chart.shaded_is_entry")}</span>{zoom_buttons()}</span></div>'
                             f'<div class="chart-wrap"><div class="chart" id="chart-{tname}-{key}"></div><div class="tip"></div></div><div class="mode-status" hidden></div><div class="lane-status" hidden></div></div>')
         charts_html += (f'<div class="chart-block" id="entry-{key}"><div class="chart-title"><span><b>{i18n.tx("tier.entry")}</b> · '

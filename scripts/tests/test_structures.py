@@ -336,6 +336,104 @@ class WyckoffStructuresMatchDetect(unittest.TestCase):
                 self.assertEqual(ev["available_at"], N.available_time(c, "4H").isoformat().replace("+00:00", "Z"))
 
 
+class A1bInvalidatedAt(unittest.TestCase):
+    """A1b: a pool/FVG's `invalidated_at` is set only when the wrapped function's own forward scan already
+    found the level consumed (pool state "closed_through" / fvg "mitigated"), timestamped at that confirming
+    bar -- never earlier than the structure's own formed_at/available_at (CLAUDE.md §8)."""
+
+    def setUp(self):
+        self.window = _aus200_4h(480)
+        self.env = structures.ict_structures(self.window, 4, "4H", methods=("ict",))
+
+    def test_pool_invalidated_at_only_when_closed_through(self):
+        a = self.env["analysis"]
+        pools = [s for s in self.env["structures"] if s["kind"] == "pool"]
+        self.assertEqual(len(pools), len(a["pools"]))
+        saw_invalidated = saw_live = 0
+        for wrapped, raw in zip(pools, a["pools"]):
+            if raw["state"] == "closed_through":
+                self.assertIsNotNone(wrapped["invalidated_at"])
+                self.assertEqual(wrapped["invalidated_at"], _iso(self.window[raw["closed_at"]], "4H"))
+                saw_invalidated += 1
+            else:
+                self.assertIsNone(wrapped["invalidated_at"], f"a {raw['state']!r} pool must not carry invalidated_at")
+                saw_live += 1
+        self.assertGreater(saw_invalidated, 0, "fixture must exercise at least one closed_through pool")
+        self.assertGreater(saw_live, 0, "fixture must exercise at least one intact/swept pool")
+
+    def test_fvg_invalidated_at_only_when_mitigated(self):
+        a = self.env["analysis"]
+        fvgs = [s for s in self.env["structures"] if s["kind"] == "fvg"]
+        self.assertEqual(len(fvgs), len(a["fvgs_all"]))
+        saw_mitigated = 0
+        for wrapped, raw in zip(fvgs, a["fvgs_all"]):
+            if raw["mitigated"]:
+                self.assertIsNotNone(wrapped["invalidated_at"])
+                self.assertEqual(wrapped["invalidated_at"], _iso(self.window[raw["end"]], "4H"))
+                saw_mitigated += 1
+            else:
+                self.assertIsNone(wrapped["invalidated_at"])
+        self.assertGreater(saw_mitigated, 0, "fixture must exercise at least one mitigated FVG")
+
+    def test_invalidated_at_never_before_the_structures_own_available_at(self):
+        for s in self.env["structures"]:
+            if s["kind"] not in ("pool", "fvg") or not s.get("invalidated_at"):
+                continue
+            available = datetime.datetime.fromisoformat(s["available_at"].replace("Z", "+00:00"))
+            invalidated = datetime.datetime.fromisoformat(s["invalidated_at"].replace("Z", "+00:00"))
+            self.assertGreaterEqual(invalidated, available)
+
+
+class A1bWyckoffPhases(unittest.TestCase):
+    """A1b: phase labels (A..E) are boundaries read off the trading_range record's own already-detected event
+    bars -- never earlier than their own available_time, and an open (unconfirmed) phase is "hypothesis"."""
+
+    def setUp(self):
+        self.window = _aus200_4h(600)
+        O = [x["open"] for x in self.window]; H = [x["high"] for x in self.window]
+        L = [x["low"] for x in self.window]; C = [x["close"] for x in self.window]
+        V = [x.get("volume", 0) for x in self.window]
+        self.env = structures.wyckoff_structures(O, H, L, C, V, self.window, "4H", volume_kind="traded", side="short")
+
+    def test_every_trading_range_carries_at_least_phase_a_and_b(self):
+        self.assertGreater(len(self.env["structures"]), 0)
+        for tr in self.env["structures"]:
+            labels = [p["label"] for p in tr["phases"]]
+            self.assertIn("A", labels)
+            self.assertIn("B", labels)
+            self.assertEqual(labels, sorted(labels), "phases must be returned in A..E order")
+
+    def test_phase_letters_are_a_prefix_of_a_b_c_d_e(self):
+        for tr in self.env["structures"]:
+            labels = [p["label"] for p in tr["phases"]]
+            self.assertEqual(labels, list("ABCDE")[:len(labels)])
+
+    def test_open_phase_is_hypothesis_and_closed_phase_is_tested(self):
+        for tr in self.env["structures"]:
+            for p in tr["phases"]:
+                if p["to"] is None:
+                    self.assertEqual(p["status"], "hypothesis")
+                else:
+                    self.assertEqual(p["status"], "tested")
+
+    def test_phase_available_at_never_before_formed_at(self):
+        for tr in self.env["structures"]:
+            for p in tr["phases"]:
+                formed = datetime.datetime.fromisoformat(p["formed_at"].replace("Z", "+00:00"))
+                available = datetime.datetime.fromisoformat(p["available_at"].replace("Z", "+00:00"))
+                self.assertGreaterEqual(available, formed)
+
+    def test_last_phase_status_matches_the_record_shape(self):
+        """A record with no `bu` has no Phase E band at all; a record with `bu` does, and it is always open."""
+        for r, tr in zip(self.env["records"], self.env["structures"]):
+            labels = [p["label"] for p in tr["phases"]]
+            if r.get("bu") and r["bu"].get("bar") is not None:
+                self.assertEqual(labels[-1], "E")
+                self.assertEqual(tr["phases"][-1]["status"], "hypothesis")
+            else:
+                self.assertNotIn("E", labels)
+
+
 class LiveRulesRoutesThroughStructures(unittest.TestCase):
     """live_rules.read_at() must return the byte-identical object a direct ict_scan.analyze() call on the same
     window would -- routing through structures.py must not change what the decision path reads (A1)."""
