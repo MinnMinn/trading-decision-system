@@ -109,6 +109,21 @@
         "value": 2.0,
         "_basis": "User decision 2026-09-19: 2.0, which is the source's own number -- 'a 2R is the minimum requirement before taking profit' (knowledge/ict/models.md section 3.1). Set to 3.0 by user decision 2026-09-13 as a deliberate override stricter than the source; lowered back after the measurement of 2026-09-19 (docs/audits/2026-09-19-knowledge-fidelity.md §8): with the deck's -2σ target, 9 of 20 reachable ICT trades cleared 3R against 16 of 20 clearing 2R, at +0.95R expectancy over the whole 20. Applied NET of fees on the live path (strategy-runner rr_reason) and in simulate(). Previous basis, kept for the record: User decision 2026-09-13 -- an override STRICTER than the source, do not 'correct' it back to 2.0 to match the citation. The source says 2R: '2R is the minimum requirement before taking profit' (knowledge/ict/models.md section 3.1 rule 23, Model11 p92). Measured on the last year of ICT 15m setups across the nine crypto instruments (fee 0.05 %/side), 3R was chosen over 2R for drawdown, not return: "
       }
+    },
+    "fund_1m_timeframe_params": {
+      "_comment": "Owner decision 2026-09-29 (docs/plans/2026-09-28-methodology-improvement-plan.md §6 item 7): fund setups are now searched on 1m/5m/15m/30m. NO source book gives these -- project-defined, same status as every other block in this file, so scripts/backtest-methods.py P['1m'] and every other per-timeframe table that lacked a 1m row agree on ONE set of numbers rather than each guessing separately (scripts/tests/test_timeframe_tables.py pins the tables against this file). R/K/T/H scaled up from the existing 5m row (R=60, K=18, T=20, H=120) by roughly the ratio the 5m->15m step already uses. sob=10 is EXTRAPOLATED (not measured) from the existing progression sob: 5m=8, 15m=6, 30m=5 -- report it as extrapolated, never as a measured or sourced number.",
+      "R": 60,
+      "K": 20,
+      "T": 24,
+      "H": 144,
+      "sob": 10,
+      "used_by": "scripts/backtest-methods.py P['1m']; scripts/measure-spring-ict.py P['1m'] (R/K/H only -- that table has no T or sob keys)"
+    },
+    "fund_scan_window_30m": {
+      "_comment": "Owner decision 2026-09-29 (same plan §6 item 7): automation.SCAN_WINDOW gained a 30m entry -- there was none at all before (a pre-existing gap: live_rules.scan_spec('30m') and bt.scan(sym, '30m', only=('ICT',)) both raised KeyError). The existing 1m (bars=360, recent=4) and 5m (bars=576, recent=4) entries are UNCHANGED by this decision.",
+      "bars": 480,
+      "recent": 2,
+      "used_by": "scripts/automation.py SCAN_WINDOW['30m'], read by scripts/live_rules.py scan_spec() (the live ICT scanner and the backtest's read_at() share this one number)"
     }
   },
   "timing": {

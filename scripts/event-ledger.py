@@ -27,7 +27,7 @@ _spec = importlib.util.spec_from_file_location("bt", os.path.join(ROOT, "scripts
 LEDGER = os.path.join(ROOT, "data", "live", "events", "wyckoff-events.jsonl")
 LONG_TOKENS = ("SPRING", "SHAKEOUT"); SHORT_TOKENS = ("UT", "UTAD")
 # Feed directory comes from instruments.py (I.data_dir), keyed by market -- was a hard-coded symbol set.
-TF_SEC = {"5m": 300, "15m": 900, "30m": 1800, "1H": 3600, "2H": 7200, "4H": 14400, "1D": 86400}
+TF_SEC = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1H": 3600, "2H": 7200, "4H": 14400, "1D": 86400}
 
 
 def parse_price(label):

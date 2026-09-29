@@ -137,11 +137,19 @@ class UnknownTimeframe(unittest.TestCase):
         self.lr = load("live_rules.py")
 
     def test_scan_spec_raises_for_a_timeframe_live_never_scans(self):
-        """The backtest must fail loudly on a timeframe live doesn't run, not invent a window for it."""
-        with self.assertRaises(KeyError):
-            self.lr.scan_spec("30m")
+        """The backtest must fail loudly on a timeframe live doesn't run, not invent a window for it.
+
+        "30m" USED to be in this list -- owner decision 2026-09-29
+        (docs/plans/2026-09-28-methodology-improvement-plan.md §6 item 7) gave automation.SCAN_WINDOW a "30m"
+        entry (fund setups are now searched on 1m/5m/15m/30m), closing that pre-existing gap; see
+        test_scan_spec_now_covers_30m below for the positive half of that change. "2H" is untouched by that
+        decision and still has no SCAN_WINDOW entry, so it must still raise."""
         with self.assertRaises(KeyError):
             self.lr.scan_spec("2H")
+
+    def test_scan_spec_now_covers_30m(self):
+        """docs/architecture/analysis-params.json project_defined.fund_scan_window_30m: bars=480, recent=2."""
+        self.assertEqual(self.lr.scan_spec("30m"), (480, 2))
 
 
 class BiasMatchesHtfContext(unittest.TestCase):

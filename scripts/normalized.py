@@ -91,7 +91,7 @@ def snap_to_grid(iso, timeframe, tolerance_s=GRID_TOLERANCE_S):
     grid by more than the tolerance is left alone, because THAT is a fact the quality gate must still see.
     """
     import datetime as _dt
-    secs = {"5m": 300, "15m": 900, "30m": 1800, "1H": 3600, "2H": 7200, "4H": 14400, "1D": 86400, "1W": 604800}.get(timeframe)
+    secs = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1H": 3600, "2H": 7200, "4H": 14400, "1D": 86400, "1W": 604800}.get(timeframe)
     if not secs or not isinstance(iso, str) or not iso.endswith("Z"):
         return iso
     try:

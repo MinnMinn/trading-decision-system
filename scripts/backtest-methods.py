@@ -87,7 +87,13 @@ import real_costs as _RC         # A0 (docs/plans/2026-09-28-methodology-improve
                                   # per-symbol/per-hour spread + per-night swap, selected by name via
                                   # `--cost-profile`/OPTS["cost_profile"] -- unset (default) leaves every
                                   # existing caller's fee/cost path exactly as it was (§1.6 live safety)
-P = {"5m": dict(R=60, K=18, T=20, H=120, sob=8), "15m": dict(R=48, K=16, T=16, H=96, sob=6), "30m": dict(R=48, K=14, T=14, H=84, sob=5), "1H": dict(R=48, K=12, T=12, H=72, sob=4),
+# "1m": owner decision 2026-09-29 (docs/plans/2026-09-28-methodology-improvement-plan.md §6 item 7) -- fund
+# setups are now searched on 1m/5m/15m/30m, and this table had no 1m row at all (bt.scan(sym, "1m", ...) raised
+# KeyError on `p = P[tf]` before this). PROJECT-DEFINED, not from the source books, same as every other row
+# here: R/K/T/H scaled up from the 5m row (R=60, K=18, T=20, H=120) by roughly the same ratio the 5m->15m step
+# uses. sob=10 is EXTRAPOLATED from the existing 5m=8/15m=6/30m=5 progression (not measured) -- see
+# docs/architecture/analysis-params.json project_defined.fund_1m_timeframe_params for the recorded decision.
+P = {"1m": dict(R=60, K=20, T=24, H=144, sob=10), "5m": dict(R=60, K=18, T=20, H=120, sob=8), "15m": dict(R=48, K=16, T=16, H=96, sob=6), "30m": dict(R=48, K=14, T=14, H=84, sob=5), "1H": dict(R=48, K=12, T=12, H=72, sob=4),
      "2H": dict(R=36, K=10, T=10, H=48, sob=3), "4H": dict(R=30, K=8, T=8, H=30, sob=3), "1D": dict(R=20, K=6, T=6, H=20, sob=2)}  # sob = bars a Spring may stay outside the TR (wyckoff_rules R6)
 VOL = json.load(open(f"{ROOT}/docs/architecture/analysis-params.json"))["project_defined"]["volume"]
 STOP_BUFFER_PCT = 0.0005
@@ -540,7 +546,9 @@ def range_established(H, L, a, b, support, resistance, touches, tol=0.15):
 
 
 # Structure tier per timeframe: the next rung >= 4x (scripts/automation.py next_rung, docs/architecture/timeframe-mapping.md).
-_RUNGS = ["5m", "15m", "30m", "1H", "2H", "4H", "1D"]
+# "1m" added 2026-09-29 (plan §6 item 7, fund setups now searched on 1m too) -- next_rung("1m", _RUNGS) resolves
+# to "5m" (5 >= 4x1), so a 1m setup gets an HTF_OF structure gate exactly like every other rung already does.
+_RUNGS = ["1m", "5m", "15m", "30m", "1H", "2H", "4H", "1D"]
 import importlib.util as _iu
 _as = _iu.spec_from_file_location("automation", os.path.join(ROOT, "scripts", "automation.py")); _auto = _iu.module_from_spec(_as); _as.loader.exec_module(_auto)
 HTF_OF = {tf: _auto.next_rung(tf, _RUNGS) for tf in _RUNGS if _auto.next_rung(tf, _RUNGS)}
