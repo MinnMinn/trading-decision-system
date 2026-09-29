@@ -5,7 +5,7 @@ Command: `BT_HISTORY_ROOT=data/history/ftmo PYTHONPATH=. python scripts/diagnose
 Raw JSONs are not committed (scratch). This is a funnel/diagnostic, **not evidence of edge**. Every variant run counts toward N (ICT 41 per candidate cell).
 
 Labels: **OBSERVED** = read from the run JSON (`outcomes`, `account`, `funnel`). **INFERRED** = my reading, not tested.
-"sumR" = gross R over booked trades. "net" = `account.simulate_taken_mean_net_R` (mean R after fee 0.0005/side taker, on trades passing the 2R floor; `taken` = their count).
+"sumR" = gross R over booked trades. "net" = `account.simulate_taken_mean_net_R` (mean R after the run's fee model; the JSON records `fee_per_side` 0.0005 and `entry_order_type` taker, on trades passing the 2R floor; `taken` = their count).
 
 ## Results (OBSERVED)
 
@@ -26,9 +26,10 @@ Carried from the handoff (`docs/plans/2026-09-29-handoff-macbook.md`, trades / s
 ## Findings
 
 - **OBSERVED:** no variant has positive mean net R after costs in any run above (best: US500 braid -0.083). Gross sumR is positive on most cells but disappears after the 2R floor + fee model.
-- **OBSERVED:** `braid` raises trade count ~9x on XAUUSD (139 -> 1309) and ~5x on US500/DE40; the gross gain scales with volume, win rate stays ~36 %. `all four` on XAUUSD is 736 trades but sumR only 3.26, so the variants do not stack additively.
+- **OBSERVED:** `braid` raises trade count ~9x on XAUUSD (139 -> 1309), ~4.8x on US500 (34 -> 163) and ~9x on DE40 (15 -> 137); the gross gain scales with volume, win rate stays ~36 %. `all four` on XAUUSD is 736 trades but sumR only 3.26, so the variants do not stack additively.
 - **OBSERVED:** b2b on DE40 is identical to v1 (15 / 0.07); the key never changed a decision there.
 - **INFERRED:** b2a filters trades (fewer trades, lower sumR on every symbol checked), consistent with being a stricter setup rule rather than an edge source. b1p and braid mostly add trades. Neither claim is tested here beyond the counts.
+- **INFERRED (code review, unconfirmed):** under `fx_braid_optional`, `setup_candidate` (`scripts/ict-scan.py`) takes the last MSS with no recency bound when no matching raid exists, so a stale MSS in the window can seed a candidate once a later same-direction FVG forms. This may drive part of the ~9x trade explosion. Whether that is intended is an open question for the item's author; braid is not adopted and its numbers should not be read as fidelity to the source.
 - **INFERRED:** sumR differences of a few R on 15-140 trades are inside noise; no significance test was run.
 
 ## Caveats

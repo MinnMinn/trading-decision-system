@@ -342,5 +342,51 @@ class SharedContractDefaults(unittest.TestCase):
         self.assertNotIn("fx_braid_optional", src)
 
 
+class IctSetupsLiveWiring(unittest.TestCase):
+    """Review round 1 (b1-ict-fidelity): B2b's consumer half (setup_candidate) only works when the producer half
+    (read_at -> analyze) got the SAME fx_ opts, so ict_setups_live() must hand one identical overlay to both."""
+
+    def _run(self, bt, overrides):
+        from unittest import mock
+        seen = {"read_at": [], "setup_candidate": []}
+
+        def fake_read_at(c, i, tf, methods, opts=None):
+            seen["read_at"].append(opts)
+            return {}
+
+        def fake_setup_candidate(a, w, lookback, opts=None):
+            seen["setup_candidate"].append(opts)
+            return None
+
+        c = [{"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0}] * 3
+        Tm = ["2024-01-01T00:00:00Z", "2024-01-01T00:15:00Z", "2024-01-01T00:30:00Z"]
+        saved = {k: bt.OPTS[k] for k in bt.FX_ICT_KEYS}
+        try:
+            bt.OPTS.update(overrides)
+            with mock.patch.object(bt.lr, "read_at", fake_read_at), \
+                 mock.patch.object(bt.lr.ict_scan, "setup_candidate", fake_setup_candidate), \
+                 mock.patch.object(bt.lr, "window", lambda c_, i, tf: c_[: i + 1]), \
+                 mock.patch.object(bt.lr, "setup_lookback", lambda tf: 10):
+                bt.ict_setups_live("TESTSYM", "15m", c, Tm, bt.P["15m"]["H"], [1.0] * 3, [1.0] * 3, [1.0] * 3, ("ict",))
+        finally:
+            bt.OPTS.update(saved)
+        return seen
+
+    def test_same_overlay_reaches_read_at_and_setup_candidate(self):
+        bt = load("backtest-methods.py")
+        for key in bt.FX_ICT_KEYS:
+            seen = self._run(bt, {key: True})
+            self.assertTrue(seen["read_at"] and seen["setup_candidate"], key)
+            for opts in seen["read_at"] + seen["setup_candidate"]:
+                self.assertTrue(opts[key], f"{key} must be True on both calls")
+                self.assertEqual({k for k, v in opts.items() if v}, {key})
+
+    def test_default_overlay_is_all_false(self):
+        bt = load("backtest-methods.py")
+        seen = self._run(bt, {})
+        for opts in seen["read_at"] + seen["setup_candidate"]:
+            self.assertEqual({k for k, v in opts.items() if v}, set())
+
+
 if __name__ == "__main__":
     unittest.main()
