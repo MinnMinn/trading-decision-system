@@ -132,6 +132,12 @@ OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see
             # for each key's source and reading.
             fx_w1_tr_low_st=False, fx_w2_st_below_sc=False, fx_w3_mSOW_spring=False, fx_w5_vp_abandon=False,
             fx_w7_htf_target=False,
+            # Batch 2(a) Wyckoff V items (plan §3 V grid; docs/architecture/v-grid-wyckoff.json). Each key holds ONE
+            # value of its declared set, default = the baseline = v1 (WY_V_VALUES below is the declared sets); the
+            # live runner never sets any of them. W-MGMT is the existing `mgmt` knob, not a new key; W4b is not
+            # implemented (see the grid file), so it has no key here.
+            fx_w_stop="current", fx_w4a_linger_closes=None, fx_w6_window=300, fx_w_spt="AR", fx_w_touch="off",
+            fx_w_tw=(12, 2),
             # A2b decision side (plan §2, knowledge R20): default v1 = the HTF gate ignores staleness; the live
             # runner never sets it. See htf_bias_gate.
             fx_a2b_stale_htf_block=False)
@@ -142,6 +148,67 @@ OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see
 # here: it never touches detection, only `_fires_from`'s Phase-D target/placeability, so it needs no cache-key
 # widening of `_WY_CANDIDATES`.
 _FX_WYCKOFF_DETECTION_KEYS = ("fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon")
+
+
+#: Batch 2(a) Wyckoff V items: the DECLARED value sets (plan §3, baseline first), the single in-code copy;
+#: docs/architecture/v-grid-wyckoff.json restates them for fund-search.py and a test pins the two equal.
+#: W4a's baseline "2" is the plan's grid accounting; the engine's v1 default is None (v1's own typing rule, which
+#: is not a lingering-closes count) -- see `_check_wy_v_opts` and the grid file's note.
+WY_V_VALUES = dict(
+    fx_w_stop=("current", "spring_low"),
+    fx_w4a_linger_closes=(None, 2, 3, 4),
+    fx_w6_window=(300, 600),
+    fx_w_spt=("AR", "ceiling", "VAH"),
+    fx_w_touch=("off", "on"),
+    fx_w_tw=((12, 2), (8, 2), (20, 2), (12, 3), (8, 3), (20, 3)),
+)
+W_TOUCH_MIN = 2   # "Two tests of each TR border before a Spring counts" (plan §3 W-TOUCH row; advance.md 2.11.2)
+# The V keys that change DETECTION (per-call P= overrides + `_WY_CANDIDATES`/`_HTF_TR_CACHE` cache-key widening).
+# Kept apart from `_FX_WYCKOFF_DETECTION_KEYS` (the four F keys, whose exact tuple is pinned by
+# test_wyckoff_fidelity). fx_w_stop/fx_w_spt/fx_w_touch are pure gating (`_fires_from`); fx_w6_window changes
+# the window scan() walks (a cache-key component of its own).
+_FX_WYCKOFF_V_DETECTION_KEYS = ("fx_w4a_linger_closes", "fx_w_tw")
+
+
+def _tw():
+    """fx_w_tw as a tuple (a JSON round trip yields a list)."""
+    v = OPTS.get("fx_w_tw", (12, 2))
+    return tuple(v) if v is not None else (12, 2)
+
+
+def _check_wy_v_opts():
+    """Refuse a value outside the declared set instead of silently running the baseline (a typo in a grid
+    cell must not become a mislabelled v1 run)."""
+    for k, allowed in WY_V_VALUES.items():
+        v = _tw() if k == "fx_w_tw" else OPTS.get(k, allowed[0])
+        if v not in allowed:
+            raise ValueError(f"OPTS[{k!r}] = {v!r} is not in the declared set {list(allowed)!r} "
+                             f"(plan §3 V grid, docs/architecture/v-grid-wyckoff.json)")
+
+
+def _fx_v_detection_opts():
+    """The V detection keys as per-call P= overrides. Only NON-baseline values override, so at the baseline the
+    PARAMS copy is exactly the v1 one."""
+    out = {}
+    n = OPTS.get("fx_w4a_linger_closes")
+    if n is not None:
+        out["fx_w4a_linger_closes"] = n
+    tw = _tw()
+    if tw != (12, 2):
+        out["test_window"], out["min_phase_b_swings"] = tw
+    return out
+
+
+def _wy_params(sob):
+    """The per-call copy of wyckoff_rules.PARAMS every detection call uses (never the global itself)."""
+    return dict(W.PARAMS, spring_max_bars_outside=sob, **_fx_detection_opts(), **_fx_v_detection_opts())
+
+
+def _wy_detection_ck():
+    """Every OPTS value that changes Wyckoff DETECTION, for scan()'s `_WY_CANDIDATES` key and W7's
+    `_HTF_TR_CACHE` key: the four F keys plus the V detection keys."""
+    return (tuple(OPTS.get(_k, False) for _k in _FX_WYCKOFF_DETECTION_KEYS)
+            + (OPTS.get("fx_w4a_linger_closes"), _tw()))
 
 
 def _fx_detection_opts():
@@ -741,7 +808,7 @@ def _htf_wyckoff_target(sym, tf, side, decision_time):
         return None
     c, _ = load(sym, h)
     key = ((sym, h, decision_time, side, (len(c), c[0]["time"], c[-1]["time"]) if c else None, P[h]["sob"])
-           + tuple(OPTS.get(_k, False) for _k in _FX_WYCKOFF_DETECTION_KEYS))
+           + _wy_detection_ck())
     if key in _HTF_TR_CACHE:
         return _HTF_TR_CACHE[key]
     target = None
@@ -754,7 +821,7 @@ def _htf_wyckoff_target(sym, tf, side, decision_time):
             # spring_max_bars_outside is per-timeframe (P[h], not the LTF's P[tf]) -- the same convention
             # `_wyckoff_candidates` already uses for its own tf -- and the detection fx_ keys are read from
             # OPTS, both via a per-call copy of W.PARAMS: nothing global is written, so nothing needs restoring.
-            wp = dict(W.PARAMS, spring_max_bars_outside=P[h]["sob"], **_fx_detection_opts())
+            wp = _wy_params(P[h]["sob"])
             recs = _structures.wyckoff_records(O_, H_, L_, C_, V_, P=wp, volume_kind=vkind, side=side)
             if recs:
                 htf_r = recs[-1]   # the most recently formed HTF structure knowable as of decision_time
@@ -934,7 +1001,7 @@ def _wyckoff_candidates(side, O, H, L, C, V, tf, sym):
     wyckoff_rules.PARAMS -- the global dict is never written, so there is no state to restore on a cache hit or
     after an exception. Every caller that caches this function's output (scan()) keys the cache on those four
     keys (`ck`); the signature is unchanged so diagnose-methods.py's counting wrapper still fits it."""
-    wp = dict(W.PARAMS, spring_max_bars_outside=P[tf]["sob"], **_fx_detection_opts())
+    wp = _wy_params(P[tf]["sob"])
     last = len(C) - 1
     vkind = "tick" if (sym and _I.is_tick_volume(sym)) else "traded"   # wyckoff_rules R0 / WMT p131-133
     # A1: routed through scripts/structures.py, the one structure source (ADR 0009), via its raw hot-path
@@ -994,6 +1061,13 @@ def _fires_from(side, recs, C, Tm, sym=None, tf=None):
             continue
         if OPTS["st_min"] is not None and r["st_pct"] < OPTS["st_min"]:
             continue
+        if OPTS["fx_w_touch"] == "on" and r["path"] == "spring":
+            # W-TOUCH (advance.md 2.11.2, WA p154): "two tests of each TR border before a Spring counts" -- the
+            # RECORDED Phase-B test counts (R3b `phase_b_tests`), both thirds needing W_TOUCH_MIN. Symmetric, so
+            # it reads the same on the inverted (short) frame.
+            pbt = r["phase_b_tests"]
+            if min(pbt["upper"], pbt["lower"]) < W_TOUCH_MIN:
+                continue
         tr = r["tr_hi"] - r["tr_lo"]; t0 = Tm[r["spring"] if r["spring"] is not None else r["sos"]]
         if r["path"] == "spring" and not r["shakeout"] and not r["abandon"] and not r["sot_too_strong"] and r["vol_type"] in OPTS["types"]:
             rec = r["reclaim"]; vt = r["vol_type"]; rr = r["rec_ratio"]
@@ -1012,10 +1086,22 @@ def _fires_from(side, recs, C, Tm, sym=None, tf=None):
             if w_bar == last:
                 stop = r["spring_low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["spring_low"] * (1 + STOP_BUFFER_PCT)
                 target = r["tr_hi"] if side == "long" else r["tr_lo"]
+                spt = OPTS["fx_w_spt"]
+                if spt == "ceiling":
+                    # W-SPT (WA p85; WMT p273): the running Phase-B UA ceiling (the floor, for a short) instead of AR.
+                    target = r["ceiling"]
+                elif spt == "VAH":
+                    # The TR's Value Area high (WA p259-265; the low, VAL, mirrors it for a short). detect_
+                    # distributions has already swapped vah/val into REAL prices, so the short side reads `val`.
+                    target = r["vah"] if side == "long" else r["val"]
                 if (side == "long" and target > C[last] > stop) or (side == "short" and target < C[last] < stop):
                     out.append(dict(leg="spring", t0=t0, entry=C[last], stop=stop, target=target, rec=r))
         if OPTS["phase_d"] and r["bu"] and r["bu"]["bar"] == last:
             stop = r["bu"]["low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["bu"]["low"] * (1 + STOP_BUFFER_PCT)
+            if OPTS["fx_w_stop"] == "spring_low" and r["spring_low"] is not None:
+                # W-STOP (WMT p271): the stop sits beyond the Spring low, not just the BU/LPS pullback low. A
+                # structure with no Spring (the LPS[C] path) has no Spring low, so it keeps the BU stop.
+                stop = r["spring_low"] * (1 - STOP_BUFFER_PCT) if side == "long" else r["spring_low"] * (1 + STOP_BUFFER_PCT)
             if OPTS.get("fx_w7_htf_target"):
                 # W7 (WA2-19, WA p83-84; plan §2 item A1b "higher-timeframe Wyckoff trading-range detection"):
                 # Phase-D target = the HIGHER-timeframe TR's own AR/SOS, not ceiling + a PROJECT multiplier x TR
@@ -1087,14 +1173,17 @@ def scan(sym, tf, only=None, opts=None):
         # Window by window, exactly the live read -- wyckoff_fires() says why. A structure fires once per leg, at
         # the one bar the runner would have entered on; later windows re-find the same structure under the same
         # t0 and are dropped here, as replay() drops them.
-        seen = set(); WIN = WYCKOFF_WINDOW
+        # W6 (plan §3, fidelity §3.3 B1): OPTS["fx_w6_window"] 300 (the baseline) = the module's WYCKOFF_WINDOW, the
+        # ONE number the live runner also reads; 600 is the V value. It is a component of the cache key below.
+        _check_wy_v_opts()
+        seen = set(); WIN = WYCKOFF_WINDOW if OPTS["fx_w6_window"] == 300 else OPTS["fx_w6_window"]
         # Detection is the cost (~0.5 ms/window) and does not depend on the GATING half of OPTS; the gates do.
         # So the per-window candidates are computed once per history in this process and every config re-runs
         # only the gates -- EXCEPT the four fx_w1/w2/w3/w5 keys (Batch 1(b) F items), which change DETECTION
         # itself, so they widen the cache key below the same way a different `sym`/`tf`/history does; two
         # configs differing only in one of those keys must never collide on this cache (they are NOT
         # OPTS-independent in the way this comment used to claim for every key).
-        ck = (sym, tf, n, Tm[0], Tm[-1]) + tuple(OPTS.get(_k, False) for _k in _FX_WYCKOFF_DETECTION_KEYS)
+        ck = (sym, tf, n, Tm[0], Tm[-1], WIN) + _wy_detection_ck()
         if ck not in _WY_CANDIDATES:
             _WY_CANDIDATES[ck] = {(side, k): _wyckoff_candidates(side, O[k - WIN:k], H[k - WIN:k], L[k - WIN:k], C[k - WIN:k], V[k - WIN:k], tf, sym)
                                   for k in range(WIN, n + 1) for side in ("long", "short")}

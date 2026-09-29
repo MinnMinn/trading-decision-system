@@ -377,7 +377,11 @@ def backtest_config_snapshot(bt, *, timeframes, methods, configs=None, fee_pct=N
                                      # _fires_from) and default to v1 (False) -- the live/pilot path never sets
                                      # them, so a residual snapshot never claims one was applied that was not.
                                      "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring",
-                                     "fx_w5_vp_abandon", "fx_w7_htf_target")
+                                     "fx_w5_vp_abandon", "fx_w7_htf_target",
+                                     # Batch 2(a) Wyckoff V items (plan §3 V grid): read on the scan path
+                                     # (backtest-methods._fires_from / _wy_params / scan); baseline = v1.
+                                     "fx_w_stop", "fx_w4a_linger_closes", "fx_w6_window", "fx_w_spt",
+                                     "fx_w_touch", "fx_w_tw")
                                     + ("fx_a2b_stale_htf_block",)
                                     + tuple(getattr(bt, "FX_ICT_KEYS", ()))},
                                    varied_per_config=residual),

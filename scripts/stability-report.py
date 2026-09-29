@@ -85,6 +85,10 @@ def config_opts(cfg, ict_target):
                 # silently omit a scan-cache-relevant key (see _SCAN_RELEVANT_KEYS below).
                 fx_w1_tr_low_st=False, fx_w2_st_below_sc=False, fx_w3_mSOW_spring=False, fx_w5_vp_abandon=False,
                 fx_w7_htf_target=False,
+                # Batch 2(a) Wyckoff V items (plan §3 V grid; docs/architecture/v-grid-wyckoff.json): the baseline
+                # (= v1) of each key, stated for the same "complete overlay" reason. W-MGMT is `mgmt` above.
+                fx_w_stop="current", fx_w4a_linger_closes=None, fx_w6_window=300, fx_w_spt="AR", fx_w_touch="off",
+                fx_w_tw=(12, 2),
                 # A2b decision side (plan §2): v1 default, stated so the overlay stays complete.
                 fx_a2b_stale_htf_block=False)
 
@@ -125,6 +129,11 @@ _SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "slope
                        # target/placeability. All five change scan()'s trades and MUST separate cache entries.
                        "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon",
                        "fx_w7_htf_target",
+                       # Batch 2(a) Wyckoff V items: fx_w4a_linger_closes / fx_w_tw change DETECTION (per-call P=
+                       # overrides, `_WY_CANDIDATES` key); fx_w6_window changes the window scan() walks;
+                       # fx_w_stop / fx_w_spt / fx_w_touch change `_fires_from`'s stop / target / gate. All six
+                       # change scan()'s trades and MUST separate cache entries.
+                       "fx_w_stop", "fx_w4a_linger_closes", "fx_w6_window", "fx_w_spt", "fx_w_touch", "fx_w_tw",
                        # A2b decision side: htf_bias_gate refuses a stale HTF tier, so scans with it on/off differ.
                        "fx_a2b_stale_htf_block")
 
