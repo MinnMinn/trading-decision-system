@@ -309,6 +309,7 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
     detect_distributions on inverted prices, so the break bar is typed against the Upthrust table
     (Bang 2.2) instead of the Spring table (WY-1, docs/audits/2026-09-24-system-audit.md)."""
     n = len(C); k = P["pivot"]; sw = swings(H, L, k, pivots=pivots); out = []
+    sw_bars = [s[0] for s in sw]    # swing bars are non-decreasing: bisect targets for the "first swing after bar X" reads below
     lb = P["lookback"]
     spread = _LazySpread(H, L)      # bar ranges: built on first use (most windows never reach a use)
     used_until = -1
@@ -336,13 +337,17 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
             continue
         sc_i = i; sc_low = px; bump("1_downtrend_low")
         # prior counter-trend reactions of the downtrend: (spread, volume) of each up-swing before SC
+        # Speed (byte-identical): only the LAST nd+1 reactions are ever read (`prior[-nd - 1:]`), so walk back from the
+        # SC swing and stop once they are collected; the forward scan this replaces was O(swings before SC) per
+        # candidate (O(swings^2) over a long series). Swing bars are non-decreasing and kinds alternate, so the
+        # forward loop's `sw[a][0] >= sc_i` break and `sw[a + 1][0] <= sc_i` test only ever cut at a <= si - 2.
         prior = []
-        for a in range(len(sw) - 1):
-            if sw[a][0] >= sc_i:
-                break
-            if sw[a][1] == "L" and sw[a + 1][1] == "H" and sw[a + 1][0] <= sc_i:
+        a = si - 1
+        while a >= 0 and len(prior) < nd + 1:
+            if sw[a][1] == "L" and sw[a + 1][1] == "H" and sw[a][0] < sc_i and sw[a + 1][0] <= sc_i:
                 prior.append((sw[a + 1][2] - sw[a][2], sum(V[sw[a][0]:sw[a + 1][0] + 1])))
-        prior = prior[-nd - 1:]
+            a -= 1
+        prior.reverse()
         if not prior:
             continue
         ref_spread = sum(p[0] for p in prior) / len(prior); ref_vol = sum(p[1] for p in prior) / len(prior)  # "spread and effort larger than the trend's reactions" (WA p68); mean of the last reactions = project reading
@@ -373,7 +378,7 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
         if tr <= 0:
             continue
         # --- ST[A]: first swing low after AR holding above SC (R3) ---
-        st = next((s for s in sw if s[0] > ar[0] and s[1] == "L"), None)
+        st = next((s for s in sw[bisect.bisect_right(sw_bars, ar[0]):] if s[1] == "L"), None)
         if st is None:
             bump("3_no_st"); continue
         st_pct = (st[2] - tr_lo) / tr
@@ -388,7 +393,7 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
         if P.get("fx_w1_tr_low_st") and st[2] < tr_lo:
             tr_lo = st[2]; tr = tr_hi - tr_lo
         # --- Phase B: swings after ST; sloped check (R4, R5) ---
-        after = [s for s in sw if s[0] > st[0]]
+        after = sw[bisect.bisect_right(sw_bars, st[0]):]
         if not after:
             continue
         # walk bars from the CHoCH for the first break below the TR low
