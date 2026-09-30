@@ -37,7 +37,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 SCRIPTS = os.path.join(ROOT, "scripts")
 sys.path.insert(0, SCRIPTS)
 
-BASE = "fef6d6b"
+# Reference = the engine BEFORE any speed work but WITH the two owner-adopted behaviour changes made afterwards
+# (B-RAID no-raid recency bound; flat-before-rollover fill-boundary check). Those two are deliberate result changes, so
+# the reference must include them or this test would flag them as speed regressions. Commit 0ab0986 = fef6d6b plus
+# exactly those two cherry-picked commits, kept on the local branch `speed-reference` (push it with the repo).
+BASE = "0ab0986"
 FTMO = os.path.join(ROOT, "data", "history", "ftmo")
 TFS = ("1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W")
 
