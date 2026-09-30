@@ -29,7 +29,7 @@ system's own parameters read from docs/architecture/analysis-params.json (projec
 Dealing range = nearest unswept BSL above / SSL below the last close (knowledge/ict/core-a.md §2.18), window extremes as fallback.
 MSS carries a displacement flag (knowledge/ict/core-a.md §2.16); a setup candidate requires it. 2026-09-12 (docs/audits/2026-09-12-ict-pdf-recheck.md).
 """
-import argparse, json, os, sys, datetime
+import argparse, bisect, json, os, sys, datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -108,6 +108,13 @@ V_ICT = {
     "fx_b7": ("all_hours", "killzone"),
 }
 V_ICT_DEFAULTS = {k: v[0] for k, v in V_ICT.items()}
+# The `opts` keys analyze() ITSELF reads -- every other fx_ key acts downstream of it (setup_candidate(), the gates and
+# walk() in backtest-methods.py). scripts/scan_many.py shares ONE per-bar analysis between value sets that agree on
+# these keys and recomputes it for value sets that differ, so a key missing here would silently hand a value set
+# another value set's analysis. scripts/tests/test_speed_equivalence.py derives the true set from analyze()'s own
+# source (ast) and by perturbing every registered fx_ key, and fails if this tuple is not exactly that set: add a key
+# to analyze()'s reads and that test fails until it is listed here.
+ANALYZE_OPT_KEYS = ("fx_b1_pivot1", "fx_b2b_ce_fail", "fx_b_pool")
 # ATR period for B-BUF: PROJECT-DEFINED. The plan declares only the multiples (0.1 / 0.25) of "ATR", not its length.
 ATR_PERIOD = 14
 # The two session windows the deck names as liquidity (core-a.md §2.9: "Asian Session High/Low, London Session
@@ -227,8 +234,15 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
     piv_bars = 1 if (ict and opts.get("fx_b1_pivot1")) else PIV
     sh, sl = [], []
     for i in (range(piv_bars, n - piv_bars) if ict else ()):
-        if all(H[j] <= H[i] for j in range(i - piv_bars, i + piv_bars + 1) if j != i): sh.append(i)
-        if all(L[j] >= L[i] for j in range(i - piv_bars, i + piv_bars + 1) if j != i): sl.append(i)
+        # Speed (byte-identical): `all(H[j] <= H[i] for j != i in i-piv..i+piv)` as an early-exit loop -- the same
+        # predicate (a NaN comparison is False in both), no generator per bar.
+        h, l = H[i], L[i]
+        for j in range(i - piv_bars, i + piv_bars + 1):
+            if j != i and not H[j] <= h: break
+        else: sh.append(i)
+        for j in range(i - piv_bars, i + piv_bars + 1):
+            if j != i and not L[j] >= l: break
+        else: sl.append(i)
 
     fx_b2b = bool(opts.get("fx_b2b_ce_fail"))
     fvgs = []
@@ -238,9 +252,16 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
         elif L[i - 1] > H[i + 1]: f = {"type": "bear", "i": i, "lo": H[i + 1], "hi": L[i - 1]}
         if not f: continue
         f["size"] = f["hi"] - f["lo"]; f["ce"] = (f["hi"] + f["lo"]) / 2; f["end"] = n - 1; f["mitigated"] = False
-        for j in range(i + 2, n):
-            if (f["type"] == "bull" and L[j] <= f["hi"]) or (f["type"] == "bear" and H[j] >= f["lo"]):
-                f["end"] = j; f["mitigated"] = True; break
+        if f["type"] == "bull":                  # Speed (byte-identical): the type is tested once, not per bar
+            lvl = f["hi"]
+            for j in range(i + 2, n):
+                if L[j] <= lvl:
+                    f["end"] = j; f["mitigated"] = True; break
+        else:
+            lvl = f["lo"]
+            for j in range(i + 2, n):
+                if H[j] >= lvl:
+                    f["end"] = j; f["mitigated"] = True; break
         # B2b (core-a.md §2.26, R23): "IF a pullback body-closes through the 0.5 (CE) of the FVG you are
         # trading, THEN treat the FVG as failing; a subsequent close through the far edge completes the
         # failure and inverts the gap." Causal: walk forward from i+2 (the same bar the mitigation scan above
@@ -262,12 +283,22 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
 
     tol = eq * EQ_TOL
     pools = []
+    # Speed (byte-identical): the dedupe below asks "is there a pool of this kind within `tol` of `level`" -- the
+    # levels of each kind are kept sorted so only the few within reach are tested, and each is then tested with the
+    # ORIGINAL expression (`abs(p - level) <= tol`); the search window is widened by 1e-9 relative so float rounding at
+    # the edge can never exclude a level the original test would have accepted.
+    _lv = {"BSL": [], "SSL": []}
+    _reach = tol * (1 + 1e-9) + 1e-300
     def add(kind, idxs, level, ptype):
         # Dedupe BEFORE the sweep scan, not after. The scan is O(bars) and `analyze()` runs once per bar in a
         # backtest, so paying it for a pool that is about to be discarded is the whole cost of adding the
         # second liquidity type below. The order is safe: the dedupe compares kind and level only.
-        if any(p["kind"] == kind and abs(p["level"] - level) <= tol for p in pools):
-            return
+        lv = _lv[kind]
+        k0 = bisect.bisect_left(lv, level - _reach); k1 = bisect.bisect_right(lv, level + _reach)
+        for q in range(k0, k1):
+            if abs(lv[q] - level) <= tol:
+                return
+        bisect.insort(lv, level)
         # ICT-1 (docs/audits/2026-09-24-system-audit.md; knowledge/ict/core-a.md §4 pattern table: "Wick trades
         # below the previous low; body closes at or above it | MUST NOT: Body close below"; §3.2 R6: a level
         # traded through with body closes is "a draw that was reached" -- continuation, not a sweep; R25: a
@@ -278,15 +309,18 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
         # checked intervening bars for a body close, so a level already closed through was later recorded as
         # "swept" by an unrelated rally/decline candle many bars afterward.
         first, last = min(idxs), max(idxs); swept = -1; state = "intact"; closed_at = None
-        for j in range(last + 1, n):
-            if kind == "BSL" and C[j] > level:
-                state, closed_at = "closed_through", j; break
-            if kind == "SSL" and C[j] < level:
-                state, closed_at = "closed_through", j; break
-            if kind == "BSL" and H[j] > level and C[j] < level:
-                swept, state = j, "swept"; break
-            if kind == "SSL" and L[j] < level and C[j] > level:
-                swept, state = j, "swept"; break
+        if kind == "BSL":            # Speed (byte-identical): the same per-bar tests in the same order, the kind branched once
+            for j in range(last + 1, n):
+                if C[j] > level:
+                    state, closed_at = "closed_through", j; break
+                if H[j] > level and C[j] < level:
+                    swept, state = j, "swept"; break
+        elif kind == "SSL":
+            for j in range(last + 1, n):
+                if C[j] < level:
+                    state, closed_at = "closed_through", j; break
+                if L[j] < level and C[j] > level:
+                    swept, state = j, "swept"; break
         pools.append({"kind": kind, "level": level, "from": first, "swept": swept, "type": ptype,
                       "state": state, "closed_at": closed_at,
                       # A1 code review round 1 (structures.py needs the LAST constituent pivot's bar to compute
@@ -306,12 +340,13 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
     # sweep, never a target, never a dealing-range edge. That is the measured reason the dealing range kept
     # falling back to the scan-window edge (52 % of point-in-time samples read dr_source = mixed) --
     # docs/audits/2026-09-19-knowledge-fidelity.md finding 10.
+    Hs = [H[q] for q in sh]; Ls = [L[q] for q in sl]     # Speed (byte-identical): the swing prices, indexed once
     for a in range(len(sh)):
         for b in range(a + 1, len(sh)):
-            if abs(H[sh[a]] - H[sh[b]]) <= tol and sh[b] - sh[a] >= 4: add("BSL", [sh[a], sh[b]], max(H[sh[a]], H[sh[b]]), "equal"); break
+            if abs(Hs[a] - Hs[b]) <= tol and sh[b] - sh[a] >= 4: add("BSL", [sh[a], sh[b]], max(Hs[a], Hs[b]), "equal"); break
     for a in range(len(sl)):
         for b in range(a + 1, len(sl)):
-            if abs(L[sl[a]] - L[sl[b]]) <= tol and sl[b] - sl[a] >= 4: add("SSL", [sl[a], sl[b]], min(L[sl[a]], L[sl[b]]), "equal"); break
+            if abs(Ls[a] - Ls[b]) <= tol and sl[b] - sl[a] >= 4: add("SSL", [sl[a], sl[b]], min(Ls[a], Ls[b]), "equal"); break
     for i in sh: add("BSL", [i], H[i], "old")
     for i in sl: add("SSL", [i], L[i], "old")
     # B-POOL (fx_b_pool="on"; knowledge/ict/core-a.md §2.8 "Previous Day High & Low are liquidity levels", §2.9
@@ -435,8 +470,12 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
     # previous UTC-day high/low (knowledge/ict/core-a.md §2.12; day boundary 00Z is a project assumption) when the window spans more than one day
     days = {}
     for i in range(n):
-        d = T[i][:10]; o = days.setdefault(d, {"h": H[i], "l": L[i], "i": i})
-        o["h"] = max(o["h"], H[i]); o["l"] = min(o["l"], L[i])
+        d = T[i][:10]; o = days.get(d)
+        if o is None:                    # Speed (byte-identical): no throw-away dict per bar; max/min keep the first on ties
+            days[d] = {"h": H[i], "l": L[i], "i": i}
+        else:
+            if H[i] > o["h"]: o["h"] = H[i]
+            if L[i] < o["l"]: o["l"] = L[i]
     dkeys = sorted(days)
     prev_day = None
     if ict and len(dkeys) >= 2:
@@ -567,7 +606,6 @@ def setup_candidate(a, c, lookback, opts=None):
       fx_b_ex (entry price on the FVG), fx_b_pd (range framing of the premium/discount gate), fx_b_buf (stop
       buffer beyond the swept wick), fx_b_exit (only its target-sigma part is read here)."""
     opts = opts or {}
-    H = [x["high"] for x in c]; L = [x["low"] for x in c]; T = [x["time"] for x in c]
     n = len(c)
     if not a["mss"]:
         return None
@@ -597,6 +635,9 @@ def setup_candidate(a, c, lookback, opts=None):
     # fx_braid_optional supplied a candidate with no raid -- the closest analogue to "the originating swing"
     # (core-a.md R22) available without a swept pool to anchor on.
     ref_i = s["swept"] if s is not None else m.get("ext_i", 0)
+    # Speed (byte-identical): the per-window column lists are built only once a candidate exists -- the great majority
+    # of calls (one per bar of a backtest) return above without needing them.
+    H = [x["high"] for x in c]; L = [x["low"] for x in c]; T = [x["time"] for x in c]
     O = [x["open"] for x in c]; Cc = [x["close"] for x in c]
     # ICT-3 (docs/audits/2026-09-24-system-audit.md; knowledge/ict/core-a.md §3.4 R13: "require entry in the
     # discount (below 0.5)"; R14/§2.19: PD arrays are framed by the ENTRY, not the latest close). This

@@ -16,7 +16,8 @@ Usage:
 
 The statistics are scripts/fund_stats.py (pure, separately tested). This file only orchestrates: cells, the
 engine adapter (scripts/backtest-methods.py scan + simulate, unmodified), sealed records (scripts/experiment.py),
-the ledger declaration (scripts/research_ledger.py), one process per candidate (scripts/isolated_pool.py).
+the ledger declaration (scripts/research_ledger.py), one scan pool per candidate (scripts/scan_many.py, whose
+processes come from scripts/isolated_pool.py).
 
 FIXED IN EVERY CELL (plan §6 items 3, 7): real FTMO costs (`COST_PROFILE`, data/history/costs/ftmo/) and
 flat-before-rollover (no overnight holding). A grid item that tries to override either is refused
@@ -27,7 +28,6 @@ Nothing here evaluates real history unless `run` is invoked, and `run` needs the
 and an implemented grid. Batch 3 (owner sign-off) is the only place that happens.
 """
 import argparse
-import concurrent.futures
 import contextlib
 import datetime
 import hashlib
@@ -47,7 +47,7 @@ import experiment as X                # CLAUDE.md §42: the ONE reader/writer of
 import research_ledger as RL          # CLAUDE.md §43/§44: periods + the cell-count declaration
 import history_store as _HS           # the shared history reader / HISTORY_ROOT (single-file or split-gz)
 import instruments as _I              # asset_class of each symbol
-import isolated_pool as _pool         # one process per candidate
+import scan_many as SM                # N value sets in one pass over a series, chunk-parallel (byte-identical to scan())
 
 PLAN_DOC = "docs/plans/2026-09-28-methodology-improvement-plan.md"
 EXPERIMENT_DIR = os.path.join(ROOT, "docs", "experiments", "fund-search")
@@ -370,7 +370,7 @@ def _git(*a):
 FINGERPRINT_FILES = ("scripts/fund_stats.py", "scripts/fund-search.py", "scripts/prop-search.py",
                      "scripts/backtest-methods.py", "scripts/real_costs.py", "scripts/performance.py",
                      "scripts/mt5_time.py", "scripts/ict-scan.py", "scripts/wyckoff_rules.py",
-                     "scripts/live_rules.py")
+                     "scripts/live_rules.py", "scripts/scan_many.py", "scripts/structures.py")
 
 
 def code_fingerprint(files=FINGERPRINT_FILES):
@@ -581,8 +581,10 @@ class BtEngine:
     the load-time PIT seam), with REAL costs and flat-before-rollover fixed on. `trades_for(values)` returns the
     simulated trades of the whole development span for one full V assignment; the folds slice them by time."""
 
-    def __init__(self, grid, runner_method, tf, symbols, bt=None):
+    def __init__(self, grid, runner_method, tf, symbols, bt=None, workers=1):
         self.grid, self.method, self.tf, self.symbols = grid, runner_method, tf, list(symbols)
+        self.workers = max(1, int(workers))          # process budget of scan_many's chunk pool (1 = in-process)
+        self._raw, self._done = {}, {}               # prefetched raw scans / finished trades_for results, by value key
         self.bt = bt or _load_bt()
         missing = [grid.opts_key(i["id"]) for i in grid.items if grid.opts_key(i["id"]) not in self.bt._OPTS_BASE]
         if grid.unimplemented or missing:
@@ -600,18 +602,53 @@ class BtEngine:
             self._adx[s] = FS.adx_index(candles)
             self._last[s] = candles[-1]["time"]
 
+    def has(self, values):
+        key = FS.CountingSource._key(values)
+        return key in self._done or key in self._raw
+
+    def prefetch(self, values_list):
+        """Scan every value set in `values_list` that is not held yet, ONE `scan_many` per symbol (byte-identical to
+        one `bt.scan` per value set: scripts/scan_many.py). This is a cache fill only: `trades_for` still performs
+        the post-processing, and the CountingSource in front of it still counts a value set the first time it is
+        SCORED -- prefetching a set no one later scores would not touch N, and a set is only prefetched because the
+        probe in `prefetch_waves` saw the selection ask for it."""
+        todo = {}
+        for v in values_list:
+            overlay = build_overlay(self.grid, v)      # a V value nobody declared is refused before any scan
+            key = FS.CountingSource._key(v)
+            if not (key in self._done or key in self._raw or key in todo):
+                todo[key] = overlay
+        if not todo:
+            return
+        keys = list(todo)
+        t0 = time.time()
+        per_symbol = {s: SM.scan_many(self.bt, s, self.tf, self.method, [todo[k] for k in keys], workers=self.workers)
+                      for s in self.symbols}
+        for i, key in enumerate(keys):
+            raw = []
+            for s in self.symbols:                     # symbol order: what trades_for always did
+                raw += [t for t in per_symbol[s][i]["trades"][self.method]]
+            self._raw[key] = raw
+        print(f"fund-search: prefetched {len(keys)} value set(s) x {len(self.symbols)} symbol(s) "
+              f"[{self.method} {self.tf}] in {time.time() - t0:.0f}s", file=sys.stderr, flush=True)
+
     def trades_for(self, values):
         overlay = build_overlay(self.grid, values)
-        raw = []
-        for s in self.symbols:
-            scan = self.bt.scan(s, self.tf, only=(self.method,), opts=overlay)
-            raw += [t for t in scan["trades"][self.method]]
+        key = FS.CountingSource._key(values)
+        if key in self._done:
+            return list(self._done[key])         # a copy: a caller cannot mutate the memo (the trade dicts stay shared)
+        raw = self._raw.pop(key, None)
+        if raw is None:
+            raw = []
+            for s in self.symbols:
+                scan = self.bt.scan(s, self.tf, only=(self.method,), opts=overlay)
+                raw += [t for t in scan["trades"][self.method]]
         # a timeout trade whose walk was cut by the end of the (PIT-truncated) series has an UNKNOWN outcome:
         # excluded, exactly as prop-search excludes it (addendum §8.2) -- horizon-independent, because the
         # time-stop H is itself a V item.
         raw = [t for t in raw if not (t.get("outcome") == "timeout" and t["exit_time"] >= self._last[t["symbol"]])]
         import real_costs as _RC
-        self._admission[FS.CountingSource._key(values)] = [
+        self._admission[key] = [
             {"entry_time": t["entry_time"], "R_planned": t.get("R_planned", 99),
              "fee_R": _RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"], t["side"],
                                  COST_PROFILE)["total_R"]} for t in raw]
@@ -619,8 +656,9 @@ class BtEngine:
                                  live_parity_sizing=False)[2]
         provider = fixed_opts()["rollover_provider"]
         assert_no_rollover_crossing(taken, provider, self.tf)
-        self._edge[FS.CountingSource._key(values)] = last_bar_entry_times(taken, self.tf, provider)
-        return [dict(t, adx14=FS.adx_before(self._adx[t["symbol"]], t["entry_time"])) for t in taken]
+        self._edge[key] = last_bar_entry_times(taken, self.tf, provider)
+        self._done[key] = [dict(t, adx14=FS.adx_before(self._adx[t["symbol"]], t["entry_time"])) for t in taken]
+        return list(self._done[key])
 
     def admission_stats(self, values, fold=None):
         """I2: how many candidates the simulate() min_rr filter refused for this V assignment (optionally inside
@@ -676,9 +714,49 @@ ROLLOVER_EDGE_NOTE = ("entries whose entry bar is the LAST bar of a server day. 
                       "docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md).")
 
 
+class _WaveProbe:
+    """A `trades_for` stand-in that records which value sets a stage of the evaluation asks for. A set the engine
+    already holds is answered for real (so the stage's own choices -- which values a fold selects -- are the real
+    ones); any other set is recorded and answered with NO trades, which cannot change what a stage selects: selection
+    reads only sets held from the earlier wave, and the trades of the CHOSEN sets feed nothing that the next
+    request depends on. The probe never counts, scores or stores anything: N is counted by the CountingSource of
+    the real run only."""
+
+    def __init__(self, engine):
+        self.engine, self.missing = engine, {}
+
+    def __call__(self, values):
+        if self.engine.has(values):
+            return self.engine.trades_for(values)
+        self.missing.setdefault(FS.CountingSource._key(values), dict(values))
+        return []
+
+
+def prefetch_waves(engine, grid, cell):
+    """Fill the engine's scan cache in two waves, each ONE `scan_many` per symbol (plan §1.4's search, unchanged):
+    wave 1 = the baseline and every single-factor candidate (every fold's selection asks for exactly these);
+    wave 2 = what only exists once selection has run -- each fold's combined chosen set and every perturbation set.
+    Both lists are DISCOVERED by running the real selection / perturbation code against the probe, not restated
+    here, so they cannot drift from what the evaluation later requests; a request the probes missed is still
+    served (by a plain scan) when it happens, so a wrong probe costs time, never a result."""
+    folds = FS.make_folds(cell["development_start"])
+    delta = FS.bar_delta(cell["timeframe"])
+    p1 = _WaveProbe(engine)
+    FS.nested_walk_forward(grid, p1, folds, delta)
+    engine.prefetch(list(p1.missing.values()))
+    p2 = _WaveProbe(engine)
+    fold_results = FS.nested_walk_forward(grid, p2, folds, delta)
+    FS.perturbation_trade_sets(grid, p2, fold_results)
+    engine.prefetch(list(p2.missing.values()))
+
+
 def evaluate_with_engine(engine, grid, cell, n_comparisons):
     """Nested walk-forward -> perturbation sets -> every §1.4 rule. `engine` needs `trades_for(values)` and
-    `prop_pass(pooled)`; nothing else touches data, so the whole path is testable with a synthetic engine."""
+    `prop_pass(pooled)`; nothing else touches data, so the whole path is testable with a synthetic engine. An engine
+    that also offers `prefetch`/`has` (BtEngine) is filled in two waves first (`prefetch_waves`): faster, same trades,
+    same order of scoring, same N."""
+    if callable(getattr(engine, "prefetch", None)) and callable(getattr(engine, "has", None)):
+        prefetch_waves(engine, grid, cell)
     src = FS.CountingSource(engine.trades_for)
     folds = FS.make_folds(cell["development_start"])
     fold_results = FS.nested_walk_forward(grid, src, folds, FS.bar_delta(cell["timeframe"]))
@@ -711,14 +789,16 @@ def _commission_status(symbols):
     return out
 
 
-def _evaluate_candidate(candidate, plan_hash, grid_dir=None):
-    """Real path: the worker entry point (one process per candidate). Loads its own engine."""
+def _evaluate_candidate(candidate, plan_hash, grid_dir=None, scan_workers=1):
+    """Real path: evaluates one candidate. Loads its own engine; `scan_workers` is the process budget of the scan
+    pool inside it (`--workers`)."""
     grids, paths = load_grids(grid_dir)
     full_grid = grids[candidate["method"]]
     grid = full_grid.runnable()          # N (candidate["n_comparisons"]) was fixed on the FULL grid at plan time
     plan = load_plan(grid_dir)
     cell = next(c for c in plan["cells"] if c["id"] == candidate["cell"])
-    engine = BtEngine(grid, candidate["runner_method"], candidate["timeframe"], candidate["symbols"])
+    engine = BtEngine(grid, candidate["runner_method"], candidate["timeframe"], candidate["symbols"],
+                      workers=scan_workers)
     result = evaluate_with_engine(engine, grid, cell, candidate["n_comparisons"])
     result["declared_not_run"] = full_grid.unimplemented
     return {"record": dict(build_record(candidate, plan_hash, grid, paths[candidate["method"]], result,
@@ -889,24 +969,17 @@ def _cmd_run_inner(plan, cell_id, method, workers, grid_dir):
             results.append(cid)
             print(f"{out['record']['metrics']['evaluation']['verdict'].upper():<12} {cid}", flush=True)
 
-        if workers <= 1:
-            for c in todo:
-                try:
-                    out = _evaluate_candidate(c, plan["plan_hash"], grid_dir)
-                except Exception as exc:  # noqa: BLE001
-                    errors.append((c["id"], exc))
-                    continue
-                _persist(c["id"], out)
-        else:
-            with _pool.IsolatedExecutor(max_workers=workers) as ex:
-                futs = {ex.submit(_evaluate_candidate, c, plan["plan_hash"], grid_dir): c["id"] for c in todo}
-                for fut in concurrent.futures.as_completed(futs):
-                    try:
-                        out = fut.result()
-                    except Exception as exc:  # noqa: BLE001
-                        errors.append((futs[fut], exc))
-                        continue
-                    _persist(futs[fut], out)
+        # `workers` is the process budget of the SCAN pool inside each candidate (scripts/scan_many.py: bar chunks of
+        # one series, one spawned process per chunk via scripts/isolated_pool.py) -- candidates themselves run one at a
+        # time, so the budget is never multiplied. The candidate call keeps its 3-argument shape when workers <= 1.
+        for c in todo:
+            try:
+                out = (_evaluate_candidate(c, plan["plan_hash"], grid_dir) if workers <= 1
+                       else _evaluate_candidate(c, plan["plan_hash"], grid_dir, scan_workers=workers))
+            except Exception as exc:  # noqa: BLE001
+                errors.append((c["id"], exc))
+                continue
+            _persist(c["id"], out)
         if errors:
             raise RuntimeError("fund-search: candidate(s) raised -- FAILING LOUD (an exception is never recorded "
                                "as a fail): " + "; ".join(f"{c}: {type(e).__name__}: {e}" for c, e in errors))
@@ -1073,7 +1146,9 @@ def main(argv=None):
     rp = sub.add_parser("run", help="evaluate one cell (refuses without the ledger declaration)")
     rp.add_argument("--cell", required=True)
     rp.add_argument("--method", choices=sorted(METHODS))
-    rp.add_argument("--workers", type=int, default=1)
+    rp.add_argument("--workers", type=int, default=None,
+                    help="process budget of the scan pool inside each candidate (default min(cpu_count - 2, 10); "
+                         "lowered further so the per-worker memory estimate fits in RAM); 1 = in-process")
     rp.add_argument("--grid-dir")
     rp.add_argument("--allow-drift", action="store_true",
                     help="proceed although the code/settings differ from the declaration; every record is "
@@ -1088,7 +1163,8 @@ def main(argv=None):
     elif a.cmd == "list-cells":
         print(json.dumps([{"cell": c["id"]} for c in load_plan()["cells"]]))
     elif a.cmd == "run":
-        cmd_run(a.cell, method=a.method, workers=a.workers, grid_dir=a.grid_dir, allow_drift=a.allow_drift)
+        cmd_run(a.cell, method=a.method, workers=a.workers if a.workers is not None else SM.default_workers(),
+                grid_dir=a.grid_dir, allow_drift=a.allow_drift)
     elif a.cmd == "report":
         cmd_report()
 

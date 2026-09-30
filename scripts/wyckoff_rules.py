@@ -143,19 +143,60 @@ PARAMS = dict(
 )
 
 
-def swings(H, L, k):
-    """Alternating swing list [(bar, 'H'|'L', price)] from k-bar pivots; consecutive same-kind pivots keep the more extreme one."""
+def swings(H, L, k, pivots=None):
+    """Alternating swing list [(bar, 'H'|'L', price)] from k-bar pivots; consecutive same-kind pivots keep the more extreme one.
+
+    `pivots` (speed, byte-identical): the window's pivot bars already known, as `[(bar, mask)]` ascending, mask bit 1 =
+    a high pivot, bit 2 = a low pivot -- what `window_pivots()` slices out of ONE series-wide `pivot_index()`. A k-bar
+    pivot at bar i reads only bars i-k..i+k, all inside the window for every bar this loop visits, so the flag of a
+    bar is the same whichever window it is read from; the caller (scripts/backtest-methods.py via scan_many.py) proves
+    that by running both paths on real windows. None (every existing caller) = the original per-window scan."""
     out = []
-    for i in range(k, len(H) - k):
-        isH = all(H[j] <= H[i] for j in range(i - k, i + k + 1) if j != i)
-        isL = all(L[j] >= L[i] for j in range(i - k, i + k + 1) if j != i)
-        for kind, px in ((("H", H[i]),) if isH else ()) + ((("L", L[i]),) if isL else ()):
+    if pivots is None:
+        pivots = list(zip(*pivot_index(H, L, k)))
+    for i, mask in pivots:
+        for kind, px in ((("H", H[i]),) if mask & 1 else ()) + ((("L", L[i]),) if mask & 2 else ()):
             if out and out[-1][1] == kind:
                 if (kind == "H" and px >= out[-1][2]) or (kind == "L" and px <= out[-1][2]):
                     out[-1] = (i, kind, px)
             else:
                 out.append((i, kind, px))
     return out
+
+
+def pivot_index(H, L, k):
+    """Every k-bar pivot of a whole series, once: (bars, masks) ascending, mask bit 1 = high pivot (`all(H[j] <= H[i])`
+    over the k bars each side), bit 2 = low pivot -- the exact predicates `swings()` evaluates per window."""
+    bars, masks = [], []
+    for i in range(k, len(H) - k):
+        h, l = H[i], L[i]
+        isH = True
+        for j in range(i - k, i + k + 1):
+            if j != i and not H[j] <= h:
+                isH = False
+                break
+        isL = True
+        for j in range(i - k, i + k + 1):
+            if j != i and not L[j] >= l:
+                isL = False
+                break
+        if isH or isL:
+            bars.append(i)
+            masks.append((1 if isH else 0) | (2 if isL else 0))
+    return bars, masks
+
+
+def window_pivots(index, a, m, k, swap=False):
+    """`swings(..., pivots=)` input for the window of history bars [a, a+m): the series-wide `pivot_index` entries
+    whose bar the window's own loop would visit (a+k .. a+m-k-1), re-based to window-local bars. `swap` exchanges the
+    high and low flags -- the input of `detect_distributions`, which runs the accumulation detector on -L / -H."""
+    import bisect
+    bars, masks = index
+    lo = bisect.bisect_left(bars, a + k)
+    hi = bisect.bisect_left(bars, a + m - k)
+    if not swap:
+        return [(bars[q] - a, masks[q]) for q in range(lo, hi)]
+    return [(bars[q] - a, ((masks[q] & 1) << 1) | ((masks[q] & 2) >> 1)) for q in range(lo, hi)]
 
 
 def avg(xs, i, n):
@@ -246,24 +287,49 @@ def bump(k):
     STATS[k] = STATS.get(k, 0) + 1
 
 
-def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="long"):
+class _LazySpread:
+    """`[h - l for h, l in zip(H, L)]`, built the first time it is indexed or sliced. Speed only (byte-identical): the
+    list feeds two gates deep inside detect_accumulations' loops, which the great majority of windows never reach."""
+    __slots__ = ("_H", "_L", "_v")
+
+    def __init__(self, H, L):
+        self._H, self._L, self._v = H, L, None
+
+    def __getitem__(self, k):
+        if self._v is None:
+            self._v = [h - l for h, l in zip(self._H, self._L)]
+        return self._v[k]
+
+
+def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="long", pivots=None):
     """Walk the series and return every accumulation structure that reaches a Spring candidate, with all rule outputs.
     Each record: dict(sc, ar, st, tr_lo, tr_hi, st_pct, chobev_bars, phase_b_swings, sloped, spring=dict(...), ...).
 
     `side`: "long" for a genuine accumulation/Spring read (Bang 2.1), "short" when called from
     detect_distributions on inverted prices, so the break bar is typed against the Upthrust table
     (Bang 2.2) instead of the Spring table (WY-1, docs/audits/2026-09-24-system-audit.md)."""
-    n = len(C); k = P["pivot"]; sw = swings(H, L, k); out = []
+    n = len(C); k = P["pivot"]; sw = swings(H, L, k, pivots=pivots); out = []
     lb = P["lookback"]
-    spread = [h - l for h, l in zip(H, L)]
+    spread = _LazySpread(H, L)      # bar ranges: built on first use (most windows never reach a use)
     used_until = -1
     for si in range(4, len(sw)):
         i, kind, px = sw[si]
         if kind != "L" or i <= used_until:
             continue
         # --- downtrend before the candidate SC: lower lows and lower highs (R1 precondition) ---
-        lows = [s for s in sw[:si + 1] if s[1] == "L"]; highs = [s for s in sw[:si] if s[1] == "H"]
-        nd = P["downtrend_swings"]
+        # Speed (byte-identical): only the LAST `need` low swings (sw[:si+1]) and high swings (sw[:si]) are ever read below
+        # -- the R1 test looks at the last nd+1 of each, and `lows[-2]` feeds the SOT pushes -- so they are collected by
+        # walking back from `si` and stopping once both have `need` (the full lists this replaces are O(swings) per candidate).
+        nd = P["downtrend_swings"]; need = max(nd + 1, 2)
+        lows, highs, q = [], [], si
+        while q >= 0 and (len(lows) < need or len(highs) < need):
+            sq = sw[q]
+            if sq[1] == "L":
+                if len(lows) < need: lows.append(sq)
+            elif len(highs) < need:
+                highs.append(sq)
+            q -= 1
+        lows.reverse(); highs.reverse()
         if len(lows) < nd + 1 or len(highs) < nd + 1:
             continue
         if not all(lows[-j][2] < lows[-j - 1][2] for j in range(1, nd + 1)) or not all(highs[-j][2] < highs[-j - 1][2] for j in range(1, nd + 1)):
@@ -470,13 +536,15 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
     return out
 
 
-def detect_distributions(O, H, L, C, V, P=PARAMS, volume_kind="traded"):
+def detect_distributions(O, H, L, C, V, P=PARAMS, volume_kind="traded", pivots=None):
     """Mirror: run the accumulation detector on inverted prices (WA p101 schematics are mirror images) and map
     prices back. side="short" (WY-1, docs/audits/2026-09-24-system-audit.md) so the break bar is typed with the
     Upthrust table (Bang 2.2), not the Spring table -- detect_accumulations no longer assumes it is always
     reading a Spring."""
     inv = lambda xs: [-x for x in xs]
-    recs = detect_accumulations(inv(O), inv(L), inv(H), inv(C), V, P, volume_kind, side="short")
+    # `pivots` (if any) was built for the ORIGINAL prices: on -L / -H a high pivot is a low pivot and vice versa,
+    # so the flags arrive already swapped (window_pivots(..., swap=True)).
+    recs = detect_accumulations(inv(O), inv(L), inv(H), inv(C), V, P, volume_kind, side="short", pivots=pivots)
     for r in recs:
         for key in ("tr_lo", "tr_hi", "spring_low", "vpoc", "vah", "val", "lvn", "ceiling"):
             if r.get(key) is not None:
