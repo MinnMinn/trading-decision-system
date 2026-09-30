@@ -8,6 +8,7 @@ passes says so. All data is synthetic -- no real history is evaluated here (that
 
 Run from scripts/tests, ONE module per invocation:  PYTHONPATH=.. python3 -W ignore -m unittest test_fund_search
 """
+import contextlib
 import copy
 import datetime
 import importlib.util
@@ -1427,6 +1428,429 @@ class AdoptedFKeys(unittest.TestCase):
         plan = self.fs.build_plan(grid_dir=FIXTURES, first_bar=lambda s, t: "2010-01-01T00:00:00Z")
         self.assertEqual(plan["adopted_f_keys"], list(self.fs.ADOPTED_F_KEYS))
         self.assertEqual(self.fs.evaluation_config(plan)["adopted_f_keys"], list(self.fs.ADOPTED_F_KEYS))
+
+
+# ============================================================================ Actions scan shards + scan cache
+class ShardLayout(_Helpers):
+    """`list-scan-shards`: a pure function of the plan and the declared grids (data availability, never a result)."""
+
+    def test_every_wave_of_every_symbol_is_covered_by_disjoint_contiguous_slices(self):
+        self._plan_file()
+        plan = self.fs.load_plan()
+        rows = self.fs.shard_plan(plan)
+        groups = {}
+        for r in rows:
+            groups.setdefault((r["cell"], r["method"], r["symbol"], r["wave"]), []).append(r)
+        for rs in groups.values():
+            n = int(rs[0]["slice"].split("/")[1])
+            self.assertEqual(sorted(int(r["slice"].split("/")[0]) for r in rs), list(range(n)))
+            self.assertTrue(all(r["slice"].endswith(f"/{n}") for r in rs))
+            self.assertGreater(sum(r["sets"] for r in rs), 0)
+        self.assertEqual({r["cell"] for r in rows}, {c["id"] for c in plan["cells"]})
+        self.assertEqual(len({r["name"] for r in rows}), len(rows), "shard names (artifact names) must be unique")
+        self.assertEqual(json.loads(json.dumps(rows)), rows)
+        for c in plan["cells"]:      # exactly the plan's symbols of the cell: none added, none dropped
+            self.assertEqual({r["symbol"] for r in rows if r["cell"] == c["id"]}, set(c["symbols"]))
+
+    def test_slices_partition_the_wave_exactly_in_order(self):
+        for n in (0, 1, 5, 39, 99, 187):
+            for k in (1, 2, 3, 7, 17):
+                items = list(range(n))
+                parts = [self.fs.take_slice(items, i, k) for i in range(k)]
+                self.assertEqual([x for p in parts for x in p], items)
+
+    def test_heavy_cells_are_sliced_and_no_shard_is_modelled_over_the_timeout(self):
+        self._plan_file()
+        rows = self.fs.shard_plan(self.fs.load_plan())
+        heavy = [r for r in rows if r["cell"] == "1m-metals" and r["method"] == "ict" and r["wave"] == 1]
+        self.assertGreater(len(heavy), 2)                     # more than one shard per symbol (2 symbols)
+        self.assertFalse(any(r["over_timeout"] for r in rows))
+        self.assertLessEqual(max(r["est_min"] for r in rows), self.fs.SHARD_MODEL["job_timeout_min"])
+
+    def test_the_slice_argument_is_validated(self):
+        self.assertEqual(self.fs.parse_slice("2/5"), (2, 5))
+        for bad in ("5/5", "-1/3", "a/b", "1", "0/0", "1/2/3"):
+            with self.assertRaises(SystemExit):
+                self.fs.parse_slice(bad)
+
+    def test_list_scan_shards_prints_valid_json(self):
+        self._plan_file()
+        buf = io.StringIO()
+        with mock.patch.dict(os.environ, {}), redirect_stdout(buf):
+            self.fs.main(["list-scan-shards", "--wave", "2"])
+        rows = json.loads(buf.getvalue())
+        self.assertTrue(rows and all(r["wave"] == 2 for r in rows))
+
+    def test_the_workflow_uses_these_shards_within_the_cap(self):
+        text = open(os.path.join(ROOT, ".github", "workflows", "fund-search.yml")).read()
+        for needle in ("list-scan-shards --wave 1", "list-scan-shards --wave 2", "--scan-cache", "fund-scan-",
+                       "BT_HISTORY_ROOT", "fetch-depth: 0", "workflow_dispatch:", "contents: read"):
+            self.assertIn(needle, text)
+        for ln in text.splitlines():
+            if ln.strip().startswith("timeout-minutes:"):
+                self.assertLessEqual(int(ln.split(":")[1]), 355)
+        self.assertNotIn("\n  push:", text)
+        self.assertNotIn("pull_request", text)
+
+
+def _write_slice_root(out_root, sym, tf, n_bars, end="2024-03-01T00:00:00Z"):
+    """A temp history root holding `sym` on every timeframe, cut to the span of the last `n_bars` bars of `tf` before `end`."""
+    import history_store as HS
+    ftmo = os.path.join(ROOT, "data", "history", "ftmo")
+    doc, _ = HS.read_doc(sym, tf, root=ftmo)
+    cs = [c for c in doc["candles"] if c["time"] < end][-n_bars:]
+    start, stop = cs[0]["time"], cs[-1]["time"]
+    os.makedirs(out_root, exist_ok=True)
+    for t in ("1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"):
+        d, _ = HS.read_doc(sym, t, root=ftmo)
+        if d is None:
+            continue
+        sub = dict((k, v) for k, v in d.items() if k not in ("candles", "years"))
+        sub["candles"] = [c for c in d["candles"] if start <= c["time"] <= stop]
+        with open(os.path.join(out_root, f"ohlcv.{sym}.{t}.json"), "w", encoding="utf-8") as fh:
+            json.dump(sub, fh)
+    return start, stop
+
+
+class ScanCache(unittest.TestCase):
+    """The scan cache on the REAL BtEngine over a real 5m US500 slice: a run fed by scan shards returns exactly what a
+    cache-less run returns (result, runs_evaluated, trades), and a cache from other code / plan / settings / history,
+    or a torn or tampered file, is REFUSED -- never used, never skipped.
+
+    The slice is far too short for the selection to choose reliably, so `select_values` is wrapped: it still runs for
+    real (and reads the held wave-1 trades), but its answer is forced to "the last candidate of every factor", which
+    guarantees a non-vacuous wave 2 (a combined set and its perturbations, none of them held after wave 1)."""
+
+    SYM, TF, CELL = "US500", "5m", "t-indices"
+
+    @classmethod
+    def setUpClass(cls):
+        if not os.path.isdir(os.path.join(ROOT, "data", "history", "ftmo", f"ohlcv.{cls.SYM}.{cls.TF}")):
+            raise unittest.SkipTest("data/history/ftmo is not present")
+        cls.tmp = tempfile.mkdtemp(prefix="scan-cache-")
+        cls.env = os.environ.get("BT_HISTORY_ROOT")
+        hist = os.path.join(cls.tmp, "hist")
+        cls.start, cls.stop = _write_slice_root(hist, cls.SYM, cls.TF, 7000)
+        os.environ["BT_HISTORY_ROOT"] = hist
+        cls.fs = _fs()
+        real = json.load(open(os.path.join(ROOT, "docs", "architecture", "v-grid-ict.json")))
+        keep = ("B-POOL", "B-PD", "B6", "B-MGMT")
+        cls.grid = FS.Grid({"method": "ICT", "items": [i for i in real["items"] if i["id"] in keep]})
+        a = FS.ts(cls.start)
+        d = datetime.timedelta(days=8)
+        cls.folds = [{"index": k, "train_start": cls.start, "test_start": FS.iso(a + d * (k + 1)),
+                      "test_end": FS.iso(a + d * (k + 2))} for k in range(2)]
+        cls.cell = {"id": cls.CELL, "timeframe": cls.TF, "symbols": [cls.SYM], "development_start": cls.start,
+                    "asset_class": "indices", "n_folds": 2}
+        cls.plan = {"plan_hash": "p" * 16, "cells": [cls.cell], "cell_count": 1,
+                    "candidates": [{"id": "ict-" + cls.CELL, "method": "ict", "runner_method": "ICT", "cell": cls.CELL,
+                                    "timeframe": cls.TF, "symbols": [cls.SYM]}],
+                    "embargo": {"h_multiple": 2}, "grids": {"ict": {"sha256": "g" * 8}}}
+        try:
+            with cls._patched():
+                cls.plain_engine = cls._engine()
+                cls.plain = cls.fs.evaluate_with_engine(cls.plain_engine, cls.grid, cls.cell, 205)
+                # the reference cache, built the way the workflow does: wave 1 in two slices, then wave 2
+                cls.cache = os.path.join(cls.tmp, "cache")
+                w1a = cls._cmd_scan(1, cls.cache, "0/2")
+                w1b = cls._cmd_scan(1, cls.cache, "1/2")
+                cls.w1_files = set(os.listdir(cls.cache))
+                cls.w1 = (w1a, w1b)
+                cls.n1 = w1a["wave_sets"]
+                cls.w2 = cls._cmd_scan(2, cls.cache, "0/1", cache=[cls.cache])
+        except BaseException:
+            cls.tearDownClass()
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.env is None:
+            os.environ.pop("BT_HISTORY_ROOT", None)
+        else:
+            os.environ["BT_HISTORY_ROOT"] = cls.env
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    @classmethod
+    @contextlib.contextmanager
+    def _patched(cls):
+        real_select = FS.select_values
+
+        def forced(grid, train_trades_for):
+            _chosen, scores = real_select(grid, train_trades_for)     # the real selection runs (and reads held trades)
+            chosen = grid.baseline()
+            for g in grid.groups:
+                chosen.update(g["candidates"][-1])
+            return chosen, scores
+
+        with mock.patch.object(FS, "make_folds", side_effect=lambda *a, **k: [dict(f) for f in cls.folds]), \
+                mock.patch.object(FS, "MIN_TRAIN_TRADES", 1), mock.patch.object(FS, "select_values", forced):
+            yield
+
+    @classmethod
+    def _engine(cls):
+        return cls.fs.BtEngine(cls.grid, "ICT", cls.TF, [cls.SYM], workers=1)
+
+    @classmethod
+    def _cmd_scan(cls, wave, out, slice_spec="0/1", cache=()):
+        with mock.patch.object(cls.fs, "load_plan", return_value=cls.plan), \
+                mock.patch.object(cls.fs, "require_declaration", return_value={}), \
+                mock.patch.object(cls.fs, "check_drift", return_value=[]), \
+                mock.patch.object(cls.fs, "load_grids", return_value=({"ict": cls.grid, "wyckoff": cls.grid}, {})), \
+                redirect_stdout(io.StringIO()):
+            return cls.fs.cmd_scan(cls.CELL, cls.SYM, "ict", out, workers=1, wave=wave, slice_spec=slice_spec,
+                                   scan_cache_dirs=list(cache))
+
+    def setUp(self):
+        self.out = os.path.join(tempfile.mkdtemp(prefix="scan-out-"), "cache")
+        self.addCleanup(shutil.rmtree, os.path.dirname(self.out), ignore_errors=True)
+        shutil.copytree(self.cache, self.out)                    # a private, mutable copy of the reference cache
+        p = self._patched()
+        p.__enter__()
+        self.addCleanup(p.__exit__, None, None, None)
+
+    def _load(self, stamp=None, directory=None, engine=None):
+        return (engine or self._engine()).load_scan_cache(stamp or self.fs.scan_cache_stamp(self.plan),
+                                                          [directory or self.out], self.CELL)
+
+    def _first_with_trades(self):
+        for name in sorted(os.listdir(self.out)):
+            f = os.path.join(self.out, name)
+            e = json.load(open(f))
+            if e["trades"]:
+                return f, e
+        self.fail("the slice must produce trades for this check to bite")
+
+    def test_the_reference_cache_is_complete_and_wave_2_is_not_vacuous(self):
+        # 4 items = baseline + 4 candidates, plus the forced combined set the wave-1 probe also asks for (see the class docstring)
+        self.assertEqual(self.n1, 6)
+        self.assertEqual(self.w1[0]["written"] + self.w1[1]["written"], self.n1)
+        self.assertGreater(self.w2["written"], 0)
+        self.assertEqual(len(self.w1_files), self.n1)
+        self.assertEqual(len(os.listdir(self.cache)), self.n1 + self.w2["written"])
+
+    def test_cache_run_is_byte_identical_to_no_cache_run(self):
+        cached = self._engine()
+        full, n = self._load(engine=cached)
+        self.assertEqual(n, self.n1 + self.w2["written"])
+        with mock.patch.object(self.fs.SM, "scan_many", side_effect=AssertionError("scanned on demand")), \
+                mock.patch.object(cached.bt, "scan", side_effect=AssertionError("scanned on demand")):
+            res = self.fs.evaluate_with_engine(cached, self.grid, self.cell, 205)
+        self.assertEqual(json.dumps(res, sort_keys=True, default=repr), json.dumps(self.plain, sort_keys=True, default=repr))
+        self.assertEqual(res["runs_evaluated"], self.plain["runs_evaluated"])
+        self.assertGreater(res["runs_evaluated"], self.n1)                 # wave-2 sets were scored too
+        self.assertEqual(set(cached._done), set(self.plain_engine._done))
+        for k, v in self.plain_engine._done.items():                       # trades: types, key order, float text
+            self.assertEqual(repr(cached._done[k]), repr(v))
+            self.assertEqual(cached._admission[k], self.plain_engine._admission[k])
+            self.assertEqual(cached._edge[k], self.plain_engine._edge[k])
+
+    def test_entries_are_deterministic_bytes(self):
+        other = os.path.join(os.path.dirname(self.out), "again")
+        self._cmd_scan(1, other, "0/1")
+        self.assertEqual(sorted(os.listdir(other)), sorted(self.w1_files))
+        for f in self.w1_files:
+            self.assertEqual(open(os.path.join(self.cache, f), "rb").read(), open(os.path.join(other, f), "rb").read())
+
+    def test_a_rerun_of_a_shard_does_not_rescan(self):
+        with mock.patch.object(self.fs.SM, "scan_many", side_effect=AssertionError("rescanned")):
+            again = self._cmd_scan(1, self.out, "0/1")
+        self.assertEqual((again["written"], again["skipped"]), (0, self.n1))
+
+    def test_a_partial_cache_scans_only_what_is_missing_and_changes_nothing(self):
+        for f in sorted(os.listdir(self.out))[:3]:
+            os.remove(os.path.join(self.out, f))
+        eng = self._engine()
+        self._load(engine=eng)
+        res = self.fs.evaluate_with_engine(eng, self.grid, self.cell, 205)
+        self.assertEqual(json.dumps(res, sort_keys=True, default=repr), json.dumps(self.plain, sort_keys=True, default=repr))
+
+    def test_a_value_set_cached_for_only_some_symbols_is_scanned_for_the_rest(self):
+        """A value set with only ONE of the engine's symbols cached stays partial: prefetch scans just the missing symbol
+        and the pooled raw list is in engine symbol order, exactly as if both had been scanned."""
+        eng = object.__new__(self.fs.BtEngine)
+        eng.grid, eng.method, eng.tf, eng.symbols, eng.workers, eng.bt = self.grid, "ICT", self.TF, ["AAA", "BBB"], 1, None
+        eng._raw, eng._done, eng._part = {}, {}, {}
+        v = self.grid.baseline()
+        key = FS.CountingSource._key(v)
+        eng._part[key] = {"BBB": [{"symbol": "BBB", "n": 1}]}
+        calls = []
+
+        def fake_scan_many(bt, sym, tf, method, overlays, workers=1):
+            calls.append((sym, len(overlays)))
+            return [{"trades": {"ICT": [{"symbol": sym, "n": 0}]}} for _ in overlays]
+
+        with mock.patch.object(self.fs.SM, "scan_many", side_effect=fake_scan_many):
+            eng.prefetch([v])
+        self.assertEqual(calls, [("AAA", 1)])                      # BBB came from the cache
+        self.assertEqual(eng._raw[key], [{"symbol": "AAA", "n": 0}, {"symbol": "BBB", "n": 1}])
+        self.assertNotIn(key, eng._part)
+
+    def test_a_different_code_version_is_refused(self):
+        stamp = self.fs.scan_cache_stamp(self.plan)
+        stamp["code"]["scripts/fund-search.py"] = {"git_sha": "0" * 40, "dirty": False}
+        with self.assertRaises(self.fs.ScanCacheRefused) as cm:
+            self._load(stamp)
+        self.assertIn("code.scripts/fund-search.py", str(cm.exception))
+        stamp = self.fs.scan_cache_stamp(self.plan)
+        stamp["code_sha256"]["scripts/fund_stats.py"] = "f" * 64
+        with self.assertRaises(self.fs.ScanCacheRefused):
+            self._load(stamp)
+
+    def test_a_different_plan_or_evaluation_setting_is_refused(self):
+        stamp = self.fs.scan_cache_stamp(self.plan)
+        stamp["plan_hash"] = "q" * 16
+        with self.assertRaises(self.fs.ScanCacheRefused) as cm:
+            self._load(stamp)
+        self.assertIn("plan_hash", str(cm.exception))
+        stamp = self.fs.scan_cache_stamp(self.plan)
+        stamp["evaluation_config"]["embargo"] = {"h_multiple": 3}
+        with self.assertRaises(self.fs.ScanCacheRefused) as cm:
+            self._load(stamp)
+        self.assertIn("evaluation_config", str(cm.exception))
+
+    def test_a_foreign_entry_of_another_cell_still_refuses(self):
+        """A cache directory is homogeneous or it is wrong: an entry of another cell made by other code still refuses."""
+        f = os.path.join(self.out, sorted(os.listdir(self.out))[0])
+        e = json.load(open(f))
+        e["scope"]["cell"] = "some-other-cell"
+        e["stamp"]["plan_hash"] = "z" * 16
+        e["key"] = self.fs.scan_cache_key(e["stamp"], e["scope"])
+        json.dump(e, open(os.path.join(self.out, e["key"] + ".json"), "w"))
+        with self.assertRaises(self.fs.ScanCacheRefused):
+            self._load()
+
+    def test_an_entry_of_another_cell_made_by_the_same_code_is_ignored_not_used(self):
+        f = os.path.join(self.out, sorted(os.listdir(self.out))[0])
+        e = json.load(open(f))
+        e["scope"]["cell"] = "some-other-cell"
+        e["key"] = self.fs.scan_cache_key(e["stamp"], e["scope"])
+        json.dump(e, open(os.path.join(self.out, e["key"] + ".json"), "w"))
+        os.remove(f)
+        full, n = self._load()
+        self.assertEqual(n, self.n1 + self.w2["written"] - 1)          # the moved entry was not loaded for this cell
+
+    def test_history_that_differs_from_what_the_shard_scanned_is_refused(self):
+        eng = self._engine()
+        eng._series[self.SYM] = dict(eng._series[self.SYM], bars=eng._series[self.SYM]["bars"] + 1)
+        with self.assertRaises(self.fs.ScanCacheRefused) as cm:
+            self._load(engine=eng)
+        self.assertIn("history differs", str(cm.exception))
+
+    def test_a_tampered_file_is_refused(self):
+        f, e = self._first_with_trades()
+        e["trades"][0]["R"] = 12345.0                                  # edit a trade, leave every hash alone
+        json.dump(e, open(f, "w"))
+        with self.assertRaises(self.fs.ScanCacheRefused) as cm:
+            self._load()
+        self.assertIn("sha256", str(cm.exception))
+
+    def test_dropping_a_trade_and_fixing_the_count_is_still_refused(self):
+        f, e = self._first_with_trades()
+        e["trades"].pop()
+        e["n_trades"] = len(e["trades"])
+        json.dump(e, open(f, "w"))
+        with self.assertRaises(self.fs.ScanCacheRefused):
+            self._load()
+
+    def test_a_torn_or_partial_file_is_refused(self):
+        f = os.path.join(self.out, sorted(os.listdir(self.out))[0])
+        raw = open(f, "rb").read()
+        open(f, "wb").write(raw[: len(raw) // 2])                      # cut mid-file
+        with self.assertRaises(self.fs.ScanCacheRefused) as cm:
+            self._load()
+        self.assertIn("partial", str(cm.exception))
+        open(f, "w").write(json.dumps({"format": 1, "key": "x"}))      # valid JSON, structurally incomplete
+        with self.assertRaises(self.fs.ScanCacheRefused) as cm:
+            self._load()
+        self.assertIn("not a complete entry", str(cm.exception))
+
+    def test_a_renamed_file_is_refused_and_a_leftover_tmp_is_never_read(self):
+        f = os.path.join(self.out, sorted(os.listdir(self.out))[0])
+        open(os.path.join(self.out, "half-written.json.tmp"), "w").write("{")      # interrupted atomic write: ignored
+        self._load()
+        os.rename(f, os.path.join(self.out, "renamed.json"))
+        with self.assertRaises(self.fs.ScanCacheRefused) as cm:
+            self._load()
+        self.assertIn("renamed", str(cm.exception))
+
+    def test_a_missing_cache_directory_is_refused(self):
+        with self.assertRaises(self.fs.ScanCacheRefused):
+            self._load(directory=os.path.join(self.out, "nope"))
+
+    def test_wave_2_refuses_an_incomplete_wave_1_and_a_missing_cache(self):
+        os.remove(os.path.join(self.out, sorted(self.w1_files)[0]))
+        with self.assertRaises(SystemExit) as cm:
+            self._cmd_scan(2, os.path.join(os.path.dirname(self.out), "w2"), "0/1", cache=[self.out])
+        self.assertIn("incomplete", str(cm.exception))
+        with self.assertRaises(SystemExit) as cm:
+            self._cmd_scan(2, os.path.join(os.path.dirname(self.out), "w2"), "0/1")
+        self.assertIn("--scan-cache", str(cm.exception))
+
+    def test_wave_2_slices_partition_the_wave_and_together_equal_the_unsliced_wave(self):
+        a, b = os.path.join(os.path.dirname(self.out), "s0"), os.path.join(os.path.dirname(self.out), "s1")
+        r0 = self._cmd_scan(2, a, "0/2", cache=[self.out])          # self.out ALSO holds every wave-2 entry: must not matter
+        r1 = self._cmd_scan(2, b, "1/2", cache=[self.out])
+        self.assertEqual(r0["wave_sets"], r1["wave_sets"])
+        self.assertEqual(r0["slice_sets"] + r1["slice_sets"], r0["wave_sets"])
+        got = set(os.listdir(a)) | set(os.listdir(b))
+        self.assertEqual(got, set(os.listdir(self.cache)) - self.w1_files)
+        self.assertFalse(set(os.listdir(a)) & set(os.listdir(b)))
+
+    def test_scan_refuses_an_output_inside_the_checkout_and_a_symbol_outside_the_cell(self):
+        inside = os.path.join(ROOT, "scan-out-must-not-exist")
+        with self.assertRaises(SystemExit) as cm:
+            self._cmd_scan(1, inside, "0/1")
+        self.assertIn("inside the checkout", str(cm.exception))
+        self.assertFalse(os.path.exists(inside))
+        with mock.patch.object(self.fs, "load_plan", return_value=self.plan), \
+                mock.patch.object(self.fs, "require_declaration", return_value={}), \
+                mock.patch.object(self.fs, "check_drift", return_value=[]):
+            with self.assertRaises(SystemExit) as cm:
+                self.fs.cmd_scan(self.CELL, "XAUUSD", "ict", self.out)
+        self.assertIn("not a symbol of cell", str(cm.exception))
+
+    def test_scan_refuses_without_the_ledger_declaration(self):
+        other = os.path.join(os.path.dirname(self.out), "nodecl")
+        with mock.patch.object(self.fs, "load_plan", return_value=self.plan), \
+                mock.patch.object(self.fs, "require_declaration", side_effect=self.fs.LedgerDeclarationMissing("no")):
+            with self.assertRaises(SystemExit):
+                self.fs.cmd_scan(self.CELL, self.SYM, "ict", other)
+        self.assertFalse(os.path.exists(other))
+
+    def test_entries_that_do_not_survive_json_are_never_written(self):
+        scope = self.fs.scan_cache_scope(self.CELL, "ICT", self.TF, self.SYM, "k", {"bars": 1})
+        with self.assertRaises(self.fs.ScanCacheRefused):
+            self.fs.write_scan_entry(os.path.join(os.path.dirname(self.out), "bad"), self.fs.scan_cache_stamp(self.plan),
+                                     scope, [{"a": (1, 2)}])           # a tuple would come back a list
+        self.assertFalse(os.path.exists(os.path.join(os.path.dirname(self.out), "bad")))
+
+
+class ScanCacheRunPlumbing(_Helpers):
+    """`run --scan-cache` reaches `_evaluate_candidate` only when given (the 3-argument shape is otherwise unchanged)."""
+
+    def setUp(self):
+        super().setUp()
+        self._plan_file()
+        self.fs.cmd_declare()
+
+    def test_without_the_flag_the_candidate_call_is_unchanged(self):
+        seen = []
+        with mock.patch.object(self.fs, "_evaluate_candidate",
+                               side_effect=lambda *a, **k: seen.append((len(a), tuple(sorted(k)))) or self._fake_out(a[0], a[1])):
+            self.fs.cmd_run("5m-metals", grid_dir=FIXTURES)
+        self.assertEqual(set(seen), {(3, ())})
+
+    def test_with_the_flag_the_directories_are_passed_through(self):
+        seen = []
+        with mock.patch.object(self.fs, "_evaluate_candidate",
+                               side_effect=lambda *a, **k: seen.append(k) or self._fake_out(a[0], a[1])):
+            self.fs.cmd_run("5m-metals", grid_dir=FIXTURES, scan_cache_dirs=["/x/y"])
+        self.assertEqual([k["scan_cache_dirs"] for k in seen], [["/x/y"], ["/x/y"]])
+
+    def test_the_cli_accepts_a_repeatable_scan_cache_flag(self):
+        with mock.patch.object(self.fs, "cmd_run") as run, mock.patch.dict(os.environ, {}):
+            self.fs.main(["run", "--cell", "5m-metals", "--workers", "1", "--scan-cache", "/a", "--scan-cache", "/b"])
+        self.assertEqual(run.call_args.kwargs["scan_cache_dirs"], ["/a", "/b"])
 
 
 if __name__ == "__main__":

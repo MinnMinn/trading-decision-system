@@ -12,6 +12,9 @@ Usage:
     python3 scripts/fund-search.py declare                             # record the cell count in the research ledger
     python3 scripts/fund-search.py list-cells                          # JSON cell list (the CI matrix)
     python3 scripts/fund-search.py run --cell <id> [--method ict|wyckoff] [--workers N]
+    python3 scripts/fund-search.py run ... [--scan-cache DIR ...]      # load verified Actions scan shards (docs/audits/2026-09-30-actions-sharding.md)
+    python3 scripts/fund-search.py scan --cell <id> --symbol <S> --method ict|wyckoff --out DIR [--wave 1|2] [--slice I/N]
+    python3 scripts/fund-search.py list-scan-shards [--wave 1|2] [--explain]   # the scan-shard matrix (JSON)
     python3 scripts/fund-search.py report
 
 The statistics are scripts/fund_stats.py (pure, separately tested). This file only orchestrates: cells, the
@@ -611,6 +614,147 @@ def prop_row_from_metric(p):
     return {"value": None, "reason": reason or "metric absent"}
 
 
+# ------------------------------------------------------------------ scan cache (GitHub Actions sharding, audit
+# docs/audits/2026-09-30-actions-sharding.md). The expensive, SYMBOL-LOCAL unit of a candidate is the raw output of
+# one `scan_many` for one (value set, symbol): the trade list `bt.scan` returns BEFORE `trades_for` post-processes it.
+# A shard job computes and persists those; the evaluating job loads them into `BtEngine._raw` and runs the unchanged
+# `trades_for` (pooling, timeout exclusion, admission/rollover rows, simulate, adx14) on them -- so the result is the
+# one a cache-less run computes. An entry is only ever used when its whole identity matches THIS run; anything else
+# is REFUSED loudly, never skipped, never "close enough".
+SCAN_CACHE_FORMAT = 1
+
+
+class ScanCacheRefused(SystemExit):
+    """A scan-cache entry cannot be trusted (different code / plan / settings / data, or torn or tampered file)."""
+
+
+def _canon(obj):
+    return json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def _sha_text(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def scan_cache_stamp(plan):
+    """What every entry of one cache must share: the plan, the code (last-commit SHAs, dirty flags AND file content
+    hashes, so two dirty trees never look alike) and the evaluation settings -- the same three things `declare`
+    pins. The FTMO history is covered per entry by `scope.series` (bar count, first and last bar of the PIT-truncated
+    series the scan read)."""
+    return {"format": SCAN_CACHE_FORMAT, "plan_hash": plan["plan_hash"], "code": code_fingerprint(),
+            "code_sha256": {f: _sha256_file(os.path.join(ROOT, f)) for f in FINGERPRINT_FILES},
+            "evaluation_config": evaluation_config(plan)}
+
+
+def scan_cache_scope(cell_id, runner_method, tf, symbol, value_key, series):
+    return {"cell": cell_id, "runner_method": runner_method, "timeframe": tf, "symbol": symbol,
+            "value_key": value_key, "series": dict(series)}
+
+
+def scan_cache_key(stamp, scope):
+    return _sha_text(_canon({"stamp": stamp, "scope": scope}))
+
+
+def _diff_lines(want, got, prefix=""):
+    out = []
+    if isinstance(want, dict) and isinstance(got, dict):
+        for k in sorted(set(want) | set(got)):
+            out += _diff_lines(want.get(k), got.get(k), f"{prefix}{k}.")
+    elif _canon(want) != _canon(got):
+        out.append(f"{prefix.rstrip('.') or 'value'}: this run {want!r}, entry {got!r}")
+    return out
+
+
+def write_scan_entry(out_dir, stamp, scope, trades):
+    """Persist one (value set, symbol) raw scan. Deterministic bytes (no timestamp); written atomically. Fails loud if
+    the trades do not survive a JSON round trip unchanged (types, key order, float text) -- a cache that altered a
+    trade would break byte-identity, so it is never written."""
+    body = json.dumps(trades, ensure_ascii=False, separators=(",", ":"))
+    if repr(json.loads(body)) != repr(trades):
+        raise ScanCacheRefused(f"scan cache: the trades of {scope['symbol']} / {scope['value_key']} are not JSON "
+                               f"round-trippable unchanged; refusing to write an entry that could alter a result")
+    key = scan_cache_key(stamp, scope)
+    entry = {"format": SCAN_CACHE_FORMAT, "key": key, "stamp": stamp, "scope": scope, "n_trades": len(trades),
+             "trades_sha256": _sha_text(body), "trades": trades}
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, key + ".json")
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(entry, ensure_ascii=False, separators=(",", ":")))
+    os.replace(tmp, path)
+    return path
+
+
+_ENTRY_KEYS = ("format", "key", "stamp", "scope", "n_trades", "trades_sha256", "trades")
+_SCOPE_KEYS = ("cell", "runner_method", "timeframe", "symbol", "value_key", "series")
+
+
+def read_scan_entry(path, stamp):
+    """One entry, fully verified against `stamp` (this run's plan / code / settings). Raises ScanCacheRefused."""
+    def bad(why):
+        raise ScanCacheRefused(f"scan cache REFUSED: {path}: {why}")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            entry = json.loads(fh.read())
+    except (OSError, ValueError) as exc:
+        bad(f"unreadable, torn or partial file ({type(exc).__name__}: {exc})")
+    if not isinstance(entry, dict) or any(k not in entry for k in _ENTRY_KEYS):
+        bad(f"not a complete entry (missing {[k for k in _ENTRY_KEYS if not isinstance(entry, dict) or k not in entry]})")
+    if entry["format"] != SCAN_CACHE_FORMAT:
+        bad(f"format {entry['format']!r}, this code reads {SCAN_CACHE_FORMAT}")
+    diff = _diff_lines(stamp, entry["stamp"])
+    if diff:
+        bad("made by a different plan / code / evaluation settings than this run:\n  " + "\n  ".join(diff[:12]))
+    scope = entry["scope"]
+    if not isinstance(scope, dict) or any(k not in scope for k in _SCOPE_KEYS):
+        bad("incomplete scope")
+    if entry["key"] != scan_cache_key(entry["stamp"], scope) or os.path.basename(path) != entry["key"] + ".json":
+        bad("the content hash does not match the file's key/name (renamed, edited or foreign file)")
+    trades = entry["trades"]
+    if not isinstance(trades, list) or len(trades) != entry["n_trades"]:
+        bad(f"trade count {len(trades) if isinstance(trades, list) else 'n/a'} != recorded {entry['n_trades']}")
+    if _sha_text(json.dumps(trades, ensure_ascii=False, separators=(",", ":"))) != entry["trades_sha256"]:
+        bad("trades do not match their recorded sha256 (tampered or corrupted)")
+    return entry
+
+
+def iter_scan_files(dirs):
+    """Every `*.json` under `dirs` (recursively: a downloaded artifact may or may not add a sub-directory), sorted.
+    `*.tmp` (an interrupted atomic write) is never an entry and never read."""
+    out = []
+    for d in dirs:
+        if not os.path.isdir(d):
+            raise ScanCacheRefused(f"scan cache directory {d!r} does not exist")
+        for base, _dirs, files in os.walk(d):
+            out += [os.path.join(base, f) for f in files if f.endswith(".json")]
+    return sorted(out)
+
+
+def load_scan_entries(dirs, stamp, cell_id, runner_method, tf, series_by_symbol):
+    """{(value_key, symbol): raw trades} for THIS candidate. EVERY `*.json` under `dirs` must verify against `stamp`
+    (an entry of another cell is still refused when its code/plan differs: a cache directory is homogeneous or it is
+    wrong); only entries of this cell / method / timeframe / a symbol of the cell are returned, and those must also
+    match the series the engine itself loaded (a changed history file is refused, not used)."""
+    got, sha = {}, {}
+    for path in iter_scan_files(dirs):
+        e = read_scan_entry(path, stamp)
+        sc = e["scope"]
+        if (sc["cell"], sc["runner_method"], sc["timeframe"]) != (cell_id, runner_method, tf):
+            continue
+        if sc["symbol"] not in series_by_symbol:
+            continue
+        if _canon(sc["series"]) != _canon(series_by_symbol[sc["symbol"]]):
+            raise ScanCacheRefused(f"scan cache REFUSED: {path}: recorded series {sc['series']} but this run loaded "
+                                   f"{series_by_symbol[sc['symbol']]} for {sc['symbol']} {tf} (history differs)")
+        k = (sc["value_key"], sc["symbol"])
+        if k in got:
+            if sha[k] != e["trades_sha256"]:
+                raise ScanCacheRefused(f"scan cache REFUSED: two entries for {k} disagree (non-deterministic scan?)")
+            continue
+        got[k], sha[k] = e["trades"], e["trades_sha256"]
+    return got
+
+
 class BtEngine:
     """scripts/backtest-methods.py `scan` + `simulate`, unmodified, truncated at DEV_CUTOFF (`bt.pit_cutoff`,
     the load-time PIT seam), with REAL costs and flat-before-rollover fixed on. `trades_for(values)` returns the
@@ -630,12 +774,15 @@ class BtEngine:
         neutralise_ruin(self.bt)
         self._admission, self._edge = {}, {}
         self._adx, self._last = {}, {}
+        self._part = {}                              # value key -> {symbol: raw trades} held from a scan cache, incomplete
+        self._series = {}                            # symbol -> what the PIT-truncated series looks like (scan-cache identity)
         for s in self.symbols:
             candles, _src = self.bt.load(s, tf)
             if not candles:
                 raise RuntimeError(f"{s} {tf}: no candles under {_HS.history_root()} (the plan said it has some)")
             self._adx[s] = FS.adx_index(candles)
             self._last[s] = candles[-1]["time"]
+            self._series[s] = {"bars": len(candles), "first_open": candles[0]["time"], "last_open": candles[-1]["time"]}
 
     def has(self, values):
         key = FS.CountingSource._key(values)
@@ -657,15 +804,55 @@ class BtEngine:
             return
         keys = list(todo)
         t0 = time.time()
-        per_symbol = {s: SM.scan_many(self.bt, s, self.tf, self.method, [todo[k] for k in keys], workers=self.workers)
-                      for s in self.symbols}
-        for i, key in enumerate(keys):
+        part = getattr(self, "_part", {})
+        scanned = {}                                   # (key, symbol) -> raw trades scanned NOW
+        for s in self.symbols:                         # a (set, symbol) a scan cache already holds is not scanned again
+            need = [k for k in keys if s not in part.get(k, {})]
+            if need:
+                res = SM.scan_many(self.bt, s, self.tf, self.method, [todo[k] for k in need], workers=self.workers)
+                for k, r in zip(need, res):
+                    scanned[(k, s)] = [t for t in r["trades"][self.method]]
+        for key in keys:
             raw = []
             for s in self.symbols:                     # symbol order: what trades_for always did
-                raw += [t for t in per_symbol[s][i]["trades"][self.method]]
+                raw += scanned[(key, s)] if (key, s) in scanned else part[key][s]
             self._raw[key] = raw
+            part.pop(key, None)
         print(f"fund-search: prefetched {len(keys)} value set(s) x {len(self.symbols)} symbol(s) "
               f"[{self.method} {self.tf}] in {time.time() - t0:.0f}s", file=sys.stderr, flush=True)
+
+    def scan_symbol(self, symbol, values_list):
+        """{value key: raw trades} of ONE symbol for every value set in `values_list`, ONE `scan_many` (the unit an
+        Actions scan shard persists). Same overlays, same call as `prefetch`, so the trades are the ones a run holds."""
+        keys, overlays = [], []
+        for v in values_list:
+            overlays.append(build_overlay(self.grid, v))
+            keys.append(FS.CountingSource._key(v))
+        if not keys:
+            return {}
+        res = SM.scan_many(self.bt, symbol, self.tf, self.method, overlays, workers=self.workers)
+        return {k: [t for t in r["trades"][self.method]] for k, r in zip(keys, res)}
+
+    def load_scan_cache(self, stamp, dirs, cell_id, only_keys=None):
+        """Load every verified entry of this cell/method/timeframe from `dirs` (ScanCacheRefused on any doubt). A value
+        set with ALL this engine's symbols cached becomes `_raw[key]` (exactly what `prefetch` would have produced); a
+        set with only some symbols is kept in `_part` and scanned only for the missing symbols. `only_keys` (a set of
+        value keys) keeps just those sets after verification. Returns (complete sets, entries kept)."""
+        got = load_scan_entries(dirs, stamp, cell_id, self.method, self.tf, self._series)
+        by_key = {}
+        for (key, sym), trades in got.items():
+            if only_keys is None or key in only_keys:
+                by_key.setdefault(key, {})[sym] = trades
+        full = 0
+        for key, per in sorted(by_key.items()):
+            if key in self._done or key in self._raw:
+                continue
+            if all(s in per for s in self.symbols):
+                self._raw[key] = [t for s in self.symbols for t in per[s]]
+                full += 1
+            else:
+                self._part[key] = per
+        return full, sum(len(per) for per in by_key.values())
 
     def trades_for(self, values):
         overlay = build_overlay(self.grid, values)
@@ -675,7 +862,11 @@ class BtEngine:
         raw = self._raw.pop(key, None)
         if raw is None:
             raw = []
+            part = getattr(self, "_part", {}).pop(key, {})
             for s in self.symbols:
+                if s in part:
+                    raw += part[s]
+                    continue
                 scan = self.bt.scan(s, self.tf, only=(self.method,), opts=overlay)
                 raw += [t for t in scan["trades"][self.method]]
         # a timeout trade whose walk was cut by the end of the (PIT-truncated) series has an UNKNOWN outcome:
@@ -774,16 +965,30 @@ def prefetch_waves(engine, grid, cell):
     Both lists are DISCOVERED by running the real selection / perturbation code against the probe, not restated
     here, so they cannot drift from what the evaluation later requests; a request the probes missed is still
     served (by a plain scan) when it happens, so a wrong probe costs time, never a result."""
+    engine.prefetch(wave1_values(engine, grid, cell))
+    engine.prefetch(wave2_values(engine, grid, cell))
+
+
+def wave1_values(engine, grid, cell):
+    """The value sets wave 1 still needs (in discovery order): the baseline and every single-factor candidate the
+    engine does not hold yet. Needs no trades at all -- a scan shard calls this on an engine that holds nothing."""
+    folds = FS.make_folds(cell["development_start"])
+    emb = embargo_for(cell["timeframe"], getattr(engine, "bt", None))
+    p1 = _WaveProbe(engine)
+    FS.nested_walk_forward(grid, p1, folds, FS.bar_delta(cell["timeframe"]), embargo=emb)
+    return list(p1.missing.values())
+
+
+def wave2_values(engine, grid, cell):
+    """The value sets wave 2 needs: what the selection made on the HELD wave-1 trades of ALL the cell's symbols asks for
+    (each fold's combined chosen set, every perturbation set). Not symbol-local: selection pools the symbols."""
     folds = FS.make_folds(cell["development_start"])
     delta = FS.bar_delta(cell["timeframe"])
     emb = embargo_for(cell["timeframe"], getattr(engine, "bt", None))
-    p1 = _WaveProbe(engine)
-    FS.nested_walk_forward(grid, p1, folds, delta, embargo=emb)
-    engine.prefetch(list(p1.missing.values()))
     p2 = _WaveProbe(engine)
     fold_results = FS.nested_walk_forward(grid, p2, folds, delta, embargo=emb)
     FS.perturbation_trade_sets(grid, p2, fold_results)
-    engine.prefetch(list(p2.missing.values()))
+    return list(p2.missing.values())
 
 
 def evaluate_with_engine(engine, grid, cell, n_comparisons):
@@ -827,9 +1032,10 @@ def _commission_status(symbols):
     return out
 
 
-def _evaluate_candidate(candidate, plan_hash, grid_dir=None, scan_workers=1):
+def _evaluate_candidate(candidate, plan_hash, grid_dir=None, scan_workers=1, scan_cache_dirs=()):
     """Real path: evaluates one candidate. Loads its own engine; `scan_workers` is the process budget of the scan
-    pool inside it (`--workers`)."""
+    pool inside it (`--workers`). `scan_cache_dirs` (`--scan-cache`): verified raw scans from Actions shards are loaded
+    into the engine first (anything absent is scanned on demand, as without a cache)."""
     grids, paths = load_grids(grid_dir)
     full_grid = grids[candidate["method"]]
     grid = full_grid.runnable()          # N (candidate["n_comparisons"]) was fixed on the FULL grid at plan time
@@ -837,6 +1043,10 @@ def _evaluate_candidate(candidate, plan_hash, grid_dir=None, scan_workers=1):
     cell = next(c for c in plan["cells"] if c["id"] == candidate["cell"])
     engine = BtEngine(grid, candidate["runner_method"], candidate["timeframe"], candidate["symbols"],
                       workers=scan_workers)
+    if scan_cache_dirs:
+        full, n = engine.load_scan_cache(scan_cache_stamp(plan), scan_cache_dirs, candidate["cell"])
+        print(f"fund-search: scan cache: {n} verified (value set, symbol) entries, {full} value set(s) complete for "
+              f"{candidate['id']}", file=sys.stderr, flush=True)
     result = evaluate_with_engine(engine, grid, cell, candidate["n_comparisons"])
     result["declared_not_run"] = full_grid.unimplemented
     return {"record": dict(build_record(candidate, plan_hash, grid, paths[candidate["method"]], result,
@@ -968,7 +1178,7 @@ def validate_record(rec, plan):
                              f"{cell['symbols']}: no symbol may be added or dropped after the plan (plan §1.7)")
 
 
-def cmd_run(cell_id, method=None, workers=1, grid_dir=None, allow_drift=False):
+def cmd_run(cell_id, method=None, workers=1, grid_dir=None, allow_drift=False, scan_cache_dirs=()):
     plan = load_plan(grid_dir)
     decl = require_declaration(plan)                # refuses BEFORE anything is evaluated
     drift = check_drift(decl, plan, allow_drift)    # refuses on code / settings drift unless --allow-drift
@@ -982,7 +1192,7 @@ def cmd_run(cell_id, method=None, workers=1, grid_dir=None, allow_drift=False):
     else:
         os.environ.pop(DRIFT_ENV, None)
     try:
-        _cmd_run_inner(plan, cell_id, method, workers, grid_dir)
+        _cmd_run_inner(plan, cell_id, method, workers, grid_dir, scan_cache_dirs)
     finally:
         os.environ.pop(DRIFT_ENV, None)
 
@@ -990,7 +1200,7 @@ def cmd_run(cell_id, method=None, workers=1, grid_dir=None, allow_drift=False):
 DRIFT_ENV = "FUND_SEARCH_DRIFT"
 
 
-def _cmd_run_inner(plan, cell_id, method, workers, grid_dir):
+def _cmd_run_inner(plan, cell_id, method, workers, grid_dir, scan_cache_dirs=()):
     todo = [c for c in plan["candidates"] if c["cell"] == cell_id and (method is None or c["method"] == method)]
     if not todo:
         raise SystemExit(f"no candidate for cell {cell_id!r}"
@@ -1012,10 +1222,11 @@ def _cmd_run_inner(plan, cell_id, method, workers, grid_dir):
         # `workers` is the process budget of the SCAN pool inside each candidate (scripts/scan_many.py: bar chunks of
         # one series, one spawned process per chunk via scripts/isolated_pool.py) -- candidates themselves run one at a
         # time, so the budget is never multiplied. The candidate call keeps its 3-argument shape when workers <= 1.
+        kw = {"scan_cache_dirs": list(scan_cache_dirs)} if scan_cache_dirs else {}
         for c in todo:
             try:
-                out = (_evaluate_candidate(c, plan["plan_hash"], grid_dir) if workers <= 1
-                       else _evaluate_candidate(c, plan["plan_hash"], grid_dir, scan_workers=workers))
+                out = (_evaluate_candidate(c, plan["plan_hash"], grid_dir, **kw) if workers <= 1
+                       else _evaluate_candidate(c, plan["plan_hash"], grid_dir, scan_workers=workers, **kw))
             except Exception as exc:  # noqa: BLE001
                 errors.append((c["id"], exc))
                 continue
@@ -1024,6 +1235,195 @@ def _cmd_run_inner(plan, cell_id, method, workers, grid_dir):
             raise RuntimeError("fund-search: candidate(s) raised -- FAILING LOUD (an exception is never recorded "
                                "as a fail): " + "; ".join(f"{c}: {type(e).__name__}: {e}" for c, e in errors))
     print(f"cell {cell_id}: {len(results)} evaluated, {len(done)} already recorded")
+
+
+# ------------------------------------------------------------------------- `scan` (one Actions shard) + its layout
+#: Development-span bar counts (PIT-truncated at DEV_CUTOFF), parsed from the year files -- copied from
+#: docs/audits/2026-09-30-engine-speed-profile.md (header table; that doc is the source). Used ONLY to size shards:
+#: they change how the work is laid out over jobs, never a result.
+DEV_BARS = {
+    "1m": {"XAUUSD": 4096182, "XAGUSD": 4097904, "US500": 852695, "US30": 1729779, "USTEC": 867342, "DE40": 747188,
+           "FRA40": 801548},
+    "5m": {"XAUUSD": 1316783, "XAGUSD": 1054081, "US500": 177185, "US30": 346651, "USTEC": 177192, "DE40": 155214,
+           "FRA40": 174454},
+    "15m": {"XAUUSD": 453893, "XAGUSD": 357694, "US500": 62776, "US30": 116405, "USTEC": 62766, "DE40": 55219,
+            "FRA40": 62283},
+    "30m": {"XAUUSD": 229853, "XAGUSD": 180535, "US500": 33705, "US30": 58257, "USTEC": 33701, "DE40": 29812,
+            "FRA40": 33467}}
+
+#: The time model (docs/audits/2026-09-30-actions-sharding.md section 3). MEASURED by the owner on 10 local workers:
+#: ICT XAUUSD 1m wave 1 (39 value sets) = 581 s for the first set + ~213 s per further set (= 2.41 h). Everything else
+#: is an ASSUMPTION, stated there: cost linear in bars, linear in worker count, no per-core speed adjustment for a
+#: hosted runner, Wyckoff = `wyckoff_factor` x ICT per set (the audit projects ~2.1x on 1m metals; not measured here).
+SHARD_MODEL = {"first_set_s": 581.0, "extra_set_s": 213.0, "ref_bars": 4096182, "ref_workers": 10,
+               "runner_vcpu": 4, "runner_ram_bytes": 16 * 2 ** 30, "wyckoff_factor": 2.0,
+               "budget_s": 300 * 60,        # target per shard; the job timeout is 355 min (GitHub's hard cap is 360)
+               "job_timeout_min": 355}
+#: Wave-2 value sets per fold, an UPPER-typical bound from the audit's zero-edge run of the real waves (ICT 148 sets @17
+#: folds, 100 @10, 43 @4; Wyckoff 29-93): wave 2 depends on the selection, so its true size is only known at run time.
+WAVE2_SETS_PER_FOLD = {"ict": 11, "wyckoff": 8}
+
+
+def runner_workers(bars):
+    """Effective scan workers on the assumed runner: its vCPUs, lowered by scan_many's own memory clamp."""
+    m = SHARD_MODEL
+    return max(1, min(m["runner_vcpu"], SM.clamp_workers(m["runner_vcpu"], bars, physical=m["runner_ram_bytes"])))
+
+
+def shard_seconds(k_sets, bars, method):
+    """Modelled wall seconds of ONE shard that scans `k_sets` value sets of one symbol of `bars` bars."""
+    m = SHARD_MODEL
+    scale = (bars / m["ref_bars"]) * (m["ref_workers"] / runner_workers(bars)) * (
+        m["wyckoff_factor"] if method == "wyckoff" else 1.0)
+    return (m["first_set_s"] + max(k_sets - 1, 0) * m["extra_set_s"]) * scale
+
+
+def max_sets_per_shard(bars, method):
+    """Most value sets one shard can scan inside the budget; 0 = even a single set is modelled over budget."""
+    b = SHARD_MODEL["budget_s"]
+    one = shard_seconds(1, bars, method)
+    if one > b:
+        return 0
+    return 1 + int((b - one) // (shard_seconds(2, bars, method) - one))
+
+
+def slice_bounds(n, i, slices):
+    """[lo, hi) of contiguous, near-equal slice `i` of `n` items in discovery order (contiguous keeps value sets that
+    share an analysis group together)."""
+    return i * n // slices, (i + 1) * n // slices
+
+
+def take_slice(items, i, slices):
+    lo, hi = slice_bounds(len(items), i, slices)
+    return list(items)[lo:hi]
+
+
+def parse_slice(text):
+    try:
+        a, b = str(text).split("/")
+        i, n = int(a), int(b)
+    except ValueError:
+        raise SystemExit(f"--slice must look like I/N (e.g. 0/3), got {text!r}")
+    if not (n >= 1 and 0 <= i < n):
+        raise SystemExit(f"--slice I/N needs N >= 1 and 0 <= I < N, got {text!r}")
+    return i, n
+
+
+def shard_plan(plan, grid_dir=None):
+    """The scan shards of the committed plan: one row per (cell, method, symbol, wave, slice). Wave 1 (baseline + every
+    single-factor candidate) is symbol-local. Wave 2 (each fold's combined chosen set + every perturbation set) is
+    discovered from the selection on the POOLED wave-1 trades of every symbol of the cell, so its shards run only after
+    all of wave 1 exists; each still scans ONE symbol. Slice counts follow the time model above and the sets estimate
+    for wave 2 -- a layout decision made from the plan and data availability only, never from a result."""
+    grids, _paths = load_grids(grid_dir)
+    rows = []
+    for cell in plan["cells"]:
+        for method in METHODS:
+            g = grids[method].runnable()
+            n1 = 1 + sum(len(x["candidates"]) for x in g.groups)
+            n2 = WAVE2_SETS_PER_FOLD[method] * cell["n_folds"]
+            for wave, n in ((1, n1), (2, n2)):
+                for sym in cell["symbols"]:
+                    bars = DEV_BARS[cell["timeframe"]][sym]
+                    cap = max_sets_per_shard(bars, method)
+                    slices = -(-n // max(cap, 1))
+                    for i in range(slices):
+                        lo, hi = slice_bounds(n, i, slices)
+                        est = shard_seconds(hi - lo, bars, method)
+                        rows.append({"cell": cell["id"], "method": method, "symbol": sym, "wave": wave,
+                                     "slice": f"{i}/{slices}", "sets": hi - lo, "bars": bars, "est_min": round(est / 60),
+                                     "over_timeout": est / 60 > SHARD_MODEL["job_timeout_min"],
+                                     "name": f"{cell['id']}-{method}-{sym}-w{wave}-s{i}"})
+    return rows
+
+
+def format_shard_table(rows):
+    """Per (cell, method, symbol, wave): slices, sets, the longest modelled shard, and whether any is over the timeout."""
+    groups = {}
+    for r in rows:
+        groups.setdefault((r["cell"], r["method"], r["symbol"], r["wave"]), []).append(r)
+    L = [f"{'cell':<12}{'method':<8}{'symbol':<8}{'wave':<5}{'slices':>6}{'sets':>6}{'unsliced':>10}{'longest shard':>15}"
+         f"  shard over {SHARD_MODEL['job_timeout_min']} min?"]
+    for (c, m, s, w), rs in groups.items():
+        longest = max(r["est_min"] for r in rs)
+        sets = sum(r["sets"] for r in rs)
+        whole = round(shard_seconds(sets, rs[0]["bars"], m) / 60)      # the same symbol/wave in ONE job, no slicing
+        L.append(f"{c:<12}{m:<8}{s:<8}{w:<5}{len(rs):>6}{sets:>6}{whole:>7} min{longest:>10} min   "
+                 f"{'YES' if any(r['over_timeout'] for r in rs) else 'no'}")
+    L.append(f"total shards: {len(rows)}; modelled runner minutes: {sum(r['est_min'] for r in rows)}")
+    return "\n".join(L)
+
+
+def cmd_scan(cell_id, symbol, method, out_dir, workers=1, wave=1, slice_spec="0/1", scan_cache_dirs=(), grid_dir=None):
+    """One Actions scan shard. `--wave 1`: the wave-1 value sets (the same list `run` would prefetch first) for ONE
+    symbol -- needs no other symbol's data. `--wave 2`: the wave-2 sets, which only exist once selection has run on the
+    pooled wave-1 trades of ALL the cell's symbols, so it needs the complete wave-1 cache (`--scan-cache`) and REFUSES
+    without it; it still scans ONE symbol. `--slice I/N` takes the I-th of N contiguous parts of the list. Every
+    (value set, symbol) result is persisted the moment its scan returns, as a verified cache entry under `out_dir`
+    (outside the checkout, CLAUDE.md section 46). Like `run`, refuses without the ledger declaration and on code drift."""
+    real_out = os.path.realpath(out_dir)
+    if real_out == ROOT or real_out.startswith(ROOT + os.sep):
+        raise SystemExit(f"--out {out_dir} is inside the checkout: outputs must land outside it (a file written in the "
+                         f"work tree makes the run's own code_version read dirty=true, CLAUDE.md section 46)")
+    i, n = parse_slice(slice_spec)
+    if wave not in (1, 2):
+        raise SystemExit("--wave must be 1 or 2")
+    plan = load_plan(grid_dir)
+    decl = require_declaration(plan)
+    check_drift(decl, plan, False)
+    cell = next((c for c in plan["cells"] if c["id"] == cell_id), None)
+    if cell is None:
+        raise SystemExit(f"no cell {cell_id!r}; cells: {[c['id'] for c in plan['cells']]}")
+    if symbol not in cell["symbols"]:
+        raise SystemExit(f"{symbol!r} is not a symbol of cell {cell_id!r} ({cell['symbols']}): no symbol may be added "
+                         f"or dropped after the plan (plan section 1.7)")
+    cand = next(c for c in plan["candidates"] if c["cell"] == cell_id and c["method"] == method)
+    grids, _paths = load_grids(grid_dir)
+    for g in grids.values():
+        assert_grid_runnable(g)
+    grid = grids[method].runnable()
+    stamp = scan_cache_stamp(plan)
+    engine = BtEngine(grid, cand["runner_method"], cell["timeframe"], [symbol] if wave == 1 else cell["symbols"],
+                      workers=workers)
+    if wave == 1:
+        values = wave1_values(engine, grid, cell)
+    else:
+        if not scan_cache_dirs:
+            raise SystemExit("--wave 2 needs --scan-cache: the wave-2 value sets are chosen from the pooled wave-1 "
+                             "trades of every symbol of the cell")
+        # the wave-2 list must not depend on which wave-2 entries a directory happens to hold (a shard rerun, a merged
+        # directory): only the wave-1 sets are loaded, so every shard derives the SAME list and its slice is stable
+        w1_keys = {FS.CountingSource._key(v) for v in wave1_values(engine, grid, cell)}     # engine holds nothing yet
+        engine.load_scan_cache(stamp, scan_cache_dirs, cell_id, only_keys=w1_keys)
+        incomplete = wave1_values(engine, grid, cell)
+        if incomplete:
+            raise SystemExit(f"--wave 2 refused: the wave-1 cache of {cell_id}/{method} is incomplete for "
+                             f"{len(incomplete)} value set(s) of {cell['symbols']}; wave-2 sets would be chosen from "
+                             f"an incomplete pool. Re-run the missing wave-1 shards.")
+        values = wave2_values(engine, grid, cell)
+    mine = take_slice(values, i, n)
+    todo, skipped = [], 0
+    for v in mine:
+        key = FS.CountingSource._key(v)
+        scope = scan_cache_scope(cell_id, cand["runner_method"], cell["timeframe"], symbol, key, engine._series[symbol])
+        path = os.path.join(out_dir, scan_cache_key(stamp, scope) + ".json")
+        if os.path.exists(path):
+            read_scan_entry(path, stamp)              # a present entry must verify; it is not rescanned
+            skipped += 1
+        else:
+            todo.append((v, key, scope))
+    print(f"scan {cell_id} {method} {symbol} wave {wave} slice {i}/{n}: {len(values)} value set(s) in the wave, "
+          f"{len(mine)} in this slice, {skipped} already present, {len(todo)} to scan", flush=True)
+    t0 = time.time()
+    written = 0
+    if todo:
+        got = engine.scan_symbol(symbol, [v for v, _k, _s in todo])
+        for _v, key, scope in todo:
+            path = write_scan_entry(out_dir, stamp, scope, got[key])
+            written += 1
+            print(f"  wrote {os.path.basename(path)[:12]} {symbol} {len(got[key])} trades", flush=True)
+    print(f"scan done: {written} written, {skipped} present, {time.time() - t0:.0f}s", flush=True)
+    return {"wave_sets": len(values), "slice_sets": len(mine), "written": written, "skipped": skipped}
 
 
 # ---------------------------------------------------------------------------------------------------- `report`
@@ -1185,12 +1585,31 @@ def main(argv=None):
     pp.add_argument("--grid-dir", help="directory holding v-grid-ict.json / v-grid-wyckoff.json")
     sub.add_parser("declare", help="record the final cell count in the research ledger (before any run)")
     sub.add_parser("list-cells", help="print the committed plan's cell ids as JSON (the CI matrix)")
+    lp = sub.add_parser("list-scan-shards", help="print the scan-shard matrix (cell x method x symbol x wave x slice) "
+                                                 "as JSON; --explain prints the time model's table instead")
+    lp.add_argument("--wave", type=int, choices=(1, 2), help="only this wave's shards")
+    lp.add_argument("--explain", action="store_true")
+    sp = sub.add_parser("scan", help="one Actions scan shard: raw scans of ONE symbol into a verified cache directory")
+    sp.add_argument("--cell", required=True)
+    sp.add_argument("--symbol", required=True)
+    sp.add_argument("--method", required=True, choices=sorted(METHODS))
+    sp.add_argument("--out", required=True, help="cache directory to write (must be outside the checkout)")
+    sp.add_argument("--workers", type=int, default=None, help="scan pool budget (default min(cpu_count - 2, 10))")
+    sp.add_argument("--wave", type=int, choices=(1, 2), default=1)
+    sp.add_argument("--slice", default="0/1", help="I/N: the I-th of N contiguous parts of the wave's value sets")
+    sp.add_argument("--scan-cache", action="append", default=[], metavar="DIR",
+                    help="(--wave 2) cache directory holding the cell's complete wave 1; repeatable")
+    sp.add_argument("--grid-dir")
     rp = sub.add_parser("run", help="evaluate one cell (refuses without the ledger declaration)")
     rp.add_argument("--cell", required=True)
     rp.add_argument("--method", choices=sorted(METHODS))
     rp.add_argument("--workers", type=int, default=None,
                     help="process budget of the scan pool inside each candidate (default min(cpu_count - 2, 10); "
                          "lowered further so the per-worker memory estimate fits in RAM); 1 = in-process")
+    rp.add_argument("--scan-cache", action="append", default=[], metavar="DIR",
+                    help="directory of scan-shard cache entries (repeatable): verified entries are loaded instead of "
+                         "scanned; an entry of another code/plan/settings/history REFUSES the run; missing ones are "
+                         "scanned on demand")
     rp.add_argument("--grid-dir")
     rp.add_argument("--allow-drift", action="store_true",
                     help="proceed although the code/settings differ from the declaration; every record is "
@@ -1204,9 +1623,20 @@ def main(argv=None):
         cmd_declare()
     elif a.cmd == "list-cells":
         print(json.dumps([{"cell": c["id"]} for c in load_plan()["cells"]]))
+    elif a.cmd == "list-scan-shards":
+        rows = shard_plan(load_plan())
+        if a.wave:
+            rows = [r for r in rows if r["wave"] == a.wave]
+        if a.explain:
+            print(format_shard_table(rows))
+        else:
+            print(json.dumps(rows))
+    elif a.cmd == "scan":
+        cmd_scan(a.cell, a.symbol, a.method, a.out, workers=a.workers if a.workers is not None else SM.default_workers(),
+                 wave=a.wave, slice_spec=a.slice, scan_cache_dirs=a.scan_cache, grid_dir=a.grid_dir)
     elif a.cmd == "run":
         cmd_run(a.cell, method=a.method, workers=a.workers if a.workers is not None else SM.default_workers(),
-                grid_dir=a.grid_dir, allow_drift=a.allow_drift)
+                grid_dir=a.grid_dir, allow_drift=a.allow_drift, scan_cache_dirs=a.scan_cache)
     elif a.cmd == "report":
         cmd_report()
 
