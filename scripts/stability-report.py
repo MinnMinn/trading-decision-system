@@ -85,6 +85,8 @@ def config_opts(cfg, ict_target):
                 # silently omit a scan-cache-relevant key (see _SCAN_RELEVANT_KEYS below).
                 fx_w1_tr_low_st=False, fx_w2_st_below_sc=False, fx_w3_mSOW_spring=False, fx_w5_vp_abandon=False,
                 fx_w7_htf_target=False,
+                # O1 (2026-09-30): v1 default; True = min_rr admission uses entry-knowable costs only.
+                fx_admission_entry_cost=False,
                 # Batch 2(a) Wyckoff V items (plan §3 V grid; docs/architecture/v-grid-wyckoff.json): the baseline
                 # (= v1) of each key, stated for the same "complete overlay" reason. W-MGMT is `mgmt` above.
                 fx_w_stop="current", fx_w4a_linger_closes=None, fx_w6_window=300, fx_w_spt="AR", fx_w_touch="off",
@@ -133,6 +135,9 @@ _SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "slope
                        # target/placeability. All five change scan()'s trades and MUST separate cache entries.
                        "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon",
                        "fx_w7_htf_target",
+                       # O1 (2026-09-30): changes which candidates simulate() admits (min_rr) -> must separate cache
+                       # entries / config identity.
+                       "fx_admission_entry_cost",
                        # Batch 2(a) Wyckoff V items: fx_w4a_linger_closes / fx_w_tw change DETECTION (per-call P=
                        # overrides, `_WY_CANDIDATES` key); fx_w6_window changes the window scan() walks;
                        # fx_w_stop / fx_w_spt / fx_w_touch change `_fires_from`'s stop / target / gate. All six

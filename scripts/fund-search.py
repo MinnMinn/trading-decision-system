@@ -69,9 +69,31 @@ DEV_PERIOD_ID = "cfd-development-pre-2024-03"                                   
 LEDGER_SECTION = "fund_search"                                                  # the declaration lives here
 #: The nine F (fidelity) items the owner adopted for the evaluation baseline (docs/plans/2026-09-30-owner-decisions.md):
 #: ON in every cell of every candidate, never varied, never settable by a grid item. Live/pilot keep v1.
+#: Plus O1 (owner-approved 2026-09-30): `fx_admission_entry_cost` -- min_rr admission uses only entry-knowable costs
+#: (scripts/backtest-methods.py simulate()). It is a fixed engine rule, not an F item; it lives in this tuple so it
+#: is ON in every cell, in the plan hash and declaration config, and can never be set by a grid item.
 ADOPTED_F_KEYS = ("fx_b2a_fvg_in_leg", "fx_b2b_ce_fail", "fx_b1_pivot1", "fx_braid_optional",
-                  "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon", "fx_w7_htf_target")
+                  "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon", "fx_w7_htf_target",
+                  "fx_admission_entry_cost")
 FIXED_KEYS = ("flat_before_rollover", "rollover_provider") + ADOPTED_F_KEYS       # a grid item may never set these
+
+#: O2 (owner-approved 2026-09-30): walk-forward training embargo = EMBARGO_H_MULTIPLE x H bars of the cell's
+#: timeframe (H = the engine's own bt.P[tf]["H"]). 2H is the largest FINITE time stop of the declared V grids; a
+#: "none" time stop cannot be embargoed by any finite window and is covered only by this same 2H.
+EMBARGO_H_MULTIPLE = 2
+_ENGINE_P = None
+
+
+def embargo_for(tf, bt=None):
+    """The training embargo of a `tf` cell as a timedelta, from the engine's own P table (`bt.P`); `bt` defaults to
+    one shared, lazily loaded engine instance. Fails loud (KeyError/ValueError) on an unknown timeframe."""
+    global _ENGINE_P
+    if bt is None:
+        if _ENGINE_P is None:
+            _ENGINE_P = _load_bt()
+        bt = _ENGINE_P
+    return EMBARGO_H_MULTIPLE * int(bt.P[tf]["H"]) * FS.bar_delta(tf)
+
 
 #: Disclosed, never folded into N (plan §1.4): earlier searches on the same history.
 PRIOR_COUNTS = {"prop_search_records": 180, "diagnosis_slices": 30}
@@ -256,9 +278,14 @@ def build_plan(grid_dir=None, first_bar=None):
             candidates.append({"id": f"{m}-{c['id']}", "method": m, "runner_method": METHODS[m], "cell": c["id"],
                                "timeframe": c["timeframe"], "asset_class": c["asset_class"],
                                "symbols": list(c["symbols"]), "n_comparisons": n_by_method[m]})
+    embargo = {"rule": f"training trades need exit_label < test_start - {EMBARGO_H_MULTIPLE} x H bars (H = bt.P[tf]['H'])"
+                       f", on top of the one-bar purge; 'none' time stops are covered only by this same window",
+               "h_multiple": EMBARGO_H_MULTIPLE,
+               "minutes_by_timeframe": {tf: int(embargo_for(tf) / datetime.timedelta(minutes=1))
+                                        for tf in FUND_TIMEFRAMES}}
     core = {"cells": cells, "excluded_cells": excluded, "grids": grids_info, "candidates": candidates,
             "n_by_method": n_by_method, "cost_profile": COST_PROFILE, "dev_cutoff": FS.DEV_CUTOFF,
-            "adopted_f_keys": list(ADOPTED_F_KEYS),
+            "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": embargo,
             "constants": {k: getattr(FS, k) for k in (
                 "FAMILY_ALPHA", "MIN_FOLD_TRADES", "MIN_TRAIN_TRADES", "MAX_TRADE_SHARE", "MAX_GAP_DAYS",
                 "MIN_FOLD_SHARE_OK", "PASS_PROB_MIN", "ADX_PERIOD", "TEST_FOLD_DAYS", "MIN_TRAIN_DAYS",
@@ -400,7 +427,7 @@ def evaluation_config(plan):
             "prop_pass_min": FS.PASS_PROB_MIN, "verdict_precedence": FS.VERDICT_PRECEDENCE,
             "regime_split": FS.REGIME_SPLIT_DEFINITION,
             "ruin_handling": "bt.RUIN_FRAC = 0.0 on the harness's own bt instance; post_ruin trades fail loud",
-            "adopted_f_keys": list(ADOPTED_F_KEYS),
+            "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": plan["embargo"],
             "grid_sha256": {m: g["sha256"] for m, g in plan["grids"].items()}}
 
 
@@ -708,11 +735,11 @@ class BtEngine:
 
 
 # ------------------------------------------------------------------------------------- one candidate (pure glue)
-ADMISSION_LIMITATION = ("simulate()'s min_rr admission subtracts a cost that includes the EXIT-hour spread, so whether "
-                        "a candidate is admitted depends on when it exits (a look-ahead against plan §37). The "
-                        "engine is unchanged (v1 output byte-identical); the refusal counts and near-floor margins "
-                        "are disclosed here. OPEN owner item: an fx_ key making admission use the entry-hour cost "
-                        "only (docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md).")
+ADMISSION_LIMITATION = ("O1 DECIDED 2026-09-30: every fund cell runs with fx_admission_entry_cost ON, so simulate()'s min_rr "
+                        "admission subtracts only entry-knowable costs (entry-hour half-spread + an exit-leg half-spread "
+                        "estimated at the entry hour, no swap); the reported net R still uses the real entry+exit costs. "
+                        "Under v1 (key off) admission would include the EXIT-hour spread, a look-ahead against plan §37. "
+                        "The refusal counts and near-floor margins are still disclosed here.")
 
 
 ROLLOVER_EDGE_NOTE = ("entries whose entry bar is the LAST bar of a server day. The engine asks about the rollover only "
@@ -749,11 +776,12 @@ def prefetch_waves(engine, grid, cell):
     served (by a plain scan) when it happens, so a wrong probe costs time, never a result."""
     folds = FS.make_folds(cell["development_start"])
     delta = FS.bar_delta(cell["timeframe"])
+    emb = embargo_for(cell["timeframe"], getattr(engine, "bt", None))
     p1 = _WaveProbe(engine)
-    FS.nested_walk_forward(grid, p1, folds, delta)
+    FS.nested_walk_forward(grid, p1, folds, delta, embargo=emb)
     engine.prefetch(list(p1.missing.values()))
     p2 = _WaveProbe(engine)
-    fold_results = FS.nested_walk_forward(grid, p2, folds, delta)
+    fold_results = FS.nested_walk_forward(grid, p2, folds, delta, embargo=emb)
     FS.perturbation_trade_sets(grid, p2, fold_results)
     engine.prefetch(list(p2.missing.values()))
 
@@ -767,11 +795,13 @@ def evaluate_with_engine(engine, grid, cell, n_comparisons):
         prefetch_waves(engine, grid, cell)
     src = FS.CountingSource(engine.trades_for)
     folds = FS.make_folds(cell["development_start"])
-    fold_results = FS.nested_walk_forward(grid, src, folds, FS.bar_delta(cell["timeframe"]))
+    emb = embargo_for(cell["timeframe"], getattr(engine, "bt", None))
+    fold_results = FS.nested_walk_forward(grid, src, folds, FS.bar_delta(cell["timeframe"]), embargo=emb)
     perturbs = FS.perturbation_trade_sets(grid, src, fold_results)
     prop = engine.prop_pass(FS.pooled_test_trades(fold_results))
     res = FS.evaluate_cell(fold_results, perturbs, cell["symbols"], n_comparisons, prop, runs=src.runs)
     res["folds_geometry"] = folds
+    res["embargo_minutes"] = int(emb / datetime.timedelta(minutes=1))       # O2: recorded with the result
     if hasattr(engine, "admission_stats"):             # I2: measured, disclosed, never used to change a verdict
         res["admission"] = {
             "by_fold_chosen": [dict(engine.admission_stats(fr["chosen"], fr["fold"]), test_start=fr["fold"]["test_start"])
@@ -848,9 +878,10 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
         "min_rr_semantics": ADMISSION_LIMITATION,
         "lower_bound": "min(iid t, CR1 block by UTC date, CR1 block by 30-day window) at 1 - 0.10/N",
         "regime_split": FS.REGIME_SPLIT_DEFINITION, "verdict_precedence": FS.VERDICT_PRECEDENCE,
-        "constants": {k: getattr(FS, k) for k in ("FAMILY_ALPHA", "MIN_FOLD_TRADES", "MIN_TRAIN_TRADES",
-                                                   "MAX_TRADE_SHARE", "MAX_GAP_DAYS", "MIN_FOLD_SHARE_OK",
-                                                   "PASS_PROB_MIN", "TEST_FOLD_DAYS", "MIN_TRAIN_DAYS")}})
+        "constants": dict({k: getattr(FS, k) for k in ("FAMILY_ALPHA", "MIN_FOLD_TRADES", "MIN_TRAIN_TRADES",
+                                                        "MAX_TRADE_SHARE", "MAX_GAP_DAYS", "MIN_FOLD_SHARE_OK",
+                                                        "PASS_PROB_MIN", "TEST_FOLD_DAYS", "MIN_TRAIN_DAYS")},
+                          embargo_h_multiple=EMBARGO_H_MULTIPLE)})
     r.set("account_configuration", X.unavailable("prop_pass_probability uses the two fund profiles of prop-search "
                                                  "(scripts/account_profile.py); no separate account is configured"))
     r.set("risk_configuration", {"cost_profile": COST_PROFILE, "spread_stat": "median",
@@ -871,6 +902,7 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
                           "prop_pass_probability_bootstrap": "scripts/performance.py BOOTSTRAP_SEED"})
     r.set("test_periods", {"development": {"end": FS.DEV_CUTOFF, "period_id": DEV_PERIOD_ID},
                            "folds": result.get("folds_geometry"),
+                           "training_embargo_minutes": result.get("embargo_minutes"),
                            "note": "nothing at or after the development cutoff is read (bt.pit_cutoff)"})
     r.set("validation_method",
           "nested rolling-origin walk-forward over the development span; V values chosen on each training fold "
@@ -1033,6 +1065,8 @@ def cmd_report(grid_dir=None):
          + ", ".join(f"{m} {plan['grids'][m]['n_per_cell']} x {plan['cell_count']} = **{plan['n_by_method'][m]}** "
                      f"(confidence {plan['confidence_by_method'][m]:.5f})" for m in plan["grids"]) + ".",
          f"- Prior searches on the same history, disclosed and NOT folded into N: {plan['prior_counts_disclosed']}.",
+         f"- Walk-forward training embargo (O2): {plan['embargo']['rule']}; minutes by timeframe "
+         f"{plan['embargo']['minutes_by_timeframe']}.",
          "- No symbol was dropped after its result was seen: each candidate's symbols equal the plan's "
          "(`validate_record`).", ""]
     drifted = [r["experiment_id"] for r in recs if (r.get("parameters") or {}).get("drifted")]

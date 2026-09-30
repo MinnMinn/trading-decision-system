@@ -29,8 +29,11 @@ event, and thresholds may only be tightened.
    with >= 30 training trades and is chosen only if its training expectancy STRICTLY beats the baseline's (ties keep
    the baseline); joint-group items are one factor (cartesian product); the combined candidate merges the winners.
 4. **Purge / embargo.** Trade times are bar OPEN labels, so a training trade must have its exit label strictly
-   before `test_start - one bar of the cell's timeframe` (purge). An optional additional embargo (e.g. one
-   time-stop horizon) is NOT implemented -- OPEN: add it or not.
+   before `test_start - one bar of the cell's timeframe` (purge). DECIDED 2026-09-30 (owner): implemented as an
+   additional EMBARGO -- a training trade must also have exit label strictly before `test_start - 2 x H bars` of the
+   cell's timeframe (H = the engine's own `bt.P[tf]["H"]`; 2H is the largest finite time stop of the declared V
+   grid; a "none" time stop cannot be embargoed and is covered only by this same 2H). Stricter only; computed in
+   `fund-search.py`, passed to `fund_stats.train_window` as a timedelta, recorded in the plan/declaration config.
 5. **Perturbation.** For every item and each direction, in every fold, move the value the fold chose one step on the
    item's axis (numbers sorted ascending, other values in listed order; an edge has no neighbour that side); pool the
    test trades; the robust lower bound at the same confidence must stay > 0 for every (item, direction).
@@ -51,7 +54,7 @@ event, and thresholds may only be tightened.
    flat before the daily server rollover (FIXED on; checked after every simulation). **FTMO commission is UNKNOWN**
    (`no_deals`): taken from the cost data only (0.0 with its status), so net R is NOT net of commission.
    Ruin handling: the harness sets `RUIN_FRAC=0.0` on its own engine instance (R does not depend on equity) and
-   fails loud if any trade would have gone to `post_ruin`. **min_rr semantics: see OPEN item O1.**
+   fails loud if any trade would have gone to `post_ruin`. **min_rr semantics: see item O1 (DECIDED).**
 10. **Code SHAs and grid hashes.** The declaration pins the last-commit SHA and dirty flag of `fund_stats.py`,
     `fund-search.py`, `prop-search.py`, `backtest-methods.py`, `real_costs.py`, `performance.py`, `mt5_time.py`,
     `ict-scan.py`, `wyckoff_rules.py`, `live_rules.py`, the sha256 of both grid files, STABILITY_FRACTION, `live_parity_sizing`,
@@ -66,13 +69,14 @@ event, and thresholds may only be tightened.
 
 ## B. OPEN owner questions
 
-- **O1 (min_rr look-ahead).** `simulate()` admits a trade only if `R_planned - fee_R >= min_rr`, and `fee_R` under
-  real costs includes the EXIT-hour spread and swap. Admission therefore depends on when the trade exits (a
-  look-ahead against plan §37). The harness does NOT change `simulate()` (v1 stays byte-identical): it records, per
-  V value set and per fold, how many trades the filter refused and the `R_planned` margin near the floor, and
-  discloses the limitation in every report. OPTION for the owner: an `fx_` key making admission use the ENTRY-hour
-  cost only (a new engine key, default v1), adopted before Batch 3.
-- **O2 (embargo).** Add an embargo of one time-stop horizon after each test fold? (stricter)
+- **O1 (min_rr look-ahead).** DECIDED 2026-09-30 (owner): implemented as the engine key
+  `fx_admission_entry_cost` (default False = v1 byte-identical; ON in every fund cell, in `ADOPTED_F_KEYS`, never
+  settable by a grid item). With it on, `simulate()`'s min_rr admission subtracts only the cost knowable at the
+  entry decision: the entry-hour half-spread plus an exit-leg half-spread estimated at the SAME entry hour, no swap
+  (nights held depend on the exit), commission as recorded (0 / UNKNOWN). The reported net R still uses the real
+  entry+exit costs; only the admission test changes.
+- **O2 (embargo).** DECIDED 2026-09-30 (owner): implemented as `2 x H` bars of the cell's timeframe before each
+  test fold, on top of the one-bar purge (see A4).
 - **O3 (fold size).** Keep 365/730 (fold counts differ 4 to 17 by cell) or re-declare? Not changed here.
 - **O4 (deployment rule).** Accept "values chosen in the final fold", or another rule?
 - **O5 (allow-list).** The harness refuses a grid item whose OPTS key is neither an `fx_` key nor `mgmt`

@@ -375,12 +375,17 @@ def bar_delta(tf):
     return datetime.timedelta(minutes=TF_MINUTES[tf])
 
 
-def train_window(trades, fold, margin=datetime.timedelta(0)):
+def train_window(trades, fold, margin=datetime.timedelta(0), embargo=datetime.timedelta(0)):
     """Training trades of a fold: entered at/after the data start AND with exit label strictly BEFORE
-    `test_start - margin` (purge). Exit times are bar OPEN labels, so the caller passes one bar of the cell's
-    timeframe as `margin` (fix round 2): a trade whose last bar closes at/after the test start is not evidence
-    the training side may use."""
-    a, b = ts(fold["train_start"]), ts(fold["test_start"]) - margin
+    `test_start - margin` (purge) AND strictly before `test_start - embargo` (O2, owner-approved 2026-09-30).
+    Exit times are bar OPEN labels, so the caller passes one bar of the cell's timeframe as `margin` (fix round
+    2): a trade whose last bar closes at/after the test start is not evidence the training side may use.
+    `embargo` (a timedelta, computed by the caller from the engine's own P table -- this module stays pure) is
+    2 x H bars of the cell's timeframe: 2H is the LARGEST FINITE time stop in the declared V grid, so no
+    training trade whose time stop could reach into the test fold is used. LIMIT: a "none" time stop (held until
+    the end of history) cannot be embargoed by any finite window; it is covered only by this same 2H. Both
+    conditions must hold, i.e. the stricter of the two applies; the default (0) adds nothing to the purge."""
+    a, b = ts(fold["train_start"]), ts(fold["test_start"]) - max(margin, embargo)
     return [t for t in trades if ts(t["entry_time"]) >= a and ts(t["exit_time"]) < b]
 
 
@@ -443,13 +448,13 @@ def select_values(grid, train_trades_for):
     return chosen, scores
 
 
-def nested_walk_forward(grid, trades_for, folds, purge_margin):
+def nested_walk_forward(grid, trades_for, folds, purge_margin, embargo=datetime.timedelta(0)):
     """For each fold: choose on the training window, score the chosen values on that fold's OWN test window.
     Returns [{"fold", "chosen", "changed", "train_scores", "test_trades"}]. `trades_for(full_values)` may be a
     CountingSource; the selection step sees only `train_window` output."""
     out = []
     for fold in folds:
-        chosen, scores = select_values(grid, lambda v, f=fold: train_window(trades_for(grid.full(v)), f, purge_margin))
+        chosen, scores = select_values(grid, lambda v, f=fold: train_window(trades_for(grid.full(v)), f, purge_margin, embargo))
         base = grid.baseline()
         out.append({"fold": fold, "chosen": chosen,
                     "changed": sorted(i for i in chosen if chosen[i] != base[i]),

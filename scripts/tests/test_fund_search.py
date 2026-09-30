@@ -19,6 +19,7 @@ import random
 import shutil
 import sys
 import tempfile
+import types
 import unittest
 from contextlib import redirect_stdout
 from unittest import mock
@@ -961,7 +962,7 @@ class AdmissionDisclosure(_Tmp):
         adm = res["admission"]
         self.assertEqual(len(adm["by_fold_chosen"]), len(FS.make_folds(LONG_START)))
         self.assertIn("EXIT-hour spread", adm["limitation"])
-        self.assertIn("OPEN owner item", adm["limitation"])
+        self.assertIn("O1 DECIDED", adm["limitation"])
         self.assertTrue(adm["by_value_set"])
 
 
@@ -1184,6 +1185,68 @@ class PurgeMargin(unittest.TestCase):
         self.assertEqual(spy.call_args[0][3], datetime.timedelta(minutes=15))
 
 
+class Embargo(unittest.TestCase):
+    """O2 (owner-approved 2026-09-30): training additionally requires exit_label < test_start - embargo, embargo =
+    2 x H bars of the cell's timeframe (H = the engine's own P[tf]["H"])."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.fs = _fs()
+
+    def test_embargo_excludes_a_training_trade_exiting_inside_the_window_and_keeps_one_just_before(self):
+        fold = FS.make_folds(DEV_START)[-1]
+        t0 = FS.ts(fold["test_start"])
+        emb = datetime.timedelta(minutes=5 * 240)
+        mk = lambda d: {"entry_time": FS.iso(t0 - datetime.timedelta(days=30)), "exit_time": FS.iso(t0 - d),
+                        "net_R": 1.0, "symbol": "X"}
+        inside = mk(emb - datetime.timedelta(minutes=5))       # clears the one-bar purge, inside the embargo
+        exactly = mk(emb)                                       # exactly at the boundary: strict <, excluded
+        before = mk(emb + datetime.timedelta(minutes=5))
+        bar = FS.bar_delta("5m")
+        self.assertEqual(FS.train_window([inside, exactly, before], fold, bar), [inside, exactly, before])  # purge alone
+        self.assertEqual(FS.train_window([inside, exactly, before], fold, bar, emb), [before])
+        self.assertEqual(FS.train_window([inside, before], fold, bar, datetime.timedelta(0)), [inside, before])
+
+    def test_embargo_is_two_h_bars_from_the_engines_own_p_table_for_every_fund_timeframe(self):
+        bt = self.fs._load_bt()
+        self.assertEqual(self.fs.FUND_TIMEFRAMES, ("1m", "5m", "15m", "30m"))
+        for tf in self.fs.FUND_TIMEFRAMES:
+            self.assertEqual(self.fs.embargo_for(tf, bt),
+                             datetime.timedelta(minutes=2 * bt.P[tf]["H"] * FS.TF_MINUTES[tf]), tf)
+        # follows the engine table, not a copy of it
+        fake = types.SimpleNamespace(P={"5m": {"H": 7}})
+        self.assertEqual(self.fs.embargo_for("5m", fake), datetime.timedelta(minutes=70))
+
+    def test_the_embargo_covers_the_largest_finite_time_stop_of_the_declared_v_grid(self):
+        # the ICT grid's finite time stops are H, 1.5H, 2H (v-grid-ict.json B-EXIT "time_stop"); 2H == the embargo
+        with open(os.path.join(ROOT, "docs", "architecture", "v-grid-ict.json"), encoding="utf-8") as fh:
+            ts_item = next(it for it in json.load(fh)["items"] if it["id"] == "B-EXIT")
+        ts_labels = {v.split("|")[1] for v in ts_item["values"]}
+        self.assertEqual(ts_labels, {"H", "1.5H", "2H", "none"})
+        finite = [float(x[:-1] or 1) for x in ts_labels if x != "none"]
+        self.assertEqual(max(finite), self.fs.EMBARGO_H_MULTIPLE)
+
+    def test_evaluate_with_engine_passes_two_h_bars_as_the_embargo(self):
+        cell = {"id": "15m-metals", "timeframe": "15m", "symbols": SYMS, "development_start": LONG_START}
+        bt = self.fs._load_bt()
+        with mock.patch.object(FS, "nested_walk_forward", wraps=FS.nested_walk_forward) as spy:
+            self.fs.evaluate_with_engine(SynthEngine(), grid_two_items(), cell, 205)
+        self.assertEqual(spy.call_args[1]["embargo"], datetime.timedelta(minutes=2 * bt.P["15m"]["H"] * 15))
+        self.assertEqual(spy.call_args[0][3], datetime.timedelta(minutes=15))           # the purge margin is unchanged
+
+    def test_plan_and_declaration_config_record_the_embargo(self):
+        plan = self.fs.build_plan(grid_dir=FIXTURES, first_bar=lambda s, t: "2010-01-01T00:00:00Z")
+        bt = self.fs._load_bt()
+        want = {tf: 2 * bt.P[tf]["H"] * FS.TF_MINUTES[tf] for tf in self.fs.FUND_TIMEFRAMES}
+        self.assertEqual(plan["embargo"]["minutes_by_timeframe"], want)
+        self.assertEqual(plan["embargo"]["h_multiple"], 2)
+        self.assertEqual(self.fs.evaluation_config(plan)["embargo"], plan["embargo"])
+        h1 = plan["plan_hash"]
+        with mock.patch.object(self.fs, "EMBARGO_H_MULTIPLE", 3):
+            self.assertNotEqual(self.fs.build_plan(grid_dir=FIXTURES,
+                                                   first_bar=lambda s, t: "2010-01-01T00:00:00Z")["plan_hash"], h1)
+
+
 class DeclarationEnforcement(_Helpers):
     def setUp(self):
         super().setUp()
@@ -1346,7 +1409,8 @@ class AdoptedFKeys(unittest.TestCase):
 
     def test_the_nine_keys_are_in_every_overlay_and_are_engine_keys_that_default_off(self):
         bt = self.fs._load_bt()
-        self.assertEqual(len(self.fs.ADOPTED_F_KEYS), 9)
+        self.assertEqual(len(self.fs.ADOPTED_F_KEYS), 10)              # nine F items + O1 fx_admission_entry_cost
+        self.assertIn("fx_admission_entry_cost", self.fs.ADOPTED_F_KEYS)
         fixed = self.fs.fixed_opts()
         for k in self.fs.ADOPTED_F_KEYS:
             self.assertIn(k, bt._OPTS_BASE, k)

@@ -148,7 +148,12 @@ OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see
             fx_a2b_stale_htf_block=False,
             # Batch 2(a) ICT V items: the baseline (first declared) value of each = v1. See FX_ICT_V_KEYS above.
             fx_b_ex="iofed", fx_b_pd="r15", fx_b_pool="off", fx_b_buf="0", fx_b_exit="-2.0|H|floor",
-            fx_b_lb="12|K", fx_b6="no", fx_b3="entry_tf", fx_b7="all_hours")
+            fx_b_lb="12|K", fx_b6="no", fx_b3="entry_tf", fx_b7="all_hours",
+            # O1 (owner-approved 2026-09-30, docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md): default v1
+            # (False) = simulate()'s min_rr admission uses the real round-turn cost incl. the EXIT-hour spread and
+            # swap. True = admission uses only what is knowable at the entry decision (see simulate()). The live
+            # runner never sets it.
+            fx_admission_entry_cost=False)
 # The four fx_ keys that change WYCKOFF-BOOK/COMBINED-BOOK DETECTION (not just gating) -- read once per
 # `_WY_CANDIDATES` cache build, bridged into the module-level wyckoff_rules.PARAMS the same way
 # `spring_max_bars_outside` already is (see `_wyckoff_candidates`'s own docstring: it must stay OPTS-
@@ -1665,6 +1670,12 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
     one would not know it. `spread_stat` ("median" default, "p90" the disclosed stress option) passes through
     to `real_costs.cost_r`.
 
+    `OPTS["fx_admission_entry_cost"]` (O1, default False = v1): with `cost_profile` set, the min_rr ADMISSION
+    test normally subtracts the real round-turn cost including the exit-hour half-spread and swap nights, i.e. it
+    depends on when the trade exits. When True the admission cost is `cost_r(entry_time, entry_time)`: entry-hour
+    half-spread + an exit-leg half-spread ESTIMATED at the entry hour, swap 0 (unknowable), commission as
+    recorded. Only the admission test changes; the reported net R keeps the real entry+exit cost.
+
     Chronological RISK-per-trade compounding account (a trade's own `size` field scales its risk, default
     1.0 -- no current runnable method sets it below 1.0; kept generic rather than hard-coded so a future
     multi-leg method is not a second copy of this loop); one open position per symbol (a trade whose entry
@@ -1788,6 +1799,14 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
             cr = _RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"], t["side"],
                             cost_profile, spread_stat=spread_stat)
             fee_R = cr["total_R"]
+            adm_fee_R = fee_R
+            if OPTS.get("fx_admission_entry_cost"):
+                # O1: admission may use ONLY what is knowable at the entry decision (CLAUDE.md §8/§37). The exit
+                # time/hour is not, so price both legs at the ENTRY hour (entry half-spread + the same half-spread
+                # as the exit-leg estimate), no swap (nights held depend on the exit), commission as recorded.
+                # `fee_R` (real entry+exit cost) still prices the REPORTED net R below.
+                adm_fee_R = _RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["entry_time"], t["symbol"],
+                                       t["side"], cost_profile, spread_stat=spread_stat)["total_R"]
         elif entry_order_type is not None:
             # INT-4/PAR-2: entry and exit priced SEPARATELY -- the entry pays this run's own order type, the
             # exit ALWAYS pays taker (every exit on this venue is a market-on-trigger order).
@@ -1801,7 +1820,9 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
                 fee_R = 2 * fee_pct / dist
         else:
             fee_R = 2 * fee_pct / dist
-        if t.get("R_planned", 99) - fee_R < OPTS["min_rr"] and not (
+        if cost_profile is None:
+            adm_fee_R = fee_R          # flat fee: does not depend on the exit, nothing to split
+        if t.get("R_planned", 99) - adm_fee_R < OPTS["min_rr"] and not (
                 no_floor_ict and "-ict-" in (t.get("event") or "")):
             continue
         # §24-§32 / §21 admission-time refusal, PIT on entry_time alone. Refused candidates never reach the
