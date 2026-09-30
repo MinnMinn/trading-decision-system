@@ -47,7 +47,7 @@ ACCOUNT — RISK of current equity risked per trade, compounding, one open posit
           RISK is one number, set below and equal to strategy-runner.RISK_CEILING -- do NOT restate it as a literal in prose here or in the report title; it read "1%" for the whole day after the ceiling moved to 3%.
           Monthly / quarterly / yearly returns are equity-curve returns (closed trades booked at exit time).
 """
-import argparse, bisect, collections, heapq, importlib.util, datetime, json, os, statistics, sys
+import argparse, bisect, collections, heapq, importlib.util, datetime, json, os, statistics, sys, types
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -871,9 +871,33 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
     near edge"). So a setup is NOT a trade: fvg_fill() decides whether price ever came back to that limit without
     first hitting the stop, and returns None when the order would simply never have filled. Skipping that check
     would enter every setup at a favourable price and make the whole backtest optimistic by construction."""
+    x = _ict_ctx(sym, tf, c, Tm, HZ, H, L, C, methods)
     out, seen = [], set()
+    for i in range(x.n):
+        a = lr.read_at(c, i, tf, methods, opts=x.fx_opts)
+        if a is None:            # window not yet the full live window -- live would not have scanned here at all
+            continue
+        su = _ict_candidate(x, i, a)
+        if su is None:
+            continue
+        key = (su["side"], su["sweep"]["time"], su["mss"]["time"])
+        if key in seen:          # the same setup stays visible for many bars; take it once, at its first bar
+            continue
+        seen.add(key)
+        t = _ict_trade(x, i, su)
+        if t is not None:
+            out.append(t)
+    return out
+
+
+def _ict_ctx(sym, tf, c, Tm, HZ, H, L, C, methods, idx_of_time=None):
+    """Everything ict_setups_live() derives from OPTS once per scan -- moved verbatim out of its head so that
+    scan_many() (scripts/scan_many.py) can build one per overlay and share the per-bar analysis between them.
+    Reads the CURRENT module OPTS, exactly as ict_setups_live() always did. `x.fx_opts` is the overlay the
+    per-bar analysis and setup_candidate() receive."""
     n = len(c)
-    idx_of_time = {t: j for j, t in enumerate(Tm)}
+    if idx_of_time is None:      # scan_many() passes one shared dict: it is a pure function of Tm, n entries big
+        idx_of_time = {t: j for j, t in enumerate(Tm)}
     # B1/Batch-1a: the same fx_ overlay goes to BOTH read_at() (analyze()) and setup_candidate() -- B2b's
     # `inverted_at` field is only present on an fvg when analyze() itself was called with fx_b2b_ce_fail, so a
     # caller that set the key for one but not the other would silently get v1 setup_candidate() behaviour.
@@ -892,112 +916,122 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
     hz = {"H": HZ, "1.5H": int(round(1.5 * HZ)), "2H": 2 * HZ, "none": n}[hold_tok]
     b3_tfa = OPTS["fx_b3"] == "tfa_p5"                                # B3
     b7_kz = OPTS["fx_b7"] == "killzone" and (_I.display(sym).get("asset_class") == "indices")   # B7: indices only
-    for i in range(n):
-        a = lr.read_at(c, i, tf, methods, opts=fx_opts)
-        if a is None:            # window not yet the full live window -- live would not have scanned here at all
-            continue
-        su = lr.ict_scan.setup_candidate(a, lr.window(c, i, tf), lookback, opts=fx_opts)
-        if not su or not su.get("complete") or not su.get("pd_ok"):
-            continue
-        if b3_tfa:
-            # B3 (knowledge/ict/models.md §2.8, TFA p5): the bias is read on the PAIRED higher timeframe instead of
-            # the entry timeframe -- same gate function the HTF filter uses, keyed on this bar's own close. No
-            # pairing for this timeframe, or no readable/closed bias bar = cannot judge = refuse.
-            pair = TFA_P5_BIAS_TF.get(tf)
-            if pair is None or htf_bias_gate(sym, tf, su["side"],
-                                             _N.available_time(c[i], tf).isoformat().replace("+00:00", "Z"),
-                                             methods, h=pair) is not True:
-                continue
-        else:
-            bias, _ = lr.bias_at(c, i, tf, methods, facts=a)      # facts reused: no second analyze()
-            if not bias_allows(bias, su["side"]):
-                continue
-        # INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): the SAME htf gate function live uses
-        # (strategy-runner.htf_pass -> bt.bias_allows(bt.lr.bias_at(...))), keyed on the HTF bar closed at or
-        # before THIS bar's own decision time -- not the Wyckoff engine's legacy percentile proxy, and not
-        # "no gate at all", which is what the ICT path had before this fix. Only evaluated when a run asked
-        # for the HTF filter at all (OPTS["htf"]) -- an untouched run (OPTS["htf"]=False, the default) is
-        # unaffected, matching the live runner's own `st.get("htf")` per-setup opt-in.
-        #
-        # Round-4a fix round 1 (code review of a746ffc): `decision_time` must be bar i's own CLOSE
-        # (normalized.available_time), not `Tm[i]` (its OPEN, per normalized.py:118) -- `_HTF_TIMES` is built
-        # from `available_time` too, so comparing an LTF OPEN against HTF CLOSE timestamps silently misjudged
-        # every LTF bar whose open time falls inside the HTF bar that is STILL forming (551/2000 measured
-        # boundary bars on BTCUSDT), diverging from live htf_pass() (strategy-runner.py), which reads the last
-        # HTF bar closed as of the tick, not one keyed on an open timestamp.
-        if OPTS["htf"] and htf_bias_gate(sym, tf, su["side"],
+    K = P[tf]["K"] * (2 if k_tok == "2K" else 1)      # B-LB: K-bar expiry K (v1) or 2K
+    return types.SimpleNamespace(sym=sym, tf=tf, c=c, Tm=Tm, H=H, L=L, C=C, methods=methods, n=n,
+                                 idx_of_time=idx_of_time, fx_opts=fx_opts, lookback=lookback, hz=hz,
+                                 b3_tfa=b3_tfa, b7_kz=b7_kz, K=K)
+
+
+def _ict_candidate(x, i, a):
+    """The PRE-dedupe half of ict_setups_live()'s per-bar body: the setup at bar `i` given the bar's analysis `a`,
+    after every gate that runs before the `seen` check -- or None. Reads OPTS (htf) exactly as the loop did."""
+    sym, tf, c, Tm, H, L, C, methods = x.sym, x.tf, x.c, x.Tm, x.H, x.L, x.C, x.methods
+    lookback, fx_opts, b3_tfa = x.lookback, x.fx_opts, x.b3_tfa
+    su = lr.ict_scan.setup_candidate(a, lr.window(c, i, tf), lookback, opts=fx_opts)
+    if not su or not su.get("complete") or not su.get("pd_ok"):
+        return None
+    if b3_tfa:
+        # B3 (knowledge/ict/models.md §2.8, TFA p5): the bias is read on the PAIRED higher timeframe instead of
+        # the entry timeframe -- same gate function the HTF filter uses, keyed on this bar's own close. No
+        # pairing for this timeframe, or no readable/closed bias bar = cannot judge = refuse.
+        pair = TFA_P5_BIAS_TF.get(tf)
+        if pair is None or htf_bias_gate(sym, tf, su["side"],
                                          _N.available_time(c[i], tf).isoformat().replace("+00:00", "Z"),
-                                         methods) is not True:
-            continue
-        key = (su["side"], su["sweep"]["time"], su["mss"]["time"])
-        if key in seen:          # the same setup stays visible for many bars; take it once, at its first bar
-            continue
-        seen.add(key)
-        mss_i = idx_of_time.get(su["mss"]["time"])
-        if mss_i is None:
-            continue
-        entry = su["entry"]; stop = su["stop"]; target = su["target"]
-        far = su["entry_models"]["fill"]   # ict-scan.py setup_candidate: the key is "entry_models", not "entries"
-        # ---- the live runner's own two questions, in its own order (CLAUDE.md §37: the backtest runs the
-        # live semantics). scripts/strategy-runner.py ict_live_setups asks them at the bar the setup first
-        # becomes visible, which is THIS bar `i`:
-        #
-        #   1. "Has the limit already gone through?"  fvg_fill over mss_i+1 .. i. If price has already reached
-        #      the FVG near edge by the time the setup is detectable, the runner refuses -- "already
-        #      triggered on an earlier bar ... not a NEW order to place" -- and it is right to: it cannot
-        #      place an order into a level price has left, and after a restart it cannot know whether an
-        #      earlier process got it. A backtest that books that trade is booking one nobody can have.
-        #   2. "Where does it fill?"  from i+1 onward, because the order does not exist until bar i closes.
-        #
-        # The old code asked only a version of (2), scanning from mss_i+1 -- i.e. it assumed the limit had
-        # been resting since the MSS bar, which nobody could have done, since the setup is not detectable
-        # until `i` and `i` is often mss_i + 1 or later.
-        #
-        # Measured, not reasoned about. BTCUSDT 15m 2026-09-09: MSS at 11:45, setup first complete and
-        # bias-agreeing at 12:00, FVG near edge reached WITHIN 12:00. The old rule booked a 2.06R trade the
-        # live runner refuses; that is §38's "unrealistic execution assumptions" and it is what made the
-        # replay parity check fail once the check itself was repaired to use the live window.
-        #
-        # ICT-8/PAR-7 (docs/audits/2026-09-24-system-audit.md): both fvg_fill calls below are anchored on
-        # `mss_i`, matching the live runner's own expiry (strategy-runner.ict_live_setups: bars_left = mss_i +
-        # K - (n-1)). The old (2) scanned mss_i+1..i+K -- i.e. i-mss_i bars LONGER than live's own window -- so
-        # the backtest could still book a fill live would already have expired. A setup detected after its own
-        # window has already closed is refused outright, exactly as live refuses a `bars_left < 0` order.
-        K = P[tf]["K"] * (2 if k_tok == "2K" else 1)      # B-LB: K-bar expiry K (v1) or 2K
-        if i > mss_i + K:
-            continue              # ICT-8/PAR-7: already expired by the time the setup is even detectable -- live would never place this order
-        if fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, i + 1) is not None:
-            continue             # the runner would refuse this as already triggered -- so neither may this
-        fill = fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, n)
-        if fill is None:         # the limit never filled within its K-bar window: live would hold/expire an unfilled order, not a position
-            continue
-        fill_bar, outcome = fill
-        if OPTS["fx_b6"] == "yes" and any((H[j] >= target) if su["side"] == "long" else (L[j] <= target)
-                                          for j in range(mss_i + 1, fill_bar)):
-            continue             # B6: the target traded before the limit filled -- the pending order is cancelled
-        if b7_kz and not _S.active(Tm[fill_bar]):
-            continue             # B7: an index entry outside every session-registry window is not taken
-        # INT-7 (docs/audits/2026-09-24-system-audit.md): every ICT trade record needs an `event` id, or
-        # simulate()'s one-position-per-symbol rule (`t.get("event") != ev`, both None for two different ICT
-        # trades) compares None != None -- False -- and never skips an overlapping ICT trade on the same
-        # symbol, contradicting EXECUTION_ASSUMPTIONS["one_position_per_symbol"]. Built from the setup's own
-        # sweep+MSS identity (the same tuple `key` above), so two DIFFERENT ICT setups never collide, and the
-        # SAME setup detected again would (it cannot reach here twice -- `seen` dedupes it first).
-        event = f"{sym}-{su['side']}-ict-{su['sweep']['time']}-{su['mss']['time']}"
-        if outcome == "filled_and_stopped":
-            # ICT-8: same-bar fill+stop is unknowable from OHLC. Book the pessimistic -1R loss instead of the
-            # pre-2026-09-24 behaviour (fvg_fill returned None here and the trade silently vanished from the
-            # backtest -- §38 "unrealistic execution assumptions").
-            out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], event=event, entry=entry, entry_time=Tm[fill_bar],
-                            stop=stop, target=target, exit_time=Tm[fill_bar], vol_type=None,
-                            outcome="loss", R=-1.0, R_planned=su.get("R"), exit=fill_bar, mfe=0.0, mae=-1.0, bars_held=1))
-            continue
-        w = walk(su["side"], entry, stop, target, H, L, C, fill_bar + 1, hz, Tm=Tm)
-        if not w:
-            continue
-        out.append(dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], event=event, entry=entry, entry_time=Tm[fill_bar],
-                        stop=stop, target=target, exit_time=Tm[w["exit"]], vol_type=None, **w))
-    return out
+                                         methods, h=pair) is not True:
+            return None
+    else:
+        bias, _ = lr.bias_at(c, i, tf, methods, facts=a)      # facts reused: no second analyze()
+        if not bias_allows(bias, su["side"]):
+            return None
+    # INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): the SAME htf gate function live uses
+    # (strategy-runner.htf_pass -> bt.bias_allows(bt.lr.bias_at(...))), keyed on the HTF bar closed at or
+    # before THIS bar's own decision time -- not the Wyckoff engine's legacy percentile proxy, and not
+    # "no gate at all", which is what the ICT path had before this fix. Only evaluated when a run asked
+    # for the HTF filter at all (OPTS["htf"]) -- an untouched run (OPTS["htf"]=False, the default) is
+    # unaffected, matching the live runner's own `st.get("htf")` per-setup opt-in.
+    #
+    # Round-4a fix round 1 (code review of a746ffc): `decision_time` must be bar i's own CLOSE
+    # (normalized.available_time), not `Tm[i]` (its OPEN, per normalized.py:118) -- `_HTF_TIMES` is built
+    # from `available_time` too, so comparing an LTF OPEN against HTF CLOSE timestamps silently misjudged
+    # every LTF bar whose open time falls inside the HTF bar that is STILL forming (551/2000 measured
+    # boundary bars on BTCUSDT), diverging from live htf_pass() (strategy-runner.py), which reads the last
+    # HTF bar closed as of the tick, not one keyed on an open timestamp.
+    if OPTS["htf"] and htf_bias_gate(sym, tf, su["side"],
+                                     _N.available_time(c[i], tf).isoformat().replace("+00:00", "Z"),
+                                     methods) is not True:
+        return None
+    return su
+
+
+def _ict_trade(x, i, su):
+    """The POST-dedupe half: the trade (or None) that setup `su`, first visible at bar `i`, becomes. A pure
+    function of (i, su) and OPTS -- it does not depend on which other setups were seen, which is what lets
+    scan_many() compute it per chunk and dedupe afterwards."""
+    sym, tf, c, Tm, H, L, C, methods = x.sym, x.tf, x.c, x.Tm, x.H, x.L, x.C, x.methods
+    Tm, H, L, C = x.Tm, x.H, x.L, x.C
+    n, idx_of_time, hz, b7_kz, K = x.n, x.idx_of_time, x.hz, x.b7_kz, x.K
+    mss_i = idx_of_time.get(su["mss"]["time"])
+    if mss_i is None:
+        return None
+    entry = su["entry"]; stop = su["stop"]; target = su["target"]
+    far = su["entry_models"]["fill"]   # ict-scan.py setup_candidate: the key is "entry_models", not "entries"
+    # ---- the live runner's own two questions, in its own order (CLAUDE.md §37: the backtest runs the
+    # live semantics). scripts/strategy-runner.py ict_live_setups asks them at the bar the setup first
+    # becomes visible, which is THIS bar `i`:
+    #
+    #   1. "Has the limit already gone through?"  fvg_fill over mss_i+1 .. i. If price has already reached
+    #      the FVG near edge by the time the setup is detectable, the runner refuses -- "already
+    #      triggered on an earlier bar ... not a NEW order to place" -- and it is right to: it cannot
+    #      place an order into a level price has left, and after a restart it cannot know whether an
+    #      earlier process got it. A backtest that books that trade is booking one nobody can have.
+    #   2. "Where does it fill?"  from i+1 onward, because the order does not exist until bar i closes.
+    #
+    # The old code asked only a version of (2), scanning from mss_i+1 -- i.e. it assumed the limit had
+    # been resting since the MSS bar, which nobody could have done, since the setup is not detectable
+    # until `i` and `i` is often mss_i + 1 or later.
+    #
+    # Measured, not reasoned about. BTCUSDT 15m 2026-09-09: MSS at 11:45, setup first complete and
+    # bias-agreeing at 12:00, FVG near edge reached WITHIN 12:00. The old rule booked a 2.06R trade the
+    # live runner refuses; that is §38's "unrealistic execution assumptions" and it is what made the
+    # replay parity check fail once the check itself was repaired to use the live window.
+    #
+    # ICT-8/PAR-7 (docs/audits/2026-09-24-system-audit.md): both fvg_fill calls below are anchored on
+    # `mss_i`, matching the live runner's own expiry (strategy-runner.ict_live_setups: bars_left = mss_i +
+    # K - (n-1)). The old (2) scanned mss_i+1..i+K -- i.e. i-mss_i bars LONGER than live's own window -- so
+    # the backtest could still book a fill live would already have expired. A setup detected after its own
+    # window has already closed is refused outright, exactly as live refuses a `bars_left < 0` order.
+    if i > mss_i + K:
+        return None              # ICT-8/PAR-7: already expired by the time the setup is even detectable -- live would never place this order
+    if fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, i + 1) is not None:
+        return None             # the runner would refuse this as already triggered -- so neither may this
+    fill = fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, n)
+    if fill is None:         # the limit never filled within its K-bar window: live would hold/expire an unfilled order, not a position
+        return None
+    fill_bar, outcome = fill
+    if OPTS["fx_b6"] == "yes" and any((H[j] >= target) if su["side"] == "long" else (L[j] <= target)
+                                      for j in range(mss_i + 1, fill_bar)):
+        return None             # B6: the target traded before the limit filled -- the pending order is cancelled
+    if b7_kz and not _S.active(Tm[fill_bar]):
+        return None             # B7: an index entry outside every session-registry window is not taken
+    # INT-7 (docs/audits/2026-09-24-system-audit.md): every ICT trade record needs an `event` id, or
+    # simulate()'s one-position-per-symbol rule (`t.get("event") != ev`, both None for two different ICT
+    # trades) compares None != None -- False -- and never skips an overlapping ICT trade on the same
+    # symbol, contradicting EXECUTION_ASSUMPTIONS["one_position_per_symbol"]. Built from the setup's own
+    # sweep+MSS identity (the same tuple `key` above), so two DIFFERENT ICT setups never collide, and the
+    # SAME setup detected again would (it cannot reach here twice -- `seen` dedupes it first).
+    event = f"{sym}-{su['side']}-ict-{su['sweep']['time']}-{su['mss']['time']}"
+    if outcome == "filled_and_stopped":
+        # ICT-8: same-bar fill+stop is unknowable from OHLC. Book the pessimistic -1R loss instead of the
+        # pre-2026-09-24 behaviour (fvg_fill returned None here and the trade silently vanished from the
+        # backtest -- §38 "unrealistic execution assumptions").
+        return dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], event=event, entry=entry, entry_time=Tm[fill_bar],
+                    stop=stop, target=target, exit_time=Tm[fill_bar], vol_type=None,
+                    outcome="loss", R=-1.0, R_planned=su.get("R"), exit=fill_bar, mfe=0.0, mae=-1.0, bars_held=1)
+    w = walk(su["side"], entry, stop, target, H, L, C, fill_bar + 1, hz, Tm=Tm)
+    if not w:
+        return None
+    return dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], event=event, entry=entry, entry_time=Tm[fill_bar],
+                stop=stop, target=target, exit_time=Tm[w["exit"]], vol_type=None, **w)
 
 
 RUNNER_METHODS = ("WYCKOFF-BOOK", "ICT", "COMBINED-BOOK")
@@ -1040,7 +1074,7 @@ def wyckoff_fires(side, candles, tf, sym=None):
     return _fires_from(side, _wyckoff_candidates(side, O, H, L, C, V, tf, sym), C, Tm, sym=sym, tf=tf)
 
 
-def _wyckoff_candidates(side, O, H, L, C, V, tf, sym):
+def _wyckoff_candidates(side, O, H, L, C, V, tf, sym, pivots=None):
     """The wyckoff_rules records of this window that COULD fire on its last bar (a reclaim, test or BU sitting on
     it) -- everything OPTS-independent, so scan() can cache it per window and re-run the gates cheaply for each
     config (stability-report's A/B/C, improve-loop's candidates) instead of re-detecting 100 000 windows apiece.
@@ -1049,7 +1083,11 @@ def _wyckoff_candidates(side, O, H, L, C, V, tf, sym):
     `_fx_detection_opts()` and applied, with this tf's spring_max_bars_outside, to a PER-CALL COPY of
     wyckoff_rules.PARAMS -- the global dict is never written, so there is no state to restore on a cache hit or
     after an exception. Every caller that caches this function's output (scan()) keys the cache on those four
-    keys (`ck`); the signature is unchanged so diagnose-methods.py's counting wrapper still fits it."""
+    keys (`ck`); the first eight parameters are unchanged so diagnose-methods.py's counting wrapper still fits it.
+
+    `pivots` (scan_many only, byte-identical): this window's k-bar pivots, pre-computed once per series --
+    `wyckoff_rules.window_pivots(pivot_index(H_full, L_full, k), a, len(window), k, swap=(side == "short"))`, k being
+    `wp["pivot"]`. None (scan() and every other caller) = the detector finds them itself."""
     wp = _wy_params(P[tf]["sob"])
     last = len(C) - 1
     vkind = "tick" if (sym and _I.is_tick_volume(sym)) else "traded"   # wyckoff_rules R0 / WMT p131-133
@@ -1060,7 +1098,7 @@ def _wyckoff_candidates(side, O, H, L, C, V, tf, sym):
     # and must not allocate a per-window `candles` list just to timestamp it -- when nothing on this path reads
     # either. `wyckoff_records()` IS `W.detect_accumulations(...)`/`W.detect_distributions(...)` (P= the per-call
     # `wp` copy of W.PARAMS built above) -- byte-identical to the pre-A1 direct call when no fx_ key is set.
-    recs = _structures.wyckoff_records(O, H, L, C, V, P=wp, volume_kind=vkind, side=side)
+    recs = _structures.wyckoff_records(O, H, L, C, V, P=wp, volume_kind=vkind, side=side, pivots=pivots)
     return [r for r in recs if (r["bu"] and r["bu"]["bar"] == last) or r["reclaim"] == last or r["test"] == last]
 
 
@@ -1195,6 +1233,103 @@ def _check_fx_registered(o):
                              f"{sorted(x for x in _OPTS_BASE if x.startswith('fx_'))})")
 
 
+def _wy_window(sym, tf, n):
+    """The window length one WYCKOFF-BOOK/COMBINED-BOOK scan walks (W6: OPTS["fx_w6_window"], 300 = the module's
+    WYCKOFF_WINDOW), after refusing an out-of-set V value (`_check_wy_v_opts`) and a window longer than the history.
+    Moved verbatim out of scan() so scan_many() validates an overlay exactly as scan() does."""
+    _check_wy_v_opts()
+    WIN = WYCKOFF_WINDOW if OPTS["fx_w6_window"] == 300 else OPTS["fx_w6_window"]
+    if WIN != WYCKOFF_WINDOW and n < WIN:
+        # Review round 1 (I3): a window longer than the history yields ZERO windows, which would read as a real
+        # "no edge" cell. Refuse instead; the default window is untouched (v1 behaviour byte-identical).
+        raise ValueError(f"fx_w6_window={WIN} needs at least {WIN} bars of history, {sym} {tf} has {n}; "
+                         f"refusing to report an empty cell as a result")
+    return WIN
+
+
+def _wy_ctx(sym, tf, c, O, H, L, C, Tm, n, K, HZ, PH, PL, want, methods):
+    """The per-scan arrays and constants scan()'s WYCKOFF-BOOK/COMBINED-BOOK per-fire body reads."""
+    return types.SimpleNamespace(sym=sym, tf=tf, c=c, O=O, H=H, L=L, C=C, Tm=Tm, n=n, K=K, HZ=HZ, PH=PH, PL=PL,
+                                 want=want, methods=methods)
+
+
+def _wy_fire(x, side, f, a, last, trades):
+    """The POST-dedupe half of scan()'s Wyckoff loop: everything that happens to one fire `f` (of `side`, found
+    in the window starting at history bar `a` and ending at bar `last`) after its (side, t0, leg) key was first
+    seen -- htf gate, the WYCKOFF-BOOK trade(s), the COMBINED-BOOK ICT leg -- appended to `trades[method]`. Moved
+    verbatim out of scan() so scan_many() can run it per chunk; a pure function of its arguments and OPTS."""
+    sym, tf, c, O, H, L, C, Tm, n = x.sym, x.tf, x.c, x.O, x.H, x.L, x.C, x.Tm, x.n
+    K, HZ, PH, PL, want, methods = x.K, x.HZ, x.PH, x.PL, x.want, x.methods
+    r = f["rec"]; t0 = f["t0"]
+    # INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): the SAME htf gate function live
+    # uses for every method (bt.bias_allows(bt.lr.bias_at(...)), strategy-runner.htf_pass),
+    # keyed on the LTF DECISION bar's own close time (the bar the structure fires on, matching
+    # live's "at the entry tick"), not the legacy rolling-percentile proxy (`htf_allows`/
+    # `htf_position`, kept below only for their own standalone regression tests --
+    # scripts/tests/test_backtesting.py, scripts/tests/test_live_rules.py -- and no longer
+    # wired into this gate) and not `t0` (the Spring/SOS time, which for a Phase-D leg can be
+    # many bars before the actual BU/entry decision).
+    #
+    # Round-4a fix round 1 (code review of a746ffc): `decision_time` must be bar `last`'s own
+    # CLOSE (normalized.available_time), not `Tm[last]` (its OPEN) -- see the matching fix in
+    # ict_setups_live() above for the measured divergence from live htf_pass().
+    if OPTS["htf"] and htf_bias_gate(sym, tf, side,
+                                     _N.available_time(c[last], tf).isoformat().replace("+00:00", "Z"),
+                                     methods) is not True:
+        return
+    base = dict(symbol=sym, tf=tf, side=side, time=t0, event=f"{sym}-{side}-book-{t0}", support=r["tr_lo"], resistance=r["tr_hi"], vol_type=r["vol_type"], vol_ratio=r["vol_ratio"],
+                volume_kind=r["volume_kind"], st_sign=r["st_sign"], phase_b_sign=r["phase_b_sign"],
+                st_pct=r["st_pct"], sot=r["sot"], path=r["path"])
+    if f["leg"] == "phase_d":
+        if "WYCKOFF-BOOK" in want:
+            w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ, Tm=Tm)
+            if w:
+                trades["WYCKOFF-BOOK"].append(dict(base, event=base["event"] + "-D", entry=f["entry"], entry_time=Tm[last], stop=f["stop"], target=f["target"], exit_time=Tm[w["exit"]], leg="phase_d", **w))
+        return
+    if "WYCKOFF-BOOK" in want:
+        w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ, Tm=Tm)
+        if w:
+            trades["WYCKOFF-BOOK"].append(dict(base, entry=f["entry"], entry_time=Tm[last], stop=f["stop"], target=f["target"], exit_time=Tm[w["exit"]], leg="spring", **w))
+    if "COMBINED-BOOK" in want and r["reclaim"] is not None:
+        # Window-local structure indexes -> history indexes for the ICT leg, which walks FORWARD
+        # from the reclaim on the full arrays (an MSS/FVG that forms later is later information,
+        # used later). The structure is only KNOWN at `last`, its fire bar: an ICT entry the leg
+        # finds before that bar would be taken on a structure nobody had yet identified.
+        ict = find_ict(side, a + r["spring"], a + r["reclaim"], H, L, C, K, n, PH, PL, O)
+        if ict:
+            mss, edge, far = ict
+            fill = fvg_fill(side, mss, edge, far, f["stop"], H, L, K, n)
+            # INT-3 (docs/audits/2026-09-24-system-audit.md): before this fix, a `fill is None`
+            # (price never returned to the FVG edge within the K-bar window) fell back to a
+            # MARKET entry at the MSS close (`mss, C[mss]`) -- a decision that could only be
+            # made by looking K bars into the future to see whether the retrace happened, since
+            # "fill is None" is itself only known after scanning mss+1..mss+K. Runaway moves got
+            # the favourable MSS-close price and retracing ones got the FVG price: hindsight,
+            # exactly what assess_run()'s own look_ahead check already assumed this path could
+            # no longer produce. COMBINED-BOOK's entry model is the SAME return-to-FVG LIMIT ICT
+            # uses (this leg IS the ICT confirmation, methods.json's COMBINED-BOOK.entry=
+            # "market" describes the WYCKOFF leg, not this one) -- an order that never fills is
+            # not a trade, exactly as ict_setups_live() already treats it. runnable=false, so
+            # this cannot reach the pilot selection either way; fixed per CLAUDE.md §37 regardless.
+            if fill is None:
+                return
+            e_bar, outcome = fill
+            if e_bar < last:
+                return          # already triggered on an earlier window -- not a NEW firing here
+            if outcome == "filled_and_stopped":
+                # ICT-8, applied to the same shared fvg_fill(): same-bar fill+stop is unknowable
+                # from OHLC -- book the pessimistic -1R loss rather than silently dropping it.
+                stop_dist = abs(edge - f["stop"])
+                rp = abs(f["target"] - edge) / stop_dist if stop_dist else None
+                trades["COMBINED-BOOK"].append(dict(base, entry=edge, entry_time=Tm[e_bar], stop=f["stop"], target=f["target"],
+                                                    exit_time=Tm[e_bar], via="fvg", outcome="loss", R=-1.0, R_planned=rp,
+                                                    exit=e_bar, mfe=0.0, mae=-1.0, bars_held=1))
+                return
+            cw = walk(side, edge, f["stop"], f["target"], H, L, C, e_bar + 1, HZ, Tm=Tm)
+            if cw:
+                trades["COMBINED-BOOK"].append(dict(base, entry=edge, entry_time=Tm[e_bar], stop=f["stop"], target=f["target"], exit_time=Tm[cw["exit"]], via="fvg", **cw))
+
+
 def scan(sym, tf, only=None, opts=None):
     """`only`: which of RUNNER_METHODS to compute; None (default) computes all three. A caller that needs exactly
     one method's trades should pass e.g. only=("ICT",) so scan() SKIPS the other methods' work rather than
@@ -1226,7 +1361,10 @@ def scan(sym, tf, only=None, opts=None):
         return None
     p = P[tf]; R, K, T, HZ = p["R"], p["K"], p["T"], p["H"]
     H = [x["high"] for x in c]; L = [x["low"] for x in c]; C = [x["close"] for x in c]; V = [x.get("volume", 0) for x in c]; Tm = [x["time"] for x in c]; O = [x["open"] for x in c]
-    n = len(c); trades = collections.defaultdict(list); PH = all_pivots(H, "high"); PL = all_pivots(L, "low")
+    n = len(c); trades = collections.defaultdict(list)
+    # PH/PL feed only COMBINED-BOOK's ICT leg (find_ict): skipped when that method was not asked for (they are pure
+    # functions of the series, so skipping them changes no output).
+    PH = all_pivots(H, "high") if "COMBINED-BOOK" in want else None; PL = all_pivots(L, "low") if "COMBINED-BOOK" in want else None
     # INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): `methods` resolved ONCE, reused by both the
     # WYCKOFF-BOOK/COMBINED-BOOK htf gate below and the ICT branch's own htf gate (ict_setups_live), so the two
     # methods can never be asked the giảm-khung question with different bias-reading dimensions in the same run.
@@ -1238,13 +1376,7 @@ def scan(sym, tf, only=None, opts=None):
         # t0 and are dropped here, as replay() drops them.
         # W6 (plan §3, fidelity §3.3 B1): OPTS["fx_w6_window"] 300 (the baseline) = the module's WYCKOFF_WINDOW, the
         # ONE number the live runner also reads; 600 is the V value. It is a component of the cache key below.
-        _check_wy_v_opts()
-        seen = set(); WIN = WYCKOFF_WINDOW if OPTS["fx_w6_window"] == 300 else OPTS["fx_w6_window"]
-        if WIN != WYCKOFF_WINDOW and n < WIN:
-            # Review round 1 (I3): a window longer than the history yields ZERO windows, which would read as a real
-            # "no edge" cell. Refuse instead; the default window is untouched (v1 behaviour byte-identical).
-            raise ValueError(f"fx_w6_window={WIN} needs at least {WIN} bars of history, {sym} {tf} has {n}; "
-                             f"refusing to report an empty cell as a result")
+        seen = set(); WIN = _wy_window(sym, tf, n)
         # Detection is the cost (~0.5 ms/window) and does not depend on the GATING half of OPTS; the gates do.
         # So the per-window candidates are computed once per history in this process and every config re-runs
         # only the gates -- EXCEPT the four fx_w1/w2/w3/w5 keys (Batch 1(b) F items), which change DETECTION
@@ -1256,6 +1388,7 @@ def scan(sym, tf, only=None, opts=None):
             _WY_CANDIDATES[ck] = {(side, k): _wyckoff_candidates(side, O[k - WIN:k], H[k - WIN:k], L[k - WIN:k], C[k - WIN:k], V[k - WIN:k], tf, sym)
                                   for k in range(WIN, n + 1) for side in ("long", "short")}
         cands = _WY_CANDIDATES[ck]
+        x = _wy_ctx(sym, tf, c, O, H, L, C, Tm, n, K, HZ, PH, PL, want, methods)
         for k in range(WIN, n + 1):
             last = k - 1; a = k - WIN
             for side in OPTS["sides"]:
@@ -1267,74 +1400,7 @@ def scan(sym, tf, only=None, opts=None):
                     if key in seen:
                         continue
                     seen.add(key)
-                    r = f["rec"]; t0 = f["t0"]
-                    # INT-6/PAR-3 (docs/audits/2026-09-24-system-audit.md): the SAME htf gate function live
-                    # uses for every method (bt.bias_allows(bt.lr.bias_at(...)), strategy-runner.htf_pass),
-                    # keyed on the LTF DECISION bar's own close time (the bar the structure fires on, matching
-                    # live's "at the entry tick"), not the legacy rolling-percentile proxy (`htf_allows`/
-                    # `htf_position`, kept below only for their own standalone regression tests --
-                    # scripts/tests/test_backtesting.py, scripts/tests/test_live_rules.py -- and no longer
-                    # wired into this gate) and not `t0` (the Spring/SOS time, which for a Phase-D leg can be
-                    # many bars before the actual BU/entry decision).
-                    #
-                    # Round-4a fix round 1 (code review of a746ffc): `decision_time` must be bar `last`'s own
-                    # CLOSE (normalized.available_time), not `Tm[last]` (its OPEN) -- see the matching fix in
-                    # ict_setups_live() above for the measured divergence from live htf_pass().
-                    if OPTS["htf"] and htf_bias_gate(sym, tf, side,
-                                                     _N.available_time(c[last], tf).isoformat().replace("+00:00", "Z"),
-                                                     methods) is not True:
-                        continue
-                    base = dict(symbol=sym, tf=tf, side=side, time=t0, event=f"{sym}-{side}-book-{t0}", support=r["tr_lo"], resistance=r["tr_hi"], vol_type=r["vol_type"], vol_ratio=r["vol_ratio"],
-                                volume_kind=r["volume_kind"], st_sign=r["st_sign"], phase_b_sign=r["phase_b_sign"],
-                                st_pct=r["st_pct"], sot=r["sot"], path=r["path"])
-                    if f["leg"] == "phase_d":
-                        if "WYCKOFF-BOOK" in want:
-                            w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ, Tm=Tm)
-                            if w:
-                                trades["WYCKOFF-BOOK"].append(dict(base, event=base["event"] + "-D", entry=f["entry"], entry_time=Tm[last], stop=f["stop"], target=f["target"], exit_time=Tm[w["exit"]], leg="phase_d", **w))
-                        continue
-                    if "WYCKOFF-BOOK" in want:
-                        w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ, Tm=Tm)
-                        if w:
-                            trades["WYCKOFF-BOOK"].append(dict(base, entry=f["entry"], entry_time=Tm[last], stop=f["stop"], target=f["target"], exit_time=Tm[w["exit"]], leg="spring", **w))
-                    if "COMBINED-BOOK" in want and r["reclaim"] is not None:
-                        # Window-local structure indexes -> history indexes for the ICT leg, which walks FORWARD
-                        # from the reclaim on the full arrays (an MSS/FVG that forms later is later information,
-                        # used later). The structure is only KNOWN at `last`, its fire bar: an ICT entry the leg
-                        # finds before that bar would be taken on a structure nobody had yet identified.
-                        ict = find_ict(side, a + r["spring"], a + r["reclaim"], H, L, C, K, n, PH, PL, O)
-                        if ict:
-                            mss, edge, far = ict
-                            fill = fvg_fill(side, mss, edge, far, f["stop"], H, L, K, n)
-                            # INT-3 (docs/audits/2026-09-24-system-audit.md): before this fix, a `fill is None`
-                            # (price never returned to the FVG edge within the K-bar window) fell back to a
-                            # MARKET entry at the MSS close (`mss, C[mss]`) -- a decision that could only be
-                            # made by looking K bars into the future to see whether the retrace happened, since
-                            # "fill is None" is itself only known after scanning mss+1..mss+K. Runaway moves got
-                            # the favourable MSS-close price and retracing ones got the FVG price: hindsight,
-                            # exactly what assess_run()'s own look_ahead check already assumed this path could
-                            # no longer produce. COMBINED-BOOK's entry model is the SAME return-to-FVG LIMIT ICT
-                            # uses (this leg IS the ICT confirmation, methods.json's COMBINED-BOOK.entry=
-                            # "market" describes the WYCKOFF leg, not this one) -- an order that never fills is
-                            # not a trade, exactly as ict_setups_live() already treats it. runnable=false, so
-                            # this cannot reach the pilot selection either way; fixed per CLAUDE.md §37 regardless.
-                            if fill is None:
-                                continue
-                            e_bar, outcome = fill
-                            if e_bar < last:
-                                continue          # already triggered on an earlier window -- not a NEW firing here
-                            if outcome == "filled_and_stopped":
-                                # ICT-8, applied to the same shared fvg_fill(): same-bar fill+stop is unknowable
-                                # from OHLC -- book the pessimistic -1R loss rather than silently dropping it.
-                                stop_dist = abs(edge - f["stop"])
-                                rp = abs(f["target"] - edge) / stop_dist if stop_dist else None
-                                trades["COMBINED-BOOK"].append(dict(base, entry=edge, entry_time=Tm[e_bar], stop=f["stop"], target=f["target"],
-                                                                    exit_time=Tm[e_bar], via="fvg", outcome="loss", R=-1.0, R_planned=rp,
-                                                                    exit=e_bar, mfe=0.0, mae=-1.0, bars_held=1))
-                                continue
-                            cw = walk(side, edge, f["stop"], f["target"], H, L, C, e_bar + 1, HZ, Tm=Tm)
-                            if cw:
-                                trades["COMBINED-BOOK"].append(dict(base, entry=edge, entry_time=Tm[e_bar], stop=f["stop"], target=f["target"], exit_time=Tm[cw["exit"]], via="fvg", **cw))
+                    _wy_fire(x, side, f, a, last, trades)
     # ---------- ICT only ----------
     # The LIVE scanner (scripts/ict-scan.py + scripts/htf_context.py, via scripts/live_rules.py) decides every
     # structure -- pivot, sweep, MSS, FVG, dealing range, bias -- so the backtest measures the system actually

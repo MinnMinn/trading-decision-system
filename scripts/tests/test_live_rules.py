@@ -259,14 +259,17 @@ class IctBranchUsesTheLiveScanner(unittest.TestCase):
     def test_live_ict_setups_come_from_setup_candidate(self):
         """The live entry/stop/target rule is ict-scan.setup_candidate; the backtest must not re-derive one."""
         import inspect
-        src = inspect.getsource(self.bt.ict_setups_live)
+        # b3-speed: ict_setups_live()'s per-bar body was moved verbatim into _ict_candidate / _ict_trade (so
+        # scripts/scan_many.py can share the per-bar analysis between overlays); the rule is about that code.
+        src = inspect.getsource(self.bt.ict_setups_live) + inspect.getsource(self.bt._ict_candidate) \
+            + inspect.getsource(self.bt._ict_trade)
         self.assertIn("setup_candidate", src)
         self.assertNotIn("find_ict", src)
 
     def test_live_ict_setups_require_the_limit_to_fill(self):
         """entry is a LIMIT at the FVG near edge. A setup whose limit never filled is not a trade."""
         import inspect
-        src = inspect.getsource(self.bt.ict_setups_live)
+        src = inspect.getsource(self.bt.ict_setups_live) + inspect.getsource(self.bt._ict_trade)   # b3-speed: see above
         self.assertIn("fvg_fill", src)
 
 

@@ -34,8 +34,11 @@ STABILITY_PATH = os.path.join(ROOT, "scripts", "stability-report.py")
 # produced. An explicit, named list -- not "the whole file" -- so a read inside main()'s CLI wiring (which
 # SETS OPTS, it does not consume it for a decision) cannot count as a "reader" and hide a truly dead key.
 # Re-audit this list (grep `^def ` in backtest-methods.py) if the engine's function boundaries change.
-_READER_FUNCTIONS = ("walk", "resolve_methods", "ict_setups_live", "_fires_from", "scan", "scan_for_trader",
-                     "simulate")
+# b3-speed re-audit: the per-bar / per-fire bodies of ict_setups_live() and scan() were moved VERBATIM into
+# `_ict_ctx` / `_ict_candidate` / `_ict_trade` and `_wy_window` / `_wy_fire` so scripts/scan_many.py can run them per
+# overlay; a read that lives there is a read on the scan path, so they are listed with the functions they came from.
+_READER_FUNCTIONS = ("walk", "resolve_methods", "ict_setups_live", "_ict_ctx", "_ict_candidate", "_ict_trade",
+                     "_fires_from", "_wy_window", "_wy_fire", "scan", "scan_for_trader", "simulate")
 
 
 def _function_bodies(source, names):
