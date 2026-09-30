@@ -67,7 +67,11 @@ GRID_FILES = {"ict": "v-grid-ict.json", "wyckoff": "v-grid-wyckoff.json"}
 COST_PROFILE = "ftmo_demo_2026_09"                                              # §6 item 3: REAL costs, fixed on
 DEV_PERIOD_ID = "cfd-development-pre-2024-03"                                   # research-ledger.json period
 LEDGER_SECTION = "fund_search"                                                  # the declaration lives here
-FIXED_KEYS = ("flat_before_rollover", "rollover_provider")                      # a grid item may never set these
+#: The nine F (fidelity) items the owner adopted for the evaluation baseline (docs/plans/2026-09-30-owner-decisions.md):
+#: ON in every cell of every candidate, never varied, never settable by a grid item. Live/pilot keep v1.
+ADOPTED_F_KEYS = ("fx_b2a_fvg_in_leg", "fx_b2b_ce_fail", "fx_b1_pivot1", "fx_braid_optional",
+                  "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon", "fx_w7_htf_target")
+FIXED_KEYS = ("flat_before_rollover", "rollover_provider") + ADOPTED_F_KEYS       # a grid item may never set these
 
 #: Disclosed, never folded into N (plan §1.4): earlier searches on the same history.
 PRIOR_COUNTS = {"prop_search_records": 180, "diagnosis_slices": 30}
@@ -77,7 +81,9 @@ def fixed_opts():
     """The OPTS overlay applied in EVERY cell: flat before the broker's daily rollover, priced by the profile's
     own server clock (scripts/real_costs.py PROFILES)."""
     import real_costs as _RC
-    return {"flat_before_rollover": True, "rollover_provider": _RC.PROFILES[COST_PROFILE]["provider"]}
+    out = {"flat_before_rollover": True, "rollover_provider": _RC.PROFILES[COST_PROFILE]["provider"]}
+    out.update({k: True for k in ADOPTED_F_KEYS})
+    return out
 
 
 def _now_iso():
@@ -252,6 +258,7 @@ def build_plan(grid_dir=None, first_bar=None):
                                "symbols": list(c["symbols"]), "n_comparisons": n_by_method[m]})
     core = {"cells": cells, "excluded_cells": excluded, "grids": grids_info, "candidates": candidates,
             "n_by_method": n_by_method, "cost_profile": COST_PROFILE, "dev_cutoff": FS.DEV_CUTOFF,
+            "adopted_f_keys": list(ADOPTED_F_KEYS),
             "constants": {k: getattr(FS, k) for k in (
                 "FAMILY_ALPHA", "MIN_FOLD_TRADES", "MIN_TRAIN_TRADES", "MAX_TRADE_SHARE", "MAX_GAP_DAYS",
                 "MIN_FOLD_SHARE_OK", "PASS_PROB_MIN", "ADX_PERIOD", "TEST_FOLD_DAYS", "MIN_TRAIN_DAYS",
@@ -393,6 +400,7 @@ def evaluation_config(plan):
             "prop_pass_min": FS.PASS_PROB_MIN, "verdict_precedence": FS.VERDICT_PRECEDENCE,
             "regime_split": FS.REGIME_SPLIT_DEFINITION,
             "ruin_handling": "bt.RUIN_FRAC = 0.0 on the harness's own bt instance; post_ruin trades fail loud",
+            "adopted_f_keys": list(ADOPTED_F_KEYS),
             "grid_sha256": {m: g["sha256"] for m, g in plan["grids"].items()}}
 
 
@@ -830,7 +838,7 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
     r.set("failure_pattern", X.unavailable("answers no §41 failure cluster: a pre-registered grid search"))
     r.set("dataset_snapshot", dataset_snapshot)
     r.set("configuration_snapshot", {
-        "fixed": {"cost_profile": COST_PROFILE, "flat_before_rollover": True,
+        "fixed": {"cost_profile": COST_PROFILE, "flat_before_rollover": True, "adopted_f_keys": list(ADOPTED_F_KEYS),
                   "cost_profile_snapshot": _RC.profile_snapshot(COST_PROFILE, candidate["symbols"])},
         "grid": {"file": os.path.basename(grid_path), "sha256": _sha256_file(grid_path),
                  "items": [{k: it.get(k) for k in ("id", "key", "existing_opts_key", "values", "joint_group",

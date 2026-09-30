@@ -936,7 +936,7 @@ class AllowListAndOverlay(_Tmp):
     def test_overlay_carries_only_declared_keys_plus_the_fixed_rules(self):
         g = self._g("fx_ok")
         o = self.fs.build_overlay(g, {"x": 2})
-        self.assertEqual(set(o), {"fx_ok", "flat_before_rollover", "rollover_provider"})
+        self.assertEqual(set(o), {"fx_ok", "flat_before_rollover", "rollover_provider"} | set(self.fs.ADOPTED_F_KEYS))
         with self.assertRaises(SystemExit):
             self.fs.build_overlay(g, {"x": 2, "min_rr": 0})
 
@@ -1335,6 +1335,34 @@ class MergeTimeGuards(_Helpers):
         with self.assertRaises(SystemExit):
             eng.trades_for({"a": "bogus", "b": 0})
         bt.scan.assert_not_called()
+
+
+class AdoptedFKeys(unittest.TestCase):
+    """Owner adoption 2026-09-30 (docs/plans/2026-09-30-owner-decisions.md): the nine F items are ON in every cell."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.fs = _fs()
+
+    def test_the_nine_keys_are_in_every_overlay_and_are_engine_keys_that_default_off(self):
+        bt = self.fs._load_bt()
+        self.assertEqual(len(self.fs.ADOPTED_F_KEYS), 9)
+        fixed = self.fs.fixed_opts()
+        for k in self.fs.ADOPTED_F_KEYS:
+            self.assertIn(k, bt._OPTS_BASE, k)
+            self.assertIs(bt._OPTS_BASE[k], False, f"{k}: engine default must stay v1 (off)")
+            self.assertIs(fixed[k], True, k)
+
+    def test_a_grid_item_can_never_set_an_adopted_key(self):
+        for k in self.fs.ADOPTED_F_KEYS:
+            g = FS.Grid({"method": "ICT", "items": [{"id": "X", "key": k, "values": [False, True]}]})
+            with self.assertRaises(SystemExit):
+                self.fs.validate_grid(g)
+
+    def test_the_adopted_set_is_part_of_the_plan_hash_and_the_declaration_config(self):
+        plan = self.fs.build_plan(grid_dir=FIXTURES, first_bar=lambda s, t: "2010-01-01T00:00:00Z")
+        self.assertEqual(plan["adopted_f_keys"], list(self.fs.ADOPTED_F_KEYS))
+        self.assertEqual(self.fs.evaluation_config(plan)["adopted_f_keys"], list(self.fs.ADOPTED_F_KEYS))
 
 
 if __name__ == "__main__":
