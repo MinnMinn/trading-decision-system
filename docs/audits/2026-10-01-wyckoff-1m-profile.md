@@ -33,7 +33,7 @@ Status: investigation (timings and counts only; no R / expectancy read). Branch 
   (`docs/architecture/v-grid-wyckoff.json`) only add gating/window variants and are not needed to show the cause.
 - Prefix-cost probe: `scripts/research/htf_target_cost.py` (one `_htf_wyckoff_target` body at chosen decision times, split
   into `series_as_of` and detection). Byte-identity probe: `scripts/research/ab_wyckoff_detect.py` (original
-  `wyckoff_rules.py` from HEAD vs working tree, same inputs, sha256 of `json.dumps(records, sort_keys=True)`).
+  `wyckoff_rules.py` from 85bbc08 vs working tree, same inputs, sha256 of `json.dumps(records, sort_keys=True)`).
 - Raw logs: `/tmp/b8-*.log` (list in section 8).
 
 ## 3. Scaling (OBSERVED)
@@ -146,15 +146,15 @@ HTF detection.** Evidence: single-key ablation at 1 500 bars (`--keys`): w1 4.66
 `_htf_wyckoff_target` (`backtest-methods.py:814`) truncates the HTF series with `pit.series_as_of` (full pass over 1.3M
 bars every call) and runs `wyckoff_records` on the entire prefix since 2004; the memo key includes `decision_time`
 (`:852-854`), so nearly every fire misses it. ~2.0-2.6 calls per 1000 1m bars (OBSERVED on 5k-40k slices).
-Live never sets the key (docstring `:838`, "NOT adopted"), which is why the live read costs ~0.3 ms and the backtest
+W7 was ADOPTED by the owner 2026-09-30 (`docs/plans/2026-09-30-owner-decisions.md`; `ADOPTED_F_KEYS`). The live/pilot path does not set the key (OPTS default False, `backtest-methods.py:139`), which is why the live read costs ~0.3 ms and the backtest
 does not (live-vs-backtest behavioural difference, noted not judged).
 
 **Cause 2 (OBSERVED + INFERRED): the per-call detection is O(S^2) in the number of swings S, from the `prior` loop.**
 OBSERVED: measured exponent 1.91 (section 4); 181M `sum()` and 184M `append()` calls in the 1 500-bar profile; the loop
-is `wyckoff_rules.py:339-344` (HEAD): for every downtrend-SC candidate it walks `sw` from index 0 to the SC, although only
+is `85bbc08:scripts/wyckoff_rules.py:339-344`: for every downtrend-SC candidate it walks `sw` from index 0 to the SC, although only
 `prior[-nd - 1:]` (the last nd+1 pairs) is used. INFERRED: the residual superlinearity after the fix (exponent 1.45) comes
 from the two other per-candidate O(S) scans (`st = next(... for s in sw ...)`, `after = [s for s in sw ...]`,
-HEAD lines 380/395), which the second half of the prototype also replaced by bisect on the sorted swing bars.
+`85bbc08:scripts/wyckoff_rules.py:380/395`), which the second half of the prototype also replaced by bisect on the sorted swing bars.
 
 **Cause 3 (OBSERVED, minor): `pit.series_as_of` is O(whole HTF series) per call** (0.6 s on the 1.32M-bar 5m series,
 `pit.py:139`, 24M `available_time` calls in the profile). After Cause 2 is fixed it is ~25-30 % of a call.
@@ -168,7 +168,7 @@ HEAD lines 380/395), which the second half of the prototype also replaced by bis
 
 Byte-identity evidence (OBSERVED):
 
-- `ab_wyckoff_detect.py` (original `wyckoff_rules.py` from HEAD vs working tree, `detect_accumulations` +
+- `ab_wyckoff_detect.py` (original `wyckoff_rules.py` from 85bbc08 vs working tree, `detect_accumulations` +
   `detect_distributions` on the whole 5m PIT prefix, all four W1/W2/W3/W5 detection keys on), sha256 of the record lists:
   2016-06-01 (772 096 bars) `ffe221c1...`, 65.8 s -> 2.3 s; 2020-06-01 (1 052 871) `ca52bd15...`, 114.7 s -> 3.7 s;
   2024-02-01 (1 311 083) `8b893727...`, 168.1 s -> 5.2 s; all **IDENTICAL**. Records of 2005/2008/2012 prefixes
@@ -198,9 +198,10 @@ everything else. The smallest byte-identical follow-ups, in order of safety:
    pass but is NOT provably byte-identical (record pairing and `used_until` depend on earlier swings) and is out of
    scope without an A/B harness of the `ab_wyckoff_detect.py` kind over many decision times.
 
-Because W7 "acts on ~80 % of Phase-D trades" and is "AWAITING OWNER SIGN-OFF" (`backtest-methods.py:838-840`), an owner
-decision to leave `fx_w7_htf_target` out of `ADOPTED_F_KEYS` would remove the cost entirely (scan back to ~0.15 ms/bar);
-that is a research-settings change and is out of this investigation's scope.
+W7 is already adopted by the owner (2026-09-30, `docs/plans/2026-09-30-owner-decisions.md`), so removing
+`fx_w7_htf_target` from `ADOPTED_F_KEYS` would REVERSE an owner decision; it is listed only as an option the owner could
+weigh against the cost (scan back to ~0.15 ms/bar without it), not as a recommendation. The live/pilot path does not set
+the key (OPTS default False, `backtest-methods.py:139`).
 
 ## 7. Revised extrapolation for the full 4.1M-bar XAUUSD 1m dev scan (EXTRAPOLATION, serial CPU time)
 

@@ -834,10 +834,9 @@ def _htf_wyckoff_target(sym, tf, side, decision_time):
     earlier one paired with (wyckoff_fires()'s own docstring documents the general shape of this hazard for
     the LTF read; the same hazard applies one rung up).
 
-    AWAITING OWNER SIGN-OFF (plan §3 W7 row, "it acts on ~80% of [Phase-D] trades, so owner sign-off is
-    required in advance"): built behind OPTS["fx_w7_htf_target"] for its funnel/trade-count delta
-    (docs/audits/2026-09-29-wyckoff-fidelity-funnel.md), NOT adopted -- the live/pilot path never sets this
-    key."""
+    ADOPTED by the owner 2026-09-30 (docs/plans/2026-09-30-owner-decisions.md), fund-search sets it for every cell
+    via ADOPTED_F_KEYS (scripts/fund-search.py); the live/pilot path does not set this key (OPTS default False,
+    line ~139); going live with it would need its own owner decision."""
     h = HTF_OF.get(tf)
     if not h or not sym:
         return None
@@ -1208,8 +1207,10 @@ def _fires_from(side, recs, C, Tm, sym=None, tf=None):
                 # W7 (WA2-19, WA p83-84; plan §2 item A1b "higher-timeframe Wyckoff trading-range detection"):
                 # Phase-D target = the HIGHER-timeframe TR's own AR/SOS, not ceiling + a PROJECT multiplier x TR
                 # (WA1-06: the book defers P&F counting to a later book, so `d_target_tr` was never a sourced
-                # number). "With no HTF TR there is no Phase-D trade" (plan §3 W7 row) -- AWAITING OWNER
-                # SIGN-OFF (docs/audits/2026-09-29-wyckoff-fidelity-funnel.md), not adopted.
+                # number). "With no HTF TR there is no Phase-D trade" (plan §3 W7 row) -- ADOPTED by the
+                # owner 2026-09-30 (docs/plans/2026-09-30-owner-decisions.md), fund-search sets it for every cell via
+                # ADOPTED_F_KEYS (scripts/fund-search.py); the live/pilot path does not set this key (OPTS default
+                # False, line ~139); going live with it would need its own owner decision.
                 # decision_time = the decision bar's CLOSE (normalized.available_time), never Tm[last] (its
                 # OPEN) -- the same computation as scan()'s htf_bias_gate call; see _htf_wyckoff_target.
                 htf_t = _htf_wyckoff_target(sym, tf, side,
