@@ -81,7 +81,8 @@ class Grids(unittest.TestCase):
                 else:
                     non_base += len(vals) - 1
             return 1 + non_base + 1
-        self.assertEqual(n(self.grids["ict"]), 41)
+        # 29 since the owner removed B-EXIT `no_floor` (2026-09-30); was 41 (1 + 39 + 1)
+        self.assertEqual(n(self.grids["ict"]), 29)
         self.assertEqual(n(self.grids["wyckoff"]), 16)
 
 

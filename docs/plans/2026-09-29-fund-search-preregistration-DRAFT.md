@@ -18,7 +18,7 @@ event, and thresholds may only be tightened.
    calendar quarter, by half-year)`, all at one-sided confidence `1 - 0.10/N`. CR1: `se = sqrt(G/(G-1) * sum_g S_g^2) / n`,
    `S_g = sum_{i in g}(r_i - mean)`, `df = G-1`, `G` = number of blocks; fewer than 2 blocks = no bound (fail).
    Computed on POOLED TEST-fold trades only. N = (1 + non-baseline values + 1 combined) per method x cells
-   (ICT 41/cell, Wyckoff 16/cell). Reason for the block bounds: with dependent trades the iid bound had a false
+   (ICT 29/cell after the 2026-09-30 removal of B-EXIT `no_floor`, Wyckoff 16/cell). Reason for the block bounds: with dependent trades the iid bound had a false
    positive rate 10-90x nominal in the reviewer's simulations; the quarter and half-year bounds were added after
    AR(1) 30-day and 180-day persistence scenarios still passed the first three (owner default: tighten).
    **DISCLOSED PRICE (power).** Measured by the harness author on 20 seeds of iid +0.30R at n=600: the five-way min

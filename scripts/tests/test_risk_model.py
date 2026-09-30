@@ -184,8 +184,9 @@ class TheFloorIsNowNet(unittest.TestCase):
         """`entry_now` means a MARKET order at the bar close; everything else rests a post-only GTX limit.
         Pricing them the same would over-charge one family and under-charge the other."""
         sr = _load("sr", "strategy-runner.py")
-        # 2.20R gross on a 0.4 % stop: taker costs 0.25R (1.95R net, below the 2.0 floor), maker 0.10R (2.10R net).
-        sig = {"entry": 100.0, "stop": 99.6, "target": 100.88, "r_planned": 2.2}
+        # 2.70R gross on a 0.4 % stop: taker costs 0.25R (2.45R net, below the 2.5 floor), a resting limit ~0.17R
+        # (~2.53R net, clears it). Re-based from 2.20R gross when the floor moved 2.0 -> 2.5 (owner, 2026-09-30).
+        sig = {"entry": 100.0, "stop": 99.6, "target": 100.0 + 0.4 * 2.7, "r_planned": 2.7}
         market = sr.rr_reason(dict(sig, entry_now=True), "futures")
         limit = sr.rr_reason(dict(sig), "futures")
         self.assertIsNotNone(market, "taker fees must make this one fail")

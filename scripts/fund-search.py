@@ -50,6 +50,7 @@ import experiment as X                # CLAUDE.md §42: the ONE reader/writer of
 import research_ledger as RL          # CLAUDE.md §43/§44: periods + the cell-count declaration
 import history_store as _HS           # the shared history reader / HISTORY_ROOT (single-file or split-gz)
 import instruments as _I              # asset_class of each symbol
+import trading_env as _TE        # the ONE reader of the planned-R:R floor (analysis-params.json project_defined.ict.min_rr)
 import scan_many as SM                # N value sets in one pass over a series, chunk-parallel (byte-identical to scan())
 
 PLAN_DOC = "docs/plans/2026-09-28-methodology-improvement-plan.md"
@@ -431,6 +432,8 @@ def evaluation_config(plan):
             "regime_split": FS.REGIME_SPLIT_DEFINITION,
             "ruin_handling": "bt.RUIN_FRAC = 0.0 on the harness's own bt instance; post_ruin trades fail loud",
             "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": plan["embargo"],
+            # owner 2026-09-30: planned R:R floor at entry (net of fees), both methods; None = unreadable -> drift
+            "min_rr": _TE.min_rr(),
             "grid_sha256": {m: g["sha256"] for m, g in plan["grids"].items()}}
 
 

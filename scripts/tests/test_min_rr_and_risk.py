@@ -35,8 +35,20 @@ def _load(fname, name):
 class MinRRSource(unittest.TestCase):
     def test_params_file_carries_the_floor(self):
         v = json.load(open(PARAMS, encoding="utf-8"))["project_defined"]["ict"]["min_rr"]["value"]
-        # 2.0 since the 2026-09-19 user decision (the source's own 2R); 3.0 was the 2026-09-13 override.
-        self.assertEqual(v, 2.0, "the R:R floor lives in analysis-params.json and nowhere else")
+        # 2.5 since the 2026-09-30 owner decision (both methods, backtest and live, net of fees); 2.0 from
+        # 2026-09-19 (the source's own 2R); 3.0 was the 2026-09-13 override.
+        self.assertEqual(v, 2.5, "the R:R floor lives in analysis-params.json and nowhere else")
+
+    def test_trading_env_min_rr_reader_returns_2_5(self):
+        """Owner decision 2026-09-30: 'R:R target when entering a trade must be at least 2.5R'."""
+        import trading_env
+        self.assertEqual(trading_env.min_rr(), 2.5)
+
+    def test_basis_keeps_the_history_and_records_the_2026_09_30_decision(self):
+        basis = json.load(open(PARAMS, encoding="utf-8"))["project_defined"]["ict"]["min_rr"]["_basis"]
+        self.assertTrue(basis.startswith("User decision 2026-09-30: 2.5"), basis[:80])
+        for kept in ("User decision 2026-09-19: 2.0", "User decision 2026-09-13"):
+            self.assertIn(kept, basis)
 
     def test_basis_records_that_this_is_a_user_override_of_the_sourced_2R(self):
         """knowledge/ict/models.md §3.1 rule 23 says 2R. 3R is stricter than the source, so the basis must say whose call it
@@ -53,14 +65,15 @@ class BacktestReadsTheFloor(unittest.TestCase):
 
     def test_opts_default_is_the_params_value_not_zero(self):
         # The floor is the user's number (analysis-params.json project_defined.ict.min_rr, one reader:
-        # trading_env.min_rr). 3.0 from 2026-09-13; 2.0 from 2026-09-19, which is the source's own 2R
+        # trading_env.min_rr). 3.0 from 2026-09-13; 2.0 from 2026-09-19 (the source's own 2R); 2.5 from 2026-09-30 (owner)
         # (knowledge/ict/models.md §3.1). Read from the registry rather than pinned: what this test guards is
         # that the backtest inherits THE floor, not which number the floor happens to be.
         import json
         want = json.load(open(os.path.join(ROOT, "docs", "architecture", "analysis-params.json"),
                               encoding="utf-8"))["project_defined"]["ict"]["min_rr"]["value"]
         self.assertEqual(self.bt.OPTS["min_rr"], want)
-        self.assertEqual(want, 2.0, "the floor moved again; update the note above with the decision that moved it")
+        self.assertEqual(want, 2.5, "the floor moved again; update the note above with the decision that moved it")
+        self.assertEqual(self.bt.MIN_RR, 2.5)
 
     def test_cli_default_is_the_params_value_too(self):
         """OPTS defaulting correctly is not enough: main() overwrites min_rr from argparse on every run, so a
@@ -175,7 +188,7 @@ class LiveGate(unittest.TestCase):
         self.assertIsNone(self.sr.rr_reason(self._sig(7.4), "futures"))
 
     def test_refuses_a_signal_below_the_floor(self):
-        for rr in (0.0, 1.5, 1.99):
+        for rr in (0.0, 1.5, 1.99, 2.2, 2.4):
             self.assertIsNotNone(self.sr.rr_reason(self._sig(rr), "futures"), f"{rr}R should be refused")
 
     def test_a_setup_planning_exactly_the_floor_GROSS_is_now_refused(self):

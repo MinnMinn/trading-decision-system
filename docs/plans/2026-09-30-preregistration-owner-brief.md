@@ -5,8 +5,8 @@ docs/plans/2026-09-29-v-ict-constants-DRAFT.md, docs/plans/2026-09-30-owner-deci
 `declare` pins code SHAs, grid hashes and the settings below; after it, any code or setting change is reported as drift.
 
 ## What is already fixed (no decision needed)
-- All nine F items ON in every cell; live/pilot stay v1. N = 41 per ICT cell, 16 per Wyckoff cell, 8 cells
-  => N_ICT 328, N_Wyckoff 128 (confidence 0.999695 / 0.999219). B4 and W4b are declared, not runnable, counted in N.
+- All nine F items ON in every cell; live/pilot stay v1. N = 29 per ICT cell (was 41 before the owner removed B-EXIT `no_floor`, 2026-09-30), 16 per Wyckoff cell, 8 cells
+  => N_ICT 232, N_Wyckoff 128 (confidence 0.999569 / 0.999219). Planned R:R floor = 2.5 net of fees, both methods, pinned in the declaration (`evaluation_config.min_rr`). B4 and W4b are declared, not runnable, counted in N.
 - Statistic: min of five one-sided bounds (iid t, cluster by UTC day, 30 days, quarter, half-year) at 1 - 0.10/N,
   computed on pooled TEST-fold trades only; fold geometry 365/730 days; verdict precedence; costs real; no overnight.
 - O8 (ICT fill on the last bar of a server day held past midnight) is RESOLVED by the walk() fix (2869c35): the

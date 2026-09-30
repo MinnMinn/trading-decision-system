@@ -30,7 +30,7 @@ Rules = the backtest, function for function (scripts/backtest-methods.py, import
   on a CLOSED candle when the setup says mgmt=be (WMT p272); time stop after H bars. The higher-timeframe boundary filter
   (bt.htf_allows on HTF_OF[tf]) is logged as htf_pass for every signal; orders obey it only for setups with htf=true.
 Risk: PILOT_RISK_PCT of equity per trade (env file, clamped <= RISK_CEILING = trading_env.MAX_RISK_PCT, 1 %), halved after 2 consecutive
-losses; every entry must plan >= MIN_RR (analysis-params.json; 2R since 2026-09-19) or it is refused; futures notional <= 25 % of
+losses; every entry must plan >= MIN_RR (analysis-params.json; 2.5R since 2026-09-30, was 2R from 2026-09-19) or it is refused; futures notional <= 25 % of
 equity x leverage 3, ISOLATED; MT5 lots from the bridge's contract data, capped by the EA's InpMaxLots. One position or resting
 order per symbol; the position cap, the per-symbol daily entry cap and the leverage come from the venue's ACCOUNT PROFILE
 (docs/architecture/account-profiles.json, CLAUDE.md §33) -- they are the account's rules, not this file's constants.
@@ -958,7 +958,7 @@ def rr_reason(sig, venue, floor=None):
 
     Called from the one reasons[] block every method's signal passes through -- not from each setups() branch:
     ICT and WYCKOFF-BOOK both emit r_planned and both must obey the same floor, and a per-branch copy would
-    drift. User decision 2026-09-13: MIN_RR = 3R; 2026-09-19: 2R, the source's own number (both recorded in
+    drift. User decision 2026-09-13: MIN_RR = 3R; 2026-09-19: 2R, the source's own number; 2026-09-30: 2.5R, owner, both methods (all recorded in
     docs/architecture/analysis-params.json `_basis` and policy.json). Before this gate the
     floor existed only as an advisory note printed by ict-scan.py:359 while every decision path ran min_rr=0.0,
     so the runner took setups planning as little as 0.00R -- 38 % of last year's planned under 2R.
@@ -1133,7 +1133,7 @@ def client_id(setup_id, sym, sig):
     return prefix + hashlib.sha1(seed.encode()).hexdigest()[:20]
 
 
-DRILL_RR = 3.5          # GROSS planned R of the synthetic signal. The live floor (bt.MIN_RR; 2.0 since 2026-09-19, was 3.0) is applied NET of fees
+DRILL_RR = 3.5          # GROSS planned R of the synthetic signal. The live floor (bt.MIN_RR; 2.5 since 2026-09-30, 2.0 from 2026-09-19, 3.0 before) is applied NET of fees
                         # (§37, 2026-09-18): with the 0.4 % minimum stop a taker round-trip costs up to 0.25R, so 3.0 gross
                         # would be refused by the gate it is meant to exercise. 3.5 gross clears the floor and still exercises it.
 DRILL_MIN_STOP_PCT = 0.004

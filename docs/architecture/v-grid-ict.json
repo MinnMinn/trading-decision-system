@@ -2,8 +2,8 @@
   "method": "ICT",
   "plan": "docs/plans/2026-09-28-methodology-improvement-plan.md §3 (ICT table); shared key contract docs/plans/2026-09-29-execution-plan.md",
   "declaration": "scripts/ict-scan.py V_ICT is the code-side declaration of every value set below; scripts/tests/test_v_items_ict.py asserts the two are equal. The first value of every item is the baseline = v1 behaviour and the key's default.",
-  "n": 41,
-  "n_formula": "N = 1 baseline + sum over items of (len(values) - 1) + 1 combined = 1 + 39 + 1. Every item is ONE factor: the joint exit factor B-EXIT counts as one item of 24 value sets (23 non-baseline), B-LB as one item of 6 value sets (5 non-baseline). B-DISP is sensitivity-only and is not in this file or in N. B4 counts in N although implemented=false.",
+  "n": 29,
+  "n_formula": "N = 1 baseline + sum over items of (len(values) - 1) + 1 combined = 1 + 27 + 1. Every item is ONE factor: the joint exit factor B-EXIT counts as one item of 12 value sets (11 non-baseline; the 12 `no_floor` sets were removed 2026-09-30), B-LB as one item of 6 value sets (5 non-baseline). B-DISP is sensitivity-only and is not in this file or in N. B4 counts in N although implemented=false.",
   "items": [
     {
       "id": "B-EX",
@@ -65,35 +65,23 @@
       "existing_opts_key": null,
       "values": [
         "-2.0|H|floor",
-        "-2.0|H|no_floor",
         "-2.0|1.5H|floor",
-        "-2.0|1.5H|no_floor",
         "-2.0|2H|floor",
-        "-2.0|2H|no_floor",
         "-2.0|none|floor",
-        "-2.0|none|no_floor",
         "-2.25|H|floor",
-        "-2.25|H|no_floor",
         "-2.25|1.5H|floor",
-        "-2.25|1.5H|no_floor",
         "-2.25|2H|floor",
-        "-2.25|2H|no_floor",
         "-2.25|none|floor",
-        "-2.25|none|no_floor",
         "-2.5|H|floor",
-        "-2.5|H|no_floor",
         "-2.5|1.5H|floor",
-        "-2.5|1.5H|no_floor",
         "-2.5|2H|floor",
-        "-2.5|2H|no_floor",
-        "-2.5|none|floor",
-        "-2.5|none|no_floor"
+        "-2.5|none|floor"
       ],
       "joint_group": "B-EXIT",
       "source": "models.md §2.1.5; core-b.md §2.12 (target); project (time stop H); models.md §3.1 rule 23 (2R)",
       "implemented": true,
       "components": {
-        "value_format": "<target sigma>|<time stop>|<2R floor>",
+        "value_format": "<target sigma>|<time stop>|<2R floor token; only `floor` is declared>",
         "target": [
           "-2.0",
           "-2.25",
@@ -106,11 +94,10 @@
           "none"
         ],
         "floor": [
-          "floor",
-          "no_floor"
+          "floor"
         ]
       },
-      "note": "ONE joint key, 3 x 4 x 2 = 24 value sets. H = bt.P[tf]['H'] bars (none = until the end of history); the 2R component skips simulate()'s planned-R:R entry floor (OPTS min_rr) for ICT trades only, so min_rr itself is not a second knob"
+      "note": "ONE joint key, 3 x 4 x 1 = 12 value sets. H = bt.P[tf]['H'] bars (none = until the end of history); the third token is always `floor`: simulate()'s planned-R:R entry floor (OPTS min_rr, 2.5 net of fee since the owner decision of 2026-09-30) applies to every trade. The engine still understands a `no_floor` token (scripts/ict-scan.py V_ICT, scripts/backtest-methods.py simulate()) but the grid does not declare it: the owner decision 'R:R target when entering a trade must be at least 2.5R' removed it, so min_rr is not a second knob and no grid cell can skip it"
     },
     {
       "id": "B-LB",

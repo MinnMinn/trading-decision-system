@@ -150,7 +150,11 @@ class GridFileAndNCount(unittest.TestCase):
     def test_every_implemented_fx_key_value_set_equals_the_code_declaration(self):
         for it in self.grid["items"]:
             if it["key"].startswith("fx_") and it["implemented"]:
-                self.assertEqual(tuple(it["values"]), V[it["key"]], it["id"])
+                declared = V[it["key"]]
+                if it["key"] == "fx_b_exit":
+                    # owner 2026-09-30: the engine still accepts `no_floor` (V_ICT) but the GRID no longer declares it
+                    declared = tuple(v for v in declared if not v.endswith("|" + SCAN.V_ICT_GRID_EXCLUDED_FLOOR))
+                self.assertEqual(tuple(it["values"]), declared, it["id"])
         self.assertEqual({i["key"] for i in self.grid["items"] if i["key"].startswith("fx_") and i["implemented"]}, set(V))
 
     def test_b_mgmt_maps_onto_the_existing_knob_and_adds_no_fx_key(self):
@@ -166,15 +170,16 @@ class GridFileAndNCount(unittest.TestCase):
         self.assertNotIn(it["key"], BT.OPTS)
         self.assertNotIn(it["key"], V)
 
-    def test_n_is_41(self):
+    def test_n_is_29(self):
         """N = 1 baseline + non-baseline values + 1 combined. Each item is ONE factor: the joint exit factor
-        B-EXIT is one item of 24 value sets (23 non-baseline), B-LB one item of 6 (5 non-baseline)."""
+        B-EXIT is one item of 12 value sets (11 non-baseline; `no_floor` removed by the owner 2026-09-30, was 24
+        and N=41), B-LB one item of 6 (5 non-baseline)."""
         non_baseline = {i["id"]: len(i["values"]) - 1 for i in self.grid["items"]}
-        self.assertEqual(non_baseline["B-EXIT"], 23)
+        self.assertEqual(non_baseline["B-EXIT"], 11)
         self.assertEqual(non_baseline["B-LB"], 5)
-        self.assertEqual(sum(non_baseline.values()), 39)
-        self.assertEqual(1 + sum(non_baseline.values()) + 1, 41)
-        self.assertEqual(self.grid["n"], 41)
+        self.assertEqual(sum(non_baseline.values()), 27)
+        self.assertEqual(1 + sum(non_baseline.values()) + 1, 29)
+        self.assertEqual(self.grid["n"], 29)
         self.assertEqual(set(non_baseline), {"B-EX", "B-PD", "B-POOL", "B-BUF", "B-EXIT", "B-LB", "B6", "B3", "B4", "B-MGMT", "B7"})
 
 

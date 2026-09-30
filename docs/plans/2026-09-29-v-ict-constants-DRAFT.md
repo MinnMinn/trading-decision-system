@@ -23,8 +23,9 @@ docs/architecture/v-grid-ict.json.
 5. **B-EXIT target.** Sigma projection from the leg: `origin +/- mult * leg`. -2.0 reads the existing `std["-2"]` entry
    (v1 number); -2.25 and -2.5 use the same formula at that multiple. Fallback when there is no leg to project from:
    the R15 dealing-range edge (unchanged).
-6. **B-EXIT 2R (`no_floor`).** Skips simulate()'s planned-R:R ENTRY floor (`OPTS["min_rr"]`, currently 2.0, net of fee)
-   for ICT trades only. ICT trades are recognised by the event id form `<sym>-<side>-ict-<sweep>-<mss>`; Wyckoff ids
+6. **B-EXIT 2R (`no_floor`).** REMOVED FROM THE GRID 2026-09-30 (owner: planned R:R at entry must be at least 2.5R for
+   every trade); the engine path remains but no grid cell can reach it. Skips simulate()'s planned-R:R ENTRY floor
+   (`OPTS["min_rr"]`, 2.5 since 2026-09-30, was 2.0, net of fee) for ICT trades only. ICT trades are recognised by the event id form `<sym>-<side>-ict-<sweep>-<mss>`; Wyckoff ids
    (`<sym>-<side>-book-<t0>[-D]`) keep the floor. No profit-taking rule is added: "2R as profit-taking" is expressed only
    as the absence of the entry floor.
 7. **B3.** Pairing table (entry -> bias TF) from models.md §2.8 TFA p5: 1m <- 15m, 5m <- 1H, 15m <- 4H, 1H <- 1D. Unpaired
@@ -37,6 +38,6 @@ docs/architecture/v-grid-ict.json.
    R15 range.
 10. **B6.** Project rule (core-b.md R3 is the invalidation idea only). Window = bars `mss_i+1 .. fill_bar-1`; the fill bar
     itself is excluded (same-bar target and fill is unknowable from OHLC and keeps the fill).
-11. **N accounting.** N = 1 + 39 + 1 = 41 per cell set. B4 is counted while `implemented=false` (no key exists; the grid
+11. **N accounting.** N = 1 + 27 + 1 = 29 per cell set (was 1 + 39 + 1 = 41 before `no_floor` was removed, 2026-09-30). B4 is counted while `implemented=false` (no key exists; the grid
     declares its two values). B3 is counted on the 30m cell although it produces no trades there (report "no pairing").
-    B-EXIT counts as one factor of 24 value sets, B-LB as one of 6; B-DISP is sensitivity-only and not in N.
+    B-EXIT counts as one factor of 12 value sets (was 24), B-LB as one of 6; B-DISP is sensitivity-only and not in N.

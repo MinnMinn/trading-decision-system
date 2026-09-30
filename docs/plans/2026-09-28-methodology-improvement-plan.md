@@ -42,7 +42,7 @@ ICT produces about 1.5–1.9 trades per symbol-year on 1H. It is +0.21 R gross b
    - **Nested** rolling-origin walk-forward over the development span [M1]: V values are chosen inside each training fold only, and each test fold is scored with the values chosen on its own training fold. The lower bound is computed on the pooled test-fold trades only.
    - Each V item has one pre-declared primary metric: net expectancy per trade, in R.
    - Each walk-forward test fold needs at least 30 trades; below that the verdict is "insufficient".
-   - **N** counts every comparison that could be put forward [M2]: the §3 grid of the method × the number of pre-declared candidate cells (§3, "Candidate cells"). With the recommended one cell per method, **N_ICT = 41 and N_Wyckoff = 16**; with the alternative (four cells per method) it is 164 and 64. Prior counts (180 prop records, 30 diagnosis slices) are disclosed but not folded into N.
+   - **N** counts every comparison that could be put forward [M2]: the §3 grid of the method × the number of pre-declared candidate cells (§3, "Candidate cells"). With the recommended one cell per method, **N_ICT = 41 and N_Wyckoff = 16** (AMENDED 2026-09-30, owner decision: the B-EXIT `no_floor` value was removed, so ICT is now **29** per cell and 232 over the 8 declared cells; see docs/plans/2026-09-30-owner-decisions.md); with the alternative (four cells per method) it is 164 and 64. Prior counts (180 prop records, 30 diagnosis slices) are disclosed but not folded into N.
    - The lower bound is taken at one-sided confidence 1 − 0.10/N (≈ 99.76 % for N = 41). A gate this strict may not be reachable with the current trade frequency. That is the honest price of the variants, and it is stated, not relaxed.
    - **Stability:** net expectancy > 0 on at least ⌈2m/3⌉ of the m symbols that have development data for the timeframe, and no single trade contributes more than 25 % of total net R.
    - **Frequency:** the longest gap between consecutive trades on one pooled account is ≤ 30 calendar days in ≥ 90 % of folds (preregistration §8.3).
@@ -100,9 +100,9 @@ ICT produces about 1.5–1.9 trades per symbol-year on 1H. It is +0.21 R gross b
 
 F items are adopted on source grounds. For V items, the value sets listed are the whole grid. Each V item is evaluated one factor at a time against the adopted-F baseline, and then one combined candidate is formed from the chosen values.
 
-The three exit parameters act on the same exit, so they form **one joint factor** (B-EXIT = B-TGT × B-H × B5, 3 × 4 × 2 = 24 value sets) [M1]. Breakeven management, formerly config B, is a V item per method (B-MGMT, W-MGMT); config C's generic HTF gate is replaced by B4.
+The three exit parameters act on the same exit, so they form **one joint factor** (B-EXIT = B-TGT × B-H × B5, 3 × 4 × 2 = 24 value sets [AMENDED 2026-09-30: the `no_floor` value of B5 was removed by the owner (planned R:R floor 2.5 for every trade), leaving 3 × 4 × 1 = 12 value sets]) [M1]. Breakeven management, formerly config B, is a V item per method (B-MGMT, W-MGMT); config C's generic HTF gate is replaced by B4.
 
-Per method, N = 1 baseline + the non-baseline values + 1 combined: ICT 1 + 39 + 1 = **41**; Wyckoff 1 + 14 + 1 = **16**. Nothing is added after data is seen without a ledger event.
+Per method, N = 1 baseline + the non-baseline values + 1 combined: ICT 1 + 39 + 1 = **41** (AMENDED 2026-09-30: 1 + 27 + 1 = **29** after removing the 12 `no_floor` value sets); Wyckoff 1 + 14 + 1 = **16**. Nothing is added after data is seen without a ledger event.
 
 **Candidate cells, pre-declared** [M2]. Recommended: ONE cell per method, on one pooled account over the development symbols. That cell is **ICT 1H** and **Wyckoff 4H**; 15m waits for A0 and has too little index history. Alternative: four cells per method ({1H, 4H} × {metals, indices}), which multiplies N by 4. Only the declared cells can be put forward.
 
@@ -125,7 +125,7 @@ Per method, N = 1 baseline + the non-baseline values + 1 combined: ICT 1 + 39 + 
 | B6 | Cancel the pending limit when the target trades first (a project rule based on the R3 invalidation idea) | V | core-b.md §3.1 R3 (fidelity N3) | no · yes |
 | B3 | Bias timeframe: the entry TF (current) vs the TFA p5 higher-TF pairing. The deck supports both readings (it lists H1 and M15 as bias candles too) [R16, M-B3] | V | models.md §2.8; core-a.md §2.11–2.12 | entry TF · TFA p5 pairing |
 | B4 | HTF level engaged before the LTF MSS; R1/R23 tension recorded | V | core-b.md §3.1 R1, R23 | tag only · required |
-| B-EXIT: 2R | 2R as profit-taking, not an entry floor (ICT only; fee interaction and the OSOK source stated; part of the joint exit factor) | V | models.md rule 23 | floor · no floor |
+| B-EXIT: 2R | 2R as profit-taking, not an entry floor (ICT only; fee interaction and the OSOK source stated; part of the joint exit factor) | V | models.md rule 23 | floor · no floor (`no floor` REMOVED 2026-09-30 by owner decision; floor is 2.5R net for every trade) |
 | B-MGMT | Breakeven at +1R (formerly config B) | V | WMT p272 (as used by config B) | none · BE |
 | B7 | Index killzones (none for XAUUSD; DST tests) | V | core-a.md R1 | all hours · killzone only |
 
@@ -172,7 +172,7 @@ Every item merges only after its tests pass and a code review.
 
 1. **Holdout: none.** All 8 CFD symbols are development symbols, to maximise the evidence. Forward demo is the only pristine confirmation. The `final_holdout` registration and its pass rule in §1.1 are therefore not used.
 2. **Candidate cells: five.** The owner asked for the option with the best chance of finding a good setup, and "tighten later". The cells are {15m, 1H, 4H} × {metals, indices}, minus 15m indices, which has no development history before 2022. Each cell is one pooled account over its asset class.
-   - This gives N_ICT = 41 × 5 = **205** and N_Wyckoff = 16 × 5 = **80**, a lower bound at about 99.95 % / 99.88 %.
+   - This gave N_ICT = 41 × 5 = **205** (superseded: 8 cells and, since 2026-09-30, 29 per cell = 232) and N_Wyckoff = 16 × 5 = **80**, a lower bound at about 99.95 % / 99.88 %.
    - The owner's "tighten later" is honoured in one direction only. A check may be made stricter after data is seen; it may never be loosened.
 3. **Costs from MT5.** integrations/mt5/ExportSymbolSpec.mq5 exports the broker's contract specification, the spread recorded on every M15 bar (per UTC hour), and the commission actually charged on the account's deals. "Always prefer what is real."
 4. **Wyckoff volume matters per setup.** Wyckoff stays on CFD. Every result is split by `volume_kind`, and tick volume is labelled as a limitation, never presented as real volume. A real-volume source (for example the futures volume of the same underlying) is a separate provider decision with its own ADR, proposed later.

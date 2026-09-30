@@ -1740,6 +1740,8 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
     # below is skipped for ICT trades. Baseline "floor" = v1. ICT trades only, identified by their `event` id form
     # "<sym>-<side>-ict-<sweep>-<mss>" (INT-7; Wyckoff ids are "<sym>-<side>-book-<t0>[-D]", test_v_items_ict pins
     # both forms) -- an explicit `method` field would change every v1 trade record, so the id form is kept.
+    # Owner 2026-09-30: the planned-R:R floor (2.5) applies to every trade; the fund-search GRID no longer declares
+    # `no_floor` (docs/architecture/v-grid-ict.json). This engine path is kept, unreached by live (no fx_ keys) and by the grid.
     lr.ict_scan.check_v_opts({"fx_b_exit": OPTS["fx_b_exit"]})     # a typo'd floor token raises, never runs "floor"
     no_floor_ict = lr.ict_scan.b_exit_parts(OPTS["fx_b_exit"])[2] == "no_floor"
     ts = sorted(trades, key=lambda t: t["entry_time"])

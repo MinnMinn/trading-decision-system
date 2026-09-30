@@ -85,7 +85,7 @@ MIN_RR = trading_env.min_rr()
 #                     high/low join the liquidity pools (core-a.md §2.8-2.9; UTC 00:00 day boundary = project choice)
 #   fx_b_buf   B-BUF  stop buffer beyond the swept wick, as a multiple of ATR (core-a.md R22 says only "below")
 #   fx_b_exit  B-EXIT the JOINT exit factor "target|time-stop|2R": target sigma projection (models.md §2.1.5) x
-#                     time stop H (project) x 2R floor (models.md §3.1 rule 23). 3 x 4 x 2 = 24 value sets, ONE key
+#                     time stop H (project) x 2R floor (models.md §3.1 rule 23). 3 x 4 x 2 = 24 value sets accepted by the engine, ONE key (the GRID declares 3 x 4 x 1 = 12; no_floor removed 2026-09-30)
 #   fx_b_lb    B-LB   setup lookback x K-bar expiry (project): "<lookback>|<K>"; lookback 12 = the live default
 #                     (scripts/live_rules.setup_lookback), 8/16 scale it by 8/12 and 16/12
 #   fx_b6      B6     PROJECT rule: cancel the pending limit when the target trades before the fill (core-b.md §3.1
@@ -95,6 +95,10 @@ MIN_RR = trading_env.min_rr()
 #                     NOT core-a.md R1's literal 02:00-05:00 EST windows; instant = fill bar OPEN, a proxy)
 # B4 ("HTF level engaged before the LTF MSS") is NOT here: the sources never define an HTF level nor "engaged",
 # so no key is registered (docs/architecture/v-grid-ict.json states it as implemented=false).
+# `V_ICT` is what the ENGINE accepts (check_v_opts). docs/architecture/v-grid-ict.json is what the fund-search GRID
+# declares: since the owner decision of 2026-09-30 (planned R:R floor 2.5 for every trade) the grid no longer declares
+# the `no_floor` B-EXIT token (V_ICT_GRID_EXCLUDED_FLOOR); the engine keeps the code path, live never sets fx_ keys.
+V_ICT_GRID_EXCLUDED_FLOOR = "no_floor"
 V_ICT = {
     "fx_b_ex": ("iofed", "ce", "fill"),
     "fx_b_pd": ("r15", "r13"),

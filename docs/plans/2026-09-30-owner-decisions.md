@@ -40,3 +40,20 @@ at that time.
 ## Standing rules restated
 - The evaluation window is never moved to rescue a method. Results are reported honestly, including zero passes.
 - The engine smoke test (docs/audits/2026-09-30-fund-search-engine-smoke.md) is structural only and does not count as an evaluation.
+
+## 2026-09-30 (later): planned R:R floor 2.5, `no_floor` removed, minimum edge `e`
+1. **Planned R:R floor at entry = 2.5** (owner: "R:R target when entering a trade must be at least 2.5R"), for BOTH methods
+   (ICT and WYCKOFF-BOOK) and BOTH backtest (`simulate()`) and live (`strategy-runner` `rr_reason`), applied NET of fees
+   exactly as before. Source of truth: `docs/architecture/analysis-params.json` `project_defined.ict.min_rr` (was 2.0 since
+   2026-09-19, 3.0 from 2026-09-13; the history stays in its `_basis`). One reader: `trading_env.min_rr()`.
+2. **`no_floor` removed from the ICT V grid** (`docs/architecture/v-grid-ict.json`, item B-EXIT): it skipped the planned-R:R
+   floor for ICT trades, which contradicts decision 1. B-EXIT is now 3 x 4 x 1 = 12 value sets (11 non-baseline). The engine
+   code path for a `no_floor` token is kept (live never sets `fx_` keys), but no grid cell can reach it (`build_overlay`
+   refuses a value the grid does not declare).
+3. **New N.** ICT: 1 + 27 + 1 = **29 per cell** (was 41), x 8 cells = **232** (was 328), one-sided confidence
+   1 - 0.10/232 = **0.999569** (was 0.999695). Wyckoff unchanged: 16 per cell, 128, 0.999219.
+   (`python3 -W ignore scripts/fund-search.py plan --dry-run`.)
+4. **The declaration pins the floor.** `evaluation_config.min_rr` (scripts/fund-search.py) is written by `declare`; `run`
+   refuses on drift if the effective floor differs. `scripts/fund-search.py` is a pinned file, so `declare` must run after this change.
+5. **`e` (minimum edge of interest).** Delegated by the owner and set by the coordinator to **0.20R** as a
+   pre-declaration default. It is to be fixed before `declare` and is not adjustable after results are seen.
