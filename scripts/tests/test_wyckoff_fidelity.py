@@ -435,7 +435,7 @@ class W7HtfTargetIsBuiltButNotAdopted(unittest.TestCase):
         """Patch structures.wyckoff_records with a recorder; returns the list of P dicts it was called with."""
         calls = []
 
-        def fake(O, H, L, C, V, P=None, volume_kind="traded", side="long"):
+        def fake(O, H, L, C, V, P=None, volume_kind="traded", side="long", pre=None):   # `pre`: W7 speed-up (optional, same records)
             calls.append(P)
             return list(recs)
         p = mock.patch.object(self.bt._structures, "wyckoff_records", fake)
@@ -473,9 +473,11 @@ class W7HtfTargetIsBuiltButNotAdopted(unittest.TestCase):
         calls = self._spy_records([dict(sos=None, tr_hi=110.0, tr_lo=80.0)])
         self._ask()
         with mock.patch.object(self.bt, "load", lambda s, t: (self._htf_candles(bars, start_hour=1), None)):
-            self._ask("2024-02-01T00:00:00Z")                          # different history AND decision time
-            self._ask()                                                # same decision time, shifted history
-        self.assertEqual(len(calls), 3)
+            self._ask("2024-02-01T00:00:00Z")                          # different history (and decision time): re-detects
+            self._ask()                                                # shifted history, another decision time that makes the
+        #   SAME bars knowable (all 96): the memo is keyed on the PREFIX LENGTH of a series' content (2026-10-01 W7 speed-up), so
+        #   this is a hit -- before, it keyed on the decision time and re-detected. The history change is what forced call 2.
+        self.assertEqual(len(calls), 2)
 
     def test_w7_does_not_write_the_global_sob_and_uses_the_htf_rungs_value(self):
         """The old code did `W.PARAMS["spring_max_bars_outside"] = P[h]["sob"]` and never restored it."""

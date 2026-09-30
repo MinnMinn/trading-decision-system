@@ -256,7 +256,7 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
 _WY_EVENT_BARS = ("sc", "ar", "st", "choch", "spring", "reclaim", "test", "sos", "sos_bar")
 
 
-def wyckoff_records(O, H, L, C, V, P=None, volume_kind="traded", side="long", pivots=None):
+def wyckoff_records(O, H, L, C, V, P=None, volume_kind="traded", side="long", pivots=None, pre=None):
     """The RAW scripts/wyckoff_rules.py `detect_accumulations()` (side="long") / `detect_distributions()`
     (side="short") call -- for hot-path callers (scripts/backtest-methods.py `_wyckoff_candidates()`) that need
     only the records, never the enriched trading_range objects and never a per-window `candles` list built
@@ -265,6 +265,8 @@ def wyckoff_records(O, H, L, C, V, P=None, volume_kind="traded", side="long", pi
     kwargs = {} if P is None else {"P": P}
     if pivots is not None:      # speed: the window's pivots, pre-computed once per series (wyckoff_rules.swings)
         kwargs["pivots"] = pivots
+    if pre is not None:         # speed: the prefix's swings + candidate swing indices (wyckoff_rules.prefix_swings)
+        kwargs["pre"] = pre
     return (W.detect_accumulations(O, H, L, C, V, volume_kind=volume_kind, **kwargs) if side == "long"
             else W.detect_distributions(O, H, L, C, V, volume_kind=volume_kind, **kwargs))
 

@@ -199,6 +199,69 @@ def window_pivots(index, a, m, k, swap=False):
     return [(bars[q] - a, ((masks[q] & 1) << 1) | ((masks[q] & 2) >> 1)) for q in range(lo, hi)]
 
 
+def swing_prefix_index(H, L, k, nd):
+    """Speed (byte-identical; W7's HTF read, docs/audits/2026-10-01-w7-speed.md): everything `prefix_swings()` needs to
+    hand `detect_accumulations(pre=)` the swing data of ANY prefix of one series, computed once for the whole series.
+    `H`/`L` are the arrays the detector sees (the INVERTED ones for `detect_distributions`), `k` = P["pivot"], `nd` =
+    P["downtrend_swings"].
+
+    `swings()` is a left-to-right fold over the pivots: each step appends a swing or replaces the LAST one (same kind,
+    more extreme). So after the pivots with bar < m - k (exactly the pivots of the prefix H[:m], because a k-bar pivot at
+    bar i reads only bars i-k..i+k) the swing list is `final[:len-1] + [last]`, where only that last element can later
+    change: any element followed by another is never touched again. `lens[e]`/`lasts[e]` record the list's length and last
+    element after the first e+1 pivot entries.
+
+    `cands` = the swing indices of the FULL swing list that pass detect_accumulations' downtrend test (a low swing with
+    `nd` lower lows and `nd` lower highs before it: the code below is that test, verbatim). The test reads only
+    sw[:si+1], so for a prefix whose swing list agrees with the full one up to index Lm-2 the verdict at every si <= Lm-2
+    is the same; only the prefix's own last swing (index Lm-1) needs a fresh look, and `prefix_swings` always lists it."""
+    bars, masks = pivot_index(H, L, k)
+    out, lens, lasts = [], [], []
+    for i, mask in zip(bars, masks):
+        for kind, px in ((("H", H[i]),) if mask & 1 else ()) + ((("L", L[i]),) if mask & 2 else ()):
+            if out and out[-1][1] == kind:
+                if (kind == "H" and px >= out[-1][2]) or (kind == "L" and px <= out[-1][2]):
+                    out[-1] = (i, kind, px)
+            else:
+                out.append((i, kind, px))
+        lens.append(len(out)); lasts.append(out[-1])
+    need = max(nd + 1, 2)
+    cands = []
+    for si in range(4, len(out)):
+        if out[si][1] != "L":
+            continue
+        lows, highs, q = [], [], si
+        while q >= 0 and (len(lows) < need or len(highs) < need):
+            sq = out[q]
+            if sq[1] == "L":
+                if len(lows) < need: lows.append(sq)
+            elif len(highs) < need:
+                highs.append(sq)
+            q -= 1
+        lows.reverse(); highs.reverse()
+        if len(lows) < nd + 1 or len(highs) < nd + 1:
+            continue
+        if not all(lows[-j][2] < lows[-j - 1][2] for j in range(1, nd + 1)) or not all(highs[-j][2] < highs[-j - 1][2] for j in range(1, nd + 1)):
+            continue
+        cands.append(si)
+    return dict(k=k, nd=nd, bars=bars, sw=out, lens=lens, lasts=lasts, cands=cands)
+
+
+def prefix_swings(index, m):
+    """`(sw, cands)` for `detect_accumulations(H[:m], ..., pre=)` from a `swing_prefix_index()`: `sw` == swings(H[:m],
+    L[:m], k) and `cands` ascending, a superset of the prefix's downtrend-test passes (see `swing_prefix_index`)."""
+    e = bisect.bisect_left(index["bars"], m - index["k"])
+    if e == 0:
+        return [], []
+    Lm = index["lens"][e - 1]
+    sw = index["sw"][:Lm - 1]
+    sw.append(index["lasts"][e - 1])
+    cands = index["cands"][:bisect.bisect_right(index["cands"], Lm - 2)]
+    if Lm - 1 >= 4:
+        cands.append(Lm - 1)
+    return sw, cands
+
+
 def avg(xs, i, n):
     w = xs[max(0, i - n):i]
     return sum(w) / len(w) if w else 0.0
@@ -301,19 +364,31 @@ class _LazySpread:
         return self._v[k]
 
 
-def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="long", pivots=None):
+def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="long", pivots=None, pre=None):
     """Walk the series and return every accumulation structure that reaches a Spring candidate, with all rule outputs.
     Each record: dict(sc, ar, st, tr_lo, tr_hi, st_pct, chobev_bars, phase_b_swings, sloped, spring=dict(...), ...).
 
     `side`: "long" for a genuine accumulation/Spring read (Bang 2.1), "short" when called from
     detect_distributions on inverted prices, so the break bar is typed against the Upthrust table
-    (Bang 2.2) instead of the Spring table (WY-1, docs/audits/2026-09-24-system-audit.md)."""
-    n = len(C); k = P["pivot"]; sw = swings(H, L, k, pivots=pivots); out = []
+    (Bang 2.2) instead of the Spring table (WY-1, docs/audits/2026-09-24-system-audit.md).
+
+    `pre` (speed, byte-identical; W7's HTF read, docs/audits/2026-10-01-w7-speed.md): `(sw, cands)` as
+    `prefix_swings()` returns them -- this series' swing list and the swing indices the loop below visits, instead of
+    computing `swings()` and visiting every swing from 4. `cands` must be ascending and a SUPERSET of the swings that
+    pass the downtrend test below (`prefix_swings` documents why it is); every index it lists still runs that test, and
+    an index it omits would have hit one of the `continue`s before `used_until` or `out` is touched, so the records are
+    the same. None (every other caller) = the original."""
+    n = len(C); k = P["pivot"]; out = []
+    if pre is None:
+        sw = swings(H, L, k, pivots=pivots)
+        cands = range(4, len(sw))
+    else:
+        sw, cands = pre
     sw_bars = [s[0] for s in sw]    # swing bars are non-decreasing: bisect targets for the "first swing after bar X" reads below
     lb = P["lookback"]
     spread = _LazySpread(H, L)      # bar ranges: built on first use (most windows never reach a use)
     used_until = -1
-    for si in range(4, len(sw)):
+    for si in cands:
         i, kind, px = sw[si]
         if kind != "L" or i <= used_until:
             continue
@@ -379,7 +454,9 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
         if tr <= 0:
             continue
         # --- ST[A]: first swing low after AR holding above SC (R3) ---
-        st = next((s for s in sw[bisect.bisect_right(sw_bars, ar[0]):] if s[1] == "L"), None)
+        # Speed (byte-identical): the same "first L swing after AR" as `next(s for s in sw[j0:] if s[1] == "L")`, without
+        # copying the tail of `sw` (O(swings) per candidate).
+        st = next((sw[j] for j in range(bisect.bisect_right(sw_bars, ar[0]), len(sw)) if sw[j][1] == "L"), None)
         if st is None:
             bump("3_no_st"); continue
         st_pct = (st[2] - tr_lo) / tr
@@ -394,8 +471,9 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
         if P.get("fx_w1_tr_low_st") and st[2] < tr_lo:
             tr_lo = st[2]; tr = tr_hi - tr_lo
         # --- Phase B: swings after ST; sloped check (R4, R5) ---
-        after = sw[bisect.bisect_right(sw_bars, st[0]):]
-        if not after:
+        # Speed (byte-identical): `after` = sw[after_lo:] read in place (`sw[after_lo + x]`, `n_after`), not copied per candidate.
+        after_lo = bisect.bisect_right(sw_bars, st[0]); n_after = len(sw) - after_lo
+        if not n_after:
             continue
         # walk bars from the CHoCH for the first break below the TR low
         start = max(choch_bar, st[0]) + 1; b_lows = [st[2]]
@@ -416,8 +494,8 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
         # look-ahead and is now guarded locally (`b + COMMIT - 1 < n`) instead of truncating this whole loop.
         for b in range(start, n):
             # count swings completed so far in Phase B
-            while b_swings < len(after) and after[b_swings][0] + k <= b:
-                s = after[b_swings]
+            while b_swings < n_after and sw[after_lo + b_swings][0] + k <= b:
+                s = sw[after_lo + b_swings]
                 if s[1] == "L":
                     b_lows.append(s[2]); sot_lows.append(s[2])
                     if s[2] <= tr_lo + third * tr:
@@ -542,7 +620,7 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
     return out
 
 
-def detect_distributions(O, H, L, C, V, P=PARAMS, volume_kind="traded", pivots=None):
+def detect_distributions(O, H, L, C, V, P=PARAMS, volume_kind="traded", pivots=None, pre=None):
     """Mirror: run the accumulation detector on inverted prices (WA p101 schematics are mirror images) and map
     prices back. side="short" (WY-1, docs/audits/2026-09-24-system-audit.md) so the break bar is typed with the
     Upthrust table (Bang 2.2), not the Spring table -- detect_accumulations no longer assumes it is always
@@ -550,7 +628,7 @@ def detect_distributions(O, H, L, C, V, P=PARAMS, volume_kind="traded", pivots=N
     inv = lambda xs: [-x for x in xs]
     # `pivots` (if any) was built for the ORIGINAL prices: on -L / -H a high pivot is a low pivot and vice versa,
     # so the flags arrive already swapped (window_pivots(..., swap=True)).
-    recs = detect_accumulations(inv(O), inv(L), inv(H), inv(C), V, P, volume_kind, side="short", pivots=pivots)
+    recs = detect_accumulations(inv(O), inv(L), inv(H), inv(C), V, P, volume_kind, side="short", pivots=pivots, pre=pre)
     for r in recs:
         for key in ("tr_lo", "tr_hi", "spring_low", "vpoc", "vah", "val", "lvn", "ceiling"):
             if r.get(key) is not None:

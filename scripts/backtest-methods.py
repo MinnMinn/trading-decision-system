@@ -351,6 +351,29 @@ def pit_cutoff(cutoff):
     _PIT_CUTOFF = cutoff
 
 
+#: Speed only (byte-identical): `load()`'s load-time PIT cut is `pit.series_as_of(src, tf, _PIT_CUTOFF)`, a full pass over
+#: the series (0.7 s on the 1.3 M-bar XAUUSD 5m series) that W7's `_htf_wyckoff_target` paid on EVERY call. Its result is a
+#: pure function of (the source list, tf, cutoff, symbol), so it is kept here, keyed by the identity of the source list
+#: (`history_store`'s own cached `candles` list, stable while its file is unchanged). Each entry holds the source list
+#: itself (so its id cannot be reused by another list) and is only served for that very list at the same length and last
+#: element; `load()` still returns a FRESH copy of the cut on every call. Bounded (a `_BARS_LIMIT` slice is a new list per
+#: call and would never hit).
+_PIT_CUT_CACHE = {}
+_PIT_CUT_CACHE_MAX = 8
+
+
+def _pit_cut(src, tf, sym):
+    key = (id(src), tf, _PIT_CUTOFF, sym)
+    ent = _PIT_CUT_CACHE.get(key)
+    if ent is not None and ent[0] is src and ent[1] == len(src) and (not src or ent[2] is src[-1]):
+        return ent[3]
+    cut = _pit.series_as_of(src, tf, _PIT_CUTOFF, symbol=sym)
+    if len(_PIT_CUT_CACHE) >= _PIT_CUT_CACHE_MAX:
+        _PIT_CUT_CACHE.pop(next(iter(_PIT_CUT_CACHE)))
+    _PIT_CUT_CACHE[key] = (src, len(src), src[-1] if src else None, cut)
+    return cut
+
+
 def load(sym, tf):
     # scripts/history_store.py: THE shared reader (single-file or split-gz) and its own load cache -- moved
     # out of this module (code review, 2026-09-29) so normalized.py/snapshot.py/prop-search.py read history
@@ -365,7 +388,7 @@ def load(sym, tf):
         # than re-deriving an availability rule here. `tf` is this call's own timeframe, matching every other
         # available_time() call in this file (htf_bias_gate, htf_position: always the SERIES' OWN tf, never
         # the caller's decision-bar tf).
-        d = dict(d, candles=_pit.series_as_of(d["candles"], tf, _PIT_CUTOFF, symbol=sym))
+        d = dict(d, candles=_pit_cut(d["candles"], tf, sym))
     # CLAUDE.md §7: provenance travels with the series. Recorded per (symbol, timeframe) because ONE
     # instrument's series can come from two providers -- which is exactly what happened on 2026-09-18, when the
     # MT5 CFD import replaced XAUUSD 15m/1H/4H/1D and left 2H/30m/5m on the Yahoo futures proxy. A ranking
@@ -803,12 +826,88 @@ def htf_bias_gate(sym, tf, side, decision_time, methods, h=None):
     return bias_allows(bias, side)
 
 
-#: (sym, htf, decision_time, side, history identity, sob, w1, w2, w3, w5) -> target price or None, memoized per
-#: process -- W7 (below) re-detects the HTF series on every distinct decision it is asked about; this avoids
-#: repeating that for the same question. The key is built the way `_WY_CANDIDATES`' is in scan(): the four
-#: detection fx_ keys change DETECTION, so two configs differing in one of them must not share an entry, and the
-#: HTF history identity keeps a reloaded/extended series from serving a stale one.
+#: W7 memo: (HTF series uid, side, volume kind, every detection parameter, HTF prefix length, the W7 detection-key tuple)
+#: -> target price or None, memoized per process. W7 (below) re-detects the HTF series on every distinct decision it is
+#: asked about; two decision times that make the SAME bars knowable (same prefix length of the same series) read the same
+#: prefix, hence get the same answer, so the memo is keyed on that prefix length, not on the decision time. Everything the
+#: answer depends on is in the key: the series CONTENT (uid: `_HtfSeries` is rebuilt, with a new uid, whenever the loaded
+#: series is not equal to the one it was built from), the side, the volume kind, and the full per-call parameter dict
+#: `_wy_params()` hands the detector (W.PARAMS + spring_max_bars_outside + the detection fx_/V keys; `_wy_detection_ck()`
+#: is kept in the key as well). A memo value is a pure function of its key, so the answer never depends on whether it was
+#: cached. Bounded: cleared wholesale at _HTF_TR_CACHE_MAX entries (a scan makes ~2-3 entries per 1000 LTF bars).
 _HTF_TR_CACHE = {}
+_HTF_TR_CACHE_MAX = 100_000
+_HTF_SERIES = {}       # (sym, htf) -> _HtfSeries; at most _HTF_SERIES_MAX entries
+_HTF_SERIES_MAX = 4
+_HTF_UID = [0]
+_MISS = object()
+
+
+class _HtfSeries:
+    """One higher-timeframe history as arrays, built ONCE per (symbol, tf, series content) instead of once per W7 call
+    (which re-ran `pit.series_as_of` over the whole series and rebuilt five lists). Speed only, byte-identical:
+
+      * PIT prefix: `pit.series_as_of` keeps the bars whose `normalized.available_time(bar, tf)` is <= the decision time
+        (it does NOT assume the series is sorted). `avail` is that same per-bar value, computed by that same function;
+        when it is non-decreasing (`monotone`) the kept bars are exactly the first `bisect_right(avail, dt)` bars, in
+        order, so `prefix_len()` IS `len(series_as_of(...))` and the arrays sliced to it ARE the lists the per-call code
+        built. When it is not monotone (a gap/duplicate/future-stamped row), or a bar lacks a field, `monotone`/`ok` is
+        False and the caller takes the original per-call path -- no assumption is made about a series this class has not
+        verified.
+      * `pre()`: the series-wide swing index (`wyckoff_rules.swing_prefix_index`), cut per prefix by `prefix_swings` into
+        the `(swings, candidate swing indices)` that `detect_*(pre=)` takes instead of recomputing the pivots, the swing
+        fold and the downtrend test over the whole prefix on every call (wyckoff_rules documents why the cut equals
+        `swings(prefix)` and why the candidate list is a superset)."""
+    __slots__ = ("uid", "src", "avail", "monotone", "ok", "O", "H", "L", "C", "V", "_pidx")
+
+    def __init__(self, sym, h, c):
+        _HTF_UID[0] += 1
+        self.uid = _HTF_UID[0]
+        self.src = c
+        a = self.avail = [_N.available_time(x, h) for x in c]
+        self.monotone = all(a[i] <= a[i + 1] for i in range(len(a) - 1))
+        self._pidx = {}
+        try:
+            self.O = [x["open"] for x in c]; self.H = [x["high"] for x in c]; self.L = [x["low"] for x in c]
+            self.C = [x["close"] for x in c]; self.V = [x.get("volume", 0) for x in c]
+            self.ok = True
+        except KeyError:
+            self.O = self.H = self.L = self.C = self.V = None
+            self.ok = False
+
+    def prefix_len(self, decision_time):
+        """`len(pit.series_as_of(c, h, decision_time))` -- valid only when `monotone`."""
+        return bisect.bisect_right(self.avail, _pit._aware(decision_time))
+
+    def pre(self, side, wp, m):
+        """`detect_*(pre=)` for the prefix of length `m`: `wyckoff_rules.prefix_swings` over the series-wide index of the
+        arrays the detector sees -- the raw ones for the long read, the sign-inverted ones (what `detect_distributions`
+        builds per call) for the short read."""
+        key = (side, wp["pivot"], wp["downtrend_swings"])
+        idx = self._pidx.get(key)
+        if idx is None:
+            H, L = (self.H, self.L) if side == "long" else ([-x for x in self.L], [-x for x in self.H])
+            idx = self._pidx[key] = W.swing_prefix_index(H, L, wp["pivot"], wp["downtrend_swings"])
+        return W.prefix_swings(idx, m)
+
+
+def _htf_memo_key(S, side, vkind, wp, m):
+    """Every input of a W7 answer: which series CONTENT (S.uid), which side and volume kind, the full detection parameter
+    dict, and the prefix length `m` (which bars were knowable). See `_HTF_TR_CACHE`."""
+    return (S.uid, side, vkind, tuple(sorted(wp.items())), m) + _wy_detection_ck()
+
+
+def _htf_series(sym, h, c):
+    """The `_HtfSeries` for exactly this loaded list `c` (built now, or reused when the stored one was built from an
+    equal list: same length and every bar equal -- list equality short-circuits on identical dicts)."""
+    ent = _HTF_SERIES.get((sym, h))
+    if ent is not None and (ent.src is c or ent.src == c):
+        return ent
+    ent = _HtfSeries(sym, h, c)
+    if (sym, h) not in _HTF_SERIES and len(_HTF_SERIES) >= _HTF_SERIES_MAX:
+        _HTF_SERIES.pop(next(iter(_HTF_SERIES)))
+    _HTF_SERIES[(sym, h)] = ent
+    return ent
 
 
 def _htf_wyckoff_target(sym, tf, side, decision_time):
@@ -841,26 +940,59 @@ def _htf_wyckoff_target(sym, tf, side, decision_time):
     if not h or not sym:
         return None
     c, _ = load(sym, h)
-    key = ((sym, h, decision_time, side, (len(c), c[0]["time"], c[-1]["time"]) if c else None, P[h]["sob"])
+    if not c:
+        return None
+    sob = P[h]["sob"]
+    S = _htf_series(sym, h, c)
+    if not (S.monotone and S.ok):
+        return _htf_wyckoff_target_scan(sym, h, side, decision_time, c, sob)
+    m = S.prefix_len(decision_time)          # == len(pit.series_as_of(c, h, decision_time, symbol=sym))
+    if m < 2 * W.PARAMS["pivot"] + 5:
+        return None
+    vkind = "tick" if _I.is_tick_volume(sym) else "traded"
+    # spring_max_bars_outside is per-timeframe (P[h], not the LTF's P[tf]) -- the same convention
+    # `_wyckoff_candidates` already uses for its own tf -- and the detection fx_ keys are read from
+    # OPTS, both via a per-call copy of W.PARAMS: nothing global is written, so nothing needs restoring.
+    wp = _wy_params(sob)
+    key = _htf_memo_key(S, side, vkind, wp, m)
+    target = _HTF_TR_CACHE.get(key, _MISS)
+    if target is not _MISS:
+        return target
+    target = None
+    recs = _structures.wyckoff_records(S.O[:m], S.H[:m], S.L[:m], S.C[:m], S.V[:m], P=wp, volume_kind=vkind,
+                                       side=side, pre=S.pre(side, wp, m))
+    if recs:
+        htf_r = recs[-1]   # the most recently formed HTF structure knowable as of decision_time
+        target = S.C[htf_r["sos"]] if htf_r["sos"] is not None else (
+            htf_r["tr_hi"] if side == "long" else htf_r["tr_lo"])
+    if len(_HTF_TR_CACHE) >= _HTF_TR_CACHE_MAX:
+        _HTF_TR_CACHE.clear()
+    _HTF_TR_CACHE[key] = target
+    return target
+
+
+def _htf_wyckoff_target_scan(sym, h, side, decision_time, c, sob):
+    """The per-call path `_htf_wyckoff_target` used before the `_HtfSeries` speed-up, kept for an HTF series whose
+    available times are not non-decreasing (or that lacks a field): `pit.series_as_of` over the whole series, lists
+    rebuilt per call, memoized on the decision time."""
+    key = (("scan", sym, h, decision_time, side, (len(c), c[0]["time"], c[-1]["time"]), sob)
            + _wy_detection_ck())
     if key in _HTF_TR_CACHE:
         return _HTF_TR_CACHE[key]
     target = None
-    if c:
-        trunc = _pit.series_as_of(c, h, decision_time, symbol=sym)
-        if len(trunc) >= 2 * W.PARAMS["pivot"] + 5:
-            O_ = [x["open"] for x in trunc]; H_ = [x["high"] for x in trunc]; L_ = [x["low"] for x in trunc]
-            C_ = [x["close"] for x in trunc]; V_ = [x.get("volume", 0) for x in trunc]
-            vkind = "tick" if _I.is_tick_volume(sym) else "traded"
-            # spring_max_bars_outside is per-timeframe (P[h], not the LTF's P[tf]) -- the same convention
-            # `_wyckoff_candidates` already uses for its own tf -- and the detection fx_ keys are read from
-            # OPTS, both via a per-call copy of W.PARAMS: nothing global is written, so nothing needs restoring.
-            wp = _wy_params(P[h]["sob"])
-            recs = _structures.wyckoff_records(O_, H_, L_, C_, V_, P=wp, volume_kind=vkind, side=side)
-            if recs:
-                htf_r = recs[-1]   # the most recently formed HTF structure knowable as of decision_time
-                target = C_[htf_r["sos"]] if htf_r["sos"] is not None else (
-                    htf_r["tr_hi"] if side == "long" else htf_r["tr_lo"])
+    trunc = _pit.series_as_of(c, h, decision_time, symbol=sym)
+    if len(trunc) >= 2 * W.PARAMS["pivot"] + 5:
+        O_ = [x["open"] for x in trunc]; H_ = [x["high"] for x in trunc]; L_ = [x["low"] for x in trunc]
+        C_ = [x["close"] for x in trunc]; V_ = [x.get("volume", 0) for x in trunc]
+        vkind = "tick" if _I.is_tick_volume(sym) else "traded"
+        wp = _wy_params(sob)
+        recs = _structures.wyckoff_records(O_, H_, L_, C_, V_, P=wp, volume_kind=vkind, side=side)
+        if recs:
+            htf_r = recs[-1]
+            target = C_[htf_r["sos"]] if htf_r["sos"] is not None else (
+                htf_r["tr_hi"] if side == "long" else htf_r["tr_lo"])
+    if len(_HTF_TR_CACHE) >= _HTF_TR_CACHE_MAX:
+        _HTF_TR_CACHE.clear()
     _HTF_TR_CACHE[key] = target
     return target
 
