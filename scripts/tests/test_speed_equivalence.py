@@ -160,7 +160,7 @@ def _reprs(trades_by_overlay):
     return [repr(sorted((k, v) for k, v in t.items())) for t in trades_by_overlay]
 
 
-class _DiffMixin:
+class _DiffSetup:
     """Shared: a temp history slice, BASE's reference output computed once, the current tree's bt loaded on the
     same slice."""
     SYM = TF = METHOD = None
@@ -204,6 +204,9 @@ class _DiffMixin:
             self.assertEqual(gt, rt, ctx)                                   # same list, fields, order
             self.assertEqual(repr(sorted(gt.items())), repr(sorted(rt.items())), ctx)   # same types / float text
 
+
+
+class _DiffMixin(_DiffSetup):
     def test_reference_is_not_vacuous(self):
         counts = [len(r["trades"].get(self.METHOD, [])) for r in self.ref]
         self.assertGreater(sum(counts), 10, f"too few reference trades to prove anything: {counts}")
@@ -240,6 +243,107 @@ class IctDifferential(_DiffMixin, unittest.TestCase):
 class WyckoffDifferential(_DiffMixin, unittest.TestCase):
     SYM, TF, METHOD, BARS = "XAUUSD", "15m", "WYCKOFF-BOOK", 30000
     overlays = staticmethod(wy_overlays)
+
+
+class IctPoolKeyChangesTrades(_DiffSetup, unittest.TestCase):
+    """fx_b_pool='on' really changes the trades on this slice (XAGUSD 15m, 20,000 bars), so a group key that dropped it
+    would hand the pool-on overlay the pool-off analysis and fail here."""
+    SYM, TF, METHOD, BARS = "XAGUSD", "15m", "ICT", 20000
+    overlays = staticmethod(lambda: [dict(_fixed()), dict(_fixed(), fx_b_pool="on"),
+                                     dict(_fixed(), fx_b_pool="on", fx_b_ex="ce")])
+
+    def test_pool_changes_trades_and_scan_many_matches_independent_scans(self):
+        base, pool = self.ref[0]["trades"]["ICT"], self.ref[1]["trades"]["ICT"]
+        self.assertGreater(len(base), 3)
+        self.assertNotEqual(base, pool, "fx_b_pool='on' no longer changes the trades on this slice: the test is vacuous")
+        self._check(self.SM.scan_many(self.bt, self.SYM, self.TF, self.METHOD, self.ov, workers=1))
+
+
+class IctB2bKeyChangesTrades(_DiffSetup, unittest.TestCase):
+    """fx_b2b_ce_fail=True really changes the trades on this slice (XAUUSD 15m, 60,000 bars, with the B-RAID/B2a keys that
+    let the failed-FVG filter bite), so a group key that dropped it would fail here."""
+    SYM, TF, METHOD, BARS = "XAUUSD", "15m", "ICT", 60000
+    _K = dict(fx_braid_optional=True, fx_b2a_fvg_in_leg=True)
+    overlays = staticmethod(lambda: [dict(_fixed(), **IctB2bKeyChangesTrades._K),
+                                     dict(_fixed(), fx_b2b_ce_fail=True, **IctB2bKeyChangesTrades._K)])
+
+    def test_b2b_changes_trades_and_scan_many_matches_independent_scans(self):
+        off, on = self.ref[0]["trades"]["ICT"], self.ref[1]["trades"]["ICT"]
+        self.assertGreater(len(off), 20)
+        self.assertNotEqual(off, on, "fx_b2b_ce_fail=True no longer changes the trades on this slice: the test is vacuous")
+        self._check(self.SM.scan_many(self.bt, self.SYM, self.TF, self.METHOD, self.ov, workers=1))
+
+
+class PitCutoffReachesPoolWorkers(unittest.TestCase):
+    """bt.pit_cutoff is process-global; spawned workers must be handed it explicitly. The pooled result must equal
+    bt.scan under the same cutoff and contain nothing at or after it."""
+    @classmethod
+    def setUpClass(cls):
+        if not _have_data():
+            raise unittest.SkipTest("data/history/ftmo is not present")
+        cls.tmp = tempfile.mkdtemp(prefix="speed-slice-")
+        cls.hist = os.path.join(cls.tmp, "hist")
+        cls.start, cls.stop = write_slice_root(cls.hist, "XAUUSD", "15m", 9000)
+        cls._env = os.environ.get("BT_HISTORY_ROOT")
+        os.environ["BT_HISTORY_ROOT"] = cls.hist
+        cls.bt = _load_module("bt_speed_pit", os.path.join(SCRIPTS, "backtest-methods.py"))
+        import scan_many as SM
+        cls.SM = SM
+        cls.times = [x["time"] for x in cls.bt.load("XAUUSD", "15m")[0]]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.bt.pit_cutoff(None)
+        if cls._env is None:
+            os.environ.pop("BT_HISTORY_ROOT", None)
+        else:
+            os.environ["BT_HISTORY_ROOT"] = cls._env
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def _straddling_cutoff(self, uncut, method):
+        """A bar time strictly inside the longest-held trade of the UNCUT scans: that trade's forward walk needs bars the
+        cutoff removes, so a worker that did not receive the cutoff (and so walked the full series) books a different
+        trade than one that did."""
+        pos = {t: i for i, t in enumerate(self.times)}
+        best = None
+        for r in uncut:
+            for tr in r["trades"].get(method, []):
+                e, x = pos[tr["entry_time"]], pos[tr["exit_time"]]
+                if best is None or x - e > best[0]:
+                    best = (x - e, e, x)
+        self.assertIsNotNone(best)
+        self.assertGreaterEqual(best[0], 4, "no trade held long enough to straddle a cutoff: vacuous")
+        return self.times[(best[1] + best[2]) // 2]
+
+    def _run(self, method, overlays):
+        bt, SM = self.bt, self.SM
+        bt.pit_cutoff(None)
+        uncut = SM.scan_many(bt, "XAUUSD", "15m", method, overlays, workers=1)
+        cut = self._straddling_cutoff(uncut, method)
+        bt.pit_cutoff(cut)
+        try:
+            want = [bt.scan("XAUUSD", "15m", only=(method,), opts=o) for o in overlays]
+            pooled = SM.scan_many(bt, "XAUUSD", "15m", method, overlays, workers=2, min_chunk_bars=300)
+        finally:
+            bt.pit_cutoff(None)
+        differs = 0
+        for w, p, u in zip(want, pooled, uncut):
+            self.assertEqual(repr(sorted(dict(p["trades"]).items())), repr(sorted(dict(w["trades"]).items())))
+            self.assertEqual((p["bars"], p["last"]), (w["bars"], w["last"]))
+            self.assertLess(p["last"], cut)
+            self.assertLess(p["bars"], u["bars"], "the cutoff did not shorten the series: vacuous")
+            for t in p["trades"].get(method, []):
+                self.assertLess(t["time"], cut)
+                self.assertLess(t["entry_time"], cut)
+                self.assertLess(t["exit_time"], cut)
+            differs += dict(p["trades"]) != dict(u["trades"])
+        self.assertGreater(differs, 0, "the cutoff changed no trade list: vacuous")
+
+    def test_ict_pool_honours_the_cutoff(self):
+        self._run("ICT", [dict(_fixed()), dict(_fixed(), fx_b_ex="ce"), dict(_fixed(), fx_braid_optional=True)])
+
+    def test_wyckoff_pool_honours_the_cutoff(self):
+        self._run("WYCKOFF-BOOK", [dict(_fixed()), dict(_fixed(), fx_w_spt="ceiling")])
 
 
 class FallbackAndValidation(unittest.TestCase):
@@ -650,6 +754,166 @@ class AnalyzeAndSetupCandidateEqualBase(unittest.TestCase):
             self._compare(cs, 2, "15m", 1)
 
 
+class GroupKeysSplitAndMerge(unittest.TestCase):
+    """`ict_group_key` / `wy_group_key` decide which overlays share one analysis / detection. Driven by the registries, so a
+    newly registered key is covered automatically: a key that changes the analysis MUST split, every other key MUST merge."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.bt = _load_module("bt_speed_keys", os.path.join(SCRIPTS, "backtest-methods.py"))
+        import scan_many as SM
+        cls.SM = SM
+        cls.ict = cls.bt.lr.ict_scan
+
+    def _alt(self, k):
+        bt = self.bt
+        base = bt._OPTS_BASE[k]
+        if k in self.ict.V_ICT:
+            return [v for v in self.ict.V_ICT[k] if v != base][0]
+        if k in bt.WY_V_VALUES:
+            cur = (12, 2) if k == "fx_w_tw" else base
+            return [v for v in bt.WY_V_VALUES[k] if v != cur][0]
+        if isinstance(base, bool):
+            return not base
+        raise AssertionError(f"no alternative value known for registered key {k!r}: extend GroupKeysSplitAndMerge._alt")
+
+    def _ict_key(self, overlay):
+        bt = self.bt
+        o = dict(bt._OPTS_BASE, **overlay)
+        saved = bt.OPTS
+        bt.OPTS = o
+        try:
+            methods = bt.resolve_methods("US500")
+            x = bt._ict_ctx("US500", "5m", [], [], bt.P["5m"]["H"], [], [], [], methods, idx_of_time={})
+            return self.SM.ict_group_key(bt, x)
+        finally:
+            bt.OPTS = saved
+
+    def _wy_key(self, overlay, win=300):
+        bt = self.bt
+        saved = bt.OPTS
+        bt.OPTS = dict(bt._OPTS_BASE, **overlay)
+        try:
+            return self.SM.wy_group_key(bt, win)
+        finally:
+            bt.OPTS = saved
+
+    def test_ict_key_splits_on_every_registered_analyze_key(self):
+        base = self._ict_key({})
+        for k in self.ict.ANALYZE_OPT_KEYS:
+            with self.subTest(key=k):
+                self.assertNotEqual(self._ict_key({k: self._alt(k)}), base, f"{k} changes analyze() but does not split the group")
+
+    def test_ict_key_merges_overlays_that_differ_only_in_downstream_keys(self):
+        bt = self.bt
+        base = self._ict_key({})
+        downstream = sorted(k for k in bt._OPTS_BASE if k.startswith("fx_") and k not in self.ict.ANALYZE_OPT_KEYS
+                            and k not in bt._FX_WYCKOFF_DETECTION_KEYS)
+        self.assertIn("fx_b_ex", downstream)
+        for k in downstream:
+            with self.subTest(key=k):
+                self.assertEqual(self._ict_key({k: self._alt(k)}), base, f"{k} does not reach analyze() but splits the group")
+        for k, v in (("htf", True), ("mgmt", "be"), ("sides", ("long",)), ("min_rr", 3.5)):
+            self.assertEqual(self._ict_key({k: v}), base, k)
+
+    def test_ict_key_splits_on_the_bias_reading_methods(self):
+        bt = self.bt
+        self.assertNotEqual(self._ict_key({"methods": ("ict",)}), self._ict_key({"methods": ("wyckoff", "ict")}))
+
+    def test_wyckoff_key_splits_on_every_registered_detection_key_and_on_the_window(self):
+        bt = self.bt
+        base = self._wy_key({})
+        for k in tuple(bt._FX_WYCKOFF_DETECTION_KEYS) + tuple(bt._FX_WYCKOFF_V_DETECTION_KEYS):
+            with self.subTest(key=k):
+                self.assertNotEqual(self._wy_key({k: self._alt(k)}), base, f"{k} changes detection but does not split the group")
+        self.assertNotEqual(self._wy_key({}, win=600), base)
+        saved = bt.OPTS
+        try:
+            bt.OPTS = dict(bt._OPTS_BASE, fx_w6_window=600)
+            self.assertEqual(bt._wy_window("XAUUSD", "15m", 1000), 600)
+            bt.OPTS = dict(bt._OPTS_BASE)
+            self.assertEqual(bt._wy_window("XAUUSD", "15m", 1000), 300)
+        finally:
+            bt.OPTS = saved
+
+    def test_wyckoff_key_merges_overlays_that_differ_only_in_gating_keys(self):
+        bt = self.bt
+        registered = set(bt._FX_WYCKOFF_DETECTION_KEYS) | set(bt._FX_WYCKOFF_V_DETECTION_KEYS)
+        gating = sorted(k for k in bt._OPTS_BASE if k.startswith("fx_") and k not in registered and k != "fx_w6_window"
+                        and k not in self.ict.V_ICT)
+        self.assertIn("fx_w_stop", gating)
+        base = self._wy_key({})
+        for k in gating:
+            with self.subTest(key=k):
+                self.assertEqual(self._wy_key({k: self._alt(k)}), base, f"{k} does not change detection but splits the group")
+        for k, v in (("htf", True), ("mgmt", "be"), ("sides", ("short",)), ("st_gate", True)):
+            self.assertEqual(self._wy_key({k: v}), base, k)
+
+
+def _tie_heavy_walk(rng, N, style):
+    """Tie-heavy OHLCV random walk (prices on a 0.1 grid, few volume levels). 'cycle' repeats down-leg / range / up-leg blocks
+    so Wyckoff structures (downtrend, SC, AR, Spring...) form; 'walk' is a drifting walk."""
+    px, O, H, L, C, V = 100.0, [], [], [], [], []
+    for i in range(N):
+        drift = [-0.12, 0.0, 0.15][(i // 120) % 3] if style == "cycle" else rng.choice([-0.04, 0, 0.03])
+        o = px
+        c = round(px + drift + rng.choice([-0.4, -0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.4]), 1)
+        O.append(o); C.append(c)
+        H.append(round(max(o, c) + rng.choice([0, 0.1, 0.1, 0.2, 0.3]), 1))
+        L.append(round(min(o, c) - rng.choice([0, 0.1, 0.1, 0.2, 0.3]), 1))
+        V.append(rng.choice([300.0, 600.0, 1000.0, 1800.0, 3000.0]))
+        px = c
+    return O, H, L, C, V
+
+
+class PivotHookDetectionParity(unittest.TestCase):
+    """Detection-level guard on `window_pivots`: a pivot at window-local bar i reads bars i-k..i+k, so the slice for the window
+    [a, a+m) must stop at a+m-k-1. Windows are cut out of LONGER tie-heavy walks (the bars just beyond a window's end exist in
+    the series-wide index, so a leaked pivot is real) and `detect_accumulations` / `detect_distributions` with `pivots=` must
+    equal the per-window detection. Self-checking: the same fixture run through a deliberately look-ahead `window_pivots`
+    (one bar too far) must differ somewhere, or the fixture has lost its sensitivity and the test fails. (`ict-scan.analyze`
+    takes no pivot hook, so there is nothing to compare on the ICT side.)"""
+
+    @staticmethod
+    def _leaky(index, a, m, k, swap=False):
+        import bisect
+        bars, masks = index
+        lo, hi = bisect.bisect_left(bars, a + k), bisect.bisect_left(bars, a + m - k + 1)       # one bar of look-ahead
+        return [(bars[q] - a, ((masks[q] & 1) << 1 | (masks[q] & 2) >> 1) if swap else masks[q]) for q in range(lo, hi)]
+
+    def test_hooked_detection_equals_unhooked_and_a_lookahead_would_be_seen(self):
+        import wyckoff_rules as W
+        rng = random.Random(5)
+        k = W.PARAMS["pivot"]
+        windows = records = leak_diffs = 0
+        for style in ("cycle", "walk"):
+            for _trial in range(40):
+                N = 1200
+                O, H, L, C, V = _tie_heavy_walk(rng, N, style)
+                idx = W.pivot_index(H, L, k)
+                for _ in range(60):
+                    m = rng.choice([80, 120, 200, 300])
+                    a = rng.randint(0, N - m)
+                    s = slice(a, a + m)
+                    for side in ("long", "short"):
+                        if side == "long":
+                            ref = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], volume_kind="tick")
+                            got = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], volume_kind="tick", pivots=W.window_pivots(idx, a, m, k))
+                            leak = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], volume_kind="tick", pivots=self._leaky(idx, a, m, k))
+                        else:
+                            ref = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], volume_kind="tick")
+                            got = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], volume_kind="tick", pivots=W.window_pivots(idx, a, m, k, swap=True))
+                            leak = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], volume_kind="tick", pivots=self._leaky(idx, a, m, k, True))
+                        self.assertEqual(got, ref, (style, _trial, a, m, side))
+                        windows += 1
+                        records += len(ref)
+                        leak_diffs += (leak != ref)
+        self.assertGreater(windows, 9000)
+        self.assertGreater(records, 500, "no structures detected: the parity check would be vacuous")
+        self.assertGreaterEqual(leak_diffs, 1, "a one-bar look-ahead in window_pivots changes no detection on this fixture: it "
+                                               "can no longer prove the absence of look-ahead")
+
+
 # ------------------------------------------------------------------------------------------------ fund-search waves
 class FundSearchWaves(unittest.TestCase):
     """The two-wave prefetch: requests exactly what the evaluation later asks for, and changes no result / no N."""
@@ -745,6 +1009,24 @@ class FundSearchWaves(unittest.TestCase):
                 plain_first.append(k)
         self.assertEqual(first_use, plain_first)
 
+    def test_trades_for_memo_hands_out_copies(self):
+        """The memoised result is shared by the CountingSource, the probes and every caller: a mutation by one must not
+        reach the others. Each call returns a NEW list (the trade dicts themselves are shared)."""
+        fs, FS = self.fs, self.FS
+        eng = object.__new__(fs.BtEngine)
+        eng.grid = self._grid()
+        values = eng.grid.baseline()
+        held = [{"t": 1}, {"t": 2}]
+        eng._done, eng._raw = {FS.CountingSource._key(values): held}, {}
+        first = eng.trades_for(values)
+        self.assertEqual(first, held)
+        self.assertIsNot(first, held)
+        first.append({"t": 3}); first.pop(0)
+        second = eng.trades_for(values)
+        self.assertEqual(second, [{"t": 1}, {"t": 2}])
+        self.assertIsNot(second, first)
+        self.assertEqual(held, [{"t": 1}, {"t": 2}])
+
     def test_probe_never_scores_or_counts(self):
         fs, FS = self.fs, self.FS
         eng = self._engine_cls(True)()
@@ -780,6 +1062,8 @@ class BtEngineParity(unittest.TestCase):
             for v in sets:
                 ta, tb = a.trades_for(v), b.trades_for(v)
                 self.assertEqual(repr(ta), repr(tb), v)
+                ta.append("poison"); ta.clear()                 # mutating a returned list must not reach the memo
+                self.assertEqual(repr(a.trades_for(v)), repr(tb), v)
                 key = self.FS.CountingSource._key(v)
                 self.assertEqual(a._admission[key], b._admission[key])
                 self.assertEqual(a._edge[key], b._edge[key])

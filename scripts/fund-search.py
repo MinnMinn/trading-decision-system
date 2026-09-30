@@ -636,7 +636,7 @@ class BtEngine:
         overlay = build_overlay(self.grid, values)
         key = FS.CountingSource._key(values)
         if key in self._done:
-            return self._done[key]
+            return list(self._done[key])         # a copy: a caller cannot mutate the memo (the trade dicts stay shared)
         raw = self._raw.pop(key, None)
         if raw is None:
             raw = []
@@ -658,7 +658,7 @@ class BtEngine:
         assert_no_rollover_crossing(taken, provider, self.tf)
         self._edge[key] = last_bar_entry_times(taken, self.tf, provider)
         self._done[key] = [dict(t, adx14=FS.adx_before(self._adx[t["symbol"]], t["entry_time"])) for t in taken]
-        return self._done[key]
+        return list(self._done[key])
 
     def admission_stats(self, values, fold=None):
         """I2: how many candidates the simulate() min_rr filter refused for this V assignment (optionally inside

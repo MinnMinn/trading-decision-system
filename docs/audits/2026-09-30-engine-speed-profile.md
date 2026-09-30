@@ -187,9 +187,9 @@ WYCKOFF XAUUSD 15m, full span, one detection group (58.2 s under the sampler vs 
 
 A worker loads the full (symbol, timeframe) series -- forward walks need every later bar -- so it is `base + per-bar x bars`. Measured
 on the real development series (peak RSS of one `_worker` after `bt.load`, `memprobe`): XAUUSD 15m 453,893 bars **346 MiB**;
-5m 1,316,783 bars **971 MiB**; 1m 4,096,182 bars **3,045 MiB** (~741 B/bar; the Wyckoff kernel, pivot index included, measured 2,832 MiB on the same 1m series -- the ICT kernel also carries the id-of-time index). A real chunk run
+5m 1,316,783 bars **971 MiB**; 1m 4,096,182 bars **3,045 MiB** (~779 B/bar = 3,045 MiB / 4,096,182 bars; the Wyckoff kernel, pivot index included, measured 2,832 MiB on the same 1m series -- the ICT kernel also carries the id-of-time index). A real chunk run
 (full 15m, `scan_many`, 10 workers) peaked at 391 MiB per child. `scan_many.WORKER_BASE_BYTES / WORKER_BYTES_PER_BAR` = 128 MiB /
-850 B (the measurements rounded up ~15 %); a test pins the estimate >= every measurement. `clamp_workers` keeps
+850 B (the measurements rounded up ~9 %); a test pins the estimate >= every measurement. `clamp_workers` keeps
 `(workers + 1 parent) x estimate <= 60 %` of physical RAM: on this 38.65 GB Mac the metals-1m cell (4.1 M bars per symbol,
 estimate 3.6 GB) runs with **5** workers, not 10; the 1.0-1.7 M-bar cells with 10. Unknown RAM (no `sysconf`) means no clamp. The clamp
 changes wall time only, never a result.
