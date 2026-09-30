@@ -8,12 +8,14 @@ Adopted on the default proposal (F items whose funnel trade-count delta is withi
 - ICT: `fx_b2a_fvg_in_leg` (B2a), `fx_b2b_ce_fail` (B2b).
 - Wyckoff: `fx_w1_tr_low_st` (W1), `fx_w3_mSOW_spring` (W3), `fx_w5_vp_abandon` (W5).
 Evidence: docs/audits/2026-09-29-ict-fidelity-funnel.md, docs/audits/2026-09-29-wyckoff-fidelity-funnel.md.
-NOT adopted, still awaiting a separate explicit sign-off (delta beyond x1.5 or a stop-point item):
-`fx_braid_optional` (B-RAID, ~x9 trades), `fx_w2_st_below_sc` (W2, x1.63 on XAUUSD), `fx_b1_pivot1` (B1, x2.07 on DE40),
-`fx_w7_htf_target` (W7, needs sign-off in advance). `fx_a2b_stale_htf_block` (A2b) is a safety key, default OFF; its
+ALSO ADOPTED by explicit owner instruction 2026-09-30 ("Đồng ý adopt B-RAID, W2, B1 và W7"), despite trade-count deltas beyond
+x1.5 (B-RAID ~x9, B1 x2.07 on DE40, W2 x1.63 on XAUUSD) and W7 acting on ~80 % of Wyckoff trades: `fx_braid_optional`,
+`fx_b1_pivot1`, `fx_w2_st_below_sc`, `fx_w7_htf_target`. The reviewer's B-RAID recency suspicion was tested and rejected
+(docs/audits/2026-09-29-ict-fidelity-funnel.md); a lookback bound was added on the no-raid path, effect ~0.
+So all nine F items are in the evaluation baseline. `fx_a2b_stale_htf_block` (A2b) is a live-safety key, default OFF; its
 adoption is a separate live-safety decision.
 "Adopted" means: ON in the evaluation baseline of the fund search only. The live/pilot path keeps v1 until the owner
-approves v2 (plan §1.6). The evaluation harness must set these five keys in its fixed overlay before any run.
+approves v2 (plan §1.6). The evaluation harness must set the nine F keys in its fixed overlay before any run.
 
 ## V-item readings (defaults accepted 2026-09-29)
 - W4a: baseline = key unset (v1's own typing, not a count); the cells 3 and 4 are the variants. An explicit `2` is a different rule.
