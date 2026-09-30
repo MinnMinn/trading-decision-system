@@ -584,6 +584,13 @@ def setup_candidate(a, c, lookback, opts=None):
     if s is None:
         if not opts.get("fx_braid_optional"):
             return None
+        # Owner-adopted 2026-09-30 after code review: v1's raid path is bounded in time (the sweep must sit inside
+        # `lookback`, and the MSS must come after it), so an old MSS can never seed a v1 setup. The no-raid path must
+        # keep the same bound, otherwise a stale MSS anywhere in the window forms a candidate as soon as a later
+        # same-direction FVG appears (the ~x9 trade explosion the reviewer suspected). R2 says "prefer a raid"; it
+        # does not lift the recency of the setup.
+        if m["i"] < max(0, n - lookback):
+            return None
         side = "long" if m["type"] == "bull" else "short"
     # ref_i replaces the old hard-coded `s["swept"]` bound everywhere below: it is `s["swept"]` whenever a raid
     # was found (byte-identical to v1), and the MSS's own leg-extreme bar (`ext_i`, analyze()'s `e`) when

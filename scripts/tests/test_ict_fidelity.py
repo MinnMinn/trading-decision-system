@@ -286,6 +286,15 @@ class BRaidStopRaidIsPreferredNotMandatory(unittest.TestCase):
         self.assertIsNone(su["sweep"]["pool"])
         self.assertIsNone(su["sweep"]["level"])
 
+    def test_a_stale_mss_does_not_seed_a_no_raid_candidate(self):
+        """Recency bound (adopted 2026-09-30): the MSS at bar 5 of a 10-bar window is inside lookback 5 but outside
+        lookback 4 (n - lookback = 6 > 5); v1's own raid path has the same time bound via the sweep."""
+        a, c = self.fixture(pools=())
+        opts = {"fx_braid_optional": True}
+        self.assertIsNotNone(self.scan.setup_candidate(a, c, lookback=5, opts=opts))
+        self.assertIsNone(self.scan.setup_candidate(a, c, lookback=4, opts=opts))
+        self.assertIsNone(self.scan.setup_candidate(a, c, lookback=4), "v1 unchanged")
+
     def test_a_genuine_raid_still_works_unchanged_under_the_key(self):
         """The key does not remove the raid-first reading when a raid genuinely exists -- it only stops
         REQUIRING one. With a matching sweep present, both paths must agree."""
