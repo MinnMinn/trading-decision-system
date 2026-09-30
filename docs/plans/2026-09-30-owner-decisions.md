@@ -1,0 +1,40 @@
+# Owner decisions recorded during Batch 1-2 (2026-09-29 / 2026-09-30)
+
+Source: chat with the owner; recorded here so they survive a context reset. Supplements plan §6
+(docs/plans/2026-09-28-methodology-improvement-plan.md). Nothing here loosens any §1.4 rule.
+
+## Adopted F set for the evaluation baseline (owner: "Cho phép adopt", 2026-09-30)
+Adopted on the default proposal (F items whose funnel trade-count delta is within x1.5, plan §1.2):
+- ICT: `fx_b2a_fvg_in_leg` (B2a), `fx_b2b_ce_fail` (B2b).
+- Wyckoff: `fx_w1_tr_low_st` (W1), `fx_w3_mSOW_spring` (W3), `fx_w5_vp_abandon` (W5).
+Evidence: docs/audits/2026-09-29-ict-fidelity-funnel.md, docs/audits/2026-09-29-wyckoff-fidelity-funnel.md.
+NOT adopted, still awaiting a separate explicit sign-off (delta beyond x1.5 or a stop-point item):
+`fx_braid_optional` (B-RAID, ~x9 trades), `fx_w2_st_below_sc` (W2, x1.63 on XAUUSD), `fx_b1_pivot1` (B1, x2.07 on DE40),
+`fx_w7_htf_target` (W7, needs sign-off in advance). `fx_a2b_stale_htf_block` (A2b) is a safety key, default OFF; its
+adoption is a separate live-safety decision.
+"Adopted" means: ON in the evaluation baseline of the fund search only. The live/pilot path keeps v1 until the owner
+approves v2 (plan §1.6). The evaluation harness must set these five keys in its fixed overlay before any run.
+
+## V-item readings (defaults accepted 2026-09-29)
+- W4a: baseline = key unset (v1's own typing, not a count); the cells 3 and 4 are the variants. An explicit `2` is a different rule.
+- W-TOUCH: at least 2 recorded Phase-B tests at each TR border (`W_TOUCH_MIN = 2`).
+- W6: only the Wyckoff-side key; decided together with the ICT SCAN_WINDOW; a 600-bar window needs >= 600 bars.
+- B-POOL: most recent completed UTC day (PDH/PDL) plus the most recent completed asia/london run.
+B4 (ICT) and W4b (Wyckoff) are declared but not implemented (the sources define no engine-usable rule); they stay counted in N.
+
+## Execution / MT5 MCP
+- Order placement through the MT5 MCP is permitted (owner, 2026-09-29). The system is built to trade real accounts, so there
+  is NO hard-coded demo-only block. Real money is selected only by the explicit environment switch, never by default, and
+  every order still passes the risk check (1 %), event-risk, account rules and human confirmation (CLAUDE.md §51).
+- The forward-demo go-ahead and the pilot remain a separate explicit owner decision; the pilot stays OFF.
+- The MT5 MCP key lives only in config/env.demo (gitignored). The key that appeared in chat is compromised and must be rotated.
+  MCP research: docs/architecture/mt5-mcp-evaluation.md (official docs do not describe auth; key sharing "not documented").
+
+## Compute plan (owner: "(b) rồi (a)")
+(b) first: make the scan engine fast enough to run cells locally (multi-value-set reuse, parallelism), byte-identical results.
+(a) then: shard the fund search on GitHub Actions by value set/symbol. Pushing/triggering workflows needs the owner's go-ahead
+at that time.
+
+## Standing rules restated
+- The evaluation window is never moved to rescue a method. Results are reported honestly, including zero passes.
+- The engine smoke test (docs/audits/2026-09-30-fund-search-engine-smoke.md) is structural only and does not count as an evaluation.
