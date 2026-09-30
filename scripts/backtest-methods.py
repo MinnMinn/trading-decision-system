@@ -536,6 +536,16 @@ def walk(side, entry, stop, target, H_, L_, C_, start, horizon, Tm=None):
         lo = (L_[j] - entry) / r if side == "long" else (entry - H_[j]) / r
         mfe = max(mfe, hi); mae = min(mae, lo)
 
+    if OPTS.get("flat_before_rollover") and Tm is not None and 1 <= start < min(len(C_), start + horizon) \
+            and _RC.crosses_rollover(Tm[start - 1], Tm[start], OPTS["rollover_provider"]):
+        # The rule above only asks about the boundary AFTER each walked bar. The boundary between the ENTRY (fill)
+        # bar and the first walked bar was never asked, so a position filled on the last bar before the server's
+        # rollover (or before a data gap that spans it) was carried across it. Found on real FTMO history by the
+        # fund-search rollover assertion once B-RAID/B1 raised the trade count. Same clock-only decision, no later
+        # price is read: flat at the entry bar's own close, zero bars walked.
+        j = start - 1
+        return dict(outcome="rollover_flat", R=((C_[j] - entry) if side == "long" else (entry - C_[j])) / r, exit=j,
+                    R_planned=rp, mfe=0.0, mae=0.0, bars_held=0)
     for j in range(start, min(len(C_), start + horizon)):
         _excursion(j)
         hit_stop = L_[j] <= cur_stop if side == "long" else H_[j] >= cur_stop

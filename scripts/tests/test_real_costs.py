@@ -323,6 +323,38 @@ class FlattenBeforeRollover(unittest.TestCase):
         self.assertEqual(w["outcome"], "rollover_flat")
         self.assertEqual(Tm[w["exit"]], "2024-01-01T21:45:00Z")
 
+    def test_a_fill_on_the_last_bar_before_rollover_is_flat_at_once_not_carried_across(self):
+        """Fund-search finding (real history, B-RAID on): the walk starts at fill_bar + 1, so the boundary between the
+        fill bar and the first walked bar was never asked. Fill bar = the 21:45 bar (last before rollover), first
+        walked bar = 22:00 (after it)."""
+        H, L, C, Tm = self._series()
+        fill = Tm.index("2024-01-01T21:45:00Z")
+        self.bt.OPTS.update(flat_before_rollover=True, rollover_provider=PROVIDER)
+        w = self.bt.walk("long", 99.0, 90.0, 200.0, H, L, C, fill + 1, len(C), Tm=Tm)
+        self.assertEqual(w["outcome"], "rollover_flat")
+        self.assertEqual(w["exit"], fill)                          # flat at the fill bar's own close
+        self.assertEqual(w["bars_held"], 0)
+
+    def test_a_data_gap_spanning_rollover_right_after_the_fill_is_flat_too(self):
+        H, L, C, Tm = self._series()
+        # drop the 22:00-22:45 bars: 21:45 is followed directly by 23:00 (a hole across the rollover)
+        keep = [i for i, t in enumerate(Tm) if not ("T22:" in t)]
+        H, L, C, Tm = ([x[i] for i in keep] for x in (H, L, C, Tm))
+        self.bt.OPTS.update(flat_before_rollover=True, rollover_provider=PROVIDER)
+        fill = Tm.index("2024-01-01T21:45:00Z")
+        w = self.bt.walk("long", 99.0, 90.0, 200.0, H, L, C, fill + 1, len(C), Tm=Tm)
+        self.assertEqual((w["outcome"], w["exit"]), ("rollover_flat", fill))
+
+    def test_no_new_flatten_without_the_flag_or_when_the_fill_is_not_at_the_boundary(self):
+        H, L, C, Tm = self._series()
+        fill = Tm.index("2024-01-01T21:45:00Z")
+        self.bt.OPTS.update(flat_before_rollover=False, rollover_provider=PROVIDER)
+        off = self.bt.walk("long", 99.0, 90.0, 200.0, H, L, C, fill + 1, len(C), Tm=Tm)
+        self.assertEqual(off["outcome"], "timeout")                # v1: unchanged
+        self.bt.OPTS.update(flat_before_rollover=True, rollover_provider=PROVIDER)
+        early = self.bt.walk("long", 99.0, 90.0, 200.0, H, L, C, 1, len(C), Tm=Tm)
+        self.assertEqual(Tm[early["exit"]], "2024-01-01T21:45:00Z")   # the existing rule, still the first flatten
+
     def test_never_flattens_at_or_after_the_bar_that_closes_at_rollover(self):
         H, L, C, Tm = self._series()
         self.bt.OPTS.update(flat_before_rollover=True, rollover_provider=PROVIDER)
