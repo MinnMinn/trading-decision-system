@@ -65,22 +65,55 @@ Entry file `<sha256>.json`, deterministic bytes (no timestamp, atomic write, `*.
   `code_fingerprint()` (last-commit SHA + dirty flag of each `FINGERPRINT_FILES` entry) **plus the sha256 of each of those files' content**
   (two dirty trees never look alike), and `evaluation_config(plan)` (everything `declare` pins: stability fractions, block days,
   embargo, adopted F keys, grid sha256, ...).
-* `scope`: `cell`, `runner_method`, `timeframe`, `symbol`, `value_key`, and `series` = bar count, first and last bar of the
-  PIT-truncated series the scan read (the FTMO history is committed, so this catches a changed history file cheaply).
+* `scope`: `cell`, `runner_method`, `timeframe`, `symbol`, `value_key`, and `series` = bar count, first and last bar **and a sha256 of the
+  whole PIT-truncated candle series** the scan read (streamed in 50,000-bar chunks; computed once per engine). A history file that changed
+  in the middle of the series, with the same length and end bars, is therefore refused too. Cost: one pass over each series when an
+  engine is built (seconds to a few tens of seconds at 4 M bars; not measured here).
 
 `run` / `scan --wave 2` REFUSE (`ScanCacheRefused`, exit non-zero, nothing evaluated) on: a stamp difference (message names the
 differing field, e.g. `code.scripts/fund-search.py` or `plan_hash`); a `series` that differs from what the engine itself loaded; a
 file that is torn / not JSON / structurally incomplete; a file whose name or recorded key does not match its content hash (renamed,
-edited, foreign); a `trades_sha256` or `n_trades` mismatch (tampered); two entries for the same (value set, symbol) that disagree;
+edited, foreign); a `trades_sha256` or `n_trades` mismatch (edited or corrupted); two entries for the same (value set, symbol) that disagree;
 a missing cache directory; and, for `--wave 2`, an **incomplete wave 1** (the wave-2 sets would be chosen from a partial pool).
+Completeness is judged against the wave-1 **key list** (the list a holding-nothing engine derives), not by re-running the selection: with real
+trades held, a fold's combined set (>= 2 changed factors) is legitimately not a wave-1 set (fix round 1, C1; tested with a selection that only
+becomes visible once trades are held, `ScanCacheHeldSelection`). Only wave-1 keys are loaded by `--wave 2`, so the wave-2 list, and therefore
+each shard's slice, never depends on which wave-2 entries a directory happens to hold.
+
+**What the hashes are and are not.** `trades_sha256` and the content-hash file name detect corruption, torn copies, casual edits and
+mix-ups. They are self-consistency checks, **not authentication**: anyone who can rewrite a file can rewrite its hashes. A cache directory is
+therefore trusted only as far as its provenance (artifacts of the same workflow run, same commit). The `series.sha256` and the stamp bind an
+entry to the data and code it claims, again as consistency, not as a signature.
+
+**Run-time guard and provenance.** `run --scan-cache DIR --require-complete-scan-cache` sets `engine.no_scan`: any `scan_many` / `bt.scan` that
+would have to run on demand raises `ScanCacheRefused` (the workflow's evaluate job uses it, so a cell can never fall back to a multi-hour
+scan). The sealed record's `parameters.scan_cache` = `{entries, complete_value_sets, sha256_of_sorted_entry_keys}` is stamped **only when
+`--scan-cache` is used**; it sits beside `plan_hash` in `parameters`, is read by no statistic, `validate_record` or the report, and does not touch
+`plan_hash` or any hashed/pinned field. A cache-less record is unchanged, so a cache record differs from a cache-less one in exactly that key
+(the evaluation result, `metrics`, is identical -- tested).
 Entries of another cell/method/timeframe made by the *same* code are ignored, not used. `write_scan_entry` refuses to write trades that
 do not survive a JSON round trip unchanged (type, key order, float text), so a cache can never alter a trade.
 
 ## 3. Time estimates
 
+**Calibration status: read this first.** Every number below rests on ONE measured run: ICT, XAUUSD 1m, wave 1, 39 sets, 10 workers, ~2.4 h,
+from which the model takes 581 s for the first set and ~213 s per further set. **That first-set figure (581 s) is exactly the figure the earlier
+engine-speed audit reports for XAUUSD 15m** (docs/audits/2026-09-30-engine-speed-profile.md section 4: "581 s quiet, per the brief"), a series with ~9x
+fewer bars (453,893 vs 4,096,182). That coincidence is suspicious: the 581 s may be a 15m number carried over rather than a 1m measurement, in which case the
+first-set cost on 1m is understated. Two further calibration runs (Wyckoff XAUUSD 1m, ICT US500 5m) are in progress; **the model must be recalibrated when they
+land and `list-scan-shards` re-run** (the slice counts, and so the matrix, will change; results will not). Until then treat every minute figure as an order of magnitude.
+
 **Model** (`SHARD_MODEL`, `shard_seconds` in `scripts/fund-search.py`; `list-scan-shards --explain` prints the full table):
 
-* MEASURED (owner, given): 581 s first set, ~213 s each further set, ICT XAUUSD 1m, 39 sets, 10 workers (= 8,675 s = 2.41 h).
+* Taken from that single run (given, not independently verified): 581 s first set, ~213 s each further set, ICT XAUUSD 1m, 39 sets, 10 workers (= 8,675 s = 2.41 h).
+* **Not modelled, per-shard fixed costs:** every shard pays checkout, Python setup and `BtEngine` construction, which loads and indexes the candle series
+  (adx index, `series.sha256`) of every symbol the shard's engine holds -- ONE symbol for wave 1 but **all the cell's symbols for wave 2** (5 indices, or 2 x ~4 M bars
+  for 1m metals). A wave-2 shard also verifies the cell's whole wave-1 cache (every entry is read and hashed) and runs `trades_for` on every wave-1 set
+  (`wave2_values` needs their pooled trades) before it scans anything. None of this is measured; it is paid once per shard, so it matters most for the many
+  small slices (1m metals: 17 to 36 wave-2 slices per symbol).
+* **Memory risk, wave 2 on 1m metals:** the shard's process holds both ~4.1 M-bar series (2 x ~3.4 GiB at the audit's ~779-850 B/bar) plus the scan's own arrays and the wave-1
+  trade lists, inside 16 GiB (and inside 7 GiB if the runner is the private-repo 2 vCPU / 7 GB one, where it would not fit). Fits on paper for 16 GiB, unmeasured; an OOM
+  kills the job. `scan_many.clamp_workers` sizes only the scan workers, not the parent's second series.
 * Assumed, not measured: cost linear in bars (reference 4,096,182); linear in workers (reference 10); runner = 4 vCPU / 16 GiB with
   `scan_many.clamp_workers` (60 % of RAM: `worker_memory_estimate(4,096,182)` = 3.37 GiB per worker, so **the 1m metals series run with 1
   worker**, US30 1m and the 5m/15m/30m series with 4); no per-core speed adjustment for a hosted runner; Wyckoff = 2.0 x ICT per set
@@ -93,7 +126,7 @@ do not survive a JSON round trip unchanged (type, key order, float text), so a c
   being busy, or the run being the clamped 5 workers). If the measurement was really at 5 effective workers rather than 10, every 1m-metals number
   below is ~2x too pessimistic; if the runner core is slower than an M-series core, they are optimistic.
 * If the repository is private, `ubuntu-latest` is a 2 vCPU / 7 GB runner, not 4 vCPU / 16 GB: everything above roughly doubles and the memory clamp
-  drops more series to in-process. I could not check the repository's visibility.
+  drops more series to in-process. I could not check the repository's visibility. **Hosted-runner concurrency limits were not verified** either.
 
 **Which pieces exceed 355 min if NOT split** (model; one job, the same symbol/wave, no slicing):
 
@@ -125,10 +158,13 @@ No shard is modelled over 355 min. **The irreducible unit is one value set of on
 in this model; 194 min for Wyckoff); splitting below that would need a bar-chunk-range split, which is NOT implemented (it would change how
 `scan_many` merges and needs its own equivalence proof) -- not required in this model; it would be if the real first-set cost on 1m metals is above ~3x the model (ICT) or ~1.5x (Wyckoff).
 
-**Cost, honestly:** modelled total ~**706 runner-hours** (42,383 shard-minutes, 244 jobs), of which 1m-metals is ~592 (ICT ~212, Wyckoff ~380).
-Critical path with unlimited concurrency: wave 1 (<= ~4.6 h) then wave 2 (<= ~4.6 h) then evaluate, i.e. ~10 h wall; your plan's concurrent-job
-limit stretches that (I did not look it up). `scan_many` returns all the sets of one slice at once, so a
-shard killed at the timeout loses its own slice, not the others (`Re-run failed jobs` repeats only the failed shards; a present entry is verified and skipped).
+**Cost, honestly:** modelled total ~**706 runner-hours** (42,383 shard-minutes, 244 jobs), of which 1m-metals is ~592 (ICT ~212, Wyckoff ~380), before the per-shard
+fixed costs above and under the calibration caveat. Wall time depends on how many of the 244 jobs the account may run at once; **hosted-runner concurrency limits were
+not verified**, so no wall-clock figure is offered here (the longest single shard is modelled at 274 min, and the pipeline has two such stages plus evaluate in series).
+`scan_many` returns all the sets of one slice at once, so a shard killed at the timeout loses its own slice, not the others.
+**Re-run behaviour:** "Re-run failed jobs" starts the failed shard on a fresh runner with an empty `--out`, so it **re-scans its whole slice**; the "present entries are
+verified and skipped" logic in `scan` only helps when the same `--out` directory is reused (local resumption), not on a hosted re-run. Hence `overwrite: true` on the shard
+uploads: the re-run's artifact replaces the failed attempt's (same name) instead of failing the upload.
 
 **Evaluate job:** with a complete cache it does no scans; what remains is loading both symbols' series (1m metals ~2 x 3.4 GiB by the audit's
 per-bar figure, fits 16 GiB but not measured here), adx indices, `trades_for` post-processing and `dataset_snapshot` hashing. Not measured; expected minutes,
@@ -140,7 +176,9 @@ not hours, but this is an estimate.
 `WorkflowHardening` test still passes), all outputs under `$RUNNER_TEMP` (outside the checkout, section 46), every job `timeout-minutes: 355`.
 New jobs `scan_wave1` / `scan_wave2` upload `fund-scan-<cell>-<method>-<symbol>-w<wave>-s<slice>` (the requested
 `fund-scan-<cell>-<method>-<symbol>` plus wave/slice suffixes, which are needed for uniqueness once a symbol has several slices).
-`evaluate` downloads `fund-scan-<cell>-*` and runs `run --scan-cache`. `plan` also emits `list-scan-shards --wave 1|2`.
+`evaluate` downloads `fund-scan-<cell>-*` and runs `run --scan-cache --require-complete-scan-cache`. `plan` also emits `list-scan-shards --wave 1|2`, fails if
+`docs/experiments/fund-search/plan.json` is not committed (`git ls-files --error-unmatch`), and has `timeout-minutes: 15` (report: 30). Each script step tails
+the last 40 lines of its stderr log on failure, so a `ScanCacheRefused` reason shows in the job log. Both shard uploads set `overwrite: true`.
 
 * **History root:** `main()` already does `os.environ.setdefault("BT_HISTORY_ROOT", data/history/ftmo)` before every command and `_load_bt`
   freezes it at exec, so `scan`, `run` and `plan` read the committed FTMO feed. The workflow also sets `BT_HISTORY_ROOT: ${{ github.workspace }}/data/history/ftmo`
@@ -148,8 +186,12 @@ New jobs `scan_wave1` / `scan_wave2` upload `fund-scan-<cell>-<method>-<symbol>-
 * **`fetch-depth: 0` added to every checkout that runs `plan`/`scan`/`run`.** `code_fingerprint()` is `git log -1 -- <file>` per pinned file; a depth-1
   clone (the default) contains one commit, so every file would report the same SHA and `run` would read as drift against a declaration made from full
   history. That is a defect of the pre-change workflow as well (I reasoned from git's shallow semantics; I did not run it in Actions).
-* `evaluate` keeps default `needs` semantics on purpose: one failed scan shard skips the evaluate jobs instead of letting a cell fall back to an
-  on-demand multi-hour scan that the 355-min cap would kill. Change to `if: !cancelled()` if partial evaluation is preferred.
+* **Blast radius of `needs`.** `evaluate` has `needs: [plan, scan_wave2]`, and `needs` is per JOB, not per matrix entry: ONE failed or timed-out shard in ANY
+  cell (e.g. a 1m-metals wave-1 slice) skips `scan_wave2` for every cell and therefore `evaluate` for every cell, including cells whose own artifacts are complete
+  (the cheap 15m/30m cells wait behind, and are blocked by, the 1m metals shards). That is the fail-loud default and it is kept. Alternative: `if: ${{ !cancelled() }}` on
+  `scan_wave2` and `evaluate` runs every cell whose artifacts happen to be complete; the others then fail fast at `scan --wave 2`'s incomplete-wave-1 refusal or at
+  `--require-complete-scan-cache` (no multi-hour on-demand scan is possible either way), and the report lists the missing cells as NOT RUN. Trade-off: partial results
+  arrive earlier, at the price of a run whose overall status is red-but-partial; choose it if the 1m cells are expected to be re-run separately.
 * `docs/experiments/fund-search/plan.json` is not committed in this branch (`plan` writes it); it must be committed before triggering, as the
   pre-change workflow already required. In this worktree I ran `plan` only to test `list-scan-shards`, then deleted the file.
 
@@ -164,9 +206,14 @@ New jobs `scan_wave1` / `scan_wave2` upload `fund-scan-<cell>-<method>-<symbol>-
 
 ## 6. Tests
 
-`scripts/tests/test_fund_search.py`: `ScanCache` (real `BtEngine`, real ICT scan over a 7,000-bar US500 5m slice, 4 real grid items):
+`scripts/tests/test_fund_search.py`: `ScanCache`, `ScanCacheHeldSelection` (C1 regression: a combined set that is not a wave-1 set; wave 2 accepted on a complete
+wave 1, refused when one wave-1 set is absent; `--require-complete-scan-cache` fails loud), `ScanCacheTwoSymbols` (two symbols end to end, pooled run identical) -- all on the real `BtEngine` with
+real ICT scans over 7,000-bar 5m slices, 4 real grid items. `ScanCache` covers:
 cache run == no-cache run (result JSON, `runs_evaluated`, trades `repr`, admission and edge rows; on-demand scanning forbidden while it runs), non-vacuous wave 2,
-deterministic bytes, rerun skips, partial cache, partly cached symbols, refusal on code / plan / settings / history / tamper / dropped trade / torn / renamed /
+deterministic bytes, rerun skips, partial cache, partly cached symbols, refusal on code / plan / settings / history (length and content) / edited file / dropped trade / torn / renamed /
 missing directory / foreign entry, wave 2 refusing an incomplete wave 1, slice partition, `--out` inside the checkout, no declaration; `ShardLayout`; `ScanCacheRunPlumbing`.
-The slice is far too short for selection to choose, so the tests wrap `select_values` (it still runs for real) to force "last candidate of every factor" and
-guarantee a wave 2; the real selection path is exercised by the two-wave runs of `test_speed_equivalence`.
+The slice is far too short for selection to choose, so the tests wrap `select_values` (it still runs for real) to force "last candidate of every factor":
+from the first probe on (`ScanCache`, which also makes the combined set a wave-1 set -- the shape that masked C1) or only once trades are held
+(`ScanCacheHeldSelection`, `ScanCacheTwoSymbols`; wave 1 is then exactly baseline + candidates). A wholly unforced selection on a slice this small is not expected to choose
+anything (not verified), so no test here exercises an unforced multi-factor choice; that path is covered by the held-trades stub and by the two-wave runs
+of `test_speed_equivalence`.

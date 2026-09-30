@@ -639,8 +639,8 @@ def _sha_text(text):
 def scan_cache_stamp(plan):
     """What every entry of one cache must share: the plan, the code (last-commit SHAs, dirty flags AND file content
     hashes, so two dirty trees never look alike) and the evaluation settings -- the same three things `declare`
-    pins. The FTMO history is covered per entry by `scope.series` (bar count, first and last bar of the PIT-truncated
-    series the scan read)."""
+    pins. The FTMO history is covered per entry by `scope.series` (bar count, first and last bar, and a sha256 of the
+    PIT-truncated candle series the scan read)."""
     return {"format": SCAN_CACHE_FORMAT, "plan_hash": plan["plan_hash"], "code": code_fingerprint(),
             "code_sha256": {f: _sha256_file(os.path.join(ROOT, f)) for f in FINGERPRINT_FILES},
             "evaluation_config": evaluation_config(plan)}
@@ -690,7 +690,10 @@ _SCOPE_KEYS = ("cell", "runner_method", "timeframe", "symbol", "value_key", "ser
 
 
 def read_scan_entry(path, stamp):
-    """One entry, fully verified against `stamp` (this run's plan / code / settings). Raises ScanCacheRefused."""
+    """One entry, verified against `stamp` (this run's plan / code / settings) and for self-consistency (key, counts,
+    trades sha256). The sha256s detect accidental corruption and casual edits; they are NOT authentication -- anyone who
+    can rewrite a file can rewrite its hashes too, so a cache directory is trusted only as far as its provenance
+    (a same-run artifact). Raises ScanCacheRefused."""
     def bad(why):
         raise ScanCacheRefused(f"scan cache REFUSED: {path}: {why}")
     try:
@@ -714,7 +717,7 @@ def read_scan_entry(path, stamp):
     if not isinstance(trades, list) or len(trades) != entry["n_trades"]:
         bad(f"trade count {len(trades) if isinstance(trades, list) else 'n/a'} != recorded {entry['n_trades']}")
     if _sha_text(json.dumps(trades, ensure_ascii=False, separators=(",", ":"))) != entry["trades_sha256"]:
-        bad("trades do not match their recorded sha256 (tampered or corrupted)")
+        bad("trades do not match their recorded sha256 (edited or corrupted)")
     return entry
 
 
@@ -735,7 +738,7 @@ def load_scan_entries(dirs, stamp, cell_id, runner_method, tf, series_by_symbol)
     (an entry of another cell is still refused when its code/plan differs: a cache directory is homogeneous or it is
     wrong); only entries of this cell / method / timeframe / a symbol of the cell are returned, and those must also
     match the series the engine itself loaded (a changed history file is refused, not used)."""
-    got, sha = {}, {}
+    got, sha, ekeys = {}, {}, {}
     for path in iter_scan_files(dirs):
         e = read_scan_entry(path, stamp)
         sc = e["scope"]
@@ -751,8 +754,18 @@ def load_scan_entries(dirs, stamp, cell_id, runner_method, tf, series_by_symbol)
             if sha[k] != e["trades_sha256"]:
                 raise ScanCacheRefused(f"scan cache REFUSED: two entries for {k} disagree (non-deterministic scan?)")
             continue
-        got[k], sha[k] = e["trades"], e["trades_sha256"]
-    return got
+        got[k], sha[k], ekeys[k] = e["trades"], e["trades_sha256"], e["key"]
+    return got, ekeys
+
+
+def _series_sha256(candles, chunk=50000):
+    """sha256 over the PIT-truncated candle series, streamed in chunks (a 4 M-bar series is never one string). Same
+    serialisation as `dataset_snapshot` per chunk; it identifies the bars the scan read, so a changed history file
+    cannot be paired with a cache made from another one."""
+    h = hashlib.sha256()
+    for i in range(0, len(candles), chunk):
+        h.update(json.dumps(candles[i:i + chunk], sort_keys=True).encode())
+    return h.hexdigest()
 
 
 class BtEngine:
@@ -782,7 +795,8 @@ class BtEngine:
                 raise RuntimeError(f"{s} {tf}: no candles under {_HS.history_root()} (the plan said it has some)")
             self._adx[s] = FS.adx_index(candles)
             self._last[s] = candles[-1]["time"]
-            self._series[s] = {"bars": len(candles), "first_open": candles[0]["time"], "last_open": candles[-1]["time"]}
+            self._series[s] = {"bars": len(candles), "first_open": candles[0]["time"], "last_open": candles[-1]["time"],
+                               "sha256": _series_sha256(candles)}
 
     def has(self, values):
         key = FS.CountingSource._key(values)
@@ -805,6 +819,10 @@ class BtEngine:
         keys = list(todo)
         t0 = time.time()
         part = getattr(self, "_part", {})
+        if getattr(self, "no_scan", False):
+            gap = [(k, s) for k in keys for s in self.symbols if s not in part.get(k, {})]
+            raise ScanCacheRefused(f"--require-complete-scan-cache: {len(gap)} (value set, symbol) scan(s) are not in the "
+                                   f"cache and would have to run on demand (e.g. {gap[0][1]} {gap[0][0][:80]}...)")
         scanned = {}                                   # (key, symbol) -> raw trades scanned NOW
         for s in self.symbols:                         # a (set, symbol) a scan cache already holds is not scanned again
             need = [k for k in keys if s not in part.get(k, {})]
@@ -838,11 +856,12 @@ class BtEngine:
         set with ALL this engine's symbols cached becomes `_raw[key]` (exactly what `prefetch` would have produced); a
         set with only some symbols is kept in `_part` and scanned only for the missing symbols. `only_keys` (a set of
         value keys) keeps just those sets after verification. Returns (complete sets, entries kept)."""
-        got = load_scan_entries(dirs, stamp, cell_id, self.method, self.tf, self._series)
-        by_key = {}
+        got, ekeys = load_scan_entries(dirs, stamp, cell_id, self.method, self.tf, self._series)
+        by_key, used = {}, []
         for (key, sym), trades in got.items():
             if only_keys is None or key in only_keys:
                 by_key.setdefault(key, {})[sym] = trades
+                used.append(ekeys[(key, sym)])
         full = 0
         for key, per in sorted(by_key.items()):
             if key in self._done or key in self._raw:
@@ -852,7 +871,9 @@ class BtEngine:
                 full += 1
             else:
                 self._part[key] = per
-        return full, sum(len(per) for per in by_key.values())
+        self.scan_cache_info = {"entries": len(used), "complete_value_sets": full,
+                                "sha256_of_sorted_entry_keys": _sha_text("\n".join(sorted(used)))}
+        return full, len(used)
 
     def trades_for(self, values):
         overlay = build_overlay(self.grid, values)
@@ -867,6 +888,9 @@ class BtEngine:
                 if s in part:
                     raw += part[s]
                     continue
+                if getattr(self, "no_scan", False):
+                    raise ScanCacheRefused(f"--require-complete-scan-cache: {s} {key[:80]}... is not in the cache and "
+                                           f"would have to be scanned on demand")
                 scan = self.bt.scan(s, self.tf, only=(self.method,), opts=overlay)
                 raw += [t for t in scan["trades"][self.method]]
         # a timeout trade whose walk was cut by the end of the (PIT-truncated) series has an UNKNOWN outcome:
@@ -1032,7 +1056,8 @@ def _commission_status(symbols):
     return out
 
 
-def _evaluate_candidate(candidate, plan_hash, grid_dir=None, scan_workers=1, scan_cache_dirs=()):
+def _evaluate_candidate(candidate, plan_hash, grid_dir=None, scan_workers=1, scan_cache_dirs=(),
+                        require_complete_scan_cache=False):
     """Real path: evaluates one candidate. Loads its own engine; `scan_workers` is the process budget of the scan
     pool inside it (`--workers`). `scan_cache_dirs` (`--scan-cache`): verified raw scans from Actions shards are loaded
     into the engine first (anything absent is scanned on demand, as without a cache)."""
@@ -1047,10 +1072,12 @@ def _evaluate_candidate(candidate, plan_hash, grid_dir=None, scan_workers=1, sca
         full, n = engine.load_scan_cache(scan_cache_stamp(plan), scan_cache_dirs, candidate["cell"])
         print(f"fund-search: scan cache: {n} verified (value set, symbol) entries, {full} value set(s) complete for "
               f"{candidate['id']}", file=sys.stderr, flush=True)
+        engine.no_scan = bool(require_complete_scan_cache)   # any on-demand scan now fails loud (ScanCacheRefused)
     result = evaluate_with_engine(engine, grid, cell, candidate["n_comparisons"])
     result["declared_not_run"] = full_grid.unimplemented
     return {"record": dict(build_record(candidate, plan_hash, grid, paths[candidate["method"]], result,
-                                        engine.dataset_snapshot(), cell))}
+                                        engine.dataset_snapshot(), cell,
+                                        scan_cache=getattr(engine, "scan_cache_info", None) if scan_cache_dirs else None))}
 
 
 def _drift_from_env():
@@ -1060,7 +1087,7 @@ def _drift_from_env():
         return ["unreadable drift stamp"]
 
 
-def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot, cell):
+def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot, cell, scan_cache=None):
     import real_costs as _RC
     import snapshot as _snap
     cid = candidate["id"]
@@ -1107,7 +1134,8 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
                          "asset_class": candidate["asset_class"], "symbols_planned": candidate["symbols"],
                          "symbols_evaluated": list(cell["symbols"]), "n_comparisons": candidate["n_comparisons"],
                          "plan_hash": plan_hash,
-                         "drifted": bool(_drift_from_env()), "drift": _drift_from_env()})
+                         "drifted": bool(_drift_from_env()), "drift": _drift_from_env(),
+                         **({"scan_cache": scan_cache} if scan_cache else {})})   # provenance only; no statistic reads it
     r.set("random_seed", {"lower_bound": "none: closed-form Student-t bound, no resampling",
                           "prop_pass_probability_bootstrap": "scripts/performance.py BOOTSTRAP_SEED"})
     r.set("test_periods", {"development": {"end": FS.DEV_CUTOFF, "period_id": DEV_PERIOD_ID},
@@ -1178,7 +1206,10 @@ def validate_record(rec, plan):
                              f"{cell['symbols']}: no symbol may be added or dropped after the plan (plan §1.7)")
 
 
-def cmd_run(cell_id, method=None, workers=1, grid_dir=None, allow_drift=False, scan_cache_dirs=()):
+def cmd_run(cell_id, method=None, workers=1, grid_dir=None, allow_drift=False, scan_cache_dirs=(),
+            require_complete_scan_cache=False):
+    if require_complete_scan_cache and not scan_cache_dirs:
+        raise SystemExit("--require-complete-scan-cache needs --scan-cache")
     plan = load_plan(grid_dir)
     decl = require_declaration(plan)                # refuses BEFORE anything is evaluated
     drift = check_drift(decl, plan, allow_drift)    # refuses on code / settings drift unless --allow-drift
@@ -1192,7 +1223,7 @@ def cmd_run(cell_id, method=None, workers=1, grid_dir=None, allow_drift=False, s
     else:
         os.environ.pop(DRIFT_ENV, None)
     try:
-        _cmd_run_inner(plan, cell_id, method, workers, grid_dir, scan_cache_dirs)
+        _cmd_run_inner(plan, cell_id, method, workers, grid_dir, scan_cache_dirs, require_complete_scan_cache)
     finally:
         os.environ.pop(DRIFT_ENV, None)
 
@@ -1200,7 +1231,7 @@ def cmd_run(cell_id, method=None, workers=1, grid_dir=None, allow_drift=False, s
 DRIFT_ENV = "FUND_SEARCH_DRIFT"
 
 
-def _cmd_run_inner(plan, cell_id, method, workers, grid_dir, scan_cache_dirs=()):
+def _cmd_run_inner(plan, cell_id, method, workers, grid_dir, scan_cache_dirs=(), require_complete=False):
     todo = [c for c in plan["candidates"] if c["cell"] == cell_id and (method is None or c["method"] == method)]
     if not todo:
         raise SystemExit(f"no candidate for cell {cell_id!r}"
@@ -1223,6 +1254,8 @@ def _cmd_run_inner(plan, cell_id, method, workers, grid_dir, scan_cache_dirs=())
         # one series, one spawned process per chunk via scripts/isolated_pool.py) -- candidates themselves run one at a
         # time, so the budget is never multiplied. The candidate call keeps its 3-argument shape when workers <= 1.
         kw = {"scan_cache_dirs": list(scan_cache_dirs)} if scan_cache_dirs else {}
+        if require_complete:
+            kw["require_complete_scan_cache"] = True
         for c in todo:
             try:
                 out = (_evaluate_candidate(c, plan["plan_hash"], grid_dir, **kw) if workers <= 1
@@ -1361,8 +1394,8 @@ def cmd_scan(cell_id, symbol, method, out_dir, workers=1, wave=1, slice_spec="0/
     without it; it still scans ONE symbol. `--slice I/N` takes the I-th of N contiguous parts of the list. Every
     (value set, symbol) result is persisted the moment its scan returns, as a verified cache entry under `out_dir`
     (outside the checkout, CLAUDE.md section 46). Like `run`, refuses without the ledger declaration and on code drift."""
-    real_out = os.path.realpath(out_dir)
-    if real_out == ROOT or real_out.startswith(ROOT + os.sep):
+    real_out, real_root = os.path.realpath(out_dir), os.path.realpath(ROOT)
+    if real_out == real_root or real_out.startswith(real_root + os.sep):
         raise SystemExit(f"--out {out_dir} is inside the checkout: outputs must land outside it (a file written in the "
                          f"work tree makes the run's own code_version read dirty=true, CLAUDE.md section 46)")
     i, n = parse_slice(slice_spec)
@@ -1377,7 +1410,10 @@ def cmd_scan(cell_id, symbol, method, out_dir, workers=1, wave=1, slice_spec="0/
     if symbol not in cell["symbols"]:
         raise SystemExit(f"{symbol!r} is not a symbol of cell {cell_id!r} ({cell['symbols']}): no symbol may be added "
                          f"or dropped after the plan (plan section 1.7)")
-    cand = next(c for c in plan["candidates"] if c["cell"] == cell_id and c["method"] == method)
+    cand = next((c for c in plan["candidates"] if c["cell"] == cell_id and c["method"] == method), None)
+    if cand is None:
+        raise SystemExit(f"the plan has no candidate for cell {cell_id!r} method {method!r}; candidates: "
+                         f"{[c['id'] for c in plan['candidates']]}")
     grids, _paths = load_grids(grid_dir)
     for g in grids.values():
         assert_grid_runnable(g)
@@ -1393,13 +1429,15 @@ def cmd_scan(cell_id, symbol, method, out_dir, workers=1, wave=1, slice_spec="0/
                              "trades of every symbol of the cell")
         # the wave-2 list must not depend on which wave-2 entries a directory happens to hold (a shard rerun, a merged
         # directory): only the wave-1 sets are loaded, so every shard derives the SAME list and its slice is stable
-        w1_keys = {FS.CountingSource._key(v) for v in wave1_values(engine, grid, cell)}     # engine holds nothing yet
-        engine.load_scan_cache(stamp, scan_cache_dirs, cell_id, only_keys=w1_keys)
-        incomplete = wave1_values(engine, grid, cell)
-        if incomplete:
+        w1_keys = [FS.CountingSource._key(v) for v in wave1_values(engine, grid, cell)]     # engine holds nothing yet
+        engine.load_scan_cache(stamp, scan_cache_dirs, cell_id, only_keys=set(w1_keys))
+        # completeness is judged against the wave-1 KEY LIST, not by re-running the selection: with real trades held, a
+        # fold's combined set (>= 2 changed factors) is legitimately not a wave-1 set and would look "missing"
+        missing = [k for k in w1_keys if k not in engine._raw and k not in engine._done]
+        if missing:
             raise SystemExit(f"--wave 2 refused: the wave-1 cache of {cell_id}/{method} is incomplete for "
-                             f"{len(incomplete)} value set(s) of {cell['symbols']}; wave-2 sets would be chosen from "
-                             f"an incomplete pool. Re-run the missing wave-1 shards.")
+                             f"{len(missing)} of {len(w1_keys)} value set(s) of {cell['symbols']}; wave-2 sets would be "
+                             f"chosen from an incomplete pool. Re-run the missing wave-1 shards.")
         values = wave2_values(engine, grid, cell)
     mine = take_slice(values, i, n)
     todo, skipped = [], 0
@@ -1611,6 +1649,8 @@ def main(argv=None):
                          "scanned; an entry of another code/plan/settings/history REFUSES the run; missing ones are "
                          "scanned on demand")
     rp.add_argument("--grid-dir")
+    rp.add_argument("--require-complete-scan-cache", action="store_true",
+                    help="with --scan-cache: fail loud (ScanCacheRefused) if any scan would have to run on demand")
     rp.add_argument("--allow-drift", action="store_true",
                     help="proceed although the code/settings differ from the declaration; every record is "
                          "stamped drifted=true and the report says so")
@@ -1636,7 +1676,8 @@ def main(argv=None):
                  wave=a.wave, slice_spec=a.slice, scan_cache_dirs=a.scan_cache, grid_dir=a.grid_dir)
     elif a.cmd == "run":
         cmd_run(a.cell, method=a.method, workers=a.workers if a.workers is not None else SM.default_workers(),
-                grid_dir=a.grid_dir, allow_drift=a.allow_drift, scan_cache_dirs=a.scan_cache)
+                grid_dir=a.grid_dir, allow_drift=a.allow_drift, scan_cache_dirs=a.scan_cache,
+                require_complete_scan_cache=a.require_complete_scan_cache)
     elif a.cmd == "report":
         cmd_report()
 

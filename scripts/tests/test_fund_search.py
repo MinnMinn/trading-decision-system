@@ -1484,7 +1484,8 @@ class ShardLayout(_Helpers):
     def test_the_workflow_uses_these_shards_within_the_cap(self):
         text = open(os.path.join(ROOT, ".github", "workflows", "fund-search.yml")).read()
         for needle in ("list-scan-shards --wave 1", "list-scan-shards --wave 2", "--scan-cache", "fund-scan-",
-                       "BT_HISTORY_ROOT", "fetch-depth: 0", "workflow_dispatch:", "contents: read"):
+                       "BT_HISTORY_ROOT", "fetch-depth: 0", "workflow_dispatch:", "contents: read",
+                       "--require-complete-scan-cache", "overwrite: true", "error-unmatch"):
             self.assertIn(needle, text)
         for ln in text.splitlines():
             if ln.strip().startswith("timeout-minutes:"):
@@ -1512,25 +1513,30 @@ def _write_slice_root(out_root, sym, tf, n_bars, end="2024-03-01T00:00:00Z"):
     return start, stop
 
 
-class ScanCache(unittest.TestCase):
-    """The scan cache on the REAL BtEngine over a real 5m US500 slice: a run fed by scan shards returns exactly what a
-    cache-less run returns (result, runs_evaluated, trades), and a cache from other code / plan / settings / history,
-    or a torn or tampered file, is REFUSED -- never used, never skipped.
+class _ScanCacheBase:
+    """Shared fixture of the scan-cache tests: the REAL BtEngine over real 5m slices (`SYMS`), a reference cache built
+    the way the workflow builds it (wave 1 in two slices per symbol, then wave 2), and a cache-less reference run.
 
     The slice is far too short for the selection to choose reliably, so `select_values` is wrapped: it still runs for
-    real (and reads the held wave-1 trades), but its answer is forced to "the last candidate of every factor", which
-    guarantees a non-vacuous wave 2 (a combined set and its perturbations, none of them held after wave 1)."""
+    real (and reads the held wave-1 trades) but its answer is forced to "the last candidate of every factor".
+      FORCE = "always": forced from the very first (empty-trade) wave-1 probe on, so the forced combined set is ALSO a
+        wave-1 set (5 + 1 sets in wave 1).
+      FORCE = "held": forced only once the baseline holds training trades, i.e. only after wave 1 is held -- like a real
+        selection, whose combined set is NOT a wave-1 set (wave 1 = exactly baseline + candidates)."""
 
-    SYM, TF, CELL = "US500", "5m", "t-indices"
+    SYMS, TF, CELL = ("US500",), "5m", "t-indices"
+    SYM = SYMS[0]
+    FORCE = "always"
 
     @classmethod
     def setUpClass(cls):
-        if not os.path.isdir(os.path.join(ROOT, "data", "history", "ftmo", f"ohlcv.{cls.SYM}.{cls.TF}")):
+        if not all(os.path.isdir(os.path.join(ROOT, "data", "history", "ftmo", f"ohlcv.{s}.{cls.TF}")) for s in cls.SYMS):
             raise unittest.SkipTest("data/history/ftmo is not present")
         cls.tmp = tempfile.mkdtemp(prefix="scan-cache-")
         cls.env = os.environ.get("BT_HISTORY_ROOT")
         hist = os.path.join(cls.tmp, "hist")
-        cls.start, cls.stop = _write_slice_root(hist, cls.SYM, cls.TF, 7000)
+        starts = [_write_slice_root(hist, s, cls.TF, 7000)[0] for s in cls.SYMS]
+        cls.start = min(starts, key=FS.ts)
         os.environ["BT_HISTORY_ROOT"] = hist
         cls.fs = _fs()
         real = json.load(open(os.path.join(ROOT, "docs", "architecture", "v-grid-ict.json")))
@@ -1540,11 +1546,11 @@ class ScanCache(unittest.TestCase):
         d = datetime.timedelta(days=8)
         cls.folds = [{"index": k, "train_start": cls.start, "test_start": FS.iso(a + d * (k + 1)),
                       "test_end": FS.iso(a + d * (k + 2))} for k in range(2)]
-        cls.cell = {"id": cls.CELL, "timeframe": cls.TF, "symbols": [cls.SYM], "development_start": cls.start,
+        cls.cell = {"id": cls.CELL, "timeframe": cls.TF, "symbols": list(cls.SYMS), "development_start": cls.start,
                     "asset_class": "indices", "n_folds": 2}
         cls.plan = {"plan_hash": "p" * 16, "cells": [cls.cell], "cell_count": 1,
                     "candidates": [{"id": "ict-" + cls.CELL, "method": "ict", "runner_method": "ICT", "cell": cls.CELL,
-                                    "timeframe": cls.TF, "symbols": [cls.SYM]}],
+                                    "timeframe": cls.TF, "symbols": list(cls.SYMS)}],
                     "embargo": {"h_multiple": 2}, "grids": {"ict": {"sha256": "g" * 8}}}
         try:
             with cls._patched():
@@ -1552,12 +1558,13 @@ class ScanCache(unittest.TestCase):
                 cls.plain = cls.fs.evaluate_with_engine(cls.plain_engine, cls.grid, cls.cell, 205)
                 # the reference cache, built the way the workflow does: wave 1 in two slices, then wave 2
                 cls.cache = os.path.join(cls.tmp, "cache")
-                w1a = cls._cmd_scan(1, cls.cache, "0/2")
-                w1b = cls._cmd_scan(1, cls.cache, "1/2")
+                w1 = [(cls._cmd_scan(1, cls.cache, "0/2", symbol=sym), cls._cmd_scan(1, cls.cache, "1/2", symbol=sym))
+                      for sym in cls.SYMS]
                 cls.w1_files = set(os.listdir(cls.cache))
-                cls.w1 = (w1a, w1b)
-                cls.n1 = w1a["wave_sets"]
-                cls.w2 = cls._cmd_scan(2, cls.cache, "0/1", cache=[cls.cache])
+                cls.w1 = w1[0]
+                cls.n1 = w1[0][0]["wave_sets"]
+                cls.w2 = {"written": sum(cls._cmd_scan(2, cls.cache, "0/1", cache=[cls.cache], symbol=sym)["written"]
+                                         for sym in cls.SYMS)}
         except BaseException:
             cls.tearDownClass()
             raise
@@ -1577,6 +1584,8 @@ class ScanCache(unittest.TestCase):
 
         def forced(grid, train_trades_for):
             _chosen, scores = real_select(grid, train_trades_for)     # the real selection runs (and reads held trades)
+            if cls.FORCE == "held" and not scores[0]["n_train"]:
+                return _chosen, scores                                # nothing held yet (a wave-1 probe): real answer
             chosen = grid.baseline()
             for g in grid.groups:
                 chosen.update(g["candidates"][-1])
@@ -1588,16 +1597,16 @@ class ScanCache(unittest.TestCase):
 
     @classmethod
     def _engine(cls):
-        return cls.fs.BtEngine(cls.grid, "ICT", cls.TF, [cls.SYM], workers=1)
+        return cls.fs.BtEngine(cls.grid, "ICT", cls.TF, list(cls.SYMS), workers=1)
 
     @classmethod
-    def _cmd_scan(cls, wave, out, slice_spec="0/1", cache=()):
+    def _cmd_scan(cls, wave, out, slice_spec="0/1", cache=(), symbol=None):
         with mock.patch.object(cls.fs, "load_plan", return_value=cls.plan), \
                 mock.patch.object(cls.fs, "require_declaration", return_value={}), \
                 mock.patch.object(cls.fs, "check_drift", return_value=[]), \
                 mock.patch.object(cls.fs, "load_grids", return_value=({"ict": cls.grid, "wyckoff": cls.grid}, {})), \
                 redirect_stdout(io.StringIO()):
-            return cls.fs.cmd_scan(cls.CELL, cls.SYM, "ict", out, workers=1, wave=wave, slice_spec=slice_spec,
+            return cls.fs.cmd_scan(cls.CELL, symbol or cls.SYM, "ict", out, workers=1, wave=wave, slice_spec=slice_spec,
                                    scan_cache_dirs=list(cache))
 
     def setUp(self):
@@ -1619,6 +1628,10 @@ class ScanCache(unittest.TestCase):
             if e["trades"]:
                 return f, e
         self.fail("the slice must produce trades for this check to bite")
+
+
+class ScanCache(_ScanCacheBase, unittest.TestCase):
+    """One symbol, FORCE = "always": refusal matrix, determinism, partial caches, slices."""
 
     def test_the_reference_cache_is_complete_and_wave_2_is_not_vacuous(self):
         # 4 items = baseline + 4 candidates, plus the forced combined set the wave-1 probe also asks for (see the class docstring)
@@ -1735,8 +1748,12 @@ class ScanCache(unittest.TestCase):
         with self.assertRaises(self.fs.ScanCacheRefused) as cm:
             self._load(engine=eng)
         self.assertIn("history differs", str(cm.exception))
+        eng = self._engine()                                     # same bars, first and last bar; one bar's CONTENT differs
+        eng._series[self.SYM] = dict(eng._series[self.SYM], sha256="0" * 64)
+        with self.assertRaises(self.fs.ScanCacheRefused):
+            self._load(engine=eng)
 
-    def test_a_tampered_file_is_refused(self):
+    def test_an_edited_file_is_refused(self):
         f, e = self._first_with_trades()
         e["trades"][0]["R"] = 12345.0                                  # edit a trade, leave every hash alone
         json.dump(e, open(f, "w"))
@@ -1825,6 +1842,83 @@ class ScanCache(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(os.path.dirname(self.out), "bad")))
 
 
+
+class ScanCacheHeldSelection(_ScanCacheBase, unittest.TestCase):
+    """C1 regression: a fold's combined set that is NOT a wave-1 set (as with every real selection that changes >= 2
+    factors) must not make `scan --wave 2` refuse a complete wave 1. The choice is forced only once trades are held."""
+
+    FORCE = "held"
+
+    def test_wave_1_is_exactly_baseline_plus_candidates_and_wave_2_has_the_combined_set(self):
+        self.assertEqual(self.n1, 5)                          # 1 baseline + 4 single-factor candidates, no combined set
+        self.assertGreater(self.w2["written"], 0, "the held-trades selection must have asked for wave-2 sets")
+
+    def test_wave_2_is_accepted_on_a_complete_wave_1_and_refused_when_one_wave_1_set_is_absent(self):
+        # the reference cache itself was built by an accepted wave-2 scan (setUpClass); now knock out one wave-1 entry
+        w1_only = os.path.join(os.path.dirname(self.out), "w1only")
+        os.makedirs(w1_only)
+        for f in self.w1_files:
+            shutil.copy(os.path.join(self.cache, f), w1_only)
+        again = self._cmd_scan(2, os.path.join(os.path.dirname(self.out), "w2ok"), "0/1", cache=[w1_only])
+        self.assertEqual(again["written"], self.w2["written"])
+        os.remove(os.path.join(w1_only, sorted(self.w1_files)[0]))
+        with self.assertRaises(SystemExit) as cm:
+            self._cmd_scan(2, os.path.join(os.path.dirname(self.out), "w2bad"), "0/1", cache=[w1_only])
+        self.assertIn("incomplete", str(cm.exception))
+
+    def test_cache_run_equals_no_cache_run_and_the_record_provenance_is_stamped(self):
+        cached = self._engine()
+        self._load(engine=cached)
+        cached.no_scan = True                                  # --require-complete-scan-cache
+        with mock.patch.object(cached.bt, "scan", side_effect=AssertionError("scanned on demand")):
+            res = self.fs.evaluate_with_engine(cached, self.grid, self.cell, 205)
+        self.assertEqual(json.dumps(res, sort_keys=True, default=repr), json.dumps(self.plain, sort_keys=True, default=repr))
+        info = cached.scan_cache_info
+        self.assertEqual(info["entries"], self.n1 + self.w2["written"])
+        self.assertEqual(len(info["sha256_of_sorted_entry_keys"]), 64)
+
+    def test_require_complete_fails_loud_instead_of_scanning_on_demand(self):
+        for f in sorted(os.listdir(self.out))[:2]:
+            os.remove(os.path.join(self.out, f))
+        eng = self._engine()
+        self._load(engine=eng)
+        eng.no_scan = True
+        with self.assertRaises(self.fs.ScanCacheRefused) as cm:
+            self.fs.evaluate_with_engine(eng, self.grid, self.cell, 205)
+        self.assertIn("--require-complete-scan-cache", str(cm.exception))
+
+
+class ScanCacheTwoSymbols(_ScanCacheBase, unittest.TestCase):
+    """Two symbols end to end: per-symbol wave-1 shards, per-symbol wave-2 shards from the POOLED wave 1, then a
+    cache-fed evaluation that equals the cache-less one (symbol pooling order included)."""
+
+    SYMS = ("US500", "US30")
+    SYM = SYMS[0]
+    FORCE = "held"
+
+    def test_each_symbol_has_its_own_entries_and_the_pooled_run_is_identical(self):
+        entries = [json.load(open(os.path.join(self.cache, f))) for f in os.listdir(self.cache)]
+        self.assertEqual({e["scope"]["symbol"] for e in entries}, set(self.SYMS))
+        self.assertEqual({e["scope"]["series"]["sha256"] for e in entries if e["scope"]["symbol"] == "US500"}.__len__(), 1)
+        cached = self._engine()
+        self._load(engine=cached)
+        cached.no_scan = True
+        res = self.fs.evaluate_with_engine(cached, self.grid, self.cell, 205)
+        self.assertEqual(json.dumps(res, sort_keys=True, default=repr), json.dumps(self.plain, sort_keys=True, default=repr))
+        self.assertEqual(res["runs_evaluated"], self.plain["runs_evaluated"])
+        for k, v in self.plain_engine._done.items():
+            self.assertEqual(repr(cached._done[k]), repr(v))
+
+    def test_wave_2_of_one_symbol_needs_the_other_symbols_wave_1(self):
+        only_us500 = os.path.join(os.path.dirname(self.out), "only500")
+        os.makedirs(only_us500)
+        for f in self.w1_files:
+            if json.load(open(os.path.join(self.cache, f)))["scope"]["symbol"] == "US500":
+                shutil.copy(os.path.join(self.cache, f), only_us500)
+        with self.assertRaises(SystemExit) as cm:
+            self._cmd_scan(2, os.path.join(os.path.dirname(self.out), "w2"), "0/1", cache=[only_us500], symbol="US500")
+        self.assertIn("incomplete", str(cm.exception))
+
 class ScanCacheRunPlumbing(_Helpers):
     """`run --scan-cache` reaches `_evaluate_candidate` only when given (the 3-argument shape is otherwise unchanged)."""
 
@@ -1846,6 +1940,25 @@ class ScanCacheRunPlumbing(_Helpers):
                                side_effect=lambda *a, **k: seen.append(k) or self._fake_out(a[0], a[1])):
             self.fs.cmd_run("5m-metals", grid_dir=FIXTURES, scan_cache_dirs=["/x/y"])
         self.assertEqual([k["scan_cache_dirs"] for k in seen], [["/x/y"], ["/x/y"]])
+
+    def test_require_complete_needs_a_cache_and_is_passed_through(self):
+        with self.assertRaises(SystemExit):
+            self.fs.cmd_run("5m-metals", grid_dir=FIXTURES, require_complete_scan_cache=True)
+        seen = []
+        with mock.patch.object(self.fs, "_evaluate_candidate",
+                               side_effect=lambda *a, **k: seen.append(k) or self._fake_out(a[0], a[1])):
+            self.fs.cmd_run("5m-metals", grid_dir=FIXTURES, scan_cache_dirs=["/x"], require_complete_scan_cache=True)
+        self.assertTrue(all(k["require_complete_scan_cache"] for k in seen) and seen)
+
+    def test_a_missing_candidate_is_a_clear_error_not_a_stopiteration(self):
+        plan = self._plan_file()
+        plan = dict(plan, candidates=[c for c in plan["candidates"] if c["cell"] != "5m-metals"])
+        with mock.patch.object(self.fs, "load_plan", return_value=plan), \
+                mock.patch.object(self.fs, "require_declaration", return_value={}), \
+                mock.patch.object(self.fs, "check_drift", return_value=[]):
+            with self.assertRaises(SystemExit) as cm:
+                self.fs.cmd_scan("5m-metals", "XAUUSD", "ict", os.path.join(self.tmp, "o"))
+        self.assertIn("no candidate", str(cm.exception))
 
     def test_the_cli_accepts_a_repeatable_scan_cache_flag(self):
         with mock.patch.object(self.fs, "cmd_run") as run, mock.patch.dict(os.environ, {}):

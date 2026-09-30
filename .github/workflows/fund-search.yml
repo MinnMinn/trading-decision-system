@@ -45,6 +45,7 @@ env:
 jobs:
   plan:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       cells: ${{ steps.plan.outputs.cells }}
       shards_w1: ${{ steps.plan.outputs.shards_w1 }}
@@ -58,6 +59,8 @@ jobs:
           python-version: "3.12"
       - id: plan
         run: |
+          # the plan must be COMMITTED (a plan written by this job would exist only in this job's checkout)
+          git ls-files --error-unmatch docs/experiments/fund-search/plan.json
           # `plan` must match the committed plan exactly (load_plan refuses a drifted one with a nonzero exit).
           python scripts/fund-search.py plan
           echo "cells=$(python scripts/fund-search.py list-cells | tail -1)" >> "$GITHUB_OUTPUT"
@@ -100,13 +103,15 @@ jobs:
           python -X faulthandler scripts/fund-search.py scan --cell "$MATRIX_CELL" --method "$MATRIX_METHOD" \
             --symbol "$MATRIX_SYMBOL" --wave 1 --slice "$MATRIX_SLICE" --workers "$WORKERS" \
             --out "$RUNNER_TEMP/out/scan" \
-            > "$RUNNER_TEMP/out/scan.stdout.log" 2> "$RUNNER_TEMP/out/scan.stderr.log"
+            > "$RUNNER_TEMP/out/scan.stdout.log" 2> "$RUNNER_TEMP/out/scan.stderr.log" \
+            || { rc=$?; tail -n 40 "$RUNNER_TEMP/out/scan.stderr.log" >&2; exit "$rc"; }
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: fund-scan-${{ matrix.name }}
           path: ${{ runner.temp }}/out/
           retention-days: 30
+          overwrite: true
 
   scan_wave2:
     needs: [plan, scan_wave1]
@@ -149,18 +154,23 @@ jobs:
           python -X faulthandler scripts/fund-search.py scan --cell "$MATRIX_CELL" --method "$MATRIX_METHOD" \
             --symbol "$MATRIX_SYMBOL" --wave 2 --slice "$MATRIX_SLICE" --workers "$WORKERS" \
             --scan-cache "$RUNNER_TEMP/wave1" --out "$RUNNER_TEMP/out/scan" \
-            > "$RUNNER_TEMP/out/scan.stdout.log" 2> "$RUNNER_TEMP/out/scan.stderr.log"
+            > "$RUNNER_TEMP/out/scan.stdout.log" 2> "$RUNNER_TEMP/out/scan.stderr.log" \
+            || { rc=$?; tail -n 40 "$RUNNER_TEMP/out/scan.stderr.log" >&2; exit "$rc"; }
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: fund-scan-${{ matrix.name }}
           path: ${{ runner.temp }}/out/
           retention-days: 30
+          overwrite: true
 
   evaluate:
-    # Default `needs` semantics on purpose: one failed scan shard skips every evaluate job rather than letting a cell
-    # fall back to a multi-hour on-demand scan that the 355-minute cap would kill. "Re-run failed jobs" repeats only
-    # the failed shards (their finished siblings' artifacts stay) and then the jobs downstream of them.
+    # Default `needs` semantics on purpose: one failed scan shard skips EVERY evaluate job (of every cell -- `needs` is
+    # per job, not per matrix entry), rather than letting a cell fall back to a multi-hour on-demand scan that the
+    # 355-minute cap would kill; `--require-complete-scan-cache` below makes that fallback impossible anyway. Alternative:
+    # `if: ${{ !cancelled() }}` here runs every cell whose own artifacts happen to be complete and fails the others fast
+    # (docs/audits/2026-09-30-actions-sharding.md section 4). "Re-run failed jobs" repeats the failed shards and then
+    # the jobs downstream of them.
     needs: [plan, scan_wave2]
     name: evaluate ${{ matrix.cell }}
     runs-on: ubuntu-latest
@@ -195,8 +205,9 @@ jobs:
           case "$MATRIX_CELL" in *[!A-Za-z0-9_-]*|'') echo "bad cell id" >&2; exit 1;; esac
           mkdir -p "$FUND_SEARCH_RECORDS_DIR" "$RUNNER_TEMP/scan-cache"
           python -X faulthandler scripts/fund-search.py run --cell "$MATRIX_CELL" --workers "$WORKERS" \
-            --scan-cache "$RUNNER_TEMP/scan-cache" \
-            > "$RUNNER_TEMP/out/run.stdout.log" 2> "$RUNNER_TEMP/out/run.stderr.log"
+            --scan-cache "$RUNNER_TEMP/scan-cache" --require-complete-scan-cache \
+            > "$RUNNER_TEMP/out/run.stdout.log" 2> "$RUNNER_TEMP/out/run.stderr.log" \
+            || { rc=$?; tail -n 40 "$RUNNER_TEMP/out/run.stderr.log" >&2; exit "$rc"; }
       - uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -208,6 +219,7 @@ jobs:
     needs: evaluate
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
