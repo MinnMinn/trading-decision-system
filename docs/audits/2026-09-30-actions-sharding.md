@@ -221,6 +221,11 @@ of `test_speed_equivalence`.
 
 ## 8. Update 2026-10-01: six cells (the 30m cells were removed)
 
+> **Pointer (added 2026-10-01, branch `b14-shard-calibration`): the time model below was CALIBRATED afterwards.** `docs/audits/2026-10-01-shard-calibration.md` replaces the 581 s / 213 s
+> one-run model with rates fitted to real scans (detection-group cost, extra-set cost, per-shard fixed costs, measured wave-2 sizes, a runner-speed factor parameter), re-lays the matrix
+> (164 shards, none over 300 modelled minutes at factor 2.0; 405.8 runner-hours at 2.0, 211.7 at 1.0) and corrects the "UNCALIBRATED" paragraph and the tables below, which are kept unchanged as the record of the old model.
+> The 581 s first-set figure is confirmed there to be a 15m number (a full 15m XAUUSD ICT group is ~613 s in the calibrated model).
+
 **Supersedes the layout figures of sections 3-4 for the CURRENT plan** (those sections describe the 8-cell plan and stay as the record of that state). The owner removed `30m-metals` and
 `30m-indices` (2026-10-01; `docs/architecture/fund-search-cells.json`); the cell list is now a pinned, declared input of the plan (it changes `plan_hash`; it is pinned in the
 declaration as `evaluation_config.cells_sha256`). The matrix below is `list-scan-shards` (the workflow reads it; nothing in `.github/workflows/fund-search.yml` names a cell) regenerated

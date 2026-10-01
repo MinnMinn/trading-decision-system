@@ -1422,25 +1422,75 @@ DEV_BARS = {
     "15m": {"XAUUSD": 453893, "XAGUSD": 357694, "US500": 62776, "US30": 116405, "USTEC": 62766, "DE40": 55219,
             "FRA40": 62283}}    # (the 30m rows were removed with the 30m cells, owner 2026-10-01)
 
-#: The time model (docs/audits/2026-09-30-actions-sharding.md section 3). MEASURED by the owner on 10 local workers:
-#: ICT XAUUSD 1m wave 1 (39 value sets) = 581 s for the first set + ~213 s per further set (= 2.41 h). Everything else
-#: is an ASSUMPTION, stated there: cost linear in bars, linear in worker count, no per-core speed adjustment for a
-#: hosted runner, Wyckoff = `wyckoff_factor` x ICT per set (the audit projects ~2.1x on 1m metals; not measured here).
-# UNCALIBRATED: one owner-measured run (see the audit, sections 3 and 8); every minute figure derived from it is an estimate.
-SHARD_MODEL = {"first_set_s": 581.0, "extra_set_s": 213.0, "ref_bars": 4096182, "ref_workers": 10,
-               "runner_vcpu": 4, "runner_ram_bytes": 16 * 2 ** 30, "wyckoff_factor": 2.0,
-               "budget_s": 300 * 60,        # target per shard; the job timeout is 355 min (GitHub's hard cap is 360)
-               "job_timeout_min": 355}
-#: Wave-2 value sets per fold, an UPPER-typical bound from the audit's zero-edge run of the real waves (ICT 148 sets @17
-#: folds, 100 @10, 43 @4; Wyckoff 29-93): wave 2 depends on the selection, so its true size is only known at run time.
-WAVE2_SETS_PER_FOLD = {"ict": 11, "wyckoff": 8}
+#: The shard time model (docs/audits/2026-10-01-shard-calibration.md; supersedes the owner's one-run 581 s / 213 s model of
+#: docs/audits/2026-09-30-actions-sharding.md section 3). It exists to LAY OUT shards (how many slices each wave of each
+#: symbol gets) and to size the run; it never changes a result. Every rate is seconds per DECISION bar on the REFERENCE
+#: machine (an M-series Mac, ONE process, in-process `scan_many`), fitted to real scans of the harness's own engine on
+#: real FTMO history; `shard_seconds(.., factor)` scales the compute by the runner-speed factor (a hosted runner's core
+#: relative to the reference core: UNKNOWN, so layouts and reports are given at 1.0, 1.5 and 2.0).
+#: MEASURED vs ASSUMED is listed in `SHARD_MODEL["measured"]` / `["assumed"]` and printed under `list-scan-shards --explain`.
+SHARD_MODEL = {
+    # ---- MEASURED (doc sections 3.1-3.9): cost of ONE scan_many call = call_fixed_s + bars x (sum over detection groups of
+    #      group_s_per_bar x window factor + (value sets - groups) x extra_set_s_per_bar); history-position averaged
+    #      for the metals (a Wyckoff scan is dearer late in the history: the W7 target reads a growing HTF prefix)
+    "group_s_per_bar": {          # [method][timeframe][asset class]; the doc's sections 3.1-3.4 (metals: fit x position factor)
+        "ict": {"1m": {"metals": 0.000646, "indices": 0.000704}, "5m": {"metals": 0.00125, "indices": 0.00115},
+                "15m": {"metals": 0.00135, "indices": 0.00115}},
+        "wyckoff": {"1m": {"metals": 0.000749, "indices": 0.000369}, "5m": {"metals": 0.000211, "indices": 0.00018},
+                    "15m": {"metals": 0.000186, "indices": 0.000161}}},
+    "extra_set_s_per_bar": {      # one more value set INSIDE a detection group (indices: ASSUMED from the metals' ratio)
+        "ict": {"1m": {"metals": 8.49e-05, "indices": 8.96e-05}, "5m": {"metals": 6.94e-05, "indices": 6.4e-05},
+                "15m": {"metals": 3.98e-05, "indices": 3.41e-05}},
+        "wyckoff": {"1m": {"metals": 0.0, "indices": 0.0}, "5m": {"metals": 1.07e-06, "indices": 8.21e-07},
+                    "15m": {"metals": 4.49e-06, "indices": 3.48e-06}}},
+    "call_fixed_s": {"ict": {"1m": 0.0, "5m": 0.0, "15m": 0.0}, "wyckoff": {"1m": 70.0, "5m": 2.11, "15m": 0.646}},
+    "w600_group_factor": {"1m": 1.33, "5m": 1.74, "15m": 1.88},       # a W6 = 600 Wyckoff group costs this much more than a default-window group
+    "max_groups": {"ict": 2, "wyckoff": 36},          # distinct detection groups the method can have at all (ICT: B-POOL only)
+    "parallel_efficiency": {"ict": {1: 1.0, 2: 0.95, 3: 0.9, 4: 0.88}, "wyckoff": {1: 1.0, 2: 0.83, 3: 0.8, 4: 0.77}},
+    "task_overhead_s_per_bar": 3.5e-6,    # a spawned scan worker reloads the full series (load + arrays), per bar of that series
+    "engine_build_s_per_bar": 5.0e-6,     # BtEngine construction: load + adx index + series sha256, per held bar
+    "trades_per_bar": {"ict": {"1m": 2.8e-3, "5m": 1.7e-3, "15m": 1.4e-3}, "wyckoff": {"1m": 1.7e-3, "5m": 1.6e-3, "15m": 1.3e-3}},
+    "cache_verify_s_per_trade": 1.0e-5,   # read + verify one cache entry, per trade in it
+    "trades_for_s_per_trade": 1.0e-4,     # trades_for (simulate + admission rows + adx) per raw trade
+    # ---- ASSUMED (not measured here; doc section 7)
+    "runner_vcpu": 4, "runner_ram_bytes": 16 * 2 ** 30,         # GitHub-hosted ubuntu-latest, PUBLIC repo (not verified)
+    "job_fixed_s": 360.0,                 # checkout, Python setup, artifact up/download, per job (not scaled by the factor)
+    "plan_job_min": 5,                    # the `plan` job in front of every wave
+    "cache_entry_s": 0.05,                # fixed cost of one cache entry (open, hash)
+    "select_s_per_fold": 1.0,             # the nested walk-forward replay per fold (measured < 0.1 s; 1 s kept as a margin)
+    "layout_factor": 2.0,                 # the slow-runner assumption the SLICE COUNTS are laid out for
+    "report_factors": (1.0, 1.5, 2.0),
+    "budget_s": 300 * 60,                 # no shard may be modelled above this at the layout factor (the job timeout is 355 min;
+    "job_timeout_min": 355,               #  GitHub's hard cap is 360)
+    "measured": ("group_s_per_bar", "extra_set_s_per_bar", "call_fixed_s", "w600_group_factor", "max_groups",
+                 "parallel_efficiency", "task_overhead_s_per_bar", "engine_build_s_per_bar", "trades_per_bar",
+                 "cache_verify_s_per_trade", "trades_for_s_per_trade"),
+    "assumed": ("runner_vcpu", "runner_ram_bytes", "job_fixed_s", "plan_job_min", "cache_entry_s", "select_s_per_fold",
+                "layout_factor", "report_factors", "budget_s", "job_timeout_min"),
+}
+SHARD_MODEL_LABEL = (f"MEASURED ({', '.join(SHARD_MODEL['measured'])}, WAVE2_SETS_PER_FOLD, WAVE2_GROUPS_PER_SET, "
+                     f"WAVE2_W600_GROUP_SHARE; docs/audits/2026-10-01-shard-calibration.md) | ASSUMED "
+                     f"({', '.join(SHARD_MODEL['assumed'])}; the runner-speed factor is a parameter, never a measurement)")
+#: Wave-2 shape, MEASURED on 2-3 real folds of three cells (doc section 3.7): NEW value sets per fold after de-duplication
+#: across folds, and how they fall into detection groups. Wave 2 depends on the selection, so a real cell's size is only
+#: known at run time; the 8 folds measured bracket the audit's zero-edge counts (ICT 8.7-10.8 per fold at 4-17 folds).
+WAVE2_SETS_PER_FOLD = {"ict": 11.25, "wyckoff": 7.75}
+WAVE2_GROUPS_PER_SET = {"ict": 1.0, "wyckoff": 0.51}      # distinct detection groups per wave-2 set (35 groups / 69 sets per
+#                                                            fold alone; ICT is capped at 2 groups however many sets)
+WAVE2_W600_GROUP_SHARE = {"ict": 0.0, "wyckoff": 0.69}     # share of a Wyckoff wave-2 slice's groups on the W6 = 600 window
+#                                                            (24 of those 35 groups; it follows what the folds select)
 
 
 def cell_bars(cell, sym):
     """Bars one shard of (`cell`, `sym`) scans: the audit's whole-development-span count, scaled by the share of the
-    symbol's span a DECLARED later start keeps (a sizing ESTIMATE, same uncalibrated model; it never changes a result).
+    symbol's span a DECLARED later start keeps (a sizing ESTIMATE, same model; it never changes a result).
     A cell that starts from data (dev_start_override null) is the audit's number unchanged."""
-    bars = DEV_BARS[cell["timeframe"]][sym]
+    try:
+        bars = DEV_BARS[cell["timeframe"]][sym]
+    except KeyError:
+        raise SystemExit(f"DEV_BARS has no row for {sym} {cell['timeframe']}: the shard layout needs that series' "
+                         f"PIT-truncated development bar count (measure it: scripts/research/shard_calibration.py job "
+                         f"'{{\"kind\":\"bars\",\"symbols\":[\"{sym}\"],\"tfs\":[\"{cell['timeframe']}\"]}}') and add it above")
     ov = cell.get("dev_start_override")
     if ov is None:
         return bars
@@ -1455,21 +1505,129 @@ def runner_workers(bars):
     return max(1, min(m["runner_vcpu"], SM.clamp_workers(m["runner_vcpu"], bars, physical=m["runner_ram_bytes"])))
 
 
-def shard_seconds(k_sets, bars, method):
-    """Modelled wall seconds of ONE shard that scans `k_sets` value sets of one symbol of `bars` bars."""
+class _DataFreeEngine:
+    """Holds nothing and reads no data: enough for `wave1_values` (it needs only `has` and the engine's `bt`)."""
+
+    def __init__(self, bt):
+        self.bt = bt
+
+    def has(self, values):
+        return False
+
+
+def detection_group_keys(bt, method, tf, symbol, overlays):
+    """The `scan_many` detection-group key of every overlay, computed with scan_many's OWN key functions
+    (`ict_group_key`, `wy_group_key`) and no data: two value sets with the same key share ONE analysis pass, so a shard
+    pays the group cost once for them and only `extra_set_s_per_bar` for each further set. ICT: the analyze()-reading
+    keys (only B-POOL varies in the grid); Wyckoff: window x detection keys (W6, W4a, W-TW vary). Pinned equal to what
+    scan_many really groups by a test on real scans."""
+    keys = []
+    for o in overlays:
+        full = dict(bt._OPTS_BASE, **o)
+        with SM._opts(bt, full):
+            if method == "ict":
+                x = bt._ict_ctx(symbol, tf, [], [], bt.P[tf]["H"], [], [], [], bt.resolve_methods(symbol), idx_of_time={})
+                keys.append(SM.ict_group_key(bt, x))
+            else:
+                keys.append(SM.wy_group_key(bt, bt._wy_window(symbol, tf, 10 ** 9)))
+    return keys
+
+
+def wave1_group_info(grid, method, cell, symbol, bt=None):
+    """[(group index, window or None)] per wave-1 value set, in the order `scan` slices them. Data-free: the wave-1 list
+    is the harness's own `wave1_values` on an engine that holds nothing, the groups are `detection_group_keys`."""
+    bt = bt or _load_bt()
+    tf = cell["timeframe"]
+    sets = wave1_values(_DataFreeEngine(bt), grid, cell)
+    keys = detection_group_keys(bt, method, tf, symbol, [build_overlay(grid, v) for v in sets])
+    order = list(dict.fromkeys(keys))
+    return [(order.index(k), (k[0] if method == "wyckoff" else None)) for k in keys]
+
+
+def _window_factor(method, tf, window, bt_window=300):
+    """Cost of a group relative to a default-window group: only a non-default Wyckoff window (W6 = 600) costs more."""
+    if method != "wyckoff" or window is None or window == bt_window:
+        return 1.0
+    return SHARD_MODEL["w600_group_factor"][tf]
+
+
+def scan_seconds(method, tf, asset_class, bars, group_factors, n_sets):
+    """Modelled seconds of ONE `scan_many` call on the REFERENCE machine (factor 1.0, one process): the per-call fixed
+    term + bars x (sum of the groups' costs + the extra value sets inside those groups). `group_factors` = one window
+    factor per detection group the call contains."""
     m = SHARD_MODEL
-    scale = (bars / m["ref_bars"]) * (m["ref_workers"] / runner_workers(bars)) * (
-        m["wyckoff_factor"] if method == "wyckoff" else 1.0)
-    return (m["first_set_s"] + max(k_sets - 1, 0) * m["extra_set_s"]) * scale
+    per_bar = (m["group_s_per_bar"][method][tf][asset_class] * sum(group_factors)
+               + max(n_sets - len(group_factors), 0) * m["extra_set_s_per_bar"][method][tf][asset_class])
+    return m["call_fixed_s"][method][tf] + bars * per_bar
 
 
-def max_sets_per_shard(bars, method):
-    """Most value sets one shard can scan inside the budget; 0 = even a single set is modelled over budget."""
-    b = SHARD_MODEL["budget_s"]
-    one = shard_seconds(1, bars, method)
-    if one > b:
-        return 0
-    return 1 + int((b - one) // (shard_seconds(2, bars, method) - one))
+def _held_trades(method, tf, bars):
+    return SHARD_MODEL["trades_per_bar"][method][tf] * bars
+
+
+def fixed_seconds(wave, cell, method, symbol, n_wave1):
+    """Per-shard compute that is not the scan itself (reference machine, factor 1.0). Every shard builds its engine
+    (loads, indexes and hashes the candle series of every symbol the engine holds: ONE symbol in wave 1, ALL the cell's
+    in wave 2). A wave-2 shard also verifies the cell's whole wave-1 cache, runs `trades_for` on every wave-1 set (the
+    pooled selection needs their trades) and replays the nested walk-forward before it scans anything."""
+    m = SHARD_MODEL
+    tf = cell["timeframe"]
+    if wave == 1:
+        return m["engine_build_s_per_bar"] * cell_bars(cell, symbol)
+    syms = cell["symbols"]
+    build = sum(m["engine_build_s_per_bar"] * cell_bars(cell, s) for s in syms)
+    trades = sum(_held_trades(method, tf, cell_bars(cell, s)) for s in syms)         # pooled trades of ONE value set
+    cache = n_wave1 * (len(syms) * m["cache_entry_s"] + trades * m["cache_verify_s_per_trade"])
+    post = n_wave1 * trades * m["trades_for_s_per_trade"]
+    probe = cell["n_folds"] * m["select_s_per_fold"]
+    return build + cache + post + probe
+
+
+def shard_seconds(wave, cell, method, symbol, groups, n_sets, factor, n_wave1=0):
+    """Modelled wall seconds of ONE shard on a runner `factor` x slower than the reference machine (`factor` scales the
+    compute only; `job_fixed_s` -- checkout, setup, artifact transfer -- is an assumed constant). `groups` = the
+    window factors of the shard's detection groups. With more than one effective worker (`runner_workers`) the call is
+    cut into bar chunks (scan_many: ceil(2w / groups) per group), each a fresh process that reloads the series and, for
+    Wyckoff, repeats the per-call set-up."""
+    m = SHARD_MODEL
+    tf, ac = cell["timeframe"], cell["asset_class"]
+    bars = cell_bars(cell, symbol)
+    cpu = scan_seconds(method, tf, ac, bars, groups, n_sets)
+    w = runner_workers(bars)
+    if w > 1:
+        g = max(len(groups), 1)
+        tasks = g * -(-2 * w // g)
+        extra = (tasks - 1) * m["call_fixed_s"][method][tf] + tasks * m["task_overhead_s_per_bar"] * bars
+        cpu = (cpu + extra) / (w * m["parallel_efficiency"][method][w])
+    return factor * (cpu + fixed_seconds(wave, cell, method, symbol, n_wave1)) + m["job_fixed_s"]
+
+
+def evaluate_seconds(cell, method, n_wave1, n_wave2, factor):
+    """The per-(cell, method) evaluate step with a complete cache: no scan, but the engine build, the cache verification
+    and `trades_for` of EVERY value set (wave 1 + wave 2) and the statistics (modelled as the wave-2 replay)."""
+    m = SHARD_MODEL
+    tf = cell["timeframe"]
+    syms = cell["symbols"]
+    build = sum(m["engine_build_s_per_bar"] * cell_bars(cell, s) for s in syms)
+    trades = sum(_held_trades(method, tf, cell_bars(cell, s)) for s in syms)
+    n = n_wave1 + n_wave2
+    return factor * (build + n * (len(syms) * m["cache_entry_s"] + trades * (m["cache_verify_s_per_trade"]
+                                                                       + m["trades_for_s_per_trade"]))
+                     + cell["n_folds"] * m["select_s_per_fold"]) + m["job_fixed_s"]
+
+
+def wave2_groups_in_slice(method, n_in_slice):
+    """Distinct detection groups among `n_in_slice` CONSECUTIVE wave-2 sets: wave 2 is only known at run time, so this
+    is the measured groups-per-set ratio (WAVE2_GROUPS_PER_SET), capped by what the method can have at all (ICT: 2)."""
+    cap = SHARD_MODEL["max_groups"][method]
+    want = -int(-(n_in_slice * WAVE2_GROUPS_PER_SET[method]) // 1)           # ceil
+    return max(1, min(n_in_slice, cap, want))
+
+
+def wave2_set_count(method, n_folds):
+    """Wave-2 value sets of a cell: the measured NEW sets per fold x the cell's folds, rounded up (a layout ESTIMATE:
+    the real list is only known once the selection has run)."""
+    return -int(-(WAVE2_SETS_PER_FOLD[method] * n_folds) // 1)
 
 
 def slice_bounds(n, i, slices):
@@ -1494,49 +1652,132 @@ def parse_slice(text):
     return i, n
 
 
-def shard_plan(plan, grid_dir=None):
+def _slice_groups(method, wave, info, lo, hi, tf):
+    """Window factors of the detection groups inside sets [lo, hi) of a wave."""
+    if wave == 1:
+        seen = {}
+        for gid, win in info[lo:hi]:
+            seen.setdefault(gid, win)
+        return [_window_factor(method, tf, w) for w in seen.values()]
+    g = wave2_groups_in_slice(method, hi - lo)
+    share = WAVE2_W600_GROUP_SHARE[method]
+    return [SHARD_MODEL["w600_group_factor"][tf] if (method == "wyckoff" and k < round(g * share)) else 1.0
+            for k in range(g)]
+
+
+def shard_plan(plan, grid_dir=None, factor=None):
     """The scan shards of the committed plan: one row per (cell, method, symbol, wave, slice). Wave 1 (baseline + every
     single-factor candidate) is symbol-local. Wave 2 (each fold's combined chosen set + every perturbation set) is
     discovered from the selection on the POOLED wave-1 trades of every symbol of the cell, so its shards run only after
-    all of wave 1 exists; each still scans ONE symbol. Slice counts follow the time model above and the sets estimate
-    for wave 2 -- a layout decision made from the plan and data availability only, never from a result."""
+    all of wave 1 exists; each still scans ONE symbol. The slice count of every (cell, method, symbol, wave) is the
+    smallest one for which NO slice is modelled over `budget_s` at the LAYOUT factor (`layout_factor`, default the slow
+    runner 2.0), from the plan, the grids and data availability only -- never from a result. A shard that is over the
+    budget even at one value set (the irreducible unit) is flagged `over_cap`/`over_timeout`, not hidden. Each row also
+    carries the modelled minutes at every reported factor (`est_min_by_factor`)."""
+    m = SHARD_MODEL
+    lay = m["layout_factor"] if factor is None else factor
     grids, _paths = load_grids(grid_dir)
+    bt = _load_bt()
     rows = []
     for cell in plan["cells"]:
+        tf = cell["timeframe"]
         for method in METHODS:
             g = grids[method].runnable()
-            n1 = 1 + sum(len(x["candidates"]) for x in g.groups)
-            n2 = WAVE2_SETS_PER_FOLD[method] * cell["n_folds"]
+            info = wave1_group_info(g, method, cell, cell["symbols"][0], bt)
+            n1 = len(info)
+            assert n1 == 1 + sum(len(x["candidates"]) for x in g.groups), "wave-1 list != baseline + candidates"
+            n2 = wave2_set_count(method, cell["n_folds"])
             for wave, n in ((1, n1), (2, n2)):
                 for sym in cell["symbols"]:
                     bars = cell_bars(cell, sym)
-                    cap = max_sets_per_shard(bars, method)
-                    slices = -(-n // max(cap, 1))
+
+                    def secs(lo, hi, f):
+                        return shard_seconds(wave, cell, method, sym, _slice_groups(method, wave, info, lo, hi, tf),
+                                             hi - lo, f, n_wave1=n1)
+
+                    slices = n
+                    for s in range(1, n + 1):
+                        if max(secs(*slice_bounds(n, i, s), lay) for i in range(s)) <= m["budget_s"]:
+                            slices = s
+                            break
                     for i in range(slices):
                         lo, hi = slice_bounds(n, i, slices)
-                        est = shard_seconds(hi - lo, bars, method)
+                        est = secs(lo, hi, lay)
+                        by = {f"{f:g}": round(secs(lo, hi, f) / 60) for f in m["report_factors"]}
                         rows.append({"cell": cell["id"], "method": method, "symbol": sym, "wave": wave,
-                                     "slice": f"{i}/{slices}", "sets": hi - lo, "bars": bars, "est_min": round(est / 60),
-                                     "over_timeout": est / 60 > SHARD_MODEL["job_timeout_min"],
+                                     "slice": f"{i}/{slices}", "sets": hi - lo,
+                                     "groups": len(_slice_groups(method, wave, info, lo, hi, tf)), "bars": bars,
+                                     "est_min": round(est / 60), "est_min_by_factor": by,
+                                     "over_cap": est > m["budget_s"],
+                                     "over_timeout": est / 60 > m["job_timeout_min"],
                                      "name": f"{cell['id']}-{method}-{sym}-w{wave}-s{i}"})
     return rows
 
 
+def flat_shard_row(row):
+    """A shard row for the CI matrix (`include: ${{ fromJSON(...) }}`): scalars only, so no job reads a nested object.
+    `est_min_by_factor` {"1": m, "1.5": m, "2": m} becomes `est_min_f1`, `est_min_f1_5`, `est_min_f2`."""
+    out = {k: v for k, v in row.items() if k != "est_min_by_factor"}
+    for f, minutes in row["est_min_by_factor"].items():
+        out["est_min_f" + f.replace(".", "_")] = minutes
+    return out
+
+
 def format_shard_table(rows):
-    """Per (cell, method, symbol, wave): slices, sets, the longest modelled shard, and whether any is over the timeout."""
+    """Per (cell, method, symbol, wave): slices, sets, the longest modelled shard (at the layout factor), and whether any
+    shard is over the cap / the job timeout."""
     groups = {}
     for r in rows:
         groups.setdefault((r["cell"], r["method"], r["symbol"], r["wave"]), []).append(r)
-    L = [f"{'cell':<12}{'method':<8}{'symbol':<8}{'wave':<5}{'slices':>6}{'sets':>6}{'unsliced':>10}{'longest shard':>15}"
-         f"  shard over {SHARD_MODEL['job_timeout_min']} min?"]
+    cap = SHARD_MODEL["budget_s"] // 60
+    L = [f"{'cell':<12}{'method':<8}{'symbol':<8}{'wave':<5}{'slices':>6}{'sets':>6}{'groups':>7}{'longest shard':>15}"
+         f"  over {cap} min?"]
     for (c, m, s, w), rs in groups.items():
         longest = max(r["est_min"] for r in rs)
-        sets = sum(r["sets"] for r in rs)
-        whole = round(shard_seconds(sets, rs[0]["bars"], m) / 60)      # the same symbol/wave in ONE job, no slicing
-        L.append(f"{c:<12}{m:<8}{s:<8}{w:<5}{len(rs):>6}{sets:>6}{whole:>7} min{longest:>10} min   "
-                 f"{'YES' if any(r['over_timeout'] for r in rs) else 'no'}")
-    L.append(f"total shards: {len(rows)}; modelled runner minutes: {sum(r['est_min'] for r in rows)} "
-             f"(time model UNCALIBRATED: recalibrate before relying on any minute figure)")
+        L.append(f"{c:<12}{m:<8}{s:<8}{w:<5}{len(rs):>6}{sum(r['sets'] for r in rs):>6}{sum(r['groups'] for r in rs):>7}"
+                 f"{longest:>11} min   {'YES' if any(r['over_cap'] for r in rs) else 'no'}")
+    L.append(f"total shards: {len(rows)}; modelled runner minutes at factor {SHARD_MODEL['layout_factor']:g}: "
+             f"{sum(r['est_min'] for r in rows)}")
+    L.append("model constants: " + SHARD_MODEL_LABEL)
+    return "\n".join(L)
+
+
+def shard_summary(plan, rows, grid_dir=None):
+    """Totals at every reported runner factor: shards, runner-hours, longest shard, critical path and the per
+    (cell, method) breakdown. Critical path = plan + longest wave-1 shard + longest wave-2 shard + longest evaluate
+    (the workflow's `needs` are per JOB, so every cell waits for the slowest cell of the previous stage), assuming
+    unlimited concurrent runners (hosted-runner concurrency limits are NOT verified)."""
+    m = SHARD_MODEL
+    grids, _paths = load_grids(grid_dir)
+    bt = _load_bt()
+    cells = {c["id"]: c for c in plan["cells"]}
+    out = {}
+    for f in m["report_factors"]:
+        key = f"{f:g}"
+        tot = sum(r["est_min_by_factor"][key] for r in rows)
+        w1 = max((r["est_min_by_factor"][key] for r in rows if r["wave"] == 1), default=0)
+        w2 = max((r["est_min_by_factor"][key] for r in rows if r["wave"] == 2), default=0)
+        ev, per = 0, {}
+        for cid, cell in cells.items():
+            for method in METHODS:
+                n1 = len(wave1_group_info(grids[method].runnable(), method, cell, cell["symbols"][0], bt))
+                n2 = wave2_set_count(method, cell["n_folds"])
+                e = round(evaluate_seconds(cell, method, n1, n2, f) / 60)
+                ev = max(ev, e)
+                rs = [r for r in rows if r["cell"] == cid and r["method"] == method]
+                per[f"{cid}/{method}"] = {"shards": len(rs), "runner_hours": round(sum(r["est_min_by_factor"][key] for r in rs) / 60, 1),
+                                          "longest_min": max(r["est_min_by_factor"][key] for r in rs), "evaluate_min": e}
+        out[key] = {"shards": len(rows), "runner_hours": round(tot / 60, 1), "longest_shard_min": max(
+            r["est_min_by_factor"][key] for r in rows), "critical_path_min": m["plan_job_min"] + w1 + w2 + ev,
+                    "longest_wave1_min": w1, "longest_wave2_min": w2, "longest_evaluate_min": ev, "by_cell_method": per}
+    return out
+
+
+def format_shard_summary(summary):
+    L = ["factor  shards  runner-h  longest shard  critical path (plan + w1 + w2 + evaluate)"]
+    for k, v in summary.items():
+        L.append(f"{k:>6}{v['shards']:>8}{v['runner_hours']:>10}{v['longest_shard_min']:>10} min{v['critical_path_min']:>12} min "
+                 f"({v['longest_wave1_min']} + {v['longest_wave2_min']} + {v['longest_evaluate_min']})")
     return "\n".join(L)
 
 
@@ -1823,7 +2064,7 @@ def main(argv=None):
         if a.explain:
             print(format_shard_table(rows))
         else:
-            print(json.dumps(rows))
+            print(json.dumps([flat_shard_row(r) for r in rows]))
     elif a.cmd == "scan":
         cmd_scan(a.cell, a.symbol, a.method, a.out, workers=a.workers if a.workers is not None else SM.default_workers(),
                  wave=a.wave, slice_spec=a.slice, scan_cache_dirs=a.scan_cache, grid_dir=a.grid_dir)

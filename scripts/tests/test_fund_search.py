@@ -1840,6 +1840,120 @@ class ShardLayout(_Helpers):
         self.assertFalse(any(r["over_timeout"] for r in rows))
         self.assertLessEqual(max(r["est_min"] for r in rows), self.fs.SHARD_MODEL["job_timeout_min"])
 
+    def test_no_shard_is_over_the_cap_at_the_slow_runner_factor(self):
+        """The layout is made for the slow-runner assumption (factor 2.0): NO shard may be modelled above the cap there
+        -- asserted from the model's own numbers, not from a stored expectation."""
+        m = self.fs.SHARD_MODEL
+        self.assertEqual(m["layout_factor"], 2.0)
+        self.assertEqual(m["budget_s"], 300 * 60)
+        self._plan_file()
+        plan = self.fs.load_plan()
+        rows = self.fs.shard_plan(plan)
+        cap_min = m["budget_s"] / 60
+        self.assertFalse(any(r["over_cap"] for r in rows))
+        self.assertLessEqual(max(r["est_min"] for r in rows), cap_min)
+        self.assertLessEqual(max(r["est_min_by_factor"]["2"] for r in rows), cap_min)
+        self.assertEqual([r["est_min"] for r in rows], [r["est_min_by_factor"]["2"] for r in rows])
+        # recomputed independently of the rows: the model's own function, slice by slice, at factor 2.0
+        grids, _ = self.fs.load_grids()
+        bt = self.fs._load_bt()
+        by_cell = {c["id"]: c for c in plan["cells"]}
+        for r in rows[:: max(1, len(rows) // 40)]:                       # a spread of 40 shards, every cell/method/wave
+            cell = by_cell[r["cell"]]
+            g = grids[r["method"]].runnable()
+            info = self.fs.wave1_group_info(g, r["method"], cell, cell["symbols"][0], bt)
+            i, n = self.fs.parse_slice(r["slice"])
+            total = len(info) if r["wave"] == 1 else self.fs.wave2_set_count(r["method"], cell["n_folds"])
+            lo, hi = self.fs.slice_bounds(total, i, n)
+            groups = self.fs._slice_groups(r["method"], r["wave"], info, lo, hi, cell["timeframe"])
+            secs = self.fs.shard_seconds(r["wave"], cell, r["method"], r["symbol"], groups, hi - lo, 2.0, n_wave1=len(info))
+            self.assertAlmostEqual(secs / 60, r["est_min"], delta=1.0)
+            self.assertLessEqual(secs, m["budget_s"])
+
+    def test_the_layout_follows_the_factor_and_the_model_scales_with_it(self):
+        self._plan_file()
+        plan = self.fs.load_plan()
+        fast, slow = self.fs.shard_plan(plan, factor=1.0), self.fs.shard_plan(plan, factor=2.0)
+        self.assertLessEqual(len(fast), len(slow))                       # a slower runner never needs fewer shards
+        self.assertFalse(any(r["over_cap"] for r in fast))
+        m = self.fs.SHARD_MODEL
+        for r in slow:
+            e = r["est_min_by_factor"]
+            self.assertLessEqual(e["1"], e["1.5"])
+            self.assertLessEqual(e["1.5"], e["2"])
+        # the compute scales exactly with the factor, `job_fixed_s` does not
+        cell = next(c for c in plan["cells"] if c["id"] == "5m-metals")
+        a = self.fs.shard_seconds(1, cell, "ict", "XAUUSD", [1.0, 1.0], 27, 1.0)
+        b = self.fs.shard_seconds(1, cell, "ict", "XAUUSD", [1.0, 1.0], 27, 2.0)
+        self.assertAlmostEqual(b - m["job_fixed_s"], 2 * (a - m["job_fixed_s"]), places=6)
+        # more bars, more value sets and more groups never cost less
+        small = dict(cell, timeframe="15m")
+        self.assertLess(self.fs.shard_seconds(1, small, "ict", "XAUUSD", [1.0], 5, 1.0),
+                        self.fs.shard_seconds(1, cell, "ict", "XAUUSD", [1.0], 5, 1.0))
+        self.assertLess(self.fs.shard_seconds(1, cell, "ict", "XAUUSD", [1.0], 5, 1.0),
+                        self.fs.shard_seconds(1, cell, "ict", "XAUUSD", [1.0], 27, 1.0))
+        self.assertLess(self.fs.shard_seconds(1, cell, "wyckoff", "XAUUSD", [1.0], 5, 1.0),
+                        self.fs.shard_seconds(1, cell, "wyckoff", "XAUUSD", [1.0, 1.0, 1.0], 5, 1.0))
+
+    def test_the_sets_of_every_wave_are_partitioned_exactly_by_the_slices(self):
+        self._plan_file()
+        plan = self.fs.load_plan()
+        rows = self.fs.shard_plan(plan)
+        grids, _ = self.fs.load_grids()
+        for cell in plan["cells"]:
+            for method in self.fs.METHODS:
+                g = grids[method].runnable()
+                want = {1: 1 + sum(len(x["candidates"]) for x in g.groups),
+                        2: self.fs.wave2_set_count(method, cell["n_folds"])}
+                for sym in cell["symbols"]:
+                    for wave in (1, 2):
+                        rs = [r for r in rows if (r["cell"], r["method"], r["symbol"], r["wave"]) == (cell["id"], method, sym, wave)]
+                        self.assertEqual(sum(r["sets"] for r in rs), want[wave], (cell["id"], method, sym, wave))
+                        self.assertTrue(all(r["sets"] >= 1 and r["groups"] >= 1 for r in rs))
+
+    def test_wave2_group_estimate_is_capped_and_never_below_one(self):
+        for method in ("ict", "wyckoff"):
+            cap = self.fs.SHARD_MODEL["max_groups"][method]
+            prev = 0
+            for k in (1, 2, 5, 17, 99, 400):
+                g = self.fs.wave2_groups_in_slice(method, k)
+                self.assertTrue(1 <= g <= min(k, cap))
+                self.assertGreaterEqual(g, prev)
+                prev = g
+        self.assertEqual(self.fs.wave2_groups_in_slice("ict", 400), 2)       # ICT has only B-POOL to vary
+
+    def test_the_model_says_which_constants_are_measured_and_which_assumed(self):
+        m = self.fs.SHARD_MODEL
+        listed = list(m["measured"]) + list(m["assumed"])
+        self.assertEqual(len(listed), len(set(listed)))                   # no constant is both
+        self.assertEqual(set(listed), set(m) - {"measured", "assumed"})   # and none is unlabelled
+        self.assertIn("docs/audits/2026-10-01-shard-calibration.md", self.fs.SHARD_MODEL_LABEL)
+        self.assertTrue(os.path.exists(os.path.join(ROOT, "docs", "audits", "2026-10-01-shard-calibration.md")))
+        self._plan_file()
+        text = self.fs.format_shard_table(self.fs.shard_plan(self.fs.load_plan()))
+        self.assertIn("MEASURED", text)
+        self.assertIn("ASSUMED", text)
+
+    def test_a_series_without_a_dev_bars_row_is_refused_by_name(self):
+        cell = {"timeframe": "15m", "dev_start_override": None}
+        with self.assertRaises(SystemExit) as cm:
+            self.fs.cell_bars(cell, "NOSUCH")
+        self.assertIn("DEV_BARS has no row for NOSUCH 15m", str(cm.exception))
+
+    def test_summary_reports_every_factor_with_the_same_layout(self):
+        self._plan_file()
+        plan = self.fs.load_plan()
+        rows = self.fs.shard_plan(plan)
+        summ = self.fs.shard_summary(plan, rows)
+        self.assertEqual(list(summ), ["1", "1.5", "2"])
+        self.assertEqual({v["shards"] for v in summ.values()}, {len(rows)})
+        self.assertLess(summ["1"]["runner_hours"], summ["1.5"]["runner_hours"])
+        self.assertLess(summ["1.5"]["runner_hours"], summ["2"]["runner_hours"])
+        self.assertLessEqual(summ["2"]["longest_shard_min"], self.fs.SHARD_MODEL["budget_s"] / 60)
+        self.assertGreater(summ["2"]["critical_path_min"], summ["2"]["longest_wave2_min"])
+        self.assertAlmostEqual(sum(v["runner_hours"] for v in summ["2"]["by_cell_method"].values()),
+                               summ["2"]["runner_hours"], delta=0.8)       # per-(cell, method) rounding to 0.1 h
+
     def test_the_slice_argument_is_validated(self):
         self.assertEqual(self.fs.parse_slice("2/5"), (2, 5))
         for bad in ("5/5", "-1/3", "a/b", "1", "0/0", "1/2/3"):
@@ -1853,6 +1967,12 @@ class ShardLayout(_Helpers):
             self.fs.main(["list-scan-shards", "--wave", "2"])
         rows = json.loads(buf.getvalue())
         self.assertTrue(rows and all(r["wave"] == 2 for r in rows))
+        for r in rows:                                    # a CI matrix entry: scalars only (no nested object)
+            self.assertFalse(any(isinstance(v, (dict, list)) for v in r.values()), r)
+            self.assertLessEqual(r["est_min_f2"], self.fs.SHARD_MODEL["budget_s"] / 60)
+            self.assertLessEqual(r["est_min_f1"], r["est_min_f1_5"])
+            self.assertLessEqual(r["est_min_f1_5"], r["est_min_f2"])
+            self.assertFalse(r["over_cap"])
 
     def test_the_workflow_uses_these_shards_within_the_cap(self):
         text = open(os.path.join(ROOT, ".github", "workflows", "fund-search.yml")).read()
@@ -1884,6 +2004,77 @@ def _write_slice_root(out_root, sym, tf, n_bars, end="2024-03-01T00:00:00Z"):
         with open(os.path.join(out_root, f"ohlcv.{sym}.{t}.json"), "w", encoding="utf-8") as fh:
             json.dump(sub, fh)
     return start, stop
+
+
+class ShardGroupModel(unittest.TestCase):
+    """The data-free detection-group keys the shard model uses (`wave1_group_info`) are what `scan_many` REALLY groups the
+    wave-1 value sets by: real scans of the harness's own engine over a real 7,000-bar 5m slice, the groups
+    captured from scan_many's own `_assemble` call. If this fails, the model's per-group / per-extra-set split is wrong."""
+
+    TF, SYM = "5m", "US500"
+
+    @classmethod
+    def setUpClass(cls):
+        if not os.path.isdir(os.path.join(ROOT, "data", "history", "ftmo", f"ohlcv.{cls.SYM}.{cls.TF}")):
+            raise unittest.SkipTest("data/history/ftmo is not present")
+        cls.tmp = tempfile.mkdtemp(prefix="shard-groups-")
+        cls.env = os.environ.get("BT_HISTORY_ROOT")
+        hist = os.path.join(cls.tmp, "hist")
+        cls.start, _stop = _write_slice_root(hist, cls.SYM, cls.TF, 7000)
+        os.environ["BT_HISTORY_ROOT"] = hist
+        cls.fs = _fs()
+        cls.grids, _ = cls.fs.load_grids()
+        cls.cell = {"id": "t", "development_start": "2012-05-03T05:38:00Z", "timeframe": cls.TF, "symbols": [cls.SYM],
+                    "asset_class": "indices", "n_folds": 2}
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.env is None:
+            os.environ.pop("BT_HISTORY_ROOT", None)
+        else:
+            os.environ["BT_HISTORY_ROOT"] = cls.env
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def _real_groups(self, method):
+        fs = self.fs
+        grid = self.grids[method].runnable()
+        eng = fs.BtEngine(grid, fs.METHODS[method], self.TF, [self.SYM], workers=1)
+        sets = fs.wave1_values(eng, grid, self.cell)
+        seen = []
+        real = fs.SM._assemble
+
+        def spy(bt, sym, tf, meth, src, S, groups, results, n_overlays):
+            seen.append([list(m) for m in groups.values()])
+            return real(bt, sym, tf, meth, src, S, groups, results, n_overlays)
+
+        with mock.patch.object(fs.SM, "_assemble", spy):
+            eng.scan_symbol(self.SYM, sets)
+        self.assertEqual(len(seen), 1)
+        return grid, len(sets), seen[0]
+
+    def _model_groups(self, grid, method):
+        info = self.fs.wave1_group_info(grid, method, self.cell, self.SYM)
+        by = {}
+        for i, (gid, _win) in enumerate(info):
+            by.setdefault(gid, []).append(i)
+        return info, sorted(by.values())
+
+    def test_ict_wave1_groups_match_scan_many(self):
+        grid, n, real = self._real_groups("ict")
+        info, model = self._model_groups(grid, "ict")
+        self.assertEqual(len(info), n)
+        self.assertEqual(sorted(real), model)
+        self.assertEqual(len(model), 2)                    # B-POOL off / on: the only analysis-affecting item of the grid
+        self.assertEqual(sorted(len(g) for g in model), [1, n - 1])
+
+    def test_wyckoff_wave1_groups_and_windows_match_scan_many(self):
+        grid, n, real = self._real_groups("wyckoff")
+        info, model = self._model_groups(grid, "wyckoff")
+        self.assertEqual(len(info), n)
+        self.assertEqual(sorted(real), model)
+        self.assertGreater(len(model), 5)                  # W6 / W4a / W-TW each open their own detection group
+        wins = {win for _gid, win in info}
+        self.assertEqual(wins, {300, 600})                 # the W6 = 600 window is told apart (it costs more)
 
 
 class _ScanCacheBase:
