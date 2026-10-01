@@ -38,8 +38,22 @@ struct Bucket { int v[]; };
 
 void OnStart()
 {
+   // v1.01 (2026-10-01): when Common\\Files\\export-list.txt exists its `symbols=` line overrides InpSymbols (same file as
+   // ExportHistory v1.02), so no long string has to be typed into the Inputs tab.
+   string symsCsv = InpSymbols;
+   int hl = FileOpen("export-list.txt", FILE_READ | FILE_TXT | FILE_COMMON | FILE_ANSI);
+   if(hl != INVALID_HANDLE)
+   {
+      while(!FileIsEnding(hl))
+      {
+         string ln = FileReadString(hl);
+         StringTrimLeft(ln); StringTrimRight(ln);
+         if(StringFind(ln, "symbols=") == 0) symsCsv = StringSubstr(ln, 8);
+      }
+      FileClose(hl);
+   }
    string syms[];
-   int n = StringSplit(InpSymbols, ',', syms);
+   int n = StringSplit(symsCsv, ',', syms);
    int offset = (int)(TimeCurrent() - TimeGMT());
    PrintFormat("ExportSymbolSpec: %d symbol(s), server=%s, server-GMT offset now=%d s, common folder=%s",
                n, AccountInfoString(ACCOUNT_SERVER), offset, TerminalInfoString(TERMINAL_COMMONDATA_PATH));
@@ -61,6 +75,9 @@ void ExportOne(string s, int offset)
 {
    MqlRates r[];
    ArraySetAsSeries(r, false);
+   SymbolSelect(s, true);
+   { MqlRates one[]; CopyRates(s, PERIOD_M15, 0, 1, one); int w = 0;
+     while(!(bool)SeriesInfoInteger(s, PERIOD_M15, SERIES_SYNCHRONIZED) && w < 8000) { Sleep(100); w += 100; } }
    int copied = CopyRates(s, PERIOD_M15, 0, InpBars, r);
    // per-UTC-hour buckets of recorded spread (points)
    int all[]; ArrayResize(all, MathMax(copied, 0));

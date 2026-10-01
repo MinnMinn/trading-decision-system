@@ -34,6 +34,12 @@
 // exactly (the chart's own symbol). Needed for the FTMO symbol-universe import
 // (docs/architecture/mt5-ftmo-symbol-universe-export.md): one script run per chart does not scale to ~100 symbols.
 // The file format and file names are unchanged.
+//
+// v1.02 (2026-10-01, UNTESTED in the GUI; compiles clean): FILE-DRIVEN MODE, because typing a long InpSymbols into the
+// Inputs tab proved unreliable. When InpSymbols is EMPTY and Common\\Files\\export-list.txt exists, the run reads it:
+//   line 1 (optional):  tf=5m,15m,30m,1H,4H,1D,1W     (the timeframes to export; overrides the Inp* booleans)
+//   line 2:             symbols=EURUSD,US500.cash,...  (comma list)
+// With no file and no InpSymbols the v1.00 behaviour (chart symbol only) is unchanged.
 
 input string InpSymbols  = "";      // v1.01: comma list, e.g. "EURUSD,US500.cash,BTCUSD". EMPTY = this chart's symbol only (v1.00)
 input int  InpSyncWaitMs = 5000;    // v1.01: per symbol+timeframe, max wait for the terminal to synchronise the series before copying
@@ -55,9 +61,20 @@ void OnStart()
    PrintFormat("ExportHistory: server=%s  current server-GMT offset=%d sec",
                AccountInfoString(ACCOUNT_SERVER), (int)(TimeCurrent() - TimeGMT()));
 
+   string symsCsv = InpSymbols, tfCsv = "";
+   if(StringLen(symsCsv) == 0) LoadList(symsCsv, tfCsv);
+   bool uW1 = InpW1, uD1 = InpD1, uH4 = InpH4, uH1 = InpH1, uM15 = InpM15, uM30 = InpM30, uM5 = InpM5, uM1 = InpM1;
+   if(StringLen(tfCsv) > 0)
+   {
+      string t = "," + tfCsv + ",";
+      uW1 = StringFind(t, ",1W,") >= 0;  uD1 = StringFind(t, ",1D,") >= 0;  uH4 = StringFind(t, ",4H,") >= 0;
+      uH1 = StringFind(t, ",1H,") >= 0;  uM15 = StringFind(t, ",15m,") >= 0; uM30 = StringFind(t, ",30m,") >= 0;
+      uM5 = StringFind(t, ",5m,") >= 0;  uM1 = StringFind(t, ",1m,") >= 0;
+      PrintFormat("ExportHistory: timeframes from export-list.txt: %s", tfCsv);
+   }
    string syms[];
    int n = 0;
-   if(StringLen(InpSymbols) > 0) n = StringSplit(InpSymbols, ',', syms);
+   if(StringLen(symsCsv) > 0) n = StringSplit(symsCsv, ',', syms);
    if(n <= 0) { ArrayResize(syms, 1); syms[0] = _Symbol; n = 1; }       // v1.00 behaviour
 
    for(int i = 0; i < n; i++)
@@ -71,18 +88,34 @@ void OnStart()
          continue;
       }
       PrintFormat("ExportHistory: [%d/%d] %s", i + 1, n, s);
-      if(InpW1)  ExportOne(s, PERIOD_W1,  "1W");
-      if(InpD1)  ExportOne(s, PERIOD_D1,  "1D");
-      if(InpH4)  ExportOne(s, PERIOD_H4,  "4H");
-      if(InpH1)  ExportOne(s, PERIOD_H1,  "1H");
-      if(InpM15) ExportOne(s, PERIOD_M15, "15m");
-      if(InpM30) ExportOne(s, PERIOD_M30, "30m");
-      if(InpM5)  ExportOne(s, PERIOD_M5,  "5m");
-      if(InpM1)  ExportOne(s, PERIOD_M1,  "1m");
+      if(uW1)  ExportOne(s, PERIOD_W1,  "1W");
+      if(uD1)  ExportOne(s, PERIOD_D1,  "1D");
+      if(uH4)  ExportOne(s, PERIOD_H4,  "4H");
+      if(uH1)  ExportOne(s, PERIOD_H1,  "1H");
+      if(uM15) ExportOne(s, PERIOD_M15, "15m");
+      if(uM30) ExportOne(s, PERIOD_M30, "30m");
+      if(uM5)  ExportOne(s, PERIOD_M5,  "5m");
+      if(uM1)  ExportOne(s, PERIOD_M1,  "1m");
    }
 
    Print("ExportHistory: done. Copy history.*.json out of the Common\\Files folder, "
          "then run scripts/import-mt5-history.py in the repo.");
+}
+
+// v1.02: read Common\\Files\\export-list.txt ("tf=..." and "symbols=..." lines).
+void LoadList(string &symsCsv, string &tfCsv)
+{
+   int h = FileOpen("export-list.txt", FILE_READ | FILE_TXT | FILE_COMMON | FILE_ANSI);
+   if(h == INVALID_HANDLE) return;
+   while(!FileIsEnding(h))
+   {
+      string line = FileReadString(h);
+      StringTrimLeft(line); StringTrimRight(line);
+      if(StringFind(line, "symbols=") == 0) symsCsv = StringSubstr(line, 8);
+      else if(StringFind(line, "tf=") == 0) tfCsv = StringSubstr(line, 3);
+   }
+   FileClose(h);
+   PrintFormat("ExportHistory: export-list.txt read: symbols=%s", symsCsv);
 }
 
 // v1.01: ask for one bar first (that is what starts the terminal's download of this symbol+timeframe) and wait
