@@ -82,8 +82,14 @@ event, and thresholds may only be tightened.
     records `SIM_LAST["refused"]["zero_risk"]` (by cause in `SIM_LAST["zero_risk_by_cause"]`) and the harness records, per
     value set and per test fold, `refused_zero_risk` next to `candidates` / `refused_min_rr` in the record's `admission`
     block and in the report line "planned-risk admission". A refused candidate is never entered, never occupies the
-    one-position-per-symbol slot and never produces an R. Every trade with a valid stop distance is unchanged (trade-list
-    sha256 BEFORE == AFTER on slices without one; the difference on an affected slice is exactly the refused candidates).
+    one-position-per-symbol slot and never produces an R. Every trade with a valid stop distance is unchanged: this is
+    DEMONSTRATED FOR THE ZERO BRANCH (trade-list sha256 BEFORE == AFTER on slices without a zero-risk candidate; the
+    difference on an affected slice is exactly the refused candidates). The `sub_tick` branch is a defensive guard
+    that is not idle but is confined: on the data counted it refused candidates only in `B-EX=fill` + `B-BUF` value sets (an
+    off-grid ATR-buffered stop within a fraction of a tick of the far-edge entry: XAGUSD 1m up to 395 in one set, XAUUSD 1m 10,
+    XAUUSD 5m 4, none elsewhere; per-year counts in the audit) and none in the baseline value set; the other strict sub-tick
+    cases found were one tick plus floating-point noise and are admitted by the 1e-6 slack. The equivalence evidence covers the
+    ZERO branch only, and a `sub_tick` refusal in the BASELINE value set would be a method change (none seen).
     The rule changes no threshold, grid, cell, min_rr or statistic and does not change `plan_hash`; it changes pinned files
     `backtest-methods.py`, `real_costs.py`, `fund-search.py`.
 

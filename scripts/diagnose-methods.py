@@ -549,7 +549,13 @@ def after_floor(bt, sr, cfg, method, trades):
     eot = sr.entry_order_type_for(sr.CONFIGS[cfg], method)
     final, curve, taken = bt.simulate(trades, fee, entry_order_type=eot, live_parity_sizing=True)
     passing = 0
+    refused_zero_risk = 0
     for t in trades:
+        # item 12: a candidate with no valid stop distance (fx_b_ex=fill can produce entry == stop) is not an order;
+        # simulate() above refused it, and the fee re-derivation below must not divide by its zero distance.
+        if bt.planned_risk_refusal(t.get("side"), t.get("entry"), t.get("stop")) is not None:
+            refused_zero_risk += 1
+            continue
         dist = abs(t["entry"] - t["stop"]) / t["entry"]
         venue = bt._venue_for_symbol(t["symbol"])
         try:
@@ -558,7 +564,7 @@ def after_floor(bt, sr, cfg, method, trades):
             fee_R = 2 * fee / dist
         passing += (t.get("R_planned", 99) - fee_R) >= bt.OPTS["min_rr"] if bt.OPTS.get("min_rr") is not None else True
     nets = [t["net_R"] for t in taken]
-    return dict(booked=len(trades), pass_rr_floor_net_inferred=passing, simulate_taken=len(taken),
+    return dict(booked=len(trades), refused_zero_risk=refused_zero_risk, pass_rr_floor_net_inferred=passing, simulate_taken=len(taken),
                 simulate_taken_mean_net_R=round(statistics.fmean(nets), 3) if nets else None,
                 simulate_taken_win_rate=round(sum(x > 0 for x in nets) / len(nets), 3) if nets else None,
                 simulate_ruin=bt.SIM_LAST.get("ruin"), fee_per_side=fee, entry_order_type=eot)

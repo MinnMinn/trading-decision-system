@@ -9,7 +9,7 @@ import sys
 
 CELL = {("1m", "XAUUSD"): "1m-metals", ("1m", "XAGUSD"): "1m-metals", ("5m", "XAUUSD"): "5m-metals",
         ("5m", "XAGUSD"): "5m-metals", ("5m", "XPTUSD"): "5m-metals", ("5m", "XPDUSD"): "5m-metals"}
-CATS = ("zero", "wrong_side", "sub_tick", "invalid_price", "bad_planned_r", "non_finite", "negative")
+CATS = ("zero", "wrong_side", "sub_tick", "invalid_price", "strict_below_tick_admitted", "bad_target_or_planned_r")
 
 
 def main(paths):

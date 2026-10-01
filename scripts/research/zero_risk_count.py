@@ -3,7 +3,7 @@
 
 Counts ONLY: how many RAW scanned trades (the output of `bt.scan` / `scan_many`, exactly what BtEngine.trades_for feeds
 to `real_costs.cost_r` and `simulate()`) have a planned risk |entry - stop| that is zero, negative (stop on the wrong
-side), non-finite, or positive but below the symbol's tick (`point` of its real-cost spec) -- per (method, symbol,
+side), non-finite, or positive but below the symbol's tick (`tick_size` of its real-cost spec) -- per (method, symbol,
 timeframe, value set, year). It never reads, prints or stores R, expectancy or any performance figure, and it never
 calls `simulate()`/`cost_r` (that is what aborts on a zero-risk trade). Nothing here selects, evaluates or changes any
 engine/harness/grid/threshold.
@@ -70,22 +70,21 @@ def fill_combo_sets(grid):
     return out
 
 
-def classify(t, point):
-    """The refusal categories of ONE raw trade, by its own entry / stop / target (no R is read)."""
-    e, s = t.get("entry"), t.get("stop")
-    tg, rp = t.get("target"), t.get("R_planned")
-    vals = (e, s, tg)
-    if any(not isinstance(v, (int, float)) or not math.isfinite(v) for v in vals):
-        return "non_finite"
+def classify(t, tick, refusal):
+    """The category of ONE raw trade (no R is read). `refusal` is `backtest-methods.planned_risk_refusal` -- the SAME
+    function simulate() and the harness apply -- so zero / wrong_side / sub_tick / invalid_price are the rule's own refusals.
+    Two extra, non-refusal categories: `strict_below_tick_admitted` (0 < risk < tick in plain floating point but within the
+    rule's slack of exactly one tick: float noise, ADMITTED) and `bad_target_or_planned_r` (not a rule refusal)."""
+    why = refusal(t.get("side"), t.get("entry"), t.get("stop"), tick)
+    if why is not None:
+        return why
+    e, s = t["entry"], t["stop"]
     risk = (e - s) if t["side"] == "long" else (s - e)
-    if risk == 0:
-        return "zero"
-    if risk < 0:
-        return "negative"
-    if point is not None and risk < point:
-        return "sub_tick"
-    if rp is None or not isinstance(rp, (int, float)) or not math.isfinite(rp):
-        return "bad_planned_r"
+    if tick is not None and risk < tick:
+        return "strict_below_tick_admitted"
+    tg, rp = t.get("target"), t.get("R_planned")
+    if any(not isinstance(v, (int, float)) or not math.isfinite(v) for v in (tg, rp)):
+        return "bad_target_or_planned_r"
     return "ok"
 
 
@@ -98,7 +97,7 @@ def run_job(job, workers=1):
     bt = fs._load_bt()
     runner = fs.METHODS[method]
     import real_costs as _RC
-    point = _RC.spec(fs.COST_PROFILE, sym).get("point")
+    point = _RC.tick_size(fs.COST_PROFILE, sym)     # the tick the rule uses
     real_load = bt.load
     info = {}
 
@@ -130,7 +129,7 @@ def run_job(job, workers=1):
                 continue
             y = t["entry_time"][:4]
             counts[label][(y, "n")] += 1
-            cat = classify(t, point)
+            cat = classify(t, point, bt.planned_risk_refusal)
             if cat != "ok":
                 counts[label][(y, cat)] += 1
     out = {}

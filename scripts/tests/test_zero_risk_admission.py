@@ -75,6 +75,34 @@ class PlannedRiskRefusal(unittest.TestCase):
         self.assertIsNone(self.f("long", 4053.6, 4053.59, 0.01))
         self.assertIsNone(self.f("long", 1.2346, 1.2345, 0.0001))
 
+    def test_slack_boundary_decisions(self):
+        """Documented decisions at the edge of `risk < tick * (1 - RISK_TICK_REL_TOL)` (tol = 1e-6):
+          * risk == tick                 -> ADMITTED (a one-tick stop is placeable);
+          * risk == tick * (1 - 1e-6)    -> ADMITTED (the comparison is strict `<`: the boundary itself is the slack's
+                                            last admitted value, so float noise on a one-tick stop can never refuse it);
+          * risk == tick * (1 - 2e-6)    -> REFUSED `sub_tick` (beyond the slack: a genuinely smaller stop)."""
+        factor = {0.0: 1.0, 1e-6: 1 - 1e-6, 2e-6: 1 - 2e-6}
+        for side in ("long", "short"):
+            for rel, want in ((0.0, None), (1e-6, None), (2e-6, "sub_tick")):
+                entry = 1.0
+                for guess in (1.999999, 1.9999995, 1.9999990000000001, 1.5):     # a risk r = stop - entry, exact (Sterbenz)
+                    r = guess - entry
+                    # a tick with tick * (1 - rel) == r bit for bit, found by stepping the float neighbours of r / factor
+                    tick = r / factor[rel]
+                    for _ in range(64):
+                        if tick * factor[rel] == r:
+                            break
+                        tick = math.nextafter(tick, math.inf if tick * factor[rel] < r else -math.inf)
+                    if tick * factor[rel] == r:
+                        break
+                else:
+                    self.fail("no exact boundary tick found")
+                # long: entry = 1.0 + r, stop = 1.0 (risk = entry - stop = r exactly); short: entry = 1.0, stop = 1.0 + r
+                e, st = (1.0 + r, 1.0) if side == "long" else (1.0, 1.0 + r)
+                risk = (e - st) if side == "long" else (st - e)
+                self.assertEqual(risk, tick * factor[rel], (side, rel))
+                self.assertEqual(self.f(side, e, st, tick), want, (side, rel))
+
     def test_nan_inf_none_and_non_numbers_are_refused_not_raised(self):
         for bad in (float("nan"), float("inf"), float("-inf"), None, "abc", [], {}):
             self.assertEqual(self.f("long", 2000.0, bad, 0.01), "invalid_price", bad)
