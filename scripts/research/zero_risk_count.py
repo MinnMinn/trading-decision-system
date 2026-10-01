@@ -117,6 +117,8 @@ def run_job(job, workers=1):
     t0 = time.time()
     eng = fs.BtEngine(grid, runner, tf, [sym], bt=bt, workers=workers)
     sets = single_factor_sets(grid) + (fill_combo_sets(grid) if method == "ict" else [])
+    if job.get("labels"):          # restrict to named sets (e.g. the Wyckoff sets sharing the baseline detection group)
+        sets = [x for x in sets if x[0] in job["labels"]]
     eng.prefetch([v for _l, v in sets])
     counts = collections.defaultdict(collections.Counter)      # label -> Counter(("year", category) | ("n", year))
     for label, values in sets:
