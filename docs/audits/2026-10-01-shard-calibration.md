@@ -25,10 +25,10 @@ fingerprint: do any recalibration BEFORE `declare`. Other files: `scripts/tests/
    the analysis-affecting keys. With the real grids, wave 1 has **2 detection groups for the 27 ICT sets** (only B-POOL varies: 26 + 1) and **9 groups
    for the 14 Wyckoff sets** (6 + 8 singletons: W4a x2, W6 = 600, W-TW x5). ICT extra sets are cheap (3-13 % of a group), Wyckoff extra sets are free (a new set
    almost always opens a new group, which costs a full scan; the W6 = 600 group costs 1.3-1.9x a default-window group).
-3. **Layout now (factor 2.0 slow-runner assumption): 164 shards, no shard over 300 modelled minutes (longest 291 min), 405.8 runner-hours** (the old model: 212 shards,
-   40,485 minutes = 675 runner-hours, longest 274 min). At factor 1.0 the same layout costs 211.7 runner-hours (longest 148 min), at 1.5 it costs 308.4 (longest 220 min).
-4. **1m metals is 87 % of the work** (184 of 212 runner-hours at factor 1.0, 88 of the 164 shards) because the memory clamp runs it with ONE worker per shard.
-   The other ten (cell, method) rows are 28 runner-hours together.
+3. **Layout now (factor 2.0 slow-runner assumption): 124 shards, no shard over 300 modelled minutes (longest 291 min), 400.0 runner-hours** (the old model: 212 shards,
+   40,485 minutes = 675 runner-hours, longest 274 min). At factor 1.0 the same layout costs 206.8 runner-hours (longest 148 min), at 1.5 it costs 303.1 (longest 220 min). This is the declared THREE-cell plan (1m-metals, 1m-indices, 5m-metals incl. XPTUSD/XPDUSD; plan_hash 4a476bee674afcbb, windows-migration 3cc3ba2 merged into this branch).
+4. **1m metals is 89 % of the work** (184 of 207 runner-hours at factor 1.0, 88 of the 124 shards) because the memory clamp runs it with ONE worker per shard.
+   The other four (cell, method) rows are 23 runner-hours together.
 5. **Honest uncertainty:** the runner's per-core speed relative to this Mac is UNKNOWN and scales every figure linearly; the full 12-year 1m scans were not run (the cost is extrapolated from
    one-year slices; linearity was verified up to 4 years); wave 2 depends on the selection and was measured on 8 real folds only. See section 7.
 6. **Finding outside the brief (section 8): `trades_for` raises on a real ICT 1m value set.** `B-EX = fill` produces trades whose entry price equals their stop on the
@@ -395,15 +395,15 @@ The slice count of every (cell, method, symbol, wave) is the smallest for which 
 
 ## 5. Results
 
-Layout fixed at the slow-runner factor 2.0 (`list-scan-shards` JSON: 164 shards, 58 wave 1 + 106 wave 2; every row has `est_min_f1`, `est_min_f1_5`, `est_min_f2`, `groups`, `over_cap`). The same layout evaluated at each factor:
+Layout fixed at the slow-runner factor 2.0 (`list-scan-shards` JSON: 124 shards, 38 wave 1 + 86 wave 2; every row has `est_min_f1`, `est_min_f1_5`, `est_min_f2`, `groups`, `over_cap`). The same layout evaluated at each factor:
 
 | factor | shards | runner-hours | longest shard | critical path (plan + longest wave 1 + longest wave 2 + longest evaluate) |
 |---|---|---|---|---|
-| 1 | 164 | 211.7 | 148 min | 300 min (135 + 148 + 12) |
-| 1.5 | 164 | 308.4 | 220 min | 441 min (200 + 220 + 16) |
-| 2 | 164 | 405.8 | 291 min | 579 min (264 + 291 + 19) |
+| 1 | 124 | 206.8 | 148 min | 300 min (135 + 148 + 12) |
+| 1.5 | 124 | 303.1 | 220 min | 441 min (200 + 220 + 16) |
+| 2 | 124 | 400.0 | 291 min | 579 min (264 + 291 + 19) |
 
-(The old model, 8-cell/6-cell uncalibrated: 212 shards, 675 runner-hours, longest 274 min.) The critical path assumes unlimited concurrent runners; the workflow's `needs` are per job, so every cell waits for the slowest cell of the previous stage.
+(The old uncalibrated model on the 6-cell plan: 212 shards, 675 runner-hours, longest 274 min; the plan has since been cut to 3 cells.) The critical path assumes unlimited concurrent runners; the workflow's `needs` are per job, so every cell waits for the slowest cell of the previous stage.
 
 ### Per (cell, method)
 
@@ -413,14 +413,8 @@ Layout fixed at the slow-runner factor 2.0 (`list-scan-shards` JSON: 164 shards,
 | 1m-metals | wyckoff | 62 (14 + 48) | 125.2 | 183.9 | 243.4 | 128 / 188 / 249 | 12 |
 | 1m-indices | ict | 10 (5 + 5) | 4.7 | 6.5 | 8.3 | 51 / 73 / 95 | 11 |
 | 1m-indices | wyckoff | 10 (5 + 5) | 6.7 | 9.6 | 12.4 | 81 / 119 / 156 | 9 |
-| 5m-metals | ict | 4 (2 + 2) | 4.2 | 6.0 | 7.9 | 105 / 154 / 203 | 11 |
-| 5m-metals | wyckoff | 4 (2 + 2) | 3.4 | 4.9 | 6.4 | 91 / 133 / 175 | 9 |
-| 5m-indices | ict | 10 (5 + 5) | 1.8 | 2.1 | 2.5 | 15 / 19 / 23 | 7 |
-| 5m-indices | wyckoff | 10 (5 + 5) | 1.6 | 1.9 | 2.2 | 15 / 19 / 23 | 7 |
-| 15m-metals | ict | 4 (2 + 2) | 1.3 | 1.8 | 2.2 | 29 / 40 / 51 | 8 |
-| 15m-metals | wyckoff | 4 (2 + 2) | 1.4 | 1.9 | 2.4 | 34 / 49 / 63 | 8 |
-| 15m-indices | ict | 10 (5 + 5) | 1.2 | 1.3 | 1.5 | 8 / 9 / 11 | 7 |
-| 15m-indices | wyckoff | 10 (5 + 5) | 1.2 | 1.3 | 1.4 | 9 / 10 / 12 | 7 |
+| 5m-metals | ict | 8 (4 + 4) | 6.2 | 8.8 | 11.5 | 105 / 154 / 204 | 13 |
+| 5m-metals | wyckoff | 8 (4 + 4) | 5.1 | 7.2 | 9.3 | 91 / 133 / 175 | 11 |
 
 ### Wall time with a limited number of concurrent jobs
 
@@ -456,20 +450,20 @@ Greedy longest-first scheduling of each stage's shards on N identical runners; s
 | 1m-indices | wyckoff | US30 | 2 | 1 | 31-31 | 16 | 156 |
 | 5m-metals | ict | XAUUSD | 1 | 1 | 27-27 | 2 | 59 |
 | 5m-metals | ict | XAGUSD | 1 | 1 | 27-27 | 2 | 49 |
-| 5m-metals | ict | XAUUSD | 2 | 1 | 192-192 | 2 | 203 |
-| 5m-metals | ict | XAGUSD | 2 | 1 | 192-192 | 2 | 164 |
+| 5m-metals | ict | XPTUSD | 1 | 1 | 27-27 | 2 | 26 |
+| 5m-metals | ict | XPDUSD | 1 | 1 | 27-27 | 2 | 25 |
+| 5m-metals | ict | XAUUSD | 2 | 1 | 192-192 | 2 | 204 |
+| 5m-metals | ict | XAGUSD | 2 | 1 | 192-192 | 2 | 165 |
+| 5m-metals | ict | XPTUSD | 2 | 1 | 192-192 | 2 | 81 |
+| 5m-metals | ict | XPDUSD | 2 | 1 | 192-192 | 2 | 79 |
 | 5m-metals | wyckoff | XAUUSD | 1 | 1 | 14-14 | 9 | 36 |
 | 5m-metals | wyckoff | XAGUSD | 1 | 1 | 14-14 | 9 | 30 |
+| 5m-metals | wyckoff | XPTUSD | 1 | 1 | 14-14 | 9 | 17 |
+| 5m-metals | wyckoff | XPDUSD | 1 | 1 | 14-14 | 9 | 17 |
 | 5m-metals | wyckoff | XAUUSD | 2 | 1 | 132-132 | 36 | 175 |
 | 5m-metals | wyckoff | XAGUSD | 2 | 1 | 132-132 | 36 | 142 |
-| 5m-indices | ict | US30 | 1 | 1 | 27-27 | 2 | 19 |
-| 5m-indices | ict | US30 | 2 | 1 | 45-45 | 2 | 23 |
-| 5m-indices | wyckoff | US30 | 1 | 1 | 14-14 | 9 | 13 |
-| 5m-indices | wyckoff | US30 | 2 | 1 | 31-31 | 16 | 23 |
-| 15m-indices | ict | US30 | 1 | 1 | 27-27 | 2 | 10 |
-| 15m-indices | ict | US30 | 2 | 1 | 45-45 | 2 | 11 |
-| 15m-indices | wyckoff | US30 | 1 | 1 | 14-14 | 9 | 8 |
-| 15m-indices | wyckoff | US30 | 2 | 1 | 31-31 | 16 | 12 |
+| 5m-metals | wyckoff | XPTUSD | 2 | 1 | 132-132 | 36 | 71 |
+| 5m-metals | wyckoff | XPDUSD | 2 | 1 | 132-132 | 36 | 69 |
 
 ### `list-scan-shards --explain` (layout factor 2.0)
 
@@ -505,61 +499,21 @@ cell        method  symbol  wave slices  sets groups  longest shard  over 300 mi
 1m-indices  wyckoff FRA40   2         1    31     16         83 min   no
 5m-metals   ict     XAUUSD  1         1    27      2         59 min   no
 5m-metals   ict     XAGUSD  1         1    27      2         49 min   no
-5m-metals   ict     XAUUSD  2         1   192      2        203 min   no
-5m-metals   ict     XAGUSD  2         1   192      2        164 min   no
+5m-metals   ict     XPTUSD  1         1    27      2         26 min   no
+5m-metals   ict     XPDUSD  1         1    27      2         25 min   no
+5m-metals   ict     XAUUSD  2         1   192      2        204 min   no
+5m-metals   ict     XAGUSD  2         1   192      2        165 min   no
+5m-metals   ict     XPTUSD  2         1   192      2         81 min   no
+5m-metals   ict     XPDUSD  2         1   192      2         79 min   no
 5m-metals   wyckoff XAUUSD  1         1    14      9         36 min   no
 5m-metals   wyckoff XAGUSD  1         1    14      9         30 min   no
+5m-metals   wyckoff XPTUSD  1         1    14      9         17 min   no
+5m-metals   wyckoff XPDUSD  1         1    14      9         17 min   no
 5m-metals   wyckoff XAUUSD  2         1   132     36        175 min   no
 5m-metals   wyckoff XAGUSD  2         1   132     36        142 min   no
-5m-indices  ict     US500   1         1    27      2         13 min   no
-5m-indices  ict     US30    1         1    27      2         19 min   no
-5m-indices  ict     USTEC   1         1    27      2         13 min   no
-5m-indices  ict     DE40    1         1    27      2         12 min   no
-5m-indices  ict     FRA40   1         1    27      2         13 min   no
-5m-indices  ict     US500   2         1    45      2         15 min   no
-5m-indices  ict     US30    2         1    45      2         23 min   no
-5m-indices  ict     USTEC   2         1    45      2         15 min   no
-5m-indices  ict     DE40    2         1    45      2         14 min   no
-5m-indices  ict     FRA40   2         1    45      2         15 min   no
-5m-indices  wyckoff US500   1         1    14      9         10 min   no
-5m-indices  wyckoff US30    1         1    14      9         13 min   no
-5m-indices  wyckoff USTEC   1         1    14      9         10 min   no
-5m-indices  wyckoff DE40    1         1    14      9          9 min   no
-5m-indices  wyckoff FRA40   1         1    14      9         10 min   no
-5m-indices  wyckoff US500   2         1    31     16         15 min   no
-5m-indices  wyckoff US30    2         1    31     16         23 min   no
-5m-indices  wyckoff USTEC   2         1    31     16         15 min   no
-5m-indices  wyckoff DE40    2         1    31     16         14 min   no
-5m-indices  wyckoff FRA40   2         1    31     16         15 min   no
-15m-metals  ict     XAUUSD  1         1    27      2         22 min   no
-15m-metals  ict     XAGUSD  1         1    27      2         19 min   no
-15m-metals  ict     XAUUSD  2         1   192      2         51 min   no
-15m-metals  ict     XAGUSD  2         1   192      2         42 min   no
-15m-metals  wyckoff XAUUSD  1         1    14      9         15 min   no
-15m-metals  wyckoff XAGUSD  1         1    14      9         13 min   no
-15m-metals  wyckoff XAUUSD  2         1   132     36         63 min   no
-15m-metals  wyckoff XAGUSD  2         1   132     36         51 min   no
-15m-indices ict     US500   1         1    27      2          8 min   no
-15m-indices ict     US30    1         1    27      2         10 min   no
-15m-indices ict     USTEC   1         1    27      2          8 min   no
-15m-indices ict     DE40    1         1    27      2          8 min   no
-15m-indices ict     FRA40   1         1    27      2          8 min   no
-15m-indices ict     US500   2         1    45      2          9 min   no
-15m-indices ict     US30    2         1    45      2         11 min   no
-15m-indices ict     USTEC   2         1    45      2          9 min   no
-15m-indices ict     DE40    2         1    45      2          8 min   no
-15m-indices ict     FRA40   2         1    45      2          9 min   no
-15m-indices wyckoff US500   1         1    14      9          7 min   no
-15m-indices wyckoff US30    1         1    14      9          8 min   no
-15m-indices wyckoff USTEC   1         1    14      9          7 min   no
-15m-indices wyckoff DE40    1         1    14      9          7 min   no
-15m-indices wyckoff FRA40   1         1    14      9          7 min   no
-15m-indices wyckoff US500   2         1    31     16          9 min   no
-15m-indices wyckoff US30    2         1    31     16         12 min   no
-15m-indices wyckoff USTEC   2         1    31     16          9 min   no
-15m-indices wyckoff DE40    2         1    31     16          9 min   no
-15m-indices wyckoff FRA40   2         1    31     16          9 min   no
-total shards: 164; modelled runner minutes at factor 2: 24346
+5m-metals   wyckoff XPTUSD  2         1   132     36         71 min   no
+5m-metals   wyckoff XPDUSD  2         1   132     36         69 min   no
+total shards: 124; modelled runner minutes at factor 2: 23999
 model constants: MEASURED (group_s_per_bar, extra_set_s_per_bar, call_fixed_s, w600_group_factor, max_groups, parallel_efficiency, task_overhead_s_per_bar, engine_build_s_per_bar, trades_per_bar, cache_verify_s_per_trade, trades_for_s_per_trade, WAVE2_SETS_PER_FOLD, WAVE2_GROUPS_PER_SET, WAVE2_W600_GROUP_SHARE; docs/audits/2026-10-01-shard-calibration.md) | ASSUMED (runner_vcpu, runner_ram_bytes, job_fixed_s, plan_job_min, cache_entry_s, select_s_per_fold, layout_factor, report_factors, budget_s, job_timeout_min; the runner-speed factor is a parameter, never a measurement)
 ```
 
@@ -568,17 +522,17 @@ model constants: MEASURED (group_s_per_bar, extra_set_s_per_bar, call_fixed_s, w
 1. **Run everything on Actions, 1m metals first in priority, but calibrate the runner BEFORE `declare`.** The model is linear in the runner factor and the layout depends on it; the factor is the one thing that was not measured. Before `declare` (the constants live in the pinned file), run
    one short, declaration-free benchmark on an `ubuntu-latest` runner (a throwaway workflow_dispatch or a container; not part of the evaluation): `python3 scripts/research/shard_calibration.py job '{"kind":"scan","method":"ict","symbol":"XAUUSD","tf":"5m","slice":"S3","sets":["base"]}'` (84 s here)
    and the same with `"method":"wyckoff"` (21 s here), plus `{"kind":"load","symbol":"XAUUSD","tf":"1m"}` (9.3 s load, 3.4 GiB here). The ratio of the runner's seconds to these is the factor; set `SHARD_MODEL["layout_factor"]` to it (rounded up) and re-run `list-scan-shards --explain` once, then `declare`.
-2. **Cells.** Actions is where 1m metals (ICT 26 shards, Wyckoff 62; ~87 % of the work) pays off: on this Mac (10 workers clamped to ~5 by the 36 GB memory rule) the same cells take about 43 h of wall time (model: ICT 13 h + Wyckoff 31 h at factor 1.0, per-job overhead removed), on Actions about 5-10 h critical path if enough jobs run at once.
-   The other ten rows (1m indices, 5m, 15m; 28 runner-hours at factor 1.0, 76 shards) take about 3 h on this Mac (10 workers) and could be run locally while the 1m metals shards run on Actions; running them through the same workflow keeps one provenance path (one commit, one artifact lineage), which I recommend unless Actions concurrency turns out to be low.
+2. **Cells.** Actions is where 1m metals (ICT 26 shards, Wyckoff 62; ~89 % of the work) pays off: on this Mac (10 workers clamped to ~5 by the 36 GB memory rule) the same cells take about 43 h of wall time (model: ICT 13 h + Wyckoff 31 h at factor 1.0, per-job overhead removed), on Actions about 5-10 h critical path if enough jobs run at once.
+   The other four rows (1m indices, 5m metals; 23 runner-hours at factor 1.0, 36 shards) take about 2 h on this Mac (10 workers) and could be run locally while the 1m metals shards run on Actions; running them through the same workflow keeps one provenance path (one commit, one artifact lineage), which I recommend unless Actions concurrency turns out to be low.
    Any shard that fails or times out can be re-run locally with `fund-search.py scan ... --slice I/N`: slicing never changes a value.
-3. **Expected total wall time** (all 12 rows, the model above): **5.0 h / 7.3 h / 9.7 h** at factors 1.0 / 1.5 / 2.0 with unlimited concurrency; 6.8 / 9.9 / 13.1 h with 60 concurrent jobs; 11.3 / 16.6 / 21.9 h with 20. Total runner-hours 212 / 308 / 406. Add queueing and retries.
+3. **Expected total wall time** (all 6 rows of the 3-cell plan): **5.0 h / 7.3 h / 9.7 h** at factors 1.0 / 1.5 / 2.0 with unlimited concurrency; 6.8 / 9.9 / 13.1 h with 60 concurrent jobs; 11.3 / 16.6 / 21.9 h with 20. Total runner-hours 207 / 303 / 400. Add queueing and retries.
 4. **Do not rely on the minute figures beyond a factor of ~2 either way**: see section 7. The layout, not the minutes, is the deliverable: it makes no shard modelled over 300 min at factor 2.0, i.e. a runner up to 2x slower than this Mac still finishes every shard inside GitHub's 360 min cap with ~55 min to spare.
-5. **Optional, not done (pinned files / out of scope):** (a) group-aware slicing of the ICT lists (put the B-POOL = off and = on sets in different slices) would save one group pass per slice, ~25 % of the ICT 1m-metals runner-hours; (b) raising `scan_many.MEMORY_FRACTION` would give 1m metals 2 workers (~1.6x on ~87 % of the work) at a memory risk for Wyckoff;
+5. **Optional, not done (pinned files / out of scope):** (a) group-aware slicing of the ICT lists (put the B-POOL = off and = on sets in different slices) would save one group pass per slice, ~25 % of the ICT 1m-metals runner-hours; (b) raising `scan_many.MEMORY_FRACTION` would give 1m metals 2 workers (~1.6x on ~89 % of the work) at a memory risk for Wyckoff;
    (c) a bar-range split below one value set is not needed in this model (the irreducible unit, a Wyckoff W6 = 600 group on 1m metals, is 145 min including the job overhead at factor 2.0; a single ICT set is 95 min).
 
 ## 7. Assumptions and honest uncertainty
 
-* **Runner speed (dominant, unknown).** Every shard figure scales linearly with the factor; the layout was made for 2.0. A hosted `ubuntu-latest` core can be slower than an M3 core by more than 2x (I have no measurement). Its 4 vCPUs are probably hyper-threads, so 4 parallel workers may reach less than the 0.77-0.88 efficiency measured on 4 real cores (affects the cells that run 4 workers, ~13 % of the runner-hours).
+* **Runner speed (dominant, unknown).** Every shard figure scales linearly with the factor; the layout was made for 2.0. A hosted `ubuntu-latest` core can be slower than an M3 core by more than 2x (I have no measurement). Its 4 vCPUs are probably hyper-threads, so 4 parallel workers may reach less than the 0.77-0.88 efficiency measured on 4 real cores (affects the cells that run 4 workers, ~11 % of the runner-hours).
 * **Extrapolation to the full span.** Slices of 1 year, 11x shorter than the 1m metals series; linear to 4 years (ICT 1m), 3 years (5m), 10 years (15m), 2 years (Wyckoff 1m). A superlinear component beyond that would make 1m metals dearer; none was observed.
 * **Position average (Wyckoff metals).** From 6-8 one-year slices; the per-slice cost varies 0.41-1.36 ms/bar at 1m (a +/-15 % uncertainty on the mean). The indices use the last-year (maximal-prefix) cost, which is conservative.
 * **Wave 2 (about 70 % of the runner-hours).** 8 real folds on three cell shapes; the 1m cells and the 9-17-fold cells were not measured (their per-fold count is the same measured mean; a de-duplication across many folds would lower it, the audit's zero-edge counts suggest 8.7-10.8 for ICT). Treat the wave-2 sizes as +/-25 %.
@@ -606,8 +560,8 @@ recorded as "FAILING LOUD" for the whole candidate, so the 1m-metals and 1m-indi
 **This needs an owner decision** (engine fix behind an `fx_` key, a refusal-to-trade rule for a zero stop, or dropping the value) before `declare`; I did not change the engine or the grid. Reproduction: the job above (1m XAUUSD S3: ~25 min for 27 sets) or `entry_eq_stop` with `"sets":["w1:2"]` (the `B-EX = fill` set).
 A fix inside `scripts/backtest-methods.py` would change the code fingerprint and any scan made before it.
 
-**B. New symbols (b15, `bf69cc0`) have no `DEV_BARS` rows.** `cell_bars` now fails with a message that names the missing row instead of a bare `KeyError`. To add the rows after the merge: run
-`python3 scripts/research/shard_calibration.py job '{"kind":"bars","symbols":["XPTUSD","XPDUSD","UK100","EU50","JP225","HK50","AUS200","US2000","SPN35","N25"],"tfs":["1m","5m","15m"]}'` on the real data. It loads each PIT-truncated series (`bt.pit_cutoff(DEV_CUTOFF)`, then `bt.load`)
+**B. New symbols had no `DEV_BARS` rows.** The 3-cell plan needs XPTUSD and XPDUSD at 5m: measured PIT-truncated counts 494,217 and 480,765 (first bars 2015-01-06) were added, a test now asserts every symbol of every declared cell has a row (the synthetic-row monkeypatch in the test fixture was removed), and `cell_bars` fails with a message naming the missing row instead of a bare `KeyError`. For any further symbol: run
+`python3 scripts/research/shard_calibration.py job '{"kind":"bars","symbols":["<SYMBOL>"],"tfs":["1m","5m","15m"]}'` on the real data. It loads each PIT-truncated series (`bt.pit_cutoff(DEV_CUTOFF)`, then `bt.load`)
 and prints `bars`, `first_bar` and the committed `DEV_BARS` value; paste the `bars` into the `DEV_BARS` dict (`1m`/`5m`/`15m` -> symbol -> count) of `scripts/fund-search.py`. The same job reproduced all 21 existing rows exactly (`bars-check.json`), so the audit's table and this method agree. The group rates for the new symbols are not measured: the model would use the metals/indices
 rate of the symbol's asset class; for a precision beyond that, measure one baseline slice per new symbol with the `scan` job. If a new symbol's cell sets `dev_start`, `cell_bars` already scales by the kept share of the span.
 

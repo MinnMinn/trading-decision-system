@@ -41,6 +41,7 @@ def _fs():
     return mod
 
 
+_REAL_DEV_BARS = {tf: dict(rows) for tf, rows in _fs().DEV_BARS.items()}      # the committed table, before any test patches it
 SYMS = ["XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "FRA40"]
 DEV_START = "2020-03-01T00:00:00Z"
 LONG_START = "2014-03-01T00:00:00Z"   # ten development years: enough quarters/half-years for the block bounds
@@ -506,7 +507,8 @@ class _Tmp(unittest.TestCase):
                    mock.patch.object(self.fs, "_first_bar", self._first_bar),
                    # the readiness gate (build_plan) needs a real-cost spec per symbol; the fixture plan has none on disk
                    mock.patch.object(self.fs, "_spec_present", lambda sym: (True, f"synthetic/{sym}"))]
-        # DEV_BARS (shard sizing) has no row for the 2026-10-01 symbols yet: synthetic rows, test-only
+        # the SYNTHETIC cell fixtures name symbols with no DEV_BARS row (the real declared cells all have one: see
+        # test_every_symbol_of_every_declared_cell_has_a_dev_bars_row, which reads the unpatched table `_REAL_DEV_BARS`)
         for tf, bars in (("1m", 800000), ("5m", 160000), ("15m", 60000)):
             patches.append(mock.patch.dict(self.fs.DEV_BARS[tf], {sy: bars for sy in self.fs.FUND_SYMBOLS
                                                                    if sy not in self.fs.DEV_BARS[tf]}))
@@ -1962,6 +1964,14 @@ class ShardLayout(_Helpers):
         text = self.fs.format_shard_table(self.fs.shard_plan(self.fs.load_plan()))
         self.assertIn("MEASURED", text)
         self.assertIn("ASSUMED", text)
+
+    def test_every_symbol_of_every_declared_cell_has_a_dev_bars_row(self):
+        """No synthetic rows: the committed cells file against the committed DEV_BARS table."""
+        cells = self.fs.load_cells_file(os.path.join(ROOT, "docs", "architecture"))[0]["cells"]
+        self.assertTrue(cells)
+        for c in cells:
+            for sym in c["symbols"]:
+                self.assertIn(sym, _REAL_DEV_BARS[c["timeframe"]], f"DEV_BARS lacks {sym} {c['timeframe']} (cell {c['id']})")
 
     def test_a_series_without_a_dev_bars_row_is_refused_by_name(self):
         cell = {"timeframe": "15m", "dev_start_override": None}
