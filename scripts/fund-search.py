@@ -701,6 +701,27 @@ def check_drift(decl, plan, allow_drift=False):
     return drift
 
 
+RUNNER_BENCHMARK_PATH = os.path.join(ROOT, "docs", "audits", "2026-10-01-runner-benchmark.json")
+
+
+def runner_benchmark_status():
+    """Whether `SHARD_MODEL["layout_factor"]` comes from a RECORDED hosted-runner benchmark: the committed
+    docs/audits/2026-10-01-runner-benchmark.json (the artifact of .github/workflows/fund-search-benchmark.yml, committed by
+    the owner) whose `layout_factor` equals the model's. `declare` records its sha256 and prints a NOTE when it is missing
+    or differs; it never refuses (the owner decides: the layout only affects job sizing, never a result)."""
+    want = SHARD_MODEL["layout_factor"]
+    if not os.path.exists(RUNNER_BENCHMARK_PATH):
+        return {"recorded": False, "layout_factor": want, "sha256": None,
+                "note": f"layout_factor {want:g} is an ASSUMPTION: no recorded runner benchmark at "
+                        f"{repo_rel(RUNNER_BENCHMARK_PATH, ROOT)}. Run .github/workflows/fund-search-benchmark.yml, commit its "
+                        f"JSON there and set SHARD_MODEL['layout_factor'] to its layout_factor BEFORE declaring "
+                        f"(docs/audits/2026-10-01-shard-calibration.md section 6)."}
+    got = json.load(open(RUNNER_BENCHMARK_PATH, encoding="utf-8")).get("layout_factor")
+    ok = got == want
+    return {"recorded": ok, "layout_factor": want, "sha256": _sha256_file(RUNNER_BENCHMARK_PATH),
+            "note": "" if ok else f"the recorded benchmark says layout_factor {got} but SHARD_MODEL has {want:g}: make them equal"}
+
+
 def cmd_declare():
     """Record the final cell count in the ledger. Refuses if any evaluation record already exists (the count must
     precede evaluation) or if a different declaration is already there (a ledger event, not an overwrite)."""
@@ -721,6 +742,9 @@ def cmd_declare():
             return old
         raise SystemExit(f"refusing to overwrite the existing `{LEDGER_SECTION}` declaration with a different "
                          f"one: changing it after the fact is a ledger event, not an edit")
+    new["runner_benchmark"] = runner_benchmark_status()
+    if not new["runner_benchmark"]["recorded"]:
+        print("NOTE (does not stop the declaration): " + new["runner_benchmark"]["note"], file=sys.stderr, flush=True)
     data[LEDGER_SECTION] = new
     with open(_ledger_path(), "w", encoding="utf-8") as fh:
         fh.write(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
@@ -1921,13 +1945,29 @@ def format_shard_summary(summary):
     return "\n".join(L)
 
 
+def wave2_size_warning(cell_id, method, symbol, n_slices, real, est):
+    """The wave-2 tripwire: None, or the WARNING text when the real wave-2 list (`real` value sets) is more than 10 % longer
+    than the layout's estimate `est` (`wave2_set_count`), with the slice count N that restores the layout's per-slice size."""
+    if real <= 1.1 * est:
+        return None
+    need = -(-n_slices * real // est)
+    return (f"WARNING: wave 2 of {cell_id}/{method} has {real} value sets, {100 * (real / est - 1):.0f} % more than the "
+            f"{est} the shard layout assumed (WAVE2_SETS_PER_FOLD); this slice may run longer than modelled. Re-run EVERY "
+            f"wave-2 slice of {cell_id}/{method}/{symbol} with --slice I/{need} (I = 0..{need - 1}) if the time limit is at "
+            f"risk; entries are keyed per value set, so any N gives the same cache.")
+
+
 def cmd_scan(cell_id, symbol, method, out_dir, workers=1, wave=1, slice_spec="0/1", scan_cache_dirs=(), grid_dir=None):
     """One Actions scan shard. `--wave 1`: the wave-1 value sets (the same list `run` would prefetch first) for ONE
     symbol -- needs no other symbol's data. `--wave 2`: the wave-2 sets, which only exist once selection has run on the
     pooled wave-1 trades of ALL the cell's symbols, so it needs the complete wave-1 cache (`--scan-cache`) and REFUSES
-    without it; it still scans ONE symbol. `--slice I/N` takes the I-th of N contiguous parts of the list. Every
-    (value set, symbol) result is persisted the moment its scan returns, as a verified cache entry under `out_dir`
-    (outside the checkout, CLAUDE.md section 46). Like `run`, refuses without the ledger declaration and on code drift."""
+    without it; it still scans ONE symbol. `--slice I/N` takes the I-th of N contiguous parts of the list. The slice's
+    value sets are scanned in ONE `scan_many` call (the analysis of a detection group is shared between them, so scanning
+    them one by one would multiply the cost) and each result is then written as a verified cache entry under `out_dir`
+    (atomic, outside the checkout, CLAUDE.md section 46): a shard killed at the job timeout therefore keeps NOTHING of
+    its slice (the slice sizing is what bounds the loss; entries already present in `out_dir` are verified and skipped on
+    a local re-run). Wave 2: if the real list is more than 10 % longer than the layout's estimate (`wave2_set_count`) a
+    WARNING with the `--slice I/N` to re-run with is printed to stderr. Like `run`, refuses without the ledger declaration and on code drift."""
     real_out, real_root = os.path.realpath(out_dir), os.path.realpath(ROOT)
     if real_out == real_root or real_out.startswith(real_root + os.sep):
         raise SystemExit(f"--out {out_dir} is inside the checkout: outputs must land outside it (a file written in the "
@@ -1973,6 +2013,9 @@ def cmd_scan(cell_id, symbol, method, out_dir, workers=1, wave=1, slice_spec="0/
                              f"{len(missing)} of {len(w1_keys)} value set(s) of {cell['symbols']}; wave-2 sets would be "
                              f"chosen from an incomplete pool. Re-run the missing wave-1 shards.")
         values = wave2_values(engine, grid, cell)
+        warn = wave2_size_warning(cell_id, method, symbol, n, len(values), wave2_set_count(method, cell["n_folds"]))
+        if warn:
+            print(warn, file=sys.stderr, flush=True)
     mine = take_slice(values, i, n)
     todo, skipped = [], 0
     for v in mine:

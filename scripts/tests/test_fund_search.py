@@ -41,6 +41,7 @@ def _fs():
     return mod
 
 
+_REAL_FIRST_BAR = _fs()._first_bar
 _REAL_DEV_BARS = {tf: dict(rows) for tf, rows in _fs().DEV_BARS.items()}      # the committed table, before any test patches it
 SYMS = ["XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "FRA40"]
 DEV_START = "2020-03-01T00:00:00Z"
@@ -1964,6 +1965,58 @@ class ShardLayout(_Helpers):
         text = self.fs.format_shard_table(self.fs.shard_plan(self.fs.load_plan()))
         self.assertIn("MEASURED", text)
         self.assertIn("ASSUMED", text)
+
+    def test_the_real_declared_plan_lays_out_without_an_over_cap_shard(self):
+        """The REAL committed cells file + grids + the committed DEV_BARS rows (no fixture cells): a DEV_BARS or constant
+        edit cannot shift the layout silently. Pins the shard count at the layout factor 2.0."""
+        arch = os.path.join(ROOT, "docs", "architecture")
+        first = _REAL_FIRST_BAR
+        with mock.patch.dict(os.environ, {"BT_HISTORY_ROOT": os.path.join(ROOT, "data", "history", "ftmo")}):
+            plan = self.fs.build_plan(arch, first_bar=first)
+        self.assertEqual([c["id"] for c in plan["cells"]], ["1m-metals", "1m-indices", "5m-metals"])
+        for c in plan["cells"]:
+            for sym in c["symbols"]:
+                self.assertIn(sym, _REAL_DEV_BARS[c["timeframe"]])
+        rows = self.fs.shard_plan(plan, arch)
+        self.assertEqual(self.fs.SHARD_MODEL["layout_factor"], 2.0)
+        self.assertFalse([r["name"] for r in rows if r["over_cap"]])
+        self.assertLessEqual(max(r["est_min"] for r in rows), self.fs.SHARD_MODEL["budget_s"] / 60)
+        self.assertEqual(len(rows), 124)
+        self.assertEqual((sum(1 for r in rows if r["wave"] == 1), sum(1 for r in rows if r["wave"] == 2)), (38, 86))
+
+    def test_the_wave2_tripwire_fires_only_beyond_ten_percent(self):
+        w = self.fs.wave2_size_warning
+        self.assertIsNone(w("1m-metals", "ict", "XAUUSD", 10, 110, 102))
+        self.assertIsNone(w("1m-metals", "ict", "XAUUSD", 10, 112, 102))        # +9.8 %
+        msg = w("1m-metals", "ict", "XAUUSD", 10, 204, 102)                      # twice the estimate
+        self.assertTrue(msg.startswith("WARNING:"))
+        self.assertIn("--slice I/20", msg)
+        self.assertIn("1m-metals/ict/XAUUSD", msg)
+
+    def test_the_runner_benchmark_status_never_refuses_and_says_what_is_missing(self):
+        fs = self.fs
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        with mock.patch.object(fs, "RUNNER_BENCHMARK_PATH", os.path.join(tmp, "none.json")):
+            st = fs.runner_benchmark_status()
+        self.assertFalse(st["recorded"])
+        self.assertIsNone(st["sha256"])
+        self.assertIn("ASSUMPTION", st["note"])
+        path = os.path.join(tmp, "bench.json")
+        for got, ok in ((fs.SHARD_MODEL["layout_factor"], True), (1.25, False)):
+            json.dump({"layout_factor": got}, open(path, "w"))
+            with mock.patch.object(fs, "RUNNER_BENCHMARK_PATH", path):
+                st = fs.runner_benchmark_status()
+            self.assertEqual(st["recorded"], ok)
+            self.assertEqual(len(st["sha256"]), 64)
+
+    def test_the_benchmark_workflow_is_manual_read_only_and_secret_free(self):
+        text = open(os.path.join(ROOT, ".github", "workflows", "fund-search-benchmark.yml")).read()
+        for needle in ("workflow_dispatch:", "contents: read", "runner_benchmark.py", "RUNNER_TEMP", "upload-artifact"):
+            self.assertIn(needle, text)
+        for bad in ("secrets.", "\n  push:", "pull_request", "contents: write"):
+            self.assertNotIn(bad, text)
+        self.assertTrue(os.path.exists(os.path.join(ROOT, "scripts", "research", "runner_benchmark.py")))
 
     def test_every_symbol_of_every_declared_cell_has_a_dev_bars_row(self):
         """No synthetic rows: the committed cells file against the committed DEV_BARS table."""

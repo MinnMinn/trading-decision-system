@@ -17,6 +17,11 @@
 # (scripts/fund-search.py `declare`) -- the ledger declaration precedes every scan and every evaluation. A scan-cache
 # entry made by other code / plan / settings / history is REFUSED by `run` and by `scan --wave 2` (never silently used).
 #
+# Wave-2 tripwire / override: wave 2 is sized by an ESTIMATE (scripts/fund-search.py WAVE2_SETS_PER_FOLD); a wave-2 shard that finds
+# its real list >10 % longer prints "WARNING: ... --slice I/N" to stderr (the job log). To re-slice, re-run every wave-2 slice of that
+# (cell, method, symbol) with the printed N (entries are keyed per value set, any N gives the same cache). Before `declare`, record the
+# runner speed with fund-search-benchmark.yml (docs/audits/2026-10-01-shard-calibration.md section 6).
+#
 # Outputs land OUTSIDE the checkout (a file written inside the work tree makes the run's own code_version read
 # dirty=true, CLAUDE.md §46), matching prop-search.yml and stability-full.yml. Nothing is pushed: results leave as
 # artifacts only. fetch-depth 0: the code fingerprint is the last-commit SHA of each pinned file, which a depth-1
