@@ -410,7 +410,11 @@ class Composition(unittest.TestCase):
     def test_composition_is_resolved_from_the_owning_registries_not_copied(self):
         import instruments as I
         d = TS.describe("cfd-scalping")
-        self.assertEqual(d["instruments"]["analysis"], list(I.analysis("cfd")))
+        # research-only fund-search symbols are not reported as analysable here (owner 2026-10-01)
+        import instruments as _I
+        self.assertEqual(d["instruments"]["analysis"], _I.live_analysis("cfd"))
+        self.assertTrue(set(_I.research_only("cfd")).isdisjoint(d["instruments"]["analysis"]))
+        self.assertEqual(d["instruments"]["analysis"], list(I.live_analysis("cfd")))
         self.assertEqual(d["instruments"]["execution"], list(I.execution("cfd")))
         self.assertEqual(d["market_types"], list(I.market_types("cfd")))
         raw = _raw()["systems"]["cfd-scalping"]

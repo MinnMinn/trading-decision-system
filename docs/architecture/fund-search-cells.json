@@ -1,6 +1,6 @@
 {
   "_source": "docs/plans/2026-09-30-owner-decisions.md, sections 'Owner decisions 2026-10-01: cell list and per-cell history spans' and 'Owner decisions 2026-10-01 (symbol universe)'",
-  "_symbols_why": "Per-cell symbol lists (owner 2026-10-01, symbol universe): 5m-metals and 15m-metals = XAUUSD XAGUSD XPTUSD XPDUSD (4); 5m-indices and 15m-indices = US500 US30 USTEC DE40 FRA40 UK100 EU50 JP225 HK50 AUS200 US2000 SPN35 N25 (13); both 1m cells keep their original symbols. Every symbol must be in scripts/fund-search.py FUND_SYMBOLS with the cell's asset class (checked on load). A symbol with no development data before the cutoff is not in m; a symbol whose data starts after the cell's start is kept in m and disclosed (symbol_first_bar): it adds trades only to the folds where it has bars and still counts in the ceil(2m/3) stability denominator. Folds follow the cell's EARLIEST symbol.",
+  "_symbols_why": "Per-cell symbol lists (owner 2026-10-01, symbol universe): 5m-metals and 15m-metals = XAUUSD XAGUSD XPTUSD XPDUSD (4; XAUUSD from 2004-06-11 sets the folds, XPTUSD and XPDUSD from 2015-01-07 are the late symbols); 5m-indices and 15m-indices = US500 US30 USTEC DE40 FRA40 UK100 EU50 JP225 HK50 AUS200 US2000 SPN35 N25 (13); both 1m cells keep their original symbols. Every symbol must be in scripts/fund-search.py FUND_SYMBOLS with the cell's asset class (checked on load). A symbol with no development data before the cutoff is not in m; a symbol whose data starts after the cell's start is kept in m and disclosed (symbol_first_bar): it adds trades only to the folds where it has bars and still counts in the ceil(2m/3) stability denominator. Folds follow the cell's EARLIEST symbol.",
   "_why": "The cell list and each cell's history START are part of the pre-registration: declared here, read by `scripts/fund-search.py plan`, hashed into the plan core (plan_hash) and pinned in the ledger declaration (evaluation_config.cells_sha256) exactly like the V grids. `run`/`scan` refuse a changed file. dev_start null = the cell starts at the first bar its data has (from data, as before); a string = a declared later start of the cell's development data (decision-timeframe series only; higher-timeframe series used by gates/W7 keep their full point-in-time history). The development CUTOFF (2024-03-01, the end of every span) is not set here: it is scripts/fund_stats.py DEV_CUTOFF and is unchanged. Any future non-null dev_start MUST be accompanied by a re-run of scripts/research/span_equivalence.py for that cell (method x a symbol of the cell) showing the cut run equals the full-series run from dev_start; trade-count and power evidence: docs/audits/2026-10-01-trade-rates.md, docs/audits/2026-10-01-power-model.md.",
   "warmup_days": 14,
   "_warmup_days_why": "Calendar days of decision bars scanned BEFORE a declared dev_start so the scan's per-window dedupe state and simulate()'s one-position-at-a-time state settle; trades whose entry is before dev_start are discarded (they exist in no fold). On top of the method's own window (ICT scan_spec bars / Wyckoff window). Unused while every dev_start is null.",
@@ -17,7 +17,7 @@
     },
     {
       "id": "5m-metals", "timeframe": "5m", "asset_class": "metals", "symbols": ["XAUUSD", "XAGUSD", "XPTUSD", "XPDUSD"], "dev_start": null,
-      "rationale": "Keeps its original data start (from data). The earliest symbol sets the folds (XPTUSD/XPDUSD start 2015-01-07).",
+      "rationale": "Keeps its original data start (from data). The earliest symbol (XAUUSD, 2004-06-11) sets the folds; XPTUSD and XPDUSD (2015-01-07) are the late symbols.",
       "decision": "owner 2026-10-01 (chat): a 2008-03-01 start (14 folds) was offered, the cell keeps its original data start (17 folds); symbols (owner 2026-10-01, symbol universe): XAUUSD XAGUSD + XPTUSD XPDUSD (XCUUSD excluded: history starts 2024-12-02, after the cutoff)"
     },
     {
@@ -27,7 +27,7 @@
     },
     {
       "id": "15m-metals", "timeframe": "15m", "asset_class": "metals", "symbols": ["XAUUSD", "XAGUSD", "XPTUSD", "XPDUSD"], "dev_start": null,
-      "rationale": "Keeps its current data start (from data). The earliest symbol sets the folds (XPTUSD/XPDUSD start 2015-01-07).",
+      "rationale": "Keeps its current data start (from data). The earliest symbol (XAUUSD, 2004-06-11) sets the folds; XPTUSD and XPDUSD (2015-01-07) are the late symbols.",
       "decision": "owner 2026-10-01 (chat); symbols (owner 2026-10-01, symbol universe): XAUUSD XAGUSD + XPTUSD XPDUSD (XCUUSD excluded: history starts 2024-12-02, after the cutoff)"
     },
     {

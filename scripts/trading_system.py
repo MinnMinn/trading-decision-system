@@ -407,7 +407,7 @@ def describe(style, *, trader=None, **ctx):
         "market_types": list(I.market_types(market)),
         "timeframe": sysd["timeframe"],
         "horizon": sysd["horizon"],
-        "instruments": {"analysis": list(I.analysis(market)), "execution": list(I.execution(market)),
+        "instruments": {"analysis": list(I.live_analysis(market)), "execution": list(I.execution(market)),
                         "source": "docs/architecture/instruments.json"},
         "session": {"registry": "docs/architecture/sessions.json", "version": S.VERSION,
                     "windows": list(S.ORDER),

@@ -135,8 +135,6 @@ class DisplayMetadata(unittest.TestCase):
         self.assertNotIn("CRYPTO_META = {", src)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ResearchOnlySymbolsStayOffTheLiveAndOrderPaths(unittest.TestCase):
@@ -247,3 +245,25 @@ class ForexWasRemovedCleanly(unittest.TestCase):
         want = [s for mk in I.MARKETS if I.DATA_DIR[mk] == "mt5-bridge" for s in I.execution(mk)]
         self.assertEqual(sorted(m.group(1).split(",")), sorted(want))
         self.assertTrue(set(m.group(1).split(",")).isdisjoint(self.MAJORS))
+
+
+class SessionHookStaysLive(unittest.TestCase):
+    """The SessionStart hook text lists the analysis allowlist; research-only symbols are not part of it (owner 2026-10-01)."""
+    def test_hook_lists_only_the_live_analysis_symbols(self):
+        out = subprocess.run(["bash", os.path.join(ROOT, "scripts", "session-safety-rules.sh")],
+                             capture_output=True, text=True).stdout
+        want = "/".join(I.live_analysis())
+        self.assertIn("analysis allowlist = " + want, out)
+        for sym in I.research_only():
+            self.assertNotIn(sym, out)
+        self.assertEqual(want, "BTCUSDT/ETHUSDT/SOLUSDT/ASTERUSDT/VIRTUALUSDT/SUIUSDT/TAOUSDT/RENDERUSDT/ONDOUSDT/"
+                               "XAUUSD/XAGUSD/US500/US30/USTEC/DE40/FRA40/AUS200")
+
+    def test_bash_reader_excludes_research_only(self):
+        out = subprocess.run(["bash", "-c", f'source "{ROOT}/scripts/instruments.sh"; instruments_live_analysis cfd'],
+                             capture_output=True, text=True).stdout.split()
+        self.assertEqual(out, I.live_analysis("cfd"))
+
+
+if __name__ == "__main__":
+    unittest.main()

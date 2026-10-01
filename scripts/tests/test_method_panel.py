@@ -129,6 +129,22 @@ class Presets(unittest.TestCase):
 
 
 class Instruments(unittest.TestCase):
+    def test_research_only_symbols_have_no_chip_and_local_eval_brief_does_not_default_to_them(self):
+        """Owner 2026-10-01: research-only symbols (fund search) are not live. If the panel or the brief regressed to the
+        raw analysis list these assertions fail."""
+        ro = I.research_only("cfd")
+        self.assertTrue(ro)
+        html = mp.render(cfg())
+        for sym in ro:
+            self.assertNotIn(f'data-symbol="{sym}"', html)
+        spec = importlib.util.spec_from_file_location("leb", os.path.join(ROOT, "scripts", "local-eval-brief.py"))
+        leb = importlib.util.module_from_spec(spec); spec.loader.exec_module(leb)
+        from unittest import mock
+        with mock.patch.object(leb._auto, "load", side_effect=RuntimeError("unreadable")):
+            syms = leb.default_symbols("cfd-scalping")
+        self.assertEqual(syms, I.live_analysis("cfd"))
+        self.assertTrue(set(syms).isdisjoint(ro))
+
     def test_every_allowlisted_symbol_has_a_chip_in_its_market(self):
         html = mp.render(cfg())
         for m in ("crypto", "cfd"):

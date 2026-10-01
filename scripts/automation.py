@@ -149,7 +149,7 @@ TIMEFRAMES = ["15m", "1h", "4h"]
 LAYERS = ["scanner", "local_read", "pilot"]
 # Every allowlisted symbol, summed over MARKETS -- it named the two markets by hand, which silently excluded
 # any third one from the refusal message that is supposed to list what IS allowed.
-ALLOWED_INSTRUMENTS = instruments.analysis()
+ALLOWED_INSTRUMENTS = instruments.live_analysis()   # research-only symbols are not live
 # (COMMODITIES = set(MARKET_INSTRUMENTS["cfd"]) lived here and was read by nothing -- deleted 2026-09-17.)
 # FX_CODES and the two currency-pair refusals it fed were deleted 2026-09-17 (user decision: the Forex
 # prohibition is lifted). They were never the gate -- docs/security/2026-09-12-method-panel.md:489-491 recorded

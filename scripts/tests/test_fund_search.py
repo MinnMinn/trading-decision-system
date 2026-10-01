@@ -2544,9 +2544,12 @@ class DataReadiness(_Tmp):
         self.assertEqual(rc, 1)
         self.assertIn("NOT READY", txt)
         for cid in ("5m-metals", "5m-indices", "15m-metals", "15m-indices"):
-            self.assertRegex(txt, rf"{cid}\s+\d+\s+\d+\s+0\s+\d+\s+yes\s+NO")
-        self.assertRegex(txt, r"1m-metals\s+2\s+0\s+0\s+0\s+yes\s+yes")              # the unchanged 1m cells are ready
-        self.assertRegex(txt, r"1m-indices\s+5\s+0\s+0\s+0\s+yes\s+yes")
+            self.assertRegex(txt, rf"{cid}\s+\d+\s+\d+\s+\d+\s+0\s+\d+\s+yes\s+NO")
+        self.assertRegex(txt, r"1m-metals\s+2\s+2\s+0\s+0\s+0\s+yes\s+yes")              # the unchanged 1m cells are ready
+        self.assertRegex(txt, r"1m-indices\s+5\s+5\s+0\s+0\s+0\s+yes\s+yes")
+        # declared vs effective m: today 5m-indices declares 13 but only the 5 symbols with history count
+        self.assertRegex(txt, r"5m-indices\s+13\s+5\s+8\s+0\s+7\s+yes\s+NO")
+        self.assertRegex(txt, r"5m-metals\s+4\s+2\s+2\s+0\s+2\s+yes\s+NO")
         self.assertIn("no history at all and no real-cost spec (2): XPTUSD, XPDUSD", txt)
         self.assertIn("no history at all and no real-cost spec (7): UK100, EU50, JP225, HK50, US2000, SPN35, N25", txt)
         self.assertIn("no history at all (1): AUS200", txt)
@@ -2562,6 +2565,11 @@ class DataReadiness(_Tmp):
     def test_a_symbol_starting_after_the_cutoff_is_a_note_not_a_failure_but_a_cell_with_none_is(self):
         rc, txt = self._check(self._have(late={"N25": "2024-06-01T00:00:00Z"}))
         self.assertEqual(rc, 0)
+        rep = self.fs.data_readiness(self.fs.load_cells_file(REAL_ARCH)[0], self._have(late={"N25": "2024-06-01T00:00:00Z"}),
+                                     lambda s: (True, "x"))
+        c = next(x for x in rep["cells"] if x["id"] == "5m-indices")
+        self.assertEqual((len(c["symbols"]), c["m_effective"]), (13, 12))       # declared 13, effective m 12
+        self.assertRegex(txt, r"5m-indices\s+13\s+12\s+")
         idx = set(SymbolUniverse.INDICES13)
         every_index_late = self._have(late={s: "2024-06-01T00:00:00Z" for s in idx})
         rc, txt = self._check(every_index_late)

@@ -332,7 +332,7 @@ def data_readiness(cells_spec, first_bar=None, spec_present=None):
         ready = ready and cell_ready
         complete = complete and cell_ready and bool(with_data)
         out.append({"id": decl["id"], "timeframe": tf, "symbols": list(decl["symbols"]),
-                    "ready": cell_ready and bool(with_data),
+                    "m_effective": len(with_data), "ready": cell_ready and bool(with_data),
                     "no_history": no_history, "partial_history": partial, "no_spec": no_spec,
                     "no_development_data": no_dev, "has_development_symbol": bool(with_data)})
     return {"ready": ready, "complete": complete, "cells": out}
@@ -340,13 +340,14 @@ def data_readiness(cells_spec, first_bar=None, spec_present=None):
 
 def format_readiness(rep):
     """The readiness table: one row per declared cell, then the exact symbols/timeframes behind every gap."""
-    rows = [("cell", "m", "no history", "partial", "no spec", "dev data", "ready")]
+    rows = [("cell", "declared", "m", "no history", "partial", "no spec", "dev data", "ready")]
     for c in rep["cells"]:
-        rows.append((c["id"], str(len(c["symbols"])), str(len(c["no_history"])), str(len(c["partial_history"])),
+        rows.append((c["id"], str(len(c["symbols"])), str(c["m_effective"]), str(len(c["no_history"])), str(len(c["partial_history"])),
                      str(len(c["no_spec"])), "yes" if c["has_development_symbol"] else "NONE",
                      "yes" if c["ready"] else "NO"))
     w = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
-    L = ["fund-search DATA READINESS (decision timeframe + context series " + ",".join(CONTEXT_TIMEFRAMES)
+    L = ["fund-search DATA READINESS (declared = symbols in the cells file; m = those with development data before the cutoff "
+         "on the cell's timeframe, the stability denominator; decision timeframe + context series " + ",".join(CONTEXT_TIMEFRAMES)
          + "; real-cost spec per symbol under profile " + COST_PROFILE + ")",
          "  ".join(h.ljust(w[i]) for i, h in enumerate(rows[0]))]
     L += ["  ".join(v.ljust(w[i]) for i, v in enumerate(r)) for r in rows[1:]]

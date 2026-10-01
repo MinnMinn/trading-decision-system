@@ -15,3 +15,9 @@ _instruments_get() { # <analysis|execution> [market]
 }
 instruments_analysis()  { _instruments_get analysis  "${1:-}"; }
 instruments_execution() { _instruments_get execution "${1:-}"; }
+# analysis MINUS research_only (owner 2026-10-01): what the live surfaces and the SessionStart hook list.
+instruments_live_analysis() { # [market]
+  local market=${1:-}
+  if [ -n "$market" ]; then jq -r --arg m "$market" '(.research_only[$m] // []) as $r | .analysis[$m][] | select(. as $s | $r | index($s) | not)' "$_INSTRUMENTS_JSON" | tr -d '\r' | tr '\n' ' ' | sed 's/ $//'
+  else jq -r '(.research_only // {} | to_entries | map(.value[]?)) as $r | .analysis | to_entries[].value[] | select(. as $s | $r | index($s) | not)' "$_INSTRUMENTS_JSON" | tr -d '\r' | tr '\n' ' ' | sed 's/ $//'; fi
+}
