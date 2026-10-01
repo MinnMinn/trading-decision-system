@@ -99,6 +99,8 @@ class SynthEngine:
     def admission_stats(self, values, fold=None):
         rows = [{"entry_time": t["entry_time"], "R_planned": 3.0 + (i % 5) * 0.1, "fee_R": 0.05 * (i % 7)}
                 for i, t in enumerate(self.trades_for(values))]
+        # item 12: every 11th candidate has no valid stop distance (a counted `zero_risk` row, no R_planned / fee_R)
+        rows = [{"entry_time": r["entry_time"], "zero_risk": "zero"} if i % 11 == 0 else r for i, r in enumerate(rows)]
         return _fs().admission_stats(rows, 3.0, fold)
 
 
@@ -978,6 +980,32 @@ class AdmissionDisclosure(_Tmp):
         self.assertTrue(adm["by_value_set"])
 
 
+class ZeroRiskDisclosure(_Tmp):
+    """Item 12: the admission disclosure carries the zero_risk refusals, per fold and per value set."""
+
+    def test_admission_stats_counts_zero_risk_rows_and_keeps_them_out_of_the_min_rr_margins(self):
+        rows = [{"entry_time": "2022-06-01T00:00:00Z", "R_planned": 3.10, "fee_R": 0.2},   # margin -0.10 refused (min_rr)
+                {"entry_time": "2022-06-02T00:00:00Z", "zero_risk": "zero"},
+                {"entry_time": "2022-06-03T00:00:00Z", "zero_risk": "sub_tick"},
+                {"entry_time": "2022-06-03T06:00:00Z", "R_planned": 6.00, "fee_R": 0.1}]
+        st = self.fs.admission_stats(rows, 3.0)
+        self.assertEqual((st["candidates"], st["refused_zero_risk"], st["refused_min_rr"]), (4, 2, 1))
+        self.assertEqual(st["near_floor_n"], 1)                       # only the two risk-valid rows have a margin
+        fold = {"test_start": "2022-06-02T00:00:00Z", "test_end": "2022-06-03T00:00:00Z"}
+        f = self.fs.admission_stats(rows, 3.0, fold)
+        self.assertEqual((f["candidates"], f["refused_zero_risk"], f["refused_min_rr"]), (1, 1, 0))
+        none = self.fs.admission_stats(rows[:1] + rows[3:], 3.0)
+        self.assertEqual(none["refused_zero_risk"], 0)                # a value set with none: 0, every other figure as before
+
+    def test_result_carries_zero_risk_per_fold_and_per_value_set(self):
+        cell = {"id": "5m-metals", "timeframe": "5m", "symbols": SYMS, "development_start": LONG_START}
+        res = self.fs.evaluate_with_engine(SynthEngine(mean=0.0), grid_two_items(), cell, 205)
+        adm = res["admission"]
+        self.assertTrue(all("refused_zero_risk" in f for f in adm["by_fold_chosen"]))
+        self.assertGreater(sum(f["refused_zero_risk"] for f in adm["by_fold_chosen"]), 0)
+        self.assertTrue(all(v["refused_zero_risk"] > 0 for v in adm["by_value_set"].values()))
+
+
 class Disclosures(_Helpers):
     def setUp(self):
         super().setUp()
@@ -1031,6 +1059,8 @@ class Disclosures(_Helpers):
         self.assertIn("Chosen-value stability across folds", md)
         self.assertIn("MEDIAN of the pooled TEST trades", md)                 # S6, stated as a definition
         self.assertIn("min_rr admission", md)
+        self.assertIn("planned-risk admission (item 12", md)               # the zero_risk refusals are in the report line
+        self.assertRegex(md, r"refused as zero_risk \[[0-9, ]+\] of candidates")
         self.assertIn("prop_pass_probability: ", md)
 
     def test_fold_counts_and_frequency_arithmetic_per_cell(self):
@@ -1801,6 +1831,95 @@ class EngineDevStart(unittest.TestCase):
         self.assertEqual(row["_series_start"]["dev_start"], self.dev_start)
         self.assertEqual(row["_series_start"]["warmup_days"], 14)
         self.assertEqual(row["first_open"] < self.dev_start, True)                       # warm-up bars precede the start
+
+
+class ZeroRiskHarnessEngine(unittest.TestCase):
+    """Item 12 on the REAL BtEngine.trades_for path (real simulate(), real cost profile, real XAUUSD slice): a value set whose
+    raw scan holds a zero-risk trade (the ICT B-EX=fill `entry == stop` record) used to abort in `real_costs.cost_r`
+    (`CostRefused: stop distance is zero`). It must now complete, refuse that candidate with a counted `zero_risk`
+    admission row, and leave every other trade exactly as it was. The raw scan is seeded by hand (what `scan_many` would
+    hand over), so no engine R / expectancy of any real evaluation is involved."""
+
+    @classmethod
+    def setUpClass(cls):
+        d = os.path.join(ROOT, "data", "history", "ftmo", "ohlcv.XAUUSD.15m")
+        if not os.path.isdir(d):               # never a silent skip: this proof must run wherever the data should be
+            raise AssertionError(f"{d} is missing: ZeroRiskHarnessEngine needs the FTMO history")
+        cls.tmp = tempfile.mkdtemp(prefix="zero-risk-")
+        cls.env = os.environ.get("BT_HISTORY_ROOT")
+        hist = os.path.join(cls.tmp, "hist")
+        _write_slice_root(hist, "XAUUSD", "15m", 3000)
+        os.environ["BT_HISTORY_ROOT"] = hist
+        cls.fs = _fs()
+        grids, _ = cls.fs.load_grids(REAL_ARCH)
+        cls.grid = grids["ict"].runnable()
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.env is None:
+            os.environ.pop("BT_HISTORY_ROOT", None)
+        else:
+            os.environ["BT_HISTORY_ROOT"] = cls.env
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def _t(self, i, entry, stop, side="long", **extra):
+        base = datetime.datetime(2023, 6, 6, 8, tzinfo=datetime.timezone.utc) + datetime.timedelta(hours=2 * i)
+        rp = abs(entry - stop) and 6.0
+        t = {"symbol": "XAUUSD", "tf": "15m", "side": side, "entry": entry, "stop": stop, "target": entry + 6 * (entry - stop),
+             "entry_time": FS.iso(base), "exit_time": FS.iso(base + datetime.timedelta(hours=1)), "outcome": "win",
+             "R": 6.0, "R_planned": rp or None, "event": f"XAUUSD-{side}-ict-s{i}-m{i}"}
+        t.update(extra)
+        return t
+
+    def _engine(self, raw):
+        eng = self.fs.BtEngine(self.grid, "ICT", "15m", ["XAUUSD"], workers=1)
+        eng._raw[FS.CountingSource._key(self.grid.baseline())] = list(raw)
+        return eng
+
+    def _raw(self):
+        return [self._t(0, 2000.0, 1998.0), self._t(1, 4053.5, 4053.5), self._t(2, 2000.0, 2002.0, side="short")]
+
+    def test_a_value_set_with_a_zero_risk_trade_no_longer_aborts_and_records_the_refusal(self):
+        raw = self._raw()
+        import real_costs as RC
+        with self.assertRaises(RC.CostRefused):
+            RC.cost_r(raw[1]["entry"], raw[1]["stop"], raw[1]["entry_time"], raw[1]["exit_time"], "XAUUSD", "long",
+                      self.fs.COST_PROFILE)                           # what the harness did before: it aborted here
+        eng = self._engine(raw)
+        taken = eng.trades_for(self.grid.baseline())                  # does NOT raise
+        self.assertEqual([t["event"] for t in taken], [raw[0]["event"], raw[2]["event"]])
+        st = eng.admission_stats(self.grid.baseline())
+        self.assertEqual((st["candidates"], st["refused_zero_risk"], st["refused_min_rr"]), (3, 1, 0))
+        rows = eng._admission[FS.CountingSource._key(self.grid.baseline())]
+        self.assertEqual([r.get("zero_risk") for r in rows], [None, "zero", None])
+        self.assertEqual(eng.bt.SIM_LAST["refused"]["zero_risk"], 1)  # simulate() and the harness count the same candidates
+        fold = {"test_start": raw[1]["entry_time"], "test_end": FS.iso(FS.ts(raw[1]["entry_time"]) + datetime.timedelta(hours=1))}
+        self.assertEqual(eng.admission_stats(self.grid.baseline(), fold)["refused_zero_risk"], 1)
+        other = {"test_start": raw[2]["entry_time"], "test_end": FS.iso(FS.ts(raw[2]["entry_time"]) + datetime.timedelta(hours=1))}
+        self.assertEqual(eng.admission_stats(self.grid.baseline(), other)["refused_zero_risk"], 0)
+
+    def test_the_other_trades_are_exactly_what_they_are_without_the_zero_risk_one(self):
+        with_zero = self._engine(self._raw()).trades_for(self.grid.baseline())
+        without = self._engine([t for i, t in enumerate(self._raw()) if i != 1]).trades_for(self.grid.baseline())
+        self.assertEqual(json.dumps(with_zero, sort_keys=True), json.dumps(without, sort_keys=True))
+
+    def test_a_set_without_a_zero_risk_trade_reports_zero_refusals(self):
+        eng = self._engine([t for i, t in enumerate(self._raw()) if i != 1])
+        eng.trades_for(self.grid.baseline())
+        st = eng.admission_stats(self.grid.baseline())
+        self.assertEqual((st["candidates"], st["refused_zero_risk"]), (2, 0))
+
+    def test_harness_and_simulate_disagreement_fails_loud(self):
+        eng = self._engine(self._raw())
+        real, calls = eng.bt.planned_risk_refusal, {"n": 0}
+
+        def harness_says_zero_simulate_says_real(*a, **k):            # the harness' 3 row calls come first, then simulate's
+            calls["n"] += 1
+            return "zero" if calls["n"] <= 3 else real(*a, **k)
+        eng.bt.planned_risk_refusal = harness_says_zero_simulate_says_real
+        with self.assertRaises(RuntimeError) as cm:
+            eng.trades_for(self.grid.baseline())
+        self.assertIn("planned-risk admission disagrees", str(cm.exception))
 
 
 class AdoptedFKeys(unittest.TestCase):

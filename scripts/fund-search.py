@@ -821,13 +821,21 @@ def admission_stats(rows, min_rr, fold=None):
     """I2: simulate()'s admission test is `R_planned - fee_R < min_rr` with fee_R INCLUDING the exit-hour spread,
     i.e. admission depends on the future exit time (plan §37 look-ahead). simulate() is not changed (v1 stays
     byte-identical); this only MEASURES it: candidates, how many the filter refused, and the margin
-    (R_planned - fee_R - min_rr) near the floor."""
+    (R_planned - fee_R - min_rr) near the floor.
+
+    Pre-registration item 12 (planned-risk admission): a row with a `zero_risk` cause is a candidate whose planned
+    risk is zero / wrong-side / below one tick / not a finite price (`bt.planned_risk_refusal`). It is counted in
+    `candidates` and in `refused_zero_risk` and has no R_planned / fee_R, so it never enters the min_rr margins:
+    every min_rr figure is over the risk-valid candidates only, exactly as before for a value set that has none."""
     if fold is not None:
         a, b = FS.ts(fold["test_start"]), FS.ts(fold["test_end"])
         rows = [r for r in rows if a <= FS.ts(r["entry_time"]) < b]
-    margins = [r["R_planned"] - r["fee_R"] - min_rr for r in rows]
+    refused_zr = [r for r in rows if r.get("zero_risk")]
+    valid = [r for r in rows if not r.get("zero_risk")]
+    margins = [r["R_planned"] - r["fee_R"] - min_rr for r in valid]
     near = sorted(m for m in margins if abs(m) < NEAR_FLOOR_MARGIN)
-    return {"candidates": len(rows), "refused_min_rr": sum(1 for m in margins if m < 0),
+    return {"candidates": len(rows), "refused_zero_risk": len(refused_zr),
+            "refused_min_rr": sum(1 for m in margins if m < 0),
             "min_rr": min_rr, "near_floor_margin": NEAR_FLOOR_MARGIN, "near_floor_n": len(near),
             "near_floor_refused": sum(1 for m in near if m < 0),
             "near_floor_margin_min": near[0] if near else None,
@@ -1172,12 +1180,27 @@ class BtEngine:
         # time-stop H is itself a V item.
         raw = [t for t in raw if not (t.get("outcome") == "timeout" and t["exit_time"] >= self._last[t["symbol"]])]
         import real_costs as _RC
-        self._admission[key] = [
-            {"entry_time": t["entry_time"], "R_planned": t.get("R_planned", 99),
-             "fee_R": _RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"], t["side"],
-                                 COST_PROFILE)["total_R"]} for t in raw]
+        # Item 12 (planned-risk admission): a candidate with no valid stop distance is NOT priced (cost_r would raise on
+        # it) and NOT entered; it is a counted `zero_risk` admission row. The rule is `bt.planned_risk_refusal`, the
+        # SAME function simulate() applies, so both sides refuse exactly the same candidates (asserted below).
+        rows = []
+        for t in raw:
+            why = self.bt.planned_risk_refusal(t.get("side"), t.get("entry"), t.get("stop"),
+                                               _RC.tick_size(COST_PROFILE, t["symbol"]))
+            if why is not None:
+                rows.append({"entry_time": t["entry_time"], "zero_risk": why})
+                continue
+            rows.append({"entry_time": t["entry_time"], "R_planned": t.get("R_planned", 99),
+                         "fee_R": _RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"],
+                                             t["side"], COST_PROFILE)["total_R"]})
+        self._admission[key] = rows
         taken = checked_simulate(self.bt, raw, 0.0, overlay=overlay, cost_profile=COST_PROFILE,
                                  live_parity_sizing=False)[2]
+        sim_zr = ((getattr(self.bt, "SIM_LAST", None) or {}).get("refused") or {}).get(self.bt.ZERO_RISK_REASON)
+        if sim_zr != sum(1 for r in rows if r.get("zero_risk")):
+            raise RuntimeError(f"planned-risk admission disagrees: simulate() refused {sim_zr!r} candidates as "
+                               f"{self.bt.ZERO_RISK_REASON!r}, the harness' admission rows hold "
+                               f"{sum(1 for r in rows if r.get('zero_risk'))}")
         if self._dev_start_ts is not None:     # warm-up trades settled simulate()'s state; none of them is a cell trade
             taken = [t for t in taken if FS.ts(t["entry_time"]) >= self._dev_start_ts]
             self._admission[key] = [r for r in self._admission[key] if FS.ts(r["entry_time"]) >= self._dev_start_ts]
@@ -1869,6 +1892,9 @@ def cmd_report(grid_dir=None):
         adm = ev.get("admission")
         if adm:
             byf = adm["by_fold_chosen"]
+            L.append(f"planned-risk admission (item 12; chosen values, per test fold): refused as zero_risk "
+                     f"{[f.get('refused_zero_risk', 'n/a') for f in byf]} of candidates {[f['candidates'] for f in byf]} "
+                     f"(zero / wrong-side / below one tick / non-finite stop distance: no position size exists).")
             L.append(f"min_rr admission (chosen values, per test fold): refused "
                      f"{[f['refused_min_rr'] for f in byf]} of candidates {[f['candidates'] for f in byf]}; "
                      f"near-floor (|margin| < {NEAR_FLOOR_MARGIN}) counts {[f['near_floor_n'] for f in byf]}, of which "
