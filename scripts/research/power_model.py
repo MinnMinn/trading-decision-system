@@ -101,9 +101,12 @@ def p_from_edge(e, cost):
 
 
 # ---- synthetic stream -------------------------------------------------------------------------------------------
-def gen_stream(rng, rate_per_sym_year, k, folds, p, sigma, tau, rho, cost):
+def gen_stream(rng, rate_per_sym_year, k, folds, p, sigma, tau, rho, cost, sym_first_day=None):
     """One synthetic pooled TEST-trade stream over `folds` 365-day folds ending 2024-03-01.
-    Returns trades [{entry_time, net_R, symbol}] sorted by time, and trades-per-fold counts."""
+    Returns trades [{entry_time, net_R, symbol}] sorted by time, and trades-per-fold counts.
+    b16 extension (defaults reproduce the original streams bit for bit): `rate_per_sym_year` may be a length-k sequence
+    (per-symbol rates) and `sym_first_day` a length-k sequence of day offsets from the stream start before which that
+    symbol has no trades (late-starting data)."""
     n_days = folds * FOLD_DAYS
     day0 = CUTOFF - np.timedelta64(n_days, "D")
     days = day0 + np.arange(n_days).astype("timedelta64[D]")
@@ -121,8 +124,10 @@ def gen_stream(rng, rate_per_sym_year, k, folds, p, sigma, tau, rho, cost):
     z_rate = mixed()
     z_out = mixed()
     mult = np.exp(sigma * z_rate - 0.5 * sigma * sigma)                 # (k, months), mean 1
-    lam_year = rate_per_sym_year / (FOLD_DAYS * 5.0 / 7.0)              # per weekday
+    lam_year = np.asarray(rate_per_sym_year, dtype=float).reshape(-1, 1) / (FOLD_DAYS * 5.0 / 7.0)   # per weekday
     lam = lam_year * mult[:, m_idx] * wd[None, :]                      # (k, days)
+    if sym_first_day is not None:
+        lam = lam * (np.arange(n_days)[None, :] >= np.asarray(sym_first_day)[:, None])
     counts = rng.poisson(lam)
     sym_i, day_i = np.nonzero(counts)
     reps = counts[sym_i, day_i]
@@ -170,7 +175,8 @@ def run_power(job):
         var_hits = {v: 0 for v in VARIANTS}
         ns, folds_ok, means, sds = [], 0, [], []
         for _ in range(job["reps"]):
-            tr, per_fold = gen_stream(rng, job["rate_sym"], job["k"], job["folds"], p, sigma, tau, rho, cost)
+            tr, per_fold = gen_stream(rng, job["rate_sym"], job["k"], job["folds"], p, sigma, tau, rho, cost,
+                                      job.get("sym_first_day"))
             ns.append(len(tr))
             folds_ok += int(per_fold.min() >= FS.MIN_FOLD_TRADES)
             if len(tr) >= 2:
