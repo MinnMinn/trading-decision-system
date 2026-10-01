@@ -1514,6 +1514,34 @@ class DeclaredCells(_Tmp):
         json.dump(spec, open(p, "w"))
         self.assertNotEqual(self.fs.build_plan(gd, first_bar=self._first_bar)["plan_hash"], h0)
 
+    def test_an_edit_touching_no_cell_field_still_changes_plan_hash(self):
+        gd = _grid_dir_with_cells(self.tmp)
+        p0 = self.fs.build_plan(gd, first_bar=self._first_bar)
+        p = os.path.join(gd, "fund-search-cells.json")
+        for mutate in (lambda s: s.update(_why=s["_why"] + " x"), lambda s: s.update(_source="elsewhere")):
+            spec = json.load(open(p))
+            mutate(spec)
+            json.dump(spec, open(p, "w"))
+            p1 = self.fs.build_plan(gd, first_bar=self._first_bar)
+            self.assertEqual(p1["cells"], p0["cells"])                       # no cell field moved ...
+            self.assertNotEqual(p1["plan_hash"], p0["plan_hash"])            # ... yet the hash did
+            shutil.copy(os.path.join(FIXTURES, "fund-search-cells.json"), p)
+        with open(p, "a") as fh:                                              # whitespace only
+            fh.write("\n \n")
+        self.assertNotEqual(self.fs.build_plan(gd, first_bar=self._first_bar)["plan_hash"], p0["plan_hash"])
+
+    def test_the_plan_core_carries_the_cells_file_sha256(self):
+        gd = _grid_dir_with_cells(self.tmp)
+        plan = self.fs.build_plan(gd, first_bar=self._first_bar)
+        want = hashlib.sha256(open(os.path.join(gd, "fund-search-cells.json"), "rb").read()).hexdigest()
+        self.assertEqual(plan["cells_file"]["sha256"], want)
+        core = {k: v for k, v in plan.items() if k in ("cells", "cells_file", "excluded_cells", "grids", "candidates",
+                                                       "n_by_method", "cost_profile", "dev_cutoff", "adopted_f_keys",
+                                                       "embargo", "constants")}
+        self.assertEqual(self.fs._hash(core), plan["plan_hash"])            # cells_file is inside what is hashed
+        core.pop("cells_file")
+        self.assertNotEqual(self.fs._hash(core), plan["plan_hash"])
+
     def test_the_declaration_pins_the_cells_file_and_run_refuses_a_mutated_one(self):
         gd = _grid_dir_with_cells(self.tmp)
         with mock.patch.object(self.fs, "GRID_DIR", gd):
@@ -1668,13 +1696,15 @@ class SeriesStartSeam(unittest.TestCase):
         self.assertEqual(captured["series_start"], {("XAUUSD", "5m"): ("2022-01-05T00:00:00Z", 12)})
 
 
-@unittest.skipUnless(os.path.isdir(os.path.join(ROOT, "data", "history", "ftmo", "ohlcv.XAUUSD.15m")),
-                     "data/history/ftmo is not present")
 class EngineDevStart(unittest.TestCase):
     """BtEngine(dev_start=...): no trade before dev_start exists, and what is left equals the full-series run."""
 
     @classmethod
     def setUpClass(cls):
+        d = os.path.join(ROOT, "data", "history", "ftmo", "ohlcv.XAUUSD.15m")
+        if not os.path.isdir(d):               # never a silent skip: this proof must run wherever the data should be
+            raise AssertionError(f"{d} is missing: EngineDevStart (the dev_start equivalence proof) needs the FTMO history; "
+                                 f"run it in a checkout that has data/history/ftmo")
         cls.tmp = tempfile.mkdtemp(prefix="dev-start-")
         cls.env = os.environ.get("BT_HISTORY_ROOT")
         cls.hist = os.path.join(cls.tmp, "hist")
@@ -1721,6 +1751,8 @@ class EngineDevStart(unittest.TestCase):
     def test_wyckoff_no_trade_before_dev_start_and_the_rest_equals_the_full_run(self):
         fe, full, ce, cut = self._both("wyckoff", "WYCKOFF-BOOK")
         ds = FS.ts(self.dev_start)
+        self.assertGreater(len(cut), 0, "the slice must produce trades for this check to bite")
+        self.assertTrue(any(FS.ts(t["entry_time"]) < ds for t in full), "the full run has pre-start trades to drop")
         self.assertTrue(all(FS.ts(t["entry_time"]) >= ds for t in cut))
         want = [t for t in full if FS.ts(t["entry_time"]) >= ds]
         self.assertEqual(self._sha(cut), self._sha(want))

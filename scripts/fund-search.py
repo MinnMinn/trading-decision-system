@@ -896,6 +896,9 @@ class BtEngine:
         self.bt.pit_cutoff(FS.DEV_CUTOFF)
         neutralise_ruin(self.bt)
         self.span = None
+        if dev_start is None:                        # an injected bt may carry a stale cut from an earlier engine
+            for s in self.symbols:
+                self.bt.series_start(s, tf, None)
         if dev_start is not None:
             # the DECISION series only (bt.series_start is keyed by (symbol, tf)): scan from `dev_start - warmup_days`
             # minus the method's own window; every higher-timeframe series a gate / the W7 target reads keeps its full
@@ -1423,6 +1426,7 @@ DEV_BARS = {
 #: ICT XAUUSD 1m wave 1 (39 value sets) = 581 s for the first set + ~213 s per further set (= 2.41 h). Everything else
 #: is an ASSUMPTION, stated there: cost linear in bars, linear in worker count, no per-core speed adjustment for a
 #: hosted runner, Wyckoff = `wyckoff_factor` x ICT per set (the audit projects ~2.1x on 1m metals; not measured here).
+# UNCALIBRATED: one owner-measured run (see the audit, sections 3 and 8); every minute figure derived from it is an estimate.
 SHARD_MODEL = {"first_set_s": 581.0, "extra_set_s": 213.0, "ref_bars": 4096182, "ref_workers": 10,
                "runner_vcpu": 4, "runner_ram_bytes": 16 * 2 ** 30, "wyckoff_factor": 2.0,
                "budget_s": 300 * 60,        # target per shard; the job timeout is 355 min (GitHub's hard cap is 360)
@@ -1531,7 +1535,8 @@ def format_shard_table(rows):
         whole = round(shard_seconds(sets, rs[0]["bars"], m) / 60)      # the same symbol/wave in ONE job, no slicing
         L.append(f"{c:<12}{m:<8}{s:<8}{w:<5}{len(rs):>6}{sets:>6}{whole:>7} min{longest:>10} min   "
                  f"{'YES' if any(r['over_timeout'] for r in rs) else 'no'}")
-    L.append(f"total shards: {len(rows)}; modelled runner minutes: {sum(r['est_min'] for r in rows)}")
+    L.append(f"total shards: {len(rows)}; modelled runner minutes: {sum(r['est_min'] for r in rows)} "
+             f"(time model UNCALIBRATED: recalibrate before relying on any minute figure)")
     return "\n".join(L)
 
 
