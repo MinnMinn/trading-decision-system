@@ -1,0 +1,319 @@
+{
+ "cells": [
+  {
+   "id": "1m-metals",
+   "timeframe": "1m",
+   "asset_class": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "symbols_without_development": {},
+   "symbol_first_bar": {
+    "XAUUSD": "2012-06-14T17:46:00Z",
+    "XAGUSD": "2012-05-03T05:38:00Z"
+   },
+   "dev_start_override": null,
+   "development_start": "2012-05-03T05:38:00Z",
+   "span_source": "from data",
+   "rationale": "Keeps its original data start (from data).",
+   "decision": "owner 2026-10-01 (chat): per-cell spans were offered, the 1m cells keep their original data start; kept by the cell-selection rule (e_min <= 2 x e_star, best ratio 0.87), owner 2026-10-01",
+   "n_folds": 9,
+   "frequency_rule": {
+    "n_folds": 9,
+    "folds_required_within_gap": 9,
+    "folds_allowed_to_fail": 0,
+    "max_gap_days": 30,
+    "required_share": 0.9
+   }
+  },
+  {
+   "id": "1m-indices",
+   "timeframe": "1m",
+   "asset_class": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40"
+   ],
+   "symbols_without_development": {},
+   "symbol_first_bar": {
+    "US500": "2017-12-28T22:00:00Z",
+    "US30": "2019-02-08T12:25:00Z",
+    "USTEC": "2017-12-28T22:00:00Z",
+    "DE40": "2017-12-27T23:00:00Z",
+    "FRA40": "2017-12-28T22:00:00Z"
+   },
+   "dev_start_override": null,
+   "development_start": "2017-12-27T23:00:00Z",
+   "span_source": "from data",
+   "rationale": "Keeps its original data start (from data).",
+   "decision": "owner 2026-10-01 (chat): per-cell spans were offered, the 1m cells keep their original data start; kept by the cell-selection rule (e_min <= 2 x e_star, best ratio 1.28), owner 2026-10-01",
+   "n_folds": 4,
+   "frequency_rule": {
+    "n_folds": 4,
+    "folds_required_within_gap": 4,
+    "folds_allowed_to_fail": 0,
+    "max_gap_days": 30,
+    "required_share": 0.9
+   }
+  },
+  {
+   "id": "5m-metals",
+   "timeframe": "5m",
+   "asset_class": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD",
+    "XPTUSD",
+    "XPDUSD"
+   ],
+   "symbols_without_development": {},
+   "symbol_first_bar": {
+    "XAUUSD": "2004-06-11T04:15:00Z",
+    "XAGUSD": "2008-11-07T21:10:00Z",
+    "XPTUSD": "2015-01-06T22:00:00Z",
+    "XPDUSD": "2015-01-06T22:00:00Z"
+   },
+   "dev_start_override": null,
+   "development_start": "2004-06-11T04:15:00Z",
+   "span_source": "from data",
+   "rationale": "Keeps its original data start (from data). The earliest symbol (XAUUSD, 2004-06-11) sets the folds; XPTUSD and XPDUSD (2015-01-07) are the late symbols.",
+   "decision": "owner 2026-10-01 (chat): a 2008-03-01 start (14 folds) was offered, the cell keeps its original data start (17 folds); symbols (owner 2026-10-01, symbol universe): XAUUSD XAGUSD + XPTUSD XPDUSD (XCUUSD excluded: history starts 2024-12-02, after the cutoff); kept by the cell-selection rule (e_min <= 2 x e_star, best ratio 1.26), owner 2026-10-01",
+   "n_folds": 17,
+   "frequency_rule": {
+    "n_folds": 17,
+    "folds_required_within_gap": 16,
+    "folds_allowed_to_fail": 1,
+    "max_gap_days": 30,
+    "required_share": 0.9
+   }
+  }
+ ],
+ "cells_file": {
+  "file": "docs/architecture/fund-search-cells.json",
+  "sha256": "e5b9e2be9579dce0e48e2ee2e0aa0d4c899486268c7a6ad84074035ed19613af",
+  "warmup_days": 14,
+  "removed_cells": [
+   {
+    "id": "30m-metals",
+    "reason": "underpowered (trade-rate counts, docs/audits/2026-10-01-trade-rates.md); also fails the cell-selection rule: best ratio e_min/e_star 4.73",
+    "decision": "owner 2026-10-01 (chat); confirmed by the cell-selection decision, owner 2026-10-01",
+    "reference": "docs/audits/2026-10-01-cell-selection.md"
+   },
+   {
+    "id": "30m-indices",
+    "reason": "underpowered (trade-rate counts, docs/audits/2026-10-01-trade-rates.md); also fails the cell-selection rule: e_min not reached by e = 1.0",
+    "decision": "owner 2026-10-01 (chat); confirmed by the cell-selection decision, owner 2026-10-01",
+    "reference": "docs/audits/2026-10-01-cell-selection.md"
+   },
+   {
+    "id": "5m-indices",
+    "reason": "fails the pre-stated inclusion rule e_min <= 2 x e_star (primary pooling variant): best ratio e_min/e_star 3.76",
+    "decision": "owner 2026-10-01 (chat): the plan keeps exactly three cells",
+    "reference": "docs/audits/2026-10-01-cell-selection.md"
+   },
+   {
+    "id": "15m-metals",
+    "reason": "fails the pre-stated inclusion rule e_min <= 2 x e_star (primary pooling variant): best ratio e_min/e_star 2.23 (Wyckoff; ICT 2.39); the ICT candidate also fails the insufficient-fold guard (P(all folds >= 30 trades) = 0.00). Re-adding it (owner option 2) or another plan could only be a LATER, separate pre-registration round whose multiple-testing accounting must include this round's comparisons (prior_counts_disclosed); it is not pre-built here",
+    "decision": "owner 2026-10-01 (chat): the plan keeps exactly three cells",
+    "reference": "docs/audits/2026-10-01-cell-selection.md"
+   },
+   {
+    "id": "15m-indices",
+    "reason": "fails the pre-stated inclusion rule e_min <= 2 x e_star (primary pooling variant): best ratio e_min/e_star 6.21",
+    "decision": "owner 2026-10-01 (chat): the plan keeps exactly three cells",
+    "reference": "docs/audits/2026-10-01-cell-selection.md"
+   }
+  ]
+ },
+ "excluded_cells": [],
+ "grids": {
+  "ict": {
+   "file": "docs/architecture/v-grid-ict.json",
+   "sha256": "c7a4d72e2745d94971e469bbc6c0a3f1c99cecfaf534f67214526aa35010cb43",
+   "method": "ICT",
+   "items": 11,
+   "non_baseline_values": 27,
+   "n_per_cell": 29,
+   "unimplemented": [
+    "B4"
+   ]
+  },
+  "wyckoff": {
+   "file": "docs/architecture/v-grid-wyckoff.json",
+   "sha256": "72a9ffa137703531799168941552e090b3c60415f474b53b13205a429b32621d",
+   "method": "WYCKOFF-BOOK",
+   "items": 8,
+   "non_baseline_values": 14,
+   "n_per_cell": 16,
+   "unimplemented": [
+    "W4b"
+   ]
+  }
+ },
+ "candidates": [
+  {
+   "id": "ict-1m-metals",
+   "method": "ict",
+   "runner_method": "ICT",
+   "cell": "1m-metals",
+   "timeframe": "1m",
+   "asset_class": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "n_comparisons": 87
+  },
+  {
+   "id": "wyckoff-1m-metals",
+   "method": "wyckoff",
+   "runner_method": "WYCKOFF-BOOK",
+   "cell": "1m-metals",
+   "timeframe": "1m",
+   "asset_class": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD"
+   ],
+   "n_comparisons": 48
+  },
+  {
+   "id": "ict-1m-indices",
+   "method": "ict",
+   "runner_method": "ICT",
+   "cell": "1m-indices",
+   "timeframe": "1m",
+   "asset_class": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40"
+   ],
+   "n_comparisons": 87
+  },
+  {
+   "id": "wyckoff-1m-indices",
+   "method": "wyckoff",
+   "runner_method": "WYCKOFF-BOOK",
+   "cell": "1m-indices",
+   "timeframe": "1m",
+   "asset_class": "indices",
+   "symbols": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40"
+   ],
+   "n_comparisons": 48
+  },
+  {
+   "id": "ict-5m-metals",
+   "method": "ict",
+   "runner_method": "ICT",
+   "cell": "5m-metals",
+   "timeframe": "5m",
+   "asset_class": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD",
+    "XPTUSD",
+    "XPDUSD"
+   ],
+   "n_comparisons": 87
+  },
+  {
+   "id": "wyckoff-5m-metals",
+   "method": "wyckoff",
+   "runner_method": "WYCKOFF-BOOK",
+   "cell": "5m-metals",
+   "timeframe": "5m",
+   "asset_class": "metals",
+   "symbols": [
+    "XAUUSD",
+    "XAGUSD",
+    "XPTUSD",
+    "XPDUSD"
+   ],
+   "n_comparisons": 48
+  }
+ ],
+ "n_by_method": {
+  "ict": 87,
+  "wyckoff": 48
+ },
+ "cost_profile": "ftmo_demo_2026_09",
+ "dev_cutoff": "2024-03-01T00:00:00Z",
+ "adopted_f_keys": [
+  "fx_b2a_fvg_in_leg",
+  "fx_b2b_ce_fail",
+  "fx_b1_pivot1",
+  "fx_braid_optional",
+  "fx_w1_tr_low_st",
+  "fx_w2_st_below_sc",
+  "fx_w3_mSOW_spring",
+  "fx_w5_vp_abandon",
+  "fx_w7_htf_target",
+  "fx_admission_entry_cost"
+ ],
+ "embargo": {
+  "rule": "training trades need exit_label < test_start - 2 x H bars (H = bt.P[tf]['H']), on top of the one-bar purge; 'none' time stops are covered only by this same window",
+  "h_multiple": 2,
+  "minutes_by_timeframe": {
+   "1m": 288,
+   "5m": 1200,
+   "15m": 2880
+  }
+ },
+ "constants": {
+  "FAMILY_ALPHA": 0.1,
+  "MIN_FOLD_TRADES": 30,
+  "MIN_TRAIN_TRADES": 30,
+  "MAX_TRADE_SHARE": 0.25,
+  "MAX_GAP_DAYS": 30,
+  "MIN_FOLD_SHARE_OK": 0.9,
+  "PASS_PROB_MIN": 0.7,
+  "ADX_PERIOD": 14,
+  "TEST_FOLD_DAYS": 365,
+  "MIN_TRAIN_DAYS": 730,
+  "MIN_TEST_FOLDS": 2
+ },
+ "_source": "docs/plans/2026-09-28-methodology-improvement-plan.md",
+ "cell_count": 3,
+ "candidate_count": 6,
+ "confidence_by_method": {
+  "ict": 0.9988505747126437,
+  "wyckoff": 0.9979166666666667
+ },
+ "fund_symbols": [
+  "XAUUSD",
+  "XAGUSD",
+  "XPTUSD",
+  "XPDUSD",
+  "US500",
+  "US30",
+  "USTEC",
+  "DE40",
+  "FRA40",
+  "UK100",
+  "EU50",
+  "JP225",
+  "HK50",
+  "AUS200",
+  "US2000",
+  "SPN35",
+  "N25"
+ ],
+ "prior_counts_disclosed": {
+  "prop_search_records": 180,
+  "diagnosis_slices": 30
+ },
+ "plan_hash": "4a476bee674afcbb324c25a2103a49dfea5d48f95f88a68a572340ae78b7eacc",
+ "generated_at": "2026-10-01T23:35:07Z"
+}
