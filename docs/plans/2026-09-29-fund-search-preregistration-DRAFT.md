@@ -6,7 +6,7 @@ currently implements it, so the owner can accept or change each item BEFORE the 
 Parent: docs/plans/2026-09-28-methodology-improvement-plan.md §1.4, §3, §6. Any change after sealing is a ledger
 event, and thresholds may only be tightened.
 
-## A. Choices to pre-register (the 11)
+## A. Choices to pre-register (the 12)
 
 1. **Fold geometry.** `TEST_FOLD_DAYS=365`, `MIN_TRAIN_DAYS=730`, `MIN_TEST_FOLDS=2`, `MIN_TRAIN_TRADES=30`.
    Folds end exactly at the development cutoff (2024-03-01) and step back in 365-day folds while >= 730 days of
@@ -68,6 +68,30 @@ event, and thresholds may only be tightened.
     training fold, score on the next test fold), not a configuration. The report shows how often each item's chosen
     value changed between folds. PROPOSED, NOT DECIDED: the deployment rule is "the values chosen in the FINAL
     fold".
+
+12. **Planned-risk admission (zero-risk refusal; coordinator decision 2026-10-01, owner to ack before `declare`).** A
+    candidate trade is REFUSED at admission, before any pricing, when its planned risk is not a valid stop distance:
+    `backtest-methods.planned_risk_refusal(side, entry, stop, tick)` returns a cause when (a) entry or stop is not a finite
+    number or entry is not positive (`invalid_price`), (b) entry == stop (`zero`), (c) the stop is on the profit side of the
+    entry (`wrong_side`, risk < 0), or (d) 0 < risk < one tick (`sub_tick`; tick = the symbol's `tick_size` in its real-cost
+    spec, compared with 1e-6 relative slack; with no cost profile only risk > 0 is asked). Why: such a trade has no
+    position size (live refuses it: `risk_model.size` raises on a zero stop distance), `real_costs.cost_r` would raise
+    `CostRefused: stop distance is zero` and abort the run, and the flat-fee path would divide by zero. Root cause: the
+    ICT B-EX=`fill` entry model (far edge of the FVG) puts the entry ON the stop when the first candle of the gap is a flat
+    (H == L) bar at the sweep extreme (docs/audits/2026-10-01-zero-risk.md). The refused candidates are counted: simulate()
+    records `SIM_LAST["refused"]["zero_risk"]` (by cause in `SIM_LAST["zero_risk_by_cause"]`) and the harness records, per
+    value set and per test fold, `refused_zero_risk` next to `candidates` / `refused_min_rr` in the record's `admission`
+    block and in the report line "planned-risk admission". A refused candidate is never entered, never occupies the
+    one-position-per-symbol slot and never produces an R. Every trade with a valid stop distance is unchanged: this is
+    DEMONSTRATED FOR THE ZERO BRANCH (trade-list sha256 BEFORE == AFTER on slices without a zero-risk candidate; the
+    difference on an affected slice is exactly the refused candidates). The `sub_tick` branch is a defensive guard
+    that is not idle but is confined: on the data counted it refused candidates only in `B-EX=fill` + `B-BUF` value sets (an
+    off-grid ATR-buffered stop within a fraction of a tick of the far-edge entry: XAGUSD 1m up to 395 in one set, XAUUSD 1m 10,
+    XAUUSD 5m 4, none elsewhere; per-year counts in the audit) and none in the baseline value set; the other strict sub-tick
+    cases found were one tick plus floating-point noise and are admitted by the 1e-6 slack. The equivalence evidence covers the
+    ZERO branch only, and a `sub_tick` refusal in the BASELINE value set would be a method change (none seen).
+    The rule changes no threshold, grid, cell, min_rr or statistic and does not change `plan_hash`; it changes pinned files
+    `backtest-methods.py`, `real_costs.py`, `fund-search.py`.
 
 ## B. OPEN owner questions
 

@@ -47,7 +47,7 @@ ACCOUNT — RISK of current equity risked per trade, compounding, one open posit
           RISK is one number, set below and equal to strategy-runner.RISK_CEILING -- do NOT restate it as a literal in prose here or in the report title; it read "1%" for the whole day after the ceiling moved to 3%.
           Monthly / quarterly / yearly returns are equity-curve returns (closed trades booked at exit time).
 """
-import argparse, bisect, collections, heapq, importlib.util, datetime, json, os, statistics, sys, types
+import argparse, bisect, collections, heapq, importlib.util, datetime, json, math, os, statistics, sys, types
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -1820,6 +1820,49 @@ def _risk_scale(sym, entry, stop, equity, risk_mult, entry_order_type, exit_orde
     return risk_mult * (effective_risk_usd / risk_usd)
 
 
+#: Relative slack of the one-tick comparison in `planned_risk_refusal`: a one-tick risk computed from two decimal prices
+#: (4053.51 - 4053.50 = 0.00999999999976...) is exactly one tick, not "below" it.
+RISK_TICK_REL_TOL = 1e-6
+#: The refusal causes `planned_risk_refusal` returns, and the ONE admission reason they are counted under.
+ZERO_RISK_CAUSES = ("zero", "wrong_side", "sub_tick", "invalid_price")
+ZERO_RISK_REASON = "zero_risk"
+
+
+def planned_risk_refusal(side, entry, stop, tick=None):
+    """THE planned-risk admission rule (pre-registration item 12): None when `entry`/`stop` is a placeable order, else
+    the cause it is NOT one (a member of `ZERO_RISK_CAUSES`). A trade has a position size only if its planned risk
+    (entry - stop for a long, stop - entry for a short) is strictly positive and, when the instrument's `tick` is
+    known, at least one tick (live would refuse the order: `risk_model.size` raises on a zero stop distance, and a
+    stop closer than a tick cannot be placed at a different price). Causes:
+      * "invalid_price": entry or stop is not a finite number, or entry is not positive (NaN / inf / None / <= 0);
+      * "zero": entry == stop (no position size exists -- `real_costs.cost_r` would raise, the flat-fee path would
+        divide by zero);
+      * "wrong_side": the stop is on the profit side of the entry (negative planned risk);
+      * "sub_tick": 0 < risk < tick (compared with `RISK_TICK_REL_TOL` slack).
+    A pure function of its arguments: simulate() calls it per candidate trade at admission, the fund-search harness
+    calls it per raw candidate for its admission disclosure, so the refused count of one is the count of the other.
+    A trade it passes is not touched by it in any way."""
+    try:
+        e, s = float(entry), float(stop)
+    except (TypeError, ValueError):
+        return "invalid_price"
+    if not (math.isfinite(e) and math.isfinite(s)) or e <= 0:
+        return "invalid_price"
+    if side == "long":
+        risk = e - s
+    elif side == "short":
+        risk = s - e
+    else:
+        return "invalid_price"
+    if risk == 0:
+        return "zero"
+    if risk < 0:
+        return "wrong_side"
+    if tick is not None and risk < tick * (1 - RISK_TICK_REL_TOL):
+        return "sub_tick"
+    return None
+
+
 def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader=None, entry_order_type=None,
              live_parity_sizing=False, cost_profile=None, spread_stat="median"):
     """`cost_profile` (A0, plan §2): a `real_costs.PROFILES` name. `None` (the default, unchanged from before
@@ -1854,6 +1897,9 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
     TOP of these (tighten only, never loosen -- `account_profile.tighten_calendar` / the account's own allowed
     sessions intersected in): a profile whose rules are stricter than the CLI flags cannot be widened by them.
     `SIM_LAST["refused"]` records how many candidates each reason cost, so a report can show it was not silent.
+    A candidate whose planned risk is zero / wrong-side / below one tick / not a finite price (`planned_risk_refusal`,
+    the instrument's tick from the cost profile; none without one) is refused first, before any pricing, and counted
+    as `SIM_LAST["refused"]["zero_risk"]` (by cause: `SIM_LAST["zero_risk_by_cause"]`).
 
     `trader` -- CLAUDE.md §0.9 (docs/plans/2026-09-18-close-feature-gaps.md): the trader id whose OPTS/session
     constraints already narrowed `trades` (via `scan_for_trader()` / `trader_sessions_for()`, applied by the
@@ -1895,7 +1941,8 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
         if sr is not None:
             allowed = set(sr["allowed_sessions"])
             eff_sessions = allowed if eff_sessions is None else (eff_sessions & allowed)
-    refused_news = refused_session = 0
+    refused_news = refused_session = refused_zero_risk = 0
+    zero_risk_by_cause = {c: 0 for c in ZERO_RISK_CAUSES}
     # B-EXIT's 2R component (fx_b_exit "...|no_floor", knowledge/ict/models.md §3.1 rule 23: 2R is "the minimum
     # requirement before taking profit on an open position", not an entry filter): the planned-R:R ENTRY floor
     # below is skipped for ICT trades. Baseline "floor" = v1. ICT trades only, identified by their `event` id form
@@ -1943,6 +1990,17 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
         # `equity`/`peak`/`consec_losses` to admit or size it -- so every downstream decision below sees only
         # outcomes that had actually occurred, never one still open.
         _flush_through(t["entry_time"])
+        # Pre-registration item 12 (planned-risk admission, docs/audits/2026-10-01-zero-risk.md): a candidate whose planned
+        # risk is zero / wrong-side / below one tick / not a finite price has no position size and is not an order live
+        # could place. It is REFUSED here -- counted, never priced (cost_r would raise, the flat fee would divide by
+        # zero), never entered, never in `open_pos`, never on the equity curve. A trade with a valid stop distance never
+        # takes this branch, so every other trade is exactly as it was.
+        why = planned_risk_refusal(t.get("side"), t.get("entry"), t.get("stop"),
+                                   _RC.tick_size(cost_profile, t["symbol"]) if cost_profile is not None else None)
+        if why is not None:
+            refused_zero_risk += 1
+            zero_risk_by_cause[why] += 1
+            continue
         # CLAUDE.md §37: "the backtest must execute the same logical Trading System and Decision Engine
         # semantics used by live decisions wherever practical." The R:R floor is one of those semantics, and
         # until 2026-09-18 the two paths applied it to DIFFERENT quantities: §34 moved the live gate to R
@@ -2066,14 +2124,16 @@ def simulate(trades, fee_pct, account=None, calendar=None, sessions=None, trader
     SIM_LAST["failed_by"] = failed_by
     SIM_LAST["account"] = (account or {}).get("id")
     SIM_LAST["rules_not_applicable"] = sorted(UNAPPLICABLE_ACCOUNT_FACTS) if account else []
-    SIM_LAST["refused"] = {"news": refused_news, "session": refused_session}
+    SIM_LAST["refused"] = {"news": refused_news, "session": refused_session, ZERO_RISK_REASON: refused_zero_risk}
+    SIM_LAST["zero_risk_by_cause"] = zero_risk_by_cause
     SIM_LAST["trader"] = trader
     SIM_LAST["post_ruin"] = post_ruin
     return equity, curve, taken
 
 
 SIM_LAST = {"ruin": None, "failed_by": None, "account": None, "rules_not_applicable": [],
-           "refused": {"news": 0, "session": 0}, "trader": None, "post_ruin": []}   # how the last simulate()
+           "refused": {"news": 0, "session": 0, ZERO_RISK_REASON: 0}, "zero_risk_by_cause": {c: 0 for c in ZERO_RISK_CAUSES},
+           "trader": None, "post_ruin": []}   # how the last simulate()
            # ended, under whose account rules and whose §0.9 trader constraints. `post_ruin` (round-4a fix
            # round 1, should-fix #4): trades that were admitted before the account failed but never got to
            # realise -- a diagnostic only, never folded into the returned equity/curve/taken.

@@ -117,6 +117,21 @@ class InstrumentationChangesNothing(unittest.TestCase):
         self.assertEqual(summ["walk_calls"].get("trade", 0), len(trades))
 
 
+class AfterFloorZeroRisk(unittest.TestCase):
+    """Item 12: an fx_b_ex=fill candidate with entry == stop must not divide by zero in the diagnostic's fee re-derivation."""
+
+    def test_a_zero_risk_candidate_is_refused_not_a_zero_division(self):
+        sr = dm.load_sr()
+        ok = dict(symbol="BTCUSDT", tf="15m", side="long", entry=100.0, stop=99.0, target=106.0, R=6.0, R_planned=6.0,
+                  entry_time="2020-01-01T00:00:00Z", exit_time="2020-01-01T01:00:00Z", event="e0", outcome="win")
+        zero = dict(ok, entry=100.0, stop=100.0, R=-1.0, R_planned=None, event="e1", entry_time="2020-01-01T02:00:00Z",
+                    exit_time="2020-01-01T03:00:00Z", outcome="loss")
+        res = dm.after_floor(sr.bt, sr, "C", "ICT", [ok, zero])
+        self.assertEqual(res["refused_zero_risk"], 1)
+        self.assertEqual(res["simulate_taken"], 1)
+        self.assertEqual(res["booked"], 2)
+
+
 class SetFlagValidation(unittest.TestCase):
     """`run --set` accepts exactly the engine's fx_ keys (ICT + Wyckoff after the Batch-1 merge)."""
 

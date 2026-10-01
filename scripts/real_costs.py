@@ -152,6 +152,18 @@ def spec(profile_name, canonical_symbol):
     return _spec_cached(path)
 
 
+def tick_size(profile_name, canonical_symbol):
+    """The instrument's price tick (MT5 SYMBOL_TRADE_TICK_SIZE, the spec's `tick_size`), as a positive float. Used by
+    the planned-risk admission rule (`backtest-methods.planned_risk_refusal`: a stop closer to the entry than one
+    tick is not a placeable order). Refuses -- never defaults -- when the spec has no positive `tick_size`."""
+    d = spec(profile_name, canonical_symbol)
+    tick = d.get("tick_size")
+    if not isinstance(tick, (int, float)) or isinstance(tick, bool) or not tick > 0:
+        raise CostRefused(f"{canonical_symbol!r} under {profile_name!r}: the spec has no positive `tick_size` "
+                          f"(got {tick!r}); the planned-risk rule will not guess a tick.")
+    return float(tick)
+
+
 def _sha256(path):
     h = hashlib.sha256()
     with open(path, "rb") as fh:

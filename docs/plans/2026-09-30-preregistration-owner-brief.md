@@ -1,6 +1,6 @@
 # Pre-registration brief for the owner (2026-09-30) — decisions needed BEFORE `fund-search declare`
 
-Sources: docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md (11 choices + O1..O9),
+Sources: docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md (12 choices + O1..O9),
 docs/plans/2026-09-29-v-ict-constants-DRAFT.md, docs/plans/2026-09-30-owner-decisions.md. Nothing is sealed.
 `declare` pins code SHAs, grid hashes and the settings below; after it, any code or setting change is reported as drift.
 
