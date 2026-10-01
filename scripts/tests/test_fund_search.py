@@ -11,6 +11,7 @@ Run from scripts/tests, ONE module per invocation:  PYTHONPATH=.. python3 -W ign
 import contextlib
 import copy
 import datetime
+import hashlib
 import importlib.util
 import io
 import json
@@ -518,32 +519,32 @@ class _Tmp(unittest.TestCase):
 class PlanAndDryRun(_Tmp):
     def test_cells_n_and_confidence(self):
         p = self.plan()
-        self.assertEqual(p["cell_count"], 8)
-        self.assertEqual(p["n_by_method"], {"ict": 41 * 8, "wyckoff": 16 * 8})
-        self.assertAlmostEqual(p["confidence_by_method"]["ict"], 1 - 0.10 / (41 * 8))
-        self.assertEqual(p["candidate_count"], 16)
+        self.assertEqual(p["cell_count"], 6)                               # owner 2026-10-01: the 30m cells are removed
+        self.assertEqual(p["n_by_method"], {"ict": 41 * 6, "wyckoff": 16 * 6})
+        self.assertAlmostEqual(p["confidence_by_method"]["ict"], 1 - 0.10 / (41 * 6))
+        self.assertEqual(p["candidate_count"], 12)
         self.assertNotIn("AUS200", json.dumps(p["cells"]))                # plan §6 item 8
-        self.assertEqual({c["timeframe"] for c in p["cells"]}, {"1m", "5m", "15m", "30m"})
+        self.assertEqual({c["timeframe"] for c in p["cells"]}, {"1m", "5m", "15m"})
 
     def test_a_cell_without_development_history_is_excluded_and_a_symbol_is_listed_not_forgotten(self):
         for s in ("US500", "US30", "USTEC", "DE40", "FRA40"):
             self.first[(s, "1m")] = "2024-06-01T00:00:00Z"               # indices 1m start AFTER the cutoff
         self.first[("XAGUSD", "5m")] = "2025-01-01T00:00:00Z"
         p = self.plan()
-        self.assertEqual(p["cell_count"], 7)
+        self.assertEqual(p["cell_count"], 5)
         self.assertEqual([e["id"] for e in p["excluded_cells"]], ["1m-indices"])
         c5 = next(c for c in p["cells"] if c["id"] == "5m-metals")
         self.assertEqual(c5["symbols"], ["XAUUSD"])
         self.assertIn("XAGUSD", c5["symbols_without_development"])         # m excludes it, but it is disclosed
-        self.assertEqual(p["n_by_method"]["ict"], 41 * 7)
+        self.assertEqual(p["n_by_method"]["ict"], 41 * 5)
 
     def test_dry_run_prints_n_and_confidence_and_writes_nothing(self):
         buf = io.StringIO()
         with redirect_stdout(buf):
             self.fs.cmd_plan(dry_run=True, grid_dir=FIXTURES)
         out = buf.getvalue()
-        self.assertIn("N 328", out)
-        self.assertIn("1 - 0.1/328", out)
+        self.assertIn("N 246", out)
+        self.assertIn("1 - 0.1/246", out)
         self.assertIn("NOTHING is evaluated", out)
         self.assertFalse(os.path.exists(self.fs.PLAN_PATH))
         self.assertFalse(os.path.exists(self.records))
@@ -624,7 +625,7 @@ class LedgerDeclaration(_Helpers):
         before = json.load(open(self.ledger))
         self.fs.cmd_declare()
         after = json.load(open(self.ledger))
-        self.assertEqual(after["fund_search"]["cell_count"], 8)
+        self.assertEqual(after["fund_search"]["cell_count"], 6)
         self.assertEqual(after["oos"], before["oos"])                     # no window / period changed
         self.assertEqual(after["budget"], before["budget"])
 
@@ -691,9 +692,9 @@ class RunAndReport(_Helpers):
         self.assertIn("evaluated: **4**", md)
         for cid in ("ict-5m-metals", "wyckoff-5m-metals", "ict-15m-metals", "wyckoff-15m-metals"):
             self.assertIn(cid, md)
-        self.assertIn("NOT RUN: **12**", md)                                  # the rest of the plan is disclosed
+        self.assertIn("NOT RUN: **8**", md)                                   # the rest of the plan is disclosed
         self.assertIn("Incomplete", md)
-        self.assertIn("N 328".replace("N 328", "**328**"), md)
+        self.assertIn("**246**", md)
         self.assertIn("NOT folded into N", md)
 
     def test_a_report_with_no_records_says_zero_results(self):
@@ -1210,7 +1211,7 @@ class Embargo(unittest.TestCase):
 
     def test_embargo_is_two_h_bars_from_the_engines_own_p_table_for_every_fund_timeframe(self):
         bt = self.fs._load_bt()
-        self.assertEqual(self.fs.FUND_TIMEFRAMES, ("1m", "5m", "15m", "30m"))
+        self.assertEqual(self.fs.FUND_TIMEFRAMES, ("1m", "5m", "15m"))        # 30m removed, owner 2026-10-01
         for tf in self.fs.FUND_TIMEFRAMES:
             self.assertEqual(self.fs.embargo_for(tf, bt),
                              datetime.timedelta(minutes=2 * bt.P[tf]["H"] * FS.TF_MINUTES[tf]), tf)
@@ -1347,7 +1348,7 @@ class MergeTimeGuards(_Helpers):
             with redirect_stdout(buf):
                 self.fs.cmd_plan(dry_run=True)
             self.assertIn("declared, not runnable, counted in N: ['B-EX']", buf.getvalue())
-            self.assertIn("N 328", buf.getvalue())                          # still counted in N
+            self.assertIn("N 246", buf.getvalue())                          # still counted in N
         full = FS.load_grid(os.path.join(bad, "v-grid-ict.json"))
         run = full.runnable()
         self.assertEqual(full.unimplemented, ["B-EX"])
@@ -1399,6 +1400,346 @@ class MergeTimeGuards(_Helpers):
         with self.assertRaises(SystemExit):
             eng.trades_for({"a": "bogus", "b": 0})
         bt.scan.assert_not_called()
+
+
+# ============================================================================ declared cells + per-cell history spans
+REAL_ARCH = os.path.join(ROOT, "docs", "architecture")
+
+
+def _grid_dir_with_cells(tmp, mutate=None):
+    """A private copy of the fixture grid dir whose cells file `mutate(spec)` may change."""
+    gd = tempfile.mkdtemp(prefix="cells-", dir=tmp)
+    for f in os.listdir(FIXTURES):
+        if f.endswith(".json"):
+            shutil.copy(os.path.join(FIXTURES, f), gd)
+    if mutate:
+        p = os.path.join(gd, "fund-search-cells.json")
+        spec = json.load(open(p))
+        mutate(spec)
+        json.dump(spec, open(p, "w"), indent=1)
+    return gd
+
+
+class DeclaredCells(_Tmp):
+    """docs/architecture/fund-search-cells.json: the cell list and each cell's history start are a pinned part of the plan."""
+
+    REAL_FIRST = {("XAUUSD", "1m"): "2012-06-14T17:46:00Z", ("XAGUSD", "1m"): "2012-05-03T05:38:00Z",
+                  ("XAUUSD", "5m"): "2004-06-11T04:15:00Z", ("XAGUSD", "5m"): "2008-11-07T21:10:00Z",
+                  ("XAUUSD", "15m"): "2004-06-11T04:15:00Z", ("XAGUSD", "15m"): "2008-11-07T21:00:00Z"}
+
+    def _first_bar(self, sym, tf):        # real first bars for the metals, the real indices start for the rest
+        return self.REAL_FIRST.get((sym, tf), "2017-12-27T23:00:00Z")
+
+    def _folds(self, p):
+        return {c["id"]: c["n_folds"] for c in p["cells"]}
+
+    def test_the_committed_cells_file_declares_exactly_six_cells_and_no_30m(self):
+        spec, path, sha = self.fs.load_cells_file(REAL_ARCH)
+        self.assertEqual([c["id"] for c in spec["cells"]],
+                         ["1m-metals", "1m-indices", "5m-metals", "5m-indices", "15m-metals", "15m-indices"])
+        self.assertFalse(any("30m" in c["id"] or c["timeframe"] == "30m" for c in spec["cells"]))
+        self.assertEqual([r["id"] for r in spec["removed_cells"]], ["30m-metals", "30m-indices"])
+        self.assertEqual(sha, hashlib.sha256(open(path, "rb").read()).hexdigest())
+        p = self.fs.build_plan(REAL_ARCH, first_bar=self._first_bar)
+        self.assertEqual(p["cell_count"], 6)
+        self.assertEqual(p["candidate_count"], 12)
+        self.assertFalse(any(c["timeframe"] == "30m" for c in p["candidates"]))
+        self.assertEqual(p["n_by_method"], {"ict": 29 * 6, "wyckoff": 16 * 6})
+        self.assertEqual(p["cells_file"]["sha256"], sha)
+
+    def test_the_committed_cells_keep_their_original_data_start_and_the_fold_counts_the_owner_listed(self):
+        p = self.fs.build_plan(REAL_ARCH, first_bar=self._first_bar)
+        self.assertEqual(self._folds(p), {"1m-metals": 9, "1m-indices": 4, "5m-metals": 17, "5m-indices": 4,
+                                          "15m-metals": 17, "15m-indices": 4})
+        self.assertTrue(all(c["dev_start_override"] is None and c["span_source"] == "from data" for c in p["cells"]))
+
+    def test_the_fixture_cells_file_has_the_same_six_cells(self):
+        self.assertEqual([c["id"] for c in self.plan()["cells"]],
+                         [c["id"] for c in self.fs.load_cells_file(REAL_ARCH)[0]["cells"]])
+
+    def test_a_dev_start_override_changes_the_fold_counts(self):
+        def mutate(spec):
+            for c in spec["cells"]:
+                c["dev_start"] = {"1m-metals": "2018-03-01T00:00:00Z", "1m-indices": "2020-03-01T00:00:00Z",
+                                  "5m-metals": "2008-03-01T00:00:00Z"}.get(c["id"])
+        gd = _grid_dir_with_cells(self.tmp, mutate)
+        p = self.fs.build_plan(gd, first_bar=self._first_bar)
+        self.assertEqual(self._folds(p), {"1m-metals": 4, "1m-indices": 2, "5m-metals": 14, "5m-indices": 4,
+                                          "15m-metals": 17, "15m-indices": 4})
+        c = next(x for x in p["cells"] if x["id"] == "5m-metals")
+        self.assertEqual((c["development_start"], c["dev_start_override"], c["span_source"]),
+                         ("2008-03-01T00:00:00Z", "2008-03-01T00:00:00Z", "declared"))
+        self.assertEqual(c["symbol_first_bar"]["XAGUSD"], "2008-11-07T21:10:00Z")      # a later symbol is disclosed
+        self.assertEqual(p["cells_file"]["sha256"], hashlib.sha256(
+            open(os.path.join(gd, "fund-search-cells.json"), "rb").read()).hexdigest())
+        self.assertEqual(self.fs.evaluation_config(p)["dev_start_by_cell"]["5m-metals"], "2008-03-01T00:00:00Z")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.fs.cmd_plan(dry_run=True, grid_dir=gd)
+        self.assertIn("folds 14", buf.getvalue())
+        self.assertIn("(declared)", buf.getvalue())
+
+    def test_a_declared_start_before_any_symbols_data_is_refused(self):
+        gd = _grid_dir_with_cells(self.tmp, lambda spec: spec["cells"][2].update(dev_start="2001-03-01T00:00:00Z"))
+        with self.assertRaises(SystemExit) as cm:
+            self.fs.build_plan(gd, first_bar=self._first_bar)
+        self.assertIn("before the first bar its data has", str(cm.exception))
+
+    def test_a_malformed_cells_file_is_refused_not_repaired(self):
+        bad = [lambda s: s["cells"][0].update(timeframe="30m", id="30m-metals"),
+               lambda s: s["cells"][0].update(dev_start="2018-03-01"),
+               lambda s: s["cells"][0].update(dev_start="2024-03-01T00:00:00Z"),       # not before the cutoff
+               lambda s: s["cells"][0].update(rationale=" "),
+               lambda s: s["cells"][0].update(symbols=["US500"]),                       # an index in a metals cell
+               lambda s: s["cells"][0].update(unexpected=1),
+               lambda s: s["cells"].append(dict(s["cells"][0])),                        # duplicate id
+               lambda s: s.update(warmup_days=0),
+               lambda s: s.update(cells=[])]
+        for i, m in enumerate(bad):
+            gd = _grid_dir_with_cells(self.tmp, m)
+            with self.assertRaises(SystemExit, msg=f"mutation {i}"):
+                self.fs.load_cells_file(gd)
+        empty = tempfile.mkdtemp(dir=self.tmp)
+        with self.assertRaises(SystemExit) as cm:
+            self.fs.load_cells_file(empty)
+        self.assertIn("cells file missing", str(cm.exception))
+
+    def test_the_cells_file_hash_is_in_the_plan_core_so_a_changed_file_changes_plan_hash(self):
+        gd = _grid_dir_with_cells(self.tmp)
+        h0 = self.fs.build_plan(gd, first_bar=self._first_bar)["plan_hash"]
+        self.assertEqual(h0, self.fs.build_plan(gd, first_bar=self._first_bar)["plan_hash"])       # deterministic
+        p = os.path.join(gd, "fund-search-cells.json")
+        spec = json.load(open(p))
+        spec["cells"][0]["rationale"] += " (edited)"
+        json.dump(spec, open(p, "w"))
+        self.assertNotEqual(self.fs.build_plan(gd, first_bar=self._first_bar)["plan_hash"], h0)
+
+    def test_the_declaration_pins_the_cells_file_and_run_refuses_a_mutated_one(self):
+        gd = _grid_dir_with_cells(self.tmp)
+        with mock.patch.object(self.fs, "GRID_DIR", gd):
+            self.fs.cmd_plan(grid_dir=gd)
+            self.fs.cmd_declare()
+            decl = json.load(open(self.ledger))["fund_search"]
+            want = hashlib.sha256(open(os.path.join(gd, "fund-search-cells.json"), "rb").read()).hexdigest()
+            self.assertEqual(decl["evaluation_config"]["cells_sha256"], want)
+            self.assertEqual(decl["cells"], [c["id"] for c in self.plan_of(gd)["cells"]])
+            p = os.path.join(gd, "fund-search-cells.json")
+            spec = json.load(open(p))
+            spec["cells"][0]["rationale"] += " (edited after declare)"
+            json.dump(spec, open(p, "w"))
+            with mock.patch.object(self.fs, "_evaluate_candidate") as ev:
+                with self.assertRaises(SystemExit) as cm:
+                    self.fs.cmd_run("5m-metals", grid_dir=gd)
+            self.assertIn("no longer matches the recomputed cell space", str(cm.exception))
+            ev.assert_not_called()
+            # the drift detector names the pinned hash too (a declaration made by an older plan, same plan_hash)
+            plan = self.plan_of(gd)
+            self.assertIn("cells_sha256", " ".join(self.fs.detect_drift(
+                dict(decl, evaluation_config=dict(decl["evaluation_config"], cells_sha256="0" * 64)), plan)))
+
+    def test_a_scan_refuses_a_mutated_cells_file_too(self):
+        gd = _grid_dir_with_cells(self.tmp)
+        with mock.patch.object(self.fs, "GRID_DIR", gd):
+            self.fs.cmd_plan(grid_dir=gd)
+            self.fs.cmd_declare()
+            p = os.path.join(gd, "fund-search-cells.json")
+            spec = json.load(open(p))
+            spec["warmup_days"] = 15
+            json.dump(spec, open(p, "w"))
+            with self.assertRaises(SystemExit) as cm:
+                self.fs.cmd_scan("5m-metals", "XAUUSD", "ict", os.path.join(tempfile.gettempdir(), "b11-never"),
+                                 grid_dir=gd)
+            self.assertIn("no longer matches", str(cm.exception))
+
+    def plan_of(self, gd):
+        return self.fs.build_plan(gd, first_bar=self._first_bar)
+
+    def test_list_cells_and_the_shard_matrix_follow_the_declared_cells_and_carry_no_30m(self):
+        gd = _grid_dir_with_cells(self.tmp)
+        with mock.patch.object(self.fs, "GRID_DIR", gd):
+            self.fs.cmd_plan(grid_dir=gd)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.fs.main(["list-cells"])
+                self.fs.main(["list-scan-shards"])
+                self.fs.main(["list-scan-shards", "--explain"])
+            lines = out.getvalue().splitlines()
+            cells = json.loads(lines[0])
+            self.assertEqual([c["cell"] for c in cells], ["1m-metals", "1m-indices", "5m-metals", "5m-indices",
+                                                          "15m-metals", "15m-indices"])
+            rows = json.loads(lines[1])
+            self.assertTrue(rows)
+            self.assertEqual({r["cell"] for r in rows}, {c["cell"] for c in cells})
+            self.assertFalse([r for r in rows if "30m" in r["cell"] or "30m" in r["name"]])
+            self.assertFalse([ln for ln in lines[2:] if ln.startswith("30m")])
+
+    def test_shard_sizing_scales_bars_only_for_a_declared_later_start(self):
+        cell = {"timeframe": "5m", "dev_start_override": None, "symbol_first_bar": {"XAUUSD": "2004-06-11T04:15:00Z"}}
+        self.assertEqual(self.fs.cell_bars(cell, "XAUUSD"), self.fs.DEV_BARS["5m"]["XAUUSD"])
+        later = dict(cell, dev_start_override="2014-03-01T00:00:00Z")
+        half = self.fs.cell_bars(later, "XAUUSD")
+        self.assertLess(half, self.fs.DEV_BARS["5m"]["XAUUSD"])
+        self.assertGreater(half, 0)
+        no_later_symbol = dict(later, symbol_first_bar={"XAUUSD": "2015-01-01T00:00:00Z"})     # starts after the override
+        self.assertEqual(self.fs.cell_bars(no_later_symbol, "XAUUSD"), self.fs.DEV_BARS["5m"]["XAUUSD"])
+
+
+class SeriesStartSeam(unittest.TestCase):
+    """bt.series_start / load(): the declared start cuts ONE (symbol, timeframe) series, nothing else."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix="series-start-")
+        cls.env = os.environ.get("BT_HISTORY_ROOT")
+        t0 = datetime.datetime(2022, 1, 3, tzinfo=datetime.timezone.utc)
+        for tf, minutes in (("5m", 5), ("1H", 60)):
+            cs = []
+            for i in range(3000 if tf == "5m" else 300):
+                t = t0 + datetime.timedelta(minutes=minutes * i)
+                cs.append({"time": FS.iso(t), "open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1})
+            json.dump({"symbol": "XAUUSD", "timeframe": tf, "_source": "synthetic", "candles": cs},
+                      open(os.path.join(cls.tmp, f"ohlcv.XAUUSD.{tf}.json"), "w"))
+        os.environ["BT_HISTORY_ROOT"] = cls.tmp
+        spec = importlib.util.spec_from_file_location("bt_seam", os.path.join(ROOT, "scripts", "backtest-methods.py"))
+        cls.bt = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.bt)
+        cls.bt.HISTORY_ROOT = cls.tmp
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.env is None:
+            os.environ.pop("BT_HISTORY_ROOT", None)
+        else:
+            os.environ["BT_HISTORY_ROOT"] = cls.env
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def tearDown(self):
+        self.bt._SERIES_START.clear()
+
+    def test_default_is_every_bar(self):
+        self.assertEqual(len(self.bt.load("XAUUSD", "5m")[0]), 3000)
+
+    def test_the_cut_keeps_lead_bars_before_the_start_and_everything_after(self):
+        full = self.bt.load("XAUUSD", "5m")[0]
+        start = full[1000]["time"]
+        self.bt.series_start("XAUUSD", "5m", start, 360)
+        cut = self.bt.load("XAUUSD", "5m")[0]
+        self.assertEqual(cut, full[640:])
+        self.bt.series_start("XAUUSD", "5m", start, 5000)            # more lead than bars: clamps at the series start
+        self.assertEqual(self.bt.load("XAUUSD", "5m")[0], full)
+
+    def test_a_higher_timeframe_series_keeps_its_full_history(self):
+        self.bt.series_start("XAUUSD", "5m", self.bt.load("XAUUSD", "5m")[0][2000]["time"], 0)
+        self.assertEqual(len(self.bt.load("XAUUSD", "1H")[0]), 300)
+
+    def test_lifting_the_cut_restores_every_bar(self):
+        self.bt.series_start("XAUUSD", "5m", self.bt.load("XAUUSD", "5m")[0][2000]["time"], 0)
+        self.bt.series_start("XAUUSD", "5m", None)
+        self.assertEqual(len(self.bt.load("XAUUSD", "5m")[0]), 3000)
+
+    def test_the_cut_composes_with_the_pit_cutoff(self):
+        full = self.bt.load("XAUUSD", "5m")[0]
+        self.bt.pit_cutoff(full[2500]["time"])
+        try:
+            self.bt.series_start("XAUUSD", "5m", full[1000]["time"], 0)
+            cut = self.bt.load("XAUUSD", "5m")[0]
+            self.assertEqual(cut[0]["time"], full[1000]["time"])
+            self.assertLessEqual(cut[-1]["time"], full[2500]["time"])      # PIT cut applied first, never undone
+        finally:
+            self.bt.pit_cutoff(None)
+
+    def test_scan_many_hands_the_start_to_its_spawned_workers(self):
+        import scan_many as SM
+        captured = {}
+
+        class Boom(Exception):
+            pass
+
+        def fake_submit(self_, fn, spec):
+            captured.update(spec)
+            raise Boom
+
+        self.bt.series_start("XAUUSD", "5m", "2022-01-05T00:00:00Z", 12)
+        with mock.patch.object(SM._pool.IsolatedExecutor, "submit", fake_submit), \
+                mock.patch.object(SM, "clamp_workers", return_value=2), \
+                mock.patch.object(SM, "MIN_CHUNK_BARS", 100):
+            with self.assertRaises(Boom):
+                SM.scan_many(self.bt, "XAUUSD", "5m", "ICT", [{}], workers=2, chunks=2, min_chunk_bars=100)
+        self.assertEqual(captured["series_start"], {("XAUUSD", "5m"): ("2022-01-05T00:00:00Z", 12)})
+
+
+@unittest.skipUnless(os.path.isdir(os.path.join(ROOT, "data", "history", "ftmo", "ohlcv.XAUUSD.15m")),
+                     "data/history/ftmo is not present")
+class EngineDevStart(unittest.TestCase):
+    """BtEngine(dev_start=...): no trade before dev_start exists, and what is left equals the full-series run."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix="dev-start-")
+        cls.env = os.environ.get("BT_HISTORY_ROOT")
+        cls.hist = os.path.join(cls.tmp, "hist")
+        cls.first, _ = _write_slice_root(cls.hist, "XAUUSD", "15m", 40000)
+        os.environ["BT_HISTORY_ROOT"] = cls.hist
+        cls.fs = _fs()
+        grids, _ = cls.fs.load_grids(REAL_ARCH)
+        cls.grids = grids
+        cls.dev_start = FS.iso(FS.ts(cls.first) + datetime.timedelta(days=120))
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.env is None:
+            os.environ.pop("BT_HISTORY_ROOT", None)
+        else:
+            os.environ["BT_HISTORY_ROOT"] = cls.env
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    START_DEPENDENT = ("exit", "pnl")     # exit = bar INDEX into the loaded (cut) series; pnl = $ on an account compounding from the run's first trade
+
+    def _sha(self, trades):
+        rows = [{k: v for k, v in t.items() if k not in self.START_DEPENDENT} for t in trades]
+        return hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest()
+
+    def _both(self, method, runner):
+        grid = self.grids[method].runnable()
+        full_engine = self.fs.BtEngine(grid, runner, "15m", ["XAUUSD"], workers=1)
+        cut_engine = self.fs.BtEngine(grid, runner, "15m", ["XAUUSD"], workers=1, dev_start=self.dev_start, warmup_days=14)
+        return (full_engine, full_engine.trades_for(grid.baseline()), cut_engine, cut_engine.trades_for(grid.baseline()))
+
+    def test_ict_no_trade_before_dev_start_and_the_rest_equals_the_full_run(self):
+        fe, full, ce, cut = self._both("ict", "ICT")
+        ds = FS.ts(self.dev_start)
+        self.assertGreater(len(cut), 0, "the slice must produce trades for this check to bite")
+        self.assertTrue(all(FS.ts(t["entry_time"]) >= ds for t in cut))
+        self.assertGreater(ce._series["XAUUSD"]["first_open"], fe._series["XAUUSD"]["first_open"])   # data really cut
+        self.assertLess(ce._series["XAUUSD"]["bars"], fe._series["XAUUSD"]["bars"])
+        self.assertTrue(any(FS.ts(t["entry_time"]) < ds for t in full), "the full run has pre-start trades to drop")
+        want = [t for t in full if FS.ts(t["entry_time"]) >= ds]
+        self.assertEqual(self._sha(cut), self._sha(want))
+        self.assertEqual(ce.span["dev_start"], self.dev_start)
+        self.assertTrue(all(FS.ts(r["entry_time"]) >= ds for r in ce._admission[FS.CountingSource._key(ce.grid.baseline())]))
+
+    def test_wyckoff_no_trade_before_dev_start_and_the_rest_equals_the_full_run(self):
+        fe, full, ce, cut = self._both("wyckoff", "WYCKOFF-BOOK")
+        ds = FS.ts(self.dev_start)
+        self.assertTrue(all(FS.ts(t["entry_time"]) >= ds for t in cut))
+        want = [t for t in full if FS.ts(t["entry_time"]) >= ds]
+        self.assertEqual(self._sha(cut), self._sha(want))
+
+    def test_dev_start_without_warmup_is_refused_and_no_dev_start_is_a_noop(self):
+        grid = self.grids["ict"].runnable()
+        with self.assertRaises(ValueError):
+            self.fs.BtEngine(grid, "ICT", "15m", ["XAUUSD"], dev_start=self.dev_start)
+        e = self.fs.BtEngine(grid, "ICT", "15m", ["XAUUSD"], workers=1)
+        self.assertIsNone(e.span)
+        self.assertIsNone(e.dataset_snapshot()["series"][0]["_series_start"])
+
+    def test_the_snapshot_names_the_declared_start(self):
+        grid = self.grids["ict"].runnable()
+        e = self.fs.BtEngine(grid, "ICT", "15m", ["XAUUSD"], workers=1, dev_start=self.dev_start, warmup_days=14)
+        row = e.dataset_snapshot()["series"][0]
+        self.assertEqual(row["_series_start"]["dev_start"], self.dev_start)
+        self.assertEqual(row["_series_start"]["warmup_days"], 14)
+        self.assertEqual(row["first_open"] < self.dev_start, True)                       # warm-up bars precede the start
 
 
 class AdoptedFKeys(unittest.TestCase):
@@ -1551,7 +1892,8 @@ class _ScanCacheBase:
         cls.plan = {"plan_hash": "p" * 16, "cells": [cls.cell], "cell_count": 1,
                     "candidates": [{"id": "ict-" + cls.CELL, "method": "ict", "runner_method": "ICT", "cell": cls.CELL,
                                     "timeframe": cls.TF, "symbols": list(cls.SYMS)}],
-                    "embargo": {"h_multiple": 2}, "grids": {"ict": {"sha256": "g" * 8}}}
+                    "embargo": {"h_multiple": 2}, "grids": {"ict": {"sha256": "g" * 8}},
+                    "cells_file": {"sha256": "c" * 8, "warmup_days": 14}}
         try:
             with cls._patched():
                 cls.plain_engine = cls._engine()

@@ -57,3 +57,51 @@ at that time.
    refuses on drift if the effective floor differs. `scripts/fund-search.py` is a pinned file, so `declare` must run after this change.
 5. **`e` (minimum edge of interest).** Delegated by the owner and set by the coordinator to **0.20R** as a
    pre-declaration default. It is to be fixed before `declare` and is not adjustable after results are seen.
+
+
+## 2026-10-01: cell list and per-cell history spans (owner, in chat; binding)
+Source of the numbers: `docs/audits/2026-10-01-trade-rates.md` (branch `b10-trade-rates`; trade COUNTS only, no performance figure read).
+The decisions were taken on compute cost and statistical power, NOT on performance.
+
+1. **Per-cell history spans become a DECLARED, pinned part of the plan.** `docs/architecture/fund-search-cells.json` lists the cells and each
+   cell's optional `dev_start` (null = the cell starts at the first bar its data has). It is read by `plan`, hashed into the plan core (`plan_hash`
+   changes), pinned in the declaration as `evaluation_config.cells_sha256` (+ `dev_start_by_cell`, `span_warmup_days`) and `run`/`scan` refuse a
+   changed file, exactly like the V grids. The development cutoff (2024-03-01) and the fold geometry (`make_folds`: 365-day test folds, >= 730 days
+   of training) are unchanged; only the START of a cell's decision-timeframe data can move.
+   **Outcome of the owner's final choice: every cell keeps its ORIGINAL data start** (the owner first offered 2018-03-01 for 1m-metals, 2020-03-01
+   for 1m-indices and 2008-03-01 for 5m-metals, then WITHDREW all three the same day -- reason: Wyckoff 1m is feasible after the speed-ups, compute is not the binding constraint; 5m-indices, 15m-metals, 15m-indices were never shortened).
+   So `dev_start` is null in all six cells and the fold counts are 1m-metals 9, 1m-indices 4, 5m-metals 17, 5m-indices 4, 15m-metals 17, 15m-indices 4.
+   The mechanism exists and is tested for a future declared start: the engine scans decision bars only from `dev_start` minus `warmup_days` (14) minus the
+   method's own window, discards every trade entered before `dev_start`, and leaves higher-timeframe series (gates, W7) at their full PIT history.
+   Proof that a cut series gives the full-series trades: `scripts/research/span_equivalence.py` (ICT US500 5m, Wyckoff XAUUSD 15m; see the
+   evidence in the commit message and `EngineDevStart` in `scripts/tests/test_fund_search.py`).
+2. **The two 30m cells (`30m-metals`, `30m-indices`) are REMOVED** for both methods (underpowered). 15m cells are kept. Remaining cells: 1m-metals,
+   1m-indices, 5m-metals, 5m-indices, 15m-metals, 15m-indices = 6 cells x 2 methods = 12 candidates.
+3. **New N** (`python3 -W ignore scripts/fund-search.py plan --dry-run`): ICT 29 x 6 = **174**, one-sided confidence 1 - 0.10/174 = **0.999425**
+   (was 232, 0.999569); Wyckoff 16 x 6 = **96**, 1 - 0.10/96 = **0.998958** (was 128, 0.999219). Plan hash
+   `f1dcd1a115223071` (first 16 hex; changes with any edit to the cells file, the grids or the first-bar data).
+4. **Expected TEST trades for the final spans (MODEL, not measurement)** = the trade-rates doc's mean pooled trades per year (baseline value set, slices
+   S1-S3 for metals, S2-S3 for indices) x the test folds of the cell (one fold = 365 days). The `n_req` figures (ICT 760, Wyckoff 690; 2x for a design effect of 2) are
+   the coordinator's model of that doc and were derived at the OLD N (232 / 128); they are NOT recomputed for N = 174 / 96 here. The metals rates are extrapolated
+   to the earlier folds (the doc says so).
+
+   | method | cell | rate /yr | test folds | expected TEST trades | >= n_req (1x)? | >= 2 x n_req? |
+   |---|---|---|---|---|---|---|
+   | ICT | 1m-metals | 675.7 | 9 | 6081 | yes | yes |
+   | ICT | 1m-indices | 1849.5 | 4 | 7398 | yes | yes |
+   | ICT | 5m-metals | 112.3 | 17 (14 if it had started 2008-03-01) | 1910 (1572) | yes (yes) | yes (yes) |
+   | ICT | 5m-indices | 335.0 | 4 | 1340 | yes | no |
+   | ICT | 15m-metals | 35.3 | 17 | 601 | no | no |
+   | ICT | 15m-indices | 100.0 | 4 | 400 | no | no |
+   | Wyckoff | 1m-metals | 448.7 | 9 | 4038 | yes | yes |
+   | Wyckoff | 1m-indices | 1213.0 | 4 | 4852 | yes | yes |
+   | Wyckoff | 5m-metals | 112.7 | 17 (14) | 1915 (1578) | yes (yes) | yes (yes) |
+   | Wyckoff | 5m-indices | 257.5 | 4 | 1030 | yes | no |
+   | Wyckoff | 15m-metals | 45.3 | 17 | 771 | yes | no |
+   | Wyckoff | 15m-indices | 92.5 | 4 | 370 | no | no |
+
+   The two removed cells, for the record (same doc): ICT 30m-metals 210 and 30m-indices 216 expected test trades, Wyckoff 181 and 90, all below n_req.
+   5m-metals reaches n_req and 2 x n_req at either 17 or 14 folds (model), so by the model the fold count of 5m-metals is not what limits its power.
+   The 15m cells stay although the model shows them below n_req (ICT 15m-metals and 15m-indices, Wyckoff 15m-indices); that is disclosed here, and the evaluation reports whatever it finds.
+5. **Pinned files changed by this decision** (`FINGERPRINT_FILES`): `scripts/fund-search.py`, `scripts/backtest-methods.py` (the `series_start` load seam, default
+   no-op), `scripts/scan_many.py` (hands the seam to its spawned workers). `declare` must run after this change (the declaration fingerprints these files).

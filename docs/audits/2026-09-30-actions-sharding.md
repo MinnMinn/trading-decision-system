@@ -217,3 +217,122 @@ from the first probe on (`ScanCache`, which also makes the combined set a wave-1
 (`ScanCacheHeldSelection`, `ScanCacheTwoSymbols`; wave 1 is then exactly baseline + candidates). A wholly unforced selection on a slice this small is not expected to choose
 anything (not verified), so no test here exercises an unforced multi-factor choice; that path is covered by the held-trades stub and by the two-wave runs
 of `test_speed_equivalence`.
+
+
+## 8. Update 2026-10-01: six cells (the 30m cells were removed)
+
+**Supersedes the layout figures of sections 3-4 for the CURRENT plan** (those sections describe the 8-cell plan and stay as the record of that state). The owner removed `30m-metals` and
+`30m-indices` (2026-10-01; `docs/architecture/fund-search-cells.json`); the cell list is now a pinned, declared input of the plan (it changes `plan_hash`; it is pinned in the
+declaration as `evaluation_config.cells_sha256`). The matrix below is `list-scan-shards` (the workflow reads it; nothing in `.github/workflows/fund-search.yml` names a cell) regenerated
+for 6 cells, ICT N = 29 per cell (27 wave-1 sets after the baseline, `B-EXIT no_floor` removed 2026-09-30; sections 3-4 still show the older 39), Wyckoff 16 per cell.
+
+**The time model is still UNCALIBRATED** (section 3, "Calibration status": one owner-measured run, the 581 s first-set figure suspected to be a 15m number, per-shard fixed costs not
+modelled, runner speed assumed). Every minute figure below is the same model as before, applied to the new cell list; it must be recalibrated when the pending calibration runs land
+and `list-scan-shards` re-run (slice counts, not results, will change). Per-cell history starts (`dev_start`) are all null today (every cell keeps its original data start), so the
+bar counts are the audit's development-span table unchanged; a declared later start would scale a shard's modelled bars by the share of the span it keeps (`cell_bars`), an
+estimate only.
+
+Resulting layout: **212 shards (62 wave 1 + 150 wave 2), 40,485 modelled shard-minutes (~675 runner-hours; 1m-metals ~574 of them), longest shard 274 min, none over the 355-minute timeout**
+(sections 3-4 state 244 shards / 42,383 minutes for the earlier 8-cell plan with the pre-`no_floor` set counts; the two changes were not separated here, so no attribution of the
+difference is offered).
+
+| cell | ICT wave 1 slices (sets) | ICT wave 2 slices | Wyckoff wave 1 slices | Wyckoff wave 2 slices | longest shard |
+|---|---|---|---|---|---|
+| 1m-metals | 5/symbol (27) | 17/symbol (99) | 7/symbol (14) | 36/symbol (72) | 274 min |
+| 1m-indices | 1 | 1 | 1 | 1 | 253 min (Wyckoff wave 2, US30) |
+| 5m-metals | 1 | 2/symbol (187) | 1 | 3/symbol (136) | 273 min |
+| 5m-indices | 1 | 1 | 1 | 1 | 51 min |
+| 15m-metals | 1 | 1 | 1 | 1 | 271 min (Wyckoff wave 2) |
+| 15m-indices | 1 | 1 | 1 | 1 | 17 min |
+
+Full `list-scan-shards --explain` output of the committed cell list (uncalibrated model; generated with `shard_plan(build_plan())`, the function `list-scan-shards` calls, before any
+`plan.json` exists in this branch):
+
+```
+cell        method  symbol  wave slices  sets  unsliced  longest shard  shard over 355 min?
+1m-metals   ict     XAUUSD  1         5    27   1020 min       274 min   no
+1m-metals   ict     XAGUSD  1         5    27   1020 min       274 min   no
+1m-metals   ict     XAUUSD  2        17    99   3576 min       274 min   no
+1m-metals   ict     XAGUSD  2        17    99   3577 min       274 min   no
+1m-metals   wyckoff XAUUSD  1         7    14   1117 min       265 min   no
+1m-metals   wyckoff XAGUSD  1         7    14   1117 min       265 min   no
+1m-metals   wyckoff XAUUSD  2        36    72   5235 min       265 min   no
+1m-metals   wyckoff XAGUSD  2        36    72   5237 min       265 min   no
+1m-indices  ict     US500   1         1    27     53 min        53 min   no
+1m-indices  ict     US30    1         1    27    108 min       108 min   no
+1m-indices  ict     USTEC   1         1    27     54 min        54 min   no
+1m-indices  ict     DE40    1         1    27     47 min        47 min   no
+1m-indices  ict     FRA40   1         1    27     50 min        50 min   no
+1m-indices  ict     US500   2         1    44     84 min        84 min   no
+1m-indices  ict     US30    2         1    44    171 min       171 min   no
+1m-indices  ict     USTEC   2         1    44     86 min        86 min   no
+1m-indices  ict     DE40    2         1    44     74 min        74 min   no
+1m-indices  ict     FRA40   2         1    44     79 min        79 min   no
+1m-indices  wyckoff US500   1         1    14     58 min        58 min   no
+1m-indices  wyckoff US30    1         1    14    118 min       118 min   no
+1m-indices  wyckoff USTEC   1         1    14     59 min        59 min   no
+1m-indices  wyckoff DE40    1         1    14     51 min        51 min   no
+1m-indices  wyckoff FRA40   1         1    14     55 min        55 min   no
+1m-indices  wyckoff US500   2         1    32    125 min       125 min   no
+1m-indices  wyckoff US30    2         1    32    253 min       253 min   no
+1m-indices  wyckoff USTEC   2         1    32    127 min       127 min   no
+1m-indices  wyckoff DE40    2         1    32    109 min       109 min   no
+1m-indices  wyckoff FRA40   2         1    32    117 min       117 min   no
+5m-metals   ict     XAUUSD  1         1    27     82 min        82 min   no
+5m-metals   ict     XAGUSD  1         1    27     66 min        66 min   no
+5m-metals   ict     XAUUSD  2         2   187    538 min       273 min   no
+5m-metals   ict     XAGUSD  2         2   187    431 min       219 min   no
+5m-metals   wyckoff XAUUSD  1         1    14     90 min        90 min   no
+5m-metals   wyckoff XAGUSD  1         1    14     72 min        72 min   no
+5m-metals   wyckoff XAUUSD  2         3   136    786 min       272 min   no
+5m-metals   wyckoff XAGUSD  2         3   136    629 min       218 min   no
+5m-indices  ict     US500   1         1    27     11 min        11 min   no
+5m-indices  ict     US30    1         1    27     22 min        22 min   no
+5m-indices  ict     USTEC   1         1    27     11 min        11 min   no
+5m-indices  ict     DE40    1         1    27     10 min        10 min   no
+5m-indices  ict     FRA40   1         1    27     11 min        11 min   no
+5m-indices  ict     US500   2         1    44     18 min        18 min   no
+5m-indices  ict     US30    2         1    44     34 min        34 min   no
+5m-indices  ict     USTEC   2         1    44     18 min        18 min   no
+5m-indices  ict     DE40    2         1    44     15 min        15 min   no
+5m-indices  ict     FRA40   2         1    44     17 min        17 min   no
+5m-indices  wyckoff US500   1         1    14     12 min        12 min   no
+5m-indices  wyckoff US30    1         1    14     24 min        24 min   no
+5m-indices  wyckoff USTEC   1         1    14     12 min        12 min   no
+5m-indices  wyckoff DE40    1         1    14     11 min        11 min   no
+5m-indices  wyckoff FRA40   1         1    14     12 min        12 min   no
+5m-indices  wyckoff US500   2         1    32     26 min        26 min   no
+5m-indices  wyckoff US30    2         1    32     51 min        51 min   no
+5m-indices  wyckoff USTEC   2         1    32     26 min        26 min   no
+5m-indices  wyckoff DE40    2         1    32     23 min        23 min   no
+5m-indices  wyckoff FRA40   2         1    32     25 min        25 min   no
+15m-metals  ict     XAUUSD  1         1    27     28 min        28 min   no
+15m-metals  ict     XAGUSD  1         1    27     22 min        22 min   no
+15m-metals  ict     XAUUSD  2         1   187    186 min       186 min   no
+15m-metals  ict     XAGUSD  2         1   187    146 min       146 min   no
+15m-metals  wyckoff XAUUSD  1         1    14     31 min        31 min   no
+15m-metals  wyckoff XAGUSD  1         1    14     24 min        24 min   no
+15m-metals  wyckoff XAUUSD  2         1   136    271 min       271 min   no
+15m-metals  wyckoff XAGUSD  2         1   136    213 min       213 min   no
+15m-indices ict     US500   1         1    27      4 min         4 min   no
+15m-indices ict     US30    1         1    27      7 min         7 min   no
+15m-indices ict     USTEC   1         1    27      4 min         4 min   no
+15m-indices ict     DE40    1         1    27      3 min         3 min   no
+15m-indices ict     FRA40   1         1    27      4 min         4 min   no
+15m-indices ict     US500   2         1    44      6 min         6 min   no
+15m-indices ict     US30    2         1    44     12 min        12 min   no
+15m-indices ict     USTEC   2         1    44      6 min         6 min   no
+15m-indices ict     DE40    2         1    44      5 min         5 min   no
+15m-indices ict     FRA40   2         1    44      6 min         6 min   no
+15m-indices wyckoff US500   1         1    14      4 min         4 min   no
+15m-indices wyckoff US30    1         1    14      8 min         8 min   no
+15m-indices wyckoff USTEC   1         1    14      4 min         4 min   no
+15m-indices wyckoff DE40    1         1    14      4 min         4 min   no
+15m-indices wyckoff FRA40   1         1    14      4 min         4 min   no
+15m-indices wyckoff US500   2         1    32      9 min         9 min   no
+15m-indices wyckoff US30    2         1    32     17 min        17 min   no
+15m-indices wyckoff USTEC   2         1    32      9 min         9 min   no
+15m-indices wyckoff DE40    2         1    32      8 min         8 min   no
+15m-indices wyckoff FRA40   2         1    32      9 min         9 min   no
+total shards: 212; modelled runner minutes: 40485
+```

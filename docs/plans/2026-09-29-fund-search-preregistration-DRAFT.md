@@ -11,8 +11,10 @@ event, and thresholds may only be tightened.
 1. **Fold geometry.** `TEST_FOLD_DAYS=365`, `MIN_TRAIN_DAYS=730`, `MIN_TEST_FOLDS=2`, `MIN_TRAIN_TRADES=30`.
    Folds end exactly at the development cutoff (2024-03-01) and step back in 365-day folds while >= 730 days of
    training precede the fold. Resulting fold counts (reviewer-computed, printed by `plan --dry-run` from the data):
-   metals 1m 9 folds; metals 5m/15m/30m 17; indices (all timeframes) 4. The plan output and the report carry
-   these per cell. Not changed in this round.
+   metals 1m 9 folds; metals 5m/15m 17 (and 30m 17 until the 30m cells were removed, owner 2026-10-01); indices (all
+   timeframes) 4. The plan output and the report carry these per cell. Not changed in this round. Since 2026-10-01 each
+   cell's history START is a declared, pinned field (`docs/architecture/fund-search-cells.json` `dev_start`, null = from
+   data); every cell currently keeps its original data start, so the counts above are unchanged.
 2. **The statistic.** Primary metric = net expectancy per trade in R after REAL costs. Lower bound =
    `min(iid one-sided Student-t bound, and CR1 cluster-robust bounds by UTC entry date, by 30-day window, by
    calendar quarter, by half-year)`, all at one-sided confidence `1 - 0.10/N`. CR1: `se = sqrt(G/(G-1) * sum_g S_g^2) / n`,

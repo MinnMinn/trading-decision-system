@@ -212,7 +212,8 @@ def load_bt(scripts_dir):
 
 def _worker(task):
     """One chunk in a fresh process (module-level so the spawn context can import it). Rebuilds the parent's
-    process-global load state (history root, PIT cutoff, bars limit) explicitly rather than trusting inheritance."""
+    process-global load state (history root, PIT cutoff, bars limit, per-series start) explicitly rather than trusting
+    inheritance."""
     sys.path.insert(0, task["scripts_dir"])
     err = io.StringIO()
     with contextlib.redirect_stderr(err):          # the parent already printed this series' data-quality flags
@@ -220,6 +221,7 @@ def _worker(task):
         bt.HISTORY_ROOT = task["history_root"]
         bt._PIT_CUTOFF = task["pit_cutoff"]
         bt._BARS_LIMIT = task["bars_limit"]
+        bt._SERIES_START = dict(task.get("series_start") or {})     # the decision series' declared start (fund-search cells)
         loads, seen, real_load = [], set(), bt.load
 
         def traced(s, t):
@@ -344,7 +346,7 @@ def scan_many(bt, sym, tf, method, overlays, workers=1, chunks=None, min_chunk_b
     else:
         scripts_dir = os.path.dirname(os.path.abspath(bt.__file__))
         common = dict(scripts_dir=scripts_dir, history_root=bt.HISTORY_ROOT, pit_cutoff=bt._PIT_CUTOFF,
-                      bars_limit=bt._BARS_LIMIT)
+                      bars_limit=bt._BARS_LIMIT, series_start=dict(getattr(bt, "_SERIES_START", None) or {}))
         pending = {(gi, ci): dict(t, **common) for gi, ci, t in tasks}
         attempts = collections.Counter()
         with _pool.IsolatedExecutor(max_workers=workers) as ex:

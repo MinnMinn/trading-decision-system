@@ -120,7 +120,7 @@ class DeclarationPinsMinRR(unittest.TestCase):
         self.fs = _load("fund-search.py", "fs_mrr25_decl")
 
     def _cfg(self):
-        plan = {"embargo": {"h_multiple": 2}, "grids": {}}
+        plan = {"embargo": {"h_multiple": 2}, "grids": {}, "cells": [], "cells_file": {"sha256": "0" * 64, "warmup_days": 14}}
         return self.fs.evaluation_config(plan), plan
 
     def test_evaluation_config_carries_the_effective_floor(self):

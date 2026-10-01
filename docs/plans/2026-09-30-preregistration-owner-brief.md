@@ -5,8 +5,8 @@ docs/plans/2026-09-29-v-ict-constants-DRAFT.md, docs/plans/2026-09-30-owner-deci
 `declare` pins code SHAs, grid hashes and the settings below; after it, any code or setting change is reported as drift.
 
 ## What is already fixed (no decision needed)
-- All nine F items ON in every cell; live/pilot stay v1. N = 29 per ICT cell (was 41 before the owner removed B-EXIT `no_floor`, 2026-09-30), 16 per Wyckoff cell, 8 cells
-  => N_ICT 232, N_Wyckoff 128 (confidence 0.999569 / 0.999219). Planned R:R floor = 2.5 net of fees, both methods, pinned in the declaration (`evaluation_config.min_rr`). B4 and W4b are declared, not runnable, counted in N.
+- All nine F items ON in every cell; live/pilot stay v1. N = 29 per ICT cell (was 41 before the owner removed B-EXIT `no_floor`, 2026-09-30), 16 per Wyckoff cell, 6 cells (the two 30m cells were removed by the owner, 2026-10-01: `docs/architecture/fund-search-cells.json`)
+  => N_ICT 174, N_Wyckoff 96 (confidence 0.999425 / 0.998958). Planned R:R floor = 2.5 net of fees, both methods, pinned in the declaration (`evaluation_config.min_rr`). B4 and W4b are declared, not runnable, counted in N.
 - Statistic: min of five one-sided bounds (iid t, cluster by UTC day, 30 days, quarter, half-year) at 1 - 0.10/N,
   computed on pooled TEST-fold trades only; fold geometry 365/730 days; verdict precedence; costs real; no overnight.
 - O8 (ICT fill on the last bar of a server day held past midnight) is RESOLVED by the walk() fix (2869c35): the
@@ -25,7 +25,7 @@ docs/plans/2026-09-29-v-ict-constants-DRAFT.md, docs/plans/2026-09-30-owner-deci
 
 ## Expectations to set honestly
 - Baseline trade frequency (structural counts, adopted-F baseline): XAUUSD 15m ICT 523 trades / 20 yrs, Wyckoff 346;
-  US500 5m ICT 239 / ~3 yrs, Wyckoff 157. Many 15m/30m cells may still read "insufficient" (needs >= 30 trades per
+  US500 5m ICT 239 / ~3 yrs, Wyckoff 157. Many 15m cells may still read "insufficient" (needs >= 30 trades per
   365-day test fold and gaps <= 30 days); 1m/5m index cells are the most likely to be testable.
 - The bound is deliberately strict: a genuine ~+0.30R edge survives at n≈600 over several years; edges <= 0.15R mostly do not.
 - The honest outcome may be zero passes. The only pristine evidence afterwards is a forward demo (needs your explicit go-ahead; pilot stays OFF).

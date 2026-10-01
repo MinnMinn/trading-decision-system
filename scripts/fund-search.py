@@ -22,6 +22,10 @@ engine adapter (scripts/backtest-methods.py scan + simulate, unmodified), sealed
 the ledger declaration (scripts/research_ledger.py), one scan pool per candidate (scripts/scan_many.py, whose
 processes come from scripts/isolated_pool.py).
 
+THE CELLS ARE DECLARED, NOT COMPUTED: docs/architecture/fund-search-cells.json lists the cells (owner 2026-10-01: six, no
+30m) and each cell's optional history start (`dev_start`, null = from data); it is hashed into the plan core and pinned in
+the declaration (`evaluation_config.cells_sha256`) like the V grids, and `run`/`scan` refuse a changed one.
+
 FIXED IN EVERY CELL (plan §6 items 3, 7): real FTMO costs (`COST_PROFILE`, data/history/costs/ftmo/) and
 flat-before-rollover (no overnight holding). A grid item that tries to override either is refused
 (`validate_grid`). The FTMO commission is UNKNOWN (symbolspec commission.status == "no_deals"): it is taken from
@@ -64,10 +68,11 @@ FTMO_HISTORY_ROOT = os.path.join(ROOT, "data", "history", "ftmo")
 
 # ------------------------------------------------------------------ scope, all pre-declared (plan §6 items 7, 8)
 FUND_SYMBOLS = ("XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "FRA40")   # §6 item 8: AUS200 dropped, no data
-FUND_TIMEFRAMES = ("1m", "5m", "15m", "30m")                                    # §6 item 7
+FUND_TIMEFRAMES = ("1m", "5m", "15m")                                           # §6 item 7; 30m removed by the owner 2026-10-01
 ASSET_CLASSES = ("metals", "indices")                                           # §6 item 7
 METHODS = {"ict": "ICT", "wyckoff": "WYCKOFF-BOOK"}                             # grid `method` -> bt runner method
 GRID_FILES = {"ict": "v-grid-ict.json", "wyckoff": "v-grid-wyckoff.json"}
+CELLS_FILE = "fund-search-cells.json"      # the declared cell list + each cell's history start (pinned like the grids)
 COST_PROFILE = "ftmo_demo_2026_09"                                              # §6 item 3: REAL costs, fixed on
 DEV_PERIOD_ID = "cfd-development-pre-2024-03"                                   # research-ledger.json period
 LEDGER_SECTION = "fund_search"                                                  # the declaration lives here
@@ -147,6 +152,69 @@ def load_grids(grid_dir=None):
     return grids, paths
 
 
+class CellsRefused(SystemExit):
+    """The declared cell list (docs/architecture/fund-search-cells.json) is missing or malformed."""
+
+
+_CELL_KEYS = {"id", "timeframe", "asset_class", "symbols", "dev_start", "rationale", "decision"}
+
+
+def load_cells_file(grid_dir=None):
+    """(spec, path, sha256): the declared cells + per-cell `dev_start` override + warm-up days. Nothing is defaulted:
+    a missing file, an unknown key, a 30m (or any undeclared) timeframe, a symbol outside FUND_SYMBOLS or of another
+    asset class, a duplicate id, an override that is not a canonical `...Z` instant before DEV_CUTOFF, or an empty
+    rationale/decision is refused (a cell list is pre-registered, never guessed)."""
+    path = os.path.join(grid_dir or GRID_DIR, CELLS_FILE)
+    if not os.path.exists(path):
+        raise CellsRefused(f"cells file missing: {path} -- the cell list and each cell's history start are declared "
+                           f"there (owner 2026-10-01), never typed here; refusing to guess them")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            spec = json.load(fh)
+    except ValueError as exc:
+        raise CellsRefused(f"{path}: not valid JSON: {exc}")
+    cells = spec.get("cells") if isinstance(spec, dict) else None
+    if not isinstance(cells, list) or not cells:
+        raise CellsRefused(f"{path}: `cells` must be a non-empty list")
+    wd = spec.get("warmup_days")
+    if isinstance(wd, bool) or not isinstance(wd, int) or wd < 1:
+        raise CellsRefused(f"{path}: `warmup_days` must be an integer >= 1 (got {wd!r})")
+    seen, cutoff = set(), FS.ts(FS.DEV_CUTOFF)
+    for c in cells:
+        if not isinstance(c, dict) or set(c) != _CELL_KEYS:
+            raise CellsRefused(f"{path}: every cell needs exactly the keys {sorted(_CELL_KEYS)}; got "
+                               f"{sorted(c) if isinstance(c, dict) else c!r}")
+        cid, tf, ac = c["id"], c["timeframe"], c["asset_class"]
+        if cid != f"{tf}-{ac}":
+            raise CellsRefused(f"{path}: cell id {cid!r} must be '<timeframe>-<asset_class>' ({tf}-{ac})")
+        if cid in seen:
+            raise CellsRefused(f"{path}: duplicate cell id {cid!r}")
+        seen.add(cid)
+        if tf not in FUND_TIMEFRAMES:
+            raise CellsRefused(f"{path}: cell {cid!r}: timeframe {tf!r} is not a fund timeframe {FUND_TIMEFRAMES}")
+        if ac not in ASSET_CLASSES:
+            raise CellsRefused(f"{path}: cell {cid!r}: asset class {ac!r} not in {ASSET_CLASSES}")
+        syms = c["symbols"]
+        if not isinstance(syms, list) or not syms or len(set(syms)) != len(syms):
+            raise CellsRefused(f"{path}: cell {cid!r}: `symbols` must be a non-empty list without duplicates")
+        for sy in syms:
+            if sy not in FUND_SYMBOLS or (_I.display(sy).get("asset_class") or "cfd") != ac:
+                raise CellsRefused(f"{path}: cell {cid!r}: symbol {sy!r} is not a {ac} symbol of FUND_SYMBOLS")
+        ds = c["dev_start"]
+        if ds is not None:
+            try:
+                ok = isinstance(ds, str) and FS.iso(FS.ts(ds)) == ds and FS.ts(ds) < cutoff
+            except ValueError:
+                ok = False
+            if not ok:
+                raise CellsRefused(f"{path}: cell {cid!r}: dev_start {ds!r} must be null or a canonical UTC instant "
+                                   f"'YYYY-MM-DDTHH:MM:SSZ' before {FS.DEV_CUTOFF}")
+        for k in ("rationale", "decision"):
+            if not (isinstance(c[k], str) and c[k].strip()):
+                raise CellsRefused(f"{path}: cell {cid!r}: `{k}` must be a non-empty string")
+    return spec, path, _sha256_file(path)
+
+
 #: Existing (non-fx_) OPTS keys a grid item may drive. Everything else must be a new `fx_` key (execution plan
 #: "Shared contract"). An ALLOW-LIST, not a deny-list (fix round 1, S1): a key nobody listed cannot be set.
 #: Extending it is a deliberate, reviewed edit -- e.g. B-MGMT / W-MGMT use `mgmt`.
@@ -223,38 +291,48 @@ def _first_bar(sym, tf):
     return c[0]["time"] if c else None
 
 
-def build_cells(first_bar=None):
-    """{tf} x {metals, indices}, minus any cell without development history before DEV_CUTOFF (plan §6 item 7).
-    Decided from DATA AVAILABILITY only -- never from a result. A symbol without development history is listed
-    (with the reason) and is not part of m, the stability denominator; it is not silently forgotten."""
+def build_cells(first_bar=None, spec=None):
+    """The DECLARED cells (`spec`, docs/architecture/fund-search-cells.json; default: the committed file), minus any cell
+    without development history before DEV_CUTOFF (plan §6 item 7). Decided from DATA AVAILABILITY only -- never from a
+    result. A symbol without development history is listed (with the reason) and is not part of m, the stability
+    denominator; it is not silently forgotten. A cell's development start is its declared `dev_start` or, when that is
+    null, the first bar the data has; a declared start needs at least one symbol with data at or before it (a symbol
+    that begins later is kept and disclosed in `symbol_first_bar`: fewer early bars, never invented ones)."""
     first_bar = first_bar or _first_bar
+    spec = spec if spec is not None else load_cells_file()[0]
     cells, excluded = [], []
     cutoff = FS.ts(FS.DEV_CUTOFF)
-    for tf in FUND_TIMEFRAMES:
-        for ac in ASSET_CLASSES:
-            syms = [s for s in FUND_SYMBOLS if (_I.display(s).get("asset_class") or "cfd") == ac]
-            with_dev, without = [], {}
-            for s in syms:
-                fb = first_bar(s, tf)
-                if fb is None:
-                    without[s] = "no history file"
-                elif FS.ts(fb) >= cutoff:
-                    without[s] = f"first bar {fb} is not before {FS.DEV_CUTOFF}"
-                else:
-                    with_dev.append((s, fb))
-            cid = f"{tf}-{ac}"
-            if not with_dev:
-                excluded.append({"id": cid, "timeframe": tf, "asset_class": ac,
-                                 "reason": "no symbol has development history before " + FS.DEV_CUTOFF,
-                                 "symbols_without_development": without})
-                continue
-            dev_start = min((fb for _, fb in with_dev), key=FS.ts)
-            nf = len(FS.make_folds(dev_start))
-            cells.append({"id": cid, "timeframe": tf, "asset_class": ac,
-                          "symbols": [s for s, _ in with_dev],
-                          "symbols_without_development": without,
-                          "development_start": dev_start,
-                          "n_folds": nf, "frequency_rule": FS.fold_arithmetic(nf)})
+    for decl in spec["cells"]:
+        tf, ac, cid = decl["timeframe"], decl["asset_class"], decl["id"]
+        with_dev, without = [], {}
+        for s in decl["symbols"]:
+            fb = first_bar(s, tf)
+            if fb is None:
+                without[s] = "no history file"
+            elif FS.ts(fb) >= cutoff:
+                without[s] = f"first bar {fb} is not before {FS.DEV_CUTOFF}"
+            else:
+                with_dev.append((s, fb))
+        if not with_dev:
+            excluded.append({"id": cid, "timeframe": tf, "asset_class": ac,
+                             "reason": "no symbol has development history before " + FS.DEV_CUTOFF,
+                             "symbols_without_development": without})
+            continue
+        data_start = min((fb for _, fb in with_dev), key=FS.ts)
+        override = decl["dev_start"]
+        if override is not None and FS.ts(data_start) > FS.ts(override):
+            raise CellsRefused(f"cell {cid!r}: declared dev_start {override} is before the first bar its data has "
+                               f"({data_start}): no symbol can cover the start of the declared span")
+        dev_start = override or data_start
+        nf = len(FS.make_folds(dev_start))
+        cells.append({"id": cid, "timeframe": tf, "asset_class": ac,
+                      "symbols": [s for s, _ in with_dev],
+                      "symbols_without_development": without,
+                      "symbol_first_bar": {s: fb for s, fb in with_dev},
+                      "dev_start_override": override, "development_start": dev_start,
+                      "span_source": "declared" if override else "from data",
+                      "rationale": decl["rationale"], "decision": decl["decision"],
+                      "n_folds": nf, "frequency_rule": FS.fold_arithmetic(nf)})
     return cells, excluded
 
 
@@ -264,7 +342,8 @@ def _hash(payload):
 
 def build_plan(grid_dir=None, first_bar=None):
     grids, paths = load_grids(grid_dir)
-    cells, excluded = build_cells(first_bar)
+    cells_spec, cells_path, cells_sha = load_cells_file(grid_dir)
+    cells, excluded = build_cells(first_bar, cells_spec)
     n_cells = len(cells)
     grids_info, n_by_method, conf = {}, {}, {}
     for m, g in grids.items():
@@ -287,7 +366,10 @@ def build_plan(grid_dir=None, first_bar=None):
                "h_multiple": EMBARGO_H_MULTIPLE,
                "minutes_by_timeframe": {tf: int(embargo_for(tf) / datetime.timedelta(minutes=1))
                                         for tf in FUND_TIMEFRAMES}}
-    core = {"cells": cells, "excluded_cells": excluded, "grids": grids_info, "candidates": candidates,
+    cells_info = {"file": repo_rel(cells_path, ROOT) if cells_path.startswith(ROOT) else cells_path,
+                  "sha256": cells_sha, "warmup_days": cells_spec["warmup_days"],
+                  "removed_cells": cells_spec.get("removed_cells", [])}
+    core = {"cells": cells, "cells_file": cells_info, "excluded_cells": excluded, "grids": grids_info, "candidates": candidates,
             "n_by_method": n_by_method, "cost_profile": COST_PROFILE, "dev_cutoff": FS.DEV_CUTOFF,
             "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": embargo,
             "constants": {k: getattr(FS, k) for k in (
@@ -306,13 +388,16 @@ def format_dry_run(plan, grid_note=""):
     for c in plan["cells"]:
         fr = c["frequency_rule"]
         L.append(f"  {c['id']:<14} m={len(c['symbols'])} symbols {','.join(c['symbols'])}  "
-                 f"dev start {c['development_start']}  folds {c['n_folds']} (frequency rule: >= "
+                 f"dev start {c['development_start']} ({c['span_source']})  folds {c['n_folds']} (frequency rule: >= "
                  f"{fr['folds_required_within_gap']} of {fr['n_folds']} folds with every gap <= "
                  f"{fr['max_gap_days']}d; {fr['folds_allowed_to_fail']} may fail)")
         for s, why in c["symbols_without_development"].items():
             L.append(f"      not in m: {s} ({why})")
     for e in plan["excluded_cells"]:
         L.append(f"  EXCLUDED {e['id']:<10} {e['reason']}")
+    cf = plan["cells_file"]
+    L.append(f"cells file {cf['file']} sha256 {cf['sha256'][:16]}, warm-up {cf['warmup_days']} d; removed: "
+             f"{', '.join(r['id'] for r in cf['removed_cells']) or 'none'}")
     L.append(f"candidates: {plan['candidate_count']} (method x cell)")
     for m, g in plan["grids"].items():
         n = plan["n_by_method"][m]
@@ -434,7 +519,10 @@ def evaluation_config(plan):
             "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": plan["embargo"],
             # owner 2026-09-30: planned R:R floor at entry (net of fees), both methods; None = unreadable -> drift
             "min_rr": _TE.min_rr(),
-            "grid_sha256": {m: g["sha256"] for m, g in plan["grids"].items()}}
+            "grid_sha256": {m: g["sha256"] for m, g in plan["grids"].items()},
+            "cells_sha256": plan["cells_file"]["sha256"],
+            "dev_start_by_cell": {c["id"]: c.get("dev_start_override") for c in plan["cells"]},
+            "span_warmup_days": plan["cells_file"]["warmup_days"]}
 
 
 class DeclarationDrift(SystemExit):
@@ -771,13 +859,32 @@ def _series_sha256(candles, chunk=50000):
     return h.hexdigest()
 
 
+def span_args(plan, cell):
+    """The BtEngine keywords that carry a cell's DECLARED history start: `dev_start` (None = from data: nothing is cut)
+    and the plan's `warmup_days`. Only what the pinned cells file said reaches the engine."""
+    ds = cell.get("dev_start_override")
+    return {"dev_start": ds, "warmup_days": (plan.get("cells_file") or {}).get("warmup_days") if ds else None}
+
+
 class BtEngine:
     """scripts/backtest-methods.py `scan` + `simulate`, unmodified, truncated at DEV_CUTOFF (`bt.pit_cutoff`,
     the load-time PIT seam), with REAL costs and flat-before-rollover fixed on. `trades_for(values)` returns the
-    simulated trades of the whole development span for one full V assignment; the folds slice them by time."""
+    simulated trades of the whole development span for one full V assignment; the folds slice them by time.
 
-    def __init__(self, grid, runner_method, tf, symbols, bt=None, workers=1):
+    `dev_start` (a cell's DECLARED history start, docs/architecture/fund-search-cells.json; None = from data, nothing is
+    cut): the decision series is loaded from `dev_start - warmup_days` (minus the method's own window) onward -- compute
+    drops with the span -- and every trade entered before `dev_start` is discarded after `simulate()`, so none exists in
+    any fold. Higher-timeframe series keep their full PIT history (`bt.series_start` cuts one (symbol, timeframe) only).
+    Equivalence with the full-series run is proved by scripts/research/span_equivalence.py and EngineDevStart."""
+
+    def __init__(self, grid, runner_method, tf, symbols, bt=None, workers=1, dev_start=None, warmup_days=None):
         self.grid, self.method, self.tf, self.symbols = grid, runner_method, tf, list(symbols)
+        self.dev_start = dev_start                   # a cell's DECLARED span start (None = from data: nothing is cut)
+        self._dev_start_ts = None
+        if dev_start is not None:
+            if not (isinstance(warmup_days, int) and warmup_days >= 1):
+                raise ValueError("dev_start needs warmup_days (the plan's cells_file.warmup_days): refusing to guess it")
+            self._dev_start_ts = FS.ts(dev_start)
         self.workers = max(1, int(workers))          # process budget of scan_many's chunk pool (1 = in-process)
         self._raw, self._done = {}, {}               # prefetched raw scans / finished trades_for results, by value key
         self.bt = bt or _load_bt()
@@ -788,6 +895,16 @@ class BtEngine:
                               f"(N counts every declared item)")
         self.bt.pit_cutoff(FS.DEV_CUTOFF)
         neutralise_ruin(self.bt)
+        self.span = None
+        if dev_start is not None:
+            # the DECISION series only (bt.series_start is keyed by (symbol, tf)): scan from `dev_start - warmup_days`
+            # minus the method's own window; every higher-timeframe series a gate / the W7 target reads keeps its full
+            # PIT history (past data, no leakage). Trades entered before dev_start are dropped in trades_for.
+            lead = self._lead_bars()
+            start = FS.iso(self._dev_start_ts - datetime.timedelta(days=warmup_days))
+            for s in self.symbols:
+                self.bt.series_start(s, tf, start, lead)
+            self.span = {"dev_start": dev_start, "warmup_days": warmup_days, "scan_start": start, "lead_bars": lead}
         self._admission, self._edge = {}, {}
         self._adx, self._last = {}, {}
         self._part = {}                              # value key -> {symbol: raw trades} held from a scan cache, incomplete
@@ -800,6 +917,17 @@ class BtEngine:
             self._last[s] = candles[-1]["time"]
             self._series[s] = {"bars": len(candles), "first_open": candles[0]["time"], "last_open": candles[-1]["time"],
                                "sha256": _series_sha256(candles)}
+
+    def _lead_bars(self):
+        """Bars the method reads BEFORE a decision bar: ICT's live scan window, or the LONGEST Wyckoff window any V
+        value of the grid can ask for (W6), so the first decision bar after the warm-up sees a full window."""
+        if self.method == "ICT":
+            return int(self.bt.lr.scan_spec(self.tf)[0])
+        wins = [int(self.bt.WYCKOFF_WINDOW)]
+        for it in self.grid.items:
+            if it["key"] == "fx_w6_window":
+                wins += [int(v) for v in it["values"] if isinstance(v, int) and not isinstance(v, bool)]
+        return max(wins)
 
     def has(self, values):
         key = FS.CountingSource._key(values)
@@ -907,6 +1035,9 @@ class BtEngine:
                                  COST_PROFILE)["total_R"]} for t in raw]
         taken = checked_simulate(self.bt, raw, 0.0, overlay=overlay, cost_profile=COST_PROFILE,
                                  live_parity_sizing=False)[2]
+        if self._dev_start_ts is not None:     # warm-up trades settled simulate()'s state; none of them is a cell trade
+            taken = [t for t in taken if FS.ts(t["entry_time"]) >= self._dev_start_ts]
+            self._admission[key] = [r for r in self._admission[key] if FS.ts(r["entry_time"]) >= self._dev_start_ts]
         provider = fixed_opts()["rollover_provider"]
         assert_no_rollover_crossing(taken, provider, self.tf)
         self._edge[key] = last_bar_entry_times(taken, self.tf, provider)
@@ -945,7 +1076,8 @@ class BtEngine:
                          "sha256": hashlib.sha256(json.dumps(candles, sort_keys=True).encode()).hexdigest(),
                          "quality_flags": [dict(f) for f in self.bt.QUALITY_FLAGS
                                            if f["symbol"] == s and f["tf"] == self.tf],
-                         "_pit_truncated": True, "_pit_cutoff": FS.DEV_CUTOFF})
+                         "_pit_truncated": True, "_pit_cutoff": FS.DEV_CUTOFF,
+                         "_series_start": dict(self.span) if self.span else None})
         ident = hashlib.sha256("|".join(f"{r['symbol']}:{r['timeframe']}:{r['sha256']}" for r in rows)
                                .encode()).hexdigest()[:16]
         return {"snapshot_format": 1, "snapshot_id": ident, "created_at": _now_iso(), "series": rows,
@@ -1070,7 +1202,7 @@ def _evaluate_candidate(candidate, plan_hash, grid_dir=None, scan_workers=1, sca
     plan = load_plan(grid_dir)
     cell = next(c for c in plan["cells"] if c["id"] == candidate["cell"])
     engine = BtEngine(grid, candidate["runner_method"], candidate["timeframe"], candidate["symbols"],
-                      workers=scan_workers)
+                      workers=scan_workers, **span_args(plan, cell))
     if scan_cache_dirs:
         full, n = engine.load_scan_cache(scan_cache_stamp(plan), scan_cache_dirs, candidate["cell"])
         print(f"fund-search: scan cache: {n} verified (value set, symbol) entries, {full} value set(s) complete for "
@@ -1101,7 +1233,7 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
                     f"1 - {FS.FAMILY_ALPHA}/N) -- falsified if any rule fails or a test fold has < "
                     f"{FS.MIN_FOLD_TRADES} trades."),
         motivation=(f"Owner decisions 2026-09-28/29 ({PLAN_DOC} §6 items 2-8): search fund-account setups on 1m/5m/"
-                    f"15m/30m under real FTMO costs and no overnight holding, without loosening any check."),
+                    f"15m under real FTMO costs and no overnight holding, without loosening any check."),
         parent_trading_system_version=X.unavailable(
             "a pre-registered space search over the pre-declared V grid, not a change to an approved Trading System"),
         candidate_version=f"fund-search-candidate:{cid}", experiment_id=cid)
@@ -1137,6 +1269,8 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
                          "asset_class": candidate["asset_class"], "symbols_planned": candidate["symbols"],
                          "symbols_evaluated": list(cell["symbols"]), "n_comparisons": candidate["n_comparisons"],
                          "plan_hash": plan_hash,
+                         "development_start": cell.get("development_start"),
+                         "dev_start_override": cell.get("dev_start_override"),     # the declared span start (null = from data)
                          "drifted": bool(_drift_from_env()), "drift": _drift_from_env(),
                          **({"scan_cache": scan_cache} if scan_cache else {})})   # provenance only; no statistic reads it
     r.set("random_seed", {"lower_bound": "none: closed-form Student-t bound, no resampling",
@@ -1283,9 +1417,7 @@ DEV_BARS = {
     "5m": {"XAUUSD": 1316783, "XAGUSD": 1054081, "US500": 177185, "US30": 346651, "USTEC": 177192, "DE40": 155214,
            "FRA40": 174454},
     "15m": {"XAUUSD": 453893, "XAGUSD": 357694, "US500": 62776, "US30": 116405, "USTEC": 62766, "DE40": 55219,
-            "FRA40": 62283},
-    "30m": {"XAUUSD": 229853, "XAGUSD": 180535, "US500": 33705, "US30": 58257, "USTEC": 33701, "DE40": 29812,
-            "FRA40": 33467}}
+            "FRA40": 62283}}    # (the 30m rows were removed with the 30m cells, owner 2026-10-01)
 
 #: The time model (docs/audits/2026-09-30-actions-sharding.md section 3). MEASURED by the owner on 10 local workers:
 #: ICT XAUUSD 1m wave 1 (39 value sets) = 581 s for the first set + ~213 s per further set (= 2.41 h). Everything else
@@ -1298,6 +1430,19 @@ SHARD_MODEL = {"first_set_s": 581.0, "extra_set_s": 213.0, "ref_bars": 4096182, 
 #: Wave-2 value sets per fold, an UPPER-typical bound from the audit's zero-edge run of the real waves (ICT 148 sets @17
 #: folds, 100 @10, 43 @4; Wyckoff 29-93): wave 2 depends on the selection, so its true size is only known at run time.
 WAVE2_SETS_PER_FOLD = {"ict": 11, "wyckoff": 8}
+
+
+def cell_bars(cell, sym):
+    """Bars one shard of (`cell`, `sym`) scans: the audit's whole-development-span count, scaled by the share of the
+    symbol's span a DECLARED later start keeps (a sizing ESTIMATE, same uncalibrated model; it never changes a result).
+    A cell that starts from data (dev_start_override null) is the audit's number unchanged."""
+    bars = DEV_BARS[cell["timeframe"]][sym]
+    ov = cell.get("dev_start_override")
+    if ov is None:
+        return bars
+    end = FS.ts(FS.DEV_CUTOFF)
+    first = FS.ts(cell["symbol_first_bar"][sym])
+    return int(bars * ((end - max(FS.ts(ov), first)) / (end - first)))
 
 
 def runner_workers(bars):
@@ -1360,7 +1505,7 @@ def shard_plan(plan, grid_dir=None):
             n2 = WAVE2_SETS_PER_FOLD[method] * cell["n_folds"]
             for wave, n in ((1, n1), (2, n2)):
                 for sym in cell["symbols"]:
-                    bars = DEV_BARS[cell["timeframe"]][sym]
+                    bars = cell_bars(cell, sym)
                     cap = max_sets_per_shard(bars, method)
                     slices = -(-n // max(cap, 1))
                     for i in range(slices):
@@ -1423,7 +1568,7 @@ def cmd_scan(cell_id, symbol, method, out_dir, workers=1, wave=1, slice_spec="0/
     grid = grids[method].runnable()
     stamp = scan_cache_stamp(plan)
     engine = BtEngine(grid, cand["runner_method"], cell["timeframe"], [symbol] if wave == 1 else cell["symbols"],
-                      workers=workers)
+                      workers=workers, **span_args(plan, cell))
     if wave == 1:
         values = wave1_values(engine, grid, cell)
     else:

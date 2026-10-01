@@ -351,6 +351,27 @@ def pit_cutoff(cutoff):
     _PIT_CUTOFF = cutoff
 
 
+#: Per-(symbol, timeframe) START of the series `load()` hands out, or {} (the default: every bar, exactly as before
+#: this seam existed -- a byte-identical no-op for every other caller). Set via `series_start()` by the fund-search
+#: harness (docs/architecture/fund-search-cells.json: a cell's declared `dev_start`). It cuts the START of ONE decision
+#: timeframe's series only -- higher-timeframe series read by gates / the W7 target are other (symbol, timeframe) keys
+#: and keep their full point-in-time history. Dropping the EARLY past cannot leak the future (CLAUDE.md §8); what it
+#: changes is where a scan's per-bar loop and dedupe state (`seen`) begin, which the caller absorbs with warm-up bars.
+#: scan_many hands this dict to its spawned workers (they rebuild `bt` from disk) exactly like `_PIT_CUTOFF`.
+_SERIES_START = {}
+
+
+def series_start(sym, tf, start, lead_bars=0):
+    """`load(sym, tf)` returns only the bars from `lead_bars` bars before the first bar whose open label is >= `start`
+    (an ISO-8601 `...Z` string in the series' own label format) onward; `start=None` lifts the cut for (sym, tf).
+    Global and process-wide, like `pit_cutoff()`/`limit_bars()`. `lead_bars` is the decision window the method reads
+    before a bar (ICT `scan_spec` bars, Wyckoff window), so the first bar at/after `start` still sees a full window."""
+    if start is None:
+        _SERIES_START.pop((sym, tf), None)
+    else:
+        _SERIES_START[(sym, tf)] = (str(start), int(lead_bars))
+
+
 #: Speed only (byte-identical): `load()`'s load-time PIT cut is `pit.series_as_of(src, tf, _PIT_CUTOFF)`, a full pass over
 #: the series (0.7 s on the 1.3 M-bar XAUUSD 5m series) that W7's `_htf_wyckoff_target` paid on EVERY call. Its result is a
 #: pure function of (the source list, tf, cutoff, symbol), so it is kept here, keyed by the identity of the source list
@@ -389,6 +410,13 @@ def load(sym, tf):
         # available_time() call in this file (htf_bias_gate, htf_position: always the SERIES' OWN tf, never
         # the caller's decision-bar tf).
         d = dict(d, candles=_pit_cut(d["candles"], tf, sym))
+    if _SERIES_START:
+        ent = _SERIES_START.get((sym, tf))
+        if ent is not None:                      # after the PIT cut: the start is a cut of the already-knowable past
+            cs = d["candles"]
+            i0 = max(0, bisect.bisect_left(cs, ent[0], key=lambda x: x["time"]) - ent[1])
+            if i0:
+                d = dict(d, candles=cs[i0:])
     # CLAUDE.md §7: provenance travels with the series. Recorded per (symbol, timeframe) because ONE
     # instrument's series can come from two providers -- which is exactly what happened on 2026-09-18, when the
     # MT5 CFD import replaced XAUUSD 15m/1H/4H/1D and left 2H/30m/5m on the Yahoo futures proxy. A ranking

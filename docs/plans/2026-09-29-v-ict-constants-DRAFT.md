@@ -39,5 +39,6 @@ docs/architecture/v-grid-ict.json.
 10. **B6.** Project rule (core-b.md R3 is the invalidation idea only). Window = bars `mss_i+1 .. fill_bar-1`; the fill bar
     itself is excluded (same-bar target and fill is unknowable from OHLC and keeps the fill).
 11. **N accounting.** N = 1 + 27 + 1 = 29 per cell set (was 1 + 39 + 1 = 41 before `no_floor` was removed, 2026-09-30). B4 is counted while `implemented=false` (no key exists; the grid
-    declares its two values). B3 is counted on the 30m cell although it produces no trades there (report "no pairing").
+    declares its two values). B3 was counted on the 30m cell although it produced no trades there (report "no pairing"); the 30m cells were removed
+    (owner, 2026-10-01), so every remaining cell (1m, 5m, 15m) has a pairing. N per cell is unchanged.
     B-EXIT counts as one factor of 12 value sets (was 24), B-LB as one of 6; B-DISP is sensitivity-only and not in N.

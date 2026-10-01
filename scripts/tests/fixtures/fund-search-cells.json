@@ -1,0 +1,42 @@
+{
+  "_source": "docs/plans/2026-09-30-owner-decisions.md, section 'Owner decisions 2026-10-01: cell list and per-cell history spans'",
+  "_why": "The cell list and each cell's history START are part of the pre-registration: declared here, read by `scripts/fund-search.py plan`, hashed into the plan core (plan_hash) and pinned in the ledger declaration (evaluation_config.cells_sha256) exactly like the V grids. `run`/`scan` refuse a changed file. dev_start null = the cell starts at the first bar its data has (from data, as before); a string = a declared later start of the cell's development data (decision-timeframe series only; higher-timeframe series used by gates/W7 keep their full point-in-time history). The development CUTOFF (2024-03-01, the end of every span) is not set here: it is scripts/fund_stats.py DEV_CUTOFF and is unchanged.",
+  "warmup_days": 14,
+  "_warmup_days_why": "Calendar days of decision bars scanned BEFORE a declared dev_start so the scan's per-window dedupe state and simulate()'s one-position-at-a-time state settle; trades whose entry is before dev_start are discarded (they exist in no fold). On top of the method's own window (ICT scan_spec bars / Wyckoff window). Unused while every dev_start is null.",
+  "cells": [
+    {
+      "id": "1m-metals", "timeframe": "1m", "asset_class": "metals", "symbols": ["XAUUSD", "XAGUSD"], "dev_start": null,
+      "rationale": "Keeps its original data start (from data).",
+      "decision": "owner 2026-10-01 (chat): per-cell spans were offered, the 1m cells keep their original data start"
+    },
+    {
+      "id": "1m-indices", "timeframe": "1m", "asset_class": "indices", "symbols": ["US500", "US30", "USTEC", "DE40", "FRA40"], "dev_start": null,
+      "rationale": "Keeps its original data start (from data).",
+      "decision": "owner 2026-10-01 (chat): per-cell spans were offered, the 1m cells keep their original data start"
+    },
+    {
+      "id": "5m-metals", "timeframe": "5m", "asset_class": "metals", "symbols": ["XAUUSD", "XAGUSD"], "dev_start": null,
+      "rationale": "Keeps its original data start (from data).",
+      "decision": "owner 2026-10-01 (chat): a 2008-03-01 start (14 folds) was offered, the cell keeps its original data start (17 folds)"
+    },
+    {
+      "id": "5m-indices", "timeframe": "5m", "asset_class": "indices", "symbols": ["US500", "US30", "USTEC", "DE40", "FRA40"], "dev_start": null,
+      "rationale": "Keeps its current data start (from data).",
+      "decision": "owner 2026-10-01 (chat)"
+    },
+    {
+      "id": "15m-metals", "timeframe": "15m", "asset_class": "metals", "symbols": ["XAUUSD", "XAGUSD"], "dev_start": null,
+      "rationale": "Keeps its current data start (from data).",
+      "decision": "owner 2026-10-01 (chat)"
+    },
+    {
+      "id": "15m-indices", "timeframe": "15m", "asset_class": "indices", "symbols": ["US500", "US30", "USTEC", "DE40", "FRA40"], "dev_start": null,
+      "rationale": "Keeps its current data start (from data).",
+      "decision": "owner 2026-10-01 (chat)"
+    }
+  ],
+  "removed_cells": [
+    {"id": "30m-metals", "reason": "underpowered (trade-rate counts, docs/audits/2026-10-01-trade-rates.md)", "decision": "owner 2026-10-01 (chat)"},
+    {"id": "30m-indices", "reason": "underpowered (trade-rate counts, docs/audits/2026-10-01-trade-rates.md)", "decision": "owner 2026-10-01 (chat)"}
+  ]
+}
