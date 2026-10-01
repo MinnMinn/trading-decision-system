@@ -66,7 +66,7 @@ def _real_data_present(root=ROOT):
     present = set()
     for market, dirname in DATA_DIR.items():
         base = os.path.join(root, "data", "live", dirname)
-        symbols = I.analysis(market)
+        symbols = I.live_analysis(market)
         if not os.path.isdir(base):
             present.update(symbols)
             continue
@@ -150,7 +150,7 @@ def facts(config_path=None, root=ROOT):
             {"symbol": s, "selected": s in selected, "data_present": s in data_present,
              "orderable": s in I.execution(market), "backtested": s in backtested,
              "open_position": s in open_positions}
-            for s in I.analysis(market)
+            for s in I.live_analysis(market)
         ]
 
     presets_by_market = {market: M.PRESETS for market in ("crypto", "cfd")}
@@ -420,7 +420,7 @@ def _market_column(market, config, data_present, backtested, open_positions, env
         {"symbol": s, "selected": s in selected_syms, "data_present": s in data_present,
          "orderable": s in I.execution(market), "backtested": s in backtested,
          "open_position": s in open_positions}
-        for s in I.analysis(market)
+        for s in I.live_analysis(market)
     ]
     chips = "".join(_symbol_chip(market, f) for f in facts_syms)
 
@@ -440,7 +440,7 @@ def _market_column(market, config, data_present, backtested, open_positions, env
                        f'<div class="preset-grid">{research_cards}</div>') if research_cards else ""
 
     market_label = "Crypto" if market == "crypto" else "CFD"
-    ticker_hint = "/".join(I.analysis(market)[:3]) + ("…" if len(I.analysis(market)) > 3 else "")
+    ticker_hint = "/".join(I.live_analysis(market)[:3]) + ("…" if len(I.live_analysis(market)) > 3 else "")
     # §4/§50: where an order on this market would actually go. The panel decides what is SELECTED; it never
     # said where the selection executes, which is the other half of the sentence. Read from the provider
     # registry's single unattended execution provider -- the same call the order path makes.

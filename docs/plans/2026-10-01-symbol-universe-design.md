@@ -1,5 +1,7 @@
 # Symbol universe: full FTMO CFDs and FTMO crypto CFDs (design, 2026-10-01)
 
+Update 2026-10-01 (branch b15-fund-symbols): the owner chose a much smaller universe than this design considered (no FX, crypto, energies or stocks): see `docs/plans/2026-09-30-owner-decisions.md`, section 'Owner decisions 2026-10-01 (symbol universe)'. The registry holds nine research-only symbols (`research_only.cfd`), the fund search keeps its 6 cells (N 174 / 96) with per-cell symbol lists, and `fund-search.py plan --check-data` reports missing history/specs. Section A.0's side effects are handled there; sections A.2 and B below describe the options as designed (new classes, extra cells) and are kept as history.
+
 Status: **design only.** No pinned file changed (`scripts/fund-search.py`, `FUND_SYMBOLS`, `docs/architecture/instruments.json`,
 grids, ledger). Owner decision 2026-10-01: add the "full" FTMO CFD universe and FTMO crypto CFDs to raise statistical power.
 What exists on this branch is the pipeline that prepares for it without MT5 or new data:

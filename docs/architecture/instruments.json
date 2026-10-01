@@ -1,6 +1,6 @@
 {
   "_comment": "THE single source of truth for the instrument allowlist (SYSTEM-DESIGN.md §1). Nothing else in this repo may hard-code a symbol list: scripts/instruments.py (Python) and scripts/instruments.sh (bash/jq) are the two readers, and scripts/tests/test_instruments_sync.py fails the build if any file drifts from this one. Adding or removing a symbol = edit THIS file, run `python3 scripts/sync-instruments.py --write`, done.",
-  "_policy": "analysis != execution. A symbol on the analysis list is scannable and analysable (scanner, /analyze, /bias, /entry). Only a symbol on the execution list can ever have an order placed on it (pilot, /execute, the Binance connectors). Every execution list MUST be a subset of its analysis list -- scripts/instruments.py enforces this on load and raises on violation, and every backtested list must be a subset of its execution list. This file is the ONLY gate on what may be analysed or traded. The blanket Forex prohibition was lifted 2026-09-17 by user decision and the `forex` market was removed again 2026-09-27 (no FX chart was ever attached in MetaTrader, so it fed no data and traded nothing in its ten days on the registry -- see history); currency pairs go through the normal per-symbol allowlist gate like every other instrument, the day a forex market is re-declared.",
+  "_policy": "analysis != execution. A symbol on the analysis list is scannable and analysable (scanner, /analyze, /bias, /entry). Only a symbol on the execution list can ever have an order placed on it (pilot, /execute, the Binance connectors). Every execution list MUST be a subset of its analysis list -- scripts/instruments.py enforces this on load and raises on violation, and every backtested list must be a subset of its execution list. This file is the ONLY gate on what may be analysed or traded. The blanket Forex prohibition was lifted 2026-09-17 by user decision and the `forex` market was removed again 2026-09-27 (no FX chart was ever attached in MetaTrader, so it fed no data and traded nothing in its ten days on the registry -- see history); currency pairs go through the normal per-symbol allowlist gate like every other instrument, the day a forex market is re-declared. UPDATE 2026-10-01 (owner): XPTUSD, XPDUSD, UK100, EU50, JP225, HK50, US2000, SPN35 and N25 were added as RESEARCH-ONLY symbols for the fund search (see `research_only` and history): on analysis.cfd, never on execution or backtested, and the live surfaces read instruments.live_analysis() = analysis minus research_only. No forex market or FX symbol was re-added.",
   "market_types": {
     "_comment": "THE canonical market-type vocabulary (CLAUDE.md §5). Provider-independent ON PURPOSE: Binance calls its USDT-M contracts 'futures' and its venue alias here is `futures`, but the contract IS a PERPETUAL -- it has no expiry. CLAUDE.md §5 forbids provider terminology from being the canonical domain identity, so the venue alias and the market type are deliberately different vocabularies and must not be conflated.",
     "_where_declared": "A market lists the types it can be traded as (markets.<m>.market_types). An EXECUTION PROVIDER declares the ONE type a contract on it actually is (docs/architecture/providers.json -> providers.<p>.market_type). Market type is a property of (instrument, venue), NOT of the instrument: BTCUSDT is SPOT on binance_spot and PERPETUAL on binance_futures, and a per-symbol field would have to pick one and be wrong about the other.",
@@ -28,7 +28,16 @@
     "USTEC": "USTEC/USD",
     "DE40": "DE40/EUR",
     "FRA40": "FRA40/EUR",
-    "AUS200": "AUS200/AUD"
+    "AUS200": "AUS200/AUD",
+    "EU50": "EU50/EUR",
+    "HK50": "HK50/HKD",
+    "JP225": "JP225/JPY",
+    "N25": "N25/EUR",
+    "SPN35": "SPN35/EUR",
+    "UK100": "UK100/GBP",
+    "US2000": "US2000/USD",
+    "XPDUSD": "XPDUSD/USD",
+    "XPTUSD": "XPTUSD/USD"
   },
   "markets": {
     "_comment": "THE market registry. The keys here ARE the set of markets the system knows -- scripts/instruments.py derives MARKETS from them, and every per-market section below (analysis, execution, backtested) must carry exactly the same keys or loading raises. Adding a market is a data edit here plus a style prefix in scripts/automation.py; it used to be a literal [\"crypto\", \"cfd\"] in instruments.py AND another in automation.py, with the feed facts copied into eight more files.",
@@ -74,7 +83,30 @@
       "USTEC",
       "DE40",
       "FRA40",
-      "AUS200"
+      "AUS200",
+      "EU50",
+      "HK50",
+      "JP225",
+      "N25",
+      "SPN35",
+      "UK100",
+      "US2000",
+      "XPDUSD",
+      "XPTUSD"
+    ]
+  },
+  "research_only": {
+    "_comment": "Symbols on analysis.cfd ONLY for the fund search (docs/plans/2026-09-30-owner-decisions.md, section 'Owner decisions 2026-10-01 (symbol universe)'): history import, real-cost specs, scripts/fund-search.py cells. NEVER execution, NEVER backtested (instruments.py raises if one is). The live surfaces (scanner config, live page, method panel) and scripts/prop-search.py's candidate space read instruments.live_analysis() = analysis minus this list, so they are unchanged. AUS200 predates this list (it is in prop-search's 180 candidates) and is not on it.",
+    "cfd": [
+      "XPTUSD",
+      "XPDUSD",
+      "UK100",
+      "EU50",
+      "JP225",
+      "HK50",
+      "US2000",
+      "SPN35",
+      "N25"
     ]
   },
   "display": {
@@ -145,6 +177,60 @@
       "id": "aus200",
       "label": "ASX 200",
       "asset_class": "indices"
+    },
+    "EU50": {
+      "id": "eu50",
+      "label": "Euro Stoxx 50 Index, Spot CFD",
+      "asset_class": "indices",
+      "price_decimals": 2
+    },
+    "HK50": {
+      "id": "hk50",
+      "label": "Hong Kong Index, Spot CFD",
+      "asset_class": "indices",
+      "price_decimals": 2
+    },
+    "JP225": {
+      "id": "jp225",
+      "label": "Japan 225 Index, Spot CFD",
+      "asset_class": "indices",
+      "price_decimals": 2
+    },
+    "N25": {
+      "id": "n25",
+      "label": "Netherlands 25 Index, Spot CFD",
+      "asset_class": "indices",
+      "price_decimals": 2
+    },
+    "SPN35": {
+      "id": "spn35",
+      "label": "Spain 35 Index, Spot CFD",
+      "asset_class": "indices",
+      "price_decimals": 2
+    },
+    "UK100": {
+      "id": "uk100",
+      "label": "FTSE 100 Index, Spot CFD",
+      "asset_class": "indices",
+      "price_decimals": 2
+    },
+    "US2000": {
+      "id": "us2000",
+      "label": "Russell 2000 Index, Spot CFD",
+      "asset_class": "indices",
+      "price_decimals": 2
+    },
+    "XPDUSD": {
+      "id": "xpdusd",
+      "label": "Palladium vs United States Dollar, Spot CFD",
+      "asset_class": "metals",
+      "price_decimals": 2
+    },
+    "XPTUSD": {
+      "id": "xptusd",
+      "label": "Platinum vs United States Dollar, Spot CFD",
+      "asset_class": "metals",
+      "price_decimals": 2
     }
   },
   "execution": {
@@ -182,6 +268,12 @@
     ]
   },
   "history": [
+    {
+      "date": "2026-10-01",
+      "change": "FTMO symbol universe: 9 CFD symbols added to analysis.cfd and research_only.cfd ONLY (canonical + display entries): metals XPTUSD XPDUSD; indices UK100 EU50 JP225 HK50 US2000 SPN35 N25 (raw MT5 names <X>.cash, canonical strips .cash). execution and backtested unchanged.",
+      "reason": "Owner decision 2026-10-01 (docs/plans/2026-09-30-owner-decisions.md, section 'Owner decisions 2026-10-01 (symbol universe)'): these symbols join the 5m and 15m metals / indices cells of the fund search (the 1m cells are unchanged), to raise its statistical power. Research-only: no forex market or FX symbol is re-added (the 2026-09-27 removal stands). Generated by scripts/import-ftmo-symbols.py from an ExportSymbolList export (docs/plans/2026-10-01-symbol-universe-design.md); history and real-cost specs are exported later by the owner and validated separately.",
+      "approved_by": "owner (decision 2026-10-01); registry edit applied by import-ftmo-symbols.py --apply after review"
+    },
     {
       "date": "2026-09-27",
       "change": "NEW MARKET forex REMOVED entirely: `forex` deleted from markets{}, analysis{}, execution{}, backtested{}; EURUSD/GBPUSD/USDJPY/AUDUSD/USDCAD/USDCHF/NZDUSD deleted from canonical{} and display{}.",

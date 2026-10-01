@@ -120,9 +120,28 @@ class SwapNightsAndTripleDay(unittest.TestCase):
         # far IS swap_mode 1 (data/history/costs/ftmo/symbol-map.json's own note) -- pinned so a future export
         # in a different mode is caught here first, not by a silent wrong number downstream.
         profile = RC.PROFILES[FTMO]
+        # Owner 2026-10-01 (symbol universe): these nine are MAPPED in symbol-map.json (so `fund-search.py plan --check-data`
+        # can name the file it is waiting for) but their symbolspec.<RAW>.json is exported by the owner LATER. Only while the
+        # file is absent are they skipped; the moment it exists it is held to swap_mode 1 like every other export. Every
+        # other mapped symbol must have its spec, as before.
+        pending = {"XPTUSD", "XPDUSD", "UK100", "EU50", "JP225", "HK50", "US2000", "SPN35", "N25"}
         for sym in dict(RC._reverse_symbol_map(profile["symbol_map"])):
             with self.subTest(symbol=sym):
+                if sym in pending and not os.path.exists(RC.spec_path(FTMO, sym)):
+                    continue
                 self.assertEqual(RC.spec(FTMO, sym)["swap_mode"], 1)
+
+    def test_the_pending_new_universe_symbols_are_mapped_to_their_cash_spec_file_names(self):
+        expect = {"UK100": "symbolspec.UK100.cash.json", "EU50": "symbolspec.EU50.cash.json",
+                  "JP225": "symbolspec.JP225.cash.json", "HK50": "symbolspec.HK50.cash.json",
+                  "US2000": "symbolspec.US2000.cash.json", "SPN35": "symbolspec.SPN35.cash.json",
+                  "N25": "symbolspec.N25.cash.json", "XPTUSD": "symbolspec.XPTUSD.json", "XPDUSD": "symbolspec.XPDUSD.json"}
+        for sym, fname in expect.items():
+            self.assertEqual(os.path.basename(RC.spec_path(FTMO, sym)), fname)
+        for sym in expect:
+            if not os.path.exists(RC.spec_path(FTMO, sym)):
+                with self.assertRaises(RC.CostRefused, msg=sym):   # an absent spec is refused, never defaulted or borrowed
+                    RC.spec(FTMO, sym)
 
     def test_a_non_points_swap_mode_refuses_rather_than_being_priced_wrong(self):
         # MetaQuotes-Demo's own indices are NOT all swap_mode 1 (measured: US500=2 CURRENCY_SYMBOL, FRA40=0

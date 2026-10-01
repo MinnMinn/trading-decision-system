@@ -53,7 +53,7 @@ class TestSingleSource(unittest.TestCase):
 
     def test_automation_allowlist_comes_from_the_source(self):
         m = _load("automation", "automation.py")
-        self.assertEqual(m.MARKET_INSTRUMENTS, {k: I.analysis(k) for k in I.MARKETS})
+        self.assertEqual(m.MARKET_INSTRUMENTS, {k: I.live_analysis(k) for k in I.MARKETS})   # research-only symbols are not live
 
     def test_pilot_universe_is_the_execution_list(self):
         """The pilot must never widen to the analysis allowlist."""
@@ -137,6 +137,50 @@ class DisplayMetadata(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ResearchOnlySymbolsStayOffTheLiveAndOrderPaths(unittest.TestCase):
+    """Owner 2026-10-01 (symbol universe): XPTUSD XPDUSD UK100 EU50 JP225 HK50 US2000 SPN35 N25 are on analysis.cfd ONLY so the
+    fund search can import their history and read their cost specs. `research_only` (instruments.json) is the registry's marker;
+    they must never be orderable and the live surfaces read live_analysis() (analysis minus research-only). AUS200 predates
+    the list (it is on execution.cfd already) and is not on it. No forex market or FX symbol was re-added (the guard above)."""
+    NEW = ["XPTUSD", "XPDUSD", "UK100", "EU50", "JP225", "HK50", "US2000", "SPN35", "N25"]
+
+    def test_the_marker_lists_exactly_the_new_symbols(self):
+        self.assertEqual(I.research_only("cfd"), self.NEW)
+        self.assertEqual(I.research_only("crypto"), [])
+        self.assertEqual(I.research_only(), self.NEW)
+
+    def test_they_are_analysable_but_never_orderable_nor_backtested_nor_live(self):
+        for sym in self.NEW:
+            self.assertEqual(I.market_of(sym), "cfd")
+            self.assertIn(sym, I.analysis("cfd"))
+            self.assertNotIn(sym, I.execution())
+            self.assertNotIn(sym, I.backtested())
+            self.assertNotIn(sym, I.live_analysis())
+        self.assertEqual(I.live_analysis("cfd"), ["XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "FRA40", "AUS200"])
+        self.assertEqual(I.execution("cfd"), ["XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "FRA40", "AUS200"])
+
+    def test_the_live_surfaces_do_not_list_them(self):
+        auto = _load("automation", "automation.py")
+        self.assertTrue(set(self.NEW).isdisjoint(s for m in auto.MARKETS for s in auto.MARKET_INSTRUMENTS[m]))
+        bridge = _load("mt5_bridge", "mt5-order-bridge.py")
+        self.assertTrue(bridge.ALLOWED.isdisjoint(self.NEW))
+
+    def test_an_orderable_or_unregistered_research_only_symbol_is_refused_at_load(self):
+        import copy
+        import json
+        base = json.load(open(I.PATH, encoding="utf-8"))
+        for bad in ("XAUUSD", "NOTASYMBOL"):          # XAUUSD is on execution.cfd; the other is not on analysis.cfd
+            d = copy.deepcopy(base)
+            d["research_only"]["cfd"].append(bad)
+            saved = I._DATA
+            try:
+                I._DATA = d
+                with self.assertRaises(ValueError, msg=bad):
+                    I._load()
+            finally:
+                I._DATA = saved
 
 
 class ForexWasRemovedCleanly(unittest.TestCase):

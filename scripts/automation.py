@@ -128,7 +128,7 @@ instruments = importlib.util.module_from_spec(_ispec); _ispec.loader.exec_module
 # directly above the import that could have told it -- so adding a market meant editing both, and disagreeing
 # between them would have produced a market with instruments and no config node (or the reverse).
 MARKETS = list(instruments.MARKETS)
-MARKET_INSTRUMENTS = {m: instruments.analysis(m) for m in MARKETS}
+MARKET_INSTRUMENTS = {m: instruments.live_analysis(m) for m in MARKETS}   # research-only symbols are not live
 _mspec = importlib.util.spec_from_file_location("methods", os.path.join(ROOT, "scripts", "methods.py"))
 methods = importlib.util.module_from_spec(_mspec); _mspec.loader.exec_module(methods)  # import methods as a sibling script, not a package
 # Which dimensions each market can have AT ALL -- the shape, from docs/architecture/methods.json.

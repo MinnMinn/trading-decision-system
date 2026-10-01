@@ -283,10 +283,25 @@ class CandidateSpaceDeterminismAndImmutability(unittest.TestCase):
         self.assertTrue(methods <= {"ICT", "WYCKOFF-BOOK"})
         # Independently computed from the same registries build_candidate_space() reads, not derived from
         # `candidates` itself -- a self-referential check would pass even if the cross product were wrong.
-        n_instruments = len(ps._I.analysis("cfd"))
+        n_instruments = len(ps._prop_symbols())
         n_asset_classes = len(ps._asset_class_groups())
         self.assertEqual(len(groups), n_instruments + n_asset_classes)
         self.assertEqual(len(candidates), len(methods) * len(configs) * len(tfs) * len(groups))
+
+    def test_candidate_space_is_unchanged_by_the_research_only_symbols(self):
+        """Owner decision 2026-10-01 added 9 research-only cfd symbols to the registry for the fund search.
+        The pre-registered candidate space must stay what fund-search PRIOR_COUNTS records (180) and byte-identical
+        (hash measured at f5eb338, before any research-only symbol existed)."""
+        ps = _ps()
+        candidates = ps.build_candidate_space()
+        self.assertEqual(len(candidates), 180)
+        self.assertEqual(ps._hash_candidates(candidates),
+                         "8137a8b1a76ce16118519037fd9baf77449bfc51c6c5f807c52c42df08b2028d")
+        research_only = set(ps._I.research_only("cfd"))
+        self.assertEqual(len(research_only), 9)
+        used = {s for c in candidates for s in c["symbols"]}
+        self.assertTrue(used.isdisjoint(research_only))
+        self.assertIn("AUS200", used, "AUS200 predates research_only and stays in the space")
 
     def test_pooled_asset_class_groups_include_every_member_instrument(self):
         ps = _ps()

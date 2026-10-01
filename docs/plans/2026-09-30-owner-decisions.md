@@ -79,7 +79,9 @@ The decisions were taken on compute cost and statistical power, NOT on performan
    1m-indices, 5m-metals, 5m-indices, 15m-metals, 15m-indices = 6 cells x 2 methods = 12 candidates.
 3. **New N** (`python3 -W ignore scripts/fund-search.py plan --dry-run`): ICT 29 x 6 = **174**, one-sided confidence 1 - 0.10/174 = **0.999425**
    (was 232, 0.999569); Wyckoff 16 x 6 = **96**, 1 - 0.10/96 = **0.998958** (was 128, 0.999219). Plan hash
-   `f7d67a77ef1e9e20` (first 16 hex; changes with any edit to the cells file, the grids or the first-bar data).
+   `f7d67a77ef1e9e20` (first 16 hex; changes with any edit to the cells file, the grids or the first-bar data). [That hash was for the cells file of
+   that commit; the symbol lists added the same day (section 'Owner decisions 2026-10-01 (symbol universe)' at the end) change the cells file, so
+   plan_hash changes again. N, cell count and the fold counts above are unchanged.]
 4. **Expected TEST trades for the final spans (MODEL, not measurement)** = the trade-rates doc's mean pooled trades per year (baseline value set, slices
    S1-S3 for metals, S2-S3 for indices) x the test folds of the cell (one fold = 365 days). The `n_req` figures (ICT 760, Wyckoff 690; 2x for a design effect of 2) are
    the coordinator's model of that doc and were derived at the OLD N (232 / 128); they are NOT recomputed for N = 174 / 96 here. The metals rates are extrapolated
@@ -105,3 +107,36 @@ The decisions were taken on compute cost and statistical power, NOT on performan
    The 15m cells stay although the model shows them below n_req (ICT 15m-metals and 15m-indices, Wyckoff 15m-indices); that is disclosed here, and the evaluation reports whatever it finds.
 5. **Pinned files changed by this decision** (`FINGERPRINT_FILES`): `scripts/fund-search.py`, `scripts/backtest-methods.py` (the `series_start` load seam, default
    no-op), `scripts/scan_many.py` (hands the seam to its spawned workers). `declare` must run after this change (the declaration fingerprints these files).
+
+
+## Owner decisions 2026-10-01 (symbol universe) (owner, in chat; binding)
+Design and code points: `docs/plans/2026-10-01-symbol-universe-design.md`. Taken on statistical power (more symbols, hence more pooled trades, in the
+under-powered 5m and 15m cells), NOT on performance. The history and real-cost specs of the new symbols are exported from MT5 by the owner;
+until they exist `scripts/fund-search.py plan --check-data` prints which cell lacks what and exits 1, and `plan`/`run`/`scan`/`declare` refuse with the same table.
+The owner's list changed three times the same day; this entry records the FINAL one.
+
+- **(a)** Symbols are added to the **5m and 15m cells only**. The two 1m cells are unchanged (1m-metals XAUUSD XAGUSD; 1m-indices US500 US30 USTEC DE40 FRA40).
+- **(b)** 5m-metals and 15m-metals = XAUUSD XAGUSD + **XPTUSD XPDUSD** (4 symbols; XPT/XPD history from 2015-01-07). The cross-quoted XAUEUR XAUAUD XAGEUR XAGAUD are not added (same underlying).
+- **(c)** 5m-indices and 15m-indices = US500 US30 USTEC DE40 FRA40 + **UK100** (from 2017-12-28), **EU50** (2017-12-29), **JP225** (2017-12-28), **HK50** (2018-12-17),
+  **AUS200** (2019-02-08; it already has a spec in `data/history/costs/ftmo`), **US2000** (2018-01-23), **SPN35** (2020-11-09), **N25** (2020-11-12) = 13 symbols. Raw MT5 names are `<X>.cash`; canonical names strip `.cash`.
+- **(d) Considered and dropped for lack of pre-cutoff history** (their first bars are after the 2024-03-01 development cutoff, so they have zero development data): **XCUUSD** (copper, history from 2024-12-02) and **DXY** (`DXY.cash`, FTMO path 'Cash III CFD', history from 2024-11-26; note that DXY is a *currency* index, not an equity index, so it would have been classified `indices` only for lack of another class).
+- **(e) Parked by the owner, "for now" (not rejected):** all FX (28 pairs: would need an `fx` asset class and `5m-fx` / `15m-fx` cells, which are NOT in the code; the `ForexWasRemovedCleanly` guard in `scripts/tests/test_instruments_sync.py` is untouched), crypto, energies, stocks, exotics.
+
+**Plan: unchanged at 6 cells** (1m-metals 2 symbols, 1m-indices 5, 5m-metals 4, 5m-indices 13, 15m-metals 4, 15m-indices 13) = 12 candidates (method x cell). More symbols in an existing cell add no N.
+**N: ICT 29 x 6 = 174 (confidence 1 - 0.10/174 = 0.999425); Wyckoff 16 x 6 = 96 (0.998958)**, as before this entry. `plan --check-data` prints it from the declared cells (no data needed); `plan --dry-run` prints the same once every cell has data.
+**plan_hash changes** (the cells file is hashed into it) and can only be computed once the data exist. Cells-file sha256 at the commit that made this change: printed by `plan --check-data`.
+
+**Registry.** `docs/architecture/instruments.json`: nine symbols (XPTUSD XPDUSD UK100 EU50 JP225 HK50 US2000 SPN35 N25) were added to `canonical`, `display` (asset_class `metals` / `indices`) and `analysis.cfd`, and are listed in the new
+`research_only.cfd` list. They are **research-only: never on `execution` or `backtested`** (`scripts/instruments.py` refuses to load a research-only symbol that is orderable). The live surfaces (scanner config, live page, method panel, local-eval-brief) and
+`scripts/prop-search.py` read `instruments.live_analysis()` = analysis minus research-only, so they behave as before; prop-search's pre-registered candidate space stays **180** (candidate-list hash `8137a8b1...` identical to f5eb338, pinned by a test).
+`AUS200` was already on the registry (and on `execution.cfd`, which this work does not touch); it is one of prop-search's 180 candidates, so it is NOT marked research-only. `data/history/costs/ftmo/symbol-map.json` maps the nine raw names.
+Open (design doc E.2): the cost profile `ftmo_demo_2026_09` now also covers specs exported in 2026-10; the symbol-map hash recorded in a run's `profile_snapshot` differs from before (no declaration exists yet, so no drift).
+
+**Late-starting symbols: how the stability rule treats them (code: `scripts/fund_stats.py` `make_folds`, `check_stability`; `scripts/fund-search.py` `build_cells`; thresholds unchanged).**
+- A cell's development start is the first bar of its EARLIEST symbol with data; the folds (365-day test folds, at least 730 days of training) follow from that date only. A symbol enters `m` iff it has a first bar BEFORE 2024-03-01; one that does not is left out of `m` and disclosed (`symbols_without_development`). A symbol that starts later than the cell is kept in `m` and disclosed in `symbol_first_bar`.
+- Stability = net expectancy > 0 on at least `ceil(2m/3)` of the `m` symbols, evaluated on the POOLED test trades of all folds. m = 2 -> 2, 4 -> 3, 13 -> 9. A symbol with no trade, or with a pooled mean <= 0, is not positive; it is never dropped from `m` and never re-weighted.
+- 5m-indices / 15m-indices (4 test folds, 2020-03-02 .. 2024-03-01): UK100 JP225 EU50 US2000 HK50 AUS200 have data in every test fold and at least 388 days of history before fold 0 (AUS200, the latest of the six). SPN35 (2020-11-09) and N25 (2020-11-12) have data in all four folds but only from Nov 2020 in fold 0 (about 110 of its 365 days) and NO history before fold 0: they only contribute test trades, and fold 0's training trades come from the other 11 symbols. With m = 13 up to 4 symbols may be non-positive (need 9): SPN35 and N25 have the fewest trades (about 3.3 years of data), so the noisiest pooled means, and they count against the share if their mean is <= 0.
+- 5m-metals / 15m-metals (17 test folds, 2007-03 .. 2024-03; folds follow XAUUSD from 2004-06-11): XPTUSD and XPDUSD (2015-01-07) have NO data in test folds 0-6, about 2 months of fold 7 and all of folds 8-16. They stay in m = 4 (need 3 positive of 4) and contribute test trades only to folds 7-16. A fold in which only some symbols have bars is judged on those trades (fold sufficiency and frequency are pooled over the fold's symbols).
+- Not changed: any statistical threshold, grid, cost rule, `min_rr`, `FUND_SYMBOLS` order semantics.
+
+**Not done here (named):** `DEV_BARS` in `scripts/fund-search.py` (shard sizing, part of the shard-calibration work) has no row for the new symbols, so `list-scan-shards` needs them once the data exist; the new specs' swap mode and commission are unchecked (design doc A.3 rows 7 and 8); US2000 1W and the specs are being re-exported (the readiness table will keep flagging them until they are on disk).

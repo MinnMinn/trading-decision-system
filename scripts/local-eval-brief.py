@@ -72,7 +72,7 @@ def default_symbols(style):
             return list(_auto.enabled_instruments(cfg, market))
     except Exception:
         pass
-    return list(I.analysis(market))
+    return list(I.live_analysis(market))
 
 
 def main():

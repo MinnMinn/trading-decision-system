@@ -9,6 +9,15 @@
     "US100.cash": "USTEC",
     "GER40.cash": "DE40",
     "FRA40.cash": "FRA40",
-    "AUS200.cash": "AUS200"
+    "AUS200.cash": "AUS200",
+    "EU50.cash": "EU50",
+    "HK50.cash": "HK50",
+    "JP225.cash": "JP225",
+    "N25.cash": "N25",
+    "SPN35.cash": "SPN35",
+    "UK100.cash": "UK100",
+    "US2000.cash": "US2000",
+    "XPDUSD": "XPDUSD",
+    "XPTUSD": "XPTUSD"
   }
 }

@@ -132,7 +132,7 @@ class Instruments(unittest.TestCase):
     def test_every_allowlisted_symbol_has_a_chip_in_its_market(self):
         html = mp.render(cfg())
         for m in ("crypto", "cfd"):
-            for sym in I.analysis(m):
+            for sym in I.live_analysis(m):
                 self.assertRegex(html, rf'data-market="{m}"[^>]*data-symbol="{sym}"')
 
     def test_selected_symbols_are_ticked(self):
@@ -164,7 +164,7 @@ class Instruments(unittest.TestCase):
         symbol in both markets -- no exceptions."""
         html = mp.render(cfg(), backtested=set())
         for m in ("crypto", "cfd"):
-            for sym in I.analysis(m):
+            for sym in I.live_analysis(m):
                 self.assertRegex(html, rf'data-symbol="{sym}"[^>]*data-unvalidated="1"',
                                  f"{sym} was not badged when backtested data was unavailable")
 

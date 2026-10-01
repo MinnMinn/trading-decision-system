@@ -67,9 +67,17 @@ GRID_DIR = os.environ.get("FUND_SEARCH_GRID_DIR") or os.path.join(ROOT, "docs", 
 FTMO_HISTORY_ROOT = os.path.join(ROOT, "data", "history", "ftmo")
 
 # ------------------------------------------------------------------ scope, all pre-declared (plan §6 items 7, 8)
-FUND_SYMBOLS = ("XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "FRA40")   # §6 item 8: AUS200 dropped, no data
+#: Pinned. The original seven FTMO symbols + XPTUSD XPDUSD + UK100 EU50 JP225 HK50 AUS200 US2000 SPN35 N25 (owner 2026-10-01,
+#: symbol universe: docs/plans/2026-09-30-owner-decisions.md; AUS200 was dropped by §6 item 8 for lack of data and is back with the
+#: owner's new export). Which cell gets which symbol is DECLARED per cell in docs/architecture/fund-search-cells.json (only the 5m and
+#: 15m cells draw on the nine additions); this tuple is the universe a cell may draw from. Nine of them are research-only registry
+#: symbols (instruments.json `research_only`, never orderable); XCUUSD and DXY were dropped: no history before the 2024-03-01 cutoff.
+FUND_SYMBOLS = ("XAUUSD", "XAGUSD", "XPTUSD", "XPDUSD", "US500", "US30", "USTEC", "DE40", "FRA40",
+                "UK100", "EU50", "JP225", "HK50", "AUS200", "US2000", "SPN35", "N25")
 FUND_TIMEFRAMES = ("1m", "5m", "15m")                                           # §6 item 7; 30m removed by the owner 2026-10-01
 ASSET_CLASSES = ("metals", "indices")                                           # §6 item 7
+#: Higher-timeframe context series a cell needs besides its own decision timeframe (gates, W7): see `data_readiness`.
+CONTEXT_TIMEFRAMES = ("30m", "1H", "4H", "1D", "1W")
 METHODS = {"ict": "ICT", "wyckoff": "WYCKOFF-BOOK"}                             # grid `method` -> bt runner method
 GRID_FILES = {"ict": "v-grid-ict.json", "wyckoff": "v-grid-wyckoff.json"}
 CELLS_FILE = "fund-search-cells.json"      # the declared cell list + each cell's history start (pinned like the grids)
@@ -275,6 +283,129 @@ def build_overlay(grid, values):
     return out
 
 
+# ------------------------------------------------------------------------------------------- data readiness
+class DataNotReady(SystemExit):
+    """A declared cell needs history or a real-cost spec that does not exist yet (the owner exports them from MT5).
+    Raised with the readiness table as its message: a precise report and a non-zero exit, never a stack trace."""
+
+
+def _spec_present(sym):
+    """(present, path) of `sym`'s real-cost symbolspec under COST_PROFILE (scripts/real_costs.py spec_path)."""
+    import real_costs as _RC
+    path = _RC.spec_path(COST_PROFILE, sym)
+    return os.path.exists(path), path
+
+
+def data_readiness(cells_spec, first_bar=None, spec_present=None):
+    """Per declared cell: which symbols lack history (decision timeframe or a CONTEXT_TIMEFRAMES series) or a real-cost
+    spec, and whether the cell would have any development data. Pure over its inputs (`first_bar(sym, tf)` -> ISO or None,
+    `spec_present(sym)` -> (bool, path)); reads nothing else. Nothing is fabricated: a missing series is reported missing.
+
+    `ready` is the HARD condition (every declared symbol has its series and spec): `plan`/`run`/`scan`/`declare` refuse
+    without it. A symbol whose first bar is not before DEV_CUTOFF is not a readiness failure (plan §6 item 7: it is left out
+    of m and disclosed). A cell in which NO symbol has development data is dropped from N by that same rule; it does not
+    block planning, but `complete` is False so `--check-data` exits non-zero: the owner declared this cell and should see
+    that N would silently shrink."""
+    first_bar = first_bar or _first_bar
+    spec_present = spec_present or _spec_present
+    cutoff = FS.ts(FS.DEV_CUTOFF)
+    out, ready, complete = [], True, True
+    for decl in cells_spec["cells"]:
+        tf = decl["timeframe"]
+        need = (tf,) + CONTEXT_TIMEFRAMES
+        no_history, partial, no_spec, no_dev, late = [], {}, [], [], {}
+        for sy in decl["symbols"]:
+            have = {t: first_bar(sy, t) for t in need}
+            miss = [t for t in need if have[t] is None]
+            if len(miss) == len(need):
+                no_history.append(sy)
+            elif miss:
+                partial[sy] = miss
+            if not spec_present(sy)[0]:
+                no_spec.append(sy)
+            fb = have[tf]
+            if fb is not None and FS.ts(fb) >= cutoff:
+                no_dev.append(sy)
+        cell_ready = not (no_history or partial or no_spec)
+        with_data = [sy for sy in decl["symbols"] if sy not in no_history and sy not in no_dev
+                     and (tf not in partial.get(sy, ()))]
+        ready = ready and cell_ready
+        complete = complete and cell_ready and bool(with_data)
+        out.append({"id": decl["id"], "timeframe": tf, "symbols": list(decl["symbols"]),
+                    "ready": cell_ready and bool(with_data),
+                    "no_history": no_history, "partial_history": partial, "no_spec": no_spec,
+                    "no_development_data": no_dev, "has_development_symbol": bool(with_data)})
+    return {"ready": ready, "complete": complete, "cells": out}
+
+
+def format_readiness(rep):
+    """The readiness table: one row per declared cell, then the exact symbols/timeframes behind every gap."""
+    rows = [("cell", "m", "no history", "partial", "no spec", "dev data", "ready")]
+    for c in rep["cells"]:
+        rows.append((c["id"], str(len(c["symbols"])), str(len(c["no_history"])), str(len(c["partial_history"])),
+                     str(len(c["no_spec"])), "yes" if c["has_development_symbol"] else "NONE",
+                     "yes" if c["ready"] else "NO"))
+    w = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
+    L = ["fund-search DATA READINESS (decision timeframe + context series " + ",".join(CONTEXT_TIMEFRAMES)
+         + "; real-cost spec per symbol under profile " + COST_PROFILE + ")",
+         "  ".join(h.ljust(w[i]) for i, h in enumerate(rows[0]))]
+    L += ["  ".join(v.ljust(w[i]) for i, v in enumerate(r)) for r in rows[1:]]
+    for c in rep["cells"]:
+        if c["ready"]:
+            continue
+        L.append(f"{c['id']}:")
+        both = [x for x in c["no_history"] if x in c["no_spec"]]
+        if both:
+            L.append(f"  no history at all and no real-cost spec ({len(both)}): {', '.join(both)}")
+        only_h = [x for x in c["no_history"] if x not in both]
+        if only_h:
+            L.append(f"  no history at all ({len(only_h)}): {', '.join(only_h)}")
+        for sy, miss in c["partial_history"].items():
+            L.append(f"  incomplete history: {sy} lacks {', '.join(miss)}")
+        only_s = [x for x in c["no_spec"] if x not in both]
+        if only_s:
+            L.append(f"  no real-cost spec ({len(only_s)}): {', '.join(only_s)}")
+        if c["no_development_data"]:
+            L.append(f"  first bar not before {FS.DEV_CUTOFF} (left out of m by the plan rule): "
+                     f"{', '.join(c['no_development_data'])}")
+        if not c["has_development_symbol"]:
+            L.append("  NO symbol has development data: the cell would be dropped from N")
+    bad = [c["id"] for c in rep["cells"] if not c["ready"]]
+    L.append("READY: every declared cell has its history and real-cost specs" if rep["complete"] else
+             f"NOT READY: {len(bad)} of {len(rep['cells'])} cells ({', '.join(bad)}). Nothing was evaluated or planned; "
+             f"export the missing history (history.<RAW>.<TF>.json) and specs (symbolspec.<RAW>.json -> data/history/costs/ftmo/) "
+             f"from MT5, import them, and re-run `fund-search.py plan --check-data`.")
+    return "\n".join(L)
+
+
+def check_data(grid_dir=None, first_bar=None, spec_present=None, out=None):
+    """`plan --check-data`: print the readiness table; return 0 when complete, 1 when anything is missing."""
+    spec, path, sha = load_cells_file(grid_dir)
+    rep = data_readiness(spec, first_bar, spec_present)
+    print(format_readiness(rep), file=out or sys.stdout)
+    print(declared_n_line(spec, sha, grid_dir), file=out or sys.stdout)
+    return 0 if rep["complete"] else 1
+
+
+def declared_n_line(cells_spec, cells_sha, grid_dir=None):
+    """N and confidence of the DECLARED cells (no data needed): per-cell N of each grid x the number of declared cells.
+    The real plan's N counts only cells that survive data availability, so it equals this once every cell is ready."""
+    grids, _ = load_grids(grid_dir)
+    n_cells = len(cells_spec["cells"])
+    parts = []
+    for m, g in grids.items():
+        per = FS.n_per_method(g)
+        parts.append(f"{m} {per} x {n_cells} = N {per * n_cells} (confidence {FS.n_adjusted_confidence(per * n_cells):.6f})")
+    return f"declared cells: {n_cells}; " + "; ".join(parts) + f"; cells file sha256 {cells_sha}"
+
+
+def require_data_ready(cells_spec, first_bar=None, spec_present=None):
+    rep = data_readiness(cells_spec, first_bar, spec_present)
+    if not rep["ready"]:
+        raise DataNotReady(format_readiness(rep))
+    return rep
+
+
 # -------------------------------------------------------------------------------------------- cell enumeration
 def _first_bar(sym, tf):
     """ISO time of the series' first bar, or None. Split series carry it in index.json (no full read)."""
@@ -340,9 +471,15 @@ def _hash(payload):
     return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
-def build_plan(grid_dir=None, first_bar=None):
+def build_plan(grid_dir=None, first_bar=None, check_ready=None):
+    """The plan. With the real data (no `first_bar` injected) every declared cell's history and real-cost specs must
+    exist, else DataNotReady carries the readiness table (the N of a plan over missing data would be a silent shrink)."""
     grids, paths = load_grids(grid_dir)
     cells_spec, cells_path, cells_sha = load_cells_file(grid_dir)
+    if check_ready is None:
+        check_ready = first_bar is None
+    if check_ready:
+        require_data_ready(cells_spec, first_bar)
     cells, excluded = build_cells(first_bar, cells_spec)
     n_cells = len(cells)
     grids_info, n_by_method, conf = {}, {}, {}
@@ -1773,6 +1910,9 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     pp = sub.add_parser("plan", help="enumerate cells/candidates and N; --dry-run prints and writes nothing")
     pp.add_argument("--dry-run", action="store_true")
+    pp.add_argument("--check-data", action="store_true",
+                    help="print the per-cell readiness table (history + real-cost specs) and exit 1 if anything is "
+                         "missing, 0 if complete; plans nothing, writes nothing")
     pp.add_argument("--grid-dir", help="directory holding v-grid-ict.json / v-grid-wyckoff.json")
     sub.add_parser("declare", help="record the final cell count in the research ledger (before any run)")
     sub.add_parser("list-cells", help="print the committed plan's cell ids as JSON (the CI matrix)")
@@ -1811,6 +1951,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
     os.environ.setdefault("BT_HISTORY_ROOT", FTMO_HISTORY_ROOT)     # the fund search reads the FTMO feed (§6 item 8)
     if a.cmd == "plan":
+        if a.check_data:
+            return check_data(a.grid_dir)
         cmd_plan(dry_run=a.dry_run, grid_dir=a.grid_dir)
     elif a.cmd == "declare":
         cmd_declare()
@@ -1836,4 +1978,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

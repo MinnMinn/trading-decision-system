@@ -122,7 +122,7 @@ MARKET_LABEL = {"crypto": "Crypto", "cfd": "CFD"}
 # the registry -- no chart ever attached, so no fx- page ever built; see instruments.json history).
 # `drawable()` below splits the allowlist into what has candles and what does not, and the page NAMES the
 # second group instead of dropping it (§6, §15: let the rest continue, say why the rest is not there).
-STYLE_SYMS = {m: [_meta(s) for s in I.analysis(m)] for m in _auto.MARKETS}
+STYLE_SYMS = {m: [_meta(s) for s in I.live_analysis(m)] for m in _auto.MARKETS}   # research-only symbols are not live
 if set(MARKET_LABEL) != set(_auto.MARKETS) or set(STYLE_SYMS) != set(_auto.MARKETS):
     raise KeyError(f"build-artifact: markets are {sorted(_auto.MARKETS)} but this file knows labels for "
                    f"{sorted(MARKET_LABEL)} and symbols for {sorted(STYLE_SYMS)} -- a market with neither "

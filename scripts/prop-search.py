@@ -110,10 +110,19 @@ INFORMATIONAL_HORIZON_DAYS = (30, 60, VALIDATION_TRADING_DAYS)   # §8.1: "REPOR
 
 # ---------------------------------------------------------------------------------------- candidate space (§5)
 
+def _prop_symbols():
+    """The cfd symbols of the pre-registered candidate space: the analysis list MINUS the research-only symbols
+    (instruments.json -> research_only, owner decision 2026-10-01). The nine metals and indices added
+    for the fund search have no prop-search history and must not silently grow the 180-candidate space that
+    fund-search's PRIOR_COUNTS records; an explicit subtraction keeps that count at 180 and a test pins it."""
+    ro = set(_I.research_only("cfd"))
+    return [s for s in _I.analysis("cfd") if s not in ro]
+
+
 def _asset_class_groups():
     """{asset_class: [symbols]} over the CFD analysis list, in instruments.json's own declared order."""
     groups = {}
-    for sym in _I.analysis("cfd"):
+    for sym in _prop_symbols():
         ac = _I.display(sym).get("asset_class") or "cfd"
         groups.setdefault(ac, []).append(sym)
     return groups
@@ -130,7 +139,7 @@ def build_candidate_space():
     sr = _sr()
     methods_order = sorted(_M.runnable())
     config_names = list(sr.CONFIGS.keys())
-    instruments = _I.analysis("cfd")
+    instruments = _prop_symbols()
     classes = _asset_class_groups()
     groups = [("instrument", sym, [sym]) for sym in instruments]
     groups += [("asset_class", ac, list(classes[ac])) for ac in sorted(classes)]

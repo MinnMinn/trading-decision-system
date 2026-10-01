@@ -42,7 +42,16 @@
         "USTEC",
         "DE40",
         "FRA40",
-        "AUS200"
+        "AUS200",
+        "EU50",
+        "HK50",
+        "JP225",
+        "N25",
+        "SPN35",
+        "UK100",
+        "US2000",
+        "XPDUSD",
+        "XPTUSD"
       ]
     },
     "date_opened": {
