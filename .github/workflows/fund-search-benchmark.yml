@@ -1,0 +1,35 @@
+# THROWAWAY runner-speed benchmark for the fund-search shard layout (docs/audits/2026-10-01-shard-calibration.md section 6).
+# It runs a FIXED small set of one-year scans (counts and seconds only; no declaration needed, no R, no secrets) on a hosted
+# runner and prints seconds and the implied runner-speed factor against the reference machine the shard model was
+# calibrated on. The owner commits the uploaded JSON as docs/audits/2026-10-01-runner-benchmark.json and sets
+# SHARD_MODEL["layout_factor"] (scripts/fund-search.py) to its `layout_factor` BEFORE `declare`; `declare` records the
+# file's sha256 and notes when it is missing. workflow_dispatch only; the output lands outside the checkout.
+name: fund-search-benchmark
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: "1"
+  BT_HISTORY_ROOT: ${{ github.workspace }}/data/history/ftmo
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: benchmark
+        run: |
+          python scripts/research/runner_benchmark.py --out "$RUNNER_TEMP/runner-benchmark.json"
+          cat "$RUNNER_TEMP/runner-benchmark.json"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: runner-benchmark
+          path: ${{ runner.temp }}/runner-benchmark.json
