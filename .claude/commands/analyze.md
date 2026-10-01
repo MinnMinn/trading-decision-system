@@ -7,7 +7,7 @@ argument-hint: <INSTRUMENT> [MODE=NORMAL|ENHANCED|STRICT|SOLO] [mock]
 
 Run the full 12-step Decision Pipeline (master system prompt §12) for the instrument given in `$ARGUMENTS`. This command IS the DecisionAgent orchestration layer referenced in `docs/architecture/SYSTEM-DESIGN.md` §5/§6 — you (the main session) perform the synthesis steps directly; you dispatch structure-agent, flow-agent, liquidity-agent, and risk-agent for their respective read-only analysis passes.
 
-**Refuse immediately, before any analysis, if:** the instrument is not on the `analysis` list of `docs/architecture/instruments.json` (read the file; do not trust a remembered list) — cite the hard rule and stop. The blanket Forex prohibition was lifted 2026-09-17, so a currency pair is refused, or not, on exactly that ground and no other.
+**Refuse immediately, before any analysis, if:** the instrument is not on the `analysis` list of `docs/architecture/instruments.json` OR is on its `research_only` list (those symbols exist only for the fund search and have no live feed; read the file; do not trust a remembered list) — cite the hard rule and stop. The blanket Forex prohibition was lifted 2026-09-17, so a currency pair is refused, or not, on exactly that ground and no other.
 
 ## Steps
 

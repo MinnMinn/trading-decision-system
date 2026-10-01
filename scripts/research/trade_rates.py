@@ -36,6 +36,9 @@ SLICES = {"S1": ("2021-03-01T00:00:00Z", "2022-03-01T00:00:00Z"),
 WARMUP_DAYS = 14        # settles simulate()'s one-at-a-time state before the slice; on top of the method's scan window
 FORWARD_DAYS = 5        # forward-walk bars after the slice end (flat-before-rollover closes every trade intraday)
 SYMBOLS = {"metals": ("XAUUSD", "XAGUSD"), "indices": ("US500", "US30", "USTEC", "DE40", "FRA40")}
+NEW_SYMBOLS = {"metals": ("XPTUSD", "XPDUSD"),
+               "indices": ("UK100", "EU50", "JP225", "HK50", "AUS200", "US2000", "SPN35", "N25")}   # b16: enlarged cells
+METALS_ALL = SYMBOLS["metals"] + NEW_SYMBOLS["metals"]
 TFS = ("1m", "5m", "15m", "30m")
 METHODS = ("ict", "wyckoff")
 
@@ -92,11 +95,15 @@ def run_job(job):
                 workers=1, first_bar=info["first_bar"])
 
 
-def all_jobs():
+def all_jobs(symbols=None, tfs=None):
+    """Default = the b10 set (7 symbols x 4 timeframes). `symbols` / `tfs` (b16) restrict or extend it to any list of
+    symbols (asset class looked up in SYMBOLS / NEW_SYMBOLS) and timeframes."""
     jobs = []
-    for tf in TFS:
+    for tf in (tfs or TFS):
         for ac in ("metals", "indices"):
-            for sym in SYMBOLS[ac]:
+            for sym in (SYMBOLS[ac] + NEW_SYMBOLS[ac] if symbols else SYMBOLS[ac]):
+                if symbols and sym not in symbols:
+                    continue
                 for m in METHODS:
                     for sl in SLICES:
                         jobs.append(dict(method=m, symbol=sym, tf=tf, slice=sl))
@@ -107,14 +114,14 @@ def _key(j):
     return (j["method"], j["symbol"], j["tf"], j["slice"])
 
 
-def drive(out, workers, timeout, only_tf=None):
+def drive(out, workers, timeout, only_tf=None, symbols=None, tfs=None):
     done = set()
     if os.path.exists(out):
         with open(out) as fh:
             done = {_key(json.loads(l)) for l in fh if l.strip()}
-    jobs = [j for j in all_jobs() if _key(j) not in done and (not only_tf or j["tf"] in only_tf)]
+    jobs = [j for j in all_jobs(symbols, tfs) if _key(j) not in done and (not only_tf or j["tf"] in only_tf)]
     order = {"1m": 0, "5m": 1, "15m": 2, "30m": 3}
-    jobs.sort(key=lambda j: (order[j["tf"]], j["symbol"] not in SYMBOLS["metals"]))   # heaviest first
+    jobs.sort(key=lambda j: (order[j["tf"]], j["symbol"] not in METALS_ALL))   # heaviest first
     print(f"{len(jobs)} jobs, {workers} processes", flush=True)
     fh_out = open(out, "a")
 
@@ -148,16 +155,18 @@ def _folds(tf, ac):
     return FOLDS.get((tf, ac), 4)
 
 
-def coverage(out):
+def coverage(out, symbols=None, tfs=None):
     """In-slice bar counts per (symbol, timeframe, slice) from the PIT-truncated series (a data-availability fact: the
     early index history is sparse, so a slice can be only partly covered). Writes JSON {sym|tf|slice: bars}."""
     fs = _fs()
     bt = fs._load_bt()
     bt.pit_cutoff(fs.FS.DEV_CUTOFF)
     res = {}
-    for tf in TFS:
+    for tf in (tfs or TFS):
         for ac in SYMBOLS:
-            for sym in SYMBOLS[ac]:
+            for sym in (SYMBOLS[ac] + NEW_SYMBOLS[ac] if symbols else SYMBOLS[ac]):
+                if symbols and sym not in symbols:
+                    continue
                 c, _ = bt.load(sym, tf)
                 times = [x["time"] for x in c]
                 for sl, (a, b) in SLICES.items():
@@ -263,22 +272,26 @@ def main(argv=None):
     rp.add_argument("--cov")
     cp = sub.add_parser("coverage")
     cp.add_argument("--out", required=True)
+    cp.add_argument("--symbols", nargs="*")
+    cp.add_argument("--tfs", nargs="*")
     r = sub.add_parser("run")
     r.add_argument("--out", required=True)
     r.add_argument("--workers", type=int, default=4)
     r.add_argument("--timeout", type=int, default=3600)
     r.add_argument("--tf", nargs="*")
+    r.add_argument("--symbols", nargs="*", help="b16: restrict/extend the job set to these symbols (old or NEW_SYMBOLS)")
+    r.add_argument("--tfs", nargs="*", help="b16: timeframes of the job set (default 1m 5m 15m 30m)")
     j = sub.add_parser("job")
     j.add_argument("spec")
     a = ap.parse_args(argv)
     if a.cmd == "report":
         print(report(a.inp, a.cov))
     elif a.cmd == "coverage":
-        coverage(a.out)
+        coverage(a.out, a.symbols, a.tfs)
     elif a.cmd == "job":
         print(json.dumps(run_job(json.loads(a.spec))))
     else:
-        drive(a.out, a.workers, a.timeout, a.tf)
+        drive(a.out, a.workers, a.timeout, a.tf, a.symbols, a.tfs)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/scripts/instruments.sh"
 
-ANALYSIS="$(instruments_analysis | tr ' ' '/')"
+ANALYSIS="$(instruments_live_analysis | tr ' ' '/')"
 EXEC_CRYPTO="$(instruments_execution crypto | tr ' ' '/')"
 
 # The risk ceiling is read LIVE through its one validated reader, for the same reason the instrument lists are:

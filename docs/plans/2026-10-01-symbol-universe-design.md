@@ -1,5 +1,7 @@
 # Symbol universe: full FTMO CFDs and FTMO crypto CFDs (design, 2026-10-01)
 
+Update 2026-10-01 (branch b15-fund-symbols): the owner chose a much smaller universe than this design considered (no FX, crypto, energies or stocks): see `docs/plans/2026-09-30-owner-decisions.md`, section 'Owner decisions 2026-10-01 (symbol universe)'. The registry holds nine research-only symbols (`research_only.cfd`), the fund search kept its 6 cells (N 174 / 96) with per-cell symbol lists at that time (later the same day reduced to 3 cells, N 87 / 48; the eight index symbols are parked: see the owner-decisions section 'cell selection: three cells'), and `fund-search.py plan --check-data` reports missing history/specs. Section A.0's side effects are handled there (the live surfaces, the SessionStart hook, `/analyze` and `trading_system.py` read `live_analysis`, i.e. analysis minus research-only); sections A.2 and B below describe the options as designed (new classes, extra cells) and are kept as history.
+
 Status: **design only.** No pinned file changed (`scripts/fund-search.py`, `FUND_SYMBOLS`, `docs/architecture/instruments.json`,
 grids, ledger). Owner decision 2026-10-01: add the "full" FTMO CFD universe and FTMO crypto CFDs to raise statistical power.
 What exists on this branch is the pipeline that prepares for it without MT5 or new data:
@@ -7,7 +9,7 @@ What exists on this branch is the pipeline that prepares for it without MT5 or n
 and `docs/architecture/mt5-ftmo-symbol-universe-export.md`. **The MQL5 is UNTESTED** (never compiled).
 
 Today: 7 FTMO symbols have history (XAUUSD, XAGUSD; US500, US30, USTEC, DE40, FRA40), AUS200 has a cost spec only
-(`docs/audits/2026-09-29-ftmo-history-coverage.md`). The fund search runs 6 cells = {1m, 5m, 15m} x {metals, indices}.
+(`docs/audits/2026-09-29-ftmo-history-coverage.md`). The fund search ran 6 cells = {1m, 5m, 15m} x {metals, indices} when this was written; since 2026-10-01 it declares 3 (1m-metals, 1m-indices, 5m-metals).
 
 The local Binance USDT history (`data/history/ohlcv.*USDT.*`) is Binance **spot**: different costs, different hours. It is not an
 FTMO crypto CFD and must not stand in for one in any fund search or cost estimate.
@@ -98,7 +100,7 @@ n_cells`). The one-sided confidence is `1 - 0.10/N` (`scripts/fund_stats.py` `FA
 
 | New classes | Cells | ICT N | ICT confidence | Wyckoff N | Wyckoff confidence | Needed trades vs today for the same edge (ICT / Wyckoff) |
 |---|---|---|---|---|---|---|
-| 0 (today) | 6 | 174 | 0.999425 | 96 | 0.998958 | 1.00 / 1.00 |
+| 0 (six-cell base when written; today 3 cells: 87 / 0.998851, 48 / 0.997917) | 6 | 174 | 0.999425 | 96 | 0.998958 | 1.00 / 1.00 |
 | +1 | 9 | 261 | 0.999617 | 144 | 0.999306 | 1.07 / 1.08 |
 | +2 | 12 | 348 | 0.999713 | 192 | 0.999479 | 1.12 / 1.13 |
 | +3 (fx, energies, crypto) | 15 | 435 | 0.999770 | 240 | 0.999583 | 1.16 / 1.18 |

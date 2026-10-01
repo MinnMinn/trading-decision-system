@@ -918,8 +918,10 @@ class NoSymbolIsDroppedSilently(unittest.TestCase):
     def test_no_market_has_a_hand_written_symbol_list(self):
         ba = self._ba()
         for market in ba._auto.MARKETS:
-            self.assertEqual([m[0] for m in ba.STYLE_SYMS[market]], list(ba.I.analysis(market)),
-                             f"{market}'s page symbols are not its analysis allowlist")
+            self.assertEqual([m[0] for m in ba.STYLE_SYMS[market]], list(ba.I.live_analysis(market)),
+                             f"{market}'s page symbols are not its analysis allowlist minus research-only")
+            # owner 2026-10-01: research-only symbols (fund-search FX etc.) are never on the live page
+            self.assertTrue(set(ba.I.research_only(market)).isdisjoint(m[0] for m in ba.STYLE_SYMS[market]))
 
     def test_a_symbol_with_a_feed_is_drawn_and_one_without_is_named(self):
         """Deterministic regardless of whether this checkout's (gitignored) data/live/mt5-bridge is populated:

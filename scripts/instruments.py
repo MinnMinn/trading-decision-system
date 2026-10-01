@@ -76,6 +76,12 @@ def _load():
         if b:
             raise ValueError(f"{PATH}: backtested.{m} claims validation for symbols absent from execution.{m}: "
                              f"{b}. A symbol cannot be backtest-validated if it cannot be traded.")
+        ro = [x for x in ((d.get("research_only") or {}).get(m) or [])]
+        bad = [x for x in ro if x not in a or x in e]
+        if bad:
+            raise ValueError(f"{PATH}: research_only.{m} has symbols that are not analysis-only: {bad}. A "
+                             f"research-only symbol must be on analysis.{m} and must NOT be on execution.{m} "
+                             f"(it can never be orderable).")
     return d
 
 
@@ -89,6 +95,11 @@ BACKTESTED = {m: list((_DATA.get("backtested") or {}).get(m, [])) for m in MARKE
 ALL_ANALYSIS = [s for m in MARKETS for s in ANALYSIS[m]]
 ALL_EXECUTION = [s for m in MARKETS for s in EXECUTION[m]]
 ALL_BACKTESTED = [s for m in MARKETS for s in BACKTESTED[m]]
+# Symbols on analysis for the fund search only (owner decision 2026-10-01): history/costs/cells, never orderable.
+# Optional section; a missing one reads as none. Readers that must stay on the pre-2026-10-01 symbol set
+# (scripts/prop-search.py candidate space) subtract it.
+RESEARCH_ONLY = {m: list(((_DATA.get("research_only") or {}).get(m)) or []) for m in MARKETS}
+ALL_RESEARCH_ONLY = [s for m in MARKETS for s in RESEARCH_ONLY[m]]
 
 
 def analysis(market=None):
@@ -97,6 +108,19 @@ def analysis(market=None):
 
 def execution(market=None):
     return list(EXECUTION[market]) if market else list(ALL_EXECUTION)
+
+
+def live_analysis(market=None):
+    """analysis() MINUS the research-only symbols: what the LIVE surfaces (scanner config, live page, method
+    panel) iterate. A research-only symbol has no live feed, ever; listing it there would change the live
+    path's behaviour (default config, 'no feed' footer) for a research-only decision."""
+    ro = set(ALL_RESEARCH_ONLY)
+    return [s for s in analysis(market) if s not in ro]
+
+
+def research_only(market=None):
+    """Analysis-only symbols added for the fund search (instruments.json -> research_only). Never in execution()."""
+    return list(RESEARCH_ONLY[market]) if market else list(ALL_RESEARCH_ONLY)
 
 
 def backtested(market=None):

@@ -503,7 +503,13 @@ class _Tmp(unittest.TestCase):
                    mock.patch.object(self.fs, "REPORT_PATH", os.path.join(self.tmp, "report.md")),
                    mock.patch.object(self.fs, "GRID_DIR", FIXTURES),
                    mock.patch.object(self.fs.RL, "PATH", self.ledger),
-                   mock.patch.object(self.fs, "_first_bar", self._first_bar)]
+                   mock.patch.object(self.fs, "_first_bar", self._first_bar),
+                   # the readiness gate (build_plan) needs a real-cost spec per symbol; the fixture plan has none on disk
+                   mock.patch.object(self.fs, "_spec_present", lambda sym: (True, f"synthetic/{sym}"))]
+        # DEV_BARS (shard sizing) has no row for the 2026-10-01 symbols yet: synthetic rows, test-only
+        for tf, bars in (("1m", 800000), ("5m", 160000), ("15m", 60000)):
+            patches.append(mock.patch.dict(self.fs.DEV_BARS[tf], {sy: bars for sy in self.fs.FUND_SYMBOLS
+                                                                   if sy not in self.fs.DEV_BARS[tf]}))
         for p in patches:
             p.start()
             self.addCleanup(p.stop)
@@ -523,7 +529,8 @@ class PlanAndDryRun(_Tmp):
         self.assertEqual(p["n_by_method"], {"ict": 41 * 6, "wyckoff": 16 * 6})
         self.assertAlmostEqual(p["confidence_by_method"]["ict"], 1 - 0.10 / (41 * 6))
         self.assertEqual(p["candidate_count"], 12)
-        self.assertNotIn("AUS200", json.dumps(p["cells"]))                # plan §6 item 8
+        # plan §6 item 8 dropped AUS200 (no data); owner 2026-10-01 (symbol universe) puts it back in the 5m and 15m indices cells only
+        self.assertEqual([c["id"] for c in p["cells"] if "AUS200" in c["symbols"]], ["5m-indices", "15m-indices"])
         self.assertEqual({c["timeframe"] for c in p["cells"]}, {"1m", "5m", "15m"})
 
     def test_a_cell_without_development_history_is_excluded_and_a_symbol_is_listed_not_forgotten(self):
@@ -534,7 +541,7 @@ class PlanAndDryRun(_Tmp):
         self.assertEqual(p["cell_count"], 5)
         self.assertEqual([e["id"] for e in p["excluded_cells"]], ["1m-indices"])
         c5 = next(c for c in p["cells"] if c["id"] == "5m-metals")
-        self.assertEqual(c5["symbols"], ["XAUUSD"])
+        self.assertEqual(c5["symbols"], ["XAUUSD", "XPTUSD", "XPDUSD"])
         self.assertIn("XAGUSD", c5["symbols_without_development"])         # m excludes it, but it is disclosed
         self.assertEqual(p["n_by_method"]["ict"], 41 * 5)
 
@@ -576,8 +583,11 @@ class FixedRules(_Tmp):
         self.assertEqual(o["rollover_provider"], "mt5_bridge_ftmo")
         self.assertEqual(self.fs.COST_PROFILE, "ftmo_demo_2026_09")
 
-    def test_scope_is_the_seven_symbols(self):
-        self.assertEqual(self.fs.FUND_SYMBOLS, ("XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "FRA40"))
+    def test_scope_is_the_17_pinned_symbols(self):
+        """The universe cells may draw from (owner 2026-10-01): the original 7 + XPTUSD XPDUSD + UK100 EU50 JP225 HK50 AUS200
+        US2000 SPN35 N25. XCUUSD, DXY (no pre-cutoff history) and all FX are not in it."""
+        self.assertEqual(self.fs.FUND_SYMBOLS, ("XAUUSD", "XAGUSD", "XPTUSD", "XPDUSD", "US500", "US30", "USTEC", "DE40", "FRA40",
+                                                "UK100", "EU50", "JP225", "HK50", "AUS200", "US2000", "SPN35", "N25"))
 
 
 class _Helpers(_Tmp):
@@ -590,7 +600,7 @@ class _Helpers(_Tmp):
         plan = json.load(open(self.fs.PLAN_PATH))
         cell = next(x for x in plan["cells"] if x["id"] == c["cell"])
         cell = dict(cell, development_start=LONG_START)
-        eng = SynthEngine(mean=mean)
+        eng = SynthEngine(mean=mean, symbols=cell["symbols"])     # every symbol of the (5/13/28-symbol) cell trades
         grid = grid_two_items()
         res = self.fs.evaluate_with_engine(eng, grid, cell, c["n_comparisons"])
         snap = {"snapshot_id": "t", "series": []}
@@ -1433,29 +1443,48 @@ class DeclaredCells(_Tmp):
     def _folds(self, p):
         return {c["id"]: c["n_folds"] for c in p["cells"]}
 
-    def test_the_committed_cells_file_declares_exactly_six_cells_and_no_30m(self):
+    def test_the_committed_cells_file_declares_exactly_three_cells_and_records_the_removed_ones(self):
+        """Owner 2026-10-01 (cell selection, e_min <= 2 x e_star, primary pooling variant): three cells."""
         spec, path, sha = self.fs.load_cells_file(REAL_ARCH)
-        self.assertEqual([c["id"] for c in spec["cells"]],
-                         ["1m-metals", "1m-indices", "5m-metals", "5m-indices", "15m-metals", "15m-indices"])
-        self.assertFalse(any("30m" in c["id"] or c["timeframe"] == "30m" for c in spec["cells"]))
-        self.assertEqual([r["id"] for r in spec["removed_cells"]], ["30m-metals", "30m-indices"])
+        self.assertEqual([c["id"] for c in spec["cells"]], ["1m-metals", "1m-indices", "5m-metals"])
+        self.assertFalse(any(c["timeframe"] in ("15m", "30m") for c in spec["cells"]))
+        removed = {r["id"]: r for r in spec["removed_cells"]}
+        self.assertEqual(list(removed), ["30m-metals", "30m-indices", "5m-indices", "15m-metals", "15m-indices"])
+        for r in removed.values():                         # every removal carries its reason, reference and decision
+            self.assertTrue(r["reason"].strip() and r["decision"].strip())
+            self.assertTrue(os.path.exists(os.path.join(ROOT, r["reference"])), r["reference"])
+        self.assertIn("3.76", removed["5m-indices"]["reason"])
+        self.assertIn("2.23", removed["15m-metals"]["reason"])
+        self.assertIn("insufficient-fold", removed["15m-metals"]["reason"])
+        self.assertIn("prior_counts_disclosed", removed["15m-metals"]["reason"])    # a re-add is a later, separate round
+        self.assertIn("6.21", removed["15m-indices"]["reason"])
+        self.assertIn("4.73", removed["30m-metals"]["reason"])
         self.assertEqual(sha, hashlib.sha256(open(path, "rb").read()).hexdigest())
         p = self.fs.build_plan(REAL_ARCH, first_bar=self._first_bar)
-        self.assertEqual(p["cell_count"], 6)
-        self.assertEqual(p["candidate_count"], 12)
-        self.assertFalse(any(c["timeframe"] == "30m" for c in p["candidates"]))
-        self.assertEqual(p["n_by_method"], {"ict": 29 * 6, "wyckoff": 16 * 6})
+        self.assertEqual(p["cell_count"], 3)
+        self.assertEqual(p["candidate_count"], 6)
+        self.assertFalse(any(c["timeframe"] in ("15m", "30m") for c in p["candidates"]))
+        self.assertEqual([r["id"] for r in p["cells_file"]["removed_cells"]], list(removed))
+        self.assertEqual(p["n_by_method"], {"ict": 29 * 3, "wyckoff": 16 * 3})
+        self.assertEqual((p["n_by_method"]["ict"], p["n_by_method"]["wyckoff"]), (87, 48))
+        self.assertAlmostEqual(p["confidence_by_method"]["ict"], 0.998851, places=6)
+        self.assertAlmostEqual(p["confidence_by_method"]["wyckoff"], 0.997917, places=6)
         self.assertEqual(p["cells_file"]["sha256"], sha)
 
     def test_the_committed_cells_keep_their_original_data_start_and_the_fold_counts_the_owner_listed(self):
         p = self.fs.build_plan(REAL_ARCH, first_bar=self._first_bar)
-        self.assertEqual(self._folds(p), {"1m-metals": 9, "1m-indices": 4, "5m-metals": 17, "5m-indices": 4,
-                                          "15m-metals": 17, "15m-indices": 4})
+        self.assertEqual(self._folds(p), {"1m-metals": 9, "1m-indices": 4, "5m-metals": 17})
         self.assertTrue(all(c["dev_start_override"] is None and c["span_source"] == "from data" for c in p["cells"]))
 
-    def test_the_fixture_cells_file_has_the_same_six_cells(self):
-        self.assertEqual([c["id"] for c in self.plan()["cells"]],
-                         [c["id"] for c in self.fs.load_cells_file(REAL_ARCH)[0]["cells"]])
+    def test_the_fixture_is_a_six_cell_superset_of_the_committed_three_cells(self):
+        """The fixture is test-local (wide cell list for late-start / override / shard tests); the three committed cells
+        appear in it unchanged in id and symbols, and the plan built from it has all six."""
+        real = {c["id"]: c["symbols"] for c in self.fs.load_cells_file(REAL_ARCH)[0]["cells"]}
+        fix = {c["id"]: c["symbols"] for c in self.fs.load_cells_file(FIXTURES)[0]["cells"]}
+        self.assertEqual(len(fix), 6)
+        self.assertEqual({k: fix[k] for k in real}, real)
+        self.assertEqual([c["id"] for c in self.plan()["cells"]], list(fix))
+        self.assertGreater(len(fix["5m-indices"]), 5)               # a wide per-cell symbol list stays exercised
 
     def test_a_dev_start_override_changes_the_fold_counts(self):
         def mutate(spec):
@@ -2529,6 +2558,304 @@ class ScanCacheRunPlumbing(_Helpers):
         with mock.patch.object(self.fs, "cmd_run") as run, mock.patch.dict(os.environ, {}):
             self.fs.main(["run", "--cell", "5m-metals", "--workers", "1", "--scan-cache", "/a", "--scan-cache", "/b"])
         self.assertEqual(run.call_args.kwargs["scan_cache_dirs"], ["/a", "/b"])
+
+
+class SymbolUniverse(_Tmp):
+    """Owner 2026-10-01 (symbol universe + cell selection): per-cell symbol lists, three declared cells, N 87 / 48, parked
+    symbols, late-starting symbols. The 13-symbol / 15m behaviour is exercised on the six-cell test fixture (FIXTURES)."""
+
+    METALS4 = ["XAUUSD", "XAGUSD", "XPTUSD", "XPDUSD"]
+    INDICES13 = ["US500", "US30", "USTEC", "DE40", "FRA40", "UK100", "EU50", "JP225", "HK50", "AUS200", "US2000", "SPN35", "N25"]
+
+    def _by_id(self, arch):
+        return {c["id"]: c for c in self.fs.load_cells_file(arch)[0]["cells"]}
+
+    PARKED = {"UK100", "EU50", "JP225", "HK50", "AUS200", "US2000", "SPN35", "N25"}
+
+    def test_the_committed_cells_are_the_three_cells_with_the_decided_symbol_lists(self):
+        cells = self._by_id(REAL_ARCH)
+        self.assertEqual(list(cells), ["1m-metals", "1m-indices", "5m-metals"])
+        self.assertEqual(cells["1m-metals"]["symbols"], ["XAUUSD", "XAGUSD"])                      # the 1m cells are unchanged
+        self.assertEqual(cells["1m-indices"]["symbols"], ["US500", "US30", "USTEC", "DE40", "FRA40"])
+        self.assertEqual(cells["5m-metals"]["symbols"], self.METALS4)
+        every = {s for c in cells.values() for s in c["symbols"]}
+        # FUND_SYMBOLS is a PINNED superset: the nine used symbols are in it, the eight parked ones are in it but in no cell
+        self.assertTrue(every < set(self.fs.FUND_SYMBOLS))
+        self.assertEqual(set(self.fs.FUND_SYMBOLS) - every, self.PARKED)
+        # excluded: no pre-cutoff history (XCUUSD, DXY), cross-quoted metals, FX (no fx class), parked classes
+        self.assertTrue({"XCUUSD", "DXY", "XAUEUR", "XAUAUD", "XAGEUR", "XAGAUD", "EURUSD", "USDJPY", "BTCUSD", "UKOIL",
+                         "USOIL"}.isdisjoint(every))
+        self.assertTrue(all(c["dev_start"] is None for c in cells.values()))
+        self.assertEqual({c["asset_class"] for c in cells.values()}, {"metals", "indices"})
+
+    def test_the_fixture_keeps_the_per_cell_symbol_lists_and_draws_on_the_whole_pinned_universe(self):
+        real, fix = self._by_id(REAL_ARCH), self._by_id(FIXTURES)
+        self.assertEqual({k: fix[k]["symbols"] for k in real}, {k: v["symbols"] for k, v in real.items()})
+        self.assertEqual(fix["5m-indices"]["symbols"], self.INDICES13)
+        self.assertEqual(fix["15m-metals"]["symbols"], self.METALS4)
+        self.assertEqual({s for c in fix.values() for s in c["symbols"]}, set(self.fs.FUND_SYMBOLS))
+
+    def test_parked_symbols_are_unused_but_stay_registered_and_nothing_in_the_plan_needs_them(self):
+        """The eight symbols of the removed cells stay in the registry (research-only) and in FUND_SYMBOLS, no declared cell
+        uses them, and the plan / readiness gate ignore them: missing data or specs for them is not a failure."""
+        import instruments as I
+        used = {s for c in self._by_id(REAL_ARCH).values() for s in c["symbols"]}
+        for sy in self.PARKED:
+            self.assertIn(sy, self.fs.FUND_SYMBOLS)
+            self.assertIn(sy, I.analysis("cfd"))
+            self.assertNotIn(sy, used)
+        first = lambda s, t: None if s in self.PARKED else "2017-12-27T23:00:00Z"
+        rep = self.fs.data_readiness(self.fs.load_cells_file(REAL_ARCH)[0], first, lambda s: (s not in self.PARKED, "x"))
+        self.assertTrue(rep["ready"] and rep["complete"])
+        p = self.fs.build_plan(REAL_ARCH, first_bar=first)
+        self.assertEqual(p["cell_count"], 3)
+        self.assertFalse(self.PARKED & {s for c in p["cells"] for s in c["symbols"]})
+
+    def test_every_new_symbol_is_a_research_only_registry_symbol_of_its_cells_class_and_never_orderable(self):
+        import instruments as I
+        for c in self.fs.load_cells_file(REAL_ARCH)[0]["cells"]:
+            for sy in c["symbols"]:
+                self.assertIn(sy, I.analysis("cfd"))
+                self.assertEqual(I.display(sy)["asset_class"], c["asset_class"])
+        orig = {"XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "FRA40"}
+        new = set(self.fs.FUND_SYMBOLS) - orig - {"AUS200"}
+        self.assertEqual(new, {"XPTUSD", "XPDUSD", "UK100", "EU50", "JP225", "HK50", "US2000", "SPN35", "N25"})
+        self.assertEqual(set(I.research_only("cfd")), new)
+        for sy in new:
+            self.assertNotIn(sy, I.execution("cfd"))
+            self.assertNotIn(sy, I.backtested("cfd"))
+        # execution / backtested are exactly what they were before the 2026-10-01 symbol universe (f5eb338)
+        self.assertEqual(I.execution("cfd"), ["XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "FRA40", "AUS200"])
+        self.assertEqual(I.backtested("cfd"), ["XAUUSD"])
+        # AUS200 was on the registry before (and is one of prop-search's 180 candidates): it is NOT research-only
+        self.assertNotIn("AUS200", I.research_only("cfd"))
+
+    def test_n_and_confidence_of_the_declared_cells_need_no_data(self):
+        spec, path, sha = self.fs.load_cells_file(REAL_ARCH)
+        line = self.fs.declared_n_line(spec, sha, REAL_ARCH)
+        self.assertIn("declared cells: 3", line)
+        self.assertIn("ict 29 x 3 = N 87 (confidence 0.998851)", line)
+        self.assertIn("wyckoff 16 x 3 = N 48 (confidence 0.997917)", line)
+        self.assertIn(sha, line)
+
+    def test_a_symbol_outside_the_universe_or_of_another_class_or_an_fx_cell_is_refused(self):
+        def cell(spec, cid):
+            return next(c for c in spec["cells"] if c["id"] == cid)
+        bad = [lambda s: cell(s, "5m-metals")["symbols"].append("XCUUSD"),        # no pre-cutoff history: dropped
+               lambda s: cell(s, "5m-indices")["symbols"].append("DXY"),          # dropped
+               lambda s: cell(s, "5m-metals")["symbols"].append("EURUSD"),        # no fx class
+               lambda s: cell(s, "5m-metals")["symbols"].append("XAUEUR"),
+               lambda s: cell(s, "5m-metals")["symbols"].append("UK100"),         # an index in a metals cell
+               lambda s: cell(s, "5m-indices")["symbols"].append("XPTUSD"),       # a metal in an indices cell
+               lambda s: cell(s, "5m-indices")["symbols"].append("BTCUSD"),
+               lambda s: s["cells"].append(dict(cell(s, "5m-indices"), id="5m-fx", asset_class="fx", symbols=["EURUSD"]))]
+        for i, m in enumerate(bad):
+            with self.assertRaises(SystemExit, msg=f"mutation {i}"):
+                self.fs.load_cells_file(_grid_dir_with_cells(self.tmp, m))
+        self.assertEqual(self.fs.ASSET_CLASSES, ("metals", "indices"))
+
+    # ---- late-starting symbols: first bars from the owner's export (server first dates, coordinator message 2026-10-01)
+    LATE = {"UK100": "2017-12-28T00:00:00Z", "JP225": "2017-12-28T00:00:00Z", "EU50": "2017-12-29T00:00:00Z",
+            "US2000": "2018-01-23T00:00:00Z", "HK50": "2018-12-17T01:00:00Z", "AUS200": "2019-02-08T22:00:00Z",
+            "SPN35": "2020-11-09T08:00:00Z", "N25": "2020-11-12T08:00:00Z"}
+
+    def _late_first_bar(self, sym, tf):
+        return self.LATE.get(sym, "2017-12-27T23:00:00Z")
+
+    def test_late_symbols_stay_in_m_are_disclosed_and_do_not_move_the_folds(self):
+        p = self.fs.build_plan(FIXTURES, first_bar=self._late_first_bar)         # the 13-symbol cells live in the fixture
+        for cid in ("5m-indices", "15m-indices"):
+            c = next(x for x in p["cells"] if x["id"] == cid)
+            self.assertEqual(c["symbols"], self.INDICES13)                # every symbol with data before the cutoff is in m
+            self.assertEqual(c["symbols_without_development"], {})
+            self.assertEqual(c["development_start"], "2017-12-27T23:00:00Z")   # the EARLIEST symbol sets the cell's start ...
+            self.assertEqual(c["n_folds"], len(FS.make_folds("2017-12-27T23:00:00Z")))   # ... and so the folds
+            for sy, fb in self.LATE.items():
+                self.assertEqual(c["symbol_first_bar"][sy], fb)           # disclosed, never invented earlier
+            self.assertEqual(c["span_source"], "from data")
+        self.assertEqual(p["n_by_method"], {"ict": 41 * 6, "wyckoff": 16 * 6})   # fixture grids; more symbols add no N
+
+    def test_every_late_symbol_has_bars_in_every_test_fold_and_only_spn35_and_n25_miss_the_start_of_the_first(self):
+        """The owner's concern: a symbol with data in only the last folds. The fold geometry (dates only) says no symbol
+        of the 13 is absent from a test fold; SPN35 and N25 (first bars Nov 2020) have no data for the first ~8 months
+        of fold 0 and none in any training window before fold 0, so fold 0's training trades come from the other 11."""
+        folds = FS.make_folds("2017-12-27T23:00:00Z")
+        self.assertEqual(len(folds), 4)
+        for sy, fb in self.LATE.items():
+            for f in folds:
+                self.assertLess(FS.ts(fb), FS.ts(f["test_end"]), f"{sy} has no bar by the end of fold {f['index']}")
+            partial = [f["index"] for f in folds if FS.ts(fb) > FS.ts(f["test_start"])]
+            self.assertEqual(partial, [0] if sy in ("SPN35", "N25") else [], sy)
+            before_fold0 = (FS.ts(folds[0]["test_start"]) - FS.ts(fb)).days
+            if sy in ("SPN35", "N25"):
+                self.assertLess(before_fold0, 0)                       # no pre-fold-0 history at all
+            else:
+                self.assertGreater(before_fold0, 365)                  # at least a year of training history
+
+    def test_xpt_and_xpd_have_no_data_in_the_first_seven_test_folds_of_the_17_fold_metals_cells_yet_count_in_m(self):
+        """5m-metals / 15m-metals: folds follow XAUUSD (2004-06-11, 17 folds). XPTUSD and XPDUSD start 2015-01-07: no bar in
+        test folds 0-6, 2 months of fold 7, all of folds 8-16. They stay in m (= 4, so ceil(2m/3) = 3 symbols must be positive)
+        and contribute test trades only to folds 7-16; nothing is invented for the earlier folds."""
+        first = {("XAUUSD", "5m"): "2004-06-11T04:15:00Z", ("XAGUSD", "5m"): "2008-11-07T21:10:00Z",
+                 ("XAUUSD", "15m"): "2004-06-11T04:15:00Z", ("XAGUSD", "15m"): "2008-11-07T21:00:00Z"}
+        fb = lambda s, t: first.get((s, t), "2015-01-07T00:00:00Z" if s in ("XPTUSD", "XPDUSD") else "2017-12-27T23:00:00Z")
+        p = self.fs.build_plan(FIXTURES, first_bar=fb)
+        for cid in ("5m-metals", "15m-metals"):
+            c = next(x for x in p["cells"] if x["id"] == cid)
+            self.assertEqual(c["symbols"], self.METALS4)
+            self.assertEqual(c["n_folds"], 17)
+            self.assertEqual(c["development_start"], "2004-06-11T04:15:00Z")
+        folds = FS.make_folds("2004-06-11T04:15:00Z")
+        kinds = ["none" if FS.ts("2015-01-07T00:00:00Z") >= FS.ts(f["test_end"]) else
+                 ("part" if FS.ts("2015-01-07T00:00:00Z") > FS.ts(f["test_start"]) else "full") for f in folds]
+        self.assertEqual(kinds, ["none"] * 7 + ["part"] + ["full"] * 9)
+        self.assertEqual(FS.check_stability([], self.METALS4)["required_symbols"], 3)
+
+    def test_a_symbol_first_bar_not_before_the_cutoff_is_left_out_of_m_and_disclosed(self):
+        late = dict(self.LATE, N25="2024-06-01T00:00:00Z")
+        p = self.fs.build_plan(FIXTURES, first_bar=lambda s, t: late.get(s, "2017-12-27T23:00:00Z"))
+        c = next(x for x in p["cells"] if x["id"] == "15m-indices")
+        self.assertNotIn("N25", c["symbols"])
+        self.assertEqual(len(c["symbols"]), 12)
+        self.assertIn("N25", c["symbols_without_development"])
+
+    def test_stability_denominator_is_ceil_two_thirds_of_m_and_a_symbol_without_trades_is_not_positive(self):
+        for m, need in ((2, 2), (4, 3), (5, 4), (12, 8), (13, 9)):
+            syms = [f"S{i}" for i in range(m)]
+            trades = [{"symbol": s, "net_R": 1.0, "entry_time": "2020-01-01T00:00:00Z"} for s in syms]
+            r = FS.check_stability(trades, syms)
+            self.assertEqual((r["m_symbols"], r["required_symbols"]), (m, need))
+        syms = [f"S{i}" for i in range(13)]
+        # 9 symbols with positive trades, 4 without a trade (or negative): exactly enough; one fewer fails
+        trades = [{"symbol": s, "net_R": 1.0, "entry_time": "2023-01-01T00:00:00Z"} for s in syms[:9]]
+        r = FS.check_stability(trades, syms)
+        self.assertEqual((r["positive_symbols"], r["required_symbols"]), (9, 9))
+        self.assertTrue(r["symbols_ok"])
+        r8 = FS.check_stability(trades[:8], syms)
+        self.assertFalse(r8["symbols_ok"])                                 # a silent symbol never counts as positive
+        self.assertIsNone(r8["per_symbol"]["S12"]["mean_R"])
+        # a late symbol with a handful of trades whose mean is <= 0 is one of the (up to) 4 that may fail, not excluded
+        neg = trades + [{"symbol": "S9", "net_R": -0.5, "entry_time": "2023-06-01T00:00:00Z"}]
+        self.assertEqual(FS.check_stability(neg, syms)["positive_symbols"], 9)
+
+
+class DataReadiness(_Tmp):
+    """Missing history / real-cost specs fail LOUD with a per-cell table (no stack trace, exit 1); complete data exits 0."""
+
+    NEW = ("XPTUSD", "XPDUSD", "UK100", "EU50", "JP225", "HK50", "US2000", "SPN35", "N25")     # no history, no spec yet
+
+    def _have(self, absent=(), partial=None, late=None):
+        partial = partial or {}
+        late = late or {}
+
+        def first_bar(sym, tf):
+            if sym in absent or tf in partial.get(sym, ()):
+                return None
+            return late.get(sym, "2017-12-27T23:00:00Z")
+        return first_bar
+
+    def _check(self, first_bar, spec_present=lambda s: (True, "x"), arch=FIXTURES):
+        """Readiness over the six-cell test fixture by default (it keeps the 13-symbol and 15m cells); arch=REAL_ARCH for the plan."""
+        out = io.StringIO()
+        rc = self.fs.check_data(arch, first_bar, spec_present, out=out)
+        return rc, out.getvalue()
+
+    def test_complete_data_exits_zero_and_says_ready(self):
+        rc, txt = self._check(self._have(), arch=REAL_ARCH)
+        self.assertEqual(rc, 0)
+        self.assertIn("READY: every declared cell", txt)
+        self.assertNotIn("NOT READY", txt)
+        for cid in ("1m-metals", "1m-indices", "5m-metals"):
+            self.assertRegex(txt, rf"{cid}\s+\d+\s+\d+\s+0\s+0\s+0\s+yes\s+yes")
+        self.assertIn("declared cells: 3", txt)
+        self.assertIn("ict 29 x 3 = N 87", txt)
+        self.assertIn("wyckoff 16 x 3 = N 48", txt)
+        rc, txt = self._check(self._have())                      # the fixture: six cells, its own grids
+        self.assertEqual(rc, 0)
+        self.assertIn("ict 41 x 6 = N 246", txt)
+
+    def test_absent_data_exits_nonzero_with_a_table_naming_the_cells_symbols_and_specs(self):
+        # today's state: the 9 new symbols have neither history nor spec; AUS200 has a spec but no history
+        absent = set(self.NEW) | {"AUS200"}
+        rc, txt = self._check(self._have(absent=absent), lambda s: (s not in self.NEW, f"symbolspec.{s}.json"))
+        self.assertEqual(rc, 1)
+        self.assertIn("NOT READY", txt)
+        for cid in ("5m-metals", "5m-indices", "15m-metals", "15m-indices"):
+            self.assertRegex(txt, rf"{cid}\s+\d+\s+\d+\s+\d+\s+0\s+\d+\s+yes\s+NO")
+        self.assertRegex(txt, r"1m-metals\s+2\s+2\s+0\s+0\s+0\s+yes\s+yes")              # the unchanged 1m cells are ready
+        self.assertRegex(txt, r"1m-indices\s+5\s+5\s+0\s+0\s+0\s+yes\s+yes")
+        # declared vs effective m: today 5m-indices declares 13 but only the 5 symbols with history count
+        self.assertRegex(txt, r"5m-indices\s+13\s+5\s+8\s+0\s+7\s+yes\s+NO")
+        self.assertRegex(txt, r"5m-metals\s+4\s+2\s+2\s+0\s+2\s+yes\s+NO")
+        self.assertIn("no history at all and no real-cost spec (2): XPTUSD, XPDUSD", txt)
+        self.assertIn("no history at all and no real-cost spec (7): UK100, EU50, JP225, HK50, US2000, SPN35, N25", txt)
+        self.assertIn("no history at all (1): AUS200", txt)
+
+    def test_a_missing_spec_alone_or_a_missing_context_timeframe_alone_is_flagged(self):
+        rc, txt = self._check(self._have(), lambda s: (s != "HK50", "x"))
+        self.assertEqual(rc, 1)
+        self.assertIn("no real-cost spec (1): HK50", txt)
+        rc, txt = self._check(self._have(partial={"US2000": ("1W", "4H")}))     # US2000 1W is being re-exported
+        self.assertEqual(rc, 1)
+        self.assertIn("incomplete history: US2000 lacks 4H, 1W", txt)
+
+    def test_a_symbol_starting_after_the_cutoff_is_a_note_not_a_failure_but_a_cell_with_none_is(self):
+        rc, txt = self._check(self._have(late={"N25": "2024-06-01T00:00:00Z"}))
+        self.assertEqual(rc, 0)
+        rep = self.fs.data_readiness(self.fs.load_cells_file(FIXTURES)[0], self._have(late={"N25": "2024-06-01T00:00:00Z"}),
+                                     lambda s: (True, "x"))
+        c = next(x for x in rep["cells"] if x["id"] == "5m-indices")
+        self.assertEqual((len(c["symbols"]), c["m_effective"]), (13, 12))       # declared 13, effective m 12
+        self.assertRegex(txt, r"5m-indices\s+13\s+12\s+")
+        idx = set(SymbolUniverse.INDICES13)
+        every_index_late = self._have(late={s: "2024-06-01T00:00:00Z" for s in idx})
+        rc, txt = self._check(every_index_late)
+        self.assertEqual(rc, 1)
+        self.assertIn("the cell would be dropped from N", txt)
+        # ... but it does not block planning: plan section 6 item 7 drops such a cell from N by data availability
+        with mock.patch.object(self.fs, "_first_bar", every_index_late):
+            p = self.fs.build_plan(FIXTURES)
+        self.assertEqual([e["id"] for e in p["excluded_cells"]], ["1m-indices", "5m-indices", "15m-indices"])
+        self.assertEqual(p["n_by_method"]["ict"], 41 * 3)
+        # the committed three-cell plan: the same late indices drop its one indices cell (1m-indices) from N
+        rc, txt = self._check(every_index_late, arch=REAL_ARCH)
+        self.assertEqual(rc, 1)
+        with mock.patch.object(self.fs, "_first_bar", every_index_late):
+            p = self.fs.build_plan(REAL_ARCH)
+        self.assertEqual([e["id"] for e in p["excluded_cells"]], ["1m-indices"])
+        self.assertEqual(p["n_by_method"]["ict"], 29 * 2)
+
+    def test_plan_dry_run_and_every_data_command_refuse_with_the_table_not_a_stack_trace(self):
+        gd = REAL_ARCH
+        with mock.patch.object(self.fs, "_first_bar", lambda s, t: None):
+            for call in (lambda: self.fs.cmd_plan(dry_run=True, grid_dir=gd),
+                         lambda: self.fs.cmd_plan(grid_dir=gd),
+                         lambda: self.fs.build_plan(gd)):
+                with self.assertRaises(self.fs.DataNotReady) as cm:
+                    call()
+                self.assertIsInstance(cm.exception, SystemExit)          # a message and an exit status
+                self.assertIn("DATA READINESS", str(cm.exception))
+                self.assertIn("5m-metals", str(cm.exception))
+            self.assertFalse(os.path.exists(self.fs.PLAN_PATH))          # nothing was written
+            with self.assertRaises(SystemExit):
+                self.fs.load_plan(gd)
+
+    def test_the_cli_check_data_flag_returns_the_exit_status(self):
+        with mock.patch.object(self.fs, "_first_bar", self._have()), redirect_stdout(io.StringIO()):
+            self.assertEqual(self.fs.main(["plan", "--check-data", "--grid-dir", REAL_ARCH]), 0)
+        with mock.patch.object(self.fs, "_first_bar", self._have(absent=set(SymbolUniverse.PARKED))), redirect_stdout(io.StringIO()):
+            self.assertEqual(self.fs.main(["plan", "--check-data", "--grid-dir", REAL_ARCH]), 0)     # parked: ignored
+        with mock.patch.object(self.fs, "_first_bar", self._have(absent={"XPTUSD"})), redirect_stdout(io.StringIO()):
+            self.assertEqual(self.fs.main(["plan", "--check-data", "--grid-dir", REAL_ARCH]), 1)     # a used symbol: refused
+        with mock.patch.object(self.fs, "_first_bar", self._have(absent={"UK100"})), redirect_stdout(io.StringIO()):
+            self.assertEqual(self.fs.main(["plan", "--check-data", "--grid-dir", FIXTURES]), 1)      # used by a fixture cell
+
+    def test_the_real_cost_spec_probe_follows_the_symbol_map(self):
+        import real_costs as RC
+        self.assertTrue(RC.spec_path(self.fs.COST_PROFILE, "UK100").endswith("symbolspec.UK100.cash.json"))
+        self.assertTrue(RC.spec_path(self.fs.COST_PROFILE, "AUS200").endswith("symbolspec.AUS200.cash.json"))
+        self.assertTrue(RC.spec_path(self.fs.COST_PROFILE, "XPTUSD").endswith("symbolspec.XPTUSD.json"))
+        self.assertTrue(os.path.exists(RC.spec_path(self.fs.COST_PROFILE, "AUS200")))     # the one new-universe spec on disk
 
 
 if __name__ == "__main__":
