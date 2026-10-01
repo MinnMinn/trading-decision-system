@@ -119,3 +119,8 @@ Existing CFD rankings get re-run against real CFD data, and the §23.1 caveat co
 - **Tick volume stays tick volume.** The broker reports price-change counts, not traded size. The
   `tick_volume_credit_multiplier` in `analysis-params.json` stays.
 - **Survivorship (§9).** Broker history covers instruments that still exist. Same structural gap as crypto.
+
+## Batch export for many symbols (2026-10-01)
+
+For the FTMO symbol-universe import (many symbols, ExportSymbolList first, batch `InpSymbols` in ExportHistory v1.01) see
+`docs/architecture/mt5-ftmo-symbol-universe-export.md`. That procedure is the single source; nothing is repeated here.
