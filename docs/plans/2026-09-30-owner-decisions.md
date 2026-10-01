@@ -60,6 +60,7 @@ at that time.
 
 
 ## 2026-10-01: cell list and per-cell history spans (owner, in chat; binding)
+> SUPERSEDED in part by the section 'Owner decisions 2026-10-01 (cell selection: three cells)' at the end: the plan now has three cells (N 87 / 48). The text below is the record of the six-cell state.
 Source of the numbers: `docs/audits/2026-10-01-trade-rates.md` (branch `b10-trade-rates`; trade COUNTS only, no performance figure read).
 The decisions were taken on compute cost and statistical power, NOT on performance.
 
@@ -110,6 +111,7 @@ The decisions were taken on compute cost and statistical power, NOT on performan
 
 
 ## Owner decisions 2026-10-01 (symbol universe) (owner, in chat; binding)
+> SUPERSEDED in part by 'Owner decisions 2026-10-01 (cell selection: three cells)' at the end: only 5m-metals keeps added symbols (XPTUSD XPDUSD); the 13-symbol index cells and 15m-metals are removed and their symbols parked.
 Design and code points: `docs/plans/2026-10-01-symbol-universe-design.md`. Taken on statistical power (more symbols, hence more pooled trades, in the
 under-powered 5m and 15m cells), NOT on performance. The history and real-cost specs of the new symbols are exported from MT5 by the owner;
 until they exist `scripts/fund-search.py plan --check-data` prints which cell lacks what and exits 1, and `plan`/`run`/`scan`/`declare` refuse with the same table.
@@ -144,3 +146,39 @@ Open (design doc E.2): the cost profile `ftmo_demo_2026_09` now also covers spec
 **Pinned changes: `declare` must run AFTER this change.** `scripts/fund-search.py` and `scripts/prop-search.py` are in `FINGERPRINT_FILES` and `docs/architecture/fund-search-cells.json` is pinned by its sha256 (`evaluation_config.cells_sha256`); all three changed here, so the declaration (not yet made) must be made on top of this change, and any later edit to them is drift.
 **Live surfaces.** Research-only symbols are kept off every live reader: `instruments.live_analysis()` / `instruments_live_analysis` (bash) feed the scanner config and its REFUSED message (`scripts/automation.py`), the live page, the method panel, `scripts/local-eval-brief.py`, `scripts/trading_system.py` (`describe`), the SessionStart hook (`scripts/session-safety-rules.sh`, output byte-identical to f5eb338) and `/analyze` (`.claude/commands/analyze.md` refuses a `research_only` symbol). Tests: `test_instruments_sync`, `test_method_panel`, `test_trading_system`.
 **Known state of tests / code.** The hardcoded-symbol-set test in `test_instruments_sync` was already red at f5eb338 (5 offenders); it now lists 6 (the multi-line `FUND_SYMBOLS` constant adds lines; `DEV_BARS` and diagnose-methods.py:42 are the old ones). In `build_cells` the 'no history file' exclusion branch cannot be reached with real data: the readiness gate (`DataNotReady`) refuses first; it stays for injected-`first_bar` tests. `plan --check-data` shows both the declared symbol count and the effective m (symbols with development data), since m, not the declared count, is the stability denominator.
+
+
+## Owner decisions 2026-10-01 (cell selection: three cells) (owner, in chat; binding; supersedes the six-cell plan above)
+Evidence: `docs/audits/2026-10-01-cell-selection.md` (branch `b16-cell-selection`; counts and a power model, NOT performance). The two entries above stay as written for the record; where they say "6 cells", "N 174 / 96", "5m-indices / 15m-metals / 15m-indices in the plan", this entry replaces them.
+
+**The rule (pre-stated, owner approved BEFORE the measurements).** A cell is INCLUDED iff `e_min <= k x e_star` for at least one of {ICT, WYCKOFF-BOOK}, k = 2, primary pooling variant. `e_min` = smallest net edge (R/trade, binary +2.5/-1, cost 0.07R) at which the harness's own lower-bound rule has power >= 0.80 at the N-adjusted confidence; `e_star` = smallest net edge with `prop_pass_probability >= 0.70` on the binding fund (120-day horizon).
+
+**Result (best ratio e_min/e_star over the two methods; N of the 8-cell candidate set, ICT 232 / Wyckoff 128; table T5 of the audit):**
+
+| cell | best ratio | <= 2 ? |
+|---|---|---|
+| 1m-metals | 0.87 (ICT; Wyckoff 0.90) | yes |
+| 1m-indices | 1.28 (both methods) | yes |
+| 5m-metals | 1.26 (Wyckoff; ICT 1.60) | yes |
+| 5m-indices | 3.76 (ICT; Wyckoff 4.41) | no |
+| 15m-metals | 2.23 (Wyckoff; ICT 2.39) | no; ICT also fails the insufficient-fold guard, P(every test fold >= 30 trades) = 0.00 |
+| 15m-indices | 6.21 (ICT; Wyckoff 7.59) | no |
+| 30m-metals | 4.73 (both) | no |
+| 30m-indices | e_min not reached by e = 1.0 | no |
+
+At the final N (87 / 48, audit table T7) the included set is unchanged (ratios 0.73 / 0.90, 1.14 / 1.02, 1.40 / 1.26); 15m-metals is 2.22 (ICT) / 2.04 (Wyckoff), still above 2; 5m-indices 3.01 at best.
+
+**Decision.** The plan keeps exactly THREE cells: `1m-metals` (XAUUSD XAGUSD), `1m-indices` (US500 US30 USTEC DE40 FRA40), `5m-metals` (XAUUSD XAGUSD XPTUSD XPDUSD). `dev_start` is null in all three (from data); fold counts 1m-metals 9, 1m-indices 4, 5m-metals 17.
+**Removed** (recorded with reason, reference and decision in `removed_cells` of `docs/architecture/fund-search-cells.json`): 5m-indices (3.76), 15m-metals (2.23), 15m-indices (6.21), 30m-metals (4.73), 30m-indices (not reached by e = 1.0); both methods in each. 30m-metals / 30m-indices were already removed the same day for low trade counts.
+**New N:** ICT 29 x 3 = **87**, one-sided confidence 1 - 0.10/87 = **0.998851**; Wyckoff 16 x 3 = **48**, 1 - 0.10/48 = **0.997917**; 6 candidates (3 cells x 2 methods). Cells-file sha256 and `plan_hash` of the commit that made this change are in that commit message (`plan --check-data` prints the sha256, `plan --dry-run` the plan_hash; both change with any later edit to the cells file, the grids or the first-bar data).
+
+**Sensitivity caveats (disclosed, not resolved).**
+- The pooling correlation between symbols of a cell is UNVERIFIED; it is the most decision-relevant unmeasured quantity. The primary variant discounts pooled trades for it.
+- k = 2 is POST HOC: it was chosen after the earlier ratios (`docs/audits/2026-10-01-power-model.md`) had been seen. k = 1.5 and 2 give the same three cells; k = 2.5 and 3 add 15m-metals, the one cell whose inclusion hinges on k.
+- With the undiscounted pooled-rate variant (sum-rate, `sum03` / `rho0` in the audit) 5m-indices (best ratio 1.02-1.25) and 15m-metals (1.80-1.94) would ALSO have passed at k = 2. With a 0.6 discount or the availability-aware metals model the set shrinks. 1m-indices passes in every variant but its margin (1.28) is set by the discount.
+
+**Parked symbols.** UK100 EU50 JP225 HK50 AUS200 US2000 SPN35 N25 (imported for the removed cells) stay in the registry (research-only, except AUS200 which was already registered) and in the data under `data/history`; no data or registry entry was deleted. They are used by no cell; the plan, `plan --check-data` and the readiness gate iterate the declared cells' symbols only, so an unused symbol with missing data or specs is ignored (tested: `test_parked_symbols_are_unused_but_stay_registered_and_nothing_in_the_plan_needs_them`). `FUND_SYMBOLS` (a PINNED constant in `scripts/fund-search.py`, in `FINGERPRINT_FILES`, echoed into the plan as `fund_symbols`) deliberately stays the 17-symbol superset: shrinking it would edit the pinned constant for no behavioural gain, would make a later re-add (below) a second pinned-code change, and `load_cells_file` keeps validating every cell symbol against it. Only a comment above it was updated.
+
+**Contingency (owner).** If the results are unfavourable, option 2 (re-add 15m-metals) or another plan may be considered LATER. That would be a SEPARATE, later pre-registration round (new cells file, new `declare`), and its multiple-testing accounting must include THIS round's comparisons (they would be added to `prior_counts_disclosed`, today `{prop_search_records: 180, diagnosis_slices: 30}` in `scripts/fund-search.py` `PRIOR_COUNTS`: 6 candidates, ICT 87 / Wyckoff 48 comparisons). It is not pre-built: nothing in the code or the cells file anticipates it beyond the `removed_cells` record.
+
+**Pinned files changed by this decision:** `docs/architecture/fund-search-cells.json` (sha256 pinned in the declaration) and `scripts/fund-search.py` (comments / module docstring only; no behaviour). `declare` must run after this change. The tests' six-cell file `scripts/tests/fixtures/fund-search-cells.json` is now a labelled TEST FIXTURE (wide cell list for the late-start, `dev_start` override and shard tests); it is not the plan.

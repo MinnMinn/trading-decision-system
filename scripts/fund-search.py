@@ -22,8 +22,8 @@ engine adapter (scripts/backtest-methods.py scan + simulate, unmodified), sealed
 the ledger declaration (scripts/research_ledger.py), one scan pool per candidate (scripts/scan_many.py, whose
 processes come from scripts/isolated_pool.py).
 
-THE CELLS ARE DECLARED, NOT COMPUTED: docs/architecture/fund-search-cells.json lists the cells (owner 2026-10-01: six, no
-30m) and each cell's optional history start (`dev_start`, null = from data); it is hashed into the plan core and pinned in
+THE CELLS ARE DECLARED, NOT COMPUTED: docs/architecture/fund-search-cells.json lists the cells (owner 2026-10-01: three,
+1m-metals, 1m-indices, 5m-metals; no 15m or 30m cell) and each cell's optional history start (`dev_start`, null = from data); it is hashed into the plan core and pinned in
 the declaration (`evaluation_config.cells_sha256`) like the V grids, and `run`/`scan` refuse a changed one.
 
 FIXED IN EVERY CELL (plan §6 items 3, 7): real FTMO costs (`COST_PROFILE`, data/history/costs/ftmo/) and
@@ -69,8 +69,10 @@ FTMO_HISTORY_ROOT = os.path.join(ROOT, "data", "history", "ftmo")
 # ------------------------------------------------------------------ scope, all pre-declared (plan §6 items 7, 8)
 #: Pinned. The original seven FTMO symbols + XPTUSD XPDUSD + UK100 EU50 JP225 HK50 AUS200 US2000 SPN35 N25 (owner 2026-10-01,
 #: symbol universe: docs/plans/2026-09-30-owner-decisions.md; AUS200 was dropped by §6 item 8 for lack of data and is back with the
-#: owner's new export). Which cell gets which symbol is DECLARED per cell in docs/architecture/fund-search-cells.json (only the 5m and
-#: 15m cells draw on the nine additions); this tuple is the universe a cell may draw from. Nine of them are research-only registry
+#: owner's new export). Which cell gets which symbol is DECLARED per cell in docs/architecture/fund-search-cells.json (after the
+#: cell-selection decision of 2026-10-01 only XPTUSD XPDUSD, in 5m-metals, draw on the additions; UK100 EU50 JP225 HK50 AUS200 US2000
+#: SPN35 N25 are parked: kept here, in the registry and in the data, used by no cell, ignored by the readiness gate); this tuple is
+#: a pinned superset, the universe a cell may draw from, deliberately not shrunk. Nine of them are research-only registry
 #: symbols (instruments.json `research_only`, never orderable); XCUUSD and DXY were dropped: no history before the 2024-03-01 cutoff.
 FUND_SYMBOLS = ("XAUUSD", "XAGUSD", "XPTUSD", "XPDUSD", "US500", "US30", "USTEC", "DE40", "FRA40",
                 "UK100", "EU50", "JP225", "HK50", "AUS200", "US2000", "SPN35", "N25")

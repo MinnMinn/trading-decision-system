@@ -5,8 +5,8 @@ docs/plans/2026-09-29-v-ict-constants-DRAFT.md, docs/plans/2026-09-30-owner-deci
 `declare` pins code SHAs, grid hashes and the settings below; after it, any code or setting change is reported as drift.
 
 ## What is already fixed (no decision needed)
-- All nine F items ON in every cell; live/pilot stay v1. N = 29 per ICT cell (was 41 before the owner removed B-EXIT `no_floor`, 2026-09-30), 16 per Wyckoff cell, 6 cells (the two 30m cells were removed by the owner, 2026-10-01: `docs/architecture/fund-search-cells.json`)
-  => N_ICT 174, N_Wyckoff 96 (confidence 0.999425 / 0.998958). Planned R:R floor = 2.5 net of fees, both methods, pinned in the declaration (`evaluation_config.min_rr`). B4 and W4b are declared, not runnable, counted in N.
+- All nine F items ON in every cell; live/pilot stay v1. N = 29 per ICT cell (was 41 before the owner removed B-EXIT `no_floor`, 2026-09-30), 16 per Wyckoff cell, 3 cells (1m-metals, 1m-indices, 5m-metals: the owner applied the pre-stated inclusion rule e_min <= 2 x e_star, 2026-10-01, `docs/audits/2026-10-01-cell-selection.md`; 5m-indices, 15m-metals, 15m-indices and both 30m cells were removed, `docs/architecture/fund-search-cells.json`)
+  => N_ICT 87, N_Wyckoff 48 (confidence 0.998851 / 0.997917). Planned R:R floor = 2.5 net of fees, both methods, pinned in the declaration (`evaluation_config.min_rr`). B4 and W4b are declared, not runnable, counted in N.
 - Statistic: min of five one-sided bounds (iid t, cluster by UTC day, 30 days, quarter, half-year) at 1 - 0.10/N,
   computed on pooled TEST-fold trades only; fold geometry 365/730 days; verdict precedence; costs real; no overnight.
 - O8 (ICT fill on the last bar of a server day held past midnight) is RESOLVED by the walk() fix (2869c35): the

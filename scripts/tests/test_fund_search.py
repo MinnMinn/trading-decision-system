@@ -1443,32 +1443,48 @@ class DeclaredCells(_Tmp):
     def _folds(self, p):
         return {c["id"]: c["n_folds"] for c in p["cells"]}
 
-    def test_the_committed_cells_file_declares_exactly_six_cells_and_no_30m(self):
+    def test_the_committed_cells_file_declares_exactly_three_cells_and_records_the_removed_ones(self):
+        """Owner 2026-10-01 (cell selection, e_min <= 2 x e_star, primary pooling variant): three cells."""
         spec, path, sha = self.fs.load_cells_file(REAL_ARCH)
-        self.assertEqual([c["id"] for c in spec["cells"]],
-                         ["1m-metals", "1m-indices", "5m-metals", "5m-indices", "15m-metals", "15m-indices"])
-        self.assertFalse(any("30m" in c["id"] or c["timeframe"] == "30m" for c in spec["cells"]))
-        self.assertEqual([r["id"] for r in spec["removed_cells"]], ["30m-metals", "30m-indices"])
+        self.assertEqual([c["id"] for c in spec["cells"]], ["1m-metals", "1m-indices", "5m-metals"])
+        self.assertFalse(any(c["timeframe"] in ("15m", "30m") for c in spec["cells"]))
+        removed = {r["id"]: r for r in spec["removed_cells"]}
+        self.assertEqual(list(removed), ["30m-metals", "30m-indices", "5m-indices", "15m-metals", "15m-indices"])
+        for r in removed.values():                         # every removal carries its reason, reference and decision
+            self.assertTrue(r["reason"].strip() and r["decision"].strip())
+            self.assertTrue(os.path.exists(os.path.join(ROOT, r["reference"])), r["reference"])
+        self.assertIn("3.76", removed["5m-indices"]["reason"])
+        self.assertIn("2.23", removed["15m-metals"]["reason"])
+        self.assertIn("insufficient-fold", removed["15m-metals"]["reason"])
+        self.assertIn("prior_counts_disclosed", removed["15m-metals"]["reason"])    # a re-add is a later, separate round
+        self.assertIn("6.21", removed["15m-indices"]["reason"])
+        self.assertIn("4.73", removed["30m-metals"]["reason"])
         self.assertEqual(sha, hashlib.sha256(open(path, "rb").read()).hexdigest())
         p = self.fs.build_plan(REAL_ARCH, first_bar=self._first_bar)
-        self.assertEqual(p["cell_count"], 6)
-        self.assertEqual(p["candidate_count"], 12)
-        self.assertFalse(any(c["timeframe"] == "30m" for c in p["candidates"]))
-        self.assertEqual(p["n_by_method"], {"ict": 29 * 6, "wyckoff": 16 * 6})
-        self.assertEqual((p["n_by_method"]["ict"], p["n_by_method"]["wyckoff"]), (174, 96))
-        self.assertAlmostEqual(p["confidence_by_method"]["ict"], 0.999425, places=6)
-        self.assertAlmostEqual(p["confidence_by_method"]["wyckoff"], 0.998958, places=6)
+        self.assertEqual(p["cell_count"], 3)
+        self.assertEqual(p["candidate_count"], 6)
+        self.assertFalse(any(c["timeframe"] in ("15m", "30m") for c in p["candidates"]))
+        self.assertEqual([r["id"] for r in p["cells_file"]["removed_cells"]], list(removed))
+        self.assertEqual(p["n_by_method"], {"ict": 29 * 3, "wyckoff": 16 * 3})
+        self.assertEqual((p["n_by_method"]["ict"], p["n_by_method"]["wyckoff"]), (87, 48))
+        self.assertAlmostEqual(p["confidence_by_method"]["ict"], 0.998851, places=6)
+        self.assertAlmostEqual(p["confidence_by_method"]["wyckoff"], 0.997917, places=6)
         self.assertEqual(p["cells_file"]["sha256"], sha)
 
     def test_the_committed_cells_keep_their_original_data_start_and_the_fold_counts_the_owner_listed(self):
         p = self.fs.build_plan(REAL_ARCH, first_bar=self._first_bar)
-        self.assertEqual(self._folds(p), {"1m-metals": 9, "1m-indices": 4, "5m-metals": 17, "5m-indices": 4,
-                                          "15m-metals": 17, "15m-indices": 4})
+        self.assertEqual(self._folds(p), {"1m-metals": 9, "1m-indices": 4, "5m-metals": 17})
         self.assertTrue(all(c["dev_start_override"] is None and c["span_source"] == "from data" for c in p["cells"]))
 
-    def test_the_fixture_cells_file_has_the_same_six_cells(self):
-        self.assertEqual([c["id"] for c in self.plan()["cells"]],
-                         [c["id"] for c in self.fs.load_cells_file(REAL_ARCH)[0]["cells"]])
+    def test_the_fixture_is_a_six_cell_superset_of_the_committed_three_cells(self):
+        """The fixture is test-local (wide cell list for late-start / override / shard tests); the three committed cells
+        appear in it unchanged in id and symbols, and the plan built from it has all six."""
+        real = {c["id"]: c["symbols"] for c in self.fs.load_cells_file(REAL_ARCH)[0]["cells"]}
+        fix = {c["id"]: c["symbols"] for c in self.fs.load_cells_file(FIXTURES)[0]["cells"]}
+        self.assertEqual(len(fix), 6)
+        self.assertEqual({k: fix[k] for k in real}, real)
+        self.assertEqual([c["id"] for c in self.plan()["cells"]], list(fix))
+        self.assertGreater(len(fix["5m-indices"]), 5)               # a wide per-cell symbol list stays exercised
 
     def test_a_dev_start_override_changes_the_fold_counts(self):
         def mutate(spec):
@@ -2354,7 +2370,8 @@ class ScanCacheRunPlumbing(_Helpers):
 
 
 class SymbolUniverse(_Tmp):
-    """Owner 2026-10-01 (symbol universe): per-cell symbol lists, still 6 cells, N 174 / 96, late-starting symbols."""
+    """Owner 2026-10-01 (symbol universe + cell selection): per-cell symbol lists, three declared cells, N 87 / 48, parked
+    symbols, late-starting symbols. The 13-symbol / 15m behaviour is exercised on the six-cell test fixture (FIXTURES)."""
 
     METALS4 = ["XAUUSD", "XAGUSD", "XPTUSD", "XPDUSD"]
     INDICES13 = ["US500", "US30", "USTEC", "DE40", "FRA40", "UK100", "EU50", "JP225", "HK50", "AUS200", "US2000", "SPN35", "N25"]
@@ -2362,25 +2379,46 @@ class SymbolUniverse(_Tmp):
     def _by_id(self, arch):
         return {c["id"]: c for c in self.fs.load_cells_file(arch)[0]["cells"]}
 
-    def test_the_committed_cells_are_the_six_cells_with_the_decided_symbol_lists(self):
+    PARKED = {"UK100", "EU50", "JP225", "HK50", "AUS200", "US2000", "SPN35", "N25"}
+
+    def test_the_committed_cells_are_the_three_cells_with_the_decided_symbol_lists(self):
         cells = self._by_id(REAL_ARCH)
-        self.assertEqual(list(cells), ["1m-metals", "1m-indices", "5m-metals", "5m-indices", "15m-metals", "15m-indices"])
+        self.assertEqual(list(cells), ["1m-metals", "1m-indices", "5m-metals"])
         self.assertEqual(cells["1m-metals"]["symbols"], ["XAUUSD", "XAGUSD"])                      # the 1m cells are unchanged
         self.assertEqual(cells["1m-indices"]["symbols"], ["US500", "US30", "USTEC", "DE40", "FRA40"])
-        for tf in ("5m", "15m"):
-            self.assertEqual(cells[f"{tf}-metals"]["symbols"], self.METALS4)
-            self.assertEqual(cells[f"{tf}-indices"]["symbols"], self.INDICES13)
+        self.assertEqual(cells["5m-metals"]["symbols"], self.METALS4)
         every = {s for c in cells.values() for s in c["symbols"]}
-        self.assertEqual(every, set(self.fs.FUND_SYMBOLS))                  # the pinned universe is exactly what is used
+        # FUND_SYMBOLS is a PINNED superset: the nine used symbols are in it, the eight parked ones are in it but in no cell
+        self.assertTrue(every < set(self.fs.FUND_SYMBOLS))
+        self.assertEqual(set(self.fs.FUND_SYMBOLS) - every, self.PARKED)
         # excluded: no pre-cutoff history (XCUUSD, DXY), cross-quoted metals, FX (no fx class), parked classes
         self.assertTrue({"XCUUSD", "DXY", "XAUEUR", "XAUAUD", "XAGEUR", "XAGAUD", "EURUSD", "USDJPY", "BTCUSD", "UKOIL",
                          "USOIL"}.isdisjoint(every))
         self.assertTrue(all(c["dev_start"] is None for c in cells.values()))
         self.assertEqual({c["asset_class"] for c in cells.values()}, {"metals", "indices"})
 
-    def test_the_fixture_cells_file_declares_the_same_cells_and_symbols(self):
+    def test_the_fixture_keeps_the_per_cell_symbol_lists_and_draws_on_the_whole_pinned_universe(self):
         real, fix = self._by_id(REAL_ARCH), self._by_id(FIXTURES)
-        self.assertEqual({k: v["symbols"] for k, v in real.items()}, {k: v["symbols"] for k, v in fix.items()})
+        self.assertEqual({k: fix[k]["symbols"] for k in real}, {k: v["symbols"] for k, v in real.items()})
+        self.assertEqual(fix["5m-indices"]["symbols"], self.INDICES13)
+        self.assertEqual(fix["15m-metals"]["symbols"], self.METALS4)
+        self.assertEqual({s for c in fix.values() for s in c["symbols"]}, set(self.fs.FUND_SYMBOLS))
+
+    def test_parked_symbols_are_unused_but_stay_registered_and_nothing_in_the_plan_needs_them(self):
+        """The eight symbols of the removed cells stay in the registry (research-only) and in FUND_SYMBOLS, no declared cell
+        uses them, and the plan / readiness gate ignore them: missing data or specs for them is not a failure."""
+        import instruments as I
+        used = {s for c in self._by_id(REAL_ARCH).values() for s in c["symbols"]}
+        for sy in self.PARKED:
+            self.assertIn(sy, self.fs.FUND_SYMBOLS)
+            self.assertIn(sy, I.analysis("cfd"))
+            self.assertNotIn(sy, used)
+        first = lambda s, t: None if s in self.PARKED else "2017-12-27T23:00:00Z"
+        rep = self.fs.data_readiness(self.fs.load_cells_file(REAL_ARCH)[0], first, lambda s: (s not in self.PARKED, "x"))
+        self.assertTrue(rep["ready"] and rep["complete"])
+        p = self.fs.build_plan(REAL_ARCH, first_bar=first)
+        self.assertEqual(p["cell_count"], 3)
+        self.assertFalse(self.PARKED & {s for c in p["cells"] for s in c["symbols"]})
 
     def test_every_new_symbol_is_a_research_only_registry_symbol_of_its_cells_class_and_never_orderable(self):
         import instruments as I
@@ -2401,12 +2439,12 @@ class SymbolUniverse(_Tmp):
         # AUS200 was on the registry before (and is one of prop-search's 180 candidates): it is NOT research-only
         self.assertNotIn("AUS200", I.research_only("cfd"))
 
-    def test_n_and_confidence_of_the_declared_cells_need_no_data_and_are_unchanged(self):
+    def test_n_and_confidence_of_the_declared_cells_need_no_data(self):
         spec, path, sha = self.fs.load_cells_file(REAL_ARCH)
         line = self.fs.declared_n_line(spec, sha, REAL_ARCH)
-        self.assertIn("declared cells: 6", line)
-        self.assertIn("ict 29 x 6 = N 174 (confidence 0.999425)", line)
-        self.assertIn("wyckoff 16 x 6 = N 96 (confidence 0.998958)", line)
+        self.assertIn("declared cells: 3", line)
+        self.assertIn("ict 29 x 3 = N 87 (confidence 0.998851)", line)
+        self.assertIn("wyckoff 16 x 3 = N 48 (confidence 0.997917)", line)
         self.assertIn(sha, line)
 
     def test_a_symbol_outside_the_universe_or_of_another_class_or_an_fx_cell_is_refused(self):
@@ -2434,7 +2472,7 @@ class SymbolUniverse(_Tmp):
         return self.LATE.get(sym, "2017-12-27T23:00:00Z")
 
     def test_late_symbols_stay_in_m_are_disclosed_and_do_not_move_the_folds(self):
-        p = self.fs.build_plan(REAL_ARCH, first_bar=self._late_first_bar)
+        p = self.fs.build_plan(FIXTURES, first_bar=self._late_first_bar)         # the 13-symbol cells live in the fixture
         for cid in ("5m-indices", "15m-indices"):
             c = next(x for x in p["cells"] if x["id"] == cid)
             self.assertEqual(c["symbols"], self.INDICES13)                # every symbol with data before the cutoff is in m
@@ -2444,7 +2482,7 @@ class SymbolUniverse(_Tmp):
             for sy, fb in self.LATE.items():
                 self.assertEqual(c["symbol_first_bar"][sy], fb)           # disclosed, never invented earlier
             self.assertEqual(c["span_source"], "from data")
-        self.assertEqual(p["n_by_method"], {"ict": 29 * 6, "wyckoff": 16 * 6})   # more symbols add no N
+        self.assertEqual(p["n_by_method"], {"ict": 41 * 6, "wyckoff": 16 * 6})   # fixture grids; more symbols add no N
 
     def test_every_late_symbol_has_bars_in_every_test_fold_and_only_spn35_and_n25_miss_the_start_of_the_first(self):
         """The owner's concern: a symbol with data in only the last folds. The fold geometry (dates only) says no symbol
@@ -2470,7 +2508,7 @@ class SymbolUniverse(_Tmp):
         first = {("XAUUSD", "5m"): "2004-06-11T04:15:00Z", ("XAGUSD", "5m"): "2008-11-07T21:10:00Z",
                  ("XAUUSD", "15m"): "2004-06-11T04:15:00Z", ("XAGUSD", "15m"): "2008-11-07T21:00:00Z"}
         fb = lambda s, t: first.get((s, t), "2015-01-07T00:00:00Z" if s in ("XPTUSD", "XPDUSD") else "2017-12-27T23:00:00Z")
-        p = self.fs.build_plan(REAL_ARCH, first_bar=fb)
+        p = self.fs.build_plan(FIXTURES, first_bar=fb)
         for cid in ("5m-metals", "15m-metals"):
             c = next(x for x in p["cells"] if x["id"] == cid)
             self.assertEqual(c["symbols"], self.METALS4)
@@ -2484,7 +2522,7 @@ class SymbolUniverse(_Tmp):
 
     def test_a_symbol_first_bar_not_before_the_cutoff_is_left_out_of_m_and_disclosed(self):
         late = dict(self.LATE, N25="2024-06-01T00:00:00Z")
-        p = self.fs.build_plan(REAL_ARCH, first_bar=lambda s, t: late.get(s, "2017-12-27T23:00:00Z"))
+        p = self.fs.build_plan(FIXTURES, first_bar=lambda s, t: late.get(s, "2017-12-27T23:00:00Z"))
         c = next(x for x in p["cells"] if x["id"] == "15m-indices")
         self.assertNotIn("N25", c["symbols"])
         self.assertEqual(len(c["symbols"]), 12)
@@ -2525,17 +2563,25 @@ class DataReadiness(_Tmp):
             return late.get(sym, "2017-12-27T23:00:00Z")
         return first_bar
 
-    def _check(self, first_bar, spec_present=lambda s: (True, "x")):
+    def _check(self, first_bar, spec_present=lambda s: (True, "x"), arch=FIXTURES):
+        """Readiness over the six-cell test fixture by default (it keeps the 13-symbol and 15m cells); arch=REAL_ARCH for the plan."""
         out = io.StringIO()
-        rc = self.fs.check_data(REAL_ARCH, first_bar, spec_present, out=out)
+        rc = self.fs.check_data(arch, first_bar, spec_present, out=out)
         return rc, out.getvalue()
 
     def test_complete_data_exits_zero_and_says_ready(self):
-        rc, txt = self._check(self._have())
+        rc, txt = self._check(self._have(), arch=REAL_ARCH)
         self.assertEqual(rc, 0)
         self.assertIn("READY: every declared cell", txt)
         self.assertNotIn("NOT READY", txt)
-        self.assertIn("ict 29 x 6 = N 174", txt)
+        for cid in ("1m-metals", "1m-indices", "5m-metals"):
+            self.assertRegex(txt, rf"{cid}\s+\d+\s+\d+\s+0\s+0\s+0\s+yes\s+yes")
+        self.assertIn("declared cells: 3", txt)
+        self.assertIn("ict 29 x 3 = N 87", txt)
+        self.assertIn("wyckoff 16 x 3 = N 48", txt)
+        rc, txt = self._check(self._have())                      # the fixture: six cells, its own grids
+        self.assertEqual(rc, 0)
+        self.assertIn("ict 41 x 6 = N 246", txt)
 
     def test_absent_data_exits_nonzero_with_a_table_naming_the_cells_symbols_and_specs(self):
         # today's state: the 9 new symbols have neither history nor spec; AUS200 has a spec but no history
@@ -2565,7 +2611,7 @@ class DataReadiness(_Tmp):
     def test_a_symbol_starting_after_the_cutoff_is_a_note_not_a_failure_but_a_cell_with_none_is(self):
         rc, txt = self._check(self._have(late={"N25": "2024-06-01T00:00:00Z"}))
         self.assertEqual(rc, 0)
-        rep = self.fs.data_readiness(self.fs.load_cells_file(REAL_ARCH)[0], self._have(late={"N25": "2024-06-01T00:00:00Z"}),
+        rep = self.fs.data_readiness(self.fs.load_cells_file(FIXTURES)[0], self._have(late={"N25": "2024-06-01T00:00:00Z"}),
                                      lambda s: (True, "x"))
         c = next(x for x in rep["cells"] if x["id"] == "5m-indices")
         self.assertEqual((len(c["symbols"]), c["m_effective"]), (13, 12))       # declared 13, effective m 12
@@ -2577,9 +2623,16 @@ class DataReadiness(_Tmp):
         self.assertIn("the cell would be dropped from N", txt)
         # ... but it does not block planning: plan section 6 item 7 drops such a cell from N by data availability
         with mock.patch.object(self.fs, "_first_bar", every_index_late):
-            p = self.fs.build_plan(REAL_ARCH)
+            p = self.fs.build_plan(FIXTURES)
         self.assertEqual([e["id"] for e in p["excluded_cells"]], ["1m-indices", "5m-indices", "15m-indices"])
-        self.assertEqual(p["n_by_method"]["ict"], 29 * 3)
+        self.assertEqual(p["n_by_method"]["ict"], 41 * 3)
+        # the committed three-cell plan: the same late indices drop its one indices cell (1m-indices) from N
+        rc, txt = self._check(every_index_late, arch=REAL_ARCH)
+        self.assertEqual(rc, 1)
+        with mock.patch.object(self.fs, "_first_bar", every_index_late):
+            p = self.fs.build_plan(REAL_ARCH)
+        self.assertEqual([e["id"] for e in p["excluded_cells"]], ["1m-indices"])
+        self.assertEqual(p["n_by_method"]["ict"], 29 * 2)
 
     def test_plan_dry_run_and_every_data_command_refuse_with_the_table_not_a_stack_trace(self):
         gd = REAL_ARCH
@@ -2591,7 +2644,7 @@ class DataReadiness(_Tmp):
                     call()
                 self.assertIsInstance(cm.exception, SystemExit)          # a message and an exit status
                 self.assertIn("DATA READINESS", str(cm.exception))
-                self.assertIn("5m-indices", str(cm.exception))
+                self.assertIn("5m-metals", str(cm.exception))
             self.assertFalse(os.path.exists(self.fs.PLAN_PATH))          # nothing was written
             with self.assertRaises(SystemExit):
                 self.fs.load_plan(gd)
@@ -2599,8 +2652,12 @@ class DataReadiness(_Tmp):
     def test_the_cli_check_data_flag_returns_the_exit_status(self):
         with mock.patch.object(self.fs, "_first_bar", self._have()), redirect_stdout(io.StringIO()):
             self.assertEqual(self.fs.main(["plan", "--check-data", "--grid-dir", REAL_ARCH]), 0)
+        with mock.patch.object(self.fs, "_first_bar", self._have(absent=set(SymbolUniverse.PARKED))), redirect_stdout(io.StringIO()):
+            self.assertEqual(self.fs.main(["plan", "--check-data", "--grid-dir", REAL_ARCH]), 0)     # parked: ignored
+        with mock.patch.object(self.fs, "_first_bar", self._have(absent={"XPTUSD"})), redirect_stdout(io.StringIO()):
+            self.assertEqual(self.fs.main(["plan", "--check-data", "--grid-dir", REAL_ARCH]), 1)     # a used symbol: refused
         with mock.patch.object(self.fs, "_first_bar", self._have(absent={"UK100"})), redirect_stdout(io.StringIO()):
-            self.assertEqual(self.fs.main(["plan", "--check-data", "--grid-dir", REAL_ARCH]), 1)
+            self.assertEqual(self.fs.main(["plan", "--check-data", "--grid-dir", FIXTURES]), 1)      # used by a fixture cell
 
     def test_the_real_cost_spec_probe_follows_the_symbol_map(self):
         import real_costs as RC
