@@ -183,9 +183,9 @@ At the final N (87 / 48, audit table T7) the included set is unchanged (ratios 0
 
 **Pinned files changed by this decision:** `docs/architecture/fund-search-cells.json` (sha256 pinned in the declaration) and `scripts/fund-search.py` (comments / module docstring only; no behaviour). `declare` must run after this change. The tests' six-cell file `scripts/tests/fixtures/fund-search-cells.json` is now a labelled TEST FIXTURE (wide cell list for the late-start, `dev_start` override and shard tests); it is not the plan.
 
-## 2026-10-01 (later): planned-risk admission, zero-risk candidates are refused and counted (coordinator decision, owner to ack before declare)
+## 2026-10-01 (later): planned-risk admission, zero-risk candidates are refused and counted (coordinator decision, OWNER ACKED 2026-10-02: chat 'Ack')
 
-**Status: coordinator decision, owner to ack before `declare`.** Not an owner decision yet.
+**Status: coordinator decision; OWNER ACKED 2026-10-02 (chat: 'Ack').**
 
 **Finding.** With the ICT V value `B-EX=fill` the scan produces candidates whose entry equals the stop (e.g. US500 1m 2023-03-07 06:54Z: a flat one-tick-volume bar is the sweep extreme and the first candle of the FVG). `real_costs.cost_r` raises `CostRefused: stop distance is zero`, so a fund-search `run` would abort when it reaches that value set. Only `B-EX=fill` sets produce it (every other value set: zero in every year); Wyckoff cannot (its placement requires entry strictly inside stop/target and `walk()` drops risk <= 0). Counts per cell / symbol / value set / year: `docs/audits/2026-10-01-zero-risk.md`.
 
@@ -211,7 +211,7 @@ Source: the adversarial review of docs/plans/2026-09-29-fund-search-preregistrat
 **Pinned files changed by this decision:** `scripts/fund-search.py` (FINGERPRINT_FILES, pinning, `PRIOR_COUNTS`, `ROLLOVER_EDGE_NOTE`; `plan_hash` unchanged), and, under the new `scripts/` tree pin, `scripts/tests/test_fund_search.py`. `docs/architecture/research-ledger.json` (the instrument list) is NOT pinned: the ledger is excluded from the docs/architecture tree pin by design. `declare` must run after this change.
 
 
-## 2026-10-02: engine realism before `declare` (coordinator decision from the red-team review, owner to ack before `declare`)
+## 2026-10-02: engine realism before `declare` (coordinator decision from the red-team review, disclosed to the owner in chat and covered by the owner's authorisation to declare after red-team alignment (2026-10-02))
 
 **Status: coordinator decision, owner to ack before `declare`.** Not an owner decision yet. Pre-registration item 13
 (`docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md`) is the sealed text; item 9 (cost model) is amended. Nothing was
@@ -249,7 +249,7 @@ planned risk, as it would live. (iii) The relative profile also RAISES a cost wh
 `scripts/diagnose-methods.py` (the two `walk` wrappers forward `**kw`). The cells file, grids, thresholds and `min_rr` are untouched.
 
 
-## 2026-10-02: implementation of the sealed statistics (branch `b20-stats-sealed`; coordinator-dispatched implementation, owner to ack before `declare`)
+## 2026-10-02: implementation of the sealed statistics (branch `b20-stats-sealed`; coordinator-dispatched implementation, disclosed to the owner in chat and covered by the owner's authorisation to declare after red-team alignment (2026-10-02))
 
 **Status: implementation of decisions already taken (owner + coordinator + red team, entry "Owner decisions 2026-10-02" above).** No threshold,
 grid, cell or `min_rr` changed; no engine, cost or walk change (those are the merged b19). Nothing was evaluated: no R, expectancy or win rate
@@ -322,11 +322,11 @@ Applied: `docs/architecture/fund-search-cells.json` (1m-indices 2020-03-01T00:00
 
 **Pinned files changed:** `docs/architecture/fund-search-cells.json` (hashed into `plan_hash`), `docs/experiments/fund-search/plan.json`, `scripts/research/trade_rates.py`, `scripts/research/dev_start_decision.py` (new), `scripts/tests/test_fund_search.py` (scripts/ tree pin). `declare` must run AFTER this change and after the owner's ack.
 
-## 2026-10-02: review fix round 1 before the fund-search `declare` (branch `b26-review-fixes`; coordinator decisions, owner to ack before `declare`)
+## 2026-10-02: review fix round 1 before the fund-search `declare` (branch `b26-review-fixes`; coordinator decisions, disclosed to the owner in chat and covered by the owner's authorisation to declare after red-team alignment (2026-10-02))
 
 **Status: fixes to the merged engine-realism and statistics work; no threshold loosened, no cell, grid, cost, spread or `min_rr` change; nothing evaluated (no R, expectancy or win rate of real data read).**
 
-- **Regime split balance rule (TIGHTENING; owner to ack).** Each D1-ADX half must hold at least 25 % of the pooled TEST trades, else the regime check FAILS with
+- **Regime split balance rule (TIGHTENING; OWNER ACKED 2026-10-02, chat 'Ack').** Each D1-ADX half must hold at least 25 % of the pooled TEST trades, else the regime check FAILS with
   'regime halves unbalanced'. Reason: ties at the median (many trades share one symbol-day D1 ADX) could leave a tiny half that still passed (ADX [10, 20, 20, 20, 50],
   all +0.5 R: low 4 / high 1, `ok`). Documented in the draft item 7 and pinned in `REGIME_SPLIT_DEFINITION` (so `evaluation_config.regime_split` carries it). Only ever fails
   more candidates; allowed before sealing.
@@ -360,7 +360,7 @@ Applied: `docs/architecture/fund-search-cells.json` (1m-indices 2020-03-01T00:00
 - **Pinned files changed (declare must run AFTER):** `scripts/fund_stats.py`, `scripts/fund-search.py`, the tests under the `scripts/` tree pin, `scripts/research/e2e_power.py`
   (check added to the simulator; not a verdict input of the harness).
 
-## 2026-10-02: report-only obligations implemented before `declare` (branch `b28-report-obligations`; coordinator-dispatched, owner to ack before `declare`)
+## 2026-10-02: report-only obligations implemented before `declare` (branch `b28-report-obligations`; coordinator-dispatched, disclosed to the owner in chat and covered by the owner's authorisation to declare after red-team alignment (2026-10-02))
 
 **Status: the placebo benchmark, the per-year / fold table and the data disclosure of draft section C are IMPLEMENTED, not only specified (owner/red-team instruction: before results are read). Report-only: no verdict, check, margin, threshold, Holm step, grid, cell or engine behaviour changed; nothing evaluated (synthetic tests only; the only real-data read is first-bar labels and the export bar count).**
 

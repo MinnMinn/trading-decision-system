@@ -1,6 +1,6 @@
-# Fund-search pre-registration -- DRAFT, UNSEALED (2026-09-29)
+# Fund-search pre-registration -- SEALED by `declare` on 2026-10-02 (plan_hash 275763cb81b0518a); drafted 2026-09-29
 
-**Status: DRAFT. Nothing here is sealed, `declare` has not been run, and no evaluation has been run.** This lists
+**Status: SEALED at `declare` (2026-10-02): the ledger declaration pins the code, grids, cells file, tree hashes and this plan; no evaluation has been run before it. Any change after sealing is a ledger event and thresholds may only be tightened. (Text below was written as a draft; where it says 'owner to ack' the acknowledgement is recorded in docs/plans/2026-09-30-owner-decisions.md.)** This lists
 what must be pre-registered before Batch 3, exactly as the harness (scripts/fund_stats.py, scripts/fund-search.py)
 currently implements it, so the owner can accept or change each item BEFORE the ledger declaration seals it.
 Parent: docs/plans/2026-09-28-methodology-improvement-plan.md §1.4, §3, §6. Any change after sealing is a ledger
@@ -235,7 +235,7 @@ months yields a handful of independent paths), so it is an execution-and-sanity 
    at or before the entry time (a D1 bar is completed once its close time is <= the entry time; the entry day's own
    forming bar is never read); split at the MEDIAN of the pooled TEST trades' D1 ADX values (<= median low half, > median
    high half); BOTH halves must have positive mean net R; a trade with no D1 ADX value (warm-up) fails the check. **Balance rule (TIGHTENED
-   2026-10-02, coordinator decision after the fix-round-1 review; owner to ack before `declare`):** EACH half must also hold at least
+   2026-10-02, coordinator decision after the fix-round-1 review; owner ACKed 2026-10-02 (chat: 'Ack')):** EACH half must also hold at least
    25 % of the pooled TEST trades, else the check FAILS with the reason 'regime halves unbalanced'. Why: many trades share one
    symbol-day D1 ADX, so ties at the median can leave a half tiny and still 'positive' (reproduced: ADX [10, 20, 20, 20, 50], every
    trade +0.5 R: low n = 4, high n = 1 passed). Because `<= median` goes to the low half, the high half is the one that can shrink;
@@ -350,7 +350,7 @@ months yields a handful of independent paths), so it is an execution-and-sanity 
     one. **The two later stages (exposed-window replay, then the forward demo) are pre-registered in section 0.5; the disclosures in
     section 0.6.**
 
-12. **Planned-risk admission (zero-risk refusal; coordinator decision 2026-10-01, owner to ack before `declare`).** A
+12. **Planned-risk admission (zero-risk refusal; coordinator decision 2026-10-01, owner ACKed 2026-10-02 (chat: 'Ack')).** A
     candidate trade is REFUSED at admission, before any pricing, when its planned risk is not a valid stop distance:
     `backtest-methods.planned_risk_refusal(side, entry, stop, tick)` returns a cause when (a) entry or stop is not a finite
     number or entry is not positive (`invalid_price`), (b) entry == stop (`zero`), (c) the stop is on the profit side of the
@@ -375,7 +375,7 @@ months yields a handful of independent paths), so it is an execution-and-sanity 
     `backtest-methods.py`, `real_costs.py`, `fund-search.py`.
 
 13. **Engine realism: the harness's simulate-time OPTS, a relative spread, gap-aware fills (coordinator decision 2026-10-02, from the
-    red-team review; owner to ack before `declare`).** Three corrections made BEFORE the declaration, none of which looks at a
+    red-team review; disclosed to the owner in chat and covered by the owner's authorisation to declare after red-team alignment (2026-10-02)).** Three corrections made BEFORE the declaration, none of which looks at a
     result (no R, expectancy or win rate was computed for any of them; counts and equivalence hashes only).
     - **(a) C1, a harness bug: `simulate()` ran under the v1 OPTS.** `BtEngine.trades_for` handed the candidate overlay to
       `bt.scan(opts=...)`, but `bt.simulate()` reads the MODULE-GLOBAL `OPTS`, so the harness applied the v1 min_rr admission (the
