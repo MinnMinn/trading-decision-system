@@ -26,8 +26,9 @@ THE CELLS ARE DECLARED, NOT COMPUTED: docs/architecture/fund-search-cells.json l
 1m-metals, 1m-indices, 5m-metals; no 15m or 30m cell) and each cell's optional history start (`dev_start`, null = from data); it is hashed into the plan core and pinned in
 the declaration (`evaluation_config.cells_sha256`) like the V grids, and `run`/`scan` refuse a changed one.
 
-FIXED IN EVERY CELL (plan §6 items 3, 7): real FTMO costs (`COST_PROFILE`, data/history/costs/ftmo/) and
-flat-before-rollover (no overnight holding). A grid item that tries to override either is refused
+FIXED IN EVERY CELL (plan §6 items 3, 7): real FTMO costs (`COST_PROFILE`, data/history/costs/ftmo/; since 2026-10-02 the
+relative-spread profile, pre-registration item 13b) and flat-before-rollover (no overnight holding); `simulate()` always runs
+under the fixed OPTS (`simulate_context`, item 13a). A grid item that tries to override either is refused
 (`validate_grid`). The FTMO commission is UNKNOWN (symbolspec commission.status == "no_deals"): it is taken from
 the cost data only -- scripts/real_costs.py returns 0.0 with its status -- and disclosed in every record.
 
@@ -84,7 +85,12 @@ CONTEXT_TIMEFRAMES = ("30m", "1H", "4H", "1D", "1W")
 METHODS = {"ict": "ICT", "wyckoff": "WYCKOFF-BOOK"}                             # grid `method` -> bt runner method
 GRID_FILES = {"ict": "v-grid-ict.json", "wyckoff": "v-grid-wyckoff.json"}
 CELLS_FILE = "fund-search-cells.json"      # the declared cell list + each cell's history start (pinned like the grids)
-COST_PROFILE = "ftmo_demo_2026_09"                                              # §6 item 3: REAL costs, fixed on
+#: §6 item 3: REAL costs, fixed on. C2 (red-team 2026-10-02): the RELATIVE-spread profile -- the recorded absolute spread is
+#: scaled by entry / price_ref (scripts/real_costs.py "ABSOLUTE vs RELATIVE SPREAD"), because 2022-2026 absolute spreads
+#: applied to 2007-2024 price levels overstate spread_R 2-4x in early folds. `ftmo_demo_2026_09` (absolute, byte-identical to
+#: before) stays selectable in real_costs as the reported sensitivity; it is never the fund-search profile.
+COST_PROFILE = "ftmo_demo_2026_09_relspread"
+COST_PROFILE_ABSOLUTE = "ftmo_demo_2026_09"                                    # the reported sensitivity, not used by a cell
 DEV_PERIOD_ID = "cfd-development-pre-2024-03"                                   # research-ledger.json period
 LEDGER_SECTION = "fund_search"                                                  # the declaration lives here
 #: The nine F (fidelity) items the owner adopted for the evaluation baseline (docs/plans/2026-09-30-owner-decisions.md):
@@ -117,6 +123,16 @@ def embargo_for(tf, bt=None):
 
 #: Disclosed, never folded into N (plan §1.4): earlier searches on the same history.
 PRIOR_COUNTS = {"prop_search_records": 180, "diagnosis_slices": 30}
+
+
+def cost_profile_pin(symbols):
+    """What the plan and the declaration pin about the cost profile (C2): the profile name, how it scales the spread and,
+    for the relative profile, every symbol's `price_ref` plus the sha256 of the provenance (window, bar count, closes hash)
+    it was derived from -- so a changed history or spec shows up as drift, not as a silently different cost."""
+    import real_costs as _RC
+    snap = _RC.profile_snapshot(COST_PROFILE, sorted(set(symbols)))
+    return {"profile": COST_PROFILE, "spread_scaling": snap.get("spread_scaling", _RC.ABSOLUTE),
+            "price_ref": snap.get("price_ref"), "price_ref_provenance_sha256": snap.get("price_ref_provenance_sha256")}
 
 
 def fixed_opts():
@@ -511,7 +527,8 @@ def build_plan(grid_dir=None, first_bar=None, check_ready=None):
                   "sha256": cells_sha, "warmup_days": cells_spec["warmup_days"],
                   "removed_cells": cells_spec.get("removed_cells", [])}
     core = {"cells": cells, "cells_file": cells_info, "excluded_cells": excluded, "grids": grids_info, "candidates": candidates,
-            "n_by_method": n_by_method, "cost_profile": COST_PROFILE, "dev_cutoff": FS.DEV_CUTOFF,
+            "n_by_method": n_by_method, "cost_profile": COST_PROFILE,
+            "cost_profile_pin": cost_profile_pin(s for c in cells for s in c["symbols"]), "dev_cutoff": FS.DEV_CUTOFF,
             "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": embargo,
             "constants": {k: getattr(FS, k) for k in (
                 "FAMILY_ALPHA", "MIN_FOLD_TRADES", "MIN_TRAIN_TRADES", "MAX_TRADE_SHARE", "MAX_GAP_DAYS",
@@ -658,6 +675,7 @@ def evaluation_config(plan):
             "regime_split": FS.REGIME_SPLIT_DEFINITION,
             "ruin_handling": "bt.RUIN_FRAC = 0.0 on the harness's own bt instance; post_ruin trades fail loud",
             "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": plan["embargo"],
+            "cost_profile": plan["cost_profile"], "cost_profile_pin": plan["cost_profile_pin"],
             # owner 2026-09-30: planned R:R floor at entry (net of fees), both methods; None = unreadable -> drift
             "min_rr": _TE.min_rr(),
             "grid_sha256": {m: g["sha256"] for m, g in plan["grids"].items()},
