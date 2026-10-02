@@ -895,6 +895,7 @@ class SimulateGuards(unittest.TestCase):
     def test_post_ruin_trades_fail_loud_even_without_a_ruin_stamp(self):
         fs = _fs()
         bt = mock.Mock()
+        bt._OPTS_BASE = {"min_rr": 2.5, "fx_b_exit": "-2.0|H|floor"}     # the simulate-time context is built from it (C1)
         bt.simulate.return_value = (1.0, [], [])
         bt.SIM_LAST = {"post_ruin": [{"symbol": "X"}], "ruin": None}
         with self.assertRaises(RuntimeError):
@@ -1420,6 +1421,7 @@ class MergeTimeGuards(_Helpers):
 
     def test_checked_simulate_refuses_an_overlay_without_flat_before_rollover(self):
         bt = mock.Mock()
+        bt._OPTS_BASE = {"min_rr": 2.5, "fx_b_exit": "-2.0|H|floor"}     # the simulate-time context is built from it (C1)
         bt.simulate.return_value = (1.0, [], [])
         bt.SIM_LAST = {}
         with self.assertRaises(SystemExit):

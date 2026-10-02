@@ -794,12 +794,74 @@ def assert_flat_overlay(overlay):
                           "(no overnight holding is a FIXED rule, plan §6 item 7)")
 
 
+#: C1 (red-team 2026-10-02): the OPTS keys `bt.simulate()` (and every function it calls: planned_risk_refusal,
+#: _risk_scale, _account_stop, _venue_for_symbol, real_costs.*) reads from the MODULE-GLOBAL `OPTS` -- AUDITED by reading
+#: scripts/backtest-methods.py (`grep OPTS` over simulate and its callees) and PINNED by
+#: scripts/tests/test_simulate_time_opts.py, which re-derives the set from the source and fails if it changes:
+#:   * `min_rr`                   -- the planned-R:R admission floor (not a V item; ALLOWED_EXISTING_OPTS is only `mgmt`)
+#:   * `fx_admission_entry_cost`  -- O1, ON in every cell (ADOPTED_F_KEYS)
+#:   * `fx_b_exit`                -- only its 2R-FLOOR token ("floor" | "no_floor") is read at simulate time; the grid
+#:                                   (B-EXIT) declares only "...|floor" values, so the token is a fixed constant
+#: `mgmt` is NOT read by simulate(): it is read by `walk()` (scan time) and therefore travels with the scan overlay.
+#: simulate() is fold-independent, which `prop_pass` relies on (it pools trades of folds that chose different V values):
+#: it must run under the FIXED simulate-time set only, never under any one candidate's V overlay.
+SIMULATE_TIME_OPTS = ("min_rr", "fx_admission_entry_cost", "fx_b_exit")
+SIMULATE_FLOOR_TOKEN = "floor"
+
+
+def _floor_token(v):
+    parts = v.split("|") if isinstance(v, str) else []
+    return parts[2] if len(parts) == 3 else None
+
+
+def simulate_time_opts(bt, overlay=None):
+    """The OPTS dict `bt.simulate()` must run under: `dict(bt._OPTS_BASE, **fixed_opts())` -- the frozen engine baseline plus
+    the fixed fund rules, never the process-global OPTS (which is the v1 baseline unless a scan is running). Refuses
+    loudly when a candidate's V overlay tries to change a simulate-time key (a V key that became simulate-time would make
+    simulate() fold-dependent), or when the fixed set is not what the pre-registration says (O1 on, floor token 'floor')."""
+    sim = dict(bt._OPTS_BASE, **fixed_opts())
+    if sim.get("fx_admission_entry_cost") is not True:
+        raise GridRefused("fx_admission_entry_cost is not True in the simulate-time OPTS: O1 is a fixed fund rule "
+                          "(the harness would run the v1 exit-hour admission)")
+    if _floor_token(sim.get("fx_b_exit")) != SIMULATE_FLOOR_TOKEN:
+        raise GridRefused(f"simulate-time fx_b_exit={sim.get('fx_b_exit')!r}: the 2R-floor token must be "
+                          f"{SIMULATE_FLOOR_TOKEN!r} in every fund cell (owner 2026-09-30)")
+    if not isinstance(sim.get("min_rr"), (int, float)) or isinstance(sim.get("min_rr"), bool):
+        raise GridRefused(f"simulate-time min_rr={sim.get('min_rr')!r} is not a number")
+    for k, v in (overlay or {}).items():
+        if k not in SIMULATE_TIME_OPTS:
+            continue
+        if k == "fx_b_exit":
+            if _floor_token(v) != SIMULATE_FLOOR_TOKEN:
+                raise GridRefused(f"a V value sets fx_b_exit={v!r}: its 2R-floor token is read by simulate() and must "
+                                  f"be {SIMULATE_FLOOR_TOKEN!r} (a fold-dependent simulate-time key is refused)")
+        elif v != sim[k]:
+            raise GridRefused(f"the candidate overlay sets simulate-time OPTS key {k!r}={v!r} (fixed: {sim[k]!r}): a V "
+                              f"key may never become simulate-time -- prop_pass pools trades of different folds")
+    return sim
+
+
+@contextlib.contextmanager
+def simulate_context(bt, overlay=None):
+    """Run `bt.simulate()` under `simulate_time_opts` and restore the module OPTS afterwards (exception-safe)."""
+    sim = simulate_time_opts(bt, overlay)
+    saved = bt.OPTS
+    bt.OPTS = sim
+    try:
+        yield sim
+    finally:
+        bt.OPTS = saved
+
+
 def checked_simulate(bt, trades, fee, *, overlay, **kw):
     """`bt.simulate` that FAILS LOUD when the run ended in ruin / dropped trades (I1), so a lost trade is never a
     silent outcome, and when the candidate's overlay does not have flat_before_rollover on (round 2, item 5b).
+    It runs under `simulate_context` (C1): simulate() reads the module-global OPTS, which is NOT the candidate's
+    overlay (that only reaches `bt.scan(opts=...)`), so without this the harness simulated with the v1 admission.
     Returns simulate's own (equity, curve, taken)."""
     assert_flat_overlay(overlay)
-    out = bt.simulate(trades, fee, **kw)
+    with simulate_context(bt, overlay):
+        out = bt.simulate(trades, fee, **kw)
     last = getattr(bt, "SIM_LAST", None) or {}
     post = last.get("post_ruin") or []
     if post or last.get("ruin") is not None:
@@ -1213,6 +1275,8 @@ class BtEngine:
         # it) and NOT entered; it is a counted `zero_risk` admission row. The rule is `bt.planned_risk_refusal`, the
         # SAME function simulate() applies, so both sides refuse exactly the same candidates (asserted below).
         rows = []
+        # the admission cost the SIMULATE-TIME opts apply (O1: entry-hour, no swap) -- not the exit-hour cost v1 charged
+        adm_entry_only = simulate_time_opts(self.bt, overlay)["fx_admission_entry_cost"]
         for t in raw:
             why = self.bt.planned_risk_refusal(t.get("side"), t.get("entry"), t.get("stop"),
                                                _RC.tick_size(COST_PROFILE, t["symbol"]))
@@ -1220,7 +1284,8 @@ class BtEngine:
                 rows.append({"entry_time": t["entry_time"], "zero_risk": why})
                 continue
             rows.append({"entry_time": t["entry_time"], "R_planned": t.get("R_planned", 99),
-                         "fee_R": _RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"],
+                         "fee_R": _RC.cost_r(t["entry"], t["stop"], t["entry_time"],
+                                             t["entry_time"] if adm_entry_only else t["exit_time"], t["symbol"],
                                              t["side"], COST_PROFILE)["total_R"]})
         self._admission[key] = rows
         taken = checked_simulate(self.bt, raw, 0.0, overlay=overlay, cost_profile=COST_PROFILE,
@@ -1284,6 +1349,10 @@ ADMISSION_LIMITATION = ("O1 DECIDED 2026-09-30: every fund cell runs with fx_adm
                         "admission subtracts only entry-knowable costs (entry-hour half-spread + an exit-leg half-spread "
                         "estimated at the entry hour, no swap); the reported net R still uses the real entry+exit costs. "
                         "Under v1 (key off) admission would include the EXIT-hour spread, a look-ahead against plan §37. "
+                        "ENFORCED IN THE HARNESS (C1, 2026-10-02): simulate() reads the module-global OPTS, not the scan "
+                        "overlay, so `checked_simulate` runs it under `simulate_context` = dict(bt._OPTS_BASE, **fixed_opts()) "
+                        "for BOTH trades_for and prop_pass (fixed simulate-time keys: min_rr, fx_admission_entry_cost, the "
+                        "fx_b_exit floor token); the admission rows below use the same entry-hour cost. "
                         "The refusal counts and near-floor margins are still disclosed here.")
 
 
