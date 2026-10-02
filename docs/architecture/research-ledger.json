@@ -172,5 +172,409 @@
    }
   ],
   "_no_untouched_period_exists": "There is currently NO period in `oos_untouched` or `final_holdout`. That is the honest state and it is stated rather than implied by an empty list: every span of history this repo holds has already been read by the runs that produced the live selection. A genuine OOS period has to be CARVED OUT and left alone before it can validate anything, and doing that is a decision about what the pilot trades, not a documentation change (§59)."
+ },
+ "fund_search": {
+  "plan_hash": "275763cb81b0518a2502a40b13c55205b6883bfb5213e1330861118ed70b7b7e",
+  "cell_count": 3,
+  "cells": [
+   "1m-metals",
+   "1m-indices",
+   "5m-metals"
+  ],
+  "family_size": 6,
+  "floor_confidence": 0.9833333333333333,
+  "family_members": [
+   "ict-1m-metals",
+   "wyckoff-1m-metals",
+   "ict-1m-indices",
+   "wyckoff-1m-indices",
+   "ict-5m-metals",
+   "wyckoff-5m-metals"
+  ],
+  "family_rule": "the multiple-testing family is the CANDIDATE PROCEDURES (cells x methods = 6): grid values are not hypotheses (the nested walk-forward handles value selection); per-candidate primary bound = MIN of five one-sided bounds (iid t, CR1 by UTC date / 30-day window / calendar quarter / half-year), i.e. candidate p = MAX of the five one-sided p-values; floor confidence 1 - FAMILY_ALPHA/6 for every candidate; Holm step-down at FWER FAMILY_ALPHA over the six candidates at report time (a candidate with the k-th smallest p is rejected iff p_(k) <= FAMILY_ALPHA/(6-k+1) and every smaller p was rejected; NOT RUN and insufficient candidates enter with p = 1); the verdict rests on the floor test, so a candidate that fails the floor is never a PASS",
+  "excluded_cells": [],
+  "code": {
+   "scripts/fund_stats.py": {
+    "git_sha": "b92c79bce259293e7e75a91f56de2a0c14f5d00d",
+    "dirty": false
+   },
+   "scripts/fund-search.py": {
+    "git_sha": "b92c79bce259293e7e75a91f56de2a0c14f5d00d",
+    "dirty": false
+   },
+   "scripts/prop-search.py": {
+    "git_sha": "6aa7eb1a275d37e3b8ae29581371dfa3be3b2f48",
+    "dirty": false
+   },
+   "scripts/backtest-methods.py": {
+    "git_sha": "976fda461a5197e9d237d6568114eb1364455eb4",
+    "dirty": false
+   },
+   "scripts/real_costs.py": {
+    "git_sha": "840b8bb8e96133d04f7c65045f5bc89671a07dbd",
+    "dirty": false
+   },
+   "scripts/performance.py": {
+    "git_sha": "4f5d1e0de288bc5735910dfcbc92c038391f5695",
+    "dirty": false
+   },
+   "scripts/mt5_time.py": {
+    "git_sha": "1597eb6e8d07c78aa87d59a58d22a595a2fa1ce3",
+    "dirty": false
+   },
+   "scripts/ict-scan.py": {
+    "git_sha": "85bbc08e739d737e481f00524f990fa586399e6c",
+    "dirty": false
+   },
+   "scripts/wyckoff_rules.py": {
+    "git_sha": "26beb46d4f0994e2d9f960952ff648d424f6a00d",
+    "dirty": false
+   },
+   "scripts/live_rules.py": {
+    "git_sha": "0b723b2e74263221fbb3fdbcd508f6908a1108fd",
+    "dirty": false
+   },
+   "scripts/scan_many.py": {
+    "git_sha": "976fda461a5197e9d237d6568114eb1364455eb4",
+    "dirty": false
+   },
+   "scripts/structures.py": {
+    "git_sha": "26beb46d4f0994e2d9f960952ff648d424f6a00d",
+    "dirty": false
+   },
+   "scripts/history_store.py": {
+    "git_sha": "2259eab335b663c6e22c923b631090bbcecc0129",
+    "dirty": false
+   },
+   "scripts/normalized.py": {
+    "git_sha": "2602924f15cc255412f65bea89ee0f5913991bd9",
+    "dirty": false
+   },
+   "scripts/pit.py": {
+    "git_sha": "3070e2ec04d951497e237cb4eb92bb684ca9dccb",
+    "dirty": false
+   },
+   "scripts/quality.py": {
+    "git_sha": "3070e2ec04d951497e237cb4eb92bb684ca9dccb",
+    "dirty": false
+   },
+   "scripts/research_validity.py": {
+    "git_sha": "3070e2ec04d951497e237cb4eb92bb684ca9dccb",
+    "dirty": false
+   },
+   "scripts/account_profile.py": {
+    "git_sha": "2b29c258bd605114e577fc56d04a5523d7da2dad",
+    "dirty": false
+   },
+   "scripts/trading_env.py": {
+    "git_sha": "3070e2ec04d951497e237cb4eb92bb684ca9dccb",
+    "dirty": false
+   },
+   "scripts/instruments.py": {
+    "git_sha": "6aa7eb1a275d37e3b8ae29581371dfa3be3b2f48",
+    "dirty": false
+   },
+   "scripts/event_risk.py": {
+    "git_sha": "3d4740fe8cbfc1d93be073b997a717b7cff1e54a",
+    "dirty": false
+   },
+   "scripts/isolated_pool.py": {
+    "git_sha": "db1e97cc5d24b462f543bc71b7bfede9c48182fc",
+    "dirty": false
+   },
+   "scripts/experiment.py": {
+    "git_sha": "3d4740fe8cbfc1d93be073b997a717b7cff1e54a",
+    "dirty": false
+   },
+   "scripts/sessions.py": {
+    "git_sha": "3070e2ec04d951497e237cb4eb92bb684ca9dccb",
+    "dirty": false
+   },
+   "scripts/methods.py": {
+    "git_sha": "3070e2ec04d951497e237cb4eb92bb684ca9dccb",
+    "dirty": false
+   },
+   "scripts/snapshot.py": {
+    "git_sha": "976fda461a5197e9d237d6568114eb1364455eb4",
+    "dirty": false
+   },
+   "scripts/trader_constraints.py": {
+    "git_sha": "3d4740fe8cbfc1d93be073b997a717b7cff1e54a",
+    "dirty": false
+   },
+   "scripts/providers.py": {
+    "git_sha": "3070e2ec04d951497e237cb4eb92bb684ca9dccb",
+    "dirty": false
+   },
+   "scripts/risk_model.py": {
+    "git_sha": "2b1cb0cdffc7c327d392a2fe8b11de59c3ebad2f",
+    "dirty": false
+   },
+   "scripts/trading_system.py": {
+    "git_sha": "ac4b29fde03556204f8d98aaefef57cbd6c5cb26",
+    "dirty": false
+   },
+   "scripts/scan_cache.py": {
+    "git_sha": "2259eab335b663c6e22c923b631090bbcecc0129",
+    "dirty": false
+   },
+   "scripts/research_ledger.py": {
+    "git_sha": "3070e2ec04d951497e237cb4eb92bb684ca9dccb",
+    "dirty": false
+   },
+   "scripts/repo_paths.py": {
+    "git_sha": "3d4740fe8cbfc1d93be073b997a717b7cff1e54a",
+    "dirty": false
+   },
+   "scripts/automation.py": {
+    "git_sha": "ac4b29fde03556204f8d98aaefef57cbd6c5cb26",
+    "dirty": false
+   },
+   "scripts/stability-report.py": {
+    "git_sha": "976fda461a5197e9d237d6568114eb1364455eb4",
+    "dirty": false
+   }
+  },
+  "evaluation_config": {
+   "stability_fraction": [
+    2,
+    3
+   ],
+   "block_days": 30,
+   "live_parity_sizing": {
+    "trades_for": false,
+    "prop_pass": true
+   },
+   "spread_stat": "median",
+   "prop_funds": [
+    "ftmo-challenge-phase1",
+    "the5ers-high-stakes-step1"
+   ],
+   "prop_horizon_days": 120,
+   "prop_pass_min": 0.7,
+   "verdict_precedence": "insufficient (any test fold < MIN_FOLD_TRADES, or fewer than MIN_TEST_FOLDS folds) overrides everything; otherwise pass only if EVERY check is ok (primary bound > 0 at the floor confidence 1 - 0.10/6, stability, frequency, D1-ADX regime split, ordinal perturbation, prop pass (unshifted, every fund), stress gate, minimum trading days), else fail; the prop pass with R shifted down by mean - bound is REPORT-ONLY and gates nothing. Holm's step-down over the six candidates is applied at report time and never turns a failing candidate into a pass",
+   "regime_split": "D1 ADX(14) (Wilder) of the last D1 bar whose CLOSE is at or before the entry time (close = max(open label + 24 h, next D1 open label); the entry day's forming bar is never read), from the symbol's own stored D1 series, point-in-time; split at the MEDIAN of the pooled TEST trades' values (<= median = low half, > median = high half); EACH half must hold at least 25 % of the pooled test trades (ties on one symbol-day ADX can leave a tiny half: 'regime halves unbalanced' fails the check); BOTH halves must have positive mean net R; a trade with no value fails the check",
+   "family": {
+    "size": 6,
+    "alpha": 0.1,
+    "floor_confidence": 0.9833333333333333,
+    "members": [
+     "ict-1m-metals",
+     "wyckoff-1m-metals",
+     "ict-1m-indices",
+     "wyckoff-1m-indices",
+     "ict-5m-metals",
+     "wyckoff-5m-metals"
+    ],
+    "rule": "the multiple-testing family is the CANDIDATE PROCEDURES (cells x methods = 6): grid values are not hypotheses (the nested walk-forward handles value selection); per-candidate primary bound = MIN of five one-sided bounds (iid t, CR1 by UTC date / 30-day window / calendar quarter / half-year), i.e. candidate p = MAX of the five one-sided p-values; floor confidence 1 - FAMILY_ALPHA/6 for every candidate; Holm step-down at FWER FAMILY_ALPHA over the six candidates at report time (a candidate with the k-th smallest p is rejected iff p_(k) <= FAMILY_ALPHA/(6-k+1) and every smaller p was rejected; NOT RUN and insufficient candidates enter with p = 1); the verdict rests on the floor test, so a candidate that fails the floor is never a PASS",
+    "grid_values_disclosed_not_in_family": {
+     "ict": 29,
+     "wyckoff": 16
+    }
+   },
+   "perturbation": {
+    "definition": "ORDINAL components only (PERTURBATION_AXES), ONE component at a time, the other components at the fold's chosen values; each (component, direction) neighbour pools the test trades of the moved value sets (an edge has no neighbour on that side; a fold whose chosen value is not on the component's order, e.g. the v1-typed W4a baseline, is not perturbed and is reported); a neighbour passes iff its pooled mean net R > 0 AND its primary bound > 0 at the floor confidence; every neighbour must pass; categorical items are flipped and REPORTED, never gated",
+    "axes": {
+     "B-BUF": [
+      {
+       "component": "stop_buffer",
+       "part": null,
+       "order": [
+        "0",
+        "0.1atr",
+        "0.25atr"
+       ]
+      }
+     ],
+     "B-EX": [
+      {
+       "component": "entry_model",
+       "part": null,
+       "order": [
+        "iofed",
+        "ce",
+        "fill"
+       ]
+      }
+     ],
+     "B-EXIT": [
+      {
+       "component": "target",
+       "part": 0,
+       "order": [
+        "-2.0",
+        "-2.25",
+        "-2.5"
+       ]
+      },
+      {
+       "component": "time_stop",
+       "part": 1,
+       "order": [
+        "H",
+        "1.5H",
+        "2H",
+        "none"
+       ]
+      }
+     ],
+     "B-LB": [
+      {
+       "component": "lookback",
+       "part": 0,
+       "order": [
+        "8",
+        "12",
+        "16"
+       ]
+      },
+      {
+       "component": "expiry",
+       "part": 1,
+       "order": [
+        "K",
+        "2K"
+       ]
+      }
+     ],
+     "W6": [
+      {
+       "component": "structure_window",
+       "part": null,
+       "order": [
+        300,
+        600
+       ]
+      }
+     ],
+     "W-TW": [
+      {
+       "component": "test_window",
+       "part": 0,
+       "order": [
+        8,
+        12,
+        20
+       ]
+      },
+      {
+       "component": "phase_b_swings",
+       "part": 1,
+       "order": [
+        2,
+        3
+       ]
+      }
+     ],
+     "W4a": [
+      {
+       "component": "linger_closes",
+       "part": null,
+       "order": [
+        3,
+        4
+       ]
+      }
+     ]
+    }
+   },
+   "stress": {
+    "definition": "pooled mean net R must stay > 0 on the SAME admitted trades re-priced with the p90 spread (price-scaled, relative-spread profile) on both legs and a commission stress margin of 0.003 % of notional per round turn charged as 0.00003 * entry / |entry - stop| in R (a stress margin, NOT an estimate of FTMO's commission); admission is NOT re-run under stress; the stressed bound is reported, the gate is on the mean only",
+    "spread_stat": "p90",
+    "commission_fraction": 3e-05
+   },
+   "prop_shift": "REPORT-ONLY (owner decision 2026-10-02; not a gate, not in the verdict): prop_pass_probability recomputed for every fund with every pooled test trade's net R shifted DOWN by (pooled mean - primary bound at the floor confidence); the admitted trade list, sizing and horizon are unchanged; the UNSHIFTED prop pass >= 0.70 for every fund remains a gate",
+   "mde_power": 0.8,
+   "min_trading_days": {
+    "definition": "for EVERY fund of the prop gate whose account profile declares `min_trading_days` (FTMO Challenge Phase 1: 4, read from docs/architecture/account-profiles.json at evaluation time; the profile records the figure as flagged for verification: 2024+ sources report 4, older sources 10), EVERY test fold must contain at least that many DISTINCT UTC calendar days on which a pooled test trade was INITIATED (entry day, the reading account_profile.objectives uses); a fund without the field (The5ers High Stakes Step 1: min_profitable_days instead) is not checked; an unreadable or malformed profile fails the check (fail closed). A fold is 365 days while the challenge horizon is 120 resampled active days, so this is a NECESSARY-condition proxy for the objective, not a replay of the challenge. Owner decision 2026-10-02: a tightening, harmless in practice because every fold needs >= MIN_FOLD_TRADES trades",
+    "declared_by_fund": {
+     "ftmo-challenge-phase1": 4,
+     "the5ers-high-stakes-step1": null
+    },
+    "source_profile_ids": [
+     "ftmo-challenge-phase1"
+    ],
+    "source_file": "docs/architecture/account-profiles.json",
+    "profile_note_flagged_for_verification": {
+     "ftmo-challenge-phase1": "2024+ sources report 4 minimum trading days for FTMO Challenge Phase 1; older sources report 10. 4 recorded, flagged for verification per _source (docs/plans/2026-09-18-close-feature-gaps.md §0.1)."
+    }
+   },
+   "ruin_handling": "bt.RUIN_FRAC = 0.0 on the harness's own bt instance; post_ruin trades fail loud",
+   "adopted_f_keys": [
+    "fx_b2a_fvg_in_leg",
+    "fx_b2b_ce_fail",
+    "fx_b1_pivot1",
+    "fx_braid_optional",
+    "fx_w1_tr_low_st",
+    "fx_w2_st_below_sc",
+    "fx_w3_mSOW_spring",
+    "fx_w5_vp_abandon",
+    "fx_w7_htf_target",
+    "fx_admission_entry_cost",
+    "fx_gap_fill"
+   ],
+   "embargo": {
+    "rule": "training trades need exit_label < test_start - 2 x H bars (H = bt.P[tf]['H']), on top of the one-bar purge; 'none' time stops are covered only by this same window",
+    "h_multiple": 2,
+    "minutes_by_timeframe": {
+     "1m": 288,
+     "5m": 1200,
+     "15m": 2880
+    }
+   },
+   "cost_profile": "ftmo_demo_2026_09_relspread",
+   "cost_profile_pin": {
+    "profile": "ftmo_demo_2026_09_relspread",
+    "spread_scaling": "relative_price_ref",
+    "price_ref": {
+     "DE40": 18528.03,
+     "FRA40": 7355.27,
+     "US30": 40115.3,
+     "US500": 5488.65,
+     "USTEC": 19391.85,
+     "XAGUSD": 29.733,
+     "XAUUSD": 2471.98,
+     "XPDUSD": 1239.78,
+     "XPTUSD": 987.96
+    },
+    "price_ref_provenance_sha256": "410ddebf1e1c33eb3a37b6900f4c387ebdea55b527fa0c02d379101c671923a8"
+   },
+   "min_rr": 2.5,
+   "grid_sha256": {
+    "ict": "c7a4d72e2745d94971e469bbc6c0a3f1c99cecfaf534f67214526aa35010cb43",
+    "wyckoff": "72a9ffa137703531799168941552e090b3c60415f474b53b13205a429b32621d"
+   },
+   "cells_sha256": "63a80a4455bbab8553ed4fec533ada5510d598aad3336c76de381938670dda00",
+   "dev_start_by_cell": {
+    "1m-metals": null,
+    "1m-indices": "2020-03-01T00:00:00Z",
+    "5m-metals": "2015-01-07T00:00:00Z"
+   },
+   "span_warmup_days": 14
+  },
+  "repo_pins": {
+   "head": "ec7c64f51c46a1947463e03a620fe0a436200e33",
+   "trees": {
+    "scripts": "a351997c44af4b714a2ff3424271eb6897a52359",
+    "docs/architecture": "ls-tree-sha256:f055a32450aec5be6b5b4b1b43ffe3727f0743ecd5c8d9c88bda759cbc6587b2",
+    "data/history/costs/ftmo": "6972b142f442a0b70c2d149754e0d68a8881b638",
+    "data/history/ftmo": "adf6e2ac724aac2fbbd19b4f9f976bb488d78ade"
+   },
+   "tree_note": "docs/architecture is pinned without research-ledger.json (it holds the declaration itself)"
+  },
+  "runtime": {
+   "python": "3.14.5",
+   "implementation": "CPython",
+   "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+   "machine": "arm64"
+  },
+  "source": "docs/plans/2026-09-28-methodology-improvement-plan.md §6 items 2, 7",
+  "declared_at": "2026-10-02T13:12:47Z",
+  "runner_benchmark": {
+   "recorded": true,
+   "layout_factor": 3.0,
+   "sha256": "e99f2d3d8cb82d9ee67749c63c6dc140ac6bbbeb51400a71fa758acf598588bd",
+   "note": ""
+  }
  }
 }
