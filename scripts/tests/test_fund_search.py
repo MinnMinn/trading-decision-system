@@ -2279,7 +2279,7 @@ class DeclaredCells(_Tmp):
         core = {k: v for k, v in plan.items() if k in ("cells", "cells_file", "excluded_cells", "grids", "candidates",
                                                        "family", "cost_profile", "cost_profile_pin", "dev_cutoff",
                                                        "adopted_f_keys", "perturbation_axes",
-                                                       "embargo", "constants")}
+                                                       "embargo", "constants", "prop_policy")}
         self.assertEqual(self.fs._hash(core), plan["plan_hash"])            # cells_file is inside what is hashed
         core.pop("cells_file")
         self.assertNotEqual(self.fs._hash(core), plan["plan_hash"])
