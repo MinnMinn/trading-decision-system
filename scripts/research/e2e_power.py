@@ -369,7 +369,7 @@ def eval_full(world, d):
     pooled = d["trades"]
     lb = FS.robust_lower_bound(pooled, CONF)
     perturbs = world.neighbours(d)
-    prop = prop_rows(pooled)
+    prop = prop_rows(pooled, weekdays=FS.test_weekdays([x["fold"] for x in d["fold_results"]]))     # D4, as eval_lazy
     r = FS.evaluate_cell(d["fold_results"], perturbs, world.syms, FAMILY, prop, stress=world.stress_trades(d),
                          min_days_required=fund_search_mod().min_trading_days_required())
     return {"verdict": r["verdict"], "failed": list(r["failed_checks"]), "floor_ok": r["checks"]["lower_bound_positive"]["ok"],
