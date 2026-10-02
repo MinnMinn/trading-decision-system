@@ -2063,7 +2063,7 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
     r.set("robustness_results", {"regime_split": result["checks"]["regime_split"],
                                  "perturbation": result["checks"]["perturbation"],
                                  "stress": result["checks"]["stress"],
-                                 "prop_pass_shifted": result["checks"]["prop_pass_shifted"],
+                                 "prop_pass_shifted_REPORT_ONLY": (result.get("report_only") or {}).get("prop_pass_shifted"),
                                  "min_trading_days": result["checks"]["min_trading_days"],
                                  "categorical_flips": result.get("categorical_flips")})
     try:
@@ -2815,12 +2815,16 @@ def report_candidate_lines(ev):
                  f"{st['commission_fraction'] * 100:.3f} % commission stress margin, a margin NOT an estimate): pooled mean net R "
                  f"{_fmt(st['mean_R_stressed'])} (gate: > 0); stressed primary bound {_fmt(st['stressed_primary_bound'])} "
                  f"(reported, not gated).")
-    sh = ev["checks"].get("prop_pass_shifted") or {}
+    sh = (ev.get("report_only") or {}).get("prop_pass_shifted") or {}
     if sh.get("shift_R") is not None:
         pps = sh.get("funds") or {}
-        L.append(f"prop_pass_probability with R shifted down by {sh['shift_R']:.4f} R (mean - primary bound): "
+        L.append(f"prop_pass_probability with R shifted down by {sh['shift_R']:.4f} R (mean - primary bound) -- REPORT-ONLY, "
+                 f"not a gate (owner decision 2026-10-02): "
                  + "; ".join(f"{f} {row['status']}" + (f" ({_fmt(row['value'], '.2f')})" if row.get("value") is not None else "")
                              for f, row in pps.items()) + ".")
+    elif sh:
+        L.append("prop_pass_probability with R shifted down by (mean - primary bound) -- REPORT-ONLY, not a gate: not computable "
+                 f"({sh.get('reason')}).")
     md = ev["checks"].get("min_trading_days") or {}
     if md:
         L.append("Minimum trading days (distinct UTC entry days per test fold; funds checked: "
@@ -2987,6 +2991,11 @@ def report_placebo_lines(ev):
     return L
 
 
+#: Owner decision 2026-10-02 (disclosure, REPORT-ONLY text; it changes no verdict): printed on every 1m-indices PASS.
+INDICES_SHORT_SPAN_LABEL = ("**1m-indices SHORT SPAN:** the test span is 2022-03..2024-03 (2 folds, one bear and one bull year); "
+                            "a PASS here says '2022-24 behaviour'.")
+
+
 def report_statement_lines(plan, recs):
     """Section C items 6-9: placebo, overlap, scope, window statements and the build."""
     b = build_id()
@@ -2996,7 +3005,7 @@ def report_statement_lines(plan, recs):
     L = ["## Statements (section C of the pre-registration)", "",
          f"- **Build:** git `{(b['git_sha'] or 'unavailable')[:12]}`, pinned tree dirty = {b['scoped_dirty']}. This build implements "
          f"family A (six candidates, Holm at report time), the ordinal perturbation, the D1-ADX regime split, the stress gate, "
-         f"the shifted prop pass and section C items 1-9 (the placebo included).",
+         f"the shifted prop pass as a REPORT-ONLY figure (not a gate) and section C items 1-9 (the placebo included).",
          f"- **Placebo (section C item 6, REPORT-ONLY; build `{(b['git_sha'] or 'unavailable')[:12]}`):** implemented. Per candidate "
          f"(below) one random entry per real test trade on the same symbol, UTC hour and fold, side 50/50, same stop distance and "
          f"R_planned, run through the same walk, costs and fills; pinned seed `{FS.PLACEBO_SEED}`, derived per real trade so the "
@@ -3008,6 +3017,8 @@ def report_statement_lines(plan, recs):
         spans = {c["id"]: c["development_start"] for c in plan["cells"] if c["id"] in ("1m-metals", "5m-metals")}
         L.append(f"- **Overlap:** `1m-metals` and `5m-metals` share {shared} over the same calendar span up to "
                  f"{plan['dev_cutoff']} (development starts {spans}); a pass in both is NOT independent evidence.")
+    if "1m-indices" in cell_ids:
+        L.append(f"- **1m-indices short span (REPORT-ONLY label):** {INDICES_SHORT_SPAN_LABEL}")
     L += [f"- **Scope:** zero passes say nothing about the cells removed from the plan ({', '.join(removed) or 'none'}), about "
           f"other timeframes, symbols or methods, or about the live configuration; a pass says something only about its own "
           f"cell, method and the searched specification (deployment rule, item 11).",
@@ -3132,6 +3143,8 @@ def cmd_report(grid_dir=None):
     for r in recs:
         ev = r["metrics"]["evaluation"]
         L.append(f"### {r['experiment_id']}")
+        if (r.get("parameters") or {}).get("cell") == "1m-indices" and verdicts[r["experiment_id"]] == FS.PASS:
+            L += ["", INDICES_SHORT_SPAN_LABEL, ""]
         L += report_candidate_lines(ev)
         L.append("")
         L.append("| symbol | trades | mean net R |")

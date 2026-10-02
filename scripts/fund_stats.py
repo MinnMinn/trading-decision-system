@@ -26,8 +26,8 @@ WHAT IS COMPUTED, in the order the plan states it (§1.4):
    of total net R.
 5. Frequency: longest trade-to-trade gap on the pooled account <= MAX_GAP_DAYS in >= MIN_FOLD_SHARE_OK of folds.
 6. §45 checks: D1 ADX(14) median regime split, ORDINAL one-component-at-a-time perturbation (`PERTURBATION_AXES`),
-   prop_pass_probability (plain and with R shifted down by mean - bound), the stress gate (p90 spread + commission
-   margin on the same admitted trades).
+   prop_pass_probability (plain; the variant with R shifted down by mean - bound is REPORT-ONLY since 2026-10-02), the
+   stress gate (p90 spread + commission margin on the same admitted trades).
 7. Everything is reported per symbol (and per `volume_kind` when trades carry one).
 
 INTERPRETATION CHOICES the plan leaves open (each stated where it is used, and returned to the owner):
@@ -69,13 +69,16 @@ INSUFFICIENT, PASS, FAIL = "insufficient", "pass", "fail"
 #: The checks a verdict needs; `verdict_from` FAILS CLOSED when a stored record lacks one (a record sealed under an older
 #: code must not read as a PASS because a newer gate is simply absent).
 REQUIRED_CHECKS = ("folds_sufficient", "lower_bound_positive", "stability", "frequency", "regime_split",
-                   "perturbation", "prop_pass_probability", "prop_pass_shifted", "stress", "min_trading_days")
+                   "perturbation", "prop_pass_probability", "stress", "min_trading_days")
+#: Owner decision 2026-10-02: the SHIFTED prop pass is computed, recorded and reported (under `report_only`), never gated.
+REPORT_ONLY_CHECKS = ("prop_pass_shifted",)
 
 #: `verdict_from`'s rule, stated so it can be pre-registered and recorded in the ledger declaration (I4).
 VERDICT_PRECEDENCE = ("insufficient (any test fold < MIN_FOLD_TRADES, or fewer than MIN_TEST_FOLDS folds) "
                       "overrides everything; otherwise pass only if EVERY check is ok (primary bound > 0 at the floor "
                       "confidence 1 - 0.10/6, stability, frequency, D1-ADX regime split, ordinal perturbation, "
-                      "prop pass, prop pass with R shifted down by mean - bound, stress gate, minimum trading days), else fail. Holm's "
+                      "prop pass (unshifted, every fund), stress gate, minimum trading days), else fail; the prop pass with R shifted "
+                      "down by mean - bound is REPORT-ONLY and gates nothing. Holm's "
                       "step-down over the six candidates is applied at report time and never turns a failing "
                       "candidate into a pass")
 
@@ -115,9 +118,10 @@ STRESS_DEFINITION = ("pooled mean net R must stay > 0 on the SAME admitted trade
                      "notional per round turn charged as 0.00003 * entry / |entry - stop| in R (a stress margin, NOT an "
                      "estimate of FTMO's commission); admission is NOT re-run under stress; the stressed bound is reported, "
                      "the gate is on the mean only")
-PROP_SHIFT_DEFINITION = ("prop_pass_probability must ALSO be >= 0.70 for every fund with every pooled test trade's net R "
-                         "shifted DOWN by (pooled mean - primary bound at the floor confidence); the admitted trade list, "
-                         "sizing and horizon are unchanged; the unshifted requirement stays")
+PROP_SHIFT_DEFINITION = ("REPORT-ONLY (owner decision 2026-10-02; not a gate, not in the verdict): prop_pass_probability "
+                         "recomputed for every fund with every pooled test trade's net R shifted DOWN by (pooled mean - "
+                         "primary bound at the floor confidence); the admitted trade list, sizing and horizon are "
+                         "unchanged; the UNSHIFTED prop pass >= 0.70 for every fund remains a gate")
 MIN_TRADING_DAYS_DEFINITION = (
     "for EVERY fund of the prop gate whose account profile declares `min_trading_days` (FTMO Challenge Phase 1: 4, read from "
     "docs/architecture/account-profiles.json at evaluation time; the profile records the figure as flagged for verification: "
@@ -982,7 +986,7 @@ def verdict_from(checks):
         return INSUFFICIENT
     if any(k not in checks for k in REQUIRED_CHECKS):
         return FAIL
-    return PASS if all(c["ok"] for c in checks.values()) else FAIL
+    return PASS if all(checks[k]["ok"] for k in REQUIRED_CHECKS) else FAIL
 
 
 def check_prop_pass_shifted(prop_by_fund, shift_r):
@@ -991,9 +995,9 @@ def check_prop_pass_shifted(prop_by_fund, shift_r):
     if shift_r is None:
         return {"ok": False, "reason": "the primary bound is not computable, so the shift (mean - bound) is undefined "
                                        "(fail closed)", "shift_R": None, "definition": PROP_SHIFT_DEFINITION,
-                "threshold": PASS_PROB_MIN, "funds": {}}
+                "threshold": PASS_PROB_MIN, "funds": {}, "report_only": True}
     out = check_prop_pass(prop_by_fund)
-    out.update(shift_R=shift_r, definition=PROP_SHIFT_DEFINITION)
+    out.update(shift_R=shift_r, definition=PROP_SHIFT_DEFINITION, report_only=True)
     return out
 
 
@@ -1082,12 +1086,11 @@ def check_margins(checks):
     if md:
         rows.append(_margin("min_trading_days", "fewest distinct UTC entry days in any test fold",
                             md.get("fewest_entry_days"), md.get("required"), "days"))
-    for name in ("prop_pass_probability", "prop_pass_shifted"):
-        pp = checks.get(name) or {}
-        if pp:
-            vs = [r.get("value") for r in (pp.get("funds") or {}).values()]
-            rows.append(_margin(name, "lowest prop_pass_probability over the funds",
-                                None if not vs or any(v is None for v in vs) else min(vs), PASS_PROB_MIN, "probability"))
+    pp = checks.get("prop_pass_probability") or {}
+    if pp:
+        vs = [r.get("value") for r in (pp.get("funds") or {}).values()]
+        rows.append(_margin("prop_pass_probability", "lowest prop_pass_probability over the funds",
+                            None if not vs or any(v is None for v in vs) else min(vs), PASS_PROB_MIN, "probability"))
     return rows
 
 
@@ -1112,12 +1115,12 @@ def evaluate_cell(fold_results, perturbations, symbols, family_size, prop_by_fun
         "regime_split": check_regime_split(pooled),
         "perturbation": check_perturbation(perturbations, conf, skips),
         "prop_pass_probability": check_prop_pass(prop_by_fund),
-        "prop_pass_shifted": check_prop_pass_shifted(prop_shifted, shift_r),
         "stress": check_stress(stress, conf),
         "min_trading_days": check_min_trading_days(fold_results, min_days_required),
     }
     verdict = verdict_from(checks)
-    return {"verdict": verdict, "family_size": family_size, "confidence": conf, "primary": primary,
+    report_only = {"prop_pass_shifted": check_prop_pass_shifted(prop_shifted, shift_r)}     # REPORT-ONLY (2026-10-02)
+    return {"verdict": verdict, "report_only": report_only, "family_size": family_size, "confidence": conf, "primary": primary,
             "failed_checks": [k for k, c in checks.items() if not c["ok"]],
             "pooled": {"n_trades": len(pooled), "mean_R": mean([t["net_R"] for t in pooled])},
             "per_symbol": per_symbol(pooled, symbols),

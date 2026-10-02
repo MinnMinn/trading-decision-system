@@ -398,22 +398,60 @@ class EndToEndVerdicts(unittest.TestCase):
         self.assertFalse(ev["checks"]["stress"]["ok"])
         self.assertEqual(ev["verdict"], FS.FAIL)
 
-    def test_the_shifted_prop_pass_is_evaluated_with_mean_minus_bound_and_can_fail_alone(self):
+    def test_the_shifted_prop_pass_is_report_only_computed_with_mean_minus_bound_and_gates_nothing(self):
         eng = SynthEngine(mean=0.6, prop={"f": 0.9}, prop_shifted={"f": 0.5})
         ev = self._run(eng)
-        sh = ev["checks"]["prop_pass_shifted"]
+        sh = ev["report_only"]["prop_pass_shifted"]
         pr = ev["primary"]
+        self.assertNotIn("prop_pass_shifted", ev["checks"])             # owner decision 2026-10-02: not a check
         self.assertAlmostEqual(sh["shift_R"], pr["mean"] - pr["primary_bound"], places=12)
         self.assertGreater(sh["shift_R"], 0)
-        self.assertEqual(eng.shifts[0], 0.0)                            # the unshifted requirement stays, first
-        self.assertAlmostEqual(eng.shifts[1], sh["shift_R"], places=12)
+        self.assertTrue(sh["report_only"])
+        self.assertEqual(eng.shifts[0], 0.0)                            # the unshifted gate is evaluated, first
+        self.assertAlmostEqual(eng.shifts[1], sh["shift_R"], places=12)  # the shifted figure is still computed
         self.assertTrue(ev["checks"]["prop_pass_probability"]["ok"])
-        self.assertFalse(sh["ok"])
-        self.assertEqual(ev["failed_checks"], ["prop_pass_shifted"])
+        self.assertFalse(sh["ok"])                                      # it would have failed ...
+        self.assertEqual(ev["failed_checks"], [])                       # ... and it fails nothing
+        self.assertEqual(ev["verdict"], FS.PASS)
+
+    def test_the_unshifted_prop_pass_still_gates_when_the_shifted_one_is_fine(self):
+        ev = self._run(SynthEngine(mean=0.6, prop={"f": 0.5}, prop_shifted={"f": 0.9}))
+        self.assertEqual(ev["failed_checks"], ["prop_pass_probability"])
         self.assertEqual(ev["verdict"], FS.FAIL)
 
-    def test_no_shift_without_a_bound_fails_closed(self):
-        self.assertFalse(FS.check_prop_pass_shifted({"f": 0.99}, None)["ok"])
+    def test_required_checks_are_exactly_the_final_conjunction_and_exclude_the_shifted_prop_pass(self):
+        self.assertEqual(FS.REQUIRED_CHECKS, ("folds_sufficient", "lower_bound_positive", "stability", "frequency",
+                                              "regime_split", "perturbation", "prop_pass_probability", "stress",
+                                              "min_trading_days"))
+        self.assertNotIn("prop_pass_shifted", FS.REQUIRED_CHECKS)
+        self.assertEqual(FS.REPORT_ONLY_CHECKS, ("prop_pass_shifted",))
+        self.assertIn("REPORT-ONLY", FS.VERDICT_PRECEDENCE)
+        self.assertIn("REPORT-ONLY", FS.PROP_SHIFT_DEFINITION)
+
+    def test_a_record_lacking_the_shifted_check_still_passes_and_one_lacking_the_unshifted_prop_check_fails_closed(self):
+        ev = self._run(SynthEngine(mean=0.6))
+        checks = copy.deepcopy(ev["checks"])
+        self.assertNotIn("prop_pass_shifted", checks)
+        self.assertEqual(FS.verdict_from(checks), FS.PASS)
+        old = dict(checks, prop_pass_shifted={"ok": False})             # an older record carrying a failing shifted check
+        self.assertEqual(FS.verdict_from(old), FS.PASS)                 # is not gated by it
+        del checks["prop_pass_probability"]
+        self.assertEqual(FS.verdict_from(checks), FS.FAIL)
+
+    def test_mutation_making_the_shifted_check_required_again_is_caught(self):
+        ev = self._run(SynthEngine(mean=0.6, prop={"f": 0.9}, prop_shifted={"f": 0.5}))
+        checks = dict(ev["checks"], prop_pass_shifted=ev["report_only"]["prop_pass_shifted"])
+        self.assertEqual(FS.verdict_from(checks), FS.PASS)
+        with mock.patch.object(FS, "REQUIRED_CHECKS", FS.REQUIRED_CHECKS + ("prop_pass_shifted",)):
+            self.assertEqual(FS.verdict_from(checks), FS.FAIL)          # the mutation flips the verdict ...
+            self.assertNotEqual(FS.REQUIRED_CHECKS, ("folds_sufficient", "lower_bound_positive", "stability", "frequency",
+                                                     "regime_split", "perturbation", "prop_pass_probability", "stress",
+                                                     "min_trading_days"))    # ... and the pinned-tuple test would fail
+
+    def test_no_shift_without_a_bound_is_reported_as_not_computable(self):
+        r = FS.check_prop_pass_shifted({"f": 0.99}, None)
+        self.assertFalse(r["ok"])
+        self.assertTrue(r["report_only"])
 
     def test_every_check_has_a_margin_row_and_a_pass_lists_them_all(self):
         ev = self._run(SynthEngine(mean=0.6))
@@ -587,7 +625,7 @@ class MinTradingDays(unittest.TestCase):
 
     def test_it_is_a_required_check_and_a_record_without_it_cannot_pass(self):
         self.assertIn("min_trading_days", FS.REQUIRED_CHECKS)
-        self.assertEqual(len(FS.REQUIRED_CHECKS), 10)
+        self.assertEqual(len(FS.REQUIRED_CHECKS), 9)
         ev = self._evaluate({self.FTMO: 4})
         checks = copy.deepcopy(ev["checks"])
         self.assertEqual(FS.verdict_from(checks), FS.PASS)
@@ -4362,6 +4400,15 @@ class ReportAndLedger(_Tmp):
             X.write(types.MappingProxyType(dict(rec)), store=self.records)
         return plan
 
+    def test_1m_indices_short_span_label_is_in_the_statements_only_when_the_cell_is_planned(self):
+        self.assertIn("2022-03..2024-03", self.fs.INDICES_SHORT_SPAN_LABEL)
+        self.assertIn("2022-24 behaviour", self.fs.INDICES_SHORT_SPAN_LABEL)
+        base = {"cells": [{"id": "1m-indices", "symbols": ["US500"], "development_start": "2020-03-01"}],
+                "cells_file": {"removed_cells": []}, "dev_cutoff": "2024-03-01T00:00:00Z", "prior_counts_disclosed": {}}
+        self.assertIn(self.fs.INDICES_SHORT_SPAN_LABEL, "\n".join(self.fs.report_statement_lines(base, [])))
+        other = dict(base, cells=[{"id": "5m-metals", "symbols": ["XAUUSD"], "development_start": None}])
+        self.assertNotIn(self.fs.INDICES_SHORT_SPAN_LABEL, "\n".join(self.fs.report_statement_lines(other, [])))
+
     def test_plan_core_family_and_dry_run(self):
         plan = self._plan()
         fam = plan["family"]
@@ -4423,6 +4470,7 @@ class ReportAndLedger(_Tmp):
         self.assertIn("Categorical flips (REPORTED, never gated)", md)
         self.assertIn("Stress gate", md)
         self.assertIn("prop_pass_probability with R shifted down by", md)
+        self.assertIn("REPORT-ONLY, not a gate (owner decision 2026-10-02)", md)
         self.assertIn("NOMINATION for a separately pre-registered forward demo", md)
         self.assertIn("Placebo: no figure in this record", md)               # these stub engines offer no placebo: said, not omitted
         self.assertIn("NOT folded into the family", md)
