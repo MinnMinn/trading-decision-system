@@ -17,7 +17,7 @@
    "development_start": "2012-05-03T05:38:00Z",
    "span_source": "from data",
    "rationale": "Keeps its original data start (from data).",
-   "decision": "owner 2026-10-01 (chat): per-cell spans were offered, the 1m cells keep their original data start; kept by the cell-selection rule (e_min <= 2 x e_star, best ratio 0.87), owner 2026-10-01",
+   "decision": "owner 2026-10-01 (chat): per-cell spans were offered, the 1m cells keep their original data start; kept by the cell-selection rule (e_min <= 2 x e_star), owner 2026-10-01. Re-applied with the FINAL folds, the family confidence 1 - 0.10/6 and the calibrated monthly dispersion (docs/audits/2026-10-02-e2e-power.md section 8, table C7): best ratio 0.66 (ICT; Wyckoff 1.07), INCLUDED at every k and convention",
    "n_folds": 9,
    "frequency_rule": {
     "n_folds": 9,
@@ -50,7 +50,7 @@
    "development_start": "2020-03-01T00:00:00Z",
    "span_source": "declared",
    "rationale": "Starts 2020-03-01 (2 test folds), decided by the availability rule of draft section 0.3 extended to this cell (docs/audits/2026-10-02-dev-start-decision.md): the data start 2017-12-27 (4 folds) fails the dense-symbol condition in fold 1 (only US30 has dense 1m data before 2021-09; US500/USTEC/FRA40 have ~260 bars/year until 2021-09, DE40 is dense only from 2022-01).",
-   "decision": "owner 2026-10-01 (chat): per-cell spans were offered, the 1m cells keep their original data start; kept by the cell-selection rule (e_min <= 2 x e_star, best ratio 1.28), owner 2026-10-01. dev_start 2020-03-01 by the availability rule (outcome-free: admitted-trade counts and bar counts only), extended from 5m-metals to this cell by the coordinator 2026-10-02 after the engine census found sparse data, before any outcome was seen",
+   "decision": "owner 2026-10-01 (chat): per-cell spans were offered, the 1m cells keep their original data start; kept by the cell-selection rule (e_min <= 2 x e_star), owner 2026-10-01. Re-applied with the FINAL folds, the family confidence 1 - 0.10/6 and the calibrated monthly dispersion (docs/audits/2026-10-02-e2e-power.md section 8, table C7): best ratio 0.96 (ICT; Wyckoff 1.68), INCLUDED (only k = 1.5 under the rho-0.6 convention fails). dev_start 2020-03-01 by the availability rule (outcome-free: admitted-trade counts and bar counts only), extended from 5m-metals to this cell by the coordinator 2026-10-02 after the engine census found sparse data, before any outcome was seen",
    "n_folds": 2,
    "frequency_rule": {
     "n_folds": 2,
@@ -81,7 +81,7 @@
    "development_start": "2015-01-07T00:00:00Z",
    "span_source": "declared",
    "rationale": "Starts 2015-01-07 (7 test folds, all four symbols), decided by the availability rule of draft section 0.3 (docs/audits/2026-10-02-dev-start-decision.md): the earlier candidates 2004-06-11 (17 folds) and 2009-03-01 (13 folds) have P(every test fold >= 30 admitted trades) below 0.80 for at least one method under the availability-aware model.",
-   "decision": "owner 2026-10-01 (chat): a 2008-03-01 start (14 folds) was offered, the cell keeps its original data start (17 folds); symbols (owner 2026-10-01, symbol universe): XAUUSD XAGUSD + XPTUSD XPDUSD (XCUUSD excluded: history starts 2024-12-02, after the cutoff); kept by the cell-selection rule (e_min <= 2 x e_star, best ratio 1.26), owner 2026-10-01. dev_start 2015-01-07 by the availability rule (owner approved 2026-10-02): outcome-free, admitted-trade counts only",
+   "decision": "owner 2026-10-01 (chat): a 2008-03-01 start (14 folds) was offered, the cell keeps its original data start (17 folds); symbols (owner 2026-10-01, symbol universe): XAUUSD XAGUSD + XPTUSD XPDUSD (XCUUSD excluded: history starts 2024-12-02, after the cutoff); kept by the cell-selection rule (e_min <= 2 x e_star), owner 2026-10-01. Re-applied with the FINAL folds, the family confidence 1 - 0.10/6 and the calibrated monthly dispersion (docs/audits/2026-10-02-e2e-power.md section 8, table C7): best ratio 1.62 (Wyckoff; ICT 2.21), INCLUDED at k = 2 only through the Wyckoff candidate; NOT robust: it fails at k = 1.5 and under the rho-0.6 convention (2.44); at sigma 0.75 (uncalibrated) it would have been NOT SATISFIED (2.06). dev_start 2015-01-07 by the availability rule (owner approved 2026-10-02): outcome-free, admitted-trade counts only",
    "n_folds": 7,
    "frequency_rule": {
     "n_folds": 7,
@@ -94,7 +94,7 @@
  ],
  "cells_file": {
   "file": "docs/architecture/fund-search-cells.json",
-  "sha256": "6a55dbfcbe0d631a877fd5da04b47aa8514dfd3f62468bd475e9105463b12c34",
+  "sha256": "63a80a4455bbab8553ed4fec533ada5510d598aad3336c76de381938670dda00",
   "warmup_days": 14,
   "removed_cells": [
    {
@@ -457,6 +457,6 @@
   "real_cost_reprice_runs": 1,
   "min_rr_values_tried": 3
  },
- "plan_hash": "12331b40583a6bd3fdcf92a51a16a6341cb5c8c20e48ca5afe2da1b6edd7e63b",
- "generated_at": "2026-10-02T04:50:05Z"
+ "plan_hash": "275763cb81b0518a2502a40b13c55205b6883bfb5213e1330861118ed70b7b7e",
+ "generated_at": "2026-10-02T09:14:17Z"
 }
