@@ -1,0 +1,162 @@
+{
+ "5m-ict": {
+  "method": "ict",
+  "symbol": "XAUUSD",
+  "tf": "5m",
+  "dev_start": "2015-01-07T00:00:00Z",
+  "warmup_days": 14,
+  "series_bars_full": 1316783,
+  "series_bars_cut": 645095,
+  "span": {
+   "dev_start": "2015-01-07T00:00:00Z",
+   "warmup_days": 14,
+   "scan_start": "2014-12-24T00:00:00Z",
+   "lead_bars": 576
+  },
+  "trades_full_series_total": 1167,
+  "trades_full_series_from_dev_start": 496,
+  "trades_cut_run": 496,
+  "cut_trades_with_entry_before_dev_start": 0,
+  "sha256_full_from_dev_start_all_fields": "c3aa6900cbad85a1e3b902e595813fccab71a8c8097fd4ec0fef13f0943a613c",
+  "sha256_cut_run_all_fields": "c98221620410c71915426ad5ca2b08ad6b4184276fde16e8aaa1d402f332169d",
+  "identical_all_fields": false,
+  "start_dependent_fields_excluded": [
+   "exit",
+   "pnl"
+  ],
+  "sha256_full_from_dev_start": "17d2ee1b10173733ba48eacc99b995b620609c4b0c5dc007b49718433f619c73",
+  "sha256_cut_run": "17d2ee1b10173733ba48eacc99b995b620609c4b0c5dc007b49718433f619c73",
+  "identical": true,
+  "only_in_full": 0,
+  "only_in_cut": 0,
+  "same_key_different_fields": 0,
+  "first_difference_entry": null,
+  "first_difference_days_after_dev_start": null,
+  "differing_fields_outside_start_dependent": [],
+  "differing_fields_all": [
+   "exit",
+   "pnl"
+  ],
+  "seconds_full": 1512,
+  "seconds_cut": 673
+ },
+ "5m-wyckoff": {
+  "method": "wyckoff",
+  "symbol": "XAUUSD",
+  "tf": "5m",
+  "dev_start": "2015-01-07T00:00:00Z",
+  "warmup_days": 14,
+  "series_bars_full": 1316783,
+  "series_bars_cut": 645119,
+  "span": {
+   "dev_start": "2015-01-07T00:00:00Z",
+   "warmup_days": 14,
+   "scan_start": "2014-12-24T00:00:00Z",
+   "lead_bars": 600
+  },
+  "trades_full_series_total": 945,
+  "trades_full_series_from_dev_start": 447,
+  "trades_cut_run": 447,
+  "cut_trades_with_entry_before_dev_start": 0,
+  "sha256_full_from_dev_start_all_fields": "4d067680c368922a7779245779b46b049d425488ea1410f59f073a2cc52fd639",
+  "sha256_cut_run_all_fields": "c74d0729a0ea27bfb199676f04c0cd8b3f372171f26026fd63ec55aa66afc885",
+  "identical_all_fields": false,
+  "start_dependent_fields_excluded": [
+   "exit",
+   "pnl"
+  ],
+  "sha256_full_from_dev_start": "73a94caedbeb501d7c95e22c73066491b1addb209bd2904f0ae5b1cdb3ef2029",
+  "sha256_cut_run": "73a94caedbeb501d7c95e22c73066491b1addb209bd2904f0ae5b1cdb3ef2029",
+  "identical": true,
+  "only_in_full": 0,
+  "only_in_cut": 0,
+  "same_key_different_fields": 0,
+  "first_difference_entry": null,
+  "first_difference_days_after_dev_start": null,
+  "differing_fields_outside_start_dependent": [],
+  "differing_fields_all": [
+   "exit",
+   "pnl"
+  ],
+  "seconds_full": 444,
+  "seconds_cut": 224
+ },
+ "1m-ict": {
+  "method": "ict",
+  "symbol": "US500",
+  "tf": "1m",
+  "dev_start": "2020-03-01T00:00:00Z",
+  "warmup_days": 14,
+  "series_bars_full": 852695,
+  "series_bars_cut": 852505,
+  "span": {
+   "dev_start": "2020-03-01T00:00:00Z",
+   "warmup_days": 14,
+   "scan_start": "2020-02-16T00:00:00Z",
+   "lead_bars": 360
+  },
+  "trades_full_series_total": 896,
+  "trades_full_series_from_dev_start": 896,
+  "trades_cut_run": 896,
+  "cut_trades_with_entry_before_dev_start": 0,
+  "sha256_full_from_dev_start_all_fields": "222e1bf374104e2c064c7d1e5276b304f525cfebad23f2d2fdb654a95735beb3",
+  "sha256_cut_run_all_fields": "6e49b9da0bc579d2ae2073b5849baf43765a02642d09a9bfa1df4f040b1111a6",
+  "identical_all_fields": false,
+  "start_dependent_fields_excluded": [
+   "exit",
+   "pnl"
+  ],
+  "sha256_full_from_dev_start": "6fbbb686f010e3f1a6fbaf7e9bca6a910243998897542509bb017c66c5abbe78",
+  "sha256_cut_run": "6fbbb686f010e3f1a6fbaf7e9bca6a910243998897542509bb017c66c5abbe78",
+  "identical": true,
+  "only_in_full": 0,
+  "only_in_cut": 0,
+  "same_key_different_fields": 0,
+  "first_difference_entry": null,
+  "first_difference_days_after_dev_start": null,
+  "differing_fields_outside_start_dependent": [],
+  "differing_fields_all": [
+   "exit"
+  ],
+  "seconds_full": 591,
+  "seconds_cut": 573
+ },
+ "1m-wyckoff": {
+  "method": "wyckoff",
+  "symbol": "US500",
+  "tf": "1m",
+  "dev_start": "2020-03-01T00:00:00Z",
+  "warmup_days": 14,
+  "series_bars_full": 852695,
+  "series_bars_cut": 852695,
+  "span": {
+   "dev_start": "2020-03-01T00:00:00Z",
+   "warmup_days": 14,
+   "scan_start": "2020-02-16T00:00:00Z",
+   "lead_bars": 600
+  },
+  "trades_full_series_total": 564,
+  "trades_full_series_from_dev_start": 564,
+  "trades_cut_run": 564,
+  "cut_trades_with_entry_before_dev_start": 0,
+  "sha256_full_from_dev_start_all_fields": "c32a6e042e156e737aa6284f1acf3a766b1ca393c375fecf56fc011a3c32e78c",
+  "sha256_cut_run_all_fields": "c32a6e042e156e737aa6284f1acf3a766b1ca393c375fecf56fc011a3c32e78c",
+  "identical_all_fields": true,
+  "start_dependent_fields_excluded": [
+   "exit",
+   "pnl"
+  ],
+  "sha256_full_from_dev_start": "9e14669278e479418aebc94dc389d4fdb733fc858be180a55efc6da0178e8239",
+  "sha256_cut_run": "9e14669278e479418aebc94dc389d4fdb733fc858be180a55efc6da0178e8239",
+  "identical": true,
+  "only_in_full": 0,
+  "only_in_cut": 0,
+  "same_key_different_fields": 0,
+  "first_difference_entry": null,
+  "first_difference_days_after_dev_start": null,
+  "differing_fields_outside_start_dependent": [],
+  "differing_fields_all": [],
+  "seconds_full": 321,
+  "seconds_cut": 320
+ }
+}

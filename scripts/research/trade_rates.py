@@ -43,6 +43,14 @@ TFS = ("1m", "5m", "15m", "30m")
 METHODS = ("ict", "wyckoff")
 
 
+def slice_bounds(name):
+    """S1..S3 (b10) or 'Y<year>' = the calendar year (dev-start decision, docs/audits/2026-10-02-dev-start-decision.md)."""
+    if name in SLICES:
+        return SLICES[name]
+    y = int(name[1:])
+    return (f"{y}-01-01T00:00:00Z", f"{y + 1}-01-01T00:00:00Z")
+
+
 def _fs():
     spec = importlib.util.spec_from_file_location("fund_search", os.path.join(ROOT, "scripts", "fund-search.py"))
     mod = importlib.util.module_from_spec(spec)
@@ -59,7 +67,7 @@ def _shift(iso, days):
 def run_job(job):
     fs = _fs()
     method, sym, tf, sl = job["method"], job["symbol"], job["tf"], job["slice"]
-    start, end = SLICES[sl]
+    start, end = slice_bounds(sl)
     grids, _ = fs.load_grids()
     grid = grids[method].runnable()
     bt = fs._load_bt()
@@ -77,7 +85,10 @@ def run_job(job):
         i1 = bisect.bisect_left(times, _shift(end, FORWARD_DAYS))
         info["first_bar"], info["last_bar"] = times[0], times[-1]
         if i0 < 0 or times[0] > start:
-            info["no_data"] = True
+            if job.get("allow_partial"):      # first (partial) year of a symbol: scan from its first bar; a lower bound
+                info["partial"] = True
+            else:
+                info["no_data"] = True
             i0 = max(i0, 0)
         i1 = max(i1, i0 + 1)
         info["slice_bars"] = i1 - i0
@@ -92,7 +103,7 @@ def run_job(job):
     taken = eng.trades_for(grid.baseline())
     n = sum(1 for t in taken if start <= t["entry_time"] < end)
     return dict(job, status="OK", trades=n, bars=info["slice_bars"], seconds=round(time.time() - t0, 1),
-                workers=1, first_bar=info["first_bar"])
+                workers=1, first_bar=info["first_bar"], partial=bool(info.get("partial")))
 
 
 def all_jobs(symbols=None, tfs=None):
@@ -114,12 +125,31 @@ def _key(j):
     return (j["method"], j["symbol"], j["tf"], j["slice"])
 
 
-def drive(out, workers, timeout, only_tf=None, symbols=None, tfs=None):
+def year_jobs(census_path, cells):
+    """Calendar-year jobs (slice 'Y<year>') for every (method, symbol) of the given cells, from the symbol's first-bar year
+    through 2023 (dev-start decision). `census_path` = `scripts/research/dev_start_decision.py census` output."""
+    sys.path.insert(0, os.path.join(ROOT, "scripts", "research"))
+    import dev_start_decision as D
+    cen = json.load(open(census_path))
+    jobs = []
+    for cell in cells:
+        c = D.CELLS[cell]
+        for sym in c["symbols"]:
+            fb = cen[f"{sym}|{c['tf']}"]["first_bar"]
+            y0 = int(fb[:4]) + (1 if fb[5:10] == "12-31" else 0)
+            for y in range(y0, 2024):
+                for m in METHODS:
+                    jobs.append(dict(method=m, symbol=sym, tf=c["tf"], slice=f"Y{y}", allow_partial=True))
+    return jobs
+
+
+def drive(out, workers, timeout, only_tf=None, symbols=None, tfs=None, jobs=None):
     done = set()
     if os.path.exists(out):
         with open(out) as fh:
             done = {_key(json.loads(l)) for l in fh if l.strip()}
-    jobs = [j for j in all_jobs(symbols, tfs) if _key(j) not in done and (not only_tf or j["tf"] in only_tf)]
+    jobs = [j for j in (jobs if jobs is not None else all_jobs(symbols, tfs)) if _key(j) not in done
+            and (not only_tf or j["tf"] in only_tf)]
     order = {"1m": 0, "5m": 1, "15m": 2, "30m": 3}
     jobs.sort(key=lambda j: (order[j["tf"]], j["symbol"] not in METALS_ALL))   # heaviest first
     print(f"{len(jobs)} jobs, {workers} processes", flush=True)
@@ -281,6 +311,8 @@ def main(argv=None):
     r.add_argument("--tf", nargs="*")
     r.add_argument("--symbols", nargs="*", help="b16: restrict/extend the job set to these symbols (old or NEW_SYMBOLS)")
     r.add_argument("--tfs", nargs="*", help="b16: timeframes of the job set (default 1m 5m 15m 30m)")
+    r.add_argument("--year-cells", nargs="*", help="dev-start decision: calendar-year jobs for these cells (needs --census)")
+    r.add_argument("--census")
     j = sub.add_parser("job")
     j.add_argument("spec")
     a = ap.parse_args(argv)
@@ -291,7 +323,8 @@ def main(argv=None):
     elif a.cmd == "job":
         print(json.dumps(run_job(json.loads(a.spec))))
     else:
-        drive(a.out, a.workers, a.timeout, a.tf, a.symbols, a.tfs)
+        yj = year_jobs(a.census, a.year_cells) if a.year_cells else None
+        drive(a.out, a.workers, a.timeout, a.tf, a.symbols, a.tfs, yj)
 
 
 if __name__ == "__main__":

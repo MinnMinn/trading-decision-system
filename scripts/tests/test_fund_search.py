@@ -1835,10 +1835,16 @@ class DeclaredCells(_Tmp):
         self.assertNotIn("n_by_method", p)                                    # the per-method N 87 / 48 is replaced
         self.assertEqual(p["cells_file"]["sha256"], sha)
 
-    def test_the_committed_cells_keep_their_original_data_start_and_the_fold_counts_the_owner_listed(self):
+    def test_the_committed_cells_carry_the_dev_starts_decided_by_the_availability_rule(self):
+        """docs/audits/2026-10-02-dev-start-decision.md: 1m-metals keeps its data start (9 folds); 1m-indices starts
+        2020-03-01 (2 folds); 5m-metals starts 2015-01-07 (7 folds)."""
         p = self.fs.build_plan(REAL_ARCH, first_bar=self._first_bar)
-        self.assertEqual(self._folds(p), {"1m-metals": 9, "1m-indices": 4, "5m-metals": 17})
-        self.assertTrue(all(c["dev_start_override"] is None and c["span_source"] == "from data" for c in p["cells"]))
+        self.assertEqual(self._folds(p), {"1m-metals": 9, "1m-indices": 2, "5m-metals": 7})
+        by = {c["id"]: c for c in p["cells"]}
+        self.assertEqual({k: v["dev_start_override"] for k, v in by.items()},
+                         {"1m-metals": None, "1m-indices": "2020-03-01T00:00:00Z", "5m-metals": "2015-01-07T00:00:00Z"})
+        self.assertEqual({k: v["span_source"] for k, v in by.items()},
+                         {"1m-metals": "from data", "1m-indices": "declared", "5m-metals": "declared"})
 
     def test_the_fixture_is_a_six_cell_superset_of_the_committed_three_cells(self):
         """The fixture is test-local (wide cell list for late-start / override / shard tests); the three committed cells
@@ -2433,8 +2439,8 @@ class ShardLayout(_Helpers):
         self.assertEqual(self.fs.SHARD_MODEL["layout_factor"], 3.0)
         self.assertFalse([r["name"] for r in rows if r["over_cap"]])
         self.assertLessEqual(max(r["est_min"] for r in rows), self.fs.SHARD_MODEL["budget_s"] / 60)
-        self.assertEqual(len(rows), 289)
-        self.assertEqual((sum(1 for r in rows if r["wave"] == 1), sum(1 for r in rows if r["wave"] == 2)), (62, 227))
+        self.assertEqual(len(rows), 288)
+        self.assertEqual((sum(1 for r in rows if r["wave"] == 1), sum(1 for r in rows if r["wave"] == 2)), (62, 226))
 
     def test_the_wave2_tripwire_fires_only_beyond_ten_percent(self):
         w = self.fs.wave2_size_warning
@@ -3122,7 +3128,8 @@ class SymbolUniverse(_Tmp):
         # excluded: no pre-cutoff history (XCUUSD, DXY), cross-quoted metals, FX (no fx class), parked classes
         self.assertTrue({"XCUUSD", "DXY", "XAUEUR", "XAUAUD", "XAGEUR", "XAGAUD", "EURUSD", "USDJPY", "BTCUSD", "UKOIL",
                          "USOIL"}.isdisjoint(every))
-        self.assertTrue(all(c["dev_start"] is None for c in cells.values()))
+        self.assertEqual({k: c["dev_start"] for k, c in cells.items()},                # availability rule, 2026-10-02
+                         {"1m-metals": None, "1m-indices": "2020-03-01T00:00:00Z", "5m-metals": "2015-01-07T00:00:00Z"})
         self.assertEqual({c["asset_class"] for c in cells.values()}, {"metals", "indices"})
 
     def test_the_fixture_keeps_the_per_cell_symbol_lists_and_draws_on_the_whole_pinned_universe(self):
@@ -3141,7 +3148,8 @@ class SymbolUniverse(_Tmp):
             self.assertIn(sy, self.fs.FUND_SYMBOLS)
             self.assertIn(sy, I.analysis("cfd"))
             self.assertNotIn(sy, used)
-        first = lambda s, t: None if s in self.PARKED else "2017-12-27T23:00:00Z"
+        first = lambda s, t: (None if s in self.PARKED else
+                              "2004-06-11T04:15:00Z" if s in ("XAUUSD", "XAGUSD") else "2017-12-27T23:00:00Z")
         rep = self.fs.data_readiness(self.fs.load_cells_file(REAL_ARCH)[0], first, lambda s: (s not in self.PARKED, "x"))
         self.assertTrue(rep["ready"] and rep["complete"])
         p = self.fs.build_plan(REAL_ARCH, first_bar=first)
@@ -3358,9 +3366,11 @@ class DataReadiness(_Tmp):
         self.assertEqual([e["id"] for e in p["excluded_cells"]], ["1m-indices", "5m-indices", "15m-indices"])
         self.assertEqual(p["family"]["size"], 12)                           # the family counts the DECLARED cells, dropped ones included
         # the committed three-cell plan: the same late indices drop its one indices cell (1m-indices) from N
-        rc, txt = self._check(every_index_late, arch=REAL_ARCH)
+        # (5m-metals declares dev_start 2015-01-07 since 2026-10-02: its metals need a first bar at or before it)
+        real_late = lambda s, t: "2004-06-11T04:15:00Z" if s in ("XAUUSD", "XAGUSD") else every_index_late(s, t)
+        rc, txt = self._check(real_late, arch=REAL_ARCH)
         self.assertEqual(rc, 1)
-        with mock.patch.object(self.fs, "_first_bar", every_index_late):
+        with mock.patch.object(self.fs, "_first_bar", real_late):
             p = self.fs.build_plan(REAL_ARCH)
         self.assertEqual([e["id"] for e in p["excluded_cells"]], ["1m-indices"])
         self.assertEqual(p["family"]["size"], 6)
