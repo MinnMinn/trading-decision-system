@@ -12,7 +12,7 @@ file still contains an older number or sentence that conflicts with section 0 or
 
 **Implemented 2026-10-02 (branch `b20-stats-sealed`, "implementation of the sealed statistics", dated entry in
 docs/plans/2026-09-30-owner-decisions.md):** family A, the ordinal perturbation, the D1-ADX regime split, the stress gate, the shifted
-prop pass and the report obligations of section C (the placebo followed on `b28-report-obligations`, report-only; see section C) are now in
+prop pass (since demoted to REPORT-ONLY by the final decisions of 2026-10-02, section 0.4) and the report obligations of section C (the placebo followed on `b28-report-obligations`, report-only; see section C) are now in
 `scripts/fund_stats.py` and `scripts/fund-search.py`; the paragraphs "Implemented" under items A2, A5, A7 and A8 and the status
 paragraph of section C say how, and where the text left a choice, which reading was taken (the most conservative one).
 
@@ -88,6 +88,65 @@ condition in fold 1 (`docs/audits/2026-10-02-dev-start-decision.md`).
 A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) and must re-run
 `scripts/research/span_equivalence.py` for the cell (docs/plans/2026-09-30-owner-decisions.md, 2026-10-01 item 1).
 
+### 0.4 Final decisions of 2026-10-02 (owner, binding once sealed): the shifted prop pass is REPORT-ONLY
+
+**Decision (A).** The SHIFTED prop pass (every pooled test trade's net R shifted down by pooled mean minus primary bound at 0.98333, then
+prop_pass_probability >= 0.70 per fund) is no longer a condition of a PASS. It is still computed, recorded and printed ('REPORT-ONLY') with
+the shift and the values. No threshold changed and the shift definition is unchanged. The verdict is the conjunction of: the floor bound
+(min of five one-sided bounds > 0 at 0.98333), the insufficient guard, stability, frequency, the D1-ADX regime split (with the >= 25 % half guard),
+the ordinal perturbation (neighbour mean > 0 and neighbour bound > 0 at the floor), the stress mean > 0 (p90 spread + 0.003 % commission margin),
+the UNSHIFTED prop pass >= 0.70 for every fund, and min_trading_days (FTMO 4): `REQUIRED_CHECKS` has nine entries.
+
+**Reason.** The end-to-end power model (docs/audits/2026-10-02-e2e-power.md, sections 1, 5, 8) showed the shifted prop pass was the check that
+cost the power: it asks the lower BOUND, not the mean, to reach the prop-relevant edge e*, so it required an edge of about 1.35-3.3 x e* before a
+candidate passed with 80 % probability, and it was the leading failure at e80 in every candidate. The owner judged that a double penalty
+(the floor bound already guards the mean; the unshifted prop pass already guards the account outcome) and kept the shifted figure as information.
+
+**Numbers before and after** (PRIMARY model, calibrated sigma; before = the earlier conjunction with the shifted gate, section 8 of the audit; after = the final
+conjunction, section 9 of the audit): the whole-conjunction e80 (smallest edge on the 0.05 grid with 80 % pass probability) was 0.25 / 0.25 / 0.40 / 0.40 / 0.30 / 0.30 R
+(1m-metals ICT / Wyckoff, 1m-indices ICT / Wyckoff, 5m-metals ICT / Wyckoff) and is now 0.20 / 0.20 / 0.30 / 0.30 / 0.30 / 0.25; e80 / e* was
+1.35 / 1.83 / 1.36 / 1.67 / 3.34 / 3.07 and is now 1.08 / 1.46 / 1.02 / 1.25 / 3.34 / 2.56; P(PASS) at a true edge equal to its own e* was
+0.16 / 0.02 / 0.12 / 0.04 / 0.00 / 0.00 and is now 0.77 / 0.23 / 0.80 / 0.52 / 0.00 / 0.00; the expected number of the six candidates that pass if
+each sits at its own e* was 0.34 (0.27 under the uncalibrated sigma 0.75) and is now **2.31**. Type I error at a true edge of 0 is 0 of 3000 for every candidate
+(Wilson 95 % upper bound 0.0009, family level 0.0167), unchanged. P(PASS) at e80/2 is 0.00 / 0.03 / 0.01 / 0.01 / 0.07 / 0.03. The binding check at e80 is now the
+unshifted prop pass (1m ICT cells, 1m-indices Wyckoff), stress (1m-metals Wyckoff) or the perturbation (5m-metals); for 5m-metals e* is 0.09-0.10 R, so at e* the
+perturbation fails in 98-100 % of replications. The inclusion rule (k = 2, primary convention) is unchanged because e_min and e* do not depend on the conjunction: 1m-metals
+INCLUDED (best ratio 0.66), 1m-indices INCLUDED (0.96), 5m-metals INCLUDED (1.62, Wyckoff; ICT 2.21 alone does not satisfy it); sensitivity (k = 1.5 and the rho / rate conventions) in section C7 of the audit. Model limits: section 0.6 item 5.
+Source: docs/audits/2026-10-02-e2e-power.md section 9 (raw: docs/audits/2026-10-02-e2e-power-final.json).
+
+### 0.5 Pre-registered later stages (owner, 2026-10-02): exposed-window replay, then forward demo
+
+A PASS nominates; it does not validate (section 0.1). Two later stages are pre-registered NOW as sealed text, in this order:
+
+**(i) EXPOSED-WINDOW REPLAY.** Before any forward demo, each nominated (PASS) configuration (the deployment rule of item 11: the same selection
+re-run on the training data through 2024-03-01) is replayed once on the EXPOSED window 2024-03-01 -> the latest available data, labelled
+EXPOSED per plan section 4 (historical windows serve only as disclosed, exposed checks, never as validation). Gate: pooled mean net R > 0 under the
+same costs and fills as the search. Reported, not gated: the unshifted prop_pass_probability per fund (>= 0.70 desired, not a gate), the per-year
+table and the placebo benchmark (section C). A failure of the gate ENDS that nomination: it does not go to the demo, and the failure is recorded in the ledger.
+
+**(ii) FORWARD DEMO (outline; its own later pre-registration).** A separately pre-registered demo whose primary purpose is a PAIRED EXECUTION
+COMPARISON: for every live signal, the realised fill, slippage, spread and commission versus the backtest replay of the SAME signal (implementation
+shortfall per trade), plus mean R > 0. Its length and trade target are stated in that later pre-registration, sealed before the first demo trade.
+**It cannot confirm a 0.70 pass probability within months** (a 120-day challenge outcome is one Bernoulli draw per resampled path; a demo of
+months yields a handful of independent paths), so it is an execution-and-sanity check, not a re-test of the prop pass.
+
+### 0.6 DISCLOSURES (what the owner and any reader must know before reading a PASS)
+
+1. **1m export cap.** The 1m exports are capped at 5,000,000 bars, counted back from the 2026 export. The 1m-metals start is therefore set by the cap, not by
+   the market: XAUUSD's first 1m bar is 2012-06-14T17:46Z and XAGUSD's is 2012-05-03T05:38Z, so the earliest 1m-metals folds are partly one-symbol (the stability
+   check there sees fewer symbols).
+2. **F-item adoption with outcomes visible.** The nine adopted F keys (`ADOPTED_F_KEYS`) were adopted after outcome reads on the development window were
+   available; this cannot be undone. The exposed-window replay (0.5 (i)) and the forward demo (0.5 (ii)) carry the burden of evidence for them.
+3. **1m-indices SHORT SPAN.** The test span is 2022-03..2024-03: 2 folds, one bear and one bull year. A PASS there says '2022-24 behaviour'. The report
+   prints this sentence on every 1m-indices PASS (`INDICES_SHORT_SPAN_LABEL`, report-only text; it changes no verdict).
+4. **Dependence.** 1m-metals and 5m-metals share symbols over the same calendar span; a pass in both is NOT independent evidence (the report states it).
+5. **Limits of the end-to-end power model.** Binary outcomes (win or lose a fixed R), no selection simulated (the nested walk-forward is not
+   simulated, so its power figures are an upper bound for the sealed procedure), tau (the outcome-side regime dispersion) unmeasured and kept at 0.03.
+6. **The commission margin is a stress allowance, not an estimate.** 0.003 % of notional per round turn is a margin; FTMO's commission is unknown.
+7. **FTMO minimum trading days = 4 is 'flagged for verification'** in the account profile (2024+ sources report 4, older sources 10).
+8. **News filter not modelled in the search.** The deployed configuration has the CLAUDE.md blackout ON; the search has none: a deployability gap.
+9. **Ask-side triggers are not modelled.** Entries and stops are evaluated on the recorded (bid) series with the recorded spread; triggers that fire on the ask side are not simulated.
+
 ## A. Choices to pre-register (items 1-13)
 
 1. **Fold geometry.** `TEST_FOLD_DAYS=365`, `MIN_TRAIN_DAYS=730`, `MIN_TEST_FOLDS=2`, `MIN_TRAIN_TRADES=30`.
@@ -113,7 +172,7 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
    whatever the other five do, and Holm only CONFIRMS that at report time (a candidate ranked k-th by p is judged at
    `0.10/(6-k+1)`, up to 0.10 for the last; it never lifts a floor failure to a pass). 0.98333 is also the confidence of the perturbation-neighbour bounds
    (item A5), of the upper confidence bound and the minimum detectable edge (section C) and of the prop-pass shift
-   (item A8). This REPLACES the per-method N (ICT 87 / Wyckoff 48, confidences 0.998851 / 0.997917) and any per-grid-value
+   (item A8; report-only since 2026-10-02). This REPLACES the per-method N (ICT 87 / Wyckoff 48, confidences 0.998851 / 0.997917) and any per-grid-value
    Bonferroni: the nested walk-forward already handles value selection (values chosen on the training window only, scored
    on the next test fold), so grid values are not hypotheses of the family; the number of grid values stays disclosed
    (`plan --dry-run`, `N per cell`). EVERY OTHER CHECK STAYS CONJUNCTIVE (stability, frequency, regime, perturbation,
@@ -194,19 +253,22 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
    PIT-truncated series are excluded (outcome unknown). prop_pass_probability >= 0.70 for EVERY fund in
    `prop-search.FUNDS` at the 120-day horizon, sized with `live_parity_sizing=True`; `unavailable` (with reason) is
    recorded as its own status and blocks a PASS like a numeric fail; when `low_confidence` is set the MINIMUM of
-   the bootstrap spread must also be >= 0.70. **Added 2026-10-02 (two more conjunctive conditions of a PASS):**
+   the bootstrap spread must also be >= 0.70. **Added 2026-10-02 (two more conditions of a PASS: (a) stands; (b) was DEMOTED to report-only by the final decisions of 2026-10-02, section 0.4):**
    (a) **stress gate:** the pooled mean net R must stay > 0 under the p90 spread (price-scaled) on BOTH legs plus the
    0.003 % commission margin (item O6) applied to the SAME admitted trades (no trade is added or removed by the stress);
-   (b) **shifted prop pass:** prop_pass_probability must also be >= 0.70 for every fund with every trade's R shifted DOWN
-   by `(pooled mean - primary lower bound at 0.98333)`, i.e. with the edge cut to what the bound can defend. The
-   admitted trade list, the sizing and the 120-day horizon are unchanged by the shift. **Implemented** (`b20-stats-sealed`):
+   (b) **shifted prop pass (DEMOTED to REPORT-ONLY, owner decision 2026-10-02, section 0.4; it is NOT a condition of a PASS):**
+   prop_pass_probability recomputed for every fund with every trade's R shifted DOWN by `(pooled mean - primary lower bound at
+   0.98333)`, i.e. with the edge cut to what the bound can defend. The admitted trade list, the sizing and the 120-day horizon are
+   unchanged by the shift. It is still computed, recorded (`metrics.evaluation.report_only.prop_pass_shifted`) and printed in the
+   report labelled REPORT-ONLY, with the shift and the values; the UNSHIFTED prop pass >= 0.70 for every fund stays a gate.
+   The text below that describes (b) as a gate is the original design, kept as history. **Implemented** (`b20-stats-sealed`):
    (a) `BtEngine.stress_trades` re-prices the pooled admitted trades with `real_costs.cost_r(..., spread_stat="p90")` (both legs,
    price-scaled by the relative-spread profile, swap unchanged) and subtracts `0.00003 * entry / |entry - stop|` R
    (`FS.stress_commission_r`); `net R = gross R - cost - margin`; the gate is `check_stress` (mean > 0; the stressed bound is
    reported); an engine that offers no stress pricing fails closed. (b) `BtEngine.prop_pass(pooled, r_shift)` subtracts the shift
    from every admitted trade's net R AFTER `simulate()` and before the bootstrap reads it (the shift is applied in the harness:
    `scripts/performance.py` and `scripts/prop-search.py` are untouched, so prop-search is byte-identical by construction); the
-   unshifted requirement is evaluated first and stays; a shift that cannot be computed (no bound) fails closed.
+   unshifted requirement is evaluated first and stays; a shift that cannot be computed (no bound) is reported as not computable (it gates nothing since the demotion).
    **(c) Minimum trading days (added 2026-10-02, owner confirmed 2026-10-02; a TIGHTENING, `FS.check_min_trading_days`, required
    check `min_trading_days`).** For EVERY fund of `prop-search.FUNDS` whose account profile declares `min_trading_days` (FTMO
    Challenge Phase 1: 4, read from `docs/architecture/account-profiles.json`; the profile records it as flagged for verification:
@@ -214,7 +276,7 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
    pooled test trade was INITIATED (the entry day, the reading `account_profile.objectives` uses for `trading_days`; several trades
    on one day count once). Funds without the field (The5ers High Stakes Step 1: `min_profitable_days` instead, a different rule) are
    not checked. An unreadable or malformed profile, an unreadable entry time or an empty fold list FAILS the check (fail closed); a
-   record lacking the check is a FAIL (`REQUIRED_CHECKS`, now ten). **It is a necessary-condition proxy, not a replay of the
+   record lacking the check is a FAIL (`REQUIRED_CHECKS`, now NINE after the shifted prop pass left the conjunction on 2026-10-02). **It is a necessary-condition proxy, not a replay of the
    challenge:** a test fold is 365 days while the challenge horizon is 120 resampled active days, so the count is taken over the
    whole fold, not over a simulated 120-day challenge. The record carries the per-fold day counts, the margin (fewest days in a fold
    minus the minimum) and the pinned definition (`evaluation_config.min_trading_days`: the definition text, the declared minimum per
@@ -281,7 +343,8 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
     engine-realism changes of the parallel step (their definitions live with that change, not here); (v) the
     zero-risk refusal of item 12; (vi) NO news filter in the search (the CLAUDE.md §24 blackout is not applied in
     the search; the deployed configuration has it ON). A PASS is evidence about the SEARCHED specification; the forward demo must run the deployed
-    one.
+    one. **The two later stages (exposed-window replay, then the forward demo) are pre-registered in section 0.5; the disclosures in
+    section 0.6.**
 
 12. **Planned-risk admission (zero-risk refusal; coordinator decision 2026-10-01, owner to ack before `declare`).** A
     candidate trade is REFUSED at admission, before any pricing, when its planned risk is not a valid stop distance:
