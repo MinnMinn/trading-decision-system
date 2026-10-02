@@ -176,3 +176,6 @@ now covers three components (`scripts/research/fvg_forward.py WATCH`); the demo 
 - F5 (27 tests, transfer to the research-only symbols): 0 survive. docs/audits/2026-10-02-edge-f5.md.
 - Read: FTMO has no time limit, so the baseline already meets "pass" in replay; speed now needs a new asset class (forex), which
   is an owner decision.
+- Pass-policy study (docs/audits/2026-10-02-pass-policy.md): base3 + G9 gold @1 % with the dd3 drawdown throttle beats the baseline
+  (funded <= 4 months 0.36 vs 0.23 on 2024+ starts; 0.13 vs 0.05 in the 50 %-haircut bootstrap; lower fail). Retry, a -2 % day
+  stop, G9 silver and staggered accounts do not help. Adoption in the demo = owner decision (G9 is paper-only).
