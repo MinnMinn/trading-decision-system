@@ -40,6 +40,7 @@ import datetime
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import re
 import sys
@@ -716,7 +717,11 @@ def runner_benchmark_status():
                         f"{repo_rel(RUNNER_BENCHMARK_PATH, ROOT)}. Run .github/workflows/fund-search-benchmark.yml, commit its "
                         f"JSON there and set SHARD_MODEL['layout_factor'] to its layout_factor BEFORE declaring "
                         f"(docs/audits/2026-10-01-shard-calibration.md section 6)."}
-    got = json.load(open(RUNNER_BENCHMARK_PATH, encoding="utf-8")).get("layout_factor")
+    doc = json.load(open(RUNNER_BENCHMARK_PATH, encoding="utf-8"))
+    # the layout factor is DERIVED from the measured per-job factors (worst job, rounded up to 0.25): the shards run with
+    # 4 workers, so the 4-worker jobs count (the artifact's own `layout_factor` field used the single-process rule only)
+    fs = [float(r["factor"]) for r in doc.get("factors", []) if r.get("status") == "OK" and r.get("factor")]
+    got = math.ceil(max(fs) / 0.25) * 0.25 if fs and doc.get("all_ok") else None
     ok = got == want
     return {"recorded": ok, "layout_factor": want, "sha256": _sha256_file(RUNNER_BENCHMARK_PATH),
             "note": "" if ok else f"the recorded benchmark says layout_factor {got} but SHARD_MODEL has {want:g}: make them equal"}
@@ -1645,8 +1650,10 @@ SHARD_MODEL = {
     "plan_job_min": 5,                    # the `plan` job in front of every wave
     "cache_entry_s": 0.05,                # fixed cost of one cache entry (open, hash)
     "select_s_per_fold": 1.0,             # the nested walk-forward replay per fold (measured < 0.1 s; 1 s kept as a margin)
-    "layout_factor": 2.0,                 # the slow-runner assumption the SLICE COUNTS are laid out for
-    "report_factors": (1.0, 1.5, 2.0),
+    "layout_factor": 3.0,                 # the slow-runner factor the SLICE COUNTS are laid out for: the hosted-runner benchmark of
+                                          # 2026-10-01 (docs/audits/2026-10-01-runner-benchmark.json) measured 1.57-2.84 over all jobs,
+                                          # the 4-worker jobs being the slowest (2.64-2.84: 4 vCPU = 2 cores), worst rounded up to 0.25
+    "report_factors": (1.0, 2.0, 3.0),
     "budget_s": 300 * 60,                 # no shard may be modelled above this at the layout factor (the job timeout is 355 min;
     "job_timeout_min": 355,               #  GitHub's hard cap is 360)
     "measured": ("group_s_per_bar", "extra_set_s_per_bar", "call_fixed_s", "w600_group_factor", "max_groups",
@@ -1903,7 +1910,7 @@ def shard_plan(plan, grid_dir=None, factor=None):
 
 def flat_shard_row(row):
     """A shard row for the CI matrix (`include: ${{ fromJSON(...) }}`): scalars only, so no job reads a nested object.
-    `est_min_by_factor` {"1": m, "1.5": m, "2": m} becomes `est_min_f1`, `est_min_f1_5`, `est_min_f2`."""
+    `est_min_by_factor` {"1": m, "2": m, "3": m} becomes `est_min_f1`, `est_min_f2`, `est_min_f3`."""
     out = {k: v for k, v in row.items() if k != "est_min_by_factor"}
     for f, minutes in row["est_min_by_factor"].items():
         out["est_min_f" + f.replace(".", "_")] = minutes

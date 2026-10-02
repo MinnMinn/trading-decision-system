@@ -58,11 +58,12 @@ def main(argv=None):
         print(f"{name:<30} runner {sec} s   reference {ref} s   factor {rows[-1]['factor']}", flush=True)
     fs = [r["factor"] for r in rows if r["factor"]]
     one = [r["factor"] for r in rows if r["job"].endswith("1worker") and r["factor"]]
-    # the layout factor: the WORST single-process factor, rounded UP to the next 0.25 (a slower runner needs the smaller shards)
-    lay = math.ceil(max(one) * 4) / 4 if one and len(one) == 2 else None
+    # the layout factor: the WORST factor over ALL jobs (the shards run with 4 workers, and a 4-vCPU hosted runner is 2 cores:
+    # the 4-worker jobs are the slowest), rounded UP to the next 0.25 (a slower runner needs the smaller shards)
+    lay = math.ceil(max(fs) * 4) / 4 if fs and len(fs) == len(JOBS) else None
     out = {"layout_factor": lay, "factors": rows, "all_ok": len(fs) == len(JOBS),
            "python": platform.python_version(), "machine": platform.platform(), "cpu_count": os.cpu_count(),
-           "note": "factor = runner seconds / reference-machine (Apple M3 Pro) seconds; layout_factor = worst single-process factor "
+           "note": "factor = runner seconds / reference-machine (Apple M3 Pro) seconds; layout_factor = worst factor over all jobs "
                    "rounded up to 0.25; the 4-worker rows show the parallel speed-up on this runner (reference "
                    f"{REF_4W_SPEEDUP:.2f}x for ICT)"}
     with open(a.out, "w", encoding="utf-8") as fh:

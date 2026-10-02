@@ -1,0 +1,95 @@
+{
+ "layout_factor": 2.25,
+ "factors": [
+  {
+   "job": "ict_5m_1worker",
+   "spec": {
+    "kind": "scan",
+    "method": "ict",
+    "symbol": "XAUUSD",
+    "tf": "5m",
+    "slice": "S3",
+    "sets": [
+     "base"
+    ]
+   },
+   "reference_s": 85.4,
+   "seconds": 134.31,
+   "status": "OK",
+   "factor": 1.573
+  },
+  {
+   "job": "wyckoff_5m_1worker",
+   "spec": {
+    "kind": "scan",
+    "method": "wyckoff",
+    "symbol": "XAUUSD",
+    "tf": "5m",
+    "slice": "S3",
+    "sets": [
+     "base"
+    ]
+   },
+   "reference_s": 21.9,
+   "seconds": 44.41,
+   "status": "OK",
+   "factor": 2.028
+  },
+  {
+   "job": "ict_5m_4workers",
+   "spec": {
+    "kind": "scan_dev",
+    "method": "ict",
+    "symbol": "XAUUSD",
+    "tf": "5m",
+    "dev_start": "2023-03-01T00:00:00Z",
+    "workers": 4,
+    "sets": [
+     "base"
+    ]
+   },
+   "reference_s": 28.1,
+   "seconds": 79.8,
+   "status": "OK",
+   "factor": 2.84
+  },
+  {
+   "job": "wyckoff_5m_4groups_4workers",
+   "spec": {
+    "kind": "scan_dev",
+    "method": "wyckoff",
+    "symbol": "XAUUSD",
+    "tf": "5m",
+    "dev_start": "2023-03-01T00:00:00Z",
+    "workers": 4,
+    "sets": [
+     "w1:0",
+     "w1:2",
+     "w1:3",
+     "w1:4"
+    ]
+   },
+   "reference_s": 44.5,
+   "seconds": 117.43,
+   "status": "OK",
+   "factor": 2.639
+  },
+  {
+   "job": "load_1m_series",
+   "spec": {
+    "kind": "load",
+    "symbol": "XAUUSD",
+    "tf": "1m"
+   },
+   "reference_s": 9.3,
+   "seconds": 16.16,
+   "status": "OK",
+   "factor": 1.738
+  }
+ ],
+ "all_ok": true,
+ "python": "3.12.14",
+ "machine": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+ "cpu_count": 4,
+ "note": "factor = runner seconds / reference-machine (Apple M3 Pro) seconds; layout_factor = worst single-process factor rounded up to 0.25; the 4-worker rows show the parallel speed-up on this runner (reference 2.77x for ICT)"
+}

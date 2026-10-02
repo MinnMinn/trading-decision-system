@@ -1992,10 +1992,10 @@ class ShardLayout(_Helpers):
         self.assertLessEqual(max(r["est_min"] for r in rows), self.fs.SHARD_MODEL["job_timeout_min"])
 
     def test_no_shard_is_over_the_cap_at_the_slow_runner_factor(self):
-        """The layout is made for the slow-runner assumption (factor 2.0): NO shard may be modelled above the cap there
+        """The layout is made for the slow-runner assumption (factor 3.0): NO shard may be modelled above the cap there
         -- asserted from the model's own numbers, not from a stored expectation."""
         m = self.fs.SHARD_MODEL
-        self.assertEqual(m["layout_factor"], 2.0)
+        self.assertEqual(m["layout_factor"], 3.0)
         self.assertEqual(m["budget_s"], 300 * 60)
         self._plan_file()
         plan = self.fs.load_plan()
@@ -2003,9 +2003,9 @@ class ShardLayout(_Helpers):
         cap_min = m["budget_s"] / 60
         self.assertFalse(any(r["over_cap"] for r in rows))
         self.assertLessEqual(max(r["est_min"] for r in rows), cap_min)
-        self.assertLessEqual(max(r["est_min_by_factor"]["2"] for r in rows), cap_min)
-        self.assertEqual([r["est_min"] for r in rows], [r["est_min_by_factor"]["2"] for r in rows])
-        # recomputed independently of the rows: the model's own function, slice by slice, at factor 2.0
+        self.assertLessEqual(max(r["est_min_by_factor"]["3"] for r in rows), cap_min)
+        self.assertEqual([r["est_min"] for r in rows], [r["est_min_by_factor"]["3"] for r in rows])
+        # recomputed independently of the rows: the model's own function, slice by slice, at factor 3.0
         grids, _ = self.fs.load_grids()
         bt = self.fs._load_bt()
         by_cell = {c["id"]: c for c in plan["cells"]}
@@ -2017,21 +2017,21 @@ class ShardLayout(_Helpers):
             total = len(info) if r["wave"] == 1 else self.fs.wave2_set_count(r["method"], cell["n_folds"])
             lo, hi = self.fs.slice_bounds(total, i, n)
             groups = self.fs._slice_groups(r["method"], r["wave"], info, lo, hi, cell["timeframe"])
-            secs = self.fs.shard_seconds(r["wave"], cell, r["method"], r["symbol"], groups, hi - lo, 2.0, n_wave1=len(info))
+            secs = self.fs.shard_seconds(r["wave"], cell, r["method"], r["symbol"], groups, hi - lo, 3.0, n_wave1=len(info))
             self.assertAlmostEqual(secs / 60, r["est_min"], delta=1.0)
             self.assertLessEqual(secs, m["budget_s"])
 
     def test_the_layout_follows_the_factor_and_the_model_scales_with_it(self):
         self._plan_file()
         plan = self.fs.load_plan()
-        fast, slow = self.fs.shard_plan(plan, factor=1.0), self.fs.shard_plan(plan, factor=2.0)
+        fast, slow = self.fs.shard_plan(plan, factor=1.0), self.fs.shard_plan(plan, factor=3.0)
         self.assertLessEqual(len(fast), len(slow))                       # a slower runner never needs fewer shards
         self.assertFalse(any(r["over_cap"] for r in fast))
         m = self.fs.SHARD_MODEL
         for r in slow:
             e = r["est_min_by_factor"]
-            self.assertLessEqual(e["1"], e["1.5"])
-            self.assertLessEqual(e["1.5"], e["2"])
+            self.assertLessEqual(e["1"], e["2"])
+            self.assertLessEqual(e["2"], e["3"])
         # the compute scales exactly with the factor, `job_fixed_s` does not
         cell = next(c for c in plan["cells"] if c["id"] == "5m-metals")
         a = self.fs.shard_seconds(1, cell, "ict", "XAUUSD", [1.0, 1.0], 27, 1.0)
@@ -2087,7 +2087,7 @@ class ShardLayout(_Helpers):
 
     def test_the_real_declared_plan_lays_out_without_an_over_cap_shard(self):
         """The REAL committed cells file + grids + the committed DEV_BARS rows (no fixture cells): a DEV_BARS or constant
-        edit cannot shift the layout silently. Pins the shard count at the layout factor 2.0."""
+        edit cannot shift the layout silently. Pins the shard count at the layout factor 3.0 (hosted-runner benchmark of 2026-10-01)."""
         arch = os.path.join(ROOT, "docs", "architecture")
         first = _REAL_FIRST_BAR
         with mock.patch.dict(os.environ, {"BT_HISTORY_ROOT": os.path.join(ROOT, "data", "history", "ftmo")}):
@@ -2097,11 +2097,11 @@ class ShardLayout(_Helpers):
             for sym in c["symbols"]:
                 self.assertIn(sym, _REAL_DEV_BARS[c["timeframe"]])
         rows = self.fs.shard_plan(plan, arch)
-        self.assertEqual(self.fs.SHARD_MODEL["layout_factor"], 2.0)
+        self.assertEqual(self.fs.SHARD_MODEL["layout_factor"], 3.0)
         self.assertFalse([r["name"] for r in rows if r["over_cap"]])
         self.assertLessEqual(max(r["est_min"] for r in rows), self.fs.SHARD_MODEL["budget_s"] / 60)
-        self.assertEqual(len(rows), 124)
-        self.assertEqual((sum(1 for r in rows if r["wave"] == 1), sum(1 for r in rows if r["wave"] == 2)), (38, 86))
+        self.assertEqual(len(rows), 289)
+        self.assertEqual((sum(1 for r in rows if r["wave"] == 1), sum(1 for r in rows if r["wave"] == 2)), (62, 227))
 
     def test_the_wave2_tripwire_fires_only_beyond_ten_percent(self):
         w = self.fs.wave2_size_warning
@@ -2122,8 +2122,11 @@ class ShardLayout(_Helpers):
         self.assertIsNone(st["sha256"])
         self.assertIn("ASSUMPTION", st["note"])
         path = os.path.join(tmp, "bench.json")
-        for got, ok in ((fs.SHARD_MODEL["layout_factor"], True), (1.25, False)):
-            json.dump({"layout_factor": got}, open(path, "w"))
+        # the layout factor is DERIVED from the measured per-job factors: worst job rounded up to 0.25
+        for worst, ok in ((fs.SHARD_MODEL["layout_factor"] - 0.1, True), (1.2, False)):
+            json.dump({"all_ok": True, "layout_factor": 2.25,
+                       "factors": [{"job": "a", "status": "OK", "factor": 1.5}, {"job": "b", "status": "OK", "factor": worst}]},
+                      open(path, "w"))
             with mock.patch.object(fs, "RUNNER_BENCHMARK_PATH", path):
                 st = fs.runner_benchmark_status()
             self.assertEqual(st["recorded"], ok)
@@ -2156,12 +2159,12 @@ class ShardLayout(_Helpers):
         plan = self.fs.load_plan()
         rows = self.fs.shard_plan(plan)
         summ = self.fs.shard_summary(plan, rows)
-        self.assertEqual(list(summ), ["1", "1.5", "2"])
+        self.assertEqual(list(summ), ["1", "2", "3"])
         self.assertEqual({v["shards"] for v in summ.values()}, {len(rows)})
-        self.assertLess(summ["1"]["runner_hours"], summ["1.5"]["runner_hours"])
-        self.assertLess(summ["1.5"]["runner_hours"], summ["2"]["runner_hours"])
-        self.assertLessEqual(summ["2"]["longest_shard_min"], self.fs.SHARD_MODEL["budget_s"] / 60)
-        self.assertGreater(summ["2"]["critical_path_min"], summ["2"]["longest_wave2_min"])
+        self.assertLess(summ["1"]["runner_hours"], summ["2"]["runner_hours"])
+        self.assertLess(summ["2"]["runner_hours"], summ["3"]["runner_hours"])
+        self.assertLessEqual(summ["3"]["longest_shard_min"], self.fs.SHARD_MODEL["budget_s"] / 60)
+        self.assertGreater(summ["3"]["critical_path_min"], summ["3"]["longest_wave2_min"])
         self.assertAlmostEqual(sum(v["runner_hours"] for v in summ["2"]["by_cell_method"].values()),
                                summ["2"]["runner_hours"], delta=0.8)       # per-(cell, method) rounding to 0.1 h
 
@@ -2180,9 +2183,9 @@ class ShardLayout(_Helpers):
         self.assertTrue(rows and all(r["wave"] == 2 for r in rows))
         for r in rows:                                    # a CI matrix entry: scalars only (no nested object)
             self.assertFalse(any(isinstance(v, (dict, list)) for v in r.values()), r)
-            self.assertLessEqual(r["est_min_f2"], self.fs.SHARD_MODEL["budget_s"] / 60)
-            self.assertLessEqual(r["est_min_f1"], r["est_min_f1_5"])
-            self.assertLessEqual(r["est_min_f1_5"], r["est_min_f2"])
+            self.assertLessEqual(r["est_min_f3"], self.fs.SHARD_MODEL["budget_s"] / 60)
+            self.assertLessEqual(r["est_min_f1"], r["est_min_f2"])
+            self.assertLessEqual(r["est_min_f2"], r["est_min_f3"])
             self.assertFalse(r["over_cap"])
 
     def test_the_workflow_uses_these_shards_within_the_cap(self):

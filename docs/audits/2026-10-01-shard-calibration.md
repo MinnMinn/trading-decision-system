@@ -579,3 +579,34 @@ rate of the symbol's asset class; for a precision beyond that, measure one basel
 * Layout: `python3 scripts/fund-search.py list-scan-shards [--wave 1|2] [--explain]` (needs `plan.json`; `plan` writes it, do not commit it). Summary at the three factors: `shard_summary(plan, rows)` / `format_shard_summary`.
 * Tests (`scripts/tests/test_fund_search.py`, `ShardLayout`, `ShardGroupModel`): the shard-size cap at the layout factor recomputed from the model for a spread of shards, the layout follows the factor and scales exactly with it, every wave is partitioned exactly by its slices, wave-2 group estimate bounds, the measured/assumed split, the DEV_BARS refusal,
   the summary at all factors, and the data-free detection groups equal to what `scan_many` really groups by (real scans, ICT and Wyckoff).
+
+## 9. Hosted-runner benchmark and the layout factor (recorded 2026-10-02)
+
+MEASURED on a GitHub-hosted `ubuntu-latest` runner (Linux x86_64 azure, Python 3.12.14, `cpu_count` 4), workflow run
+36941990528 (`fund-search-benchmark`, ref `windows-migration`, 7 min 49 s), raw artifact committed unmodified as
+`docs/audits/2026-10-01-runner-benchmark.json`. Factor = runner seconds / reference-machine (Apple M3 Pro) seconds:
+
+| job | reference s | runner s | factor |
+|---|---:|---:|---:|
+| ICT 5m XAUUSD, 1 worker | 85.4 | 134.3 | 1.57 |
+| Wyckoff 5m XAUUSD, 1 worker | 21.9 | 44.4 | 2.03 |
+| load of the 1m XAUUSD series | 9.3 | 16.2 | 1.74 |
+| ICT 5m XAUUSD, 4 workers | 28.1 | 79.8 | 2.84 |
+| Wyckoff 5m XAUUSD, 4 groups, 4 workers | 44.5 | 117.4 | 2.64 |
+
+Reading: a single process is 1.6-2.0x slower than the reference machine, but the 4-worker jobs are 2.6-2.8x slower: a
+4-vCPU hosted runner is 2 physical cores (hyper-threads), so the parallel speed-up is about 1.7x, not the reference's 2.77x.
+The artifact's own `layout_factor` field (2.25) used the single-process rule only; because the shards run with 4 workers
+(every cell except 1m-metals) the layout factor is DERIVED from ALL jobs: worst factor 2.84 rounded up to 0.25 = **3.0**.
+`runner_benchmark_status()` now derives it from the artifact's `factors` list, and `runner_benchmark.py` uses the same rule
+for future runs. `SHARD_MODEL["layout_factor"]` = 3.0, `report_factors` = (1.0, 2.0, 3.0).
+
+Layout for the declared 3-cell plan at layout factor 3.0 (MODEL; 5 measured jobs on one runner, one date):
+289 shards (62 wave 1 + 227 wave 2; each wave's matrix is below GitHub's 256-job limit), none over the 300-minute cap
+at factor 3.0, longest shard 294 min, 1031 modelled runner-hours (factor 1.0: 362 h, factor 2.0: 698 h; real runs should cost
+between the factor-2.0 and factor-3.0 figures: the 1-worker shards, which carry most hours, were measured at 1.6-2.0),
+critical path with unlimited concurrent jobs about 10 h at factor 3.0 (7 h at factor 2.0). With a free-plan limit of 20
+concurrent jobs (NOT verified for this repository) the wall time is bounded below by runner-hours / 20: about 35-52 h.
+Where the hours go: 1m-metals is 252 of 289 shards and 970 of 1031 hours (ICT 385 h, Wyckoff 585 h).
+Not measured: other hosted-runner instances (speed varies by host), 1m scans on a runner (the 1m series load only), jobs
+under concurrent load, GitHub queueing.
