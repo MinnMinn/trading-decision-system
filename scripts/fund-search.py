@@ -36,6 +36,7 @@ Nothing here evaluates real history unless `run` is invoked, and `run` needs the
 and an implemented grid. Batch 3 (owner sign-off) is the only place that happens.
 """
 import argparse
+import bisect
 import contextlib
 import datetime
 import hashlib
@@ -44,6 +45,7 @@ import json
 import math
 import os
 import platform
+import random
 import re
 import sys
 import time
@@ -1638,6 +1640,47 @@ class BtEngine:
         import real_costs as _RC
         return _RC.mean_spread_r(trades, COST_PROFILE)["mean_spread_R"]
 
+    def spread_r_each(self, trades):
+        """One spread_R per trade (the same pricing as `mean_spread_r`; None for a trade with no valid stop distance), for the
+        per-year cost regime ratio (report-only)."""
+        import real_costs as _RC
+        out = []
+        for t in trades:
+            if not (isinstance(t.get("entry"), (int, float)) and isinstance(t.get("stop"), (int, float))
+                    and t["entry"] > 0 and t["entry"] != t["stop"]):
+                out.append(None)
+                continue
+            out.append(_RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"], t["side"],
+                                  COST_PROFILE)["spread_R"])
+        return out
+
+    def placebo_trades(self, fold_results, grid, seed_key):
+        """REPORT-ONLY placebo benchmark (pre-registration section C item 6, `FS.PLACEBO_DEFINITION`): for every real pooled TEST
+        trade of `fold_results`, one random-entry trade generated and priced by the engine's own `walk` and real costs.
+        Returns the per-fold lists `FS.placebo_summary` consumes. Reads the decision-timeframe series the engine already
+        scanned (`bt.load`, PIT-truncated and span-cut exactly as the scan); changes no trade, no overlay, no verdict."""
+        import real_costs as _RC
+        series, out = {}, []
+        for fr in fold_results:
+            fold, real = fr["fold"], fr["test_trades"]
+            overlay = build_overlay(grid, fr["chosen"])
+            sim = simulate_time_opts(self.bt, overlay)
+            min_rr, adm_entry_only = sim["min_rr"], bool(sim.get("fx_admission_entry_cost"))
+            row = {"test_start": fold["test_start"], "real": [t["net_R"] for t in real], "placebo": [], "skipped": {}}
+            with bt_opts(self.bt, overlay) as opts:
+                for t in real:
+                    ser = series.get(t["symbol"])
+                    if ser is None:
+                        ser = series[t["symbol"]] = PlaceboSeries(self.bt.load(t["symbol"], self.tf)[0])
+                    horizon = placebo_horizon(self.bt, self.method, self.tf, opts, ser.n)
+                    pt, why = placebo_for_trade(self.bt, ser, t, fold, seed_key, horizon, min_rr, adm_entry_only, _RC)
+                    if pt is None:
+                        row["skipped"][why] = row["skipped"].get(why, 0) + 1
+                    else:
+                        row["placebo"].append(pt["net_R"])
+            out.append(row)
+        return out
+
     def dataset_snapshot(self):
         rows = []
         for s in self.symbols:
@@ -1656,6 +1699,135 @@ class BtEngine:
                                   for s in self.symbols],
                 "_note": "the PIT-truncated series the scan actually read (bt.pit_cutoff at DEV_CUTOFF); regime_series = the "
                          "symbols' own D1 series the regime split reads (D1 ADX(14), last completed bar), PIT-truncated alike"}
+
+
+# --------------------------------------------------------------------------- report-only: the placebo (section C item 6)
+@contextlib.contextmanager
+def bt_opts(bt, overlay):
+    """Run `bt.walk` under `dict(bt._OPTS_BASE, **overlay)` -- the OPTS a scan with this overlay reads (`bt.scan(opts=...)`) --
+    and restore the module OPTS afterwards (exception-safe)."""
+    saved = bt.OPTS
+    bt.OPTS = dict(bt._OPTS_BASE, **overlay)
+    try:
+        yield bt.OPTS
+    finally:
+        bt.OPTS = saved
+
+
+class PlaceboSeries:
+    """The arrays `walk` reads (opens, highs, lows, closes, bar open labels) of one decision series, and the bar indices of
+    each UTC hour-of-day (ascending), so a fold's same-hour bars are two bisects away."""
+
+    def __init__(self, candles):
+        self.O = [c["open"] for c in candles]
+        self.H = [c["high"] for c in candles]
+        self.L = [c["low"] for c in candles]
+        self.C = [c["close"] for c in candles]
+        self.Tm = [c["time"] for c in candles]
+        self.n = len(candles)
+        if self.n and len(self.Tm[0]) != 20:
+            raise ValueError(f"bar label {self.Tm[0]!r} is not YYYY-MM-DDTHH:MM:SSZ: the placebo's window bisect needs it")
+        self.by_hour = {}
+        for i, t in enumerate(self.Tm):
+            self.by_hour.setdefault(int(t[11:13]), []).append(i)
+
+    def candidates(self, hour, start_iso, end_iso):
+        """Bar indices with UTC hour `hour` whose open label is in [start_iso, end_iso) and that still have a bar after them."""
+        lo, hi = bisect.bisect_left(self.Tm, start_iso), bisect.bisect_left(self.Tm, end_iso)
+        idx = self.by_hour.get(hour, [])
+        return [i for i in idx[bisect.bisect_left(idx, lo):bisect.bisect_left(idx, hi)] if i + 1 < self.n]
+
+
+def placebo_horizon(bt, method, tf, opts, n):
+    """The time stop (bars) the fold's chosen values give a trade: the engine's own rule (ICT: the B-EXIT token over P[tf]['H'];
+    Wyckoff: P[tf]['H'])."""
+    hz = int(bt.P[tf]["H"])
+    if method != "ICT":
+        return hz
+    hold = bt.lr.ict_scan.b_exit_parts(opts["fx_b_exit"])[1]
+    return {"H": hz, "1.5H": int(round(1.5 * hz)), "2H": 2 * hz, "none": n}[hold]
+
+
+def placebo_trade(bt, ser, symbol, b, side, dist, rp, horizon, min_rr, adm_entry_only, rc):
+    """ONE placebo trade at bar `b`: entry = that bar's open, the stop `dist` away on the losing side, the target `rp` x `dist`
+    away on the winning side, walked by `bt.walk` from the next bar (as every real fill is: the entry bar itself is not walked),
+    priced by `real_costs.cost_r` and admitted by the same planned-risk and min_rr rules as trades_for. Returns (trade, None) or
+    (None, reason). Must run under `bt_opts` (walk reads the module OPTS)."""
+    entry = ser.O[b]
+    if not (isinstance(entry, (int, float)) and entry > 0 and dist > 0):
+        return None, "invalid_entry"
+    stop = entry - dist if side == "long" else entry + dist
+    target = entry + rp * dist if side == "long" else entry - rp * dist
+    try:
+        tick = rc.tick_size(COST_PROFILE, symbol)
+    except rc.CostRefused:
+        return None, "cost_refused"
+    if bt.planned_risk_refusal(side, entry, stop, tick) is not None:
+        return None, "zero_risk"
+    w = bt.walk(side, entry, stop, target, ser.H, ser.L, ser.C, b + 1, horizon, Tm=ser.Tm, O_=ser.O)
+    if not w:
+        return None, "walk_refused"
+    if w["outcome"] == "timeout" and w["exit"] >= ser.n - 1:           # as trades_for: an outcome cut by the series end is unknown
+        return None, "walk_cut_by_series_end"
+    entry_time, exit_time = ser.Tm[b], ser.Tm[w["exit"]]
+    try:
+        fee = rc.cost_r(entry, stop, entry_time, exit_time, symbol, side, COST_PROFILE)["total_R"]
+        adm = rc.cost_r(entry, stop, entry_time, entry_time if adm_entry_only else exit_time, symbol, side,
+                        COST_PROFILE)["total_R"]
+    except rc.CostRefused:
+        return None, "cost_refused"
+    if w["R_planned"] - adm < min_rr:
+        return None, "min_rr"
+    return {"symbol": symbol, "side": side, "entry": entry, "stop": stop, "target": target, "entry_time": entry_time,
+            "exit_time": exit_time, "outcome": w["outcome"], "R": w["R"], "R_planned": w["R_planned"],
+            "net_R": round(w["R"] - fee, 3)}, None
+
+
+def placebo_for_trade(bt, ser, real, fold, seed_key, horizon, min_rr, adm_entry_only, rc):
+    """The placebo of one real trade (see `FS.PLACEBO_DEFINITION`): (trade, None) or (None, skip reason). The RNG depends on
+    the real trade and the fold only, never on iteration order."""
+    rp = real.get("R_planned")
+    if not (isinstance(rp, (int, float)) and rp > 0 and isinstance(real.get("entry"), (int, float))
+            and isinstance(real.get("stop"), (int, float))):
+        return None, "no_R_planned"
+    rng = random.Random(FS.stable_seed(FS.PLACEBO_SEED, "trade", seed_key, fold["test_start"], real["symbol"],
+                                       real["entry_time"], real["side"], real["entry"], real["stop"]))
+    cands = ser.candidates(FS.ts(real["entry_time"]).hour, fold["test_start"], fold["test_end"])
+    if not cands:
+        return None, "no_bar_in_hour"
+    b = cands[rng.randrange(len(cands))]
+    side = "long" if rng.random() < 0.5 else "short"
+    return placebo_trade(bt, ser, real["symbol"], b, side, abs(real["entry"] - real["stop"]), rp, horizon, min_rr,
+                         adm_entry_only, rc)
+
+
+def attach_report_only(res, engine, grid, cell, fold_results):
+    """Add the REPORT-ONLY figures (per-year table, placebo) to the evaluation `res`. Runs AFTER `evaluate_cell`; no check, margin
+    or verdict reads these keys. A failure of the placebo is recorded in the result (status ERROR, shown in the report), never
+    raised: a report-only figure must not lose a finished evaluation."""
+    each = getattr(engine, "spread_r_each", None)
+    mean_sr = getattr(engine, "mean_spread_r", None)
+    stress = getattr(engine, "stress_trades", None)
+    rows = []
+    for fr in fold_results:
+        tr = fr["test_trades"]
+        rows.append(FS.fold_year_row(
+            fr["fold"]["test_start"], tr,
+            mean_spread_r=(mean_sr(tr) if tr and callable(mean_sr) else None),
+            spread_r_each=(each(tr) if tr and callable(each) else None),
+            stress_trades=(stress(tr) if tr and callable(stress) else None)))
+    res["fold_year_report"] = {"report_only": True, "hour_buckets_utc": [list(b) for b in FS.HOUR_BUCKETS], "rows": rows,
+                               "cost_regime_definition": "mean over the fold's trades of spread_R / R_planned (spread_R = "
+                                                         "real_costs spread cost in R, median spread, entry + exit leg)",
+                               "stress_definition": FS.STRESS_DEFINITION}
+    if callable(getattr(engine, "placebo_trades", None)):
+        key = f"{cell.get('id')}|{getattr(engine, 'method', None)}"
+        try:
+            res["placebo"] = FS.placebo_summary(engine.placebo_trades(fold_results, grid, key), key)
+        except Exception as e:  # noqa: BLE001 -- report-only: recorded, never fatal
+            res["placebo"] = {"status": "ERROR", "report_only": True, "seed": FS.PLACEBO_SEED,
+                              "error": f"{type(e).__name__}: {e}"}
+    return res
 
 
 # ------------------------------------------------------------------------------------- one candidate (pure glue)
@@ -1763,6 +1935,7 @@ def evaluate_with_engine(engine, grid, cell, family_size, axes=None):
         for fr in fold_results]
     res["folds_geometry"] = folds
     res["embargo_minutes"] = int(emb / datetime.timedelta(minutes=1))       # O2: recorded with the result
+    attach_report_only(res, engine, grid, cell, fold_results)              # section C: per-year table + placebo (REPORT-ONLY)
     if hasattr(engine, "admission_stats"):             # I2: measured, disclosed, never used to change a verdict
         res["admission"] = {
             "by_fold_chosen": [dict(engine.admission_stats(fr["chosen"], fr["fold"]), test_start=fr["fold"]["test_start"])
@@ -2603,6 +2776,8 @@ def report_candidate_lines(ev):
         L.append("|---|---|---|---|")
         for f in fc:
             L.append(f"| {f['test_start'][:10]} | {f['n_trades']} | {_fmt(f['mean_net_R'])} | {_fmt(f['mean_spread_R'], '.4f')} |")
+    L += report_fold_year_lines(ev)
+    L += report_placebo_lines(ev)
     cs = ev.get("component_stability") or {}
     if cs:
         L.append("")
@@ -2655,6 +2830,163 @@ def report_candidate_lines(ev):
     return L
 
 
+EXPORT_BAR_CAP = 5_000_000            # the MT5 bridge's cap on one exported series (`_bars` in a split index.json of the 1m metals)
+DENSITY_JSON = os.path.join(ROOT, "docs", "audits", "2026-10-02-dev-start-density.json")
+DENSE_MONTH_BARS = 10_000             # the engine-realism census' definition of a dense month (docs/audits/2026-10-02-engine-realism-census.md)
+SPARSE_BEFORE_YEAR = 2021             # the 1m index series are sparse before this year (same census)
+
+
+def stored_series_facts(sym, tf, root=None):
+    """What the STORED series says about itself, without reading its bars where it can: first bar, last bar and the export's bar
+    count (`_bars`) from a split series' index.json, or from the doc of a single-file series. None when no series exists."""
+    root = root if root is not None else _HS.history_root()
+    path, shape = _HS.resolve(sym, tf, root=root)
+    if path is None:
+        return None
+    if shape == "split":
+        with open(os.path.join(path, "index.json"), encoding="utf-8") as fh:
+            ix = json.load(fh)
+        return {"first": ix.get("first"), "last": ix.get("last"), "export_bars": ix.get("_bars"),
+                "exported_at": ix.get("_exported_at_utc"), "shape": "split"}
+    d = _HS.read_at(path, shape)
+    c = d.get("candles") or []
+    return {"first": c[0]["time"] if c else None, "last": c[-1]["time"] if c else None,
+            "export_bars": d.get("_bars", len(c)), "exported_at": d.get("_exported_at_utc"), "shape": "file"}
+
+
+def load_density(path=None):
+    """The dev-start density census (bars per month per series), or None when the file is absent."""
+    path = path or DENSITY_JSON
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def sparse_summary(density, sym, tf, before_year=SPARSE_BEFORE_YEAR, dense=DENSE_MONTH_BARS):
+    """From the density census: bars per calendar year before `before_year` and the first month with >= `dense` bars."""
+    row = (density or {}).get(f"{sym}|{tf}")
+    if not row:
+        return None
+    per_year, first_dense = {}, None
+    for m, n in sorted(row["months"].items()):
+        y = int(m[:4])
+        if y < before_year:
+            per_year[y] = per_year.get(y, 0) + n
+        if first_dense is None and n >= dense:
+            first_dense = m
+    return {"first_bar": row.get("first_bar"), "bars_per_year": per_year, "first_dense_month": first_dense}
+
+
+def disclosure_lines(plan, recs, facts=None, density=None):
+    """Report header (section C addendum): per symbol and timeframe of every planned cell the FIRST bar of the stored series, the
+    bars the evaluation scanned (from the stored record's dataset snapshot: the PIT-cut series, from the scan start), the
+    cell's development start and its earliest symbol; the 1m-metals export-cap note; the sparse-data note for the 1m indices.
+    Counts and dates only: no price, R or outcome."""
+    facts = facts or stored_series_facts
+    snap = {}
+    for r in recs:
+        cell = (r.get("parameters") or {}).get("cell")
+        for row in (r.get("dataset_snapshot") or {}).get("series") or []:
+            snap.setdefault((cell, row["symbol"], row["timeframe"]), row)
+    L = ["## Data disclosure (first bars, bars scanned, export cap, sparse data)", "",
+         "| cell | symbol | tf | first bar of the stored series | export bars | first bar scanned | bars scanned (to the cutoff) | "
+         "cell development start |", "|---|---|---|---|---|---|---|---|"]
+    capped, sparse_cells = {}, []
+    for c in plan["cells"]:
+        tf, first_by = c["timeframe"], c.get("symbol_first_bar") or {}
+        for s in c["symbols"]:
+            f = facts(s, tf) or {}
+            sn = snap.get((c["id"], s, tf)) or {}
+            L.append(f"| {c['id']} | {s} | {tf} | {f.get('first') or first_by.get(s) or 'n/a'} | "
+                     f"{f.get('export_bars') if f.get('export_bars') is not None else 'n/a'} | {sn.get('first_open', 'n/a')} | "
+                     f"{sn.get('bars', 'n/a')} | {c['development_start']} ({c['span_source']}) |")
+            if tf == "1m" and c["asset_class"] == "metals" and (f.get("export_bars") or 0) >= EXPORT_BAR_CAP:
+                capped[s] = f
+            if tf == "1m" and c["asset_class"] == "indices":
+                sparse_cells.append((c, s))
+    L.append("")
+    for c in plan["cells"]:
+        early = min(c["symbols"], key=lambda s: FS.ts((c.get("symbol_first_bar") or {}).get(s) or c["development_start"]))
+        L.append(f"- `{c['id']}`: development start {c['development_start']} ({c['span_source']}); earliest-symbol first bar "
+                 f"{(c.get('symbol_first_bar') or {}).get(early, 'n/a')} ({early}); symbols with a later first bar: "
+                 + (", ".join(f"{s} {b}" for s, b in sorted((c.get('symbol_first_bar') or {}).items(), key=lambda kv: kv[1])
+                              if s != early) or "none") + ".")
+    if capped:
+        L.append(f"- **1m metals export cap:** the 1m export is capped at {EXPORT_BAR_CAP:,} bars per series, so the 1m start is set "
+                 f"by that cap counted back from the export date, not by the broker's history: "
+                 + "; ".join(f"{s} first bar {f['first']} ({f['export_bars']:,} bars, last {f['last']})"
+                             for s, f in sorted(capped.items()))
+                 + ". XAUUSD and XAGUSD therefore start on different dates, and the 1m-metals folds follow the earlier one.")
+    if sparse_cells:
+        dens = density if density is not None else load_density()
+        if dens is None:
+            L.append("- **Sparse 1m indices:** the 1m index series are sparse before 2021 (docs/audits/2026-10-02-engine-realism-census.md); "
+                     "the density census json is not present in this checkout, so no per-year counts are printed.")
+        else:
+            seen = set()
+            for c, s in sparse_cells:
+                if s in seen:
+                    continue
+                seen.add(s)
+                sm = sparse_summary(dens, s, "1m")
+                if sm is None:
+                    continue
+                L.append(f"- **Sparse 1m data, {s}:** first bar {sm['first_bar']}; bars per year before {SPARSE_BEFORE_YEAR}: "
+                         + (", ".join(f"{y} {n:,}" for y, n in sorted(sm['bars_per_year'].items())) or "none")
+                         + f"; first month with >= {DENSE_MONTH_BARS:,} bars: {sm['first_dense_month'] or 'none'}"
+                         + f" (cell `{c['id']}` starts {c['development_start']}).")
+    L.append("")
+    return L
+
+
+def report_fold_year_lines(ev):
+    """The per-year / fold table (REPORT-ONLY) of one candidate, from its stored record."""
+    fy = ev.get("fold_year_report")
+    if not fy or not fy.get("rows"):
+        return []
+    L = ["", "Per test fold (REPORT-ONLY; chosen values, test trades): trades, mean net R, mean spread_R, mean net R under the "
+             "stress re-pricing (p90 spread + commission margin), share of entries per UTC hour bucket "
+             + "/".join(f"{a:02d}-{b:02d}" for a, b in fy["hour_buckets_utc"]) + ", cost regime ratio (" +
+         fy["cost_regime_definition"] + ").", "",
+         "| test fold start | trades | mean net R | mean spread_R | mean stressed R | hour shares | cost regime ratio |",
+         "|---|---|---|---|---|---|---|"]
+    for r in fy["rows"]:
+        hs = r.get("hour_share")
+        L.append(f"| {r['test_start'][:10]} | {r['n_trades']} | {_fmt(r['mean_net_R'])} | {_fmt(r['mean_spread_R'], '.4f')} | "
+                 f"{_fmt(r['mean_stress_R'])} | {'/'.join(f'{x:.2f}' for x in hs) if hs else 'n/a'} | "
+                 f"{_fmt(r['cost_regime_ratio'], '.4f')} |")
+    return L
+
+
+def report_placebo_lines(ev):
+    """The placebo benchmark (REPORT-ONLY) of one candidate, from its stored record."""
+    pl = ev.get("placebo")
+    if not pl:
+        return ["", "Placebo: no figure in this record (the record predates the placebo or its engine did not offer one)."]
+    if pl.get("status") != "OK":
+        return ["", f"Placebo: **FAILED to compute** ({pl.get('error')}); report-only, no verdict reads it."]
+    p, bs = pl["pooled"], pl.get("bootstrap")
+    L = ["", f"Placebo benchmark (**REPORT-ONLY: a PASS requires nothing from this**; seed `{pl['seed']}`; random entry on the same "
+             f"symbol, UTC hour and fold as each real test trade, same stop distance and R_planned, same walk, costs and fills): "
+             f"real pooled mean net R {_fmt(p['mean_real'])} over {p['n_real']} trades; placebo pooled mean net R "
+             f"{_fmt(p['mean_placebo'])} over {p['n_placebo']} generated; real minus placebo {_fmt(p['diff'])}."]
+    if bs:
+        L.append(f"Bootstrap over {bs['blocks']} test-fold blocks ({bs['resamples']} resamples, {bs['ci'] * 100:.0f} % percentile "
+                 f"interval): real [{bs['real'][0]:+.3f}, {bs['real'][1]:+.3f}], placebo [{bs['placebo'][0]:+.3f}, "
+                 f"{bs['placebo'][1]:+.3f}], real minus placebo [{bs['diff'][0]:+.3f}, {bs['diff'][1]:+.3f}].")
+    else:
+        L.append("Bootstrap interval: not computable (fewer than two test-fold blocks or no placebo trade).")
+    L.append(f"Placebo trades skipped (cannot be generated; counted, never redrawn): {pl['skipped_total']}"
+             + (f" ({', '.join(f'{k} {v}' for k, v in sorted(pl['skipped'].items()))})" if pl["skipped"] else "") + ".")
+    L += ["", "| test fold start | real trades | placebo trades | real mean net R | placebo mean net R | skipped |",
+          "|---|---|---|---|---|---|"]
+    for f in pl["by_fold"]:
+        L.append(f"| {f['test_start'][:10]} | {f['n_real']} | {f['n_placebo']} | {_fmt(f['mean_real'])} | "
+                 f"{_fmt(f['mean_placebo'])} | {sum(f['skipped'].values())} |")
+    return L
+
+
 def report_statement_lines(plan, recs):
     """Section C items 6-9: placebo, overlap, scope, window statements and the build."""
     b = build_id()
@@ -2664,10 +2996,12 @@ def report_statement_lines(plan, recs):
     L = ["## Statements (section C of the pre-registration)", "",
          f"- **Build:** git `{(b['git_sha'] or 'unavailable')[:12]}`, pinned tree dirty = {b['scoped_dirty']}. This build implements "
          f"family A (six candidates, Holm at report time), the ordinal perturbation, the D1-ADX regime split, the stress gate, "
-         f"the shifted prop pass and section C items 1-5, 7-9.",
-         "- **placebo: NOT IMPLEMENTED in this build.** Section C item 6 (a random-entry benchmark per test trade: same symbol, "
-         "same UTC hour, same fold, side 50/50, same stop distance and R_planned, run through the same walk, costs and "
-         "fills, with a pinned seed) is a DEFINITION only; no placebo figure exists and no verdict reads one."]
+         f"the shifted prop pass and section C items 1-9 (the placebo included).",
+         f"- **Placebo (section C item 6, REPORT-ONLY; build `{(b['git_sha'] or 'unavailable')[:12]}`):** implemented. Per candidate "
+         f"(below) one random entry per real test trade on the same symbol, UTC hour and fold, side 50/50, same stop distance and "
+         f"R_planned, run through the same walk, costs and fills; pinned seed `{FS.PLACEBO_SEED}`, derived per real trade so the "
+         f"result is independent of candidate order; interval = percentile bootstrap over the test folds. No verdict, check or "
+         f"Holm step reads a placebo figure: a PASS requires nothing from it. Definition: {FS.PLACEBO_DEFINITION}"]
     if both:
         shared = sorted(set(next(c for c in plan["cells"] if c["id"] == "1m-metals")["symbols"])
                         & set(next(c for c in plan["cells"] if c["id"] == "5m-metals")["symbols"]))
@@ -2720,7 +3054,9 @@ def cmd_report(grid_dir=None):
     L = ["# Fund-setup search -- report", "",
          f"_Source: `{PLAN_DOC}` §1.4, §3, §6. Plan hash `{plan['plan_hash'][:12]}`; cost profile "
          f"`{plan['cost_profile']}` (real costs, flat before rollover, FIXED in every cell)._", "",
-         "## Full count (disclosed, nothing dropped)", "",
+         f"_Build: git `{(build_id()['git_sha'] or 'unavailable')[:12]}`, pinned tree dirty = {build_id()['scoped_dirty']}._", ""]
+    L += disclosure_lines(plan, recs)
+    L += ["## Full count (disclosed, nothing dropped)", "",
          f"- Cells: **{plan['cell_count']}**; excluded before any result (no development history): "
          f"{[e['id'] for e in plan['excluded_cells']] or 'none'}.",
          f"- Candidates planned (method x cell): **{plan['candidate_count']}**; evaluated: **{len(recs)}**; "

@@ -4404,7 +4404,7 @@ class ReportAndLedger(_Tmp):
         with self.assertRaises(SystemExit):
             self.fs.require_declaration(plan)
 
-    def test_report_applies_holm_over_the_whole_family_and_names_the_unimplemented_placebo(self):
+    def test_report_applies_holm_over_the_whole_family_and_states_the_report_only_placebo(self):
         plan = self._records(self._plan(), [0.6, 0.0, 0.6])                   # 3 of the planned candidates are evaluated
         md = self.fs.cmd_report()
         fam = plan["family"]
@@ -4412,7 +4412,8 @@ class ReportAndLedger(_Tmp):
         rows = [ln for ln in md.splitlines() if ln.startswith("| ") and "rejected" in ln]
         self.assertEqual(len(rows), fam["size"])                              # one row per PLANNED candidate, NOT RUN included
         self.assertTrue(any("NOT RUN" in ln and "not rejected" in ln and "counts as 1" in ln for ln in rows))
-        self.assertIn("placebo: NOT IMPLEMENTED in this build", md)
+        self.assertNotIn("NOT IMPLEMENTED", md)                               # b28: the placebo is implemented (report-only)
+        self.assertIn("a PASS requires nothing from it", md)
         self.assertRegex(md, r"\*\*Build:\*\* git `[0-9a-f]{12}`")
         self.assertIn("Minimum detectable edge", md)
         self.assertIn("Upper confidence bound on the edge", md)
@@ -4423,7 +4424,7 @@ class ReportAndLedger(_Tmp):
         self.assertIn("Stress gate", md)
         self.assertIn("prop_pass_probability with R shifted down by", md)
         self.assertIn("NOMINATION for a separately pre-registered forward demo", md)
-        self.assertIn("is a DEFINITION only", md)
+        self.assertIn("Placebo: no figure in this record", md)               # these stub engines offer no placebo: said, not omitted
         self.assertIn("NOT folded into the family", md)
         self.assertNotIn("PROPOSED, NOT DECIDED", md)
         self.assertIn("highest primary bound at the floor confidence", md)
