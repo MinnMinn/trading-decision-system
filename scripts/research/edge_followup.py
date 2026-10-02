@@ -84,7 +84,8 @@ def placebo(s, start, end, keys, eod):
 
 
 def run(stage, out_path, since=None):
-    start = EXPOSED_START if stage == "exposed" else since
+    # "history" (owner 2026-10-02): REPORT-ONLY per-year stability over every stored year; never a gate (the years were read).
+    start = {"exposed": EXPOSED_START, "history": "1990-01-01T00:00:00Z"}.get(stage, since)
     if not start:
         raise SystemExit("--since is required for the forward stage")
     end = "9999-12-31T00:00:00Z"
@@ -119,7 +120,7 @@ def run(stage, out_path, since=None):
     for k, t in enumerate(tests):
         st = t["stats"]
         ok = (k in rej and st.get("n", 0) > 0 and st["p_one_sided"] < GATE_P and st["net_bp"] > 0 and st["net_bp_p90"] > 0)
-        t["verdict"] = {"bh_rejected": k in rej, "passes_stage": bool(ok)}
+        t["verdict"] = {"bh_rejected": k in rej, "passes_stage": bool(ok) and stage != "history"}
     out = {"meta": {"script": "scripts/research/edge_followup.py", "stage": stage, "window_start": start,
                     "family_size": len(FAMILY), "fdr_q": FDR_Q, "gate_p": GATE_P, "symbols": meta,
                     "directions": DIRECTION, "cost_profile": EC.COST_PROFILE},
@@ -156,7 +157,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
-    r.add_argument("--stage", choices=("exposed", "forward"), required=True)
+    r.add_argument("--stage", choices=("exposed", "forward", "history"), required=True)
     r.add_argument("--since")
     r.add_argument("--out", required=True)
     q = sub.add_parser("report")

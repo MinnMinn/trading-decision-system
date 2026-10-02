@@ -262,7 +262,7 @@ def ev_fvg(s):
             if (side > 0 and s.L[j] <= edge) or (side < 0 and s.H[j] >= edge):
                 o = s.O[j]                              # a bar opening beyond the edge fills at its open (no price improvement)
                 px = min(edge, o) if side > 0 else max(edge, o)
-                out.append(_ev(s, m + 1, side, entry_i=j, entry_px=px))
+                out.append(dict(_ev(s, m + 1, side, entry_i=j, entry_px=px), far=s.H[m - 1] if side > 0 else s.L[m - 1]))   # far edge: report-only key
                 break
     return _first_per_day(out)
 
