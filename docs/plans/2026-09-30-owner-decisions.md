@@ -381,3 +381,14 @@ Applied: `docs/architecture/fund-search-cells.json` (1m-indices 2020-03-01T00:00
 - **Not touched:** thresholds, engine, cells, grids, `scripts/performance.py`, `scripts/prop-search.py`. Plan core unchanged (plan_hash 275763cb81b0518a, checked). The e2e raw results `docs/audits/2026-10-02-e2e-power-final.json` are new.
 - **Pinned files changed (declare must run AFTER):** `scripts/fund_stats.py`, `scripts/fund-search.py`, the tests under the `scripts/` tree pin, `scripts/research/e2e_power.py` (simulator only). `docs/experiments/fund-search/plan.json` unchanged.
 - **Flag for the owner:** the expected number of passes at own e* moved from 0.34 to 2.31 and the 1m cells' e80/e* fell to 1.0-1.5; no cell stops satisfying the inclusion rule, the cells file was not edited. 5m-metals still needs 2.6-3.3 x its e* (perturbation binds).
+
+## 2026-10-02 (after declare): strategic diagnosis and new direction (owner, in chat; binding)
+
+Full record: `docs/audits/2026-10-02-strategic-diagnosis.md` (read §0 and §6 first).
+1. **Goal:** pass FTMO with ANY validated method; ICT/Wyckoff are one hypothesis family, not the required edge source.
+2. **Fix defects #3 (FVG self-touch in the "already triggered" gate, backtest and live), #4 (prop-pass horizon counts
+   trade-days, not weekdays) and #5 (prop simulation risk fixed at the 1 % ceiling), then RE-DECLARE the fund-search.**
+   The current declaration (`c4ea722`, plan_hash `275763cb81b0518a`) must not be run; no fund-search record exists yet.
+   The re-declaration must add the development-window reads listed in the diagnosis §7 to the prior-reads table.
+3. **Forward demo is the primary evidence**; a looser, pre-registered nomination gate to demo is accepted; the strict
+   gate applies to real money only.
