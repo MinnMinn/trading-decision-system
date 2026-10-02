@@ -57,10 +57,58 @@ STAGE_A_MIN_EVENTS = 100
 STAGE_A_MAX_DAYS = 274            # 9 calendar months
 
 
-def merged_candles(sym, live_dir=LIVE_DIR):
+STORE_DIR = os.path.join(ROOT, "data", "live", "forward", "bars")
+GAP_WARN = datetime.timedelta(hours=4)      # a hole this long between the store and the live file needs a history re-export
+
+
+def _store_path(sym, store_dir=STORE_DIR):
+    return os.path.join(store_dir, f"{sym}.5m.json")
+
+
+def accumulate(sym, live_dir=LIVE_DIR, store_dir=STORE_DIR):
+    """Append the live bridge file's CLOSED-or-not bars to a rolling per-symbol store (dedupe by time, the live bar wins), so
+    the forward record never depends on a manual history re-export. Returns (bars added, gap warning or None). The live
+    file holds ~600 bars (~2 trading days): a hole opens only if the machine is off longer than that."""
+    p = os.path.join(live_dir, f"ohlcv.{sym}.5m.json")
+    if not os.path.exists(p):
+        return 0, f"{p} missing (ExportOHLCV not attached, or mt5_time.py sync not run)"
+    live = [b for b in json.load(open(p)).get("candles", []) if isinstance(b.get("time"), str) and b["time"].endswith("Z")]
+    sp = _store_path(sym, store_dir)
+    store = {b["time"]: b for b in (json.load(open(sp)) if os.path.exists(sp) else [])}
+    last_known = max(store) if store else None
+    if not last_known:
+        import history_store as HS
+        doc, _ = HS.read_doc(sym, "5m", root=EC.HIST_ROOT)
+        last_known = doc["candles"][-1]["time"] if doc and doc["candles"] else None
+    warn = None
+    if live and last_known:
+        first_live = min(b["time"] for b in live)
+        hole = (datetime.datetime.fromisoformat(first_live.replace("Z", "+00:00"))
+                - datetime.datetime.fromisoformat(last_known.replace("Z", "+00:00")))
+        weekend = hole <= datetime.timedelta(hours=60) and datetime.datetime.fromisoformat(
+            first_live.replace("Z", "+00:00")).weekday() in (0, 6)
+        if hole > GAP_WARN and not weekend:
+            warn = (f"{sym}: {hole} without bars between {last_known} and {first_live}: re-export the 5m history once "
+                    f"(integrations/mt5/ExportHistory.mq5 -> scripts/import-mt5-history.py --write)")
+    n0 = len(store)
+    for b in live:
+        store[b["time"]] = b
+    os.makedirs(store_dir, exist_ok=True)
+    tmp = sp + ".tmp"
+    json.dump([store[t] for t in sorted(store)], open(tmp, "w"))
+    os.replace(tmp, sp)
+    return len(store) - n0, warn
+
+
+def merged_candles(sym, live_dir=LIVE_DIR, store_dir=STORE_DIR):
+    """Stored history + the accumulated forward store + the live bridge file, deduplicated by bar time (later sources win)."""
     import history_store as HS
     doc, _ = HS.read_doc(sym, "5m", root=EC.HIST_ROOT)
     bars = {b["time"]: b for b in (doc["candles"] if doc else [])}
+    sp = _store_path(sym, store_dir)
+    if os.path.exists(sp):
+        for b in json.load(open(sp)):
+            bars[b["time"]] = b
     p = os.path.join(live_dir, f"ohlcv.{sym}.5m.json")
     if os.path.exists(p):
         live = json.load(open(p))
@@ -182,6 +230,17 @@ def cmd_status(log=LOG):
               + (f"; paper mean net {mean:.2f} bp (information only, not the stage-(a) statistic)" if mean is not None else ""))
 
 
+def cmd_accumulate(live_dir=LIVE_DIR, store_dir=STORE_DIR):
+    warns = []
+    for sym in sorted({v[0] for v in WATCH.values()}):
+        n, w = accumulate(sym, live_dir, store_dir)
+        print(f"{sym}: +{n} bar(s)")
+        if w:
+            warns.append(w)
+            print("WARNING " + w)
+    return warns
+
+
 def _zone():
     import real_costs as RC
     return RC.server_zone(EC.PROVIDER)[1]
@@ -189,9 +248,9 @@ def _zone():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("cmd", choices=("scan", "resolve", "status"))
+    ap.add_argument("cmd", choices=("accumulate", "scan", "resolve", "status"))
     a = ap.parse_args()
-    {"scan": cmd_scan, "resolve": cmd_resolve, "status": cmd_status}[a.cmd]()
+    {"accumulate": cmd_accumulate, "scan": cmd_scan, "resolve": cmd_resolve, "status": cmd_status}[a.cmd]()
 
 
 if __name__ == "__main__":

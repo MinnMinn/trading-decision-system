@@ -60,6 +60,20 @@ class Forward(unittest.TestCase):
     def test_every_watched_component_is_known(self):
         self.assertEqual(set(FF.WATCH), {"E5_XAUUSD_24", "E5_US500_48", "H7_XAUUSD_eod"})
 
+    def test_accumulate_builds_a_store_and_warns_on_a_hole(self):
+        import json, tempfile
+        live, store = tempfile.mkdtemp(), tempfile.mkdtemp()
+        b1 = bars("2030-01-07T10:00:00", [(1.0, 1.1, 0.9, 1.0)] * 3)                 # a Monday
+        json.dump({"candles": b1}, open(os.path.join(live, "ohlcv.XAUUSD.5m.json"), "w"))
+        n, w = FF.accumulate("XAUUSD", live, store)
+        self.assertEqual(n, 3)
+        self.assertIsNotNone(w)                       # the stored history ends years before 2030: a hole, warned
+        b2 = bars("2030-01-07T10:10:00", [(1.0, 1.1, 0.9, 1.0)] * 3)                 # overlaps by one bar
+        json.dump({"candles": b2}, open(os.path.join(live, "ohlcv.XAUUSD.5m.json"), "w"))
+        n, w = FF.accumulate("XAUUSD", live, store)
+        self.assertEqual((n, w), (2, None))
+        self.assertEqual(len(json.load(open(os.path.join(store, "XAUUSD.5m.json")))), 5)
+
     def test_places_no_order(self):
         src = open(os.path.join(ROOT, "scripts", "research", "fvg_forward.py")).read()
         for word in ("order_send", "mcp", "execute(", "strategy-runner"):
