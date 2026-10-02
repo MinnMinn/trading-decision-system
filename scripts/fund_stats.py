@@ -67,13 +67,13 @@ INSUFFICIENT, PASS, FAIL = "insufficient", "pass", "fail"
 #: The checks a verdict needs; `verdict_from` FAILS CLOSED when a stored record lacks one (a record sealed under an older
 #: code must not read as a PASS because a newer gate is simply absent).
 REQUIRED_CHECKS = ("folds_sufficient", "lower_bound_positive", "stability", "frequency", "regime_split",
-                   "perturbation", "prop_pass_probability", "prop_pass_shifted", "stress")
+                   "perturbation", "prop_pass_probability", "prop_pass_shifted", "stress", "min_trading_days")
 
 #: `verdict_from`'s rule, stated so it can be pre-registered and recorded in the ledger declaration (I4).
 VERDICT_PRECEDENCE = ("insufficient (any test fold < MIN_FOLD_TRADES, or fewer than MIN_TEST_FOLDS folds) "
                       "overrides everything; otherwise pass only if EVERY check is ok (primary bound > 0 at the floor "
                       "confidence 1 - 0.10/6, stability, frequency, D1-ADX regime split, ordinal perturbation, "
-                      "prop pass, prop pass with R shifted down by mean - bound, stress gate), else fail. Holm's "
+                      "prop pass, prop pass with R shifted down by mean - bound, stress gate, minimum trading days), else fail. Holm's "
                       "step-down over the six candidates is applied at report time and never turns a failing "
                       "candidate into a pass")
 
@@ -116,6 +116,15 @@ STRESS_DEFINITION = ("pooled mean net R must stay > 0 on the SAME admitted trade
 PROP_SHIFT_DEFINITION = ("prop_pass_probability must ALSO be >= 0.70 for every fund with every pooled test trade's net R "
                          "shifted DOWN by (pooled mean - primary bound at the floor confidence); the admitted trade list, "
                          "sizing and horizon are unchanged; the unshifted requirement stays")
+MIN_TRADING_DAYS_DEFINITION = (
+    "for EVERY fund of the prop gate whose account profile declares `min_trading_days` (FTMO Challenge Phase 1: 4, read from "
+    "docs/architecture/account-profiles.json at evaluation time; the profile records the figure as flagged for verification: "
+    "2024+ sources report 4, older sources 10), EVERY test fold must contain at least that many DISTINCT UTC calendar days "
+    "on which a pooled test trade was INITIATED (entry day, the reading account_profile.objectives uses); a fund without the "
+    "field (The5ers High Stakes Step 1: min_profitable_days instead) is not checked; an unreadable or malformed profile "
+    "fails the check (fail closed). A fold is 365 days while the challenge horizon is 120 resampled active days, so this is "
+    "a NECESSARY-condition proxy for the objective, not a replay of the challenge. Owner decision 2026-10-02: a tightening, "
+    "harmless in practice because every fold needs >= MIN_FOLD_TRADES trades")
 MDE_POWER = 0.80                                # section C item 1: the power of the minimum detectable edge
 
 
@@ -986,6 +995,39 @@ def check_prop_pass_shifted(prop_by_fund, shift_r):
     return out
 
 
+def check_min_trading_days(fold_results, required_by_fund):
+    """Minimum trading days (owner 2026-10-02): per test fold, the number of distinct UTC ENTRY days among that fold's test
+    trades must be >= the largest `min_trading_days` any prop-gate fund declares (`required_by_fund` = {fund: int | None},
+    None = the fund declares none and is not checked). `required_by_fund` None / empty / malformed (an unreadable profile) and
+    a trade whose entry time cannot be read FAIL CLOSED; so does an empty fold list (nothing proves the days)."""
+    base = {"definition": MIN_TRADING_DAYS_DEFINITION}
+    if not isinstance(required_by_fund, dict) or not required_by_fund:
+        return dict(base, ok=False, reason="the funds' min_trading_days are unreadable (fail closed)", funds={}, folds=[])
+    funds = {}
+    for f, d in required_by_fund.items():
+        if d is not None and (not isinstance(d, int) or isinstance(d, bool) or d < 1):
+            return dict(base, ok=False, funds={}, folds=[],
+                        reason=f"profile {f!r} min_trading_days is {d!r}: malformed (fail closed)")
+        funds[f] = {"required": d, "checked": d is not None}
+    need = max((d for d in required_by_fund.values() if d is not None), default=None)
+    folds = []
+    for fr in fold_results:
+        a, b = ts(fr["fold"]["test_start"]), ts(fr["fold"]["test_end"])
+        try:
+            days = {ts(t["entry_time"]).date() for t in fr["test_trades"] if a <= ts(t["entry_time"]) < b}
+        except (KeyError, TypeError, ValueError):
+            return dict(base, ok=False, funds=funds, folds=folds, required=need,
+                        reason="a test trade's entry time is unreadable (fail closed)")
+        folds.append({"test_start": fr["fold"]["test_start"], "entry_days": len(days),
+                      "ok": need is None or len(days) >= need})
+    for f, row in funds.items():
+        row["ok"] = (not row["checked"]) or bool(folds and all(x["entry_days"] >= row["required"] for x in folds))
+    fewest = min((x["entry_days"] for x in folds), default=None)
+    ok = bool(folds) and all(x["ok"] for x in folds) and all(r["ok"] for r in funds.values())
+    return dict(base, ok=ok, funds=funds, folds=folds, required=need, fewest_entry_days=fewest,
+                margin=None if need is None or fewest is None else fewest - need)
+
+
 def _margin(check, measure, measured, threshold, unit, higher_is_better=True):
     if measured is None or threshold is None:
         m = None
@@ -1034,6 +1076,10 @@ def check_margins(checks):
     if sr:
         rows.append(_margin("stress", "pooled mean net R under p90 spread + commission margin",
                             sr.get("mean_R_stressed"), 0.0, "R"))
+    md = checks.get("min_trading_days") or {}
+    if md:
+        rows.append(_margin("min_trading_days", "fewest distinct UTC entry days in any test fold",
+                            md.get("fewest_entry_days"), md.get("required"), "days"))
     for name in ("prop_pass_probability", "prop_pass_shifted"):
         pp = checks.get(name) or {}
         if pp:
@@ -1044,7 +1090,8 @@ def check_margins(checks):
 
 
 def evaluate_cell(fold_results, perturbations, symbols, family_size, prop_by_fund, runs=None, *, stress=None,
-                  prop_shifted=None, shift_r=None, categorical=None, skips=None, grid=None, axes=None):
+                  prop_shifted=None, shift_r=None, categorical=None, skips=None, grid=None, axes=None,
+                  min_days_required=None):
     """Every rule over one (method, cell). The primary bound uses the POOLED TEST trades only, at the FLOOR confidence
     1 - FAMILY_ALPHA/`family_size` (family A: the number of candidate procedures, not of grid values); the checks are ALL
     computed (never short-circuited) so a failing candidate reports every reason.
@@ -1065,6 +1112,7 @@ def evaluate_cell(fold_results, perturbations, symbols, family_size, prop_by_fun
         "prop_pass_probability": check_prop_pass(prop_by_fund),
         "prop_pass_shifted": check_prop_pass_shifted(prop_shifted, shift_r),
         "stress": check_stress(stress, conf),
+        "min_trading_days": check_min_trading_days(fold_results, min_days_required),
     }
     verdict = verdict_from(checks)
     return {"verdict": verdict, "family_size": family_size, "confidence": conf, "primary": primary,

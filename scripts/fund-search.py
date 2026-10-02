@@ -829,6 +829,38 @@ def code_fingerprint(files=FINGERPRINT_FILES):
     return out
 
 
+def min_trading_days_required():
+    """{fund: declared `min_trading_days` | None} for the prop gate's funds (prop-search FUNDS), read from the account profiles
+    (scripts/account_profile.py: THE one source, as prop-search `_required_days`). None when ANY profile is unreadable or
+    malformed -- `FS.check_min_trading_days` then fails closed. A fund declaring `min_profitable_days` instead has None."""
+    try:
+        ps = _prop_search()
+        out = {}
+        for f in ps.FUNDS:
+            d = ps._AP.get(f)["rules"].get("min_trading_days")
+            if d is not None and (not isinstance(d, int) or isinstance(d, bool) or d < 1):
+                return None
+            out[f] = d
+        return out or None
+    except Exception:  # noqa: BLE001 -- an unreadable profile is a failed check, never a crash or a skipped gate
+        return None
+
+
+def min_trading_days_config():
+    """The pinned definition of the minimum-trading-days check: the text, the declared minimum per fund, the source profile id
+    and the profiles' own 'flagged for verification' note (None values when the profile is unreadable -> drift)."""
+    req = min_trading_days_required()
+    src = [f for f, d in (req or {}).items() if d is not None]
+    notes = {}
+    for f in src:
+        try:
+            notes[f] = _prop_search()._AP.get(f)["rules"].get("_min_trading_days_why")
+        except Exception:  # noqa: BLE001
+            notes[f] = None
+    return {"definition": FS.MIN_TRADING_DAYS_DEFINITION, "declared_by_fund": req, "source_profile_ids": src,
+            "source_file": "docs/architecture/account-profiles.json", "profile_note_flagged_for_verification": notes}
+
+
 def evaluation_config(plan):
     """I4: every setting that decides a verdict, stated once so the declaration pins it."""
     ps = _prop_search()
@@ -842,6 +874,7 @@ def evaluation_config(plan):
             "stress": {"definition": FS.STRESS_DEFINITION, "spread_stat": FS.STRESS_SPREAD_STAT,
                        "commission_fraction": FS.STRESS_COMMISSION_FRACTION},
             "prop_shift": FS.PROP_SHIFT_DEFINITION, "mde_power": FS.MDE_POWER,
+            "min_trading_days": min_trading_days_config(),
             "ruin_handling": "bt.RUIN_FRAC = 0.0 on the harness's own bt instance; post_ruin trades fail loud",
             "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": plan["embargo"],
             "cost_profile": plan["cost_profile"], "cost_profile_pin": plan["cost_profile_pin"],
@@ -1720,7 +1753,8 @@ def evaluate_with_engine(engine, grid, cell, family_size, axes=None):
     prop_shifted = engine.prop_pass(pooled, r_shift=shift) if (shift is not None and pooled) else None
     stress = engine.stress_trades(pooled) if (pooled and callable(getattr(engine, "stress_trades", None))) else None
     res = FS.evaluate_cell(fold_results, perturbs, cell["symbols"], family_size, prop, runs=src.runs, stress=stress,
-                           prop_shifted=prop_shifted, shift_r=shift, categorical=flips, skips=skips, grid=grid, axes=axes)
+                           prop_shifted=prop_shifted, shift_r=shift, categorical=flips, skips=skips, grid=grid, axes=axes,
+                           min_days_required=min_trading_days_required())
     res["fold_cost_report"] = [        # section C item 4: per test fold, the chosen values' mean net R and mean spread_R
         {"test_start": fr["fold"]["test_start"], "n_trades": len(fr["test_trades"]),
          "mean_net_R": FS.mean([t["net_R"] for t in fr["test_trades"]]),
@@ -1816,7 +1850,8 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
                         f"the floor confidence 1 - {FS.FAMILY_ALPHA}/{candidate['family_size']} (family A)"),
         "family": FS.FAMILY_DEFINITION, "perturbation": FS.PERTURBATION_DEFINITION,
         "perturbation_axes": FS.PERTURBATION_AXES, "stress": FS.STRESS_DEFINITION, "prop_shift": FS.PROP_SHIFT_DEFINITION,
-        "regime_split": FS.REGIME_SPLIT_DEFINITION, "verdict_precedence": FS.VERDICT_PRECEDENCE,
+        "regime_split": FS.REGIME_SPLIT_DEFINITION, "min_trading_days": min_trading_days_config(),
+        "verdict_precedence": FS.VERDICT_PRECEDENCE,
         "constants": dict({k: getattr(FS, k) for k in ("FAMILY_ALPHA", "MIN_FOLD_TRADES", "MIN_TRAIN_TRADES",
                                                         "MAX_TRADE_SHARE", "MAX_GAP_DAYS", "MIN_FOLD_SHARE_OK",
                                                         "PASS_PROB_MIN", "TEST_FOLD_DAYS", "MIN_TRAIN_DAYS",
@@ -1856,6 +1891,7 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
                                  "perturbation": result["checks"]["perturbation"],
                                  "stress": result["checks"]["stress"],
                                  "prop_pass_shifted": result["checks"]["prop_pass_shifted"],
+                                 "min_trading_days": result["checks"]["min_trading_days"],
                                  "categorical_flips": result.get("categorical_flips")})
     try:
         import trading_system as _TS
@@ -2610,6 +2646,12 @@ def report_candidate_lines(ev):
         L.append(f"prop_pass_probability with R shifted down by {sh['shift_R']:.4f} R (mean - primary bound): "
                  + "; ".join(f"{f} {row['status']}" + (f" ({_fmt(row['value'], '.2f')})" if row.get("value") is not None else "")
                              for f, row in pps.items()) + ".")
+    md = ev["checks"].get("min_trading_days") or {}
+    if md:
+        L.append("Minimum trading days (distinct UTC entry days per test fold; funds checked: "
+                 + (", ".join(f"{f} >= {row['required']}" for f, row in (md.get("funds") or {}).items() if row.get("checked"))
+                    or "none") + "): per fold " + str([x["entry_days"] for x in md.get("folds", [])])
+                 + f", margin {_fmt(md.get('margin'), '.0f')} day(s)" + (f" -- {md['reason']}" if md.get("reason") else "") + ".")
     return L
 
 

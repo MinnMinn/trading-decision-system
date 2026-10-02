@@ -100,7 +100,7 @@ ASSUMPTIONS = [
     "via fund_stats.stress_commission_r(entry, stop), stressed net R via fund_stats.stressed_net_r. Gate = mean > 0 (fund_stats.check_stress).",
     "E8 [as power_model A8, NOT the engine] prop_pass: performance.metrics(trades, account, horizon 120) per fund, net_R + entry_time only (no simulate()/live-parity sizing: the 2-consecutive-loss "
     "halving and any trade the engine would refuse are NOT modelled). Unshifted AND shifted by (pooled mean - primary bound) as in evaluate_with_engine; both funds >= 0.70 (+ the low-confidence rule of fund_stats._prop_row).",
-    "E9 [as the harness] verdict = fund_stats.verdict_from: insufficient if any fold has < 30 trades; otherwise PASS iff all nine checks are ok. Replications: 200 per (candidate, e) on the primary grid "
+    "E9 [as the harness] verdict = fund_stats.verdict_from: insufficient if any fold has < 30 trades; otherwise PASS iff all ten checks are ok (the tenth, min_trading_days, cannot bind here: every fold has >= 30 trades on >= 4 days; added 2026-10-02). Replications: 200 per (candidate, e) on the primary grid "
     "(stop early at >= 98.5 % pass after >= 50), 60 on the disc03 grid, 40 on sensitivity points, 80 on attribution, 3000 at e = 0 (type I), 300 (800 for 5m-metals) per floor-only point of the inclusion rule. "
     "Monte-Carlo SE of a power estimate near 0.8: 0.028 (200), 0.052 (60), 0.063 (40). 'e80' = smallest grid e (step 0.05) with power >= 0.80, read from the estimated curve (no smoothing).",
     "E10 the nested walk-forward is NOT simulated: the pooled TEST trades of the candidate are drawn directly at the true edge e (a procedure that picks a good value in training and then tests it can only do "
@@ -338,7 +338,8 @@ def eval_lazy(world, d):
     for name, fn in (("stability", lambda: FS.check_stability(pooled, world.syms)),
                      ("frequency", lambda: FS.check_frequency(fr)),
                      ("regime_split", lambda: FS.check_regime_split(pooled)),
-                     ("stress", lambda: FS.check_stress(world.stress_trades(d), CONF))):
+                     ("stress", lambda: FS.check_stress(world.stress_trades(d), CONF)),
+                     ("min_trading_days", lambda: FS.check_min_trading_days(fr, fund_search_mod().min_trading_days_required()))):
         checks[name] = fn()
         if not checks[name]["ok"]:
             return done(name)
@@ -373,7 +374,7 @@ def eval_full(world, d):
     prop = prop_rows(pooled)
     prop_sh = prop_rows(pooled, shift) if shift is not None else None
     r = FS.evaluate_cell(d["fold_results"], perturbs, world.syms, FAMILY, prop, stress=world.stress_trades(d),
-                         prop_shifted=prop_sh, shift_r=shift)
+                         prop_shifted=prop_sh, shift_r=shift, min_days_required=fund_search_mod().min_trading_days_required())
     return {"verdict": r["verdict"], "failed": list(r["failed_checks"]), "floor_ok": r["checks"]["lower_bound_positive"]["ok"],
             "all_folds_ok": r["checks"]["folds_sufficient"]["ok"]}
 

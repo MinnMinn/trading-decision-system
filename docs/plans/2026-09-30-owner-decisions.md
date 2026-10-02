@@ -347,3 +347,15 @@ Applied: `docs/architecture/fund-search-cells.json` (1m-indices 2020-03-01T00:00
 
 **Pinned files changed (declare must run AFTER):** `scripts/fund_stats.py`, `scripts/fund-search.py`, `scripts/real_costs.py` (docstring only), the tests under the `scripts/` tree pin,
 `docs/experiments/fund-search/plan.json` (recommitted at the end of this branch).
+
+## 2026-10-02: FTMO minimum trading days becomes an explicit prop-gate check (branch `b27-min-trading-days`; owner confirmed 2026-10-02 in chat; a tightening)
+
+- **Decision (owner, 2026-10-02):** FTMO requires at least 4 trading days, as recorded in the repo profile `ftmo-challenge-phase1` (`min_trading_days: 4`, still flagged for
+  verification: 2024+ sources report 4, older sources 10). The owner confirmed adding an EXPLICIT check to the prop gate: a tightening, harmless in practice because every fold needs
+  >= 30 trades in 365 days.
+- **Definition (draft item 8c, pinned as `FS.MIN_TRADING_DAYS_DEFINITION` and `evaluation_config.min_trading_days`):** per test fold, the number of distinct UTC ENTRY days among the
+  pooled test trades must be >= the profile's `min_trading_days`, for every prop-gate fund that declares one (FTMO: 4); The5ers (no field) is not checked; an unreadable profile fails
+  the check. A necessary-condition proxy (365-day fold vs the 120-resampled-day challenge horizon), not a replay. Required for a PASS, fails closed when absent from a record.
+- **Not touched:** `scripts/performance.py`, `scripts/prop-search.py`, the engine, cells, grids. The plan core is unchanged (plan_hash 275763cb81b0518a).
+- **Pinned files changed (declare must run AFTER):** `scripts/fund_stats.py`, `scripts/fund-search.py`, the tests under the `scripts/` tree pin, `scripts/research/e2e_power.py`
+  (check added to the simulator; not a verdict input of the harness).

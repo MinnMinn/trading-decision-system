@@ -474,6 +474,134 @@ class EndToEndVerdicts(unittest.TestCase):
         self.assertNotEqual(ev["verdict"], FS.PASS)
 
 
+class MinTradingDays(unittest.TestCase):
+    """Owner 2026-10-02: FTMO's minimum trading days (profile `ftmo-challenge-phase1`: 4, flagged for verification) is an explicit
+    PASS condition: per test fold, distinct UTC ENTRY days >= the declared minimum. Synthetic trades only."""
+    FTMO, FIVERS = "ftmo-challenge-phase1", "the5ers-high-stakes-step1"
+
+    def _folds(self, days_per_fold, trades_per_day=1):
+        """Fold results whose test trades are entered on exactly `days_per_fold[i]` distinct UTC days of fold i (several
+        trades on one day count once)."""
+        out = []
+        for f, nd in zip(FS.make_folds(LONG_START), days_per_fold):
+            t0 = FS.ts(f["test_start"])
+            trades = [{"entry_time": FS.iso(t0 + datetime.timedelta(days=3 * d, hours=1, minutes=k)), "net_R": 0.3, "symbol": "XAUUSD"}
+                      for d in range(nd) for k in range(trades_per_day)]
+            out.append({"fold": f, "chosen": {}, "changed": [], "test_trades": trades})
+        return out
+
+    def test_three_distinct_entry_days_fail_and_four_pass(self):
+        req = {self.FTMO: 4, self.FIVERS: None}
+        three = FS.check_min_trading_days(self._folds([3, 3]), req)
+        self.assertFalse(three["ok"])
+        self.assertEqual((three["fewest_entry_days"], three["required"], three["margin"]), (3, 4, -1))
+        four = FS.check_min_trading_days(self._folds([4, 4]), req)
+        self.assertTrue(four["ok"])
+        self.assertEqual(four["margin"], 0)
+        self.assertIn("2026-10-02", FS.MIN_TRADING_DAYS_DEFINITION)
+
+    def test_many_trades_on_one_day_count_as_one_day(self):
+        chk = FS.check_min_trading_days(self._folds([3, 3], trades_per_day=40), {self.FTMO: 4})
+        self.assertEqual([x["entry_days"] for x in chk["folds"]], [3, 3])
+        self.assertFalse(chk["ok"])
+
+    def test_it_is_judged_per_fold_not_pooled(self):
+        chk = FS.check_min_trading_days(self._folds([9, 3, 9]), {self.FTMO: 4})
+        self.assertFalse(chk["ok"])                                   # 21 pooled days, but one fold has 3
+        self.assertEqual([x["ok"] for x in chk["folds"]], [True, False, True])
+        self.assertEqual(chk["fewest_entry_days"], 3)
+
+    def test_a_trade_outside_its_folds_window_is_not_counted(self):
+        folds = self._folds([3, 3])
+        late = FS.ts(folds[0]["fold"]["test_end"]) + datetime.timedelta(days=1)
+        folds[0]["test_trades"].append({"entry_time": FS.iso(late), "net_R": 0.1, "symbol": "XAUUSD"})
+        self.assertEqual(FS.check_min_trading_days(folds, {self.FTMO: 4})["folds"][0]["entry_days"], 3)
+
+    def test_a_fund_without_the_field_is_not_checked(self):
+        chk = FS.check_min_trading_days(self._folds([1, 1]), {self.FIVERS: None})
+        self.assertTrue(chk["ok"])
+        self.assertEqual(chk["funds"][self.FIVERS], {"required": None, "checked": False, "ok": True})
+        chk = FS.check_min_trading_days(self._folds([4, 4]), {self.FTMO: 4, self.FIVERS: None})
+        self.assertTrue(chk["funds"][self.FTMO]["checked"] and not chk["funds"][self.FIVERS]["checked"])
+
+    def test_unreadable_or_malformed_requirements_fail_closed(self):
+        folds = self._folds([50, 50])
+        for bad in (None, {}, {self.FTMO: 0}, {self.FTMO: "4"}, {self.FTMO: True}, {self.FTMO: 4.0}):
+            chk = FS.check_min_trading_days(folds, bad)
+            self.assertFalse(chk["ok"], bad)
+            self.assertIn("fail closed", chk["reason"])
+        self.assertFalse(FS.check_min_trading_days([], {self.FTMO: 4})["ok"])
+        broken = self._folds([5, 5])
+        broken[1]["test_trades"][0]["entry_time"] = "not a time"
+        self.assertFalse(FS.check_min_trading_days(broken, {self.FTMO: 4})["ok"])
+        del broken[1]["test_trades"][0]["entry_time"]
+        self.assertFalse(FS.check_min_trading_days(broken, {self.FTMO: 4})["ok"])
+
+    def test_the_harness_reads_the_declared_minimum_from_the_profiles(self):
+        fs = _fs()
+        self.assertEqual(fs.min_trading_days_required(), {self.FTMO: 4, self.FIVERS: None})
+        cfg = fs.min_trading_days_config()
+        self.assertEqual(cfg["declared_by_fund"], {self.FTMO: 4, self.FIVERS: None})
+        self.assertEqual(cfg["source_profile_ids"], [self.FTMO])
+        self.assertIn("flagged for verification", cfg["profile_note_flagged_for_verification"][self.FTMO])
+        self.assertEqual(cfg["definition"], FS.MIN_TRADING_DAYS_DEFINITION)
+
+    def test_an_unreadable_profile_fails_closed_end_to_end(self):
+        fs = _fs()
+        ps = fs._prop_search()
+        with mock.patch.object(ps._AP, "get", side_effect=KeyError("profile file unreadable")):
+            self.assertIsNone(fs.min_trading_days_required())
+            self.assertIsNone(fs.min_trading_days_config()["declared_by_fund"])
+        with mock.patch.object(fs, "min_trading_days_required", return_value=None):
+            cell = {"id": "5m-indices", "timeframe": "5m", "symbols": SYMS, "development_start": LONG_START}
+            ev = fs.evaluate_with_engine(SynthEngine(mean=0.6), grid_two_items(), cell, 6, axes=TEST_AXES)
+        self.assertEqual(ev["failed_checks"], ["min_trading_days"])
+        self.assertEqual(ev["verdict"], FS.FAIL)
+
+    def _evaluate(self, required):
+        fs = _fs()
+        cell = {"id": "5m-indices", "timeframe": "5m", "symbols": SYMS, "development_start": LONG_START}
+        with mock.patch.object(fs, "min_trading_days_required", return_value=required):
+            return fs.evaluate_with_engine(SynthEngine(mean=0.6), grid_two_items(), cell, 6, axes=TEST_AXES)
+
+    def test_the_verdict_fails_when_only_this_check_fails(self):
+        ok = self._evaluate({self.FTMO: 4, self.FIVERS: None})
+        self.assertEqual(ok["verdict"], FS.PASS)
+        self.assertTrue(ok["checks"]["min_trading_days"]["ok"])
+        self.assertEqual([m for m in ok["margins"] if m["check"] == "min_trading_days"][0]["unit"], "days")
+        fewest = ok["checks"]["min_trading_days"]["fewest_entry_days"]
+        bad = self._evaluate({self.FTMO: fewest + 1, self.FIVERS: None})      # one more day than the sparsest fold has
+        self.assertEqual(bad["failed_checks"], ["min_trading_days"])
+        self.assertEqual(bad["verdict"], FS.FAIL)
+        row = [m for m in bad["margins"] if m["check"] == "min_trading_days"][0]
+        self.assertEqual((row["margin"], row["ok"]), (-1, False))
+        self.assertEqual(len(bad["checks"]["min_trading_days"]["folds"]), len(bad["folds"]))   # the value per fold is recorded
+
+    def test_mutation_the_verdict_test_bites_when_the_check_is_neutralised(self):
+        """Remove the check from the conjunction (its result forced ok) and the only-this-check-fails verdict flips to PASS."""
+        fewest = self._evaluate({self.FTMO: 4})["checks"]["min_trading_days"]["fewest_entry_days"]
+        with mock.patch.object(FS, "check_min_trading_days", return_value={"ok": True}):
+            mutated = self._evaluate({self.FTMO: fewest + 1})
+        self.assertEqual(mutated["verdict"], FS.PASS)                   # what the mutation does ...
+        self.assertEqual(self._evaluate({self.FTMO: fewest + 1})["verdict"], FS.FAIL)    # ... and the real code refuses
+
+    def test_it_is_a_required_check_and_a_record_without_it_cannot_pass(self):
+        self.assertIn("min_trading_days", FS.REQUIRED_CHECKS)
+        self.assertEqual(len(FS.REQUIRED_CHECKS), 10)
+        ev = self._evaluate({self.FTMO: 4})
+        checks = copy.deepcopy(ev["checks"])
+        self.assertEqual(FS.verdict_from(checks), FS.PASS)
+        del checks["min_trading_days"]
+        self.assertEqual(FS.verdict_from(checks), FS.FAIL)             # absent -> fails closed
+        self.assertEqual(FS.verdict_from(dict(ev["checks"], min_trading_days={"ok": False})), FS.FAIL)
+        self.assertIn("minimum trading days", FS.VERDICT_PRECEDENCE)
+
+    def test_evaluate_cell_without_the_requirement_fails_closed(self):
+        ev = FS.evaluate_cell(self._folds([60, 60]), [], SYMS, 6, {"f": 0.9})
+        self.assertFalse(ev["checks"]["min_trading_days"]["ok"])
+        self.assertIn("min_trading_days", ev["failed_checks"])
+
+
 class Sufficiency(unittest.TestCase):
     def _folds(self, counts):
         out = []
@@ -1211,6 +1339,11 @@ class Disclosures(_Helpers):
         self.assertEqual(cfg["spread_stat"], "median")
         self.assertEqual(cfg["live_parity_sizing"], {"trades_for": False, "prop_pass": True})
         self.assertEqual(cfg["prop_horizon_days"], 120)
+        mtd = cfg["min_trading_days"]                                    # owner 2026-10-02: the pinned definition
+        self.assertEqual(mtd["declared_by_fund"], {"ftmo-challenge-phase1": 4, "the5ers-high-stakes-step1": None})
+        self.assertEqual(mtd["source_profile_ids"], ["ftmo-challenge-phase1"])
+        self.assertEqual(mtd["definition"], FS.MIN_TRADING_DAYS_DEFINITION)
+        self.assertIn("flagged for verification", mtd["profile_note_flagged_for_verification"]["ftmo-challenge-phase1"])
         self.assertIn("insufficient", cfg["verdict_precedence"])
         self.assertEqual(set(cfg["grid_sha256"]), {"ict", "wyckoff"})
         self.assertTrue(all(len(h) == 64 for h in cfg["grid_sha256"].values()))

@@ -207,6 +207,21 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
    from every admitted trade's net R AFTER `simulate()` and before the bootstrap reads it (the shift is applied in the harness:
    `scripts/performance.py` and `scripts/prop-search.py` are untouched, so prop-search is byte-identical by construction); the
    unshifted requirement is evaluated first and stays; a shift that cannot be computed (no bound) fails closed.
+   **(c) Minimum trading days (added 2026-10-02, owner confirmed 2026-10-02; a TIGHTENING, `FS.check_min_trading_days`, required
+   check `min_trading_days`).** For EVERY fund of `prop-search.FUNDS` whose account profile declares `min_trading_days` (FTMO
+   Challenge Phase 1: 4, read from `docs/architecture/account-profiles.json`; the profile records it as flagged for verification:
+   2024+ sources report 4, older sources 10), EVERY test fold must contain at least that many DISTINCT UTC calendar days on which a
+   pooled test trade was INITIATED (the entry day, the reading `account_profile.objectives` uses for `trading_days`; several trades
+   on one day count once). Funds without the field (The5ers High Stakes Step 1: `min_profitable_days` instead, a different rule) are
+   not checked. An unreadable or malformed profile, an unreadable entry time or an empty fold list FAILS the check (fail closed); a
+   record lacking the check is a FAIL (`REQUIRED_CHECKS`, now ten). **It is a necessary-condition proxy, not a replay of the
+   challenge:** a test fold is 365 days while the challenge horizon is 120 resampled active days, so the count is taken over the
+   whole fold, not over a simulated 120-day challenge. The record carries the per-fold day counts, the margin (fewest days in a fold
+   minus the minimum) and the pinned definition (`evaluation_config.min_trading_days`: the definition text, the declared minimum per
+   fund, the source profile id and the profile's flagged-for-verification note). `scripts/performance.py` and `scripts/prop-search.py`
+   are byte-identical (the check lives in the harness). It cannot bind in practice: every fold needs >= 30 trades (item 8), and the
+   e2e power simulator (`scripts/research/e2e_power.py`, check added to `eval_lazy` / `eval_full`) evaluates it without changing its
+   selfcheck agreement. Plan core unchanged (the definition is in `evaluation_config`, not in the plan core).
 9. **Cost model (AMENDED 2026-10-02 by item 13).** Real FTMO costs, profile `ftmo_demo_2026_09_relspread`: the recorded
    spread is scaled with the entry price (`entry / price_ref(symbol)`, item 13b); the absolute profile `ftmo_demo_2026_09` is no
    longer the fund profile and stays selectable and byte-identical, but no fund-search code or report uses it (a comparison baseline for
