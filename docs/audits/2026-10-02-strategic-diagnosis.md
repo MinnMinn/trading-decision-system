@@ -155,3 +155,8 @@ Reproduce the simulation of §4.3: a stdlib-only Monte Carlo (binary +2.5/-1 R n
 (docs/audits/2026-10-02-edge-census.md): 40 pre-registered tests, 0 confirmed. Real, replicating signals exist on metals
 (prior-day sweep -> CONTINUATION; FVG retrace) but are smaller than the spread at 30-120 min; XAUUSD is ~7x cheaper than
 XAGUSD. Next decision for the owner: a follow-up family (gold + cheapest indices, longer holds) and how it is confirmed.
+
+**Update 2026-10-02 (F2 stage b):** follow-up pre-registered (docs/plans/2026-10-02-edge-followup-preregistration.md) and read
+once on the exposed window 2024-03..2026-09: 2 of 45 pass -- the displacement-FVG retrace on XAUUSD (2 h, +1.9 bp net) and
+US500 (4 h, +0.6 bp net). They go to the forward stage (a) (runbook in docs/audits/2026-10-02-edge-followup-exposed.md);
+it needs new FTMO-Demo exports from 2026-09-29 on.
