@@ -167,3 +167,12 @@ the 20-day momentum, held to the end of the day (+9 to +14 bp net per trade; doc
 design (docs/audits/2026-10-02-book-sim.md): H7 gold at 1 % passes FTMO Phase 1 (no time limit) from every start year
 2004-2024 in-sample, ~0 % failures, median ~19 months; with the FVG components (2021-26) median ~6 months. Forward watch
 now covers three components (`scripts/research/fvg_forward.py WATCH`); the demo executor trades all three when enabled.
+
+## Status update 2026-10-02 (late) -- independent components
+
+- Baseline saved: docs/architecture/book-baseline.json (all_three @ 1 %: P1 91 % pass, 0 % fail, median 184 d on 2021-10 -> 2026-09).
+- F4 (41 tests): G9 volatility breakout survives on XAUUSD and XAGUSD, but adds no daily Sharpe at equal risk (gold: same factor as
+  H7, corr 0.19; silver: independent but ~0 R on the span). Paper-logged only. docs/audits/2026-10-02-edge-f4.md.
+- F5 (27 tests, transfer to the research-only symbols): 0 survive. docs/audits/2026-10-02-edge-f5.md.
+- Read: FTMO has no time limit, so the baseline already meets "pass" in replay; speed now needs a new asset class (forex), which
+  is an owner decision.
