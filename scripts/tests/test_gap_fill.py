@@ -9,11 +9,13 @@ Every series here is hand-built: no real history, no R / expectancy of any evalu
 
 Run from scripts/tests, ONE module per invocation:  PYTHONPATH=.. python3 -W ignore -m unittest test_gap_fill
 """
+import collections
 import importlib.util
 import os
 import sys
 import types
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -188,6 +190,58 @@ class SameBarFillAndStop(_Base):
     def test_ict_same_bar_fill_and_stop_without_a_gap_is_v1(self):
         self.assertEqual(self._ict(100.5, True), self._ict(100.5, False))
         self.assertEqual(self._ict(98.0, True)["R"], -1.0)
+
+
+class CombinedBookSameBar(_Base):
+    """Sealed rule 13(c): a same-bar fill-and-stop in COMBINED-BOOK obeys the gap rule like ICT's. The COMBINED-BOOK ICT leg is
+    exercised through `_wy_fire` on hand-built bars; only the two structure finders (`find_ict`, `fvg_fill`) are stubbed to
+    place the FVG edge and report "filled_and_stopped" on bar 4, so the booking arithmetic under test is the real code."""
+
+    def _fire(self, gap, open_fill_bar, side="long"):
+        self.opts(fx_gap_fill=gap, htf=False)
+        n = 10
+        Tm = [f"2024-01-01T00:{5 * i:02d}:00Z" for i in range(n)]
+        long = side == "long"
+        O = [101.0 if long else 99.0] * n
+        H = [101.5 if long else 99.5] * n
+        L = [100.5 if long else 98.5] * n
+        C = [101.0 if long else 99.0] * n
+        O[4] = open_fill_bar
+        if long:
+            L[4] = 94.0                              # bar 4 trades through the FVG edge (100) AND the stop (98)
+        else:
+            H[4] = 106.0
+        x = self.bt._wy_ctx("XAUUSD", "5m", [], O, H, L, C, Tm, n, 5, 10, None, None, {"COMBINED-BOOK"}, None)
+        rec = {"tr_lo": 95.0, "tr_hi": 105.0, "vol_type": "t", "vol_ratio": 1.0, "volume_kind": "tick", "st_sign": 1,
+               "phase_b_sign": 1, "st_pct": 0.5, "sot": None, "path": "p", "reclaim": 2, "spring": 0}
+        f = {"rec": rec, "t0": Tm[0], "leg": "spring", "entry": 101.0 if long else 99.0,
+             "stop": 98.0 if long else 102.0, "target": 110.0 if long else 90.0}
+        trades = collections.defaultdict(list)
+        edge = 100.0
+        with mock.patch.object(self.bt, "find_ict", return_value=(1, edge, 99.0 if long else 101.0)), \
+                mock.patch.object(self.bt, "fvg_fill", return_value=(4, "filled_and_stopped")):
+            self.bt._wy_fire(x, side, f, 0, 2, trades)
+        self.assertEqual(len(trades["COMBINED-BOOK"]), 1)
+        return trades["COMBINED-BOOK"][0]
+
+    def test_a_same_bar_fill_and_stop_on_a_gap_open_books_the_open_not_minus_one(self):
+        off = self._fire(False, 96.0)
+        on = self._fire(True, 96.0)
+        self.assertEqual((off["outcome"], off["R"], off["mae"]), ("loss", -1.0, -1.0))          # v1: exactly the pessimistic -1R
+        self.assertEqual((on["outcome"], on["R"], on["mae"]), ("loss", -2.0, -2.0))              # edge 100, stop 98, open 96
+        self.assertEqual((on["entry"], on["stop"], on["via"]), (100.0, 98.0, "fvg"))             # the limit filled at its own price
+        self.assertEqual(on["R_planned"], off["R_planned"])                                      # admission figure untouched
+
+    def test_the_same_bar_short_obeys_the_rule_too(self):
+        off = self._fire(False, 105.0, side="short")
+        on = self._fire(True, 105.0, side="short")
+        self.assertEqual(off["R"], -1.0)
+        self.assertEqual(on["R"], -2.5)                                                           # edge 100, stop 102, open 105: -(5/2)
+
+    def test_no_gap_in_the_same_bar_is_v1_with_the_key_on(self):
+        for open_ in (100.5, 98.5, 98.0):                                                         # inside / at the stop: no gap
+            self.assertEqual(self._fire(True, open_)["R"], -1.0, open_)
+            self.assertEqual(self._fire(True, open_), self._fire(False, open_), open_)
 
 
 if __name__ == "__main__":
