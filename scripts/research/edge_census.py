@@ -90,8 +90,8 @@ FAMILY = ([(e, g, h) for e in ("E1_prev_day_sweep_reclaim", "E2_prev_day_accepta
 class Series:
     """One symbol's dense development 5m bars with their server date and UTC/local helpers."""
 
-    def __init__(self, sym, candles, zone):
-        cut = DEV_CUTOFF
+    def __init__(self, sym, candles, zone, end=DEV_CUTOFF):
+        cut = end            # the follow-up (edge_followup.py) reads past the development cutoff; the census never does
         c = [b for b in candles if b["time"] < cut]
         self.sym = sym
         self.T = [b["time"] for b in c]
@@ -143,13 +143,13 @@ class Series:
         return self._vol.get(self.sday[i])
 
 
-def load(sym):
+def load(sym, end=DEV_CUTOFF):
     import history_store as HS
     import real_costs as RC
     doc, _ = HS.read_doc(sym, "5m", root=HIST_ROOT)
     if doc is None:
         raise SystemExit(f"no 5m history for {sym} under {HIST_ROOT}")
-    return Series(sym, doc["candles"], RC.server_zone(PROVIDER)[1])
+    return Series(sym, doc["candles"], RC.server_zone(PROVIDER)[1], end=end)
 
 
 # ------------------------------------------------------------------------------------------------ events
