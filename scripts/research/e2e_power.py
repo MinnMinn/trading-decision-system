@@ -5,7 +5,7 @@ cell-inclusion rule at the FINAL pre-registration parameters. SYNTHETIC trades o
 What is real (imported and CALLED, never reimplemented):
   * scripts/fund_stats.py: robust_lower_bound / check_lower_bound, check_fold_sufficiency, check_stability, check_frequency,
     check_regime_split, check_perturbation (one neighbour at a time), check_stress, stressed_net_r / stress_commission_r,
-    prop_shift_r, check_prop_pass, check_prop_pass_shifted, verdict_from, evaluate_cell (full mode), make_folds,
+    check_prop_pass, verdict_from, evaluate_cell (full mode), make_folds,
     n_adjusted_confidence (family 6 -> 0.98333).
   * scripts/performance.py metrics() with prop-search's own FUNDS / horizon / account profiles (power_model.prop_pass_value logic),
     scripts/fund-search.py prop_row_from_metric.  The harness engine's simulate()/live-parity sizing is NOT run (needs a real
@@ -99,8 +99,8 @@ ASSUMPTIONS = [
     "flat_before_rollover is on), the representative stop distance dist_sym = rel_median_spread(sym) / c with rel_median_spread = overall median points * point / real_costs.price_ref(sym). Commission margin "
     "via fund_stats.stress_commission_r(entry, stop), stressed net R via fund_stats.stressed_net_r. Gate = mean > 0 (fund_stats.check_stress).",
     "E8 [as power_model A8, NOT the engine] prop_pass: performance.metrics(trades, account, horizon 120) per fund, net_R + entry_time only (no simulate()/live-parity sizing: the 2-consecutive-loss "
-    "halving and any trade the engine would refuse are NOT modelled). Unshifted AND shifted by (pooled mean - primary bound) as in evaluate_with_engine; both funds >= 0.70 (+ the low-confidence rule of fund_stats._prop_row).",
-    "E9 [as the harness] verdict = fund_stats.verdict_from: insufficient if any fold has < 30 trades; otherwise PASS iff all ten checks are ok (the tenth, min_trading_days, cannot bind here: every fold has >= 30 trades on >= 4 days; added 2026-10-02). Replications: 200 per (candidate, e) on the primary grid "
+    "halving and any trade the engine would refuse are NOT modelled). UNSHIFTED only since the 2026-10-02 final decision (the shifted variant is report-only and not simulated); both funds >= 0.70 (+ the low-confidence rule of fund_stats._prop_row).",
+    "E9 [as the harness] verdict = fund_stats.verdict_from: insufficient if any fold has < 30 trades; otherwise PASS iff all nine REQUIRED checks are ok (final conjunction 2026-10-02: the shifted prop pass is report-only; min_trading_days cannot bind here: every fold has >= 30 trades on >= 4 days). Replications: 200 per (candidate, e) on the primary grid "
     "(stop early at >= 98.5 % pass after >= 50), 60 on the disc03 grid, 40 on sensitivity points, 80 on attribution, 3000 at e = 0 (type I), 300 (800 for 5m-metals) per floor-only point of the inclusion rule. "
     "Monte-Carlo SE of a power estimate near 0.8: 0.028 (200), 0.052 (60), 0.063 (40). 'e80' = smallest grid e (step 0.05) with power >= 0.80, read from the estimated curve (no smoothing).",
     "E10 the nested walk-forward is NOT simulated: the pooled TEST trades of the candidate are drawn directly at the true edge e (a procedure that picks a good value in training and then tests it can only do "
@@ -353,14 +353,11 @@ def eval_lazy(world, d):
     checks["perturbation"] = {"ok": ok, "rows": rows}
     if not ok:
         return done("perturbation")
-    shift = FS.prop_shift_r(lb["bound"])
+    # the shifted prop pass is REPORT-ONLY since 2026-10-02 (FS.REPORT_ONLY_CHECKS): not evaluated, not in the conjunction
     pr = prop_rows(pooled)
     checks["prop_pass_probability"] = FS.check_prop_pass(pr)
     if not checks["prop_pass_probability"]["ok"]:
         return done("prop_pass_probability")
-    checks["prop_pass_shifted"] = FS.check_prop_pass_shifted(prop_rows(pooled, shift), shift)
-    if not checks["prop_pass_shifted"]["ok"]:
-        return done("prop_pass_shifted")
     res["verdict"] = FS.verdict_from(checks)
     return res
 
@@ -369,12 +366,10 @@ def eval_full(world, d):
     """FS.evaluate_cell with every input (all checks computed, never short-circuited): the attribution run."""
     pooled = d["trades"]
     lb = FS.robust_lower_bound(pooled, CONF)
-    shift = FS.prop_shift_r(lb)
     perturbs = world.neighbours(d)
     prop = prop_rows(pooled)
-    prop_sh = prop_rows(pooled, shift) if shift is not None else None
     r = FS.evaluate_cell(d["fold_results"], perturbs, world.syms, FAMILY, prop, stress=world.stress_trades(d),
-                         prop_shifted=prop_sh, shift_r=shift, min_days_required=fund_search_mod().min_trading_days_required())
+                         min_days_required=fund_search_mod().min_trading_days_required())
     return {"verdict": r["verdict"], "failed": list(r["failed_checks"]), "floor_ok": r["checks"]["lower_bound_positive"]["ok"],
             "all_folds_ok": r["checks"]["folds_sufficient"]["ok"]}
 
@@ -1033,7 +1028,9 @@ def run_cal(a):
     jobs = []
     for c in CANDS:
         x = e80["primary"][f"{c[0]}|{c[1]}"]
-        for e in ([0.30, 0.60] if x is None else sorted({nearest_grid(x / 2.0), x})):
+        es_c = estar[(c, PRIMARY)]
+        pts_e = ([0.30, 0.60] if x is None else [nearest_grid(x / 2.0), x]) + ([round(es_c, 4)] if es_c else [])    # + e* (b29: binding check at e*)
+        for e in sorted(set(pts_e)):
             jobs.append(dict(kind="attrib", cand=list(c), cfg=cf(c), e=e, reps=R_ATT))
     res["attrib"] = [r for r in pmap(jobs, a.procs, "cal stage4 attribution") if r["kind"] == "attrib"]
     res["meta"]["seconds"] = round(time.time() - t0, 1)
@@ -1136,6 +1133,33 @@ def report_cal(cal, doc, old):
             ok = [x for x in rs if x is not None]
             best = min(ok) if ok else None
             L.append(f"| {cell} | {v}{' (primary convention)' if v == 'disc03' else ''} | {pct(best)} | " + " | ".join(("INCLUDED" if best is not None and best <= k else "NOT SATISFIED") for k in K_LIST) + " |")
+    if any(abs(x["e"] - round(estar[(x["cand"][0], x["cand"][1], "sum03")]["e_star"] or -1, 4)) < 1e-9 for x in doc["attrib"]):
+        L.append("\n### C8. FINAL conjunction (shifted prop pass report-only, 2026-10-02): per candidate, PRIMARY, calibrated sigma\n")
+        L.append("| candidate | e* | e80 | e80/e* | P(PASS) at e* (n) | e80/2 | P(PASS) at e80/2 (n) | P(PASS) at e = 0 | Wilson upper | binding check at e* (fail share) | binding check at e80 (fail share) |")
+        L.append("|---|---|---|---|---|---|---|---|---|---|---|")
+
+        def bind(r):
+            if r is None:
+                return "n/a"
+            if not r["fail_counts"]:
+                return "none fails"
+            k, v = max(r["fail_counts"].items(), key=lambda kv: kv[1])
+            return f"{k} ({v / r['n']:.0%})"
+        tot = 0.0
+        for c, m in CANDS:
+            es = estar[(c, m, "sum03")]["e_star"]
+            e8 = e80["primary"][f"{c}|{m}"]
+            at = lambda e: [x for x in doc["attrib"] if tuple(x["cand"]) == (c, m) and e is not None and abs(x["e"] - round(e, 4)) < 1e-9]
+            cv = lambda e: [x for x in doc["curve"] if tuple(x["cand"]) == (c, m) and x["cfg"] == cfg_of_c((c, m)) and e is not None and abs(x["e"] - round(e, 4)) < 1e-9]
+            pick = lambda rs: max(rs, key=lambda x: x["n"]) if rs else None
+            pe, ph = pick(cv(es)), pick(cv(nearest_grid(e8 / 2.0)) if e8 else [])
+            if pe:
+                tot += pe["pass"] / pe["n"]
+            r0 = fp[(c, m)]
+            f2 = lambda r: "n/a" if r is None else f"{r['pass'] / r['n']:.2f} ({r['n']})"
+            L.append(f"| {c} {MNAME[m]} | {pct(es, 3)} | {pct(e8)} | {pct(None if (e8 is None or not es) else e8 / es)} | {f2(pe)} | {pct(None if e8 is None else nearest_grid(e8 / 2.0))} | {f2(ph)} | "
+                     f"{r0['pass']}/{r0['n']} | {r0['wilson_pass']:.4f} | {bind(pick(at(es)))} | {bind(pick(at(e8)))} |")
+        L.append(f"\nExpected number of the six candidates that pass if each sits at its own e*: **{tot:.2f}**.")
     return "\n".join(L) + "\n"
 
 
