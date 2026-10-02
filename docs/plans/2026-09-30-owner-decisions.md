@@ -247,3 +247,57 @@ planned risk, as it would live. (iii) The relative profile also RAISES a cost wh
 (the plan core gained `cost_profile_pin`, `adopted_f_keys` gained `fx_gap_fill`, `cost_profile` changed; `plan_hash`
 4a476bee674afcbb -> 5476f042bdde09f1). Also touched, not pinned: `scripts/snapshot.py`, `scripts/stability-report.py` (`fx_gap_fill` registered),
 `scripts/diagnose-methods.py` (the two `walk` wrappers forward `**kw`). The cells file, grids, thresholds and `min_rr` are untouched.
+
+
+## 2026-10-02: implementation of the sealed statistics (branch `b20-stats-sealed`; coordinator-dispatched implementation, owner to ack before `declare`)
+
+**Status: implementation of decisions already taken (owner + coordinator + red team, entry "Owner decisions 2026-10-02" above).** No threshold,
+grid, cell or `min_rr` changed; no engine, cost or walk change (those are the merged b19). Nothing was evaluated: no R, expectancy or win rate
+of real data was read (synthetic trades, hand-seeded raw trades on a temp slice, and counts of D1 label hours / gaps only). The text is the
+SPEC (pre-registration draft, sections 0.2, A2, A5, A7, A8, A11, C); where it was ambiguous the most conservative reading was implemented and is
+listed here.
+
+**What the code now does** (`scripts/fund_stats.py`, `scripts/fund-search.py`; the draft's "Implemented" paragraphs say how):
+1. **Family A.** The multiple-testing family is the candidate procedures (declared cells x methods = 3 x 2 = 6; counted on the DECLARED cells, so a
+   cell dropped for lack of data still counts). Per-candidate primary bound = min of the five bounds; `p_robust` = max of the five one-sided p-values
+   (bound > 0 at c <=> p_robust < 1 - c, tested); floor confidence 1 - 0.10/6 = 0.98333 for every candidate (replaces N 87 / 48 and the per-grid-value
+   Bonferroni; grid values stay disclosed: ICT 29, Wyckoff 16 per cell). Plan core `family`, declaration `family_size` / `floor_confidence` /
+   `family_members` / `family_rule` (replacing `n_by_method` / `confidence_by_method`; `cell_count` unchanged), `plan --dry-run`, record `primary`
+   (five bounds, five p-values, `p_robust`, floor verdict, half-year se / df) and `report` (Holm over the six PLANNED candidates; NOT RUN, insufficient
+   and not-computable ones enter with p = 1).
+2. **Perturbation.** Ordinal components only, one at a time, from the constant `PERTURBATION_AXES` in `fund_stats.py` (pinned in the plan core and in
+   `evaluation_config.perturbation`); gate = neighbour pooled mean > 0 AND primary bound > 0 at the floor; categorical items flipped and reported;
+   W4a baseline-typed folds listed under "Not perturbed". The table is tested against the real grids.
+3. **Regime.** D1 ADX(14) (Wilder) of the last D1 bar whose close is at or before the entry; the decision-timeframe ADX stays on the trade as `adx14`
+   for reporting only. The D1 series' identity is in the record's `dataset_snapshot.regime_series`.
+4. **Stress gate and shifted prop pass.** `BtEngine.stress_trades` (p90 spread both legs, price-scaled, + 0.00003 * entry / |entry - stop| R, same admitted
+   trades) gated on the mean > 0, the stressed bound reported; `BtEngine.prop_pass(pooled, r_shift)` with the shift = mean - primary bound subtracted from
+   every admitted trade's net R after `simulate()`. `scripts/performance.py` and `scripts/prop-search.py` are NOT modified (the shift lives in the
+   harness), so prop-search is unchanged by construction. An engine without stress pricing, and a bound that cannot be computed, fail closed.
+5. **Report (section C, cheap items).** Minimum detectable edge and upper bound at 0.98333 from the binding half-year CR1 se / df (and for the numerically
+   smallest bound when it differs), every check with its margin, fold-by-fold mean net R and mean spread_R, stability of the chosen values per item and
+   per ordinal component, the overlap / scope / window statements, "placebo: NOT IMPLEMENTED in this build" and the git sha of the build.
+6. **Verdict.** `insufficient` still overrides; `verdict_from` needs every check in `REQUIRED_CHECKS` and FAILS CLOSED when a stored record lacks one;
+   `VERDICT_PRECEDENCE`, `FAMILY_DEFINITION`, `REGIME_SPLIT_DEFINITION`, `PERTURBATION_DEFINITION`, `STRESS_DEFINITION`, `PROP_SHIFT_DEFINITION` are pinned
+   in `evaluation_config`. The stale `last_bar_entry_times` docstring (O8) is corrected.
+
+**Where the text was ambiguous (owner / coordinator to confirm):**
+- **Holm vs the floor.** The brief said a candidate that fails the floor can never be Holm-rejected. That is not true of Holm: rank 1's threshold equals the
+  floor (0.10/6) but ranks 2..6 are looser (0.10/5 ... 0.10), so a candidate with p between 0.0167 and 0.02 that ranks second IS Holm-rejected while failing
+  the floor (unit-tested). The draft's A2 also said "a candidate's check passes iff Holm rejects it". Implemented, conservatively: the verdict is the
+  conjunction of every check including the floor test; Holm only confirms (a floor pass is always Holm-rejected); a Holm-only rejection is listed in the
+  report as "Holm would reject, but the floor fails (NOT a pass)". If the owner wants Holm's looser ranks to count, that is a LOOSENING and a ledger event.
+- **D1 "completed bar".** The repo convention is verified (D1 `time` = open label in UTC, server midnight; `normalized.available_time` = open + 1 bar). The
+  close used is max(open + 24 h, next D1 open): equal to the brief's open + 1 day except on 25 h DST days (where open + 24 h would be an hour early) and across
+  gaps, where it only reads an older bar. Stricter only.
+- **Family size** is counted on the declared cells (6), not on the cells that survive the data gate (the old N shrank with them).
+- **Insufficient candidates** enter Holm with p = 1 (their p is reported, not used).
+- **Shard layout.** `WAVE2_SETS_PER_FOLD` (11.25 / 7.75) was measured under the old perturbation definition; wave 2 now also holds the ordinal neighbours and the
+  categorical flips. It only sizes Actions jobs, never a result, but must be re-measured (`scripts/research/shard_calibration.py`, which now also requests the
+  flips) before the real run is laid out.
+
+**Pinned files changed (declare must run AFTER):** `scripts/fund_stats.py`, `scripts/fund-search.py`, `scripts/research/shard_calibration.py` and the tests under the
+`scripts/` tree pin (`scripts/tests/test_fund_search.py`, `test_simulate_time_opts.py`, `test_speed_equivalence.py`, `test_min_rr_floor_25.py`);
+`docs/experiments/fund-search/plan.json` (plan core: `family` and `perturbation_axes` replace `n_by_method`, candidates carry `family_size` /
+`floor_confidence`, constants gained the stress and MDE constants; `plan_hash` 5476f042bdde09f1 -> a043358b89314982). `scripts/performance.py`,
+`scripts/prop-search.py`, `scripts/backtest-methods.py`, `scripts/real_costs.py`, the grids, the cells file and `min_rr` are untouched.

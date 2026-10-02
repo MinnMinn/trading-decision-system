@@ -10,6 +10,12 @@ event, and thresholds may only be tightened.
 A5, A7, A8, A9, A10, A11 and the open items in B were rewritten and are marked "(REPLACED 2026-10-02)". Where this
 file still contains an older number or sentence that conflicts with section 0 or C, section 0 / C wins.
 
+**Implemented 2026-10-02 (branch `b20-stats-sealed`, "implementation of the sealed statistics", dated entry in
+docs/plans/2026-09-30-owner-decisions.md):** family A, the ordinal perturbation, the D1-ADX regime split, the stress gate, the shifted
+prop pass and the report obligations of section C (all but the placebo, which stays "definition only") are now in
+`scripts/fund_stats.py` and `scripts/fund-search.py`; the paragraphs "Implemented" under items A2, A5, A7 and A8 and the status
+paragraph of section C say how, and where the text left a choice, which reading was taken (the most conservative one).
+
 ## 0. Red-team corrections and owner decisions of 2026-10-02 (binding once sealed)
 
 The same decisions are recorded in docs/plans/2026-09-30-owner-decisions.md ('Owner decisions 2026-10-02 (red-team
@@ -92,18 +98,28 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
    p-values, so a candidate is significant at level `a` only if all five bounds are above 0 at `1 - a`.
    **FAMILY = the 6 candidate procedures** (3 cells x 2 methods). **Holm step-down at FWER 0.10** over the six
    candidate p-values: sort ascending `p(1) <= ... <= p(6)`; reject `H(k)` while `p(k) <= 0.10 / (6 - k + 1)`; stop at the
-   first failure. A candidate's statistical check passes iff Holm rejects it. The **per-candidate floor confidence is
+   first failure. A candidate's statistical check passes iff its primary bound is above 0 at the floor confidence below (which
+   implies Holm rejects it; the converse is NOT used: see "Reading chosen" below). The **per-candidate floor confidence is
    `1 - 0.10/6 = 0.98333`** (Holm's strictest step): a candidate whose primary bound is above 0 at 0.98333 passes
-   whatever the other five do, and Holm only REFINES that at report time (a candidate ranked k-th by p is judged at
-   `0.10/(6-k+1)`, up to 0.10 for the last). 0.98333 is also the confidence of the perturbation-neighbour bounds
+   whatever the other five do, and Holm only CONFIRMS that at report time (a candidate ranked k-th by p is judged at
+   `0.10/(6-k+1)`, up to 0.10 for the last; it never lifts a floor failure to a pass). 0.98333 is also the confidence of the perturbation-neighbour bounds
    (item A5), of the upper confidence bound and the minimum detectable edge (section C) and of the prop-pass shift
    (item A8). This REPLACES the per-method N (ICT 87 / Wyckoff 48, confidences 0.998851 / 0.997917) and any per-grid-value
    Bonferroni: the nested walk-forward already handles value selection (values chosen on the training window only, scored
    on the next test fold), so grid values are not hypotheses of the family; the number of grid values stays disclosed
    (`plan --dry-run`, `N per cell`). EVERY OTHER CHECK STAYS CONJUNCTIVE (stability, frequency, regime, perturbation,
    stress, prop-pass, sufficiency): a PASS needs all of them, and none is traded against another. Code: `fund_stats.py`
-   and the verdict/report part of `fund-search.py` follow in a later step (the harness at this commit still prints the
-   per-method N); the report must say which of the two it implements. Reason for the block bounds: with dependent trades the iid bound had a false
+   and the verdict/report part of `fund-search.py` IMPLEMENT this since branch `b20-stats-sealed` (2026-10-02): the plan core
+   carries `family` {size 6, alpha 0.10, floor_confidence 0.98333, members}, the declaration records `family_size`,
+   `floor_confidence`, `family_members`, `family_rule` (replacing `n_by_method` / `confidence_by_method`; `cell_count` stays the
+   number of cells), `plan --dry-run` and the report print the family, every record stores `primary` (the five bounds, the five
+   one-sided p-values, `p_robust` = their max, the floor verdict, the binding half-year interval) and `report` applies Holm over
+   the six PLANNED candidates (NOT RUN, insufficient and not-computable ones enter with p = 1). The family size is counted on the
+   DECLARED cells (3 x 2), so a cell dropped for lack of data still counts. **Reading chosen where the text is ambiguous (the
+   conservative one):** rank 1's Holm threshold equals the floor, and every later rank's threshold (0.10/5 ... 0.10) is LOOSER,
+   so Holm can reject a candidate that FAILS the floor when a smaller p was rejected before it. The implementation does NOT
+   turn that into a PASS: the verdict is the conjunction of every check (the floor test among them) and Holm only confirms it; the
+   report lists "Holm would reject, but the floor fails" separately. A floor PASS is always Holm-rejected. Reason for the block bounds: with dependent trades the iid bound had a false
    positive rate 10-90x nominal in the reviewer's simulations; the quarter and half-year bounds were added after
    AR(1) 30-day and 180-day persistence scenarios still passed the first three (owner default: tighten).
    **DISCLOSED PRICE (power).** Measured by the harness author on 20 seeds of iid +0.30R at n=600: the five-way min
@@ -133,6 +149,12 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
      baseline is NOT perturbed on W4a).
    Categorical components (every other grid item: B-PD, B-POOL, B6, B3, B4, B-MGMT, B7, W-STOP, W-SPT, W-TOUCH, W-MGMT; B4 and W4b
    are declared but not runnable) are flipped in the report ("value A -> value B: pooled mean net R, bound") and NOT gated.
+   **Implemented** (`b20-stats-sealed`): the orders are the constant `PERTURBATION_AXES` in `scripts/fund_stats.py` (pinned through
+   `plan.perturbation_axes` and `evaluation_config.perturbation`); a composite value is split on `|` ("-2.0|H|floor": part 0 = target,
+   part 1 = time stop; "12|K": lookback, expiry) or is a list (W-TW: window, swings), and moving one component must land on a value the
+   grid declares (a mismatch raises). The moved sets are requested through `FS.perturbation_trade_sets` (ordinal, gated) and
+   `FS.categorical_flip_sets` (report-only), both probed by the wave-2 prefetch. Folds in which a W4a baseline (2) was chosen are listed
+   under "Not perturbed" in the report (`perturbation_skips`). `tests/test_fund_search.py` checks the table against the real grids.
 6. **Frequency and stability.** Frequency: the longest gap between consecutive trade ENTRY dates on the pooled
    account, fold edges included, <= 30 days in >= 90% of folds (arithmetic per cell in the report). Stability:
    positive net expectancy on >= ceil(2m/3) of the m symbols with development data (a symbol with none counts as
@@ -143,7 +165,15 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
    high half); BOTH halves must have positive mean net R; a trade with no D1 ADX value (warm-up) fails the check. The
    earlier definition (ADX(14) of the cell's own timeframe) is superseded; the code follows (`REGIME_SPLIT_DEFINITION`
    in `fund_stats.py` is pinned in `evaluation_config.regime_split`, so a declaration made before the code follows
-   would show drift).
+   would show drift). **Implemented** (`b20-stats-sealed`): the trade field is `adx14_d1` (`FS.d1_adx_index` / `FS.d1_adx_at`; the
+   decision-timeframe `adx14` remains on the trade for reporting only and no verdict reads it). Convention verified in the repo: a D1
+   candle's `time` is its OPEN label in UTC (the broker's server midnight converted by `scripts/mt5_time.py`: 21:00Z or 22:00Z on the
+   previous calendar day; read from `data/history/ftmo/ohlcv.XAUUSD.1D`), and `normalized.available_time` is open + one bar. The
+   close used is `max(open + 24 h, next D1 open)`: never earlier than open + 24 h (the repo convention), and equal to the true
+   close on a 25 h DST day (open + 24 h would be an hour early there); on 23 h days and across weekend or holiday gaps it is later,
+   which only ever reads an OLDER completed bar. The series is the symbol's own stored D1 series loaded through `bt.load`
+   (PIT-truncated at the cutoff like every series); its bar count, first and last label and sha256 are in the record's
+   `dataset_snapshot.regime_series`. A symbol with no D1 series has no value and its trades fail the check.
 8. **Verdict precedence and prop-pass details.** `insufficient` (any test fold < 30 trades, or < 2 folds) overrides
    everything; otherwise `pass` only if EVERY check is ok, else `fail`. Timeout trades cut off by the end of the
    PIT-truncated series are excluded (outcome unknown). prop_pass_probability >= 0.70 for EVERY fund in
@@ -154,7 +184,14 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
    0.003 % commission margin (item O6) applied to the SAME admitted trades (no trade is added or removed by the stress);
    (b) **shifted prop pass:** prop_pass_probability must also be >= 0.70 for every fund with every trade's R shifted DOWN
    by `(pooled mean - primary lower bound at 0.98333)`, i.e. with the edge cut to what the bound can defend. The
-   admitted trade list, the sizing and the 120-day horizon are unchanged by the shift.
+   admitted trade list, the sizing and the 120-day horizon are unchanged by the shift. **Implemented** (`b20-stats-sealed`):
+   (a) `BtEngine.stress_trades` re-prices the pooled admitted trades with `real_costs.cost_r(..., spread_stat="p90")` (both legs,
+   price-scaled by the relative-spread profile, swap unchanged) and subtracts `0.00003 * entry / |entry - stop|` R
+   (`FS.stress_commission_r`); `net R = gross R - cost - margin`; the gate is `check_stress` (mean > 0; the stressed bound is
+   reported); an engine that offers no stress pricing fails closed. (b) `BtEngine.prop_pass(pooled, r_shift)` subtracts the shift
+   from every admitted trade's net R AFTER `simulate()` and before the bootstrap reads it (the shift is applied in the harness:
+   `scripts/performance.py` and `scripts/prop-search.py` are untouched, so prop-search is byte-identical by construction); the
+   unshifted requirement is evaluated first and stays; a shift that cannot be computed (no bound) fails closed.
 9. **Cost model.** Real FTMO costs, profile `ftmo_demo_2026_09`, `spread_stat="median"`, swap from the export;
    flat before the daily server rollover (FIXED on; checked after every simulation; an entry-bar fill on the last bar
    of a server day is flattened at that bar's close, see O8). **FTMO commission is UNKNOWN**
@@ -326,6 +363,13 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
 Every report of a candidate, PASS or not, states the following with the numbers the declared code produces. A definition
 the code does not yet compute is printed as "not implemented in this build", never omitted. None of these figures changes
 a verdict unless item 2, 5, 6, 7 or 8 says so; they exist so the owner can read the result against its own noise.
+
+**Implementation status (branch `b20-stats-sealed`).** Items 1-5 and 7-9 are computed from the stored record by `cmd_report`
+(`report_candidate_lines`, `report_holm_lines`, `report_statement_lines`; the per-bound `se` / `df` are stored in `primary.components`,
+so MDE and the upper bound are derived, not recomputed from data). Item 6, the placebo, is NOT IMPLEMENTED in this build: the report
+prints "placebo: NOT IMPLEMENTED in this build" and the git sha of the build that produced it. The MDE uses the half-year CR1
+`se` / `df` and is also printed for the numerically smallest bound when that is another one. Item 4 stores, per fold, the mean net R
+and the mean `spread_R` (`real_costs.mean_spread_r` under the fund profile) of the chosen values' test trades.
 
 1. **Minimum detectable edge (MDE)** = `(t_crit + t_{0.80,df}) x se`, where `se` and `df = G - 1` are those of the BINDING
    half-year CR1 bound (the half-year blocks have the fewest clusters; if a different one of the five bounds is the
