@@ -107,8 +107,8 @@ conjunction, section 9 of the audit): the whole-conjunction e80 (smallest edge o
 (1m-metals ICT / Wyckoff, 1m-indices ICT / Wyckoff, 5m-metals ICT / Wyckoff) and is now 0.20 / 0.20 / 0.30 / 0.30 / 0.30 / 0.25; e80 / e* was
 1.35 / 1.83 / 1.36 / 1.67 / 3.34 / 3.07 and is now 1.08 / 1.46 / 1.02 / 1.25 / 3.34 / 2.56; P(PASS) at a true edge equal to its own e* was
 0.16 / 0.02 / 0.12 / 0.04 / 0.00 / 0.00 and is now 0.77 / 0.23 / 0.80 / 0.52 / 0.00 / 0.00; the expected number of the six candidates that pass if
-each sits at its own e* was 0.34 (0.27 under the uncalibrated sigma 0.75) and is now **2.31**. Type I error at a true edge of 0 is 0 of 3000 for every candidate
-(Wilson 95 % upper bound 0.0009, family level 0.0167), unchanged. P(PASS) at e80/2 is 0.00 / 0.03 / 0.01 / 0.01 / 0.07 / 0.03. The binding check at e80 is now the
+each sits at its own e* was 0.34 (0.27 under the uncalibrated sigma 0.75) and is now **2.31** (a HYPOTHETICAL, 'if every candidate had exactly its own e*'; NOT a forecast of how many will pass; all these figures are model figures and an UPPER bound, because the nested selection is not simulated (E10) and outcomes are binary). Type I error at a true edge of 0 is 0 of 3000 for every candidate
+(Wilson 95 % upper bound 0.0009, family level 0.0167), unchanged; it controls chance findings among the six procedures only and does NOT control the choices made on this window before sealing (the table of section 0.1). P(PASS) at e80/2 is 0.00 / 0.03 / 0.01 / 0.01 / 0.07 / 0.03. The binding check at e80 is now the
 unshifted prop pass (1m ICT cells, 1m-indices Wyckoff), stress (1m-metals Wyckoff) or the perturbation (5m-metals); for 5m-metals e* is 0.09-0.10 R, so at e* the
 perturbation fails in 98-100 % of replications. The inclusion rule (k = 2, primary convention) is unchanged because e_min and e* do not depend on the conjunction: 1m-metals
 INCLUDED (best ratio 0.66), 1m-indices INCLUDED (0.96), 5m-metals INCLUDED (1.62, Wyckoff; ICT 2.21 alone does not satisfy it); sensitivity (k = 1.5 and the rho / rate conventions) in section C7 of the audit. Model limits: section 0.6 item 5.
@@ -122,7 +122,7 @@ A PASS nominates; it does not validate (section 0.1). Two later stages are pre-r
 re-run on the training data through 2024-03-01) is replayed once on the EXPOSED window 2024-03-01 -> the latest available data, labelled
 EXPOSED per plan section 4 (historical windows serve only as disclosed, exposed checks, never as validation). Gate: pooled mean net R > 0 under the
 same costs and fills as the search. Reported, not gated: the unshifted prop_pass_probability per fund (>= 0.70 desired, not a gate), the per-year
-table and the placebo benchmark (section C). A failure of the gate ENDS that nomination: it does not go to the demo, and the failure is recorded in the ledger.
+table and the placebo benchmark (section C). There is NO re-selection and NO re-tuning on the exposed window. Passing the replay is weak, non-pristine evidence (a short, partly exposed window); failing it is decisive. A failure of the gate ENDS that nomination: it does not go to the demo, and the failure is recorded in the ledger.
 
 **(ii) FORWARD DEMO (outline; its own later pre-registration).** A separately pre-registered demo whose primary purpose is a PAIRED EXECUTION
 COMPARISON: for every live signal, the realised fill, slippage, spread and commission versus the backtest replay of the SAME signal (implementation
@@ -146,6 +146,10 @@ months yields a handful of independent paths), so it is an execution-and-sanity 
 7. **FTMO minimum trading days = 4 is 'flagged for verification'** in the account profile (2024+ sources report 4, older sources 10).
 8. **News filter not modelled in the search.** The deployed configuration has the CLAUDE.md blackout ON; the search has none: a deployability gap.
 9. **Ask-side triggers are not modelled.** Entries and stops are evaluated on the recorded (bid) series with the recorded spread; triggers that fire on the ask side are not simulated.
+
+10. **5m-metals is, in effect, a screen for edges 2.6-3.3 x its prop-relevant edge.** Its e* is only 0.09-0.10 R, and every ordinal neighbour must clear its own floor bound, so at a true edge equal to e* the perturbation check fails in 98-100 % of the simulated replications (section 0.4). 5m-metals can therefore be nominated only at an edge of about 2.6-3.3 x e*; a zero there says little about edges near e*.
+11. **'prop_pass_probability >= 0.70' is model-estimated.** Everywhere this report prints it, read it as: model-estimated (day-block bootstrap of the development test trades, close-of-day loss checks, iid days), NOT the probability of passing a real challenge.
+12. **Prior and expectation (coordinator/red-team judgement, not a measurement).** The prior on the CFD development window is poor (docs/audits/2026-09-28-method-diagnosis.md; the 15m F-variant funnels), so a result of ZERO nominations is the most likely outcome (the red team's rough judgement: roughly 80-90 %); that would NOT mean these methods have no edge in general, only that no edge of roughly the e80 sizes (0.20-0.30 R on the 1m cells, 0.25-0.30 R on 5m-metals) was found under these costs and rules. The likeliest route to a spurious nomination is a 1m execution artefact, which the exposed-window replay and the paired-execution demo exist to catch.
 
 ## A. Choices to pre-register (items 1-13)
 
@@ -253,7 +257,7 @@ months yields a handful of independent paths), so it is an execution-and-sanity 
    PIT-truncated series are excluded (outcome unknown). prop_pass_probability >= 0.70 for EVERY fund in
    `prop-search.FUNDS` at the 120-day horizon, sized with `live_parity_sizing=True`; `unavailable` (with reason) is
    recorded as its own status and blocks a PASS like a numeric fail; when `low_confidence` is set the MINIMUM of
-   the bootstrap spread must also be >= 0.70. **Added 2026-10-02 (two more conditions of a PASS: (a) stands; (b) was DEMOTED to report-only by the final decisions of 2026-10-02, section 0.4):**
+   the bootstrap spread must also be >= 0.70 (model-estimated: day-block bootstrap of development test trades, close-of-day loss checks, iid days; NOT the probability of passing a real challenge). **Added 2026-10-02 (two more conditions of a PASS: (a) stands; (b) was DEMOTED to report-only by the final decisions of 2026-10-02, section 0.4):**
    (a) **stress gate:** the pooled mean net R must stay > 0 under the p90 spread (price-scaled) on BOTH legs plus the
    0.003 % commission margin (item O6) applied to the SAME admitted trades (no trade is added or removed by the stress);
    (b) **shifted prop pass (DEMOTED to REPORT-ONLY, owner decision 2026-10-02, section 0.4; it is NOT a condition of a PASS):**
@@ -281,7 +285,7 @@ months yields a handful of independent paths), so it is an execution-and-sanity 
    whole fold, not over a simulated 120-day challenge. The record carries the per-fold day counts, the margin (fewest days in a fold
    minus the minimum) and the pinned definition (`evaluation_config.min_trading_days`: the definition text, the declared minimum per
    fund, the source profile id and the profile's flagged-for-verification note). `scripts/performance.py` and `scripts/prop-search.py`
-   are byte-identical (the check lives in the harness). It cannot bind in practice: every fold needs >= 30 trades (item 8), and the
+   are byte-identical (the check lives in the harness). It is recorded for completeness (it is not a substantive filter): it cannot bind in practice, because every fold needs >= 30 trades (item 8), and the
    e2e power simulator (`scripts/research/e2e_power.py`, check added to `eval_lazy` / `eval_full`) evaluates it without changing its
    selfcheck agreement. Plan core unchanged (the definition is in `evaluation_config`, not in the plan core).
 9. **Cost model (AMENDED 2026-10-02 by item 13).** Real FTMO costs, profile `ftmo_demo_2026_09_relspread`: the recorded
@@ -328,8 +332,8 @@ months yields a handful of independent paths), so it is an execution-and-sanity 
     hash needs only git objects, so it is also valid in a shallow clone (tested); the per-file last-commit SHA needs
     history, which is why `.github/workflows/fund-search.yml` checks out with `fetch-depth: 0`. The report also flags
     records sealed under a different code_version or a dirty tree.
-11. **What a PASS certifies, and the deployment rule.** A PASS certifies a SELECTION PROCEDURE (choose on each
-    training fold, score on the next test fold), not a configuration. The report shows how often each item's chosen
+11. **What a PASS means, and the deployment rule.** A PASS NOMINATES a selection procedure (choose on each
+    training fold, score on the next test fold), not a configuration; it certifies nothing beyond the development-window statistics listed in A2-A8. The report shows how often each item's chosen
     value changed between folds. **Deployment rule (REPLACED 2026-10-02, closes O4; red-team I6).** The proposal "the
     values chosen in the FINAL fold" is WITHDRAWN. The SAME selection rule (item 3) is re-run once on the TRAINING data
     through 2024-03-01 (the whole development span, one training window) and yields one configuration per passing
