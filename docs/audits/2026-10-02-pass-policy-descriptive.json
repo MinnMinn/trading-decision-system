@@ -1,0 +1,28 @@
+{
+ "reference": {
+  "funded_le_122d_by_start_year": {
+   "2021": 0.0,
+   "2022": 0.0,
+   "2023": 0.0,
+   "2024": 0.038,
+   "2025": 0.385,
+   "2026": 0.4
+  },
+  "two_accounts_staggered_28d_any_funded_le_122d": 0.133,
+  "one_account_funded_le_122d": 0.113,
+  "starts": 230
+ },
+ "chosen": {
+  "funded_le_122d_by_start_year": {
+   "2021": 0.0,
+   "2022": 0.115,
+   "2023": 0.038,
+   "2024": 0.208,
+   "2025": 0.5,
+   "2026": 0.4
+  },
+  "two_accounts_staggered_28d_any_funded_le_122d": 0.226,
+  "one_account_funded_le_122d": 0.213,
+  "starts": 230
+ }
+}
