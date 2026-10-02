@@ -150,3 +150,8 @@ were aggregated (already-exposed reads). Synthetic simulations read no data. The
 Reproduce the simulation of §4.3: a stdlib-only Monte Carlo (binary +2.5/-1 R net, Poisson trades per weekday, FTMO
 +10 % / -10 % static / -5 % daily from day start, min 4 trading days, 120 weekdays, fixed risk on initial balance,
 6000 paths per cell, seed 20261002). It was a scratch script and is not committed.
+
+**Update 2026-10-02 (later):** owner chose to skip running the fund-search and go to §5 step 3. Edge census done
+(docs/audits/2026-10-02-edge-census.md): 40 pre-registered tests, 0 confirmed. Real, replicating signals exist on metals
+(prior-day sweep -> CONTINUATION; FVG retrace) but are smaller than the spread at 30-120 min; XAUUSD is ~7x cheaper than
+XAGUSD. Next decision for the owner: a follow-up family (gold + cheapest indices, longer holds) and how it is confirmed.
