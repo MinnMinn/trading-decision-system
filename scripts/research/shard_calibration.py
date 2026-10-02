@@ -280,6 +280,7 @@ def job_wave2(j):
         p = fs._WaveProbe(eng)
         frs = fs.FS.nested_walk_forward(grid, p, sub, fs.FS.bar_delta(tf), embargo=emb)
         pert = fs.FS.perturbation_trade_sets(grid, p, frs)
+        fs.FS.categorical_flip_sets(grid, p, frs)          # report-only flips are requested too (b20-stats-sealed)
         per_fold.append(len(p.missing))
         fk = group_keys(fs, method, tf, symbols[0], [fs.build_overlay(grid, v) for v in p.missing.values()], bt)
         per_fold_groups.append(len(set(fk)))

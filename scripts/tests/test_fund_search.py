@@ -57,7 +57,7 @@ def gen(start, end, n, mean, sd, seed, symbols=SYMS, extra=None):
     for i in range(n):
         t = a + span * (i + 0.5)
         tr = {"entry_time": FS.iso(t), "exit_time": FS.iso(t + datetime.timedelta(hours=2)),
-              "net_R": rng.gauss(mean, sd), "symbol": symbols[i % len(symbols)], "adx14": rng.uniform(10, 40)}
+              "net_R": rng.gauss(mean, sd), "symbol": symbols[i % len(symbols)], "adx14_d1": rng.uniform(10, 40)}
         if extra:
             tr.update(extra)
         out.append(tr)
@@ -72,6 +72,12 @@ def grid_two_items():
          "source": "t", "implemented": True}]})
 
 
+#: The synthetic grid's ordinal table (the REAL table is FS.PERTURBATION_AXES, tested separately): item "a" is ordinal
+#: x < y < z, item "b" ordinal 0 < 1.
+TEST_AXES = {"a": [{"component": "a", "part": None, "order": ["x", "y", "z"]}],
+             "b": [{"component": "b", "part": None, "order": [0, 1]}]}
+
+
 def _seed(values):
     return hash(json.dumps(values, sort_keys=True)) & 0xFFFF   # only used inside one process
 
@@ -79,8 +85,12 @@ def _seed(values):
 class SynthEngine:
     """trades_for(values) over the development span; every distinct V assignment draws its OWN sample."""
 
-    def __init__(self, mean=0.0, sd=1.0, per_year=150, prop=None, mean_by=None, symbols=SYMS, salt=0):
+    def __init__(self, mean=0.0, sd=1.0, per_year=150, prop=None, mean_by=None, symbols=SYMS, salt=0,
+                 stress_cost=0.02, prop_shifted=None):
         self.salt = salt
+        self.stress_cost = stress_cost                 # R charged by the stress re-pricing (p90 spread + commission margin)
+        self.prop_shifted = prop_shifted               # per-fund prop pass once R is shifted down (None = same as `prop`)
+        self.shifts = []
         self.mean, self.sd, self.per_year, self.symbols = mean, sd, per_year, symbols
         self.prop = prop if prop is not None else {"ftmo": 0.9, "the5ers": 0.9}
         self.mean_by = mean_by or (lambda values: mean)
@@ -92,8 +102,14 @@ class SynthEngine:
         return gen(LONG_START, FS.DEV_CUTOFF, self.per_year * years, self.mean_by(values), self.sd,
                    seed=f"{self.salt}:" + json.dumps(values, sort_keys=True), symbols=self.symbols)
 
-    def prop_pass(self, pooled):
+    def prop_pass(self, pooled, r_shift=0.0):
+        self.shifts.append(r_shift)
+        if r_shift and self.prop_shifted is not None:
+            return dict(self.prop_shifted)
         return dict(self.prop)
+
+    def stress_trades(self, pooled):
+        return [dict(t, net_R=t["net_R"] - self.stress_cost) for t in pooled]
 
     def rollover_edge_stats(self, values, fold=None):
         return _fs().rollover_edge_stats([t["entry_time"] for t in self.trades_for(values)][:7], fold)
@@ -169,11 +185,10 @@ class GridArithmetic(unittest.TestCase):
         with self.assertRaises(FS.GridError):
             FS.Grid({"method": "ICT", "items": [it, dict(it)]})
 
-    def test_neighbours_numeric_sorted_categorical_listed(self):
-        self.assertEqual(FS.neighbours([12, 8, 16], 12), [(-1, 8), (+1, 16)])
-        self.assertEqual(FS.neighbours([12, 8, 16], 8), [(+1, 12)])
-        self.assertEqual(FS.neighbours(["IOFED", "CE", "Fill"], "CE"), [(-1, "IOFED"), (+1, "Fill")])
-        self.assertEqual(FS.neighbours([False, True], False), [(+1, True)])
+    def test_the_old_numeric_sort_neighbours_are_gone_the_axis_table_is_the_only_definition_of_a_step(self):
+        self.assertFalse(hasattr(FS, "neighbours"))
+        self.assertFalse(hasattr(FS, "value_axis"))
+        self.assertTrue(FS.PERTURBATION_AXES)
 
 
 class FoldGeometry(unittest.TestCase):
@@ -322,29 +337,107 @@ class NestedWalkForward(unittest.TestCase):
 
 # ============================================================================ the pass / fail decision, end to end
 class EndToEndVerdicts(unittest.TestCase):
-    def _run(self, engine, n=205):
+    FAMILY = 6          # the six candidate procedures: the floor confidence is 1 - 0.10/6 for EVERY candidate
+
+    def _run(self, engine, n=None):
         fs = _fs()
         cell = {"id": "5m-indices", "timeframe": "5m", "symbols": SYMS, "development_start": LONG_START}
-        return fs.evaluate_with_engine(engine, grid_two_items(), cell, n)
+        return fs.evaluate_with_engine(engine, grid_two_items(), cell, n or self.FAMILY, axes=TEST_AXES)
 
-    def test_no_edge_strategy_does_not_pass_at_n_205(self):
+    def test_no_edge_strategy_does_not_pass_at_the_floor(self):
         # many independent seeds: an edge-less strategy must never sneak through the strict gate
         for salt in range(6):
             ev = self._run(SynthEngine(mean=0.0, sd=1.0, salt=salt))
             self.assertNotEqual(ev["verdict"], FS.PASS)
             self.assertIn("lower_bound_positive", ev["failed_checks"])
 
-    def test_large_true_edge_passes_at_n_205(self):
+    def test_large_true_edge_passes_at_the_floor(self):
         ev = self._run(SynthEngine(mean=0.6, sd=1.0))
         self.assertEqual(ev["verdict"], FS.PASS, ev["failed_checks"])
         self.assertEqual(ev["failed_checks"], [])
-        self.assertAlmostEqual(ev["confidence"], 1 - 0.10 / 205)
+        self.assertAlmostEqual(ev["confidence"], 1 - 0.10 / 6)
+        self.assertEqual(ev["family_size"], 6)
         self.assertGreater(ev["runs_evaluated"], 4)
+        pr = ev["primary"]
+        self.assertTrue(pr["floor_ok"])
+        self.assertEqual(sorted(pr["p_values"]), sorted(FS.PRIMARY_COMPONENTS))
+        self.assertAlmostEqual(pr["p_robust"], max(pr["p_values"].values()))
+        self.assertLess(pr["p_robust"], 0.10 / 6)               # floor pass <=> p_robust below Holm's strictest step
 
     def test_a_failing_candidate_reports_every_reason_not_just_the_first(self):
-        ev = self._run(SynthEngine(mean=-0.2, sd=1.0, prop={"f": 0.1}))
-        for k in ("lower_bound_positive", "stability", "regime_split", "perturbation", "prop_pass_probability"):
+        ev = self._run(SynthEngine(mean=-0.2, sd=1.0, prop={"f": 0.1}, prop_shifted={"f": 0.1}))
+        for k in ("lower_bound_positive", "stability", "regime_split", "perturbation", "prop_pass_probability",
+                  "stress"):
             self.assertIn(k, ev["failed_checks"])
+
+    def test_a_positive_edge_passes_the_stress_gate_and_reports_the_stressed_bound(self):
+        ev = self._run(SynthEngine(mean=0.6, stress_cost=0.05))
+        st = ev["checks"]["stress"]
+        self.assertTrue(st["ok"])
+        self.assertAlmostEqual(st["mean_R_stressed"], ev["pooled"]["mean_R"] - 0.05, places=9)
+        self.assertIsNotNone(st["stressed_primary_bound"])            # reported, not gated
+
+    def test_an_edge_that_disappears_under_p90_plus_commission_fails_the_stress_gate_only(self):
+        # edge +0.6 R, the stress re-pricing costs 0.9 R: every other gate passes, the stress gate does not
+        ev = self._run(SynthEngine(mean=0.6, sd=0.6, stress_cost=0.9))
+        self.assertEqual(ev["failed_checks"], ["stress"])
+        self.assertEqual(ev["verdict"], FS.FAIL)
+        self.assertLess(ev["checks"]["stress"]["mean_R_stressed"], 0)
+
+    def test_stress_gates_on_the_mean_only_not_on_its_bound(self):
+        # a positive stressed mean passes the gate even when its (reported) bound is below 0
+        ev = self._run(SynthEngine(mean=0.6, sd=1.0, stress_cost=0.55))
+        st = ev["checks"]["stress"]
+        self.assertTrue(st["ok"])
+        self.assertLess(st["stressed_primary_bound"], 0)
+
+    def test_an_engine_without_stress_pricing_fails_closed(self):
+        class NoStress(SynthEngine):
+            stress_trades = None
+        ev = self._run(NoStress(mean=0.6))
+        self.assertFalse(ev["checks"]["stress"]["ok"])
+        self.assertEqual(ev["verdict"], FS.FAIL)
+
+    def test_the_shifted_prop_pass_is_evaluated_with_mean_minus_bound_and_can_fail_alone(self):
+        eng = SynthEngine(mean=0.6, prop={"f": 0.9}, prop_shifted={"f": 0.5})
+        ev = self._run(eng)
+        sh = ev["checks"]["prop_pass_shifted"]
+        pr = ev["primary"]
+        self.assertAlmostEqual(sh["shift_R"], pr["mean"] - pr["primary_bound"], places=12)
+        self.assertGreater(sh["shift_R"], 0)
+        self.assertEqual(eng.shifts[0], 0.0)                            # the unshifted requirement stays, first
+        self.assertAlmostEqual(eng.shifts[1], sh["shift_R"], places=12)
+        self.assertTrue(ev["checks"]["prop_pass_probability"]["ok"])
+        self.assertFalse(sh["ok"])
+        self.assertEqual(ev["failed_checks"], ["prop_pass_shifted"])
+        self.assertEqual(ev["verdict"], FS.FAIL)
+
+    def test_no_shift_without_a_bound_fails_closed(self):
+        self.assertFalse(FS.check_prop_pass_shifted({"f": 0.99}, None)["ok"])
+
+    def test_every_check_has_a_margin_row_and_a_pass_lists_them_all(self):
+        ev = self._run(SynthEngine(mean=0.6))
+        names = {m["check"] for m in ev["margins"]}
+        self.assertEqual(names, set(FS.REQUIRED_CHECKS))
+        self.assertTrue(all(m["ok"] for m in ev["margins"]))
+        bad = self._run(SynthEngine(mean=0.0, salt=1))
+        lb = next(m for m in bad["margins"] if m["check"] == "lower_bound_positive")
+        self.assertFalse(lb["ok"])
+        self.assertLess(lb["margin"], 0)
+
+    def test_a_record_lacking_a_required_check_cannot_read_as_a_pass(self):
+        ev = self._run(SynthEngine(mean=0.6))
+        checks = dict(ev["checks"])
+        del checks["stress"]
+        self.assertEqual(FS.verdict_from(checks), FS.FAIL)
+        self.assertEqual(FS.verdict_from(ev["checks"]), FS.PASS)
+
+    def test_fold_cost_report_and_chosen_value_stability_per_component(self):
+        ev = self._run(SynthEngine(mean=0.6))
+        self.assertEqual(len(ev["fold_cost_report"]), len(ev["folds"]))
+        self.assertTrue(all(f["n_trades"] >= 30 for f in ev["fold_cost_report"]))
+        self.assertTrue(all(f["mean_spread_R"] is None for f in ev["fold_cost_report"]))     # SynthEngine offers none
+        self.assertEqual(sorted(ev["component_stability"]), ["a.a", "b.b"])
 
     def test_prop_pass_below_threshold_or_missing_fails(self):
         self.assertEqual(self._run(SynthEngine(mean=0.6, prop={"a": 0.69, "b": 0.99}))["verdict"], FS.FAIL)
@@ -456,7 +549,7 @@ class Frequency(unittest.TestCase):
 class Regime(unittest.TestCase):
     def _t(self, adx, r):
         return {"entry_time": "2022-01-01T00:00:00Z", "exit_time": "2022-01-01T01:00:00Z", "symbol": "X",
-                "net_R": r, "adx14": adx}
+                "net_R": r, "adx14_d1": adx}
 
     def test_edge_only_in_one_regime_fails(self):
         trades = [self._t(10 + i % 5, 0.9) for i in range(40)] + [self._t(30 + i % 5, -0.4) for i in range(40)]
@@ -533,8 +626,9 @@ class PlanAndDryRun(_Tmp):
     def test_cells_n_and_confidence(self):
         p = self.plan()
         self.assertEqual(p["cell_count"], 6)                               # owner 2026-10-01: the 30m cells are removed
-        self.assertEqual(p["n_by_method"], {"ict": 41 * 6, "wyckoff": 16 * 6})
-        self.assertAlmostEqual(p["confidence_by_method"]["ict"], 1 - 0.10 / (41 * 6))
+        self.assertEqual(p["family"]["size"], 12)                           # family A: 6 declared cells x 2 methods
+        self.assertAlmostEqual(p["family"]["floor_confidence"], 1 - 0.10 / 12)
+        self.assertEqual(p["grids"]["ict"]["n_per_cell"], 41)               # grid values are disclosed, not in the family
         self.assertEqual(p["candidate_count"], 12)
         # plan §6 item 8 dropped AUS200 (no data); owner 2026-10-01 (symbol universe) puts it back in the 5m and 15m indices cells only
         self.assertEqual([c["id"] for c in p["cells"] if "AUS200" in c["symbols"]], ["5m-indices", "15m-indices"])
@@ -550,15 +644,16 @@ class PlanAndDryRun(_Tmp):
         c5 = next(c for c in p["cells"] if c["id"] == "5m-metals")
         self.assertEqual(c5["symbols"], ["XAUUSD", "XPTUSD", "XPDUSD"])
         self.assertIn("XAGUSD", c5["symbols_without_development"])         # m excludes it, but it is disclosed
-        self.assertEqual(p["n_by_method"]["ict"], 41 * 5)
+        self.assertEqual(p["family"]["size"], 12)                          # counted on the DECLARED cells: the excluded one still counts
+        self.assertEqual(p["candidate_count"], 10)
 
     def test_dry_run_prints_n_and_confidence_and_writes_nothing(self):
         buf = io.StringIO()
         with redirect_stdout(buf):
             self.fs.cmd_plan(dry_run=True, grid_dir=FIXTURES)
         out = buf.getvalue()
-        self.assertIn("N 246", out)
-        self.assertIn("1 - 0.1/246", out)
+        self.assertIn("12 candidate procedures", out)
+        self.assertIn("1 - 0.1/12 = 0.991667", out)
         self.assertIn("NOTHING is evaluated", out)
         self.assertFalse(os.path.exists(self.fs.PLAN_PATH))
         self.assertFalse(os.path.exists(self.records))
@@ -631,7 +726,7 @@ class _Helpers(_Tmp):
         cell = dict(cell, development_start=LONG_START)
         eng = SynthEngine(mean=mean, symbols=cell["symbols"])     # every symbol of the (5/13/28-symbol) cell trades
         grid = grid_two_items()
-        res = self.fs.evaluate_with_engine(eng, grid, cell, c["n_comparisons"])
+        res = self.fs.evaluate_with_engine(eng, grid, cell, c["family_size"], axes=TEST_AXES)
         snap = {"snapshot_id": "t", "series": []}
         return {"record": dict(self.fs.build_record(c, plan_hash, grids[c["method"]], paths[c["method"]], res, snap, cell))}
 
@@ -733,8 +828,8 @@ class RunAndReport(_Helpers):
             self.assertIn(cid, md)
         self.assertIn("NOT RUN: **8**", md)                                   # the rest of the plan is disclosed
         self.assertIn("Incomplete", md)
-        self.assertIn("**246**", md)
-        self.assertIn("NOT folded into N", md)
+        self.assertIn("**12 candidate procedures**", md)                       # family A: cells x methods, not grid values
+        self.assertIn("NOT folded into the family", md)
 
     def test_a_report_with_no_records_says_zero_results(self):
         md = self.fs.cmd_report(grid_dir=FIXTURES)
@@ -1625,8 +1720,8 @@ class MergeTimeGuards(_Helpers):
             buf = io.StringIO()
             with redirect_stdout(buf):
                 self.fs.cmd_plan(dry_run=True)
-            self.assertIn("declared, not runnable, counted in N: ['B-EX']", buf.getvalue())
-            self.assertIn("N 246", buf.getvalue())                          # still counted in N
+            self.assertIn("declared, not runnable: ['B-EX']", buf.getvalue())
+            self.assertIn("N per cell 41", buf.getvalue())                  # the grid size is still disclosed on the FULL grid
         full = FS.load_grid(os.path.join(bad, "v-grid-ict.json"))
         run = full.runnable()
         self.assertEqual(full.unimplemented, ["B-EX"])
@@ -1734,10 +1829,10 @@ class DeclaredCells(_Tmp):
         self.assertEqual(p["candidate_count"], 6)
         self.assertFalse(any(c["timeframe"] in ("15m", "30m") for c in p["candidates"]))
         self.assertEqual([r["id"] for r in p["cells_file"]["removed_cells"]], list(removed))
-        self.assertEqual(p["n_by_method"], {"ict": 29 * 3, "wyckoff": 16 * 3})
-        self.assertEqual((p["n_by_method"]["ict"], p["n_by_method"]["wyckoff"]), (87, 48))
-        self.assertAlmostEqual(p["confidence_by_method"]["ict"], 0.998851, places=6)
-        self.assertAlmostEqual(p["confidence_by_method"]["wyckoff"], 0.997917, places=6)
+        self.assertEqual(p["family"]["size"], 6)                              # family A (2026-10-02): 3 cells x 2 methods
+        self.assertAlmostEqual(p["family"]["floor_confidence"], 0.983333, places=6)
+        self.assertEqual((p["grids"]["ict"]["n_per_cell"], p["grids"]["wyckoff"]["n_per_cell"]), (29, 16))   # disclosed only
+        self.assertNotIn("n_by_method", p)                                    # the per-method N 87 / 48 is replaced
         self.assertEqual(p["cells_file"]["sha256"], sha)
 
     def test_the_committed_cells_keep_their_original_data_start_and_the_fold_counts_the_owner_listed(self):
@@ -1834,8 +1929,8 @@ class DeclaredCells(_Tmp):
         want = hashlib.sha256(open(os.path.join(gd, "fund-search-cells.json"), "rb").read()).hexdigest()
         self.assertEqual(plan["cells_file"]["sha256"], want)
         core = {k: v for k, v in plan.items() if k in ("cells", "cells_file", "excluded_cells", "grids", "candidates",
-                                                       "n_by_method", "cost_profile", "cost_profile_pin", "dev_cutoff",
-                                                       "adopted_f_keys",
+                                                       "family", "cost_profile", "cost_profile_pin", "dev_cutoff",
+                                                       "adopted_f_keys", "perturbation_axes",
                                                        "embargo", "constants")}
         self.assertEqual(self.fs._hash(core), plan["plan_hash"])            # cells_file is inside what is hashed
         core.pop("cells_file")
@@ -2569,7 +2664,8 @@ class _ScanCacheBase:
                                     "timeframe": cls.TF, "symbols": list(cls.SYMS)}],
                     "embargo": {"h_multiple": 2}, "grids": {"ict": {"sha256": "g" * 8}},
                     "cells_file": {"sha256": "c" * 8, "warmup_days": 14},
-                    "cost_profile": cls.fs.COST_PROFILE, "cost_profile_pin": {}}
+                    "cost_profile": cls.fs.COST_PROFILE, "cost_profile_pin": {},
+                    "family": {"size": 6, "alpha": 0.10, "floor_confidence": 1 - 0.10 / 6}}
         try:
             with cls._patched():
                 cls.plain_engine = cls._engine()
@@ -3075,8 +3171,10 @@ class SymbolUniverse(_Tmp):
         spec, path, sha = self.fs.load_cells_file(REAL_ARCH)
         line = self.fs.declared_n_line(spec, sha, REAL_ARCH)
         self.assertIn("declared cells: 3", line)
-        self.assertIn("ict 29 x 3 = N 87 (confidence 0.998851)", line)
-        self.assertIn("wyckoff 16 x 3 = N 48 (confidence 0.997917)", line)
+        self.assertIn("family = 6 candidate procedures (3 cells x 2 methods)", line)
+        self.assertIn("floor confidence 1 - 0.1/6 = 0.983333", line)
+        self.assertIn("ict 29 per cell, wyckoff 16 per cell", line)           # disclosed, not in the family
+        self.assertNotIn("N 87", line)
         self.assertIn(sha, line)
 
     def test_a_symbol_outside_the_universe_or_of_another_class_or_an_fx_cell_is_refused(self):
@@ -3114,7 +3212,7 @@ class SymbolUniverse(_Tmp):
             for sy, fb in self.LATE.items():
                 self.assertEqual(c["symbol_first_bar"][sy], fb)           # disclosed, never invented earlier
             self.assertEqual(c["span_source"], "from data")
-        self.assertEqual(p["n_by_method"], {"ict": 41 * 6, "wyckoff": 16 * 6})   # fixture grids; more symbols add no N
+        self.assertEqual(p["family"]["size"], 12)                            # fixture cells: 6 x 2; more symbols add nothing
 
     def test_every_late_symbol_has_bars_in_every_test_fold_and_only_spn35_and_n25_miss_the_start_of_the_first(self):
         """The owner's concern: a symbol with data in only the last folds. The fold geometry (dates only) says no symbol
@@ -3209,11 +3307,12 @@ class DataReadiness(_Tmp):
         for cid in ("1m-metals", "1m-indices", "5m-metals"):
             self.assertRegex(txt, rf"{cid}\s+\d+\s+\d+\s+0\s+0\s+0\s+yes\s+yes")
         self.assertIn("declared cells: 3", txt)
-        self.assertIn("ict 29 x 3 = N 87", txt)
-        self.assertIn("wyckoff 16 x 3 = N 48", txt)
+        self.assertIn("family = 6 candidate procedures", txt)
+        self.assertIn("ict 29 per cell, wyckoff 16 per cell", txt)
         rc, txt = self._check(self._have())                      # the fixture: six cells, its own grids
         self.assertEqual(rc, 0)
-        self.assertIn("ict 41 x 6 = N 246", txt)
+        self.assertIn("family = 12 candidate procedures", txt)
+        self.assertIn("ict 41 per cell", txt)
 
     def test_absent_data_exits_nonzero_with_a_table_naming_the_cells_symbols_and_specs(self):
         # today's state: the 9 new symbols have neither history nor spec; AUS200 has a spec but no history
@@ -3252,19 +3351,19 @@ class DataReadiness(_Tmp):
         every_index_late = self._have(late={s: "2024-06-01T00:00:00Z" for s in idx})
         rc, txt = self._check(every_index_late)
         self.assertEqual(rc, 1)
-        self.assertIn("the cell would be dropped from N", txt)
+        self.assertIn("the cell would be dropped from the plan (the family size still counts it)", txt)
         # ... but it does not block planning: plan section 6 item 7 drops such a cell from N by data availability
         with mock.patch.object(self.fs, "_first_bar", every_index_late):
             p = self.fs.build_plan(FIXTURES)
         self.assertEqual([e["id"] for e in p["excluded_cells"]], ["1m-indices", "5m-indices", "15m-indices"])
-        self.assertEqual(p["n_by_method"]["ict"], 41 * 3)
+        self.assertEqual(p["family"]["size"], 12)                           # the family counts the DECLARED cells, dropped ones included
         # the committed three-cell plan: the same late indices drop its one indices cell (1m-indices) from N
         rc, txt = self._check(every_index_late, arch=REAL_ARCH)
         self.assertEqual(rc, 1)
         with mock.patch.object(self.fs, "_first_bar", every_index_late):
             p = self.fs.build_plan(REAL_ARCH)
         self.assertEqual([e["id"] for e in p["excluded_cells"]], ["1m-indices"])
-        self.assertEqual(p["n_by_method"]["ict"], 29 * 2)
+        self.assertEqual(p["family"]["size"], 6)
 
     def test_plan_dry_run_and_every_data_command_refuse_with_the_table_not_a_stack_trace(self):
         gd = REAL_ARCH
@@ -3297,6 +3396,708 @@ class DataReadiness(_Tmp):
         self.assertTrue(RC.spec_path(self.fs.COST_PROFILE, "AUS200").endswith("symbolspec.AUS200.cash.json"))
         self.assertTrue(RC.spec_path(self.fs.COST_PROFILE, "XPTUSD").endswith("symbolspec.XPTUSD.json"))
         self.assertTrue(os.path.exists(RC.spec_path(self.fs.COST_PROFILE, "AUS200")))     # the one new-universe spec on disk
+
+
+# ===================================================================== the sealed statistics (branch b20-stats-sealed)
+FLOOR = 1 - 0.10 / 6
+
+
+def _iid(seed, n, mean, sd=1.0, years=6):
+    """n trades spread over `years` development years (so the quarter / half-year blocks have clusters)."""
+    return gen("2018-03-01T00:00:00Z", FS.iso(FS.ts("2018-03-01T00:00:00Z") + datetime.timedelta(days=365 * years)), n, mean, sd,
+               seed, symbols=["XAUUSD"])
+
+
+class FamilyA(unittest.TestCase):
+    """Pre-registration 0.2 / A2: the family is the six candidate procedures; floor 1 - 0.10/6; p = max of five p-values."""
+
+    def test_n_adjusted_confidence_keeps_its_semantics_with_the_new_family_size(self):
+        self.assertAlmostEqual(FS.n_adjusted_confidence(6), 1 - 0.10 / 6)
+        self.assertAlmostEqual(FS.n_adjusted_confidence(6), 0.983333, places=6)
+        self.assertEqual(FS.FAMILY_ALPHA, 0.10)
+        for bad in (0, -1, 2.5, "6"):
+            with self.assertRaises(ValueError):
+                FS.n_adjusted_confidence(bad)
+
+    def test_the_floor_is_looser_than_the_old_per_method_levels(self):
+        # 0.98333 replaces 0.998851 (ICT, N = 87) and 0.997917 (Wyckoff, N = 48): the t quantile is smaller
+        self.assertLess(FS.t_quantile(FLOOR, 100), FS.t_quantile(FS.n_adjusted_confidence(87), 100))
+
+    def test_p_robust_is_the_max_of_the_five_and_the_bound_is_the_min(self):
+        for seed in range(8):
+            lb = FS.robust_lower_bound(_iid(seed, 400, 0.12), FLOOR)
+            self.assertEqual(sorted(lb["p_values"]), sorted(FS.PRIMARY_COMPONENTS))
+            self.assertAlmostEqual(lb["p_robust"], max(lb["p_values"].values()))
+            self.assertAlmostEqual(lb["value"], min(lb["iid"], lb["block_date"], lb["block_30d"], lb["block_quarter"],
+                                                    lb["block_half"]))
+
+    def test_a_bound_above_zero_at_the_floor_is_exactly_p_robust_below_one_sixth_of_alpha(self):
+        crossings = 0
+        for seed in range(60):
+            lb = FS.robust_lower_bound(_iid(seed, 300, 0.10 + 0.002 * seed), FLOOR)
+            self.assertEqual(lb["value"] > 0, lb["p_robust"] < 0.10 / 6, (seed, lb["value"], lb["p_robust"]))
+            crossings += lb["value"] > 0
+        self.assertTrue(0 < crossings < 60)                         # the sweep really straddles the threshold
+
+    def test_each_p_matches_its_own_bound(self):
+        lb = FS.robust_lower_bound(_iid(3, 500, 0.15), FLOOR)
+        for k in FS.PRIMARY_COMPONENTS:
+            c = lb["components"][k]
+            self.assertEqual(c["value"] > 0, lb["p_values"][k] < 0.10 / 6, k)
+
+    def test_degenerate_samples_fail_closed(self):
+        self.assertIsNone(FS.one_sided_p(0.1, None, None))
+        self.assertEqual(FS.one_sided_p(0.1, 0.0, 5), 0.0)
+        self.assertEqual(FS.one_sided_p(0.0, 0.0, 5), 1.0)
+        self.assertEqual(FS.one_sided_p(-0.1, 0.0, 5), 1.0)
+        self.assertAlmostEqual(FS.one_sided_p(0.0, 1.0, 10), 0.5)
+        self.assertGreater(FS.one_sided_p(-2.0, 1.0, 10), 0.5)
+        one_day = [{"entry_time": "2022-01-03T08:00:00Z", "exit_time": "2022-01-03T09:00:00Z", "net_R": 1.0, "symbol": "X"}] * 5
+        lb = FS.robust_lower_bound(one_day, FLOOR)
+        self.assertIsNone(lb["value"])                             # a single block has no CR1 bound
+        self.assertIsNone(lb["p_robust"])
+
+    def test_holm_stepdown_arithmetic(self):
+        rows = FS.holm_stepdown({"a": 0.001, "b": 0.01, "c": 0.02, "d": 0.2, "e": 0.9, "f": 1.0}, 6)
+        self.assertEqual([r["id"] for r in rows], ["a", "b", "c", "d", "e", "f"])
+        self.assertEqual([round(r["threshold"], 6) for r in rows], [round(0.10 / (6 - k + 1), 6) for k in range(1, 7)])
+        self.assertEqual([r["reject"] for r in rows], [True, True, True, False, False, False])
+
+    def test_holm_stops_at_the_first_failure_even_if_a_later_p_is_small_enough(self):
+        rows = FS.holm_stepdown({"a": 0.001, "b": 0.5, "c": 0.5001}, 3, alpha=0.10)
+        self.assertEqual([r["reject"] for r in rows], [True, False, False])
+        rows = FS.holm_stepdown({"a": 0.04, "b": 0.0001}, 2, alpha=0.10)       # sorted ascending; 0.04 <= 0.10/1
+        self.assertEqual([(r["id"], r["reject"]) for r in rows], [("b", True), ("a", True)])
+
+    def test_not_run_and_not_computable_candidates_count_in_the_family(self):
+        # 2 of 6 given: the denominators are still 6, 5, ...; the missing four rank last with p = 1
+        rows = FS.holm_stepdown({"a": 0.016, "b": None}, 6)
+        self.assertAlmostEqual(rows[0]["threshold"], 0.10 / 6)
+        self.assertTrue(rows[0]["reject"])                          # 0.016 <= 0.016667
+        self.assertAlmostEqual(rows[1]["threshold"], 0.10 / 5)
+        self.assertFalse(rows[1]["reject"])
+        self.assertIsNone(rows[1]["p"])
+        rows = FS.holm_stepdown({"a": 0.017}, 6)
+        self.assertFalse(rows[0]["reject"])                         # fewer entries must not shrink the family
+        with self.assertRaises(ValueError):
+            FS.holm_stepdown({str(i): 0.5 for i in range(7)}, 6)
+
+    def test_a_floor_pass_is_always_holm_rejected_but_holm_can_also_reject_a_floor_failure(self):
+        for p in (0.0, 1e-9, 0.10 / 6 - 1e-9):                     # a floor pass, whatever the others are
+            for others in ({}, {"z": 0.5}, {"y": 0.02, "z": 0.7}):
+                rows = {r["id"]: r for r in FS.holm_stepdown(dict(others, cand=p), 6)}
+                self.assertTrue(rows["cand"]["reject"], (p, others))
+        # the other direction is NOT true, which is why the verdict does not rest on Holm alone:
+        rows = {r["id"]: r for r in FS.holm_stepdown({"a": 0.001, "b": 0.018}, 6)}
+        self.assertTrue(rows["b"]["reject"])
+        self.assertGreater(0.018, 0.10 / 6)                         # b FAILS the floor
+
+    def test_edge_interval_and_minimum_detectable_edge(self):
+        iv = FS.edge_interval(0.10, 0.04, 11, FLOOR)
+        tc, tp = FS.t_quantile(FLOOR, 11), FS.t_quantile(0.80, 11)
+        self.assertAlmostEqual(iv["lower"], 0.10 - tc * 0.04)
+        self.assertAlmostEqual(iv["upper"], 0.10 + tc * 0.04)
+        self.assertAlmostEqual(iv["mde"], (tc + tp) * 0.04)
+        self.assertGreater(iv["mde"], iv["upper"] - 0.10)           # the MDE is wider than the confidence half-width
+        self.assertIsNone(FS.edge_interval(0.1, None, 5, FLOOR))
+        self.assertIsNone(FS.edge_interval(0.1, 0.1, 0, FLOOR))
+
+    def test_primary_summary_names_the_binding_half_year_bound_and_the_smallest_when_it_differs(self):
+        ps = FS.primary_summary(_iid(5, 500, 0.2), FLOOR)
+        half = ps["components"]["half"]
+        self.assertEqual(ps["binding_half_year"]["df"], half["df"])
+        self.assertAlmostEqual(ps["binding_half_year"]["se"], half["se"])
+        self.assertAlmostEqual(ps["binding_half_year"]["lower"], half["value"])
+        self.assertEqual(ps["floor_ok"], ps["primary_bound"] > 0)
+        if ps["numerically_smallest"] != "half":
+            self.assertIsNotNone(ps["smallest_bound_interval"])
+        else:
+            self.assertIsNone(ps["smallest_bound_interval"])
+        none = FS.primary_summary([], FLOOR)
+        self.assertFalse(none["floor_ok"])
+        self.assertIsNone(none["binding_half_year"])
+
+    def test_the_family_text_is_pinned_and_says_the_verdict_never_rests_on_holm_alone(self):
+        self.assertIn("6", FS.FAMILY_DEFINITION)
+        self.assertIn("never a PASS", FS.FAMILY_DEFINITION)
+        self.assertIn("stress gate", FS.VERDICT_PRECEDENCE)
+        self.assertIn("never turns a failing candidate into a pass", FS.VERDICT_PRECEDENCE)
+
+
+class OrdinalPerturbation(unittest.TestCase):
+    """Pre-registration A5 (replaced 2026-10-02): ordinal components only, one at a time; categorical items reported."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.ict = FS.load_grid(os.path.join(ROOT, "docs", "architecture", "v-grid-ict.json")).runnable()
+        cls.wy = FS.load_grid(os.path.join(ROOT, "docs", "architecture", "v-grid-wyckoff.json")).runnable()
+
+    @staticmethod
+    def _moves(grid, item, comp_name, current):
+        comp = next(c for c in FS.PERTURBATION_AXES[item] if c["component"] == comp_name)
+        return FS.component_neighbours(grid, item, comp, current)
+
+    def test_the_axis_table_agrees_with_the_real_grids(self):
+        for grid in (self.ict, self.wy):
+            for item_id, comps in FS.PERTURBATION_AXES.items():
+                if item_id not in grid.by_id:
+                    continue
+                for comp in comps:
+                    for v in grid.by_id[item_id]["values"]:
+                        if item_id == "W4a" and v == grid.by_id[item_id]["values"][0]:
+                            self.assertEqual(FS.component_neighbours(grid, item_id, comp, v), [])   # the v1-typed baseline
+                            continue
+                        self.assertIn(FS._split_value(v, comp["part"]), comp["order"], (item_id, comp["component"], v))
+                        for _d, new in FS.component_neighbours(grid, item_id, comp, v):      # raises if undeclared
+                            self.assertIn(new, grid.by_id[item_id]["values"])
+        # every axis item exists in one of the grids, and the orders are the pre-registered ones
+        names = {i for g in (self.ict, self.wy) for i in g.by_id}
+        self.assertTrue(set(FS.PERTURBATION_AXES) <= names | {"W4a"})
+        self.assertEqual(FS.PERTURBATION_AXES["B-EX"][0]["order"], ["iofed", "ce", "fill"])
+        self.assertEqual(FS.PERTURBATION_AXES["B-BUF"][0]["order"], ["0", "0.1atr", "0.25atr"])
+        self.assertEqual([c["order"] for c in FS.PERTURBATION_AXES["B-EXIT"]],
+                         [["-2.0", "-2.25", "-2.5"], ["H", "1.5H", "2H", "none"]])
+        self.assertEqual([c["order"] for c in FS.PERTURBATION_AXES["B-LB"]], [["8", "12", "16"], ["K", "2K"]])
+        self.assertEqual(FS.PERTURBATION_AXES["W6"][0]["order"], [300, 600])
+        self.assertEqual([c["order"] for c in FS.PERTURBATION_AXES["W-TW"]], [[8, 12, 20], [2, 3]])
+        self.assertEqual(FS.PERTURBATION_AXES["W4a"][0]["order"], [3, 4])
+
+    def test_the_categorical_items_are_exactly_the_pre_registered_ones(self):
+        ict_cat = {i for i in self.ict.by_id if i not in FS.PERTURBATION_AXES}
+        wy_cat = {i for i in self.wy.by_id if i not in FS.PERTURBATION_AXES}
+        self.assertEqual(ict_cat, {"B-PD", "B-POOL", "B6", "B3", "B-MGMT", "B7"})       # B4 is declared, not runnable
+        self.assertEqual(wy_cat, {"W-STOP", "W-SPT", "W-MGMT", "W-TOUCH"})              # W4b likewise
+
+    def test_one_component_moves_at_a_time_and_the_others_stay(self):
+        g = self.ict
+        self.assertEqual(self._moves(g, "B-EXIT", "target", "-2.25|1.5H|floor"),
+                         [(-1, "-2.0|1.5H|floor"), (+1, "-2.5|1.5H|floor")])
+        self.assertEqual(self._moves(g, "B-EXIT", "time_stop", "-2.25|1.5H|floor"),
+                         [(-1, "-2.25|H|floor"), (+1, "-2.25|2H|floor")])
+        self.assertEqual(self._moves(g, "B-EXIT", "target", "-2.0|H|floor"), [(+1, "-2.25|H|floor")])        # edge
+        self.assertEqual(self._moves(g, "B-EXIT", "time_stop", "-2.5|none|floor"), [(-1, "-2.5|2H|floor")])  # edge
+        self.assertEqual(self._moves(g, "B-LB", "lookback", "12|K"), [(-1, "8|K"), (+1, "16|K")])
+        self.assertEqual(self._moves(g, "B-LB", "expiry", "12|K"), [(+1, "12|2K")])
+        self.assertEqual(self._moves(g, "B-LB", "expiry", "12|2K"), [(-1, "12|K")])
+        self.assertEqual(self._moves(g, "B-EX", "entry_model", "ce"), [(-1, "iofed"), (+1, "fill")])
+        self.assertEqual(self._moves(g, "B-BUF", "stop_buffer", "0"), [(+1, "0.1atr")])
+        w = self.wy
+        self.assertEqual(self._moves(w, "W-TW", "test_window", [12, 3]), [(-1, [8, 3]), (+1, [20, 3])])
+        self.assertEqual(self._moves(w, "W-TW", "phase_b_swings", [12, 2]), [(+1, [12, 3])])
+        self.assertEqual(self._moves(w, "W6", "structure_window", 300), [(+1, 600)])
+        self.assertEqual(self._moves(w, "W6", "structure_window", 600), [(-1, 300)])
+
+    def test_w4a_is_only_perturbed_between_the_explicit_counts_3_and_4(self):
+        w = self.wy
+        self.assertEqual(self._moves(w, "W4a", "linger_closes", 2), [])                  # the v1-typed baseline: not ordinal
+        self.assertEqual(self._moves(w, "W4a", "linger_closes", 3), [(+1, 4)])
+        self.assertEqual(self._moves(w, "W4a", "linger_closes", 4), [(-1, 3)])
+
+    def test_an_axis_that_disagrees_with_the_grid_fails_loud(self):
+        g = FS.Grid({"method": "ICT", "items": [{"id": "B-EX", "key": "k", "values": ["iofed", "fill"]}]})
+        comp = FS.PERTURBATION_AXES["B-EX"][0]
+        with self.assertRaises(FS.GridError):
+            FS.component_neighbours(g, "B-EX", comp, "iofed")          # the next step on the order, 'ce', is not declared
+
+    def _folds_with(self, grid, overrides_by_fold):
+        folds = FS.make_folds(LONG_START)
+        out = []
+        for fold, ov in zip(folds, overrides_by_fold):
+            out.append({"fold": fold, "chosen": grid.full(ov), "changed": [], "test_trades": []})
+        return out
+
+    def test_sets_pool_the_moved_values_per_component_and_direction_and_record_the_skips(self):
+        g = self.wy
+        asked = []
+
+        def trades_for(values):
+            asked.append(json.dumps(values, sort_keys=True))
+            return gen(LONG_START, FS.DEV_CUTOFF, 400, 0.3, 0.5, json.dumps(values, sort_keys=True), symbols=["XAUUSD"])
+        res = self._folds_with(g, [{"W4a": 2, "W6": 300, "W-TW": [12, 2]}, {"W4a": 3, "W6": 600, "W-TW": [8, 3]}])
+        sets = FS.perturbation_trade_sets(g, trades_for, res)
+        keys = {(s["item"], s["component"], s["direction"]): s for s in sets}
+        self.assertEqual(sorted(keys), sorted([("W-TW", "phase_b_swings", -1), ("W-TW", "phase_b_swings", +1),
+                                               ("W-TW", "test_window", -1), ("W-TW", "test_window", +1),
+                                               ("W4a", "linger_closes", +1), ("W6", "structure_window", -1),
+                                               ("W6", "structure_window", +1)]))
+        self.assertEqual(keys[("W6", "structure_window", +1)]["folds"], 1)               # only fold 0 chose 300
+        self.assertEqual(keys[("W6", "structure_window", -1)]["folds"], 1)               # only fold 1 chose 600
+        self.assertEqual(keys[("W4a", "linger_closes", +1)]["folds"], 1)                 # fold 1 (3 -> 4); fold 0 chose 2
+        self.assertNotIn(("W4a", "linger_closes", -1), keys)
+        self.assertEqual(keys[("W-TW", "test_window", +1)]["folds"], 2)                  # 12 -> 20 and 8 -> 12
+        self.assertTrue(all(s["kind"] == "ordinal" for s in sets))
+        skips = FS.perturbation_skips(g, res)
+        self.assertEqual([(s["item"], s["component"], s["chosen"]) for s in skips], [("W4a", "linger_closes", 2)])
+        # nothing but ONE component moved in any requested set: compare against the fold's chosen values
+        base_keys = {json.dumps(r["chosen"], sort_keys=True) for r in res}
+        for k in asked:
+            v = json.loads(k)
+            if k in base_keys:
+                continue
+            diffs = [i for r in res for i in v if v[i] != r["chosen"][i]]
+            self.assertTrue(any(sum(1 for i in v if v[i] != r["chosen"][i]) == 1 for r in res), (k, diffs))
+
+    def test_categorical_flips_are_value_a_to_value_b_per_fold_choice_and_never_ordinal_items(self):
+        g = self.ict
+        res = self._folds_with(g, [{"B-PD": "r15", "B7": "all_hours"}, {"B-PD": "r13", "B7": "all_hours"}])
+        flips = FS.categorical_flip_sets(g, lambda v: [], res)
+        got = {(f["item"], f["from"], f["to"]): f["folds"] for f in flips}
+        self.assertEqual(got[("B-PD", "r15", "r13")], 1)
+        self.assertEqual(got[("B-PD", "r13", "r15")], 1)
+        self.assertEqual(got[("B7", "all_hours", "killzone")], 2)
+        self.assertFalse(any(f["item"] in FS.PERTURBATION_AXES for f in flips))
+        self.assertTrue(all(f["kind"] == "categorical" for f in flips))
+        rep = FS.categorical_report([dict(f, trades=_iid(1, 60, 0.2)) for f in flips[:2]], FLOOR)
+        self.assertEqual(sorted(rep[0]), ["folds", "from", "item", "lower_bound", "mean_R", "n", "to"])
+
+    def test_a_neighbour_must_have_a_positive_mean_and_a_positive_bound(self):
+        good = _iid(1, 400, 0.4)
+        meh = _iid(2, 400, 0.12)                       # positive mean, bound below 0 at the floor
+        bad = _iid(3, 400, -0.1)
+
+        def row(tr):
+            return {"item": "a", "component": "a", "direction": 1, "folds": 3, "trades": tr}
+        self.assertTrue(FS.check_perturbation([row(good)], FLOOR)["ok"])
+        r = FS.check_perturbation([row(meh)], FLOOR)
+        self.assertFalse(r["ok"])
+        self.assertGreater(r["rows"][0]["mean_R"], 0)
+        self.assertLessEqual(r["rows"][0]["lower_bound"], 0)
+        self.assertFalse(FS.check_perturbation([row(bad)], FLOOR)["ok"])
+        self.assertFalse(FS.check_perturbation([row(good), row(bad)], FLOOR)["ok"])      # every neighbour must pass
+        self.assertFalse(FS.check_perturbation([], FLOOR)["ok"])
+
+    def test_the_gate_is_at_the_floor_confidence_not_at_a_looser_level(self):
+        tr = _iid(7, 300, 0.11)
+        lo90 = FS.robust_lower_bound(tr, 0.90)["value"]
+        lo_floor = FS.robust_lower_bound(tr, FLOOR)["value"]
+        self.assertLess(lo_floor, lo90)
+        got = FS.check_perturbation([{"item": "a", "component": "a", "direction": 1, "folds": 1, "trades": tr}], FLOOR)
+        self.assertEqual(got["rows"][0]["lower_bound"], lo_floor)
+
+    def test_component_stability_lists_the_chosen_component_per_fold(self):
+        g = self.ict
+        res = self._folds_with(g, [{"B-EXIT": "-2.0|H|floor"}, {"B-EXIT": "-2.0|2H|floor"}, {"B-EXIT": "-2.5|2H|floor"}])
+        cs = FS.component_stability(g, res)
+        self.assertEqual(cs["B-EXIT.target"]["values_by_fold"], ["-2.0", "-2.0", "-2.5"])
+        self.assertEqual((cs["B-EXIT.target"]["changes"], cs["B-EXIT.time_stop"]["changes"]), (1, 1))
+        self.assertIn("B-EX.entry_model", cs)
+
+    def test_the_axes_are_part_of_the_plan_core_and_the_declaration_pin(self):
+        fs = _fs()
+        plan = fs.build_plan(REAL_ARCH, first_bar=lambda s, t: "2010-01-01T00:00:00Z")
+        self.assertEqual(plan["perturbation_axes"], FS.PERTURBATION_AXES)
+        cfg = fs.evaluation_config(plan)
+        self.assertEqual(cfg["perturbation"]["axes"], FS.PERTURBATION_AXES)
+        self.assertEqual(cfg["perturbation"]["definition"], FS.PERTURBATION_DEFINITION)
+        self.assertEqual(cfg["stress"]["commission_fraction"], 0.00003)
+        self.assertEqual(cfg["stress"]["spread_stat"], "p90")
+        self.assertEqual(cfg["family"], plan["family"])
+        self.assertEqual(cfg["regime_split"], FS.REGIME_SPLIT_DEFINITION)
+        self.assertEqual(cfg["verdict_precedence"], FS.VERDICT_PRECEDENCE)
+        self.assertEqual(cfg["prop_shift"], FS.PROP_SHIFT_DEFINITION)
+        changed = json.loads(json.dumps(FS.PERTURBATION_AXES))
+        changed["W6"][0]["order"] = [600, 300]
+        with mock.patch.object(FS, "PERTURBATION_AXES", changed):
+            self.assertNotEqual(fs.build_plan(REAL_ARCH, first_bar=lambda s, t: "2010-01-01T00:00:00Z")["plan_hash"],
+                                plan["plan_hash"])
+
+
+def _d1_candles(opens, base=2000.0):
+    """D1 candles with a mild deterministic trend + noise; `opens` are ISO open labels."""
+    rng = random.Random(11)
+    out, px = [], base
+    for o in opens:
+        step = rng.uniform(-6, 9)
+        out.append({"time": o, "open": px, "high": px + abs(step) + 4, "low": px - abs(step) - 4, "close": px + step,
+                    "volume": 1.0})
+        px += step
+    return out
+
+
+def _daily_opens(start, n, hour=22):
+    t0 = FS.ts(start).replace(hour=hour)
+    return [FS.iso(t0 + datetime.timedelta(days=i)) for i in range(n)]
+
+
+class D1Regime(unittest.TestCase):
+    """Pre-registration A7: the D1 ADX(14) of the last D1 bar whose CLOSE is at or before the entry time."""
+
+    def setUp(self):
+        self.candles = _d1_candles(_daily_opens("2022-01-03T00:00:00Z", 80))
+        self.idx = FS.d1_adx_index(self.candles)
+        self.vals = FS.adx14([c["high"] for c in self.candles], [c["low"] for c in self.candles],
+                             [c["close"] for c in self.candles])
+
+    def test_a_bar_is_complete_at_open_plus_24h_and_not_a_second_earlier(self):
+        i = 50                                                          # a bar with a computed ADX
+        self.assertIsNotNone(self.vals[i])
+        close = FS.ts(self.candles[i]["time"]) + datetime.timedelta(days=1)
+        at = FS.iso(close)
+        before = FS.iso(close - datetime.timedelta(seconds=1))
+        self.assertEqual(FS.d1_adx_at(self.idx, at), self.vals[i])                    # bar boundary: closed AT the entry
+        self.assertEqual(FS.d1_adx_at(self.idx, before), self.vals[i - 1])             # one second earlier: still forming
+        self.assertNotEqual(self.vals[i], self.vals[i - 1])
+
+    def test_the_entry_days_own_forming_bar_is_never_read(self):
+        i = 55
+        opened = self.candles[i]["time"]                                # the instant the entry day's bar OPENS
+        for delta in (0, 1, 3600, 12 * 3600, 24 * 3600 - 1):
+            at = FS.iso(FS.ts(opened) + datetime.timedelta(seconds=delta))
+            self.assertEqual(FS.d1_adx_at(self.idx, at), self.vals[i - 1], delta)
+
+    def test_the_old_decision_timeframe_rule_would_have_read_the_forming_bar(self):
+        # why the replacement exists: `adx_before` (last bar that OPENED strictly before the entry) is right for a 15m bar and a
+        # one-day look-ahead for D1 -- the bar that opened an hour earlier is still forming
+        i = 55
+        entry = FS.iso(FS.ts(self.candles[i]["time"]) + datetime.timedelta(hours=1))
+        old = FS.adx_before(FS.adx_index(self.candles), entry)
+        self.assertEqual(old, self.vals[i])
+        self.assertEqual(FS.d1_adx_at(self.idx, entry), self.vals[i - 1])
+
+    def test_no_value_before_the_first_close_or_during_warm_up(self):
+        first_close = FS.ts(self.candles[0]["time"]) + datetime.timedelta(days=1)
+        self.assertIsNone(FS.d1_adx_at(self.idx, FS.iso(first_close - datetime.timedelta(seconds=1))))
+        self.assertIsNone(FS.d1_adx_at(self.idx, FS.iso(first_close)))               # closed, but ADX(14) needs 2 x 14 bars
+        warm = FS.ts(self.candles[26]["time"]) + datetime.timedelta(days=1)
+        self.assertIsNone(FS.d1_adx_at(self.idx, FS.iso(warm)))
+        self.assertIsNotNone(FS.d1_adx_at(self.idx, FS.iso(warm + datetime.timedelta(days=1))))
+
+    def test_a_trade_with_no_d1_value_fails_the_regime_check(self):
+        mk = lambda a, r: {"entry_time": "2022-01-01T00:00:00Z", "exit_time": "2022-01-01T01:00:00Z", "symbol": "X",
+                           "net_R": r, "adx14_d1": a}
+        trades = [mk(10 + i % 5, 0.5) for i in range(20)] + [mk(30 + i % 5, 0.4) for i in range(20)]
+        self.assertTrue(FS.check_regime_split(trades)["ok"])
+        chk = FS.check_regime_split(trades + [mk(None, 0.5)])
+        self.assertFalse(chk["ok"])
+        self.assertIn("no completed D1 bar", chk["reason"])
+        # the decision-timeframe ADX is NOT a substitute: a trade carrying only `adx14` has no D1 value
+        only_tf = [{"entry_time": "2022-01-01T00:00:00Z", "exit_time": "2022-01-01T01:00:00Z", "symbol": "X", "net_R": 0.5,
+                    "adx14": 20.0} for _ in range(10)]
+        self.assertFalse(FS.check_regime_split(only_tf)["ok"])
+
+    def test_the_median_split_uses_the_d1_value_and_needs_both_halves_positive(self):
+        mk = lambda a, r, tf_adx: {"entry_time": "2022-01-01T00:00:00Z", "exit_time": "2022-01-01T01:00:00Z", "symbol": "X",
+                                   "net_R": r, "adx14_d1": a, "adx14": tf_adx}
+        # the D1 ADX separates winners from losers; the decision-timeframe ADX (reporting) is constant and would not
+        trades = [mk(12, 0.9, 25.0) for _ in range(30)] + [mk(35, -0.3, 25.0) for _ in range(30)]
+        chk = FS.check_regime_split(trades)
+        self.assertFalse(chk["ok"])
+        self.assertEqual((chk["low"]["n"], chk["high"]["n"]), (30, 30))
+        self.assertAlmostEqual(chk["median_adx14_d1"], (12 + 35) / 2)
+        self.assertGreater(chk["low"]["mean_R"], 0)
+        self.assertLess(chk["high"]["mean_R"], 0)
+
+    def test_the_value_is_point_in_time(self):
+        # bar i's ADX is identical on the series truncated right after bar i: no later bar can change it
+        for i in (30, 45, 60):
+            trunc = FS.d1_adx_index(self.candles[:i + 1])
+            at = FS.iso(FS.ts(self.candles[i]["time"]) + datetime.timedelta(days=1))
+            self.assertEqual(FS.d1_adx_at(trunc, at), FS.d1_adx_at(self.idx, at))
+
+    def test_close_convention_dst_weekend_and_last_bar(self):
+        # 25 h day (fall back): the next bar opens 25 h later, so the close is the next open, NOT open + 24 h
+        a, b, c = "2023-10-28T21:00:00Z", "2023-10-29T21:00:00Z", "2023-10-30T22:00:00Z"
+        cs = [{"time": t, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 1} for t in (a, b, c)]
+        closes, _ = FS.d1_adx_index(cs)
+        self.assertEqual([FS.iso(x) for x in closes], [b, c, "2023-10-31T22:00:00Z"])
+        # 23 h bar / weekend: never EARLIER than open + 24 h
+        w = [{"time": t, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 1}
+             for t in ("2023-03-24T22:00:00Z", "2023-03-26T21:00:00Z")]       # Friday bar, then the Sunday-evening bar (47 h)
+        closes, _ = FS.d1_adx_index(w)
+        self.assertEqual(FS.iso(closes[0]), "2023-03-26T21:00:00Z")
+        self.assertGreaterEqual(closes[0], FS.ts(w[0]["time"]) + FS.D1_BAR)
+        self.assertEqual(FS.iso(closes[1]), "2023-03-27T21:00:00Z")           # the last bar: open + 24 h
+
+    def test_the_real_d1_series_follow_the_documented_open_label_convention(self):
+        """Counts of label hours and gaps only (no price, no R): every real FTMO D1 label is the broker's server midnight in UTC
+        (21:00Z or 22:00Z), gaps are 24 h except weekend / DST / holiday ones, and no D1 close precedes its own open label + 24 h."""
+        import history_store as HS
+        root = os.path.join(ROOT, "data", "history", "ftmo")
+        doc, _ = HS.read_doc("XAUUSD", "1D", root=root)
+        cs = [c for c in doc["candles"] if "2022-01-01" <= c["time"] < "2024-03-01"]
+        self.assertGreater(len(cs), 400)
+        self.assertEqual({FS.ts(c["time"]).hour for c in cs}, {21, 22})
+        gaps = {round((FS.ts(b["time"]) - FS.ts(a["time"])).total_seconds() / 3600) for a, b in zip(cs, cs[1:])}
+        self.assertTrue({24, 25, 23}.intersection(gaps) and gaps <= {23, 24, 25, 47, 48, 49, 71, 72, 73, 95, 96, 97})
+        closes, _ = FS.d1_adx_index(cs)
+        self.assertTrue(all(c >= FS.ts(k["time"]) + FS.D1_BAR for c, k in zip(closes, cs)))
+        self.assertEqual(closes, sorted(closes))                    # monotone, so the bisect lookup is valid
+
+
+class StressArithmetic(unittest.TestCase):
+    """Pre-registration A8a: gross R - p90 cost - 0.00003 * entry / |entry - stop|."""
+
+    def test_the_commission_margin_is_a_fraction_of_notional_charged_in_r(self):
+        self.assertAlmostEqual(FS.stress_commission_r(2000.0, 1998.0), 0.00003 * 2000 / 2)
+        self.assertAlmostEqual(FS.stress_commission_r(100.0, 101.0), 0.003)
+        self.assertAlmostEqual(FS.stress_commission_r(50.0, 49.5), 0.00003 * 50 / 0.5)
+        # a tighter stop makes the same margin cost more R: it is a fraction of NOTIONAL, not of risk
+        self.assertGreater(FS.stress_commission_r(2000.0, 1999.0), FS.stress_commission_r(2000.0, 1990.0))
+        for e, s in ((0.0, 1.0), (100.0, 100.0), (-1.0, -2.0)):
+            with self.assertRaises(ValueError):
+                FS.stress_commission_r(e, s)
+        self.assertEqual(FS.STRESS_COMMISSION_FRACTION, 0.00003)
+        self.assertEqual(FS.STRESS_SPREAD_STAT, "p90")
+
+    def test_stressed_net_r_subtracts_cost_and_margin(self):
+        self.assertAlmostEqual(FS.stressed_net_r(1.5, 0.2, 2000.0, 1998.0), 1.5 - 0.2 - 0.03)
+
+    def test_the_gate_is_on_the_stressed_mean_and_fails_closed(self):
+        win = [{"entry_time": "2022-01-03T08:00:00Z", "exit_time": "2022-01-03T09:00:00Z", "net_R": r, "symbol": "X"}
+               for r in (0.2, 0.1, 0.3, 0.15)]
+        self.assertTrue(FS.check_stress(win, FLOOR)["ok"])
+        lose = [dict(t, net_R=t["net_R"] - 0.3) for t in win]
+        chk = FS.check_stress(lose, FLOOR)
+        self.assertFalse(chk["ok"])
+        self.assertLess(chk["mean_R_stressed"], 0)
+        self.assertFalse(FS.check_stress(None, FLOOR)["ok"])
+        self.assertFalse(FS.check_stress([], FLOOR)["ok"])
+        self.assertEqual(FS.prop_shift_r({"value": 0.1, "mean": 0.25}), 0.15)
+        self.assertIsNone(FS.prop_shift_r({"value": None, "mean": 0.25}))
+
+
+class _RealSliceEngine(unittest.TestCase):
+    """The REAL BtEngine on a temp history root cut from the committed FTMO XAUUSD series (all timeframes, one span): no
+    scan is run, the raw trades are seeded by hand, so no engine R of any real evaluation is involved."""
+
+    SPAN_TF, SPAN_BARS = "1D", 400
+
+    @classmethod
+    def setUpClass(cls):
+        d = os.path.join(ROOT, "data", "history", "ftmo", "ohlcv.XAUUSD.1D")
+        if not os.path.isdir(d):
+            raise AssertionError(f"{d} is missing: these tests need the FTMO history")
+        cls.tmp = tempfile.mkdtemp(prefix="stats-sealed-")
+        cls.env = os.environ.get("BT_HISTORY_ROOT")
+        hist = os.path.join(cls.tmp, "hist")
+        cls.span = _write_slice_root(hist, "XAUUSD", cls.SPAN_TF, cls.SPAN_BARS)
+        os.environ["BT_HISTORY_ROOT"] = hist
+        cls.fs = _fs()
+        grids, _ = cls.fs.load_grids(REAL_ARCH)
+        cls.grid = grids["ict"].runnable()
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.env is None:
+            os.environ.pop("BT_HISTORY_ROOT", None)
+        else:
+            os.environ["BT_HISTORY_ROOT"] = cls.env
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def _t(self, i, entry, stop, side="long", day="2023-09-12", R=2.0):
+        base = datetime.datetime.fromisoformat(day + "T08:00:00+00:00") + datetime.timedelta(hours=3 * i)
+        return {"symbol": "XAUUSD", "tf": "15m", "side": side, "entry": entry, "stop": stop, "target": entry + 6 * (entry - stop),
+                "entry_time": FS.iso(base), "exit_time": FS.iso(base + datetime.timedelta(hours=1)), "outcome": "win",
+                "R": R, "R_planned": 6.0, "event": f"XAUUSD-{side}-ict-s{i}-m{i}"}
+
+    def _engine(self, raw):
+        eng = self.fs.BtEngine(self.grid, "ICT", "15m", ["XAUUSD"], workers=1)
+        eng._raw[FS.CountingSource._key(self.grid.baseline())] = list(raw)
+        return eng
+
+
+class RegimeOnTheEngine(_RealSliceEngine):
+    def test_the_trade_carries_the_d1_adx_of_the_last_completed_bar_and_keeps_the_tf_adx_for_reporting(self):
+        eng = self._engine([self._t(0, 1900.0, 1898.0), self._t(1, 1900.0, 1902.0, side="short")])
+        taken = eng.trades_for(self.grid.baseline())
+        self.assertEqual(len(taken), 2)
+        d1, _ = eng.bt.load("XAUUSD", "1D")
+        idx = FS.d1_adx_index(d1)
+        for t in taken:
+            self.assertIn("adx14", t)                                    # decision timeframe: reporting only
+            want = FS.d1_adx_at(idx, t["entry_time"])
+            self.assertEqual(t["adx14_d1"], want)
+            self.assertIsNotNone(want)
+        # a different day reads a different completed bar
+        late = self._engine([self._t(0, 1900.0, 1898.0, day="2023-12-12")]).trades_for(self.grid.baseline())
+        self.assertNotEqual(late[0]["adx14_d1"], taken[0]["adx14_d1"])
+
+    def test_the_snapshot_records_the_d1_series_the_regime_split_reads(self):
+        snap = self._engine([]).dataset_snapshot()
+        rs = snap["regime_series"]
+        self.assertEqual([r["symbol"] for r in rs], ["XAUUSD"])
+        self.assertEqual(rs[0]["timeframe"], "1D")
+        self.assertGreater(rs[0]["bars"], 100)
+        self.assertEqual(len(rs[0]["sha256"]), 64)
+        self.assertLess(rs[0]["last_open"], FS.DEV_CUTOFF)                # PIT-truncated like every series
+
+    def test_a_trade_before_any_completed_d1_bar_has_no_value(self):
+        early = self._engine([self._t(0, 1900.0, 1898.0, day="2021-01-12")])         # before the temp series starts
+        taken = early.trades_for(self.grid.baseline())
+        self.assertTrue(all(t["adx14_d1"] is None for t in taken))
+
+
+class StressAndShiftOnTheEngine(_RealSliceEngine):
+    def test_stress_trades_reprice_the_same_admitted_trades_at_p90_plus_the_commission_margin(self):
+        import real_costs as RC
+        eng = self._engine([self._t(0, 1900.0, 1898.0), self._t(1, 1900.0, 1902.0, side="short"),
+                            self._t(2, 1950.0, 1949.0, R=-1.0)])
+        taken = eng.trades_for(self.grid.baseline())
+        stressed = eng.stress_trades(taken)
+        self.assertEqual([t["event"] for t in stressed], [t["event"] for t in taken])         # no trade added or removed
+        self.assertEqual([t["entry_time"] for t in stressed], [t["entry_time"] for t in taken])
+        for s, t in zip(stressed, taken):
+            med = RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"], t["side"], self.fs.COST_PROFILE)
+            p90 = RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"], t["side"], self.fs.COST_PROFILE,
+                            spread_stat="p90")
+            self.assertGreater(p90["spread_R"], med["spread_R"])                           # p90 spread is wider
+            margin = 0.00003 * t["entry"] / abs(t["entry"] - t["stop"])
+            self.assertAlmostEqual(s["net_R"], t["R"] - p90["total_R"] - margin, places=12)
+            self.assertAlmostEqual(s["net_R_median"], t["net_R"])
+            self.assertLess(s["net_R"], t["net_R"])                                        # stress only ever costs more
+            self.assertEqual(p90["spread_stat"], "p90")
+            self.assertIn("spread_scale", p90)                                            # price-scaled (relative-spread profile)
+
+    def test_a_trade_that_only_just_wins_loses_under_stress(self):
+        import real_costs as RC
+        t0 = self._t(0, 1900.0, 1899.0, R=0.0)
+        eng = self._engine([dict(t0, R=0.0)])
+        taken = eng.trades_for(self.grid.baseline())
+        self.assertEqual(len(taken), 1)
+        p90 = RC.cost_r(1900.0, 1899.0, t0["entry_time"], t0["exit_time"], "XAUUSD", "long", self.fs.COST_PROFILE, "p90")
+        med = RC.cost_r(1900.0, 1899.0, t0["entry_time"], t0["exit_time"], "XAUUSD", "long", self.fs.COST_PROFILE)
+        edge = med["total_R"] + 0.5 * (p90["total_R"] - med["total_R"])        # an R that clears the median cost, not the p90 one
+        taken = [dict(taken[0], R=edge, net_R=edge - med["total_R"])]
+        self.assertGreater(taken[0]["net_R"], 0)
+        self.assertLess(eng.stress_trades(taken)[0]["net_R"], 0)
+
+    def test_prop_pass_default_is_the_unshifted_gate_and_a_shift_subtracts_from_every_admitted_trade(self):
+        raw = [self._t(i, 1900.0 + i, 1898.0 + i, day="2023-09-12") for i in range(4)]
+        eng = self._engine(raw)
+        taken = eng.trades_for(self.grid.baseline())
+        ps = self.fs._prop_search()
+        seen = []
+
+        def fake_metrics(trades, **kw):
+            seen.append([t["net_R"] for t in trades])
+            return {"prop_pass_probability": {"value": 0.8, "spread": {}}}
+        with mock.patch.object(ps._perf, "metrics", fake_metrics):
+            plain = eng.prop_pass(taken)
+            explicit = eng.prop_pass(taken, r_shift=0.0)
+            shifted = eng.prop_pass(taken, r_shift=0.15)
+        n_funds = len(ps.FUNDS)
+        self.assertEqual(len(seen), 3 * n_funds)
+        base, zero, sh = seen[:n_funds][0], seen[n_funds:2 * n_funds][0], seen[2 * n_funds:][0]
+        self.assertEqual(base, zero)                                        # r_shift=0.0 IS the default, byte for byte
+        self.assertEqual(plain, explicit)
+        self.assertEqual(len(sh), len(base))                                # the admitted list is unchanged by the shift
+        for a, b in zip(base, sh):
+            self.assertAlmostEqual(b, a - 0.15, places=12)
+        self.assertEqual(shifted, plain)                                    # (the stub returns a constant)
+
+
+class ReportAndLedger(_Tmp):
+    """The family, Holm, section C and the statements in the report; the declaration records the family."""
+
+    def _plan(self):
+        self.fs.cmd_plan(grid_dir=FIXTURES)
+        return json.load(open(self.fs.PLAN_PATH))
+
+    def _records(self, plan, means):
+        grids, paths = self.fs.load_grids(FIXTURES)
+        os.makedirs(self.records, exist_ok=True)
+        for c, mean in zip(plan["candidates"], means):
+            cell = dict(next(x for x in plan["cells"] if x["id"] == c["cell"]), development_start=LONG_START)
+            eng = SynthEngine(mean=mean, symbols=cell["symbols"])
+            # "a" is ordinal and "b" categorical here, so the report has both an ordinal table and categorical flips
+            res = self.fs.evaluate_with_engine(eng, grid_two_items(), cell, c["family_size"], axes={"a": TEST_AXES["a"]})
+            rec = self.fs.build_record(c, plan["plan_hash"], grids[c["method"]], paths[c["method"]], res,
+                                       {"snapshot_id": "t", "series": []}, cell)
+            X.write(types.MappingProxyType(dict(rec)), store=self.records)
+        return plan
+
+    def test_plan_core_family_and_dry_run(self):
+        plan = self._plan()
+        fam = plan["family"]
+        self.assertEqual(fam["size"], plan["cell_count"] * 2)
+        self.assertAlmostEqual(fam["floor_confidence"], 1 - 0.10 / fam["size"])
+        self.assertEqual(fam["members"], [f"{m}-{c['id']}" for c in json.load(open(os.path.join(FIXTURES, "fund-search-cells.json")))["cells"]
+                                          for m in ("ict", "wyckoff")])
+        self.assertNotIn("n_by_method", plan)
+        self.assertNotIn("confidence_by_method", plan)
+        for c in plan["candidates"]:
+            self.assertEqual((c["family_size"], c["floor_confidence"]), (fam["size"], fam["floor_confidence"]))
+            self.assertNotIn("n_comparisons", c)
+        out = self.fs.format_dry_run(plan)
+        self.assertIn(f"{fam['size']} candidate procedures", out)
+        self.assertIn(f"1 - 0.1/{fam['size']} = {fam['floor_confidence']:.6f}", out)
+        self.assertIn("Holm", out)
+        self.assertNotIn("one-sided confidence 1 - 0.1/87", out)
+        self.assertIn("grid values disclosed, NOT in the family", out)
+
+    def test_the_family_counts_declared_cells_not_the_ones_that_survived_the_data_gate(self):
+        for s in ("US500", "US30", "USTEC", "DE40", "FRA40"):
+            self.first[(s, "1m")] = "2024-06-01T00:00:00Z"                  # the indices 1m cell has no development history
+        plan = self.fs.build_plan(FIXTURES)
+        self.assertEqual(plan["family"]["size"], len(json.load(open(os.path.join(FIXTURES, "fund-search-cells.json")))["cells"]) * 2)
+        self.assertGreater(plan["family"]["size"], plan["candidate_count"])
+
+    def test_declaration_records_the_family_and_run_refuses_when_it_differs(self):
+        plan = self._plan()
+        with mock.patch.object(self.fs, "check_clean_tree", lambda allow_dirty=False, root=None: []):
+            decl = self.fs.cmd_declare(allow_dirty=True)
+        self.assertEqual((decl["family_size"], decl["floor_confidence"]), (plan["family"]["size"], plan["family"]["floor_confidence"]))
+        self.assertEqual(decl["family_members"], plan["family"]["members"])
+        self.assertNotIn("n_by_method", decl)
+        self.assertEqual(decl["cell_count"], plan["cell_count"])                 # cell_count keeps its meaning
+        self.assertEqual(decl["evaluation_config"]["family"], plan["family"])
+        self.assertEqual(self.fs.require_declaration(plan)["family_size"], plan["family"]["size"])
+        data = json.load(open(self.ledger))
+        data["fund_search"]["family_size"] = 205
+        json.dump(data, open(self.ledger, "w"))
+        with self.assertRaises(SystemExit):
+            self.fs.require_declaration(plan)
+
+    def test_report_applies_holm_over_the_whole_family_and_names_the_unimplemented_placebo(self):
+        plan = self._records(self._plan(), [0.6, 0.0, 0.6])                   # 3 of the planned candidates are evaluated
+        md = self.fs.cmd_report()
+        fam = plan["family"]
+        self.assertIn(f"Holm step-down over the family of {fam['size']}", md)
+        rows = [ln for ln in md.splitlines() if ln.startswith("| ") and "rejected" in ln]
+        self.assertEqual(len(rows), fam["size"])                              # one row per PLANNED candidate, NOT RUN included
+        self.assertTrue(any("NOT RUN" in ln and "not rejected" in ln and "counts as 1" in ln for ln in rows))
+        self.assertIn("placebo: NOT IMPLEMENTED in this build", md)
+        self.assertRegex(md, r"\*\*Build:\*\* git `[0-9a-f]{12}`")
+        self.assertIn("Minimum detectable edge", md)
+        self.assertIn("Upper confidence bound on the edge", md)
+        self.assertIn("Every check, with its margin", md)
+        self.assertIn("Fold by fold", md)
+        self.assertIn("Stability of the chosen values per perturbation component (changes between consecutive folds): a.a", md)
+        self.assertIn("Categorical flips (REPORTED, never gated)", md)
+        self.assertIn("Stress gate", md)
+        self.assertIn("prop_pass_probability with R shifted down by", md)
+        self.assertIn("NOMINATION for a separately pre-registered forward demo", md)
+        self.assertIn("is a DEFINITION only", md)
+        self.assertIn("NOT folded into the family", md)
+        self.assertNotIn("PROPOSED, NOT DECIDED", md)
+        self.assertIn("highest primary bound at the floor confidence", md)
+
+    def test_a_floor_pass_is_confirmed_by_holm_and_counted_and_a_floor_failure_never_is(self):
+        plan = self._records(self._plan(), [0.6, 0.0])
+        md = self.fs.cmd_report()
+        self.assertIn("**1 of 2 evaluated candidates passed:**", md)
+        self.assertIn(plan["candidates"][0]["id"], md.split("candidates passed:**")[1].splitlines()[0])
+        self.assertNotIn(plan["candidates"][1]["id"], md.split("candidates passed:**")[1].splitlines()[0])
+        self.assertIn("A candidate that fails the floor is never reported as a pass", md)
+
+    def test_holm_only_rejections_are_listed_but_do_not_pass(self):
+        plan = self._plan()
+        by = plan["candidates"][:2]
+        # two evaluated candidates whose p_robust sit between the floor and Holm's rank-2 threshold: p = 0.001 and 0.018
+        recs = {}
+        for c, p in zip(by, (0.001, 0.018)):
+            fake = {"experiment_id": c["id"], "parameters": {"plan_hash": plan["plan_hash"], "symbols_evaluated": c["symbols"]},
+                    "metrics": {"evaluation": {"checks": {k: {"ok": True} for k in FS.REQUIRED_CHECKS}, "primary": {"p_robust": p}}}}
+            fake["metrics"]["evaluation"]["checks"]["lower_bound_positive"] = {"ok": p < 0.10 / plan["family"]["size"]}
+            recs[c["id"]] = fake
+        verdicts = {cid: FS.verdict_from(r["metrics"]["evaluation"]["checks"]) for cid, r in recs.items()}
+        holm = {r["id"]: r for r in FS.holm_stepdown({cid: r["metrics"]["evaluation"]["primary"]["p_robust"] for cid, r in recs.items()},
+                                                    plan["family"]["size"])}
+        lines = self.fs.report_holm_lines(plan["candidates"], {k: v for k, v in verdicts.items()}, holm, plan["family"],
+                                          [by[1]["id"]], [])
+        txt = "\n".join(lines)
+        self.assertIn("Holm would reject, but the floor fails (NOT a pass)", txt)
+        self.assertIn(by[1]["id"], txt)
 
 
 if __name__ == "__main__":

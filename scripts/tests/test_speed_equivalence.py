@@ -949,7 +949,7 @@ class FundSearchWaves(unittest.TestCase):
                 break
             ts = t.strftime("%Y-%m-%dT%H:%M:%SZ")
             out.append({"symbol": ("XAUUSD", "US500")[i % 2], "entry_time": ts, "exit_time": ts, "net_R": rng.gauss(0.05, 1.0),
-                        "R": rng.gauss(0.05, 1.0), "adx14": 20.0, "volume_kind": "tick", "side": "long"})
+                        "R": rng.gauss(0.05, 1.0), "adx14_d1": 20.0, "volume_kind": "tick", "side": "long"})
         return out
 
     def _engine_cls(self, prefetching):
@@ -967,7 +967,7 @@ class FundSearchWaves(unittest.TestCase):
                     self.scans.append(key)          # a value set scanned on demand, not prefetched
                 return outer._trades(values)
 
-            def prop_pass(self, pooled):
+            def prop_pass(self, pooled, r_shift=0.0):
                 return {"ftmo": {"value": 0.9}, "the5ers": {"value": 0.9}}
 
             def has(self, values):

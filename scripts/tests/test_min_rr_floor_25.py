@@ -121,7 +121,8 @@ class DeclarationPinsMinRR(unittest.TestCase):
 
     def _cfg(self):
         plan = {"embargo": {"h_multiple": 2}, "grids": {}, "cells": [], "cells_file": {"sha256": "0" * 64, "warmup_days": 14},
-                "cost_profile": self.fs.COST_PROFILE, "cost_profile_pin": {}}
+                "cost_profile": self.fs.COST_PROFILE, "cost_profile_pin": {},
+                "family": {"size": 6, "alpha": 0.10, "floor_confidence": 1 - 0.10 / 6}}
         return self.fs.evaluation_config(plan), plan
 
     def test_evaluation_config_carries_the_effective_floor(self):

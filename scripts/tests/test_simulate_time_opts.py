@@ -60,6 +60,7 @@ class _Base(unittest.TestCase):
         eng.grid, eng.method, eng.tf, eng.symbols, eng.bt = self.grid, "ICT", "15m", ["XAUUSD"], self.bt
         eng._raw, eng._done, eng._admission, eng._edge, eng._part = {}, {}, {}, {}, {}
         eng._adx = {"XAUUSD": FS.adx_index([])}
+        eng._d1, eng._d1_series = {"XAUUSD": None}, {"XAUUSD": None}      # no D1 series: no regime value (fails closed)
         eng._last = {"XAUUSD": "2100-01-01T00:00:00Z"}
         eng._dev_start_ts = None
         eng.workers = 1

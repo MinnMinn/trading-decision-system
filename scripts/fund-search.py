@@ -285,8 +285,8 @@ def assert_grid_runnable(grid):
     """Merge-time guards (round 2, item 5): (a) no unimplemented item; (b) a grid that can remove the time stop
     runs only with flat_before_rollover fixed on."""
     # Items declared but not implemented (implemented:false: B4, W4b) are NEVER evaluated -- selection and the
-    # engine see grid.runnable() -- yet they stay counted in N (n_per_method on the FULL grid), which only makes
-    # the bound stricter. They are listed in `plan` and in every record.
+    # engine see grid.runnable() -- yet their number stays disclosed on the FULL grid (n_per_method; since family A the grid
+    # values are not hypotheses of the multiple-testing family). They are listed in `plan` and in every record.
     if grid_has_no_time_stop_value(grid.runnable()):
         assert_flat_overlay(fixed_opts())
 
@@ -333,9 +333,9 @@ def data_readiness(cells_spec, first_bar=None, spec_present=None):
 
     `ready` is the HARD condition (every declared symbol has its series and spec): `plan`/`run`/`scan`/`declare` refuse
     without it. A symbol whose first bar is not before DEV_CUTOFF is not a readiness failure (plan §6 item 7: it is left out
-    of m and disclosed). A cell in which NO symbol has development data is dropped from N by that same rule; it does not
-    block planning, but `complete` is False so `--check-data` exits non-zero: the owner declared this cell and should see
-    that N would silently shrink."""
+    of m and disclosed). A cell in which NO symbol has development data is dropped from the plan's candidates by that same
+    rule (the family size, counted on the DECLARED cells, still includes it); it does not block planning, but `complete` is
+    False so `--check-data` exits non-zero: the owner declared this cell and should see that the plan would silently shrink."""
     first_bar = first_bar or _first_bar
     spec_present = spec_present or _spec_present
     cutoff = FS.ts(FS.DEV_CUTOFF)
@@ -400,7 +400,7 @@ def format_readiness(rep):
             L.append(f"  first bar not before {FS.DEV_CUTOFF} (left out of m by the plan rule): "
                      f"{', '.join(c['no_development_data'])}")
         if not c["has_development_symbol"]:
-            L.append("  NO symbol has development data: the cell would be dropped from N")
+            L.append("  NO symbol has development data: the cell would be dropped from the plan (the family size still counts it)")
     bad = [c["id"] for c in rep["cells"] if not c["ready"]]
     L.append("READY: every declared cell has its history and real-cost specs" if rep["complete"] else
              f"NOT READY: {len(bad)} of {len(rep['cells'])} cells ({', '.join(bad)}). Nothing was evaluated or planned; "
@@ -418,16 +418,24 @@ def check_data(grid_dir=None, first_bar=None, spec_present=None, out=None):
     return 0 if rep["complete"] else 1
 
 
+def family_size_of(cells_spec):
+    """Family A (pre-registration 0.2): the multiple-testing family is the CANDIDATE PROCEDURES = declared cells x methods
+    (3 x 2 = 6). Counted on the DECLARED cells, so a cell that later turns out to lack development history still counts
+    (stricter, never looser)."""
+    return len(cells_spec["cells"]) * len(METHODS)
+
+
 def declared_n_line(cells_spec, cells_sha, grid_dir=None):
-    """N and confidence of the DECLARED cells (no data needed): per-cell N of each grid x the number of declared cells.
-    The real plan's N counts only cells that survive data availability, so it equals this once every cell is ready."""
+    """The family and its floor confidence of the DECLARED cells (no data needed), and the grid sizes disclosed beside them
+    (grid values are NOT hypotheses of the family: the nested walk-forward handles value selection)."""
     grids, _ = load_grids(grid_dir)
     n_cells = len(cells_spec["cells"])
-    parts = []
-    for m, g in grids.items():
-        per = FS.n_per_method(g)
-        parts.append(f"{m} {per} x {n_cells} = N {per * n_cells} (confidence {FS.n_adjusted_confidence(per * n_cells):.6f})")
-    return f"declared cells: {n_cells}; " + "; ".join(parts) + f"; cells file sha256 {cells_sha}"
+    size = family_size_of(cells_spec)
+    per = ", ".join(f"{m} {FS.n_per_method(g)} per cell" for m, g in grids.items())
+    return (f"declared cells: {n_cells}; family = {size} candidate procedures ({n_cells} cells x {len(METHODS)} methods); "
+            f"floor confidence 1 - {FS.FAMILY_ALPHA}/{size} = {FS.n_adjusted_confidence(size):.6f} (Holm step-down at "
+            f"FWER {FS.FAMILY_ALPHA} at report time); grid values disclosed, not in the family: {per}; "
+            f"cells file sha256 {cells_sha}")
 
 
 def require_data_ready(cells_spec, first_bar=None, spec_present=None):
@@ -513,22 +521,26 @@ def build_plan(grid_dir=None, first_bar=None, check_ready=None):
         require_data_ready(cells_spec, first_bar)
     cells, excluded = build_cells(first_bar, cells_spec)
     n_cells = len(cells)
-    grids_info, n_by_method, conf = {}, {}, {}
+    grids_info = {}
     for m, g in grids.items():
         per_cell = FS.n_per_method(g)
-        n_total = per_cell * n_cells
         grids_info[m] = {"file": repo_rel(paths[m], ROOT) if paths[m].startswith(ROOT) else paths[m],
                          "sha256": _sha256_file(paths[m]), "method": g.method, "items": len(g.items),
                          "non_baseline_values": per_cell - 2, "n_per_cell": per_cell,
                          "unimplemented": g.unimplemented}
-        n_by_method[m] = n_total
-        conf[m] = FS.n_adjusted_confidence(n_total) if n_total >= 1 else None
+    fam_size = family_size_of(cells_spec)
+    floor_conf = FS.n_adjusted_confidence(fam_size)
     candidates = []
     for c in cells:
         for m in METHODS:
             candidates.append({"id": f"{m}-{c['id']}", "method": m, "runner_method": METHODS[m], "cell": c["id"],
                                "timeframe": c["timeframe"], "asset_class": c["asset_class"],
-                               "symbols": list(c["symbols"]), "n_comparisons": n_by_method[m]})
+                               "symbols": list(c["symbols"]), "family_size": fam_size,
+                               "floor_confidence": floor_conf})
+    family = {"size": fam_size, "alpha": FS.FAMILY_ALPHA, "floor_confidence": floor_conf,
+              "members": [f"{m}-{c['id']}" for c in cells_spec["cells"] for m in METHODS],
+              "rule": FS.FAMILY_DEFINITION,
+              "grid_values_disclosed_not_in_family": {m: g["n_per_cell"] for m, g in grids_info.items()}}
     embargo = {"rule": f"training trades need exit_label < test_start - {EMBARGO_H_MULTIPLE} x H bars (H = bt.P[tf]['H'])"
                        f", on top of the one-bar purge; 'none' time stops are covered only by this same window",
                "h_multiple": EMBARGO_H_MULTIPLE,
@@ -538,16 +550,16 @@ def build_plan(grid_dir=None, first_bar=None, check_ready=None):
                   "sha256": cells_sha, "warmup_days": cells_spec["warmup_days"],
                   "removed_cells": cells_spec.get("removed_cells", [])}
     core = {"cells": cells, "cells_file": cells_info, "excluded_cells": excluded, "grids": grids_info, "candidates": candidates,
-            "n_by_method": n_by_method, "cost_profile": COST_PROFILE,
+            "family": family, "cost_profile": COST_PROFILE,
             "cost_profile_pin": cost_profile_pin(s for c in cells for s in c["symbols"]), "dev_cutoff": FS.DEV_CUTOFF,
             "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": embargo,
+            "perturbation_axes": FS.PERTURBATION_AXES,
             "constants": {k: getattr(FS, k) for k in (
                 "FAMILY_ALPHA", "MIN_FOLD_TRADES", "MIN_TRAIN_TRADES", "MAX_TRADE_SHARE", "MAX_GAP_DAYS",
                 "MIN_FOLD_SHARE_OK", "PASS_PROB_MIN", "ADX_PERIOD", "TEST_FOLD_DAYS", "MIN_TRAIN_DAYS",
-                "MIN_TEST_FOLDS")}}
+                "MIN_TEST_FOLDS", "STRESS_SPREAD_STAT", "STRESS_COMMISSION_FRACTION", "MDE_POWER")}}
     plan = dict(core, _source=PLAN_DOC, cell_count=n_cells, candidate_count=len(candidates),
-                confidence_by_method=conf, fund_symbols=list(FUND_SYMBOLS), prior_counts_disclosed=PRIOR_COUNTS,
-                plan_hash=_hash(core))
+                fund_symbols=list(FUND_SYMBOLS), prior_counts_disclosed=PRIOR_COUNTS, plan_hash=_hash(core))
     return plan
 
 
@@ -568,12 +580,14 @@ def format_dry_run(plan, grid_note=""):
     L.append(f"cells file {cf['file']} sha256 {cf['sha256'][:16]}, warm-up {cf['warmup_days']} d; removed: "
              f"{', '.join(r['id'] for r in cf['removed_cells']) or 'none'}")
     L.append(f"candidates: {plan['candidate_count']} (method x cell)")
+    fam = plan["family"]
+    L.append(f"multiple-testing family (family A): the {fam['size']} candidate procedures ({', '.join(fam['members'])}); "
+             f"floor confidence for every candidate 1 - {fam['alpha']}/{fam['size']} = {fam['floor_confidence']:.6f}; "
+             f"Holm step-down at FWER {fam['alpha']} over the {fam['size']} at report time (NOT RUN candidates count)")
     for m, g in plan["grids"].items():
-        n = plan["n_by_method"][m]
-        conf = plan["confidence_by_method"][m]
-        L.append(f"  {m:<8} N per cell {g['n_per_cell']} x {plan['cell_count']} cells = N {n}; one-sided "
-                 f"confidence 1 - {FS.FAMILY_ALPHA}/{n} = {conf:.6f}"
-                 + (f"; declared, not runnable, counted in N: {g['unimplemented']}" if g["unimplemented"] else ""))
+        L.append(f"  {m:<8} grid values disclosed, NOT in the family: N per cell {g['n_per_cell']} "
+                 f"(grid values are not hypotheses; the nested walk-forward handles value selection)"
+                 + (f"; declared, not runnable: {g['unimplemented']}" if g["unimplemented"] else ""))
     L.append(f"plan_hash {plan['plan_hash'][:16]}")
     return "\n".join(L)
 
@@ -634,7 +648,8 @@ def require_declaration(plan):
             f"be recorded in the research ledger BEFORE any evaluation (plan §6 item 7): run "
             f"`python3 scripts/fund-search.py declare` (after `plan`), then commit it.")
     want = {"plan_hash": plan["plan_hash"], "cell_count": plan["cell_count"],
-            "cells": [c["id"] for c in plan["cells"]]}
+            "cells": [c["id"] for c in plan["cells"]], "family_size": plan["family"]["size"],
+            "floor_confidence": plan["family"]["floor_confidence"]}
     for k, v in want.items():
         if decl.get(k) != v:
             raise LedgerDeclarationMissing(
@@ -780,6 +795,11 @@ def evaluation_config(plan):
             "prop_funds": list(ps.FUNDS), "prop_horizon_days": ps.CHALLENGE_HORIZON_DAYS,
             "prop_pass_min": FS.PASS_PROB_MIN, "verdict_precedence": FS.VERDICT_PRECEDENCE,
             "regime_split": FS.REGIME_SPLIT_DEFINITION,
+            "family": plan["family"],
+            "perturbation": {"definition": FS.PERTURBATION_DEFINITION, "axes": FS.PERTURBATION_AXES},
+            "stress": {"definition": FS.STRESS_DEFINITION, "spread_stat": FS.STRESS_SPREAD_STAT,
+                       "commission_fraction": FS.STRESS_COMMISSION_FRACTION},
+            "prop_shift": FS.PROP_SHIFT_DEFINITION, "mde_power": FS.MDE_POWER,
             "ruin_handling": "bt.RUIN_FRAC = 0.0 on the harness's own bt instance; post_ruin trades fail loud",
             "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": plan["embargo"],
             "cost_profile": plan["cost_profile"], "cost_profile_pin": plan["cost_profile_pin"],
@@ -895,8 +915,12 @@ def cmd_declare(allow_dirty=False):
                          f"recorded BEFORE any evaluation")
     data = _read_ledger()
     new = {"plan_hash": plan["plan_hash"], "cell_count": plan["cell_count"],
-           "cells": [c["id"] for c in plan["cells"]], "n_by_method": plan["n_by_method"],
-           "confidence_by_method": plan["confidence_by_method"], "excluded_cells": plan["excluded_cells"],
+           "cells": [c["id"] for c in plan["cells"]],
+           # family A (2026-10-02): the family is the candidate procedures, not the grid values; `cell_count` stays the number of
+           # cells. Replaces `n_by_method` / `confidence_by_method` (per-method N 87 / 48).
+           "family_size": plan["family"]["size"], "floor_confidence": plan["family"]["floor_confidence"],
+           "family_members": plan["family"]["members"], "family_rule": plan["family"]["rule"],
+           "excluded_cells": plan["excluded_cells"],
            "code": code_fingerprint(), "evaluation_config": evaluation_config(plan),
            "repo_pins": repo_pins(), "runtime": runtime_env(),
            "source": PLAN_DOC + " §6 items 2, 7", "declared_at": _now_iso()}
@@ -1052,8 +1076,11 @@ def assert_no_rollover_crossing(taken, provider, tf):
 
 def last_bar_entry_times(taken, tf, provider):
     """Entry labels whose entry bar is the LAST bar of a server day (the next bar opens on a new server date).
-    Recorded, never raised on: the Wyckoff entry there is legitimate, but an ICT fill INSIDE that bar can be held
-    past midnight because the engine never asks about the entry bar -- OPEN owner item O8."""
+    Recorded and counted, never raised on. O8 is CLOSED (2026-10-02, pre-registration draft section B): `walk()` with
+    flat_before_rollover on already asks about the boundary between the ENTRY (fill) bar and the first walked bar
+    (commit 2869c35) and, when it is crossed, closes the trade flat at the entry bar's own close (`rollover_flat`, zero
+    bars walked), so a fill inside the last bar of a server day is NOT held past midnight. This count is therefore the
+    number of entries that rule acts on -- information, not a leak."""
     import real_costs as _RC
     dt = FS.bar_delta(tf)
     return [t["entry_time"] for t in taken
@@ -1315,16 +1342,27 @@ class BtEngine:
             self.span = {"dev_start": dev_start, "warmup_days": warmup_days, "scan_start": start, "lead_bars": lead}
         self._admission, self._edge = {}, {}
         self._adx, self._last = {}, {}
+        self._d1, self._d1_series = {}, {}           # symbol -> D1 ADX index of the symbol's OWN D1 series (regime split), its identity
         self._part = {}                              # value key -> {symbol: raw trades} held from a scan cache, incomplete
         self._series = {}                            # symbol -> what the PIT-truncated series looks like (scan-cache identity)
         for s in self.symbols:
             candles, _src = self.bt.load(s, tf)
             if not candles:
                 raise RuntimeError(f"{s} {tf}: no candles under {_HS.history_root()} (the plan said it has some)")
-            self._adx[s] = FS.adx_index(candles)
+            self._adx[s] = FS.adx_index(candles)      # the decision-timeframe ADX: REPORTING only (trade field `adx14`)
             self._last[s] = candles[-1]["time"]
             self._series[s] = {"bars": len(candles), "first_open": candles[0]["time"], "last_open": candles[-1]["time"],
                                "sha256": _series_sha256(candles)}
+            # the REGIME SPLIT reads the D1 ADX(14) of the symbol's own stored D1 series (pre-registration 0.7), PIT-truncated
+            # like every series (bt.pit_cutoff cuts on open + one bar). A symbol with no D1 series gets no value: its trades
+            # fail the regime check (never dropped, never filled from another timeframe).
+            d1, _src = self.bt.load(s, "1D")
+            if d1:
+                self._d1[s] = FS.d1_adx_index(d1)
+                self._d1_series[s] = {"bars": len(d1), "first_open": d1[0]["time"], "last_open": d1[-1]["time"],
+                                      "sha256": _series_sha256(d1)}
+            else:
+                self._d1[s], self._d1_series[s] = None, None
 
     def _lead_bars(self):
         """Bars the method reads BEFORE a decision bar: ICT's live scan window, or the LONGEST Wyckoff window any V
@@ -1467,7 +1505,10 @@ class BtEngine:
         provider = fixed_opts()["rollover_provider"]
         assert_no_rollover_crossing(taken, provider, self.tf)
         self._edge[key] = last_bar_entry_times(taken, self.tf, provider)
-        self._done[key] = [dict(t, adx14=FS.adx_before(self._adx[t["symbol"]], t["entry_time"])) for t in taken]
+        self._done[key] = [dict(t, adx14=FS.adx_before(self._adx[t["symbol"]], t["entry_time"]),
+                                adx14_d1=(FS.d1_adx_at(self._d1[t["symbol"]], t["entry_time"])
+                                          if self._d1.get(t["symbol"]) is not None else None))
+                           for t in taken]
         return list(self._done[key])
 
     def admission_stats(self, values, fold=None):
@@ -1479,19 +1520,45 @@ class BtEngine:
     def rollover_edge_stats(self, values, fold=None):
         return rollover_edge_stats(self._edge.get(FS.CountingSource._key(values), []), fold)
 
-    def prop_pass(self, pooled):
+    def prop_pass(self, pooled, r_shift=0.0):
         """prop_pass_probability per fund at the pre-registration's gating horizon, over the pooled test trades,
-        as explicit rows: value, status/reason when unavailable, low_confidence and the bootstrap spread minimum."""
+        as explicit rows: value, status/reason when unavailable, low_confidence and the bootstrap spread minimum.
+
+        `r_shift` (pre-registration A8b, default 0.0 = the unshifted gate, byte-identical to before): every ADMITTED trade's
+        net R is reduced by `r_shift` AFTER simulate() (the admitted list, the sizing and the horizon are exactly those of the
+        unshifted run) and before the metric's bootstrap reads it. Nothing shared with prop-search changes: the shift is
+        applied here, not in scripts/performance.py."""
         ps = _prop_search()
         if not pooled:
             return {f: {"value": None, "reason": "no pooled test trades"} for f in ps.FUNDS}
         _final, curve, taken = checked_simulate(self.bt, list(pooled), 0.0, overlay=fixed_opts(),
                                                 cost_profile=COST_PROFILE, live_parity_sizing=True)
+        if r_shift:
+            taken = [dict(t, net_R=t["net_R"] - r_shift) for t in taken]
         out = {}
         for f in ps.FUNDS:
             m = ps._perf.metrics(taken, equity=curve, account=ps._AP.get(f), horizon=ps.CHALLENGE_HORIZON_DAYS)
             out[f] = prop_row_from_metric(m.get("prop_pass_probability"))
         return out
+
+    def stress_trades(self, pooled):
+        """The SAME admitted trades re-priced under stress (pre-registration A8a): gross R - the real round-turn cost with the
+        p90 spread on both legs (`real_costs.cost_r(..., spread_stat='p90')`: price-scaled by the relative-spread profile, swap
+        unchanged) - the commission stress margin 0.00003 * entry / |entry - stop| in R (a margin, NOT an estimate). No trade is
+        added or removed and admission is not re-run: only `net_R` changes (`net_R_median` keeps the unstressed value)."""
+        import real_costs as _RC
+        out = []
+        for t in pooled:
+            cr = _RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"], t["side"], COST_PROFILE,
+                            spread_stat=FS.STRESS_SPREAD_STAT)
+            out.append(dict(t, net_R_median=t["net_R"],
+                            net_R=FS.stressed_net_r(t["R"], cr["total_R"], t["entry"], t["stop"])))
+        return out
+
+    def mean_spread_r(self, trades):
+        """Mean spread_R (the spread cost in R) of `trades` under the fund profile -- the per-fold cost report (section C item 4)."""
+        import real_costs as _RC
+        return _RC.mean_spread_r(trades, COST_PROFILE)["mean_spread_R"]
 
     def dataset_snapshot(self):
         rows = []
@@ -1507,7 +1574,10 @@ class BtEngine:
         ident = hashlib.sha256("|".join(f"{r['symbol']}:{r['timeframe']}:{r['sha256']}" for r in rows)
                                .encode()).hexdigest()[:16]
         return {"snapshot_format": 1, "snapshot_id": ident, "created_at": _now_iso(), "series": rows,
-                "_note": "the PIT-truncated series the scan actually read (bt.pit_cutoff at DEV_CUTOFF)"}
+                "regime_series": [dict(symbol=s, timeframe="1D", **(self._d1_series.get(s) or {"bars": 0}))
+                                  for s in self.symbols],
+                "_note": "the PIT-truncated series the scan actually read (bt.pit_cutoff at DEV_CUTOFF); regime_series = the "
+                         "symbols' own D1 series the regime split reads (D1 ADX(14), last completed bar), PIT-truncated alike"}
 
 
 # ------------------------------------------------------------------------------------- one candidate (pure glue)
@@ -1577,24 +1647,41 @@ def wave2_values(engine, grid, cell):
     emb = embargo_for(cell["timeframe"], getattr(engine, "bt", None))
     p2 = _WaveProbe(engine)
     fold_results = FS.nested_walk_forward(grid, p2, folds, delta, embargo=emb)
-    FS.perturbation_trade_sets(grid, p2, fold_results)
+    FS.perturbation_trade_sets(grid, p2, fold_results)         # the gated ordinal neighbours ...
+    FS.categorical_flip_sets(grid, p2, fold_results)           # ... and the report-only categorical flips
     return list(p2.missing.values())
 
 
-def evaluate_with_engine(engine, grid, cell, n_comparisons):
-    """Nested walk-forward -> perturbation sets -> every §1.4 rule. `engine` needs `trades_for(values)` and
-    `prop_pass(pooled)`; nothing else touches data, so the whole path is testable with a synthetic engine. An engine
-    that also offers `prefetch`/`has` (BtEngine) is filled in two waves first (`prefetch_waves`): faster, same trades,
-    same order of scoring, same N."""
+def evaluate_with_engine(engine, grid, cell, family_size, axes=None):
+    """Nested walk-forward -> perturbation sets -> every rule. `family_size` = the number of CANDIDATE procedures (family A,
+    the plan's `family.size`: 6), which fixes the FLOOR confidence 1 - 0.10/family_size of every candidate. `engine` needs
+    `trades_for(values)` and `prop_pass(pooled, r_shift=0.0)`; it MAY offer `stress_trades(pooled)` (the stress gate fails
+    closed without it) and `mean_spread_r(trades)`; nothing else touches data, so the whole path is testable with a synthetic
+    engine. An engine that also offers `prefetch`/`has` (BtEngine) is filled in two waves first (`prefetch_waves`): faster,
+    same trades, same order of scoring. `axes` overrides `FS.PERTURBATION_AXES` (tests with synthetic grids only)."""
     if callable(getattr(engine, "prefetch", None)) and callable(getattr(engine, "has", None)):
         prefetch_waves(engine, grid, cell)
     src = FS.CountingSource(engine.trades_for)
     folds = FS.make_folds(cell["development_start"])
     emb = embargo_for(cell["timeframe"], getattr(engine, "bt", None))
     fold_results = FS.nested_walk_forward(grid, src, folds, FS.bar_delta(cell["timeframe"]), embargo=emb)
-    perturbs = FS.perturbation_trade_sets(grid, src, fold_results)
-    prop = engine.prop_pass(FS.pooled_test_trades(fold_results))
-    res = FS.evaluate_cell(fold_results, perturbs, cell["symbols"], n_comparisons, prop, runs=src.runs)
+    perturbs = FS.perturbation_trade_sets(grid, src, fold_results, axes)
+    skips = FS.perturbation_skips(grid, fold_results, axes)
+    flips = FS.categorical_flip_sets(grid, src, fold_results, axes)
+    pooled = FS.pooled_test_trades(fold_results)
+    conf = FS.n_adjusted_confidence(family_size)
+    prop = engine.prop_pass(pooled)
+    shift = FS.prop_shift_r(FS.robust_lower_bound(pooled, conf))               # A8b: mean - primary bound at the floor
+    prop_shifted = engine.prop_pass(pooled, r_shift=shift) if (shift is not None and pooled) else None
+    stress = engine.stress_trades(pooled) if (pooled and callable(getattr(engine, "stress_trades", None))) else None
+    res = FS.evaluate_cell(fold_results, perturbs, cell["symbols"], family_size, prop, runs=src.runs, stress=stress,
+                           prop_shifted=prop_shifted, shift_r=shift, categorical=flips, skips=skips, grid=grid, axes=axes)
+    res["fold_cost_report"] = [        # section C item 4: per test fold, the chosen values' mean net R and mean spread_R
+        {"test_start": fr["fold"]["test_start"], "n_trades": len(fr["test_trades"]),
+         "mean_net_R": FS.mean([t["net_R"] for t in fr["test_trades"]]),
+         "mean_spread_R": (engine.mean_spread_r(fr["test_trades"])
+                           if fr["test_trades"] and callable(getattr(engine, "mean_spread_r", None)) else None)}
+        for fr in fold_results]
     res["folds_geometry"] = folds
     res["embargo_minutes"] = int(emb / datetime.timedelta(minutes=1))       # O2: recorded with the result
     if hasattr(engine, "admission_stats"):             # I2: measured, disclosed, never used to change a verdict
@@ -1603,7 +1690,7 @@ def evaluate_with_engine(engine, grid, cell, n_comparisons):
                                for fr in fold_results],
             "by_value_set": {k: engine.admission_stats(v) for k, v in src.evaluated()},
             "limitation": ADMISSION_LIMITATION}
-    if hasattr(engine, "rollover_edge_stats"):         # round 2: the ICT engine gap, visible (OPEN owner item O8)
+    if hasattr(engine, "rollover_edge_stats"):         # O8 (CLOSED 2026-10-02): the entries the rollover-flat rule acts on, counted
         res["rollover_edge"] = {
             "by_fold_chosen": [engine.rollover_edge_stats(fr["chosen"], fr["fold"]) for fr in fold_results],
             "by_value_set": {k: engine.rollover_edge_stats(v) for k, v in src.evaluated()},
@@ -1629,7 +1716,7 @@ def _evaluate_candidate(candidate, plan_hash, grid_dir=None, scan_workers=1, sca
     into the engine first (anything absent is scanned on demand, as without a cache)."""
     grids, paths = load_grids(grid_dir)
     full_grid = grids[candidate["method"]]
-    grid = full_grid.runnable()          # N (candidate["n_comparisons"]) was fixed on the FULL grid at plan time
+    grid = full_grid.runnable()          # the family (candidate["family_size"]) counts candidate procedures, not grid values
     plan = load_plan(grid_dir)
     cell = next(c for c in plan["cells"] if c["id"] == candidate["cell"])
     engine = BtEngine(grid, candidate["runner_method"], candidate["timeframe"], candidate["symbols"],
@@ -1639,7 +1726,7 @@ def _evaluate_candidate(candidate, plan_hash, grid_dir=None, scan_workers=1, sca
         print(f"fund-search: scan cache: {n} verified (value set, symbol) entries, {full} value set(s) complete for "
               f"{candidate['id']}", file=sys.stderr, flush=True)
         engine.no_scan = bool(require_complete_scan_cache)   # any on-demand scan now fails loud (ScanCacheRefused)
-    result = evaluate_with_engine(engine, grid, cell, candidate["n_comparisons"])
+    result = evaluate_with_engine(engine, grid, cell, candidate["family_size"])
     result["declared_not_run"] = full_grid.unimplemented
     return {"record": dict(build_record(candidate, plan_hash, grid, paths[candidate["method"]], result,
                                         engine.dataset_snapshot(), cell,
@@ -1660,8 +1747,9 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
     r = X.Record(
         hypothesis=(f"{candidate['runner_method']} on {candidate['timeframe']} ({candidate['asset_class']}, symbols "
                     f"{candidate['symbols']}), V values chosen by nested walk-forward on development data, passes "
-                    f"every {PLAN_DOC} §1.4 rule at N = {candidate['n_comparisons']} (one-sided confidence "
-                    f"1 - {FS.FAMILY_ALPHA}/N) -- falsified if any rule fails or a test fold has < "
+                    f"every {PLAN_DOC} §1.4 rule at the floor confidence 1 - {FS.FAMILY_ALPHA}/{candidate['family_size']} "
+                    f"(family A: {candidate['family_size']} candidate procedures, Holm step-down at report time) -- "
+                    f"falsified if any rule fails or a test fold has < "
                     f"{FS.MIN_FOLD_TRADES} trades."),
         motivation=(f"Owner decisions 2026-09-28/29 ({PLAN_DOC} §6 items 2-8): search fund-account setups on 1m/5m/"
                     f"15m under real FTMO costs and no overnight holding, without loosening any check."),
@@ -1679,11 +1767,15 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
         "code_version": _snap.code_version(), "plan_hash": plan_hash,
         "ruin_handling": "bt.RUIN_FRAC = 0.0 (R does not depend on equity); post_ruin trades fail loud",
         "min_rr_semantics": ADMISSION_LIMITATION,
-        "lower_bound": "min(iid t, CR1 block by UTC date, CR1 block by 30-day window) at 1 - 0.10/N",
+        "lower_bound": ("primary bound = min(iid t, CR1 by UTC date, by 30-day window, by calendar quarter, by half-year) at "
+                        f"the floor confidence 1 - {FS.FAMILY_ALPHA}/{candidate['family_size']} (family A)"),
+        "family": FS.FAMILY_DEFINITION, "perturbation": FS.PERTURBATION_DEFINITION,
+        "perturbation_axes": FS.PERTURBATION_AXES, "stress": FS.STRESS_DEFINITION, "prop_shift": FS.PROP_SHIFT_DEFINITION,
         "regime_split": FS.REGIME_SPLIT_DEFINITION, "verdict_precedence": FS.VERDICT_PRECEDENCE,
         "constants": dict({k: getattr(FS, k) for k in ("FAMILY_ALPHA", "MIN_FOLD_TRADES", "MIN_TRAIN_TRADES",
                                                         "MAX_TRADE_SHARE", "MAX_GAP_DAYS", "MIN_FOLD_SHARE_OK",
-                                                        "PASS_PROB_MIN", "TEST_FOLD_DAYS", "MIN_TRAIN_DAYS")},
+                                                        "PASS_PROB_MIN", "TEST_FOLD_DAYS", "MIN_TRAIN_DAYS",
+                                                        "STRESS_COMMISSION_FRACTION", "MDE_POWER")},
                           embargo_h_multiple=EMBARGO_H_MULTIPLE)})
     r.set("account_configuration", X.unavailable("prop_pass_probability uses the two fund profiles of prop-search "
                                                  "(scripts/account_profile.py); no separate account is configured"))
@@ -1698,7 +1790,8 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
     r.set("parameters", {"method": candidate["method"], "runner_method": candidate["runner_method"],
                          "cell": candidate["cell"], "timeframe": candidate["timeframe"],
                          "asset_class": candidate["asset_class"], "symbols_planned": candidate["symbols"],
-                         "symbols_evaluated": list(cell["symbols"]), "n_comparisons": candidate["n_comparisons"],
+                         "symbols_evaluated": list(cell["symbols"]), "family_size": candidate["family_size"],
+                         "floor_confidence": candidate["floor_confidence"],
                          "plan_hash": plan_hash,
                          "development_start": cell.get("development_start"),
                          "dev_start_override": cell.get("dev_start_override"),     # the declared span start (null = from data)
@@ -1715,7 +1808,10 @@ def build_record(candidate, plan_hash, grid, grid_path, result, dataset_snapshot
           "only; lower bound on pooled test-fold trades only (scripts/fund_stats.py, plan §1.4)")
     r.set("metrics", {"evaluation": result})
     r.set("robustness_results", {"regime_split": result["checks"]["regime_split"],
-                                 "perturbation": result["checks"]["perturbation"]})
+                                 "perturbation": result["checks"]["perturbation"],
+                                 "stress": result["checks"]["stress"],
+                                 "prop_pass_shifted": result["checks"]["prop_pass_shifted"],
+                                 "categorical_flips": result.get("categorical_flips")})
     try:
         import trading_system as _TS
         sysd = _TS.for_market_tf("cfd", candidate["timeframe"])
@@ -1907,6 +2003,10 @@ SHARD_MODEL_LABEL = (f"MEASURED ({', '.join(SHARD_MODEL['measured'])}, WAVE2_SET
 #: Wave-2 shape, MEASURED on 2-3 real folds of three cells (doc section 3.7): NEW value sets per fold after de-duplication
 #: across folds, and how they fall into detection groups. Wave 2 depends on the selection, so a real cell's size is only
 #: known at run time; the 8 folds measured bracket the audit's zero-edge counts (ICT 8.7-10.8 per fold at 4-17 folds).
+# NOTE (b20-stats-sealed, 2026-10-02): these two figures were measured under the OLD perturbation definition (every item +/- one
+# grid step). Since then wave 2 = the fold's combined chosen set + the ORDINAL one-component neighbours + the categorical flips
+# (`FS.perturbation_trade_sets`, `FS.categorical_flip_sets`). The layout estimate below is therefore UNMEASURED for the new
+# definition: re-run scripts/research/shard_calibration.py before sizing the real run. It sizes jobs only; it never changes a result.
 WAVE2_SETS_PER_FOLD = {"ict": 11.25, "wyckoff": 7.75}
 WAVE2_GROUPS_PER_SET = {"ict": 1.0, "wyckoff": 0.51}      # distinct detection groups per wave-2 set (35 groups / 69 sets per
 #                                                            fold alone; ICT is capped at 2 groups however many sets)
@@ -2317,6 +2417,164 @@ def _fmt(v, spec="+.3f"):
     return format(v, spec) if isinstance(v, (int, float)) else "n/a"
 
 
+def build_id():
+    """Which build the report runs under: the git sha of HEAD and whether the pinned tree is dirty (None = git unavailable)."""
+    sha = _git("rev-parse", "HEAD")
+    dirty = scoped_dirty()
+    return {"git_sha": sha, "scoped_dirty": bool(dirty) if dirty is not None else None}
+
+
+def report_holm_lines(planned, verdicts, holm, fam, holm_only, pass_not_holm):
+    """The Holm table over the whole family (one row per PLANNED candidate; NOT RUN and insufficient ones enter with p = 1)."""
+    L = [f"## Holm step-down over the family of {fam['size']} (FWER {fam['alpha']})", "",
+         f"Candidates are ranked by their primary p (`p_robust` = the MAX of the five one-sided p-values, i.e. a candidate is "
+         f"significant at level a only if all five bounds are above 0 at 1 - a). Rank k is rejected iff p <= "
+         f"{fam['alpha']}/({fam['size']} - k + 1) and every smaller p was rejected. NOT RUN, insufficient and not-computable "
+         f"candidates enter with p = 1 and still count in the family. The floor confidence {fam['floor_confidence']:.5f} is "
+         f"Holm's strictest step (rank 1).", "",
+         "| rank | candidate | verdict | p_robust | Holm threshold | Holm decision |", "|---|---|---|---|---|---|"]
+    for row in sorted(holm.values(), key=lambda r: r["rank"]):
+        cid = row["id"]
+        v = verdicts.get(cid, "NOT RUN")
+        p = row["p"]
+        L.append(f"| {row['rank']} | {cid} | {v} | {_fmt(p, '.5f') if p is not None else 'n/a (counts as 1)'} | "
+                 f"{row['threshold']:.5f} | {'rejected' if row['reject'] else 'not rejected'} |")
+    L += ["", "How Holm and the floor relate (stated, not hidden): rank 1's Holm threshold equals the floor, and every later "
+          "rank's threshold is LOOSER. A candidate whose primary bound is above 0 at the floor confidence is therefore always "
+          "Holm-rejected; but Holm can also reject a rank-k candidate that FAILS the floor when a smaller p was rejected "
+          "before it. This harness does not turn that into a PASS: the verdict is the conjunction of every check, the floor "
+          "test among them, and Holm only confirms it. A candidate that fails the floor is never reported as a pass, "
+          "whatever Holm says about it.", ""]
+    if holm_only:
+        L += [f"**Holm would reject, but the floor fails (NOT a pass):** {holm_only}", ""]
+    if pass_not_holm:
+        L += [f"**Anomaly: floor PASS not confirmed by Holm (numerical edge; NOT counted as a pass):** {pass_not_holm}", ""]
+    return L
+
+
+def report_candidate_lines(ev):
+    """Section C items 1-5 for one candidate, from the stored record only (nothing is recomputed from data)."""
+    L = []
+    pr = ev.get("primary") or {}
+    comps = pr.get("components") or {}
+    if comps:
+        L.append(f"Primary bound (floor confidence {pr['confidence']:.5f}; pre-registration A2): mean {_fmt(pr.get('mean'))}, "
+                 f"primary bound (min of five) {_fmt(pr.get('primary_bound'))}, p_robust (max of five) "
+                 f"{_fmt(pr.get('p_robust'), '.5f') if pr.get('p_robust') is not None else 'n/a'}.")
+        L.append("")
+        L.append("| bound | value | se | df / blocks | one-sided p |")
+        L.append("|---|---|---|---|---|")
+        for k in FS.PRIMARY_COMPONENTS:
+            c = comps[k]
+            pv = (pr.get("p_values") or {}).get(k)
+            L.append(f"| {k} | {_fmt(c.get('value'))} | {_fmt(c.get('se'), '.4f')} | {c.get('df', 'n/a')} / "
+                     f"{c.get('blocks', 'n/a')} | {_fmt(pv, '.5f')} |")
+        h = pr.get("binding_half_year")
+        if h:
+            L.append(f"Minimum detectable edge (binding half-year CR1 bound: se {h['se']:.4f}, df {h['df']}): "
+                     f"(t_crit {h['t_crit']:.3f} + t_0.80 {h['t_power']:.3f}) x se = **{h['mde']:+.3f} R per trade** -- the true mean "
+                     f"at which that bound clears 0 with probability {h['power']:.2f}. Upper confidence bound on the edge "
+                     f"(one-sided, {h['confidence']:.5f}, same blocks): **{h['upper']:+.3f} R** (lower {h['lower']:+.3f}).")
+        else:
+            L.append("Minimum detectable edge and upper bound: not computable (the half-year CR1 bound has no standard error).")
+        o = pr.get("smallest_bound_interval")
+        if o:
+            L.append(f"The numerically smallest bound is `{o['component']}` (se {o['se']:.4f}, df {o['df']}): its minimum "
+                     f"detectable edge is {o['mde']:+.3f} R, upper bound {o['upper']:+.3f} R.")
+    mg = ev.get("margins") or []
+    if mg:
+        L.append("")
+        L.append("Every check, with its margin (a negative margin is the distance by which it fails):")
+        L.append("")
+        L.append("| check | measure | measured | threshold | margin | unit | ok |")
+        L.append("|---|---|---|---|---|---|---|")
+        for m in mg:
+            L.append(f"| {m['check']} | {m['measure']} | {_fmt(m['measured'], '.4g')} | {_fmt(m['threshold'], '.4g')} | "
+                     f"{_fmt(m['margin'], '+.4g')} | {m['unit']} | {'yes' if m['ok'] else 'NO'} |")
+    fc = ev.get("fold_cost_report") or []
+    if fc:
+        L.append("")
+        L.append("Fold by fold (chosen values; test trades): trades, mean net R, mean spread_R (the spread cost in R).")
+        L.append("")
+        L.append("| test fold start | trades | mean net R | mean spread_R |")
+        L.append("|---|---|---|---|")
+        for f in fc:
+            L.append(f"| {f['test_start'][:10]} | {f['n_trades']} | {_fmt(f['mean_net_R'])} | {_fmt(f['mean_spread_R'], '.4f')} |")
+    cs = ev.get("component_stability") or {}
+    if cs:
+        L.append("")
+        L.append("Stability of the chosen values per perturbation component (changes between consecutive folds): "
+                 + ", ".join(f"{k} {v['changes']}/{v['transitions']}" for k, v in sorted(cs.items())) + ".")
+    pt = ev["checks"].get("perturbation") or {}
+    if pt.get("rows"):
+        L.append("")
+        L.append(f"Ordinal perturbation (gated; neighbour needs pooled mean > 0 AND primary bound > 0 at "
+                 f"{pt.get('confidence', 0):.5f}):")
+        L.append("")
+        L.append("| item.component | direction | folds | trades | pooled mean net R | bound | ok |")
+        L.append("|---|---|---|---|---|---|---|")
+        for r in pt["rows"]:
+            L.append(f"| {r['item']}.{r.get('component')} | {r['direction']:+d} | {r.get('folds')} | {r['n']} | "
+                     f"{_fmt(r.get('mean_R'))} | {_fmt(r['lower_bound'])} | {'yes' if r['ok'] else 'NO'} |")
+    if pt.get("skipped_folds"):
+        L.append("Not perturbed (the chosen value is not on the component's ordinal order, e.g. the v1-typed W4a baseline): "
+                 + "; ".join(f"{s['item']}.{s['component']} in fold {s['test_start'][:10]} (chose {s['chosen']!r})"
+                             for s in pt["skipped_folds"]) + ".")
+    cat = ev.get("categorical_flips") or []
+    if cat:
+        L.append("")
+        L.append("Categorical flips (REPORTED, never gated): value A -> value B, pooled test trades of the folds that chose A.")
+        L.append("")
+        L.append("| item | A -> B | folds | trades | pooled mean net R | bound |")
+        L.append("|---|---|---|---|---|---|")
+        for f in cat:
+            L.append(f"| {f['item']} | {f['from']!r} -> {f['to']!r} | {f['folds']} | {f['n']} | {_fmt(f['mean_R'])} | "
+                     f"{_fmt(f['lower_bound'])} |")
+    st = ev["checks"].get("stress") or {}
+    if st.get("n"):
+        L.append("")
+        L.append(f"Stress gate (the same {st['n']} admitted trades re-priced with the p90 spread on both legs and the "
+                 f"{st['commission_fraction'] * 100:.3f} % commission stress margin, a margin NOT an estimate): pooled mean net R "
+                 f"{_fmt(st['mean_R_stressed'])} (gate: > 0); stressed primary bound {_fmt(st['stressed_primary_bound'])} "
+                 f"(reported, not gated).")
+    sh = ev["checks"].get("prop_pass_shifted") or {}
+    if sh.get("shift_R") is not None:
+        pps = sh.get("funds") or {}
+        L.append(f"prop_pass_probability with R shifted down by {sh['shift_R']:.4f} R (mean - primary bound): "
+                 + "; ".join(f"{f} {row['status']}" + (f" ({_fmt(row['value'], '.2f')})" if row.get("value") is not None else "")
+                             for f, row in pps.items()) + ".")
+    return L
+
+
+def report_statement_lines(plan, recs):
+    """Section C items 6-9: placebo, overlap, scope, window statements and the build."""
+    b = build_id()
+    cell_ids = [c["id"] for c in plan["cells"]]
+    both = "1m-metals" in cell_ids and "5m-metals" in cell_ids
+    removed = [r["id"] for r in plan["cells_file"].get("removed_cells", [])]
+    L = ["## Statements (section C of the pre-registration)", "",
+         f"- **Build:** git `{(b['git_sha'] or 'unavailable')[:12]}`, pinned tree dirty = {b['scoped_dirty']}. This build implements "
+         f"family A (six candidates, Holm at report time), the ordinal perturbation, the D1-ADX regime split, the stress gate, "
+         f"the shifted prop pass and section C items 1-5, 7-9.",
+         "- **placebo: NOT IMPLEMENTED in this build.** Section C item 6 (a random-entry benchmark per test trade: same symbol, "
+         "same UTC hour, same fold, side 50/50, same stop distance and R_planned, run through the same walk, costs and "
+         "fills, with a pinned seed) is a DEFINITION only; no placebo figure exists and no verdict reads one."]
+    if both:
+        shared = sorted(set(next(c for c in plan["cells"] if c["id"] == "1m-metals")["symbols"])
+                        & set(next(c for c in plan["cells"] if c["id"] == "5m-metals")["symbols"]))
+        spans = {c["id"]: c["development_start"] for c in plan["cells"] if c["id"] in ("1m-metals", "5m-metals")}
+        L.append(f"- **Overlap:** `1m-metals` and `5m-metals` share {shared} over the same calendar span up to "
+                 f"{plan['dev_cutoff']} (development starts {spans}); a pass in both is NOT independent evidence.")
+    L += [f"- **Scope:** zero passes say nothing about the cells removed from the plan ({', '.join(removed) or 'none'}), about "
+          f"other timeframes, symbols or methods, or about the live configuration; a pass says something only about its own "
+          f"cell, method and the searched specification (deployment rule, item 11).",
+          f"- **Window:** the development window (before {plan['dev_cutoff']}) is NOT a pristine holdout; a PASS here is a "
+          f"NOMINATION for a separately pre-registered forward demo, not out-of-sample validation. Prior outcome reads on this "
+          f"window (`prior_counts_disclosed`): {plan['prior_counts_disclosed']}; the full list is in section 0.1 of "
+          f"docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md.", ""]
+    return L
+
+
 def cmd_report(grid_dir=None):
     plan = load_plan(grid_dir)
     recs = []
@@ -2333,7 +2591,21 @@ def cmd_report(grid_dir=None):
         verdicts[cid] = FS.verdict_from(ev["checks"])
     planned = plan["candidates"]
     not_run = [c["id"] for c in planned if c["id"] not in by_id]
-    passes = [cid for cid, v in verdicts.items() if v == FS.PASS]
+    # Family A: Holm over the candidate procedures. NOT RUN and insufficient candidates enter with p = 1 (they still count in the
+    # family); a record without a computable p enters with p = 1 as well.
+    fam = plan["family"]
+    holm_p = {}
+    for c in planned:
+        r = by_id.get(c["id"])
+        p = ((r["metrics"]["evaluation"].get("primary") or {}).get("p_robust") if r is not None else None)
+        holm_p[c["id"]] = None if (r is None or verdicts[c["id"]] == FS.INSUFFICIENT) else p
+    holm = {row["id"]: row for row in FS.holm_stepdown(holm_p, fam["size"], fam["alpha"])}
+    # a PASS needs the floor verdict (every check, the primary bound at the floor confidence among them) AND Holm's rejection.
+    # A floor PASS is always Holm-rejected (its p is under every Holm threshold), so Holm can only ever confirm here.
+    passes = [cid for cid, v in verdicts.items() if v == FS.PASS and holm[cid]["reject"]]
+    holm_only = [cid for cid, v in verdicts.items() if v != FS.PASS and holm[cid]["reject"]
+                 and (by_id[cid]["metrics"]["evaluation"]["checks"]["lower_bound_positive"]["ok"] is False)]
+    pass_not_holm = [cid for cid, v in verdicts.items() if v == FS.PASS and not holm[cid]["reject"]]
     counts = {v: sum(1 for x in verdicts.values() if x == v) for v in (FS.PASS, FS.FAIL, FS.INSUFFICIENT)}
     runs = sum((r["metrics"]["evaluation"].get("runs_evaluated") or 0) for r in recs)
     L = ["# Fund-setup search -- report", "",
@@ -2347,10 +2619,12 @@ def cmd_report(grid_dir=None):
          f"- Verdicts over the evaluated candidates: pass **{counts[FS.PASS]}**, fail **{counts[FS.FAIL]}**, "
          f"insufficient **{counts[FS.INSUFFICIENT]}**. Engine evaluations (every distinct V assignment scored, "
          f"selection + combined + perturbations): **{runs}**.",
-         "- N per method = (1 + non-baseline V values + 1 combined) x cells: "
-         + ", ".join(f"{m} {plan['grids'][m]['n_per_cell']} x {plan['cell_count']} = **{plan['n_by_method'][m]}** "
-                     f"(confidence {plan['confidence_by_method'][m]:.5f})" for m in plan["grids"]) + ".",
-         f"- Prior searches on the same history, disclosed and NOT folded into N: {plan['prior_counts_disclosed']}.",
+         f"- Multiple-testing family (family A): the **{fam['size']} candidate procedures** (cells x methods), floor confidence "
+         f"1 - {fam['alpha']}/{fam['size']} = **{fam['floor_confidence']:.5f}** for every candidate; Holm step-down at FWER "
+         f"{fam['alpha']} over the {fam['size']} below (NOT RUN candidates count in the family). Grid values are not "
+         f"hypotheses of the family (the nested walk-forward handles value selection); their number is disclosed: "
+         + ", ".join(f"{m} {plan['grids'][m]['n_per_cell']} per cell" for m in plan["grids"]) + ".",
+         f"- Prior searches on the same history, disclosed and NOT folded into the family: {plan['prior_counts_disclosed']}.",
          f"- Walk-forward training embargo (O2): {plan['embargo']['rule']}; minutes by timeframe "
          f"{plan['embargo']['minutes_by_timeframe']}.",
          "- No symbol was dropped after its result was seen: each candidate's symbols equal the plan's "
@@ -2389,22 +2663,32 @@ def cmd_report(grid_dir=None):
     L += ["", "## What a PASS certifies", "",
           "A PASS certifies a SELECTION PROCEDURE (choose V values on each training fold, score them on the next "
           "test fold), NOT a fixed configuration. The values differ from fold to fold (see the per-item stability "
-          "below). PROPOSED, NOT DECIDED: deploy the values chosen in the FINAL fold -- a pre-registration item "
-          "for the owner (docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md).", "",
+          "below). Deployment rule (pre-registration item 11, replaced 2026-10-02; the earlier 'values of the FINAL fold' "
+          "proposal is WITHDRAWN): the SAME selection rule is re-run once on the training data through "
+          f"{plan['dev_cutoff'][:10]} and yields one configuration per passing candidate; if several pass, the one with the "
+          "highest primary bound at the floor confidence is listed first and EVERY pass goes to a separately "
+          "pre-registered forward demo. The deployable specification differs from the searched one (adopted F keys ON in "
+          "the search, O1 admission, gap-fill and relative spread, the zero-risk refusal, NO news filter in the search); a "
+          "PASS is evidence about the SEARCHED specification.", "",
           f"Regime split, as pre-registered: {FS.REGIME_SPLIT_DEFINITION}.", ""]
     L += ["## Every evaluated candidate", "",
-          "| candidate | verdict | test trades | pooled mean net R | lower bound (conf) | failed checks |",
-          "|---|---|---|---|---|---|"]
+          "| candidate | verdict | test trades | pooled mean net R | primary bound (conf) | p_robust | failed checks |",
+          "|---|---|---|---|---|---|---|"]
     for r in recs:
         ev = r["metrics"]["evaluation"]
         lb = ev["checks"]["lower_bound_positive"]["bound"]
+        pr = (ev.get("primary") or {}).get("p_robust")
         L.append(f"| {r['experiment_id']} | {verdicts[r['experiment_id']]} | {ev['pooled']['n_trades']} | "
                  f"{_fmt(ev['pooled']['mean_R'])} | {_fmt(lb['value'])} ({lb['confidence']:.5f}) | "
-                 f"{', '.join(ev['failed_checks']) or '-'} |")
-    L += ["", "## Per symbol (pooled test trades) and per volume_kind", ""]
+                 f"{_fmt(pr, '.5f') if pr is not None else 'n/a'} | {', '.join(ev['failed_checks']) or '-'} |")
+    L += [""] + report_holm_lines(planned, verdicts, holm, fam, holm_only, pass_not_holm)
+    L += report_statement_lines(plan, recs)
+    L += ["## Per symbol (pooled test trades) and per volume_kind", ""]
     for r in recs:
         ev = r["metrics"]["evaluation"]
         L.append(f"### {r['experiment_id']}")
+        L += report_candidate_lines(ev)
+        L.append("")
         L.append("| symbol | trades | mean net R |")
         L.append("|---|---|---|")
         for s, v in ev["per_symbol"].items():
@@ -2445,16 +2729,17 @@ def cmd_report(grid_dir=None):
                     L.append(f"- `{k}`: {v['n']} trades, mean {_fmt(v['mean_R'])}, lower bound {_fmt(v['lower_bound'])}")
         L.append("")
     L += ["## Limitations, stated", "",
-          "- FTMO commission is UNKNOWN; net R is net of the recorded spread and swap only.",
+          "- FTMO commission is UNKNOWN; net R is net of the recorded spread and swap only. The stress gate charges a 0.003 % "
+          "of notional commission MARGIN per round turn (a stress margin, NOT an estimate).",
           "- Wyckoff on CFD uses TICK volume (see the per-volume_kind rows).",
-          "- The lower bound is the MINIMUM of an iid Student-t bound and two cluster-robust (CR1) bounds (by UTC "
+          "- The primary bound is the MINIMUM of an iid Student-t bound and four cluster-robust (CR1) bounds (by UTC "
           "entry date, by 30-day window, by calendar quarter and by half-year). It is not backed by the "
           "single-trade cap or the perturbation check: those are separate gates, each required on its own. "
           "DISCLOSED PRICE: the quarter and half-year bounds cost power -- measured on 20 seeds of iid +0.30R at "
           "n=600, the bound passed 20/20 over 6 years, 17/20 over 4 years and 9/20 over 2 years; persistent-regime "
           "edges fare worse. This is accepted as the tightening the owner chose.",
-          "- The min_rr admission filter uses a cost that includes the exit-hour spread (see the per-candidate "
-          "admission lines): a look-ahead already present in v1 that this harness measures and discloses but does not change.",
+          "- The min_rr admission uses only entry-knowable costs (O1, `fx_admission_entry_cost`, fixed ON); the reported net R "
+          "keeps the real entry+exit cost. Refusal counts and near-floor margins are in the per-candidate admission lines.",
           "- The development span is exposed by this search; only the forward demo is pristine "
           f"({PLAN_DOC} §1.1)."]
     md = "\n".join(L) + "\n"

@@ -6,7 +6,8 @@ Every threshold below is a named constant with its source. "Tighten later" is al
 (plan §6 item 2): a change to any constant here is a research-integrity event, not a tuning knob.
 
 A TRADE is a dict with at least `entry_time`, `exit_time` (ISO-8601 `...Z`), `net_R` (net of REAL costs), and
-`symbol`. Optional: `adx14` (ADX(14) known BEFORE the entry, for the regime split), `volume_kind`.
+`symbol`. Optional: `adx14_d1` (the D1 ADX(14) of the last COMPLETED D1 bar at the entry, for the regime split),
+`adx14` (the decision-timeframe ADX, reporting only), `volume_kind`.
 
 WHAT IS COMPUTED, in the order the plan states it (§1.4):
 
@@ -16,17 +17,22 @@ WHAT IS COMPUTED, in the order the plan states it (§1.4):
    selection). The chosen values are then scored on that fold's own TEST trades. The lower bound is taken on
    the POOLED test trades of all folds and nothing else.
 2. A test fold with fewer than MIN_FOLD_TRADES trades makes the cell verdict "insufficient".
-3. The lower bound is one-sided at confidence 1 - FAMILY_ALPHA/N (`n_adjusted_confidence`), N counting EVERY
-   comparison that could be put forward (`n_per_method` x cells; the grid is read, never typed here).
+3. The primary bound is the MIN of five one-sided bounds (iid t, CR1 by date / 30-day / quarter / half-year) at the
+   FLOOR confidence 1 - FAMILY_ALPHA/F (`n_adjusted_confidence(F)`), F = the number of CANDIDATE procedures (3 cells x
+   2 methods = 6; family A, pre-registration 0.2): grid values are NOT hypotheses of the family (the nesting handles
+   value selection). A candidate's p = the MAX of the five one-sided p-values; Holm's step-down over the F candidates
+   (`holm_stepdown`) is applied at REPORT time (fund-search.py `report`).
 4. Stability: net expectancy > 0 on >= ceil(2m/3) of the m symbols, and no single trade above MAX_TRADE_SHARE
    of total net R.
 5. Frequency: longest trade-to-trade gap on the pooled account <= MAX_GAP_DAYS in >= MIN_FOLD_SHARE_OK of folds.
-6. §45 checks: ADX(14) median regime split, +/- one grid step perturbation, prop_pass_probability.
+6. §45 checks: D1 ADX(14) median regime split, ORDINAL one-component-at-a-time perturbation (`PERTURBATION_AXES`),
+   prop_pass_probability (plain and with R shifted down by mean - bound), the stress gate (p90 spread + commission
+   margin on the same admitted trades).
 7. Everything is reported per symbol (and per `volume_kind` when trades carry one).
 
 INTERPRETATION CHOICES the plan leaves open (each stated where it is used, and returned to the owner):
   * the bound is a one-sided Student-t bound on the mean (`lower_bound`), not a bootstrap: at a tail of
-    0.10/205 a percentile bootstrap needs tens of thousands of resamples to resolve its own quantile;
+    0.10/6 a percentile bootstrap still needs thousands of resamples to resolve its own quantile;
   * TEST_FOLD_DAYS / MIN_TRAIN_DAYS / MIN_TEST_FOLDS / MIN_TRAIN_TRADES (fold geometry and a training floor);
   * the frequency gap includes the fold's edges (stricter than gaps between trades only);
   * the regime split requires BOTH halves > 0 (stricter than "same sign");
@@ -57,14 +63,57 @@ BLOCK_DAYS = 30                       # fix round 1 (C1): the second block clust
 
 INSUFFICIENT, PASS, FAIL = "insufficient", "pass", "fail"
 
+#: The checks a verdict needs; `verdict_from` FAILS CLOSED when a stored record lacks one (a record sealed under an older
+#: code must not read as a PASS because a newer gate is simply absent).
+REQUIRED_CHECKS = ("folds_sufficient", "lower_bound_positive", "stability", "frequency", "regime_split",
+                   "perturbation", "prop_pass_probability", "prop_pass_shifted", "stress")
+
 #: `verdict_from`'s rule, stated so it can be pre-registered and recorded in the ledger declaration (I4).
 VERDICT_PRECEDENCE = ("insufficient (any test fold < MIN_FOLD_TRADES, or fewer than MIN_TEST_FOLDS folds) "
-                      "overrides everything; otherwise pass only if EVERY check is ok, else fail")
+                      "overrides everything; otherwise pass only if EVERY check is ok (primary bound > 0 at the floor "
+                      "confidence 1 - 0.10/6, stability, frequency, D1-ADX regime split, ordinal perturbation, "
+                      "prop pass, prop pass with R shifted down by mean - bound, stress gate), else fail. Holm's "
+                      "step-down over the six candidates is applied at report time and never turns a failing "
+                      "candidate into a pass")
 
-#: The regime split's pre-registered definition (fix round 1, S6): stated in the report and the draft.
-REGIME_SPLIT_DEFINITION = ("ADX(14) (Wilder) of the last bar that opened strictly before the entry; split at the "
-                           "MEDIAN of the pooled TEST trades' ADX values (<= median = low half, > median = high "
-                           "half); BOTH halves must have positive mean net R")
+#: Family A (pre-registration 0.2 / A2), stated so the declaration pins it.
+FAMILY_DEFINITION = ("the multiple-testing family is the CANDIDATE PROCEDURES (cells x methods = 6): grid values are not "
+                     "hypotheses (the nested walk-forward handles value selection); per-candidate primary bound = MIN of "
+                     "five one-sided bounds (iid t, CR1 by UTC date / 30-day window / calendar quarter / half-year), i.e. "
+                     "candidate p = MAX of the five one-sided p-values; floor confidence 1 - FAMILY_ALPHA/6 for every "
+                     "candidate; Holm step-down at FWER FAMILY_ALPHA over the six candidates at report time (a "
+                     "candidate with the k-th smallest p is rejected iff p_(k) <= FAMILY_ALPHA/(6-k+1) and every "
+                     "smaller p was rejected; NOT RUN and insufficient candidates enter with p = 1); the verdict "
+                     "rests on the floor test, so a candidate that fails the floor is never a PASS")
+
+#: The regime split's pre-registered definition (pre-registration 0.7, replaced 2026-10-02): stated in the report and the draft.
+REGIME_SPLIT_DEFINITION = ("D1 ADX(14) (Wilder) of the last D1 bar whose CLOSE is at or before the entry time (close = "
+                           "max(open label + 24 h, next D1 open label); the entry day's forming bar is never read), from "
+                           "the symbol's own stored D1 series, point-in-time; split at the MEDIAN of the pooled TEST "
+                           "trades' values (<= median = low half, > median = high half); BOTH halves must have "
+                           "positive mean net R; a trade with no value fails the check")
+
+#: Pre-registration A5 (REPLACED 2026-10-02): ordinal components only, one at a time, the other components at the fold's
+#: chosen values; the neighbour must have pooled mean net R > 0 AND a primary bound > 0 at the floor confidence.
+PERTURBATION_DEFINITION = ("ORDINAL components only (PERTURBATION_AXES), ONE component at a time, the other components at "
+                           "the fold's chosen values; each (component, direction) neighbour pools the test trades of the "
+                           "moved value sets (an edge has no neighbour on that side; a fold whose chosen value is not on "
+                           "the component's order, e.g. the v1-typed W4a baseline, is not perturbed and is reported); a "
+                           "neighbour passes iff its pooled mean net R > 0 AND its primary bound > 0 at the floor "
+                           "confidence; every neighbour must pass; categorical items are flipped and REPORTED, never gated")
+
+#: Pre-registration A8 (added 2026-10-02): the two extra conjunctive conditions of a PASS.
+STRESS_SPREAD_STAT = "p90"                      # real_costs spread_stat of the stress gate (both legs, price-scaled)
+STRESS_COMMISSION_FRACTION = 0.00003            # 0.003 % of notional per round turn: a STRESS MARGIN, NOT an estimate
+STRESS_DEFINITION = ("pooled mean net R must stay > 0 on the SAME admitted trades re-priced with the p90 spread "
+                     "(price-scaled, relative-spread profile) on both legs and a commission stress margin of 0.003 % of "
+                     "notional per round turn charged as 0.00003 * entry / |entry - stop| in R (a stress margin, NOT an "
+                     "estimate of FTMO's commission); admission is NOT re-run under stress; the stressed bound is reported, "
+                     "the gate is on the mean only")
+PROP_SHIFT_DEFINITION = ("prop_pass_probability must ALSO be >= 0.70 for every fund with every pooled test trade's net R "
+                         "shifted DOWN by (pooled mean - primary bound at the floor confidence); the admitted trade list, "
+                         "sizing and horizon are unchanged; the unshifted requirement stays")
+MDE_POWER = 0.80                                # section C item 1: the power of the minimum detectable edge
 
 
 # ------------------------------------------------------------------------------------------------ time
@@ -150,7 +199,9 @@ def t_quantile(confidence, df):
 
 
 def n_adjusted_confidence(n_comparisons):
-    """Plan §1.4: one-sided confidence 1 - 0.10/N. N is EVERY comparison that could be put forward."""
+    """One-sided confidence 1 - FAMILY_ALPHA/N. Since family A (pre-registration 0.2, 2026-10-02) N is the number of CANDIDATE
+    PROCEDURES (cells x methods = 6), giving the floor confidence 1 - 0.10/6 = 0.98333 of every candidate; before it, N counted
+    every grid value as well (ICT 87, Wyckoff 48). The function itself is unchanged."""
     if not isinstance(n_comparisons, int) or n_comparisons < 1:
         raise ValueError(f"N must be a positive integer, got {n_comparisons!r}")
     return 1.0 - FAMILY_ALPHA / n_comparisons
@@ -169,13 +220,13 @@ def lower_bound(net_rs, confidence):
     """
     n = len(net_rs)
     out = {"n": n, "confidence": confidence, "method": "one-sided Student-t bound on the mean net R",
-           "value": None, "mean": None, "sd": None, "t": None}
+           "value": None, "mean": None, "sd": None, "t": None, "se": None, "df": None}
     if n < 2:
         return out
     m = sum(net_rs) / n
     sd = math.sqrt(sum((r - m) ** 2 for r in net_rs) / (n - 1))
     t = t_quantile(confidence, n - 1)
-    out.update(mean=m, sd=sd, t=t, value=m - t * sd / math.sqrt(n))
+    out.update(mean=m, sd=sd, t=t, se=sd / math.sqrt(n), df=n - 1, value=m - t * sd / math.sqrt(n))
     return out
 
 
@@ -185,7 +236,7 @@ def _block_bound(trades, confidence, key_fn):
     truth. With blocks g of sums S_g = sum_{i in g}(r_i - mean): se = sqrt(G/(G-1) * sum_g S_g^2) / n, bound =
     mean - t_{confidence, G-1} * se. G < 2 blocks -> no bound (value None), never a guess."""
     n = len(trades)
-    out = {"blocks": None, "value": None, "se": None, "t": None}
+    out = {"blocks": None, "value": None, "se": None, "t": None, "df": None}
     if n < 2:
         return out
     m = sum(t["net_R"] for t in trades) / n
@@ -199,7 +250,7 @@ def _block_bound(trades, confidence, key_fn):
         return out
     se = math.sqrt(g / (g - 1.0) * sum(v * v for v in sums.values())) / n
     tq = t_quantile(confidence, g - 1)
-    out.update(se=se, t=tq, value=m - tq * se)
+    out.update(se=se, t=tq, df=g - 1, value=m - tq * se)
     return out
 
 
@@ -221,25 +272,109 @@ def _half_key(t):
     return (d.year, (d.month - 1) // 6)
 
 
+#: The five components of the PRIMARY bound, in the order the record lists them (pre-registration A2).
+PRIMARY_COMPONENTS = ("iid", "date", "30d", "quarter", "half")
+
+
+def one_sided_p(mean_, se, df):
+    """One-sided p of H0 'mean <= 0' for a statistic t = mean / se on `df` degrees of freedom: P(T_df >= t). None when the
+    statistic is not computable (fail closed: the caller treats None as p = 1). A zero standard error is a degenerate
+    sample: p = 0 for a positive mean, 1 otherwise -- the same outcome as the bound mean - t * 0 > 0."""
+    if mean_ is None or se is None or df is None:
+        return None
+    if se == 0:
+        return 0.0 if mean_ > 0 else 1.0
+    t = mean_ / se
+    return t_upper_tail(t, df) if t >= 0 else 1.0 - t_upper_tail(-t, df)
+
+
 def robust_lower_bound(trades, confidence):
     """bound = min(iid Student-t bound, block bounds by UTC entry date, 30-day window, calendar quarter and
     half-year), all at the same confidence (fix rounds 1-2, C1). The min can only LOWER the bound relative to the iid one -- it never
-    loosens. Any component that cannot be computed makes the bound None (fail closed)."""
+    loosens. Any component that cannot be computed makes the bound None (fail closed).
+
+    Family A (2026-10-02): the SAME five statistics also give the candidate's p-values (`p_values`, one-sided, each on its
+    own df); `p_robust` = the MAX of the five (None when any is not computable). bound > 0 at confidence c  <=>  p_robust < 1 - c.
+    `components` carries mean / se / df / blocks per component, so the report can derive the minimum detectable edge and the
+    upper bound without recomputing anything."""
     rs = [t["net_R"] for t in trades]
     iid = lower_bound(rs, confidence)
     by_date = _block_bound(trades, confidence, _date_key)
     by_window = _block_bound(trades, confidence, _window_key)
     by_quarter = _block_bound(trades, confidence, _quarter_key)
     by_half = _block_bound(trades, confidence, _half_key)
+    parts = dict(zip(PRIMARY_COMPONENTS, (iid, by_date, by_window, by_quarter, by_half)))
     comps = [iid["value"], by_date["value"], by_window["value"], by_quarter["value"], by_half["value"]]
     value = None if any(c is None for c in comps) else min(comps)
-    return {"n": len(rs), "confidence": confidence, "value": value, "mean": iid["mean"],
+    m = iid["mean"]
+    pvals = {k: one_sided_p(m, v.get("se"), v.get("df")) for k, v in parts.items()}
+    p_robust = None if any(v is None for v in pvals.values()) else max(pvals.values())
+    components = {k: {"value": v["value"], "se": v.get("se"), "df": v.get("df"),
+                      "blocks": v.get("blocks", v.get("n"))} for k, v in parts.items()}
+    return {"n": len(rs), "confidence": confidence, "value": value, "mean": m,
             "method": ("min(iid one-sided Student-t bound, cluster-robust CR1 bound by UTC entry date, "
                        f"cluster-robust CR1 bound by {BLOCK_DAYS}-day window, by calendar quarter, by half-year)"),
             "iid": iid["value"], "block_date": by_date["value"], "block_30d": by_window["value"],
             "block_quarter": by_quarter["value"], "block_half": by_half["value"],
             "blocks_date": by_date["blocks"], "blocks_30d": by_window["blocks"],
-            "blocks_quarter": by_quarter["blocks"], "blocks_half": by_half["blocks"]}
+            "blocks_quarter": by_quarter["blocks"], "blocks_half": by_half["blocks"],
+            "components": components, "p_values": pvals, "p_robust": p_robust}
+
+
+def edge_interval(mean_, se, df, confidence, power=MDE_POWER):
+    """Section C items 1-2 for ONE bound's block structure: the one-sided lower and upper bounds (mean -/+ t_crit * se, t_crit
+    at `confidence` on `df`) and the minimum detectable edge (t_crit + t_{power,df}) * se -- the true mean R per trade at which
+    that bound would clear 0 with probability `power`. None when the bound's se / df do not exist."""
+    if mean_ is None or se is None or df is None or df < 1:
+        return None
+    tc, tp = t_quantile(confidence, df), t_quantile(power, df)
+    return {"se": se, "df": df, "t_crit": tc, "t_power": tp, "lower": mean_ - tc * se, "upper": mean_ + tc * se,
+            "mde": (tc + tp) * se, "power": power, "confidence": confidence}
+
+
+def primary_summary(trades, confidence):
+    """The per-candidate PRIMARY record of family A: the five bounds, the five p-values, `p_robust` (their max), the
+    floor-confidence verdict, and the edge intervals of the BINDING half-year CR1 bound (and of the numerically smallest
+    bound when that is another one)."""
+    lb = robust_lower_bound(trades, confidence)
+    comps = lb["components"]
+    smallest = None
+    if lb["value"] is not None:
+        smallest = min(PRIMARY_COMPONENTS, key=lambda k: comps[k]["value"])
+    half = edge_interval(lb["mean"], comps["half"]["se"], comps["half"]["df"], confidence)
+    other = None
+    if smallest is not None and smallest != "half":
+        other = edge_interval(lb["mean"], comps[smallest]["se"], comps[smallest]["df"], confidence)
+    return {"confidence": confidence, "n": lb["n"], "mean": lb["mean"], "primary_bound": lb["value"],
+            "floor_ok": lb["value"] is not None and lb["value"] > 0,
+            "components": comps, "p_values": lb["p_values"], "p_robust": lb["p_robust"],
+            "numerically_smallest": smallest, "binding_half_year": half,
+            "smallest_bound_interval": ({"component": smallest, **other} if other else None),
+            "definition": FAMILY_DEFINITION}
+
+
+def holm_stepdown(p_by_id, family_size=None, alpha=FAMILY_ALPHA):
+    """Holm's step-down at FWER `alpha` over a family of `family_size` hypotheses (default: the entries given). `p_by_id` maps a
+    candidate id to its p (None = not computable / NOT RUN / insufficient -> p = 1, never rejected, but it STILL counts in the
+    family). Sorted ascending (ties by id), the k-th smallest is rejected iff p_(k) <= alpha / (family_size - k + 1) and every
+    smaller p was rejected; the first failure stops the procedure. Fewer entries than `family_size` means the missing ones
+    are implicit p = 1 members (they rank last and are never rejected).
+
+    Returns [{"id","p","rank","threshold","reject"}] in rank order. NOTE (stated in the report as well): rank 1's threshold
+    equals the FLOOR (alpha / family_size), and every later rank's threshold is looser, so Holm can reject a candidate that
+    FAILS the floor when an earlier candidate was rejected. This harness does NOT let that make a PASS (the verdict rests on the
+    floor test, `VERDICT_PRECEDENCE`); a floor PASS is always Holm-rejected, because its p is below every threshold."""
+    m = family_size if family_size is not None else len(p_by_id)
+    if len(p_by_id) > m:
+        raise ValueError(f"{len(p_by_id)} candidates given for a family of {m}")
+    rows = sorted(((1.0 if p is None else float(p), cid) for cid, p in p_by_id.items()))
+    out, alive = [], True
+    for k, (p, cid) in enumerate(rows, start=1):
+        thr = alpha / (m - k + 1)
+        rej = alive and p <= thr
+        alive = rej
+        out.append({"id": cid, "p": None if p_by_id[cid] is None else p, "rank": k, "threshold": thr, "reject": rej})
+    return out
 
 
 # --------------------------------------------------------------------------------------------- the grid
@@ -330,24 +465,66 @@ def n_per_method(grid):
     return 1 + sum(len(g["candidates"]) for g in grid.groups) + 1
 
 
-def value_axis(values):
-    """The ordered 'grid steps' of one item: numeric values ascending; anything else in listed order."""
-    if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
-        return sorted(set(values))
-    return list(values)
+#: Pre-registration A5 (REPLACED 2026-10-02): the ORDINAL components of the grids and their orders, lowest to highest. This
+#: constant is the ONLY definition of "one step"; it is pinned through `evaluation_config.perturbation_axes` (a changed order
+#: is drift). A grid item NOT listed here is CATEGORICAL: flipped and reported, never gated. `part` is the position of the
+#: component inside a composite value ("-2.0|H|floor" splits on "|"; a Wyckoff window pair is a list); None = the whole value.
+#: ICT: B-BUF stop buffer 0 < 0.1 ATR < 0.25 ATR; B-EX entry model iofed < ce < fill; B-EXIT target -2.0 < -2.25 < -2.5 and,
+#: separately, time stop H < 1.5H < 2H < none; B-LB lookback 8 < 12 < 16 and, separately, expiry K < 2K. Wyckoff: W6 300 < 600;
+#: W-TW test window 8 < 12 < 20 and, separately, Phase-B swings 2 < 3; W4a only between the explicit counts 3 and 4 (the
+#: v1-typed baseline 2 is not an ordinal step: a fold that chose it is NOT perturbed on W4a, and the report lists those folds).
+PERTURBATION_AXES = {
+    "B-BUF": [{"component": "stop_buffer", "part": None, "order": ["0", "0.1atr", "0.25atr"]}],
+    "B-EX": [{"component": "entry_model", "part": None, "order": ["iofed", "ce", "fill"]}],
+    "B-EXIT": [{"component": "target", "part": 0, "order": ["-2.0", "-2.25", "-2.5"]},
+               {"component": "time_stop", "part": 1, "order": ["H", "1.5H", "2H", "none"]}],
+    "B-LB": [{"component": "lookback", "part": 0, "order": ["8", "12", "16"]},
+             {"component": "expiry", "part": 1, "order": ["K", "2K"]}],
+    "W6": [{"component": "structure_window", "part": None, "order": [300, 600]}],
+    "W-TW": [{"component": "test_window", "part": 0, "order": [8, 12, 20]},
+             {"component": "phase_b_swings", "part": 1, "order": [2, 3]}],
+    "W4a": [{"component": "linger_closes", "part": None, "order": [3, 4]}],
+}
 
 
-def neighbours(values, current):
-    """[(-1|+1, value)] one grid step either side of `current` on the item's axis (missing edge omitted)."""
-    axis = value_axis(values)
-    if current not in axis:
-        raise GridError(f"value {current!r} is not on the axis {axis!r}")
-    i = axis.index(current)
+def _split_value(value, part):
+    if part is None:
+        return value
+    if isinstance(value, str):
+        return value.split("|")[part]
+    return list(value)[part]
+
+
+def _with_part(value, part, new):
+    if part is None:
+        return new
+    if isinstance(value, str):
+        bits = value.split("|")
+        bits[part] = str(new)
+        return "|".join(bits)
+    out = list(value)
+    out[part] = new
+    return out
+
+
+def component_neighbours(grid, item_id, comp, current):
+    """[(-1|+1, new item value)] -- the value the item takes when ONLY `comp` moves one step on its order, the other components
+    staying as in `current`. A side with no neighbour (an edge) is omitted; a `current` whose component is not on the order
+    (the v1-typed W4a baseline) has none. The moved value must be one the grid declares: a grid and an axis table that disagree
+    fail loud (GridError), never skip silently."""
+    order = list(comp["order"])
+    cur = _split_value(current, comp["part"])
+    if cur not in order:
+        return []
+    i = order.index(cur)
     out = []
-    if i > 0:
-        out.append((-1, axis[i - 1]))
-    if i < len(axis) - 1:
-        out.append((+1, axis[i + 1]))
+    for direction, j in ((-1, i - 1), (+1, i + 1)):
+        if 0 <= j < len(order):
+            new = _with_part(current, comp["part"], order[j])
+            if new not in grid.by_id[item_id]["values"]:
+                raise GridError(f"axis {item_id}.{comp['component']}: the neighbour {new!r} of {current!r} is not a value the "
+                                f"grid declares")
+            out.append((direction, new))
     return out
 
 
@@ -467,21 +644,78 @@ def pooled_test_trades(fold_results):
     return [t for fr in fold_results for t in fr["test_trades"]]
 
 
-def perturbation_trade_sets(grid, trades_for, fold_results):
-    """Plan §1.4 §45: every chosen V value moved +/- one grid step. Each (item, direction) yields the POOLED
-    test trades when, in every fold, that one item is moved from the value the fold chose. An item at its axis
-    edge has no neighbour that side (nothing to move). Returns [{"item","direction","value_by_fold","trades"}]."""
+def perturbation_trade_sets(grid, trades_for, fold_results, axes=None):
+    """Pre-registration A5: for every ORDINAL component and each direction, in every fold, move the value the fold chose one
+    step along its order (the other components -- and every other item -- stay at the fold's chosen values) and pool the
+    TEST trades of the moved value sets. An edge has no neighbour that side; a fold whose chosen value is not on the order
+    contributes nothing (listed by `perturbation_skips`). Returns [{"item","component","direction","kind","trades","folds"}]."""
+    axes = PERTURBATION_AXES if axes is None else axes
     sets = {}
     for fr in fold_results:
         for item_id, cur in fr["chosen"].items():
-            for direction, new in neighbours(grid.by_id[item_id]["values"], cur):
+            for comp in axes.get(item_id, ()):
+                for direction, new in component_neighbours(grid, item_id, comp, cur):
+                    moved = dict(fr["chosen"])
+                    moved[item_id] = new
+                    s = sets.setdefault((item_id, comp["component"], direction),
+                                        {"item": item_id, "component": comp["component"], "direction": direction,
+                                         "kind": "ordinal", "trades": [], "folds": 0})
+                    s["trades"].extend(test_window(trades_for(moved), fr["fold"]))
+                    s["folds"] += 1
+    return [sets[k] for k in sorted(sets)]
+
+
+def perturbation_skips(grid, fold_results, axes=None):
+    """Folds whose chosen value of an ordinal component is not on that component's order (W4a: the v1-typed baseline), so
+    nothing was perturbed there. Reported, never silently dropped."""
+    axes = PERTURBATION_AXES if axes is None else axes
+    out = []
+    for fr in fold_results:
+        for item_id, cur in fr["chosen"].items():
+            for comp in axes.get(item_id, ()):
+                if _split_value(cur, comp["part"]) not in list(comp["order"]):
+                    out.append({"item": item_id, "component": comp["component"], "test_start": fr["fold"]["test_start"],
+                                "chosen": cur, "reason": "the chosen value is not on the component's ordinal order"})
+    return out
+
+
+def categorical_flip_sets(grid, trades_for, fold_results, axes=None):
+    """The REPORT-ONLY flips of every categorical item (a grid item not in `axes`): in every fold, the item's chosen value A is
+    replaced by each other declared value B, everything else as chosen; the pooled test trades are grouped by (item, A -> B).
+    Never gated. Returns [{"item","from","to","kind","trades","folds"}]."""
+    axes = PERTURBATION_AXES if axes is None else axes
+    sets = {}
+    for fr in fold_results:
+        for item_id, cur in fr["chosen"].items():
+            if item_id in axes:
+                continue
+            for other in grid.by_id[item_id]["values"]:
+                if other == cur:
+                    continue
                 moved = dict(fr["chosen"])
-                moved[item_id] = new
-                s = sets.setdefault((item_id, direction), {"item": item_id, "direction": direction,
-                                                           "trades": [], "folds": 0})
+                moved[item_id] = other
+                key = (item_id, json.dumps(cur, default=repr), json.dumps(other, default=repr))
+                s = sets.setdefault(key, {"item": item_id, "from": cur, "to": other, "kind": "categorical",
+                                          "trades": [], "folds": 0})
                 s["trades"].extend(test_window(trades_for(moved), fr["fold"]))
                 s["folds"] += 1
     return [sets[k] for k in sorted(sets)]
+
+
+def component_stability(grid, fold_results, axes=None):
+    """Section C item 5: per ORDINAL component of the perturbation orders, the component value each fold chose and how many
+    times it changed between consecutive folds (an item's composite value hides which component moved)."""
+    axes = PERTURBATION_AXES if axes is None else axes
+    out = {}
+    for item_id, comps in axes.items():
+        if item_id not in grid.by_id:
+            continue
+        for comp in comps:
+            vals = [_split_value(fr["chosen"][item_id], comp["part"]) for fr in fold_results if item_id in fr["chosen"]]
+            out[f"{item_id}.{comp['component']}"] = {
+                "values_by_fold": vals, "changes": sum(1 for a, b in zip(vals, vals[1:]) if a != b),
+                "transitions": max(len(vals) - 1, 0)}
+    return out
 
 
 # ------------------------------------------------------------------------------------------- the checks
@@ -544,30 +778,90 @@ def check_frequency(fold_results):
             "required_share": MIN_FOLD_SHARE_OK, "max_gap_days": MAX_GAP_DAYS, "folds": per}
 
 
+REGIME_KEY = "adx14_d1"   # the trade field the regime split reads: the D1 ADX(14) of the last COMPLETED D1 bar (pre-reg 0.7)
+
+
 def check_regime_split(trades):
-    """ADX(14) median split of the pooled test trades: BOTH halves must have positive net expectancy. A trade
-    without an ADX value cannot be split and fails the check (never dropped from it)."""
+    """D1 ADX(14) median split of the pooled test trades (`REGIME_SPLIT_DEFINITION`): BOTH halves must have positive net
+    expectancy. A trade without a D1 ADX value (no completed D1 bar yet, warm-up, no D1 series) cannot be split and fails
+    the check (never dropped from it). The decision-timeframe ADX (`adx14`) plays no part in the verdict."""
     if not trades:
         return {"ok": False, "reason": "no trades"}
-    if any(t.get("adx14") is None for t in trades):
-        return {"ok": False, "reason": "a trade has no ADX(14) value at entry (warm-up); the split is not computable"}
-    xs = sorted(t["adx14"] for t in trades)
+    if any(t.get(REGIME_KEY) is None for t in trades):
+        return {"ok": False, "reason": "a trade has no D1 ADX(14) value at entry (no completed D1 bar / warm-up); "
+                                       "the split is not computable"}
+    xs = sorted(t[REGIME_KEY] for t in trades)
     n = len(xs)
     med = xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2.0
-    low = [t["net_R"] for t in trades if t["adx14"] <= med]
-    high = [t["net_R"] for t in trades if t["adx14"] > med]
+    low = [t["net_R"] for t in trades if t[REGIME_KEY] <= med]
+    high = [t["net_R"] for t in trades if t[REGIME_KEY] > med]
     lm, hm = mean(low), mean(high)
-    return {"ok": bool(low) and bool(high) and lm > 0 and hm > 0, "median_adx14": med,
+    return {"ok": bool(low) and bool(high) and lm > 0 and hm > 0, "median_adx14_d1": med,
             "low": {"n": len(low), "mean_R": lm}, "high": {"n": len(high), "mean_R": hm}}
 
 
-def check_perturbation(perturbations, confidence):
+def check_perturbation(perturbations, confidence, skips=None):
+    """Pre-registration A5: every ORDINAL (component, direction) neighbour must have pooled mean net R > 0 AND a primary
+    bound > 0 at `confidence` (the floor). `skips` (folds a component could not be perturbed in) are carried for the report."""
     rows = []
     for p in perturbations:
         lb = robust_lower_bound(p["trades"], confidence)
-        rows.append({"item": p["item"], "direction": p["direction"], "n": lb["n"], "lower_bound": lb["value"],
-                     "ok": lb["value"] is not None and lb["value"] > 0})
-    return {"ok": bool(rows) and all(r["ok"] for r in rows), "n_perturbations": len(rows), "rows": rows}
+        m = lb["mean"]
+        rows.append({"item": p["item"], "component": p.get("component"), "direction": p["direction"],
+                     "folds": p.get("folds"), "n": lb["n"], "mean_R": m, "lower_bound": lb["value"],
+                     "ok": m is not None and m > 0 and lb["value"] is not None and lb["value"] > 0})
+    return {"ok": bool(rows) and all(r["ok"] for r in rows), "n_perturbations": len(rows), "rows": rows,
+            "definition": PERTURBATION_DEFINITION, "confidence": confidence, "skipped_folds": list(skips or [])}
+
+
+def categorical_report(flips, confidence):
+    """The categorical flips as report rows (A -> B: pooled mean net R and bound). NEVER gated."""
+    rows = []
+    for f in flips:
+        lb = robust_lower_bound(f["trades"], confidence)
+        rows.append({"item": f["item"], "from": f["from"], "to": f["to"], "folds": f["folds"], "n": lb["n"],
+                     "mean_R": lb["mean"], "lower_bound": lb["value"]})
+    return rows
+
+
+# ------------------------------------------------------------------------- stress gate and the shifted prop pass
+def stress_commission_r(entry, stop):
+    """The commission stress margin in R: 0.00003 of notional per round turn -> 0.00003 * entry / |entry - stop|. A stress
+    margin, NOT an estimate (the FTMO commission is UNKNOWN)."""
+    entry, stop = float(entry), float(stop)
+    if entry <= 0 or entry == stop:
+        raise ValueError(f"no valid stop distance (entry {entry}, stop {stop}): the stress margin is not defined")
+    return STRESS_COMMISSION_FRACTION * entry / abs(entry - stop)
+
+
+def stressed_net_r(gross_r, stress_cost_r, entry, stop):
+    """Net R of one admitted trade under stress: gross R - the real round-turn cost re-priced at the p90 spread (both legs,
+    swap unchanged; `stress_cost_r` = real_costs.cost_r(..., spread_stat='p90')['total_R']) - the commission margin."""
+    return gross_r - stress_cost_r - stress_commission_r(entry, stop)
+
+
+def check_stress(stressed_trades, confidence):
+    """Stress gate (pre-registration A8a): the pooled mean net R of the SAME admitted trades, re-priced under stress, must be
+    > 0. The stressed primary bound is REPORTED, never gated. `stressed_trades` None = the engine offered no stress pricing:
+    fail closed."""
+    if stressed_trades is None:
+        return {"ok": False, "reason": "no stress pricing was computed (fail closed)", "definition": STRESS_DEFINITION}
+    if not stressed_trades:
+        return {"ok": False, "reason": "no trades", "definition": STRESS_DEFINITION}
+    lb = robust_lower_bound(stressed_trades, confidence)
+    m = lb["mean"]
+    return {"ok": m is not None and m > 0, "n": len(stressed_trades), "mean_R_stressed": m,
+            "stressed_primary_bound": lb["value"], "confidence": confidence,
+            "spread_stat": STRESS_SPREAD_STAT, "commission_fraction": STRESS_COMMISSION_FRACTION,
+            "definition": STRESS_DEFINITION}
+
+
+def prop_shift_r(primary):
+    """The shift of the shifted prop pass (A8b): pooled mean - primary bound at the floor confidence, in R (>= 0 because the
+    primary bound is at most the iid bound, which is below the mean). None when the bound is not computable."""
+    if primary is None or primary.get("value") is None or primary.get("mean") is None:
+        return None
+    return primary["mean"] - primary["value"]
 
 
 def _prop_row(v):
@@ -639,33 +933,113 @@ def verdict_from(checks):
     stored boolean."""
     if not checks["folds_sufficient"]["ok"]:
         return INSUFFICIENT
+    if any(k not in checks for k in REQUIRED_CHECKS):
+        return FAIL
     return PASS if all(c["ok"] for c in checks.values()) else FAIL
 
 
-def evaluate_cell(fold_results, perturbations, symbols, n_comparisons, prop_by_fund, runs=None):
-    """Every §1.4 rule over one (method, cell). The lower bound uses the POOLED TEST trades only; the checks
-    are ALL computed (never short-circuited) so a failing candidate reports every reason."""
-    conf = n_adjusted_confidence(n_comparisons)
+def check_prop_pass_shifted(prop_by_fund, shift_r):
+    """A8b: prop_pass_probability >= PASS_PROB_MIN for every fund with R shifted down by `shift_r` (mean - primary bound at
+    the floor confidence). A shift that cannot be computed (no bound) fails closed."""
+    if shift_r is None:
+        return {"ok": False, "reason": "the primary bound is not computable, so the shift (mean - bound) is undefined "
+                                       "(fail closed)", "shift_R": None, "definition": PROP_SHIFT_DEFINITION,
+                "threshold": PASS_PROB_MIN, "funds": {}}
+    out = check_prop_pass(prop_by_fund)
+    out.update(shift_R=shift_r, definition=PROP_SHIFT_DEFINITION)
+    return out
+
+
+def _margin(check, measure, measured, threshold, unit, higher_is_better=True):
+    if measured is None or threshold is None:
+        m = None
+    else:
+        m = (measured - threshold) if higher_is_better else (threshold - measured)
+    return {"check": check, "measure": measure, "measured": measured, "threshold": threshold, "margin": m, "unit": unit,
+            "ok": m is not None and m >= 0}
+
+
+def check_margins(checks):
+    """Section C item 3: every check's measured value, its threshold and the distance to it IN THE CHECK'S OWN UNIT (negative
+    margin = failing by that much). `ok` of a row is its own measure; a check can have several rows. A measure that cannot be
+    computed has margin None and counts as failing."""
+    rows = []
+    fs = checks.get("folds_sufficient") or {}
+    if fs.get("folds") is not None:
+        rows.append(_margin("folds_sufficient", "smallest test fold (trades)",
+                            min((f["n_trades"] for f in fs["folds"]), default=None), MIN_FOLD_TRADES, "trades"))
+        rows.append(_margin("folds_sufficient", "test folds", fs.get("n_folds"), fs.get("min_folds"), "folds"))
+    lb = (checks.get("lower_bound_positive") or {}).get("bound") or {}
+    rows.append(_margin("lower_bound_positive", "primary bound at the floor confidence", lb.get("value"), 0.0, "R"))
+    st = checks.get("stability") or {}
+    if st:
+        rows.append(_margin("stability", "symbols with positive mean net R", st.get("positive_symbols"),
+                            st.get("required_symbols"), "symbols"))
+        rows.append(_margin("stability", "largest single trade share of total net R", st.get("largest_trade_share"),
+                            st.get("max_trade_share"), "share of total", higher_is_better=False))
+    fq = checks.get("frequency") or {}
+    if fq:
+        rows.append(_margin("frequency", "share of folds with every entry gap <= 30 d", fq.get("share_ok_folds"),
+                            fq.get("required_share"), "share of folds"))
+    rg = checks.get("regime_split") or {}
+    if rg:
+        lo, hi = (rg.get("low") or {}).get("mean_R"), (rg.get("high") or {}).get("mean_R")
+        rows.append(_margin("regime_split", "smaller of the two D1-ADX half means",
+                            None if lo is None or hi is None else min(lo, hi), 0.0, "R"))
+    pt = checks.get("perturbation") or {}
+    if pt:
+        vals = [v for r in pt.get("rows", []) for v in (r.get("mean_R"), r.get("lower_bound"))]
+        rows.append(_margin("perturbation", "worst neighbour (smaller of its mean and its bound)",
+                            None if not vals or any(v is None for v in vals) else min(vals), 0.0, "R"))
+    sr = checks.get("stress") or {}
+    if sr:
+        rows.append(_margin("stress", "pooled mean net R under p90 spread + commission margin",
+                            sr.get("mean_R_stressed"), 0.0, "R"))
+    for name in ("prop_pass_probability", "prop_pass_shifted"):
+        pp = checks.get(name) or {}
+        if pp:
+            vs = [r.get("value") for r in (pp.get("funds") or {}).values()]
+            rows.append(_margin(name, "lowest prop_pass_probability over the funds",
+                                None if not vs or any(v is None for v in vs) else min(vs), PASS_PROB_MIN, "probability"))
+    return rows
+
+
+def evaluate_cell(fold_results, perturbations, symbols, family_size, prop_by_fund, runs=None, *, stress=None,
+                  prop_shifted=None, shift_r=None, categorical=None, skips=None, grid=None, axes=None):
+    """Every rule over one (method, cell). The primary bound uses the POOLED TEST trades only, at the FLOOR confidence
+    1 - FAMILY_ALPHA/`family_size` (family A: the number of candidate procedures, not of grid values); the checks are ALL
+    computed (never short-circuited) so a failing candidate reports every reason.
+
+    `stress` = the pooled test trades re-priced under stress (None -> the gate fails closed); `prop_shifted` = the per-fund
+    prop pass with R shifted down by `shift_r`; `categorical` = `categorical_flip_sets` (reported, never gated); `skips` =
+    `perturbation_skips`; `grid`/`axes` (optional) add the per-component stability of the chosen values."""
+    conf = n_adjusted_confidence(family_size)
     pooled = pooled_test_trades(fold_results)
+    primary = primary_summary(pooled, conf)
     checks = {
         "folds_sufficient": check_fold_sufficiency(fold_results),
         "lower_bound_positive": check_lower_bound(pooled, conf),
         "stability": check_stability(pooled, symbols),
         "frequency": check_frequency(fold_results),
         "regime_split": check_regime_split(pooled),
-        "perturbation": check_perturbation(perturbations, conf),
+        "perturbation": check_perturbation(perturbations, conf, skips),
         "prop_pass_probability": check_prop_pass(prop_by_fund),
+        "prop_pass_shifted": check_prop_pass_shifted(prop_shifted, shift_r),
+        "stress": check_stress(stress, conf),
     }
     verdict = verdict_from(checks)
-    return {"verdict": verdict, "n_comparisons": n_comparisons, "confidence": conf,
+    return {"verdict": verdict, "family_size": family_size, "confidence": conf, "primary": primary,
             "failed_checks": [k for k, c in checks.items() if not c["ok"]],
             "pooled": {"n_trades": len(pooled), "mean_R": mean([t["net_R"] for t in pooled])},
             "per_symbol": per_symbol(pooled, symbols),
             "by_volume_kind": split_by_volume_kind(pooled, conf),
             "chosen_value_stability": chosen_value_stability(fold_results),
-            "verdict_precedence": VERDICT_PRECEDENCE,
+            "component_stability": component_stability(grid, fold_results, axes) if grid is not None else None,
+            "categorical_flips": categorical_report(categorical or [], conf),
+            "verdict_precedence": VERDICT_PRECEDENCE, "margins": check_margins(checks),
             "folds": [{"test_start": fr["fold"]["test_start"], "test_end": fr["fold"]["test_end"],
-                       "n_test_trades": len(fr["test_trades"]), "chosen": fr["chosen"], "changed": fr["changed"]}
+                       "n_test_trades": len(fr["test_trades"]), "chosen": fr["chosen"], "changed": fr["changed"],
+                       "mean_net_R": mean([t["net_R"] for t in fr["test_trades"]])}
                       for fr in fold_results],
             "checks": checks, "runs_evaluated": runs}
 
@@ -706,14 +1080,40 @@ def adx14(highs, lows, closes, period=ADX_PERIOD):
 
 
 def adx_index(candles):
-    """(open-time list, ADX list) for a candle series -- the lookup `adx_before` reads."""
+    """(open-time list, ADX list) for a candle series -- the lookup `adx_before` reads. REPORTING ONLY since 2026-10-02: the
+    regime verdict reads the D1 ADX (`d1_adx_index`), never this decision-timeframe value."""
     vals = adx14([c["high"] for c in candles], [c["low"] for c in candles], [c["close"] for c in candles])
     return [ts(c["time"]) for c in candles], vals
 
 
 def adx_before(index, entry_iso):
     """ADX(14) of the last bar that OPENED strictly before `entry_iso` -- a fully closed bar under either bar
-    labelling convention, so the value was knowable at the decision (CLAUDE.md §8). None during warm-up."""
+    labelling convention for the decision timeframe, so the value was knowable at the decision (CLAUDE.md §8). None during
+    warm-up. REPORTING ONLY (trade field `adx14`); NOT valid for a D1 series, whose last-opened bar is still forming."""
     times, vals = index
     i = bisect.bisect_left(times, ts(entry_iso)) - 1
+    return vals[i] if i >= 0 else None
+
+
+# ---------------------------------------------------------------------------- D1 ADX for the regime split (pre-reg 0.7)
+D1_BAR = datetime.timedelta(days=1)
+
+
+def d1_adx_index(candles):
+    """([close time of each D1 bar], [ADX(14) of each D1 bar]) for a D1 series whose `time` is the bar's OPEN label (UTC, the
+    repo's convention: the broker's server midnight converted by scripts/mt5_time.py, so 21:00Z or 22:00Z on the previous
+    calendar day). The CLOSE of a bar = max(open label + 24 h, the next bar's open label): never earlier than the true
+    close (a 25 h DST day closes at the next open, a 23 h day is read one hour late, a weekend or holiday gap only matters at
+    hours the market is shut). Wilder's ADX of bar i uses bars <= i only, so the value is point-in-time."""
+    vals = adx14([c["high"] for c in candles], [c["low"] for c in candles], [c["close"] for c in candles])
+    opens = [ts(c["time"]) for c in candles]
+    closes = [max(o + D1_BAR, opens[i + 1]) if i + 1 < len(opens) else o + D1_BAR for i, o in enumerate(opens)]
+    return closes, vals
+
+
+def d1_adx_at(index, entry_iso):
+    """The D1 ADX(14) of the last D1 bar whose CLOSE is at or before `entry_iso`; the entry day's own forming bar is never
+    read. None while no bar has closed yet or during the ADX warm-up."""
+    closes, vals = index
+    i = bisect.bisect_right(closes, ts(entry_iso)) - 1
     return vals[i] if i >= 0 else None
