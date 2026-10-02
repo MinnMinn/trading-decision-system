@@ -152,7 +152,7 @@
     ],
     "state": "development",
     "why": "owner decision 2026-09-28 (docs/plans/2026-09-28-methodology-improvement-plan.md §6 item 1): all 8 CFD symbols are development symbols to maximise the evidence -- everything before 2024-03-01 was read by docs/audits/2026-09-28-method-diagnosis.md's funnel/outcome audit and by every F/V item's funnel-count evidence in §3 of the plan; it built the candidate rule choices and cannot be validation for them.",
-    "instruments": "XAUUSD, XAGUSD, US500, US30, USTEC, DE40, FRA40, AUS200 (docs/plans/2026-09-28-methodology-improvement-plan.md §6 item 1); start is null because each symbol's own earliest available bar differs (e.g. XAUUSD from 2004) -- see each symbol's dataset snapshot for its actual first_open."
+    "instruments": "XAUUSD, XAGUSD, US500, US30, USTEC, DE40, FRA40, AUS200 (docs/plans/2026-09-28-methodology-improvement-plan.md §6 item 1), XPTUSD, XPDUSD (added 2026-10-02: the fund search's 5m-metals cell reads them, docs/plans/2026-09-30-owner-decisions.md 'symbol universe'; FTMO history from 2015-01-07, all of it before 2024-03-01 is development data, nothing after it is read as validation); start is null because each symbol's own earliest available bar differs (e.g. XAUUSD from 2004) -- see each symbol's dataset snapshot for its actual first_open."
    },
    {
     "id": "cfd-prop-search-2024-03-2025-03",

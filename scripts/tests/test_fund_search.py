@@ -509,7 +509,9 @@ class _Tmp(unittest.TestCase):
                    mock.patch.object(self.fs.RL, "PATH", self.ledger),
                    mock.patch.object(self.fs, "_first_bar", self._first_bar),
                    # the readiness gate (build_plan) needs a real-cost spec per symbol; the fixture plan has none on disk
-                   mock.patch.object(self.fs, "_spec_present", lambda sym: (True, f"synthetic/{sym}"))]
+                   mock.patch.object(self.fs, "_spec_present", lambda sym: (True, f"synthetic/{sym}")),
+                   # the real scoped dirty check reads THIS checkout (dirty while developing); its own tests use a temp repo
+                   mock.patch.object(self.fs, "scoped_dirty", lambda root=None: [])]
         # the SYNTHETIC cell fixtures name symbols with no DEV_BARS row (the real declared cells all have one: see
         # test_every_symbol_of_every_declared_cell_has_a_dev_bars_row, which reads the unpatched table `_REAL_DEV_BARS`)
         for tf, bars in (("1m", 800000), ("5m", 160000), ("15m", 60000)):
@@ -1370,6 +1372,216 @@ class DeclarationEnforcement(_Helpers):
         rec = X.load("ict-5m-metals", store=self.records)
         self.assertFalse(rec["parameters"]["drifted"])
         self.assertNotIn("DRIFTED RECORDS", self.fs.cmd_report())
+
+
+def _git_repo(tmp):
+    """A throw-away git repo shaped like the pinned layout (scripts/, docs/architecture/, data/history/..., config/)."""
+    import subprocess
+    repo = os.path.join(tmp, "repo")
+    files = {"scripts/a.py": "x = 1\n", "docs/architecture/analysis-params.json": "{}\n",
+             "docs/architecture/research-ledger.json": "{\"v\": 1}\n", "data/history/costs/ftmo/symbolspec.X.json": "{}\n",
+             "data/history/ftmo/ohlcv.X.5m.json": "[]\n", "config/env.example": "A=1\n", "README.md": "r\n"}
+    for rel, txt in files.items():
+        p = os.path.join(repo, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        open(p, "w").write(txt)
+
+    def g(*a):
+        # no global excludes: a developer's `docs/*` rule must not hide the fixture's docs/architecture
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "core.excludesFile=/dev/null", *a],
+                       cwd=repo, check=True, capture_output=True)
+    g("init", "-q")
+    g("add", "-A")
+    g("commit", "-q", "-m", "init")
+    return repo, g
+
+
+class PinningAndDirtyTree(_Tmp):
+    """2026-10-02 red-team I5: tree-hash pins, the scoped dirty-tree refusal, the python/platform NOTE."""
+
+    def setUp(self):
+        super().setUp()
+        self.repo, self.g = _git_repo(self.tmp)
+        self.real = _fs()        # unpatched module: the real scoped_dirty / tree_pins on the temp repo
+
+    def _write(self, rel, txt):
+        open(os.path.join(self.repo, rel), "w").write(txt)
+
+    def test_fingerprint_lists_every_engine_import_and_every_file_exists(self):
+        for m in ("history_store", "normalized", "pit", "quality", "research_validity", "account_profile", "trading_env",
+                  "instruments", "event_risk", "isolated_pool", "experiment"):
+            self.assertIn(f"scripts/{m}.py", self.fs.FINGERPRINT_FILES)
+        for f in self.fs.FINGERPRINT_FILES:
+            self.assertTrue(os.path.exists(os.path.join(ROOT, f)), f)
+        self.assertEqual(len(set(self.fs.FINGERPRINT_FILES)), len(self.fs.FINGERPRINT_FILES))
+
+    def test_the_scoped_dirty_check_ignores_config_and_other_paths(self):
+        self.assertEqual(self.real.scoped_dirty(self.repo), [])
+        self._write("config/env.example", "A=2\n")                              # ` M config/env.example`
+        os.makedirs(os.path.join(self.repo, ".claude", "worktrees"))
+        self._write(".claude/worktrees/w.txt", "x")                            # `?? .claude/worktrees/`
+        self._write("README.md", "changed\n")
+        self.assertEqual(self.real.scoped_dirty(self.repo), [])
+        self.assertEqual(self.real.check_clean_tree(False, root=self.repo), [])
+
+    def test_a_modified_tracked_file_or_an_untracked_file_in_scope_refuses(self):
+        cases = (("scripts/a.py", "x = 2\n"),
+                 ("docs/architecture/analysis-params.json", "{\"min_rr\": 1}\n"),
+                 ("data/history/ftmo/ohlcv.X.5m.json", "[1]\n"),
+                 ("scripts/new_untracked.py", "y = 1\n"),
+                 ("docs/architecture/new_untracked.json", "{}\n"),      # also when a global ignore rule (docs/*) hides it
+                 ("data/history/costs/ftmo/new.json", "{}\n"))
+        for rel, txt in cases:
+            with self.subTest(rel):
+                self.g("checkout", "-q", "--", ".")
+                self.g("clean", "-qfd")
+                self.assertEqual(self.real.scoped_dirty(self.repo), [])         # non-vacuous: clean first ...
+                self._write(rel, txt)
+                with self.assertRaises(self.real.DirtyTreeRefused) as cm:      # ... refuses after the mutation
+                    self.real.check_clean_tree(False, root=self.repo)
+                self.assertIn(os.path.basename(rel), str(cm.exception))
+                self.assertIn("--allow-dirty", str(cm.exception))
+
+    def test_allow_dirty_is_loud_and_returns_the_lines(self):
+        self._write("scripts/a.py", "x = 2\n")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            got = self.real.check_clean_tree(True, root=self.repo)
+        self.assertEqual(len(got), 1)
+        self.assertIn("scripts/a.py", got[0])
+        self.assertIn("WARNING: --allow-dirty", err.getvalue())
+
+    def test_the_committed_plan_discloses_the_same_prior_counts_as_the_code(self):
+        plan = json.load(open(os.path.join(ROOT, "docs", "experiments", "fund-search", "plan.json")))
+        self.assertEqual(plan["prior_counts_disclosed"], self.fs.PRIOR_COUNTS)
+        self.assertEqual(self.fs.PRIOR_COUNTS["prop_search_records"], 180)
+        self.assertEqual(self.fs.PRIOR_COUNTS["diagnosis_slices"], 30)
+
+    def test_git_unavailable_is_not_clean(self):
+        real = _fs()                                  # a module with the REAL scoped_dirty (setUp patches self.fs's)
+        with mock.patch.object(real, "_git", return_value=None):
+            with self.assertRaises(real.DirtyTreeRefused):
+                real.check_clean_tree(False)
+
+    def test_tree_pins_move_with_each_pinned_tree_and_ignore_the_ledger(self):
+        base = self.real.tree_pins(self.repo)
+        self.assertTrue(all(base.values()), base)
+
+        def commit_change(rel, txt):
+            self._write(rel, txt)
+            self.g("add", "-A")
+            self.g("commit", "-q", "-m", "change " + rel)
+            return self.real.tree_pins(self.repo)
+        cur = base
+        for rel, moved in (("scripts/a.py", "scripts"), ("docs/architecture/analysis-params.json", "docs/architecture"),
+                           ("data/history/costs/ftmo/symbolspec.X.json", "data/history/costs/ftmo"),
+                           ("data/history/ftmo/ohlcv.X.5m.json", "data/history/ftmo")):
+            with self.subTest(rel):
+                new = commit_change(rel, "{\"changed\": \"" + rel + "\"}\n")
+                self.assertEqual({k for k in new if new[k] != cur[k]}, {moved})   # exactly that pin, no other
+                cur = new
+        new = commit_change(self.real.LEDGER_REL, "{\"v\": 2, \"fund_search\": {}}\n")   # the declaration lives here
+        self.assertEqual(new, cur)
+
+    def test_the_tree_pin_is_a_real_git_tree_hash_and_works_in_a_shallow_clone(self):
+        import subprocess
+        pins = self.real.tree_pins(self.repo)
+        self.assertEqual(pins["scripts"], subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD:scripts"],
+                                                         capture_output=True, text=True).stdout.strip())
+        self._write("scripts/a.py", "x = 3\n")
+        self.g("add", "-A")
+        self.g("commit", "-q", "-m", "second")                                 # two commits so --depth 1 is truly shallow
+        shallow = os.path.join(self.tmp, "shallow")
+        subprocess.run(["git", "clone", "-q", "--depth", "1", "file://" + self.repo, shallow], check=True,
+                       capture_output=True)
+        self.assertEqual(subprocess.run(["git", "-C", shallow, "rev-parse", "--is-shallow-repository"],
+                                        capture_output=True, text=True).stdout.strip(), "true")
+        self.assertEqual(self.real.tree_pins(shallow), self.real.tree_pins(self.repo))
+
+    def _declared(self):
+        self.fs.cmd_plan(grid_dir=FIXTURES)
+        self.fs.cmd_declare()
+        return json.load(open(self.ledger))["fund_search"]
+
+    def test_the_declaration_records_pins_head_python_and_platform(self):
+        decl = self._declared()
+        self.assertEqual(set(decl["repo_pins"]["trees"]), set(self.fs.PINNED_TREES))
+        self.assertTrue(all(decl["repo_pins"]["trees"].values()))
+        self.assertEqual(len(decl["repo_pins"]["head"]), 40)
+        self.assertEqual(decl["runtime"]["python"], sys.version.split()[0])
+        self.assertTrue(decl["runtime"]["platform"])
+        self.assertNotIn("allow_dirty", decl)
+
+    def test_a_changed_pinned_tree_is_drift_and_run_refuses(self):
+        decl = self._declared()
+        plan = self.fs.load_plan(FIXTURES)
+        self.assertEqual([d for d in self.fs.detect_drift(decl, plan) if d.startswith("tree ")], [])
+        real = self.fs.tree_pins
+        for path in self.fs.PINNED_TREES:                                      # each of the four, one at a time
+            with self.subTest(path):
+                with mock.patch.object(self.fs, "tree_pins", lambda root=None, p=path: dict(real(root), **{p: "e" * 40})):
+                    drift = self.fs.detect_drift(decl, plan)
+                    self.assertTrue(any(d.startswith(f"tree {path}:") for d in drift), drift)
+                    with mock.patch.object(self.fs, "_evaluate_candidate") as ev:
+                        with self.assertRaises(self.fs.DeclarationDrift) as cm:
+                            self.fs.cmd_run("5m-metals", grid_dir=FIXTURES)
+                    self.assertIn(f"tree {path}", str(cm.exception))
+                    ev.assert_not_called()
+
+    def test_a_declaration_without_pins_is_drift(self):
+        decl = dict(self._declared())
+        decl.pop("repo_pins")
+        self.assertTrue(any("repo_pins" in d for d in self.fs.detect_drift(decl, self.fs.load_plan(FIXTURES))))
+
+    def test_a_different_python_or_platform_is_a_note_not_a_refusal(self):
+        decl = dict(self._declared(), runtime={"python": "3.12.1", "implementation": "CPython",
+                                               "platform": "Linux-6.8-x86_64", "machine": "x86_64"})
+        plan = self.fs.load_plan(FIXTURES)
+        self.assertEqual([d for d in self.fs.detect_drift(decl, plan) if "runtime" in d], [])
+        notes = self.fs.drift_notes(decl)
+        self.assertTrue(any("runtime python: declared '3.12.1'" in n and "not a refusal" in n for n in notes), notes)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual([d for d in self.fs.check_drift(decl, plan) if "runtime" in d], [])   # does not raise
+        self.assertIn("NOTE (not a refusal): runtime python", err.getvalue())
+        self.assertEqual(self.fs.drift_notes(self._declared_again()), [])      # same interpreter: no note
+
+    def _declared_again(self):
+        return json.load(open(self.ledger))["fund_search"]
+
+    def test_declare_and_run_and_scan_refuse_a_dirty_pinned_tree(self):
+        self.fs.cmd_plan(grid_dir=FIXTURES)
+        dirty = ["M scripts/fund_stats.py", "?? data/history/ftmo/new.json"]
+        with mock.patch.object(self.fs, "scoped_dirty", lambda root=None: dirty):
+            with self.assertRaises(self.fs.DirtyTreeRefused) as cm:
+                self.fs.cmd_declare()
+            self.assertIn("scripts/fund_stats.py", str(cm.exception))
+            self.assertNotIn("fund_search", json.load(open(self.ledger)))      # nothing was written
+            with mock.patch.object(self.fs, "_evaluate_candidate") as ev:
+                with self.assertRaises(self.fs.DirtyTreeRefused):
+                    self.fs.cmd_run("5m-metals", grid_dir=FIXTURES)
+            ev.assert_not_called()
+            with self.assertRaises(self.fs.DirtyTreeRefused):
+                self.fs.cmd_scan("5m-metals", "XAUUSD", "ict", os.path.join(tempfile.gettempdir(), "b21-never"),
+                                 grid_dir=FIXTURES)
+
+    def test_allow_dirty_declares_with_the_dirty_list_and_stamps_every_record(self):
+        self.fs.cmd_plan(grid_dir=FIXTURES)
+        dirty = ["M scripts/fund_stats.py"]
+        helper = _Helpers("run")
+        helper.fs, helper.tmp = self.fs, self.tmp
+        err = io.StringIO()
+        with mock.patch.object(self.fs, "scoped_dirty", lambda root=None: dirty), contextlib.redirect_stderr(err):
+            self.fs.cmd_declare(allow_dirty=True)
+            decl = json.load(open(self.ledger))["fund_search"]
+            self.assertEqual(decl["allow_dirty"], dirty)
+            with mock.patch.object(self.fs, "_evaluate_candidate",
+                                   side_effect=lambda c, h, g=None: helper._fake_out(c, h)):
+                self.fs.cmd_run("5m-metals", grid_dir=FIXTURES, allow_dirty=True)
+        self.assertIn("WARNING: --allow-dirty", err.getvalue())
+        rec = X.load("ict-5m-metals", store=self.records)
+        self.assertTrue(rec["parameters"]["drifted"])
+        self.assertTrue(any("--allow-dirty" in d for d in rec["parameters"]["drift"]))
 
 
 class MergeTimeGuards(_Helpers):
@@ -2371,6 +2583,7 @@ class _ScanCacheBase:
             return chosen, scores
 
         with mock.patch.object(FS, "make_folds", side_effect=lambda *a, **k: [dict(f) for f in cls.folds]), \
+                mock.patch.object(cls.fs, "scoped_dirty", lambda root=None: []), \
                 mock.patch.object(FS, "MIN_TRAIN_TRADES", 1), mock.patch.object(FS, "select_values", forced):
             yield
 
@@ -2487,6 +2700,22 @@ class ScanCache(_ScanCacheBase, unittest.TestCase):
         stamp["code_sha256"]["scripts/fund_stats.py"] = "f" * 64
         with self.assertRaises(self.fs.ScanCacheRefused):
             self._load(stamp)
+
+    def test_a_cache_from_other_code_config_or_data_trees_is_refused(self):
+        stamp = self.fs.scan_cache_stamp(self.plan)
+        self.assertEqual(set(stamp["repo_trees"]), set(self.fs.PINNED_TREES))
+        self.assertTrue(stamp["repo_head"])
+        self.assertEqual(stamp["scoped_dirty"], [])
+        self._load(stamp)                                                       # non-vacuous: the unmutated stamp loads
+        for key, bad in (("repo_head", "0" * 40),
+                         ("repo_trees", dict(stamp["repo_trees"], **{"docs/architecture": "1" * 40})),
+                         ("repo_trees", dict(stamp["repo_trees"], **{"data/history/ftmo": "2" * 40})),
+                         ("repo_trees", dict(stamp["repo_trees"], scripts="3" * 40)),
+                         ("scoped_dirty", ["M scripts/ict-scan.py"])):
+            with self.subTest(key=key, bad=str(bad)[:40]):
+                with self.assertRaises(self.fs.ScanCacheRefused) as cm:
+                    self._load(dict(stamp, **{key: bad}))
+                self.assertIn(key, str(cm.exception))
 
     def test_a_different_plan_or_evaluation_setting_is_refused(self):
         stamp = self.fs.scan_cache_stamp(self.plan)

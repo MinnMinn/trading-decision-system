@@ -312,7 +312,11 @@
  ],
  "prior_counts_disclosed": {
   "prop_search_records": 180,
-  "diagnosis_slices": 30
+  "diagnosis_slices": 30,
+  "fidelity_funnel_rows_ict": 18,
+  "fidelity_funnel_rows_wyckoff": 11,
+  "real_cost_reprice_runs": 1,
+  "min_rr_values_tried": 3
  },
  "plan_hash": "4a476bee674afcbb324c25a2103a49dfea5d48f95f88a68a572340ae78b7eacc",
  "generated_at": "2026-10-01T23:35:07Z"

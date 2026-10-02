@@ -42,12 +42,13 @@ import importlib.util
 import json
 import math
 import os
+import platform
 import re
 import sys
 import time
 import types
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT =os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from repo_paths import repo_rel
 import fund_stats as FS               # the statistics: pure, separately importable and tested
@@ -115,8 +116,14 @@ def embargo_for(tf, bt=None):
     return EMBARGO_H_MULTIPLE * int(bt.P[tf]["H"]) * FS.bar_delta(tf)
 
 
-#: Disclosed, never folded into N (plan §1.4): earlier searches on the same history.
-PRIOR_COUNTS = {"prop_search_records": 180, "diagnosis_slices": 30}
+#: Disclosed, never folded into N (plan §1.4): earlier outcome reads on the same development history. Extended
+#: 2026-10-02 (red-team C5); the paths and what each read showed are listed in the pre-registration draft, section 0.1
+#: (docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md). Counts are table rows / runs, not de-duplicated:
+#: fidelity_funnel_rows_ict = 9 re-run + 9 carried rows of docs/audits/2026-09-29-ict-fidelity-funnel.md;
+#: fidelity_funnel_rows_wyckoff = the 11 rows of the table in ...-wyckoff-fidelity-funnel.md; real_cost_reprice_runs = the
+#: one disclosed A0 re-pricing; min_rr_values_tried = 3.0, 2.0, 2.5. Not in the plan hash (plan core excludes it).
+PRIOR_COUNTS = {"prop_search_records": 180, "diagnosis_slices": 30, "fidelity_funnel_rows_ict": 18,
+                "fidelity_funnel_rows_wyckoff": 11, "real_cost_reprice_runs": 1, "min_rr_values_tried": 3}
 
 
 def fixed_opts():
@@ -622,19 +629,115 @@ def require_declaration(plan):
     return decl
 
 
-def _git(*a):
+def _git(*a, root=None):
     import subprocess
     try:
-        out = subprocess.run(["git", "-C", ROOT, *a], capture_output=True, text=True, timeout=20)
+        out = subprocess.run(["git", "-C", root or ROOT, *a], capture_output=True, text=True, timeout=20)
         return out.stdout.strip() if out.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):
         return None
 
 
+# Every module the evaluation imports (statically or by spec_from_file_location) from fund-search.py: the engine, the
+# metrics, the PIT / quality / validity layer, the account + environment readers, the history reader, the scan cache
+# and the ledger. The git TREE pins below (`PINNED_TREES`) cover the whole of scripts/ as well; this per-file list
+# stays because it names WHICH file moved in a drift message. Excluded on purpose (not imported on the fund-search
+# path, so a change cannot alter a result; still covered by the scripts/ tree pin): htf_context, i18n,
+# selection_criteria, method_purity, setup_version, cron-templates, rank-setups, win_services, get_secret.
 FINGERPRINT_FILES = ("scripts/fund_stats.py", "scripts/fund-search.py", "scripts/prop-search.py",
                      "scripts/backtest-methods.py", "scripts/real_costs.py", "scripts/performance.py",
                      "scripts/mt5_time.py", "scripts/ict-scan.py", "scripts/wyckoff_rules.py",
-                     "scripts/live_rules.py", "scripts/scan_many.py", "scripts/structures.py")
+                     "scripts/live_rules.py", "scripts/scan_many.py", "scripts/structures.py",
+                     "scripts/history_store.py", "scripts/normalized.py", "scripts/pit.py", "scripts/quality.py",
+                     "scripts/research_validity.py", "scripts/account_profile.py", "scripts/trading_env.py",
+                     "scripts/instruments.py", "scripts/event_risk.py", "scripts/isolated_pool.py",
+                     "scripts/experiment.py",
+                     # also imported on the path (backtest-methods / prop-search / fund-search headers):
+                     "scripts/sessions.py", "scripts/methods.py", "scripts/snapshot.py",
+                     "scripts/trader_constraints.py", "scripts/providers.py", "scripts/risk_model.py",
+                     "scripts/trading_system.py", "scripts/scan_cache.py", "scripts/research_ledger.py",
+                     "scripts/repo_paths.py", "scripts/automation.py", "scripts/stability-report.py")
+
+# Git TREE pins (2026-10-02 red-team I5): `git rev-parse HEAD:<path>` of every directory a result depends on. scripts/ is
+# the code; docs/architecture/ holds analysis-params.json, account-profiles.json, the symbol map and the other
+# readers' inputs; data/history/costs/ftmo the symbolspec files; data/history/ftmo the committed candles. They need
+# only git OBJECTS (no history), so they also work in a shallow clone. docs/architecture/ is pinned WITHOUT
+# research-ledger.json: that file holds the declaration itself (and every later ledger event), so a tree hash that
+# included it could never equal itself after `declare`. It is pinned as a sha256 over `git ls-tree -r HEAD` of the
+# directory minus that one file (a blob-hash listing: any other file's change moves it).
+LEDGER_REL = "docs/architecture/research-ledger.json"
+PINNED_TREES = ("scripts", "docs/architecture", "data/history/costs/ftmo", "data/history/ftmo")
+# a tracked-file change or an UNTRACKED file under these refuses declare / run / scan; config/, .claude/ etc. never block
+DIRTY_SCOPE = ("scripts", "docs/architecture", "data/history")
+_ALLOW_DIRTY_HELP = ("TESTS / DRY RUNS ONLY: proceed although the pinned tree is modified or has untracked files; a "
+                     "WARNING is printed and the result says so (run: every record stamped drifted=true; declare: "
+                     "`allow_dirty` in the declaration; scan: the dirty list is part of the cache stamp)")
+
+
+def tree_pins(root=None):
+    """{path: tree hash} for PINNED_TREES at HEAD (None = git could not answer: never a guess)."""
+    out = {}
+    for path in PINNED_TREES:
+        if path == "docs/architecture":
+            listing = _git("ls-tree", "-r", "HEAD", "--", path, root=root)
+            if listing is None:
+                out[path] = None
+                continue
+            kept = [ln for ln in listing.splitlines() if not ln.endswith("\t" + LEDGER_REL)]
+            out[path] = "ls-tree-sha256:" + _sha_text("\n".join(kept))
+        else:
+            out[path] = _git("rev-parse", f"HEAD:{path}", root=root)
+    return out
+
+
+def repo_pins(root=None):
+    return {"head": _git("rev-parse", "HEAD", root=root), "trees": tree_pins(root),
+            "tree_note": "docs/architecture is pinned without research-ledger.json (it holds the declaration itself)"}
+
+
+def runtime_env():
+    """Informational: the interpreter and platform that made the declaration. A different one is a drift NOTE, never a
+    refusal (CI runs Python 3.12 on Linux, the owner's machine 3.14 on macOS)."""
+    return {"python": platform.python_version(), "implementation": platform.python_implementation(),
+            "platform": platform.platform(), "machine": platform.machine()}
+
+
+def scoped_dirty(root=None):
+    """Lines of `git status` for tracked modifications AND untracked files under DIRTY_SCOPE only (config/env.example,
+    .claude/worktrees/ and every other path are ignored). None if git cannot answer (treated as dirty by the caller)."""
+    out = _git("status", "--porcelain", "--untracked-files=all", "--", *DIRTY_SCOPE, root=root)
+    # `status` hides files a (global) ignore rule matches -- e.g. a developer's `docs/*` -- yet the code may still read
+    # them: list every untracked file in scope, ignored or not, except interpreter / OS cruft
+    other = _git("ls-files", "--others", "--", *DIRTY_SCOPE, root=root)
+    if out is None or other is None:
+        return None
+    cruft = ("__pycache__/", ".pyc", ".DS_Store")
+    lines = {ln.strip() for ln in out.splitlines() if ln.strip() and not any(c in ln for c in cruft)}
+    lines |= {"?? " + ln.strip() for ln in other.splitlines() if ln.strip() and not any(c in ln for c in cruft)}
+    return sorted(lines)
+
+
+class DirtyTreeRefused(SystemExit):
+    """declare / run / scan refused: pinned code / config / history is modified or untracked in the working tree."""
+
+
+def check_clean_tree(allow_dirty=False, root=None):
+    """Refuse (DirtyTreeRefused) unless the scoped tree is clean. With allow_dirty (tests / dry runs only) return the
+    dirty lines after a loud WARNING so the caller can stamp them; never silent."""
+    dirty = scoped_dirty(root)
+    if dirty == []:
+        return []
+    shown = ["git status unavailable (cannot prove the tree clean)"] if dirty is None else dirty
+    if allow_dirty:
+        print("WARNING: --allow-dirty: the pinned tree is NOT clean; this run is not reproducible evidence:\n  "
+              + "\n  ".join(shown[:20]), file=sys.stderr, flush=True)
+        return shown
+    raise DirtyTreeRefused(
+        "refusing: tracked files are modified or untracked files exist under " + ", ".join(DIRTY_SCOPE) + ":\n  "
+        + "\n  ".join(shown[:20]) + ("\n  ..." if len(shown) > 20 else "")
+        + "\nCommit (or remove) them so the declaration pins exactly the code that runs. `--allow-dirty` exists for "
+          "tests and dry runs only.")
+
 
 
 def code_fingerprint(files=FINGERPRINT_FILES):
@@ -689,10 +792,42 @@ def detect_drift(decl, plan):
         for k in sorted(set(dcfg) | set(cfg)):
             if dcfg.get(k) != cfg.get(k):
                 out.append(f"evaluation_config.{k}: declared {dcfg.get(k)!r}, now {cfg.get(k)!r}")
+    pins = decl.get("repo_pins")
+    if not isinstance(pins, dict) or not isinstance(pins.get("trees"), dict) or not pins["trees"]:
+        out.append("declaration has no `repo_pins.trees` (git tree hashes of scripts/, docs/architecture, "
+                   "data/history/costs/ftmo, data/history/ftmo)")
+    else:
+        now = tree_pins()
+        for path in sorted(set(pins["trees"]) | set(now)):
+            if pins["trees"].get(path) != now.get(path) or now.get(path) is None:
+                out.append(f"tree {path}: declared {pins['trees'].get(path)!r}, now {now.get(path)!r}")
     return out
 
 
+def drift_notes(decl):
+    """Differences that are reported but never refuse: the interpreter / platform (CI uses Python 3.12 on Linux, the
+    owner's machine 3.14 on macOS; the declaration records what made it) and a declared HEAD that is not an ancestor
+    of the current one (the binding pins are the tree hashes; HEAD moves with every commit, the declaration's own
+    included)."""
+    notes = []
+    rt, now = decl.get("runtime"), runtime_env()
+    if not isinstance(rt, dict):
+        notes.append("NOTE: the declaration records no Python version / platform")
+    else:
+        for k in ("python", "implementation", "platform", "machine"):
+            if rt.get(k) != now[k]:
+                notes.append(f"NOTE (not a refusal): runtime {k}: declared {rt.get(k)!r}, now {now[k]!r}")
+    head = (decl.get("repo_pins") or {}).get("head")
+    if head and _git("merge-base", "--is-ancestor", head, "HEAD") is None and _git("rev-parse", "HEAD") != head:
+        # `is-ancestor` exits 1 when it is not an ancestor (or the object is missing): _git() maps both to None
+        notes.append(f"NOTE (not a refusal): the declared HEAD {head[:12]} is not an ancestor of the current HEAD "
+                     f"(shallow clone, or another branch); the tree pins above are what bind")
+    return notes
+
+
 def check_drift(decl, plan, allow_drift=False):
+    for n in drift_notes(decl):
+        print(n, file=sys.stderr, flush=True)
     drift = detect_drift(decl, plan)
     if drift and not allow_drift:
         raise DeclarationDrift(
@@ -727,9 +862,11 @@ def runner_benchmark_status():
             "note": "" if ok else f"the recorded benchmark says layout_factor {got} but SHARD_MODEL has {want:g}: make them equal"}
 
 
-def cmd_declare():
+def cmd_declare(allow_dirty=False):
     """Record the final cell count in the ledger. Refuses if any evaluation record already exists (the count must
-    precede evaluation) or if a different declaration is already there (a ledger event, not an overwrite)."""
+    precede evaluation), if the pinned tree (scripts/, docs/architecture/, data/history/) is not clean, or if a
+    different declaration is already there (a ledger event, not an overwrite)."""
+    dirty = check_clean_tree(allow_dirty)
     plan = load_plan()
     if os.path.isdir(RECORDS_DIR) and any(f.endswith(".json") for f in os.listdir(RECORDS_DIR)):
         raise SystemExit(f"refusing to declare: records already exist under {RECORDS_DIR}; the cell count must be "
@@ -739,7 +876,10 @@ def cmd_declare():
            "cells": [c["id"] for c in plan["cells"]], "n_by_method": plan["n_by_method"],
            "confidence_by_method": plan["confidence_by_method"], "excluded_cells": plan["excluded_cells"],
            "code": code_fingerprint(), "evaluation_config": evaluation_config(plan),
+           "repo_pins": repo_pins(), "runtime": runtime_env(),
            "source": PLAN_DOC + " §6 items 2, 7", "declared_at": _now_iso()}
+    if dirty:
+        new["allow_dirty"] = dirty                      # never silent: the declaration says it was made on a dirty tree
     old = data.get(LEDGER_SECTION)
     if old:
         if all(old.get(k) == new[k] for k in ("plan_hash", "cell_count", "cells")):
@@ -908,10 +1048,14 @@ def scan_cache_stamp(plan):
     """What every entry of one cache must share: the plan, the code (last-commit SHAs, dirty flags AND file content
     hashes, so two dirty trees never look alike) and the evaluation settings -- the same three things `declare`
     pins. The FTMO history is covered per entry by `scope.series` (bar count, first and last bar, and a sha256 of the
-    PIT-truncated candle series the scan read)."""
+    PIT-truncated candle series the scan read). 2026-10-02 (I5): also the repo HEAD, the git tree hashes of scripts/,
+    docs/architecture/, data/history/costs/ftmo and data/history/ftmo, and the scoped dirty list (empty on a clean
+    tree), so a cache made from other code, config or data -- or on a dirty tree -- is refused. The Python version is
+    NOT in the stamp (CI 3.12 and the owner's 3.14 must share a cache); it is a declaration NOTE."""
     return {"format": SCAN_CACHE_FORMAT, "plan_hash": plan["plan_hash"], "code": code_fingerprint(),
             "code_sha256": {f: _sha256_file(os.path.join(ROOT, f)) for f in FINGERPRINT_FILES},
-            "evaluation_config": evaluation_config(plan)}
+            "evaluation_config": evaluation_config(plan),
+            "repo_head": _git("rev-parse", "HEAD"), "repo_trees": tree_pins(), "scoped_dirty": scoped_dirty()}
 
 
 def scan_cache_scope(cell_id, runner_method, tf, symbol, value_key, series):
@@ -1287,10 +1431,11 @@ ADMISSION_LIMITATION = ("O1 DECIDED 2026-09-30: every fund cell runs with fx_adm
                         "The refusal counts and near-floor margins are still disclosed here.")
 
 
-ROLLOVER_EDGE_NOTE = ("entries whose entry bar is the LAST bar of a server day. The engine asks about the rollover only "
-                      "after each WALKED bar, never for the entry bar itself, so an ICT limit fill inside that bar "
-                      "can be held past midnight. Wyckoff enters at the previous bar's label and is legitimate. "
-                      "Recorded, not raised on -- OPEN owner item O8 (option: an engine fix behind an fx_ key; "
+ROLLOVER_EDGE_NOTE = ("entries whose entry bar is the LAST bar of a server day. With flat_before_rollover on (fixed in "
+                      "every fund cell) walk() also asks about the boundary between the entry (fill) bar and the first "
+                      "walked bar (commit 2869c35) and, if it is crossed, closes the trade flat at the entry bar's own "
+                      "close ('rollover_flat', zero bars walked), so such a fill is NOT held past midnight. The count is "
+                      "kept as information (the entries that check acts on). Closed item O8 (2026-10-02; "
                       "docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md).")
 
 
@@ -1539,12 +1684,15 @@ def validate_record(rec, plan):
 
 
 def cmd_run(cell_id, method=None, workers=1, grid_dir=None, allow_drift=False, scan_cache_dirs=(),
-            require_complete_scan_cache=False):
+            require_complete_scan_cache=False, allow_dirty=False):
     if require_complete_scan_cache and not scan_cache_dirs:
         raise SystemExit("--require-complete-scan-cache needs --scan-cache")
+    dirty = check_clean_tree(allow_dirty)           # refuses on a modified / untracked pinned tree (tests: --allow-dirty)
     plan = load_plan(grid_dir)
     decl = require_declaration(plan)                # refuses BEFORE anything is evaluated
     drift = check_drift(decl, plan, allow_drift)    # refuses on code / settings drift unless --allow-drift
+    if dirty:                                       # --allow-dirty: every record says so
+        drift = drift + [f"--allow-dirty: the pinned tree was not clean: {dirty[:20]}"]
     grids, _paths = load_grids(grid_dir)
     for m, g in grids.items():
         assert_grid_runnable(g)
@@ -1987,7 +2135,8 @@ def wave2_size_warning(cell_id, method, symbol, n_slices, real, est):
             f"risk; entries are keyed per value set, so any N gives the same cache.")
 
 
-def cmd_scan(cell_id, symbol, method, out_dir, workers=1, wave=1, slice_spec="0/1", scan_cache_dirs=(), grid_dir=None):
+def cmd_scan(cell_id, symbol, method, out_dir, workers=1, wave=1, slice_spec="0/1", scan_cache_dirs=(), grid_dir=None,
+             allow_dirty=False):
     """One Actions scan shard. `--wave 1`: the wave-1 value sets (the same list `run` would prefetch first) for ONE
     symbol -- needs no other symbol's data. `--wave 2`: the wave-2 sets, which only exist once selection has run on the
     pooled wave-1 trades of ALL the cell's symbols, so it needs the complete wave-1 cache (`--scan-cache`) and REFUSES
@@ -2005,6 +2154,7 @@ def cmd_scan(cell_id, symbol, method, out_dir, workers=1, wave=1, slice_spec="0/
     i, n = parse_slice(slice_spec)
     if wave not in (1, 2):
         raise SystemExit("--wave must be 1 or 2")
+    check_clean_tree(allow_dirty)       # the dirty list is also part of the cache stamp, so a dirty cache is never reused
     plan = load_plan(grid_dir)
     decl = require_declaration(plan)
     check_drift(decl, plan, False)
@@ -2234,7 +2384,8 @@ def main(argv=None):
                     help="print the per-cell readiness table (history + real-cost specs) and exit 1 if anything is "
                          "missing, 0 if complete; plans nothing, writes nothing")
     pp.add_argument("--grid-dir", help="directory holding v-grid-ict.json / v-grid-wyckoff.json")
-    sub.add_parser("declare", help="record the final cell count in the research ledger (before any run)")
+    dp = sub.add_parser("declare", help="record the final cell count in the research ledger (before any run)")
+    dp.add_argument("--allow-dirty", action="store_true", help=_ALLOW_DIRTY_HELP)
     sub.add_parser("list-cells", help="print the committed plan's cell ids as JSON (the CI matrix)")
     lp = sub.add_parser("list-scan-shards", help="print the scan-shard matrix (cell x method x symbol x wave x slice) "
                                                  "as JSON; --explain prints the time model's table instead")
@@ -2251,6 +2402,7 @@ def main(argv=None):
     sp.add_argument("--scan-cache", action="append", default=[], metavar="DIR",
                     help="(--wave 2) cache directory holding the cell's complete wave 1; repeatable")
     sp.add_argument("--grid-dir")
+    sp.add_argument("--allow-dirty", action="store_true", help=_ALLOW_DIRTY_HELP)
     rp = sub.add_parser("run", help="evaluate one cell (refuses without the ledger declaration)")
     rp.add_argument("--cell", required=True)
     rp.add_argument("--method", choices=sorted(METHODS))
@@ -2267,6 +2419,7 @@ def main(argv=None):
     rp.add_argument("--allow-drift", action="store_true",
                     help="proceed although the code/settings differ from the declaration; every record is "
                          "stamped drifted=true and the report says so")
+    rp.add_argument("--allow-dirty", action="store_true", help=_ALLOW_DIRTY_HELP)
     sub.add_parser("report", help="write the markdown report over every record")
     a = ap.parse_args(argv)
     os.environ.setdefault("BT_HISTORY_ROOT", FTMO_HISTORY_ROOT)     # the fund search reads the FTMO feed (§6 item 8)
@@ -2275,7 +2428,7 @@ def main(argv=None):
             return check_data(a.grid_dir)
         cmd_plan(dry_run=a.dry_run, grid_dir=a.grid_dir)
     elif a.cmd == "declare":
-        cmd_declare()
+        cmd_declare(allow_dirty=a.allow_dirty)
     elif a.cmd == "list-cells":
         print(json.dumps([{"cell": c["id"]} for c in load_plan()["cells"]]))
     elif a.cmd == "list-scan-shards":
@@ -2288,11 +2441,12 @@ def main(argv=None):
             print(json.dumps([flat_shard_row(r) for r in rows]))
     elif a.cmd == "scan":
         cmd_scan(a.cell, a.symbol, a.method, a.out, workers=a.workers if a.workers is not None else SM.default_workers(),
-                 wave=a.wave, slice_spec=a.slice, scan_cache_dirs=a.scan_cache, grid_dir=a.grid_dir)
+                 wave=a.wave, slice_spec=a.slice, scan_cache_dirs=a.scan_cache, grid_dir=a.grid_dir,
+                 allow_dirty=a.allow_dirty)
     elif a.cmd == "run":
         cmd_run(a.cell, method=a.method, workers=a.workers if a.workers is not None else SM.default_workers(),
                 grid_dir=a.grid_dir, allow_drift=a.allow_drift, scan_cache_dirs=a.scan_cache,
-                require_complete_scan_cache=a.require_complete_scan_cache)
+                require_complete_scan_cache=a.require_complete_scan_cache, allow_dirty=a.allow_dirty)
     elif a.cmd == "report":
         cmd_report()
 
