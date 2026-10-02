@@ -255,7 +255,8 @@ def job_wave2(j):
     ds = j["dev_start"]
     cell = {"development_start": ds, "timeframe": tf}
     t0 = time.time()
-    eng = fs.BtEngine(grid, fs.METHODS[method], tf, symbols, bt=bt, workers=1, dev_start=ds, warmup_days=14)
+    eng = fs.BtEngine(grid, fs.METHODS[method], tf, symbols, bt=bt, workers=int(j.get("workers", 1)), dev_start=ds,
+                       warmup_days=14)
     build_s = time.time() - t0
     n_bars = {s: eng._series[s]["bars"] for s in symbols}
     w1 = fs.wave1_values(eng, grid, cell)
@@ -398,10 +399,27 @@ def job_bars(j):
     return dict(j, status="OK", result=out)
 
 
+def job_bars_span(j):
+    """Bars one shard of a cell with a DECLARED start really scans: the decision series cut by the harness's own `dev_start`
+    seam (BtEngine: loaded from dev_start - warmup_days minus the method's own window, PIT-truncated at DEV_CUTOFF), per
+    (symbol, method). These are the SPAN_BARS rows of scripts/fund-search.py. Loads the series; scans nothing; counts only.
+    Spec: {"kind":"bars_span", "symbols":[...], "methods":["ict","wyckoff"], "tf":..., "dev_start":"...", "warmup_days":14}."""
+    fs = TR._fs()
+    grids, _ = fs.load_grids()
+    out = {}
+    for sym in j["symbols"]:
+        for method in j["methods"]:
+            eng = fs.BtEngine(grids[method].runnable(), fs.METHODS[method], j["tf"], [sym], workers=1,
+                              dev_start=j["dev_start"], warmup_days=j["warmup_days"])
+            out.setdefault(sym, {})[method] = {"bars": eng._series[sym]["bars"], "first_open": eng._series[sym]["first_open"],
+                                               "lead_bars": eng.span["lead_bars"]}
+    return dict(j, status="OK", result=out)
+
+
 def run_job(j):
     return {"scan": job_scan, "groups": job_groups, "load": job_load, "wave2": job_wave2,
             "trades_for": job_trades_for, "cache_io": job_cache_io, "scan_dev": job_scan_dev,
-            "entry_eq_stop": job_entry_eq_stop, "bars": job_bars}[j["kind"]](j)
+            "entry_eq_stop": job_entry_eq_stop, "bars": job_bars, "bars_span": job_bars_span}[j["kind"]](j)
 
 
 def drive(jobs_file, out, workers):
@@ -410,7 +428,11 @@ def drive(jobs_file, out, workers):
 
     def one(j):
         t0 = time.time()
-        p = subprocess.run([sys.executable, os.path.abspath(__file__), "job", json.dumps(j)], capture_output=True, text=True)
+        try:                               # a job may carry `timeout_s`: past it the measurement is recorded NOT MEASURED
+            p = subprocess.run([sys.executable, os.path.abspath(__file__), "job", json.dumps(j)], capture_output=True,
+                               text=True, timeout=j.get("timeout_s"))
+        except subprocess.TimeoutExpired:
+            return dict(j, status="NOT MEASURED", seconds=round(time.time() - t0, 1), reason="exceeded timeout_s")
         line = [l for l in p.stdout.splitlines() if l.startswith("{")]
         if p.returncode != 0 or not line:
             return dict(j, status="ERROR", seconds=round(time.time() - t0, 1), reason=p.stderr.strip()[-600:])
