@@ -125,8 +125,16 @@ and the rule not to move a window to rescue a method.
 
 ## 6. Status for the next session
 
-- Done: this diagnosis; owner decisions §0. Nothing in code changed.
-- Next: §5 step 2 (fix #3/#4/#5, re-declare), then steps 3-6. Fund-search must NOT be run on the current declaration.
+- Done: this diagnosis; owner decisions §0.
+- Done (same day): §5 step 2. D3 `fx_fvg_formed_start` (F item, fund cells only; live still v1), D4 weekday horizon,
+  D5 frequency-based prop risk, `declare --supersede`; power re-run (docs/audits/2026-10-02-e2e-power.md §10); plan_hash
+  275763cb81b0518a -> 0ec4e27e15fa7df9 re-declared, the old declaration kept in `research-ledger.json`
+  `fund_search_superseded`. The fund-search MAY now be run on this declaration.
+- Power result to read before running: the prop pass no longer binds; the statistical standard (stress, perturbation, floor
+  bound) does. Detectable edge with 80 % power stays 0.20-0.30 R/trade; at 0.10 R P(PASS) is 0.01-0.03. A zero-nomination
+  result therefore remains likely and says little about edges near 0.10 R (diagnosis §4.4).
+- Next: run the fund-search (Actions sharding), then §5 steps 3-6 (edge census, book, prop policy, tiered evidence with a
+  separately pre-registered demo-nomination gate). Live v2 (D3 in strategy-runner) needs the owner's approval.
 - FTMO rules in `account-profiles.json` are still unverified at the source (ftmo.com blocked in the cloud sandbox);
   2026 third-party summaries agree: 10 % target, 10 % static max loss, 5 % daily (equity vs midnight CE(S)T balance
   minus 5 % of initial), min 4 trading days, no time limit.

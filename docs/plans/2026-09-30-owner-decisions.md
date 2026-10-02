@@ -392,3 +392,7 @@ Full record: `docs/audits/2026-10-02-strategic-diagnosis.md` (read §0 and §6 f
    The re-declaration must add the development-window reads listed in the diagnosis §7 to the prior-reads table.
 3. **Forward demo is the primary evidence**; a looser, pre-registered nomination gate to demo is accepted; the strict
    gate applies to real money only.
+
+**Applied 2026-10-02 (same session):** D3/D4/D5 implemented and tested; power re-run (`docs/audits/2026-10-02-e2e-power.md`
+§10); re-declared with `declare --supersede` (plan_hash 275763cb81b0518a -> 0ec4e27e15fa7df9, no record existed; the old
+declaration is kept in `research-ledger.json` `fund_search_superseded`). Pre-registration section 0.7 records the change.
