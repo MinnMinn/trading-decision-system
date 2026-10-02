@@ -261,8 +261,29 @@ def _prop_search():
     return _PS
 
 
-def prop_pass_value(ps, fund, trades):
-    m = ps._perf.metrics(trades, account=ps._AP.get(fund), horizon=ps.CHALLENGE_HORIZON_DAYS)
+_FSM = None
+
+
+def _fund_search():
+    global _FSM
+    if _FSM is None:
+        spec = importlib.util.spec_from_file_location("fs_pm", os.path.join(ROOT, "scripts", "fund-search.py"))
+        _FSM = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_FSM)
+    return _FSM
+
+
+def prop_pass_value(ps, fund, trades, years=None):
+    """`years` (D4/D5): the stream's span in 365-day folds ending at the cutoff; given, the prop pass counts its horizon in
+    weekdays and sizes risk by the frequency rule exactly as the harness does (fund-search.prop_kwargs)."""
+    acct = ps._AP.get(fund)
+    kw = {}
+    if years is not None:
+        import fund_stats as _FS
+        end = datetime.datetime(2024, 3, 1, tzinfo=datetime.timezone.utc)
+        span = [{"test_start": (end - datetime.timedelta(days=365 * int(years))).isoformat(), "test_end": end.isoformat()}]
+        kw = _fund_search().prop_kwargs(ps, acct, trades, _FS.test_weekdays(span))
+    m = ps._perf.metrics(trades, account=acct, horizon=ps.CHALLENGE_HORIZON_DAYS, **kw)
     v = m.get("prop_pass_probability")
     return v.get("value") if isinstance(v, dict) else None
 
@@ -285,7 +306,7 @@ def run_prop(job):
         key = (fund, round(e, 4))
         if key not in cache:
             tr = stream(e)
-            cache[key] = prop_pass_value(ps, fund, tr)
+            cache[key] = prop_pass_value(ps, fund, tr, years=years)
         return cache[key]
 
     tr0 = stream(0.2)

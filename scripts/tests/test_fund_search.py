@@ -102,7 +102,7 @@ class SynthEngine:
         return gen(LONG_START, FS.DEV_CUTOFF, self.per_year * years, self.mean_by(values), self.sd,
                    seed=f"{self.salt}:" + json.dumps(values, sort_keys=True), symbols=self.symbols)
 
-    def prop_pass(self, pooled, r_shift=0.0):
+    def prop_pass(self, pooled, r_shift=0.0, weekdays=None):
         self.shifts.append(r_shift)
         if r_shift and self.prop_shifted is not None:
             return dict(self.prop_shifted)
@@ -822,6 +822,12 @@ class _Tmp(unittest.TestCase):
         self.fs = _fs()
         self.ledger = os.path.join(self.tmp, "research-ledger.json")
         shutil.copy(os.path.join(ROOT, "docs", "architecture", "research-ledger.json"), self.ledger)
+        # The real ledger carries the REAL declaration (since c4ea722); these tests exercise declare/run from scratch, so the
+        # copy starts without it (and without superseded ones) -- the real file is never touched.
+        led = json.load(open(self.ledger))
+        for k in ("fund_search", "fund_search_superseded"):
+            led.pop(k, None)
+        json.dump(led, open(self.ledger, "w"), indent=1)
         self.exp = os.path.join(self.tmp, "exp")
         self.records = os.path.join(self.exp, "records")
         os.makedirs(self.exp)
@@ -1000,6 +1006,32 @@ class LedgerDeclaration(_Helpers):
         open(os.path.join(self.records, "x.json"), "w").write("{}")
         with self.assertRaises(SystemExit) as cm:
             self.fs.cmd_declare()
+        self.assertIn("BEFORE any evaluation", str(cm.exception))
+
+    def test_a_different_declaration_needs_supersede_and_keeps_the_old_one(self):
+        """D-redeclare (2026-10-02): replacing a declaration is a recorded ledger event, never an edit."""
+        self._plan_file()
+        self.fs.cmd_declare()
+        data = json.load(open(self.ledger))
+        data["fund_search"]["plan_hash"] = "old-hash"
+        json.dump(data, open(self.ledger, "w"))
+        with self.assertRaises(SystemExit) as cm:
+            self.fs.cmd_declare()
+        self.assertIn("--supersede", str(cm.exception))
+        self.fs.cmd_declare(supersede="engine fix D3")
+        after = json.load(open(self.ledger))
+        old = after["fund_search_superseded"][-1]
+        self.assertEqual((old["plan_hash"], old["superseded_reason"]), ("old-hash", "engine fix D3"))
+        self.assertEqual(after["fund_search"]["supersedes_plan_hash"], "old-hash")
+        self.assertNotEqual(after["fund_search"]["plan_hash"], "old-hash")
+
+    def test_supersede_is_refused_once_records_exist(self):
+        self._plan_file()
+        self.fs.cmd_declare()
+        os.makedirs(self.records)
+        open(os.path.join(self.records, "x.json"), "w").write("{}")
+        with self.assertRaises(SystemExit) as cm:
+            self.fs.cmd_declare(supersede="too late")
         self.assertIn("BEFORE any evaluation", str(cm.exception))
 
     def test_declared_run_proceeds_only_past_the_gate(self):
@@ -1210,7 +1242,8 @@ class PropPassStatus(unittest.TestCase):
         fs = _fs()
         self.assertEqual(fs.prop_row_from_metric({"value": 0.8, "low_confidence": True,
                                                   "spread": {"prop_pass_probability": [0.6, 0.9]}}),
-                         {"value": 0.8, "low_confidence": True, "spread_min": 0.6})
+                         {"value": 0.8, "low_confidence": True, "spread_min": 0.6, "risk_per_trade": None,
+                          "horizon_unit": None, "observed_weekdays": None})
         r = fs.prop_row_from_metric({"unavailable": "no profit_target", "owner": "x"})
         self.assertIsNone(r["value"])
         self.assertEqual(r["reason"], "no profit_target")

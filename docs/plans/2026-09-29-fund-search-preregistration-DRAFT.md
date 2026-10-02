@@ -1,4 +1,4 @@
-# Fund-search pre-registration -- SEALED by `declare` on 2026-10-02 (plan_hash 275763cb81b0518a); drafted 2026-09-29
+# Fund-search pre-registration -- SEALED by `declare` on 2026-10-02 (plan_hash 275763cb81b0518a), SUPERSEDED before any evaluation by the re-declaration of section 0.7; drafted 2026-09-29
 
 **Status: SEALED at `declare` (2026-10-02): the ledger declaration pins the code, grids, cells file, tree hashes and this plan; no evaluation has been run before it. Any change after sealing is a ledger event and thresholds may only be tightened. (Text below was written as a draft; where it says 'owner to ack' the acknowledgement is recorded in docs/plans/2026-09-30-owner-decisions.md.)** This lists
 what must be pre-registered before Batch 3, exactly as the harness (scripts/fund_stats.py, scripts/fund-search.py)
@@ -150,6 +150,34 @@ months yields a handful of independent paths), so it is an execution-and-sanity 
 10. **5m-metals is, in effect, a screen for edges 2.6-3.3 x its prop-relevant edge.** Its e* is only 0.09-0.10 R, and every ordinal neighbour must clear its own floor bound, so at a true edge equal to e* the perturbation check fails in 98-100 % of the simulated replications (section 0.4). 5m-metals can therefore be nominated only at an edge of about 2.6-3.3 x e*; a zero there says little about edges near e*.
 11. **'prop_pass_probability >= 0.70' is model-estimated.** Everywhere this report prints it, read it as: model-estimated (day-block bootstrap of the development test trades, close-of-day loss checks, iid days), NOT the probability of passing a real challenge.
 12. **Prior and expectation (coordinator/red-team judgement, not a measurement).** The prior on the CFD development window is poor (docs/audits/2026-09-28-method-diagnosis.md; the 15m F-variant funnels), so a result of ZERO nominations is the most likely outcome (the red team's rough judgement: roughly 80-90 %); that would NOT mean these methods have no edge in general, only that no edge of roughly the e80 sizes (0.20-0.30 R on the 1m cells, 0.25-0.30 R on 5m-metals) was found under these costs and rules. The likeliest route to a spurious nomination is a 1m execution artefact, which the exposed-window replay and the paired-execution demo exist to catch.
+
+### 0.7 Re-declaration after the strategic diagnosis (owner, 2026-10-02, after the first `declare`, BEFORE any record)
+
+Source: docs/audits/2026-10-02-strategic-diagnosis.md (§0 owner decisions, §2 defects). The first declaration
+(plan_hash 275763cb81b0518a) was never run: `docs/experiments/fund-search/records/` did not exist. It is kept verbatim in
+`research-ledger.json` `fund_search_superseded` with the reason; the new declaration names it (`supersedes_plan_hash`).
+`declare --supersede REASON` refuses once any record exists, so no outcome of this search can have informed the change.
+
+1. **D3, an F item (engine correctness), `fx_fvg_formed_start`, ON in every cell (ADOPTED_F_KEYS).** The ICT "already
+   triggered" and fill scans start after the FVG's THIRD candle has closed. Before, when the MSS candle was the FVG's
+   middle candle (the canonical displacement FVG, knowledge/ict/core-a.md §3.3 R12), the third candle's own low/high --
+   the IOFED edge -- "touched" the level it defines and the setup was always refused (37 % of config-A setups on the
+   15m/1H/4H development diagnosis). The K-bar expiry stays anchored on the MSS. Live keeps v1 until the owner approves v2
+   (plan §1.6); the live runner has the same defect (`scripts/strategy-runner.py` `ict_live_setups`).
+2. **D4, the prop pass horizon counts WEEKDAYS.** The 120-day horizon was 120 days that HAD a trade (every resampled day
+   block was a trade day), which made sparse candidates look like they pass. The bootstrap now resamples the test span's
+   weekdays, the no-trade ones as empty days (`performance.metrics(observed_weekdays=)`, `fund_stats.test_weekdays`); FTMO's
+   four-day objective counts only days with a trade.
+3. **D5, the prop pass risk per trade is set by an outcome-free frequency rule** (`fund_stats.prop_risk`,
+   `PROP_RISK_DEFINITION`): the smallest of 0.25 / 0.5 / 1 % at which a reference edge of 0.10 R would reach the profit
+   target within the horizon's expected trade count; never above risk-config.json max_risk_pct. Counts only, no outcome.
+   Before, every cell was simulated at the 1 % ceiling, so at 1m frequencies the 5 % daily limit bound on noise.
+   Both D4 and D5 are in the plan core (`prop_policy`), hence a new plan_hash.
+4. **Prior reads.** `PRIOR_COUNTS["strategic_diagnosis_variant_reads"] = 8`: development-window outcome reads on 15m/1H/4H
+   XAUUSD/US500/DE40 config A during the diagnosis (diagnosis §7). Not folded into the family, disclosed like rows 1-9 of 0.1.
+5. **Not changed:** thresholds, family, cells, grids, folds, costs, the verdict conjunction. The power figures of 0.4 were
+   computed under the old prop definition; the re-run under D4/D5 is recorded in docs/audits/2026-10-02-e2e-power.md
+   section 10. D3 raises the ICT trade rate; the power model still uses the pre-D3 measured rates (conservative).
 
 ## A. Choices to pre-register (items 1-13)
 
