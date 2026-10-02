@@ -6,6 +6,7 @@ import datetime
 import importlib.util
 import os
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 spec = importlib.util.spec_from_file_location("fvg_forward", os.path.join(ROOT, "scripts", "research", "fvg_forward.py"))
@@ -58,7 +59,25 @@ class Forward(unittest.TestCase):
         self.assertEqual((r["status"], r["exit_time"]), ("closed", s2.T[19]))
 
     def test_every_watched_component_is_known(self):
-        self.assertEqual(set(FF.WATCH), {"E5_XAUUSD_24", "E5_US500_48", "H7_XAUUSD_eod"})
+        self.assertEqual(set(FF.WATCH), {"E5_XAUUSD_24", "E5_US500_48", "H7_XAUUSD_eod", "G9_XAUUSD_eod", "G9_XAGUSD_eod"})
+
+    def test_g9_signal_logs_a_stop_and_unknown_kinds_refuse(self):
+        import datetime as _dt
+        t0 = _dt.datetime(2026, 9, 1, tzinfo=UTC)
+        bs = []
+        for d in range(25):
+            n = 288 if d < 24 else 20
+            for b in range(n):
+                t = t0 + _dt.timedelta(days=d, minutes=5 * b)
+                px = 100.0 + (0.1 if b % 2 else -0.1) + (2.0 if d == 24 and b >= 10 else 0.0)   # a jump at bar 10 of the last day
+                bs.append({"time": t.strftime("%Y-%m-%dT%H:%M:%SZ"), "open": px, "high": px + 0.5, "low": px - 0.5, "close": px})
+        s = EC.Series("XAUUSD", bs, UTC, end="9999-12-31T00:00:00Z", sigma_every_day=True)
+        with mock.patch.object(FF, "FORWARD_START", "2000-01-01T00:00:00Z"):
+            rows = FF.signals(s, "XAUUSD", "eod", "G9", "G9_XAUUSD_eod")
+            self.assertEqual([(r["side"], r["signal_time"]) for r in rows][-1], (1, s.T[s.day_rows[s.sday[-1]][10]]))
+            self.assertLess(rows[-1]["stop"], rows[-1]["entry"])
+            with self.assertRaises(ValueError):
+                FF.signals(s, "XAUUSD", "eod", "ZZ")
 
     def test_accumulate_builds_a_store_and_warns_on_a_hole(self):
         import json, tempfile

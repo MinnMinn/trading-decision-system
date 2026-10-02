@@ -31,8 +31,20 @@ FORWARD_START = "2026-09-29T00:00:00Z"
 COMPONENTS = {"XAUUSD": 24, "US500": 48}          # the two F2 E5 survivors (symbol -> hold bars), kept for callers
 #: every component on forward watch: name -> (symbol, detector kind, hold). H7 joined after F3
 #: (docs/audits/2026-10-02-edge-f3.md, docs/plans/2026-10-02-edge-f3-preregistration.md: same forward rule as F2 §4).
-WATCH = {"E5_XAUUSD_24": ("XAUUSD", "E5", 24), "E5_US500_48": ("US500", "E5", 48), "H7_XAUUSD_eod": ("XAUUSD", "H7", "eod")}
+WATCH = {"E5_XAUUSD_24": ("XAUUSD", "E5", 24), "E5_US500_48": ("US500", "E5", 48), "H7_XAUUSD_eod": ("XAUUSD", "H7", "eod"),
+         # F4 survivors (docs/audits/2026-10-02-edge-f4.md): PAPER only -- not in the demo executor (no book improvement)
+         "G9_XAUUSD_eod": ("XAUUSD", "G9", "eod"), "G9_XAGUSD_eod": ("XAGUSD", "G9", "eod")}
 _F3 = None
+_F4 = None
+
+
+def _f4():
+    global _F4
+    if _F4 is None:
+        spec = importlib.util.spec_from_file_location("edge_f4", os.path.join(ROOT, "scripts", "research", "edge_f4.py"))
+        _F4 = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_F4)
+    return _F4
 
 
 def _f3():
@@ -133,7 +145,10 @@ def _vol_fresh(s, i):
 def signals(s, sym, h, kind="E5", name=None):
     """Every signal of component `kind` on `s` entering at/after FORWARD_START, as log rows (unresolved)."""
     out = []
-    evs = EC.ev_fvg(s) if kind == "E5" else _f3().ev_breakout_trend(s)
+    evs = (EC.ev_fvg(s) if kind == "E5" else _f3().ev_breakout_trend(s) if kind == "H7" else _f4().ev_vol_breakout(s)
+           if kind == "G9" else None)
+    if evs is None:
+        raise ValueError(f"unknown component kind {kind!r}")
     for ev in evs:
         e = ev["entry_i"]
         if e >= len(s.T) or s.T[e] < FORWARD_START:
