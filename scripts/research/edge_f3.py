@@ -117,10 +117,19 @@ def ev_fvg_high_vol(s):
 
 
 def ev_breakout_trend(s):
+    import bisect
     days = daily(s)
     mom = {}
     for k in range(MOM_DAYS, len(days)):
         mom[days[k][0]] = days[k - 1][3] / days[k - 1 - MOM_DAYS][3] - 1.0 if k - 1 - MOM_DAYS >= 0 else None
+    if getattr(s, "_sigma_every_day", False):
+        # live / paper (point-in-time): the momentum of ANY day from the previous dense days -- the current day is never
+        # complete, so it is never in `days`. The research default above keys dense days only (as pre-registered).
+        keys = [x[0] for x in days]
+        for d in s.day_rows:
+            k = bisect.bisect_left(keys, d)
+            if k - 1 - MOM_DAYS >= 0:
+                mom[d] = days[k - 1][3] / days[k - 1 - MOM_DAYS][3] - 1.0
     out = []
     for ev in EC.ev_prev_day(s, "accept"):
         m = mom.get(s.sday[ev["i"]])

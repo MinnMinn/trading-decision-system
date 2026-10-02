@@ -160,3 +160,10 @@ XAGUSD. Next decision for the owner: a follow-up family (gold + cheapest indices
 once on the exposed window 2024-03..2026-09: 2 of 45 pass -- the displacement-FVG retrace on XAUUSD (2 h, +1.9 bp net) and
 US500 (4 h, +0.6 bp net). They go to the forward stage (a) (runbook in docs/audits/2026-10-02-edge-followup-exposed.md);
 it needs new FTMO-Demo exports from 2026-09-29 on.
+
+**Update 2026-10-02 (F3 + book):** a broader pre-registered family (docs/plans/2026-10-02-edge-f3-preregistration.md) found one
+component that survived discovery, confirmation AND the exposed window: H7, gold breakout of the previous day's range with
+the 20-day momentum, held to the end of the day (+9 to +14 bp net per trade; docs/audits/2026-10-02-edge-f3.md). Book
+design (docs/audits/2026-10-02-book-sim.md): H7 gold at 1 % passes FTMO Phase 1 (no time limit) from every start year
+2004-2024 in-sample, ~0 % failures, median ~19 months; with the FVG components (2021-26) median ~6 months. Forward watch
+now covers three components (`scripts/research/fvg_forward.py WATCH`); the demo executor trades all three when enabled.

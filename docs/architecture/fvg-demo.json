@@ -4,6 +4,8 @@
  "risk_pct": 0.01,
  "_risk_pct_note": "per trade, of the account balance; clamped to docs/architecture/risk-config.json max_risk_pct (trading_env.MAX_RISK_PCT). 1 % is the design point of the book replay.",
  "components": {"XAUUSD": 24, "US500": 48},
+ "h7_symbols": ["XAUUSD"],
+ "_h7_note": "F3 survivor H7 (docs/audits/2026-10-02-edge-f3.md): market entry at the next bar after the breakout close, closed before the rollover.",
  "bridge_subdir": "bridge",
  "max_bar_age_minutes": 15,
  "close_before_rollover_minutes": 10,

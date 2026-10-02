@@ -191,8 +191,55 @@ def tick(now=None, bridge=None, cfg=None, state_path=STATE, log_path=LOG, live_d
             st["pending"].append(p)
             st["placed_gaps"].append(gap_id)
             log("limit_placed", log_path, **p)
+    for sym in cfg.get("h7_symbols", []):
+        _h7(st, sym, now, cfg, bridge, balance, log_path, live_dir, event_blocked)
     _write_state(st, state_path)
     return "ok"
+
+
+def _h7(st, sym, now, cfg, bridge, balance, log_path, live_dir, event_blocked):
+    """F3 H7 (breakout of the previous day's range with the 20-day momentum): a MARKET entry when the signal bar is the
+    LAST closed bar (a later tick does not chase it), stop 2 sigma x sqrt(bars to the rollover), closed before the rollover."""
+    s = closed_series(sym, now, live_dir)
+    if not s.T or now - (_parse(s.T[-1]) + BAR) > datetime.timedelta(minutes=cfg["max_bar_age_minutes"]):
+        return
+    for ev in FF._f3().ev_breakout_trend(s):
+        if ev["i"] != len(s.T) - 1:
+            continue
+        side = ev["side"]
+        key = f"H7|{sym}|{s.sday[ev['i']].isoformat()}|{side}"
+        if key in st["done_keys"]:
+            continue
+        sig = s.sigma(ev["i"])
+        if not sig or not FF._vol_fresh(s, ev["i"]):
+            log("refused", log_path, symbol=sym, component="H7", reason="volatility history stale or missing")
+            continue
+        blocked, why = event_blocked(sym, now)
+        if blocked:
+            log("blocked", log_path, symbol=sym, component="H7", reason=why)
+            continue
+        day_end = server_day_end(now)
+        nb = max(1, int((day_end - now).total_seconds() // 300))
+        ref = s.C[ev["i"]]
+        dist = 2.0 * sig * math.sqrt(nb) * ref
+        info = bridge("symbol", sym)
+        d = int(info.get("digits", 2))
+        stop, tp = ref - side * dist, ref + side * cfg["tp_stop_multiple"] * dist
+        lots = lots_for(info, balance, cfg["risk_pct"], ref, stop)
+        if lots <= 0 or lots < float(info.get("volume_min", 0) or 0):
+            log("skip", log_path, symbol=sym, component="H7", reason=f"lots {lots} below volume_min")
+            continue
+        r = bridge("market", sym, "buy" if side > 0 else "sell", f"{lots:g}", f"{stop:.{d}f}", f"{tp:.{d}f}", f"h7-{sym}")
+        st["done_keys"].append(key)
+        if not r.get("ok"):
+            log("rejected", log_path, symbol=sym, component="H7", response=r)
+            continue
+        pos = {"key": key, "component": "H7", "symbol": sym, "side": side, "position_ticket": r.get("ticket"),
+               "signal_close": ref, "fill_price": r.get("price"), "fill_slippage": (r.get("price", ref) - ref) * side,
+               "stop": stop, "lots": lots, "filled_seen_at": _iso(now),
+               "exit_due": _iso(day_end - datetime.timedelta(minutes=cfg["close_before_rollover_minutes"]))}
+        st["open"].append(pos)
+        log("filled", log_path, **pos)
 
 
 def _manage(st, now, cfg, bridge, log_path):

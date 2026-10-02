@@ -28,7 +28,29 @@ EC = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(EC)
 
 FORWARD_START = "2026-09-29T00:00:00Z"
-COMPONENTS = {"XAUUSD": 24, "US500": 48}
+COMPONENTS = {"XAUUSD": 24, "US500": 48}          # the two F2 E5 survivors (symbol -> hold bars), kept for callers
+#: every component on forward watch: name -> (symbol, detector kind, hold). H7 joined after F3
+#: (docs/audits/2026-10-02-edge-f3.md, docs/plans/2026-10-02-edge-f3-preregistration.md: same forward rule as F2 §4).
+WATCH = {"E5_XAUUSD_24": ("XAUUSD", "E5", 24), "E5_US500_48": ("US500", "E5", 48), "H7_XAUUSD_eod": ("XAUUSD", "H7", "eod")}
+_F3 = None
+
+
+def _f3():
+    global _F3
+    if _F3 is None:
+        spec = importlib.util.spec_from_file_location("edge_f3", os.path.join(ROOT, "scripts", "research", "edge_f3.py"))
+        _F3 = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_F3)
+    return _F3
+
+
+def bars_to_day_end(s, e):
+    """Bars from entry bar e to the last bar before the server rollover, counted on the clock (live: the day is not over)."""
+    import real_costs as RC
+    z = RC.server_zone(EC.PROVIDER)[1]
+    lt = s.dt[e].astimezone(z)
+    end = datetime.datetime.combine(lt.date() + datetime.timedelta(days=1), datetime.time(0), tzinfo=z)
+    return max(1, int((end - s.dt[e]).total_seconds() // 300))
 LIVE_DIR = os.path.join(ROOT, "data", "live", "mt5-bridge")
 LOG = os.path.join(ROOT, "data", "live", "forward", "fvg-paper.jsonl")
 STAGE_A_MIN_EVENTS = 100
@@ -60,32 +82,41 @@ def _vol_fresh(s, i):
     return len(recent) >= EC.VOL_DAYS
 
 
-def signals(s, sym, h):
-    """Every E5 signal of `s` entering at/after FORWARD_START, as log rows (unresolved)."""
+def signals(s, sym, h, kind="E5", name=None):
+    """Every signal of component `kind` on `s` entering at/after FORWARD_START, as log rows (unresolved)."""
     out = []
-    for ev in EC.ev_fvg(s):
+    evs = EC.ev_fvg(s) if kind == "E5" else _f3().ev_breakout_trend(s)
+    for ev in evs:
         e = ev["entry_i"]
-        if s.T[e] < FORWARD_START:
+        if e >= len(s.T) or s.T[e] < FORWARD_START:
             continue
-        row = {"symbol": sym, "h": h, "side": ev["side"], "signal_time": s.T[ev["i"]], "entry_time": s.T[e],
-               "entry": ev["entry_px"], "far_edge": ev["far"], "status": "open"}
+        px = ev["entry_px"] if ev.get("entry_px") is not None else s.O[e]
+        row = {"component": name or f"E5_{sym}_{h}", "symbol": sym, "h": h, "side": ev["side"], "signal_time": s.T[ev["i"]],
+               "entry_time": s.T[e], "entry": px, "status": "open"}
+        if "far" in ev:
+            row["far_edge"] = ev["far"]
         sig = s.sigma(ev["i"])
         if not sig or not _vol_fresh(s, ev["i"]):
             row.update(status="refused", reason="volatility history stale or missing (re-export the 5m history)")
         else:
-            dist = 2.0 * sig * math.sqrt(h) * ev["entry_px"]
-            row.update(stop=ev["entry_px"] - ev["side"] * dist, stop_distance=dist)
+            nb = bars_to_day_end(s, e) if h == "eod" else h
+            dist = 2.0 * sig * math.sqrt(nb) * px
+            row.update(stop=px - ev["side"] * dist, stop_distance=dist)
         out.append(row)
     return out
 
 
+def _series(sym, live_dir):
+    return EC.Series(sym, merged_candles(sym, live_dir), _zone(), end="9999-12-31T00:00:00Z", sigma_every_day=True)
+
+
 def cmd_scan(live_dir=LIVE_DIR, log=LOG):
-    have = {(r["symbol"], r["entry_time"], r["side"]) for r in _read_log(log)}
-    new = []
-    for sym, h in COMPONENTS.items():
-        s = EC.Series(sym, merged_candles(sym, live_dir), _zone(), end="9999-12-31T00:00:00Z", sigma_every_day=True)
-        for r in signals(s, sym, h):
-            if (sym, r["entry_time"], r["side"]) not in have:
+    have = {(r.get("component", f"E5_{r['symbol']}_{r['h']}"), r["entry_time"], r["side"]) for r in _read_log(log)}
+    new, cache = [], {}
+    for name, (sym, kind, h) in WATCH.items():
+        s = cache.setdefault(sym, _series(sym, live_dir))
+        for r in signals(s, sym, h, kind, name):
+            if (name, r["entry_time"], r["side"]) not in have:
                 new.append(r)
     os.makedirs(os.path.dirname(log), exist_ok=True)
     with open(log, "a") as fh:
@@ -101,7 +132,13 @@ def resolve_row(s, r, costs):
     e = idx.get(r["entry_time"])
     if e is None or r["status"] != "open":
         return r
-    x = e + r["h"] - 1
+    if r["h"] == "eod":
+        later = [j for j in range(e, len(s.C)) if s.sday[j] != s.sday[e]]
+        if not later:
+            return r                                   # the server day is not over yet
+        x = later[0] - 1
+    else:
+        x = e + r["h"] - 1
     if x >= len(s.C):
         return r
     if s.sday[x] != s.sday[e]:
@@ -121,8 +158,9 @@ def resolve_row(s, r, costs):
 
 def cmd_resolve(live_dir=LIVE_DIR, log=LOG):
     rows = _read_log(log)
-    series = {sym: EC.Series(sym, merged_candles(sym, live_dir), _zone(), end="9999-12-31T00:00:00Z", sigma_every_day=True) for sym in COMPONENTS}
-    costs = {sym: EC.Costs(sym) for sym in COMPONENTS}
+    syms = {v[0] for v in WATCH.values()}
+    series = {sym: _series(sym, live_dir) for sym in syms}
+    costs = {sym: EC.Costs(sym) for sym in syms}
     out = [resolve_row(series[r["symbol"]], r, costs[r["symbol"]]) for r in rows]
     with open(log, "w") as fh:
         for r in out:
@@ -134,8 +172,8 @@ def cmd_status(log=LOG):
     rows = _read_log(log)
     today = datetime.datetime.now(datetime.timezone.utc)
     started = datetime.datetime.fromisoformat(FORWARD_START.replace("Z", "+00:00"))
-    for sym in COMPONENTS:
-        mine = [r for r in rows if r["symbol"] == sym]
+    for sym in WATCH:
+        mine = [r for r in rows if r.get("component", f"E5_{r['symbol']}_{r['h']}") == sym]
         closed = [r for r in mine if r["status"] == "closed"]
         due = len(closed) >= STAGE_A_MIN_EVENTS or (today - started).days >= STAGE_A_MAX_DAYS
         mean = sum(r["net_bp"] for r in closed) / len(closed) if closed else None

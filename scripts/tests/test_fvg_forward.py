@@ -46,6 +46,20 @@ class Forward(unittest.TestCase):
                "stop_distance": 2.0, "status": "open"}
         self.assertEqual(FF.resolve_row(s, row, Costs0()), row)
 
+    def test_eod_rows_wait_for_the_day_to_end(self):
+        bars1 = bars("2026-10-05T20:00:00", [(100.0, 100.5, 99.5, 100.0)] * 20)          # 20:00-21:35 UTC, one server day
+        s = EC.Series("XAUUSD", bars1, UTC, end="9999-12-31T00:00:00Z")
+        row = {"symbol": "XAUUSD", "h": "eod", "side": 1, "entry_time": s.T[2], "entry": 100.0, "stop": 98.0,
+               "stop_distance": 2.0, "status": "open"}
+        self.assertEqual(FF.resolve_row(s, row, Costs0()), row)                         # no later-day bar yet
+        s2 = EC.Series("XAUUSD", bars1 + bars("2026-10-07T00:00:00", [(101.0, 101.5, 100.5, 101.0)] * 3), UTC,
+                       end="9999-12-31T00:00:00Z")
+        r = FF.resolve_row(s2, row, Costs0())
+        self.assertEqual((r["status"], r["exit_time"]), ("closed", s2.T[19]))
+
+    def test_every_watched_component_is_known(self):
+        self.assertEqual(set(FF.WATCH), {"E5_XAUUSD_24", "E5_US500_48", "H7_XAUUSD_eod"})
+
     def test_places_no_order(self):
         src = open(os.path.join(ROOT, "scripts", "research", "fvg_forward.py")).read()
         for word in ("order_send", "mcp", "execute(", "strategy-runner"):

@@ -45,6 +45,8 @@ class FakeBridge:
             return {"ok": True}
         if cmd == "position-status":
             return {"state": "open"}
+        if cmd == "market":
+            return {"ok": True, "ticket": 555, "price": 0.0 + float(a[4]) * 0 + 1.0}
         if cmd == "close":
             return {"ok": True, "price": 1.0}
         raise AssertionError(a)
@@ -127,6 +129,41 @@ class Gates(unittest.TestCase):
         FD.tick(self.now + datetime.timedelta(hours=3), b, CFG, **self.paths, event_blocked=lambda s, t: (False, ""))
         self.assertIn(("close", 777), b.calls)
         self.assertEqual(json.load(open(self.paths["state_path"]))["open"], [])
+
+
+def series_with_h7_breakout():
+    """22 dense rising days, then a partial day whose last closed bar closes above the previous day's high."""
+    t0 = datetime.datetime(2026, 8, 3, tzinfo=UTC)
+    bars = []
+    for d in range(23):
+        base = 2000.0 + 5.0 * min(d, 21)          # the partial last day opens inside the previous day's range
+        for b in range(288 if d < 22 else 30):
+            t = t0 + datetime.timedelta(days=d, minutes=5 * b)
+            px = base + (0.3 if b % 2 else -0.3)
+            bars.append({"time": t.strftime("%Y-%m-%dT%H:%M:%SZ"), "open": px, "high": px + 0.5, "low": px - 0.5, "close": px})
+    prev_high = 2000.0 + 5.0 * 21 + 0.8
+    t = datetime.datetime.fromisoformat(bars[-1]["time"].replace("Z", "+00:00")) + datetime.timedelta(minutes=5)
+    bars.append({"time": t.strftime("%Y-%m-%dT%H:%M:%SZ"), "open": prev_high - 1, "high": prev_high + 3, "low": prev_high - 1,
+                 "close": prev_high + 2})
+    s = EC.Series("XAUUSD", bars, UTC, end="9999-12-31T00:00:00Z", sigma_every_day=True)
+    return s, t + datetime.timedelta(minutes=6)
+
+
+class H7(unittest.TestCase):
+    def test_market_entry_on_the_breakout_bar_once(self):
+        tmp = tempfile.mkdtemp()
+        paths = dict(state_path=os.path.join(tmp, "s.json"), log_path=os.path.join(tmp, "l.jsonl"))
+        s, now = series_with_h7_breakout()
+        cfg = dict(CFG, components={}, h7_symbols=["XAUUSD"])
+        with mock.patch.object(FD, "closed_series", lambda sym, now, live_dir=None: s), \
+                mock.patch.object(FD.FF, "_zone", lambda: UTC):
+            b = FakeBridge()
+            FD.tick(now, b, cfg, **paths, event_blocked=lambda x, t: (False, ""))
+            FD.tick(now, b, cfg, **paths, event_blocked=lambda x, t: (False, ""))
+        mk = [c for c in b.calls if c[0] == "market"]
+        self.assertEqual(len(mk), 1)
+        self.assertEqual(mk[0][1:3], ("XAUUSD", "buy"))
+        self.assertLess(float(mk[0][4]), s.C[-1])          # the stop is below the entry reference
 
 
 if __name__ == "__main__":
