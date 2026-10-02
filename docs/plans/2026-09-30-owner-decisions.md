@@ -396,3 +396,15 @@ Full record: `docs/audits/2026-10-02-strategic-diagnosis.md` (read §0 and §6 f
 **Applied 2026-10-02 (same session):** D3/D4/D5 implemented and tested; power re-run (`docs/audits/2026-10-02-e2e-power.md`
 §10); re-declared with `declare --supersede` (plan_hash 275763cb81b0518a -> 0ec4e27e15fa7df9, no record existed; the old
 declaration is kept in `research-ledger.json` `fund_search_superseded`). Pre-registration section 0.7 records the change.
+
+## 2026-10-02 (later): forward stage, book design and demo orders (owner, in chat; binding)
+
+- Historical data cannot confirm the F2 survivors (every year was read to select them); confirmation stays forward
+  (docs/plans/2026-10-02-edge-followup-preregistration.md §4). The full history is used for DESIGN only
+  (docs/audits/2026-10-02-fvg-book-sim.md).
+- **Demo order wiring APPROVED** ("Đồng ý duyệt nối demo order"): `scripts/fvg_demo.py`, DEMO only, `enabled=false` until the
+  owner switches it on (docs/architecture/fvg-demo.json). Real money is out of scope.
+- A broader pre-registered hypothesis family (daily horizons, mean reversion after large moves, volatility-regime filter) is
+  approved as the next research step.
+- Note for the fund-search: research scripts added after its re-declaration changed the `scripts/` tree pin, so
+  `fund-search.py run` now refuses on drift; running it needs a re-declaration (no record exists) or `--allow-drift`.

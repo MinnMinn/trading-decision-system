@@ -57,5 +57,28 @@ components with the `sigma2` stop and time exit, from the stored history merged 
 no order. Run `scan` and `resolve` a few times a day (or from the existing automation), re-export the 5m history at least every
 3 weeks (a signal with stale volatility history is logged as REFUSED). `status` says when stage (a) is due (100 closed events
 or 9 months); the stage-(a) verdict itself is `edge_followup.py run --stage forward --since 2026-09-29T00:00:00Z`.
-Demo ORDERS (the paired execution comparison) are not wired: that is a change to the execution path (CLAUDE.md §51, the
-pilot is OFF by owner decision) and needs its own approval.
+## 6. Forward DEMO executor (owner approval 2026-10-02: "Đồng ý duyệt nối demo order")
+
+`scripts/fvg_demo.py tick | status`, configured by `docs/architecture/fvg-demo.json` (**enabled=false** until the owner flips it on
+the machine that runs MT5). Per tick (every 1-5 minutes): a displacement FVG whose third bar has just closed (shared definition
+`edge_census.fvg_gap_at`, up to 30 min late if untouched) -> a LIMIT at the near edge through the existing OrderBridge
+(`scripts/mt5-order-bridge.py` -> `integrations/mt5/OrderBridge.mq5`), stop 2 sigma attached at placement, a far TP because the
+EA requires one; the first fill of a (symbol, server day, side) cancels its siblings; a pending order is cancelled when its
+24-bar touch window or the server day ends; a position is closed after h bars or 10 min before the rollover. Logged per trade
+in `data/live/forward/fvg-demo.jsonl` with the intended edge price, so fill slippage and exit price are compared with the paper
+log of the same signal (`fvg-paper.jsonl`).
+
+Gates, all fail closed and tested with a fake bridge (`scripts/tests/test_fvg_demo.py`): disabled -> no call at all; the bridge
+must report a DEMO account (and the EA refuses non-demo itself); execution allowlist (bridge + EA); risk clamped to
+max_risk_pct; no new entry inside an event-risk window or with an unavailable calendar (`event_risk.blocked`); no new entry on
+bars older than 15 min; open positions are only ever closed, never added to.
+
+Point-in-time note found while wiring it: the research `Series` gives a day a sigma only if that day turns out DENSE, a
+same-day completeness selection that drops events on days which later prove sparse (holidays, short sessions). The census
+and F2 keep it as pre-registered (their outputs were re-run and are byte-identical); the live/paper paths use
+`sigma_every_day=True` (every day gets the previous 20 dense days' sigma), which is point-in-time.
+
+Runbook (MT5 machine): attach OrderBridge (demo account) and ExportOHLCV for XAUUSD and US500 (5m); schedule
+`python3 scripts/mt5_time.py sync`, `python3 scripts/fvg_demo.py tick` and `python3 scripts/research/fvg_forward.py scan` +
+`resolve` every 5 minutes (launchd on macOS, Task Scheduler on Windows); re-export the 5m history every <= 3 weeks; set
+`enabled: true` in docs/architecture/fvg-demo.json. `fvg_demo.py status` shows fills and the mean slippage.

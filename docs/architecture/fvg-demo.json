@@ -1,0 +1,12 @@
+{
+ "_comment": "Forward DEMO executor for the two F2 survivors (scripts/fvg_demo.py; design docs/audits/2026-10-02-fvg-book-sim.md; owner approval 2026-10-02 'Đồng ý duyệt nối demo order'). DEMO ONLY: the executor refuses unless the MT5 bridge reports a demo account, and the OrderBridge EA refuses non-demo accounts itself (InpDemoOnly). OFF until the owner sets enabled=true on the machine that runs MT5.",
+ "enabled": false,
+ "risk_pct": 0.01,
+ "_risk_pct_note": "per trade, of the account balance; clamped to docs/architecture/risk-config.json max_risk_pct (trading_env.MAX_RISK_PCT). 1 % is the design point of the book replay.",
+ "components": {"XAUUSD": 24, "US500": 48},
+ "bridge_subdir": "bridge",
+ "max_bar_age_minutes": 15,
+ "close_before_rollover_minutes": 10,
+ "tp_stop_multiple": 5,
+ "_tp_note": "the EA requires a TP on every order; the design has none (time exit), so TP sits 5 stop-distances away and is not expected to trade."
+}

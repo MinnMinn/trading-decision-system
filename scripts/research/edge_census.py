@@ -90,7 +90,7 @@ FAMILY = ([(e, g, h) for e in ("E1_prev_day_sweep_reclaim", "E2_prev_day_accepta
 class Series:
     """One symbol's dense development 5m bars with their server date and UTC/local helpers."""
 
-    def __init__(self, sym, candles, zone, end=DEV_CUTOFF):
+    def __init__(self, sym, candles, zone, end=DEV_CUTOFF, sigma_every_day=False):
         cut = end            # the follow-up (edge_followup.py) reads past the development cutoff; the census never does
         c = [b for b in candles if b["time"] < cut]
         self.sym = sym
@@ -118,6 +118,11 @@ class Series:
         self.day_rows = collections.OrderedDict()
         for i, d in enumerate(self.sday):
             self.day_rows.setdefault(d, []).append(i)
+        # sigma_every_day=False (the census / F2 as pre-registered): a sigma exists only on days that turn out DENSE, which
+        # drops events on days that later prove sparse -- a same-day completeness selection (disclosed in
+        # docs/audits/2026-10-02-fvg-book-sim.md). True (live: the current day is never complete): every day gets the sigma
+        # of the previous VOL_DAYS dense days, which is point-in-time.
+        self._sigma_every_day = sigma_every_day
         self._vol = self._vol_by_day()
 
     def period(self, i):
@@ -132,10 +137,11 @@ class Series:
             if rs:
                 ms[d] = sum(r * r for r in rs) / len(rs)
         out, hist = {}, []
-        for d in self.dense_days:
+        dset = set(self.dense_days)
+        for d in (list(self.day_rows) if self._sigma_every_day else self.dense_days):
             if len(hist) >= VOL_DAYS:
                 out[d] = math.sqrt(sum(hist[-VOL_DAYS:]) / VOL_DAYS)
-            if d in ms:
+            if d in ms and d in dset:
                 hist.append(ms[d])
         return out
 
@@ -236,33 +242,41 @@ def _median_range(s, i, n):
     return statistics.median(rs) if rs else None
 
 
+def fvg_gap_at(s, m):
+    """(side, edge, far) when bars m-1, m, m+1 form a displacement FVG with middle bar m (known at the CLOSE of m+1), else
+    None. The ONE definition the census, the follow-up, the paper log and the demo executor share."""
+    if m < 1 or m + 1 >= len(s.C) or not s.prev_dense[m] or s.sday[m + 1] != s.sday[m]:
+        return None
+    rng = s.H[m] - s.L[m]
+    if rng <= 0 or abs(s.C[m] - s.O[m]) < DISPLACEMENT_BODY * rng:
+        return None
+    med = _median_range(s, m, 20)
+    if not med or rng < DISPLACEMENT_RANGE_X * med:
+        return None
+    if s.L[m + 1] > s.H[m - 1] and s.C[m] > s.O[m]:
+        return +1, s.L[m + 1], s.H[m - 1]
+    if s.H[m + 1] < s.L[m - 1] and s.C[m] < s.O[m]:
+        return -1, s.H[m + 1], s.L[m - 1]
+    return None
+
+
 def ev_fvg(s):
     """Displacement FVG at middle bar m (gap known at the close of m+1); the limit rests from bar m+2; first touch of the
     near edge within FVG_TOUCH_BARS fills AT the edge; the event's entry bar is the touch bar."""
     out = []
     n = len(s.C)
     for m in range(1, n - 2):
-        if not s.prev_dense[m] or s.sday[m + 1] != s.sday[m]:
+        g = fvg_gap_at(s, m)
+        if g is None:
             continue
-        rng = s.H[m] - s.L[m]
-        if rng <= 0 or abs(s.C[m] - s.O[m]) < DISPLACEMENT_BODY * rng:
-            continue
-        med = _median_range(s, m, 20)
-        if not med or rng < DISPLACEMENT_RANGE_X * med:
-            continue
-        if s.L[m + 1] > s.H[m - 1] and s.C[m] > s.O[m]:
-            side, edge = +1, s.L[m + 1]
-        elif s.H[m + 1] < s.L[m - 1] and s.C[m] < s.O[m]:
-            side, edge = -1, s.H[m + 1]
-        else:
-            continue
+        side, edge, far = g
         for j in range(m + 2, min(n, m + 2 + FVG_TOUCH_BARS)):
             if s.sday[j] != s.sday[m]:
                 break
             if (side > 0 and s.L[j] <= edge) or (side < 0 and s.H[j] >= edge):
                 o = s.O[j]                              # a bar opening beyond the edge fills at its open (no price improvement)
                 px = min(edge, o) if side > 0 else max(edge, o)
-                out.append(dict(_ev(s, m + 1, side, entry_i=j, entry_px=px), far=s.H[m - 1] if side > 0 else s.L[m - 1]))   # far edge: report-only key
+                out.append(dict(_ev(s, m + 1, side, entry_i=j, entry_px=px), far=far))   # far edge: report-only key
                 break
     return _first_per_day(out)
 

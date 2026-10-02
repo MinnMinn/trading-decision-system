@@ -83,7 +83,7 @@ def cmd_scan(live_dir=LIVE_DIR, log=LOG):
     have = {(r["symbol"], r["entry_time"], r["side"]) for r in _read_log(log)}
     new = []
     for sym, h in COMPONENTS.items():
-        s = EC.Series(sym, merged_candles(sym, live_dir), _zone(), end="9999-12-31T00:00:00Z")
+        s = EC.Series(sym, merged_candles(sym, live_dir), _zone(), end="9999-12-31T00:00:00Z", sigma_every_day=True)
         for r in signals(s, sym, h):
             if (sym, r["entry_time"], r["side"]) not in have:
                 new.append(r)
@@ -121,7 +121,7 @@ def resolve_row(s, r, costs):
 
 def cmd_resolve(live_dir=LIVE_DIR, log=LOG):
     rows = _read_log(log)
-    series = {sym: EC.Series(sym, merged_candles(sym, live_dir), _zone(), end="9999-12-31T00:00:00Z") for sym in COMPONENTS}
+    series = {sym: EC.Series(sym, merged_candles(sym, live_dir), _zone(), end="9999-12-31T00:00:00Z", sigma_every_day=True) for sym in COMPONENTS}
     costs = {sym: EC.Costs(sym) for sym in COMPONENTS}
     out = [resolve_row(series[r["symbol"]], r, costs[r["symbol"]]) for r in rows]
     with open(log, "w") as fh:
