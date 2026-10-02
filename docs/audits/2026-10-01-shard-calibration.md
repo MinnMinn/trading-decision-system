@@ -610,3 +610,98 @@ concurrent jobs (NOT verified for this repository) the wall time is bounded belo
 Where the hours go: 1m-metals is 252 of 289 shards and 970 of 1031 hours (ICT 385 h, Wyckoff 585 h).
 Not measured: other hosted-runner instances (speed varies by host), 1m scans on a runner (the 1m series load only), jobs
 under concurrent load, GitHub queueing.
+
+## 10. Recalibration to the sealed perturbation definition and the final starts (2026-10-02, branch `b25-shard-recal`)
+
+Branch from `windows-migration` 06d1a6f, BEFORE `declare`. **Counts, seconds and bytes only: no R, expectancy or performance figure was read, printed or stored.**
+Nothing was declared, evaluated, pushed or merged. Statistics, plan core, grids and cells file untouched: `plan --dry-run` prints `plan_hash 275763cb81b0518a`
+before and after (the SHARD_MODEL constants are not in the plan core). Pinned file changed: `scripts/fund-search.py` (in `FINGERPRINT_FILES`; constants and `cell_bars` only),
+so `declare` must run from this code or later. Raw rows: `docs/audits/2026-10-02-shard-recalibration-data/res-bars.jsonl`, `res-wave2.jsonl`.
+Tooling: `scripts/research/shard_calibration.py` gained the job `bars_span` and a `workers` / `timeout_s` option on `wave2` (a job past `timeout_s` is recorded NOT MEASURED; none was).
+
+### 10.1 Why the model had to change
+
+1. **Wave 2 is a different list.** Section 3.7 was measured under the old definition (every item +/- one step). Wave 2 is now each fold's combined chosen set + the ORDINAL
+   one-component neighbours + the categorical flips (`wave2_values` = nested walk-forward, `perturbation_trade_sets`, `categorical_flip_sets` on the held wave-1 trades).
+2. **The folds changed:** 1m-indices starts 2020-03-01 (2 folds), 5m-metals 2015-01-07 (7 folds), 1m-metals unchanged (9 folds).
+3. **`cell_bars` UNDER-counted the later starts.** It scaled the whole-span bar count by the share of the calendar span kept. The 1m index series are sparse before late 2021, so
+   almost all their bars are after 2020-03-01, and the scan also reads the 14-day warm-up and the method's lead bars. Measured with the harness's own `dev_start` cut
+   (`BtEngine`, ICT and Wyckoff, the larger kept; they differ by < 0.03 %):
+
+| cell | symbol | whole-span DEV_BARS | time-scaled (old layout) | measured (cut + warm-up) |
+|---|---|---:|---:|---:|
+| 1m-indices (2020-03-01) | US500 | 852,695 | 552,680 | 852,695 |
+| | US30 | 1,729,779 | 1,367,919 | 1,418,201 |
+| | USTEC | 867,342 | 562,173 | 867,342 |
+| | DE40 | 747,188 | 484,089 | 747,188 |
+| | FRA40 | 801,548 | 519,528 | 801,548 |
+| 5m-metals (2015-01-07) | XAUUSD | 1,316,783 | 610,784 | 645,119 |
+| | XAGUSD | 1,054,081 | 629,758 | 644,621 |
+| | XPTUSD | 494,217 | 494,204 | 494,217 |
+| | XPDUSD | 480,765 | 480,753 | 480,765 |
+
+(the scaled figures are recomputed from the old formula for the comparison; US500/USTEC/DE40/FRA40 are whole-span because every dense bar is after 2020-03-01 and the lead bars reach back into the sparse years.)
+The measured counts are now the `SPAN_BARS` table of `scripts/fund-search.py` (key: timeframe, symbol, declared start); `cell_bars` uses it and keeps the scaled estimate only as a fallback for a declared start with no row
+(a test requires a row for every declared later start of the real cells file). 1m-metals (no declared start) keeps `DEV_BARS`.
+
+### 10.2 Wave 2 measured under the new definition (real folds, harness functions, counts only)
+
+Cells built with the harness's own engine on the cell's DECLARED start (so the folds are the real folds), wave 1 scanned (4 workers), then `wave2_values`
+(the real selection on the held wave-1 trades). Only the number of requested sets and their detection groups were kept. 1m-metals (9 folds) was NOT MEASURED: a 1m XAUUSD wave 1 over
+its real span is ~4 M bars (hours per method); its 9 folds are an extrapolation of the affine fit below.
+
+| method | cell shape | folds | symbols | wave-1 sets/groups | wave-2 sets (union over folds) | per fold alone | wave-2 groups | groups per fold alone | W6=600 groups per fold alone | wave-1 scan s (4 workers, reference machine) |
+|---|---|---:|---|---|---:|---|---:|---|---|---:|
+| ict | 5m-metals | 7 | XAUUSD, XPTUSD | 27/2 | 69 | [16,16,15,14,14,14,14] | 2 | [2 x 7] | - | 1169 |
+| wyckoff | 5m-metals | 7 | XAUUSD, XPTUSD | 14/9 | 50 | [11,11,11,11,10,10,10] | 13 | [6,6,6,6,5,5,5] | [5,5,5,5,4,4,4] | 683 |
+| ict | 1m-indices | 2 | US30 | 27/2 | 29 | [15,14] | 2 | [2,2] | - | 886 |
+| wyckoff | 1m-indices | 2 | US30 | 14/9 | 16 | [6,10] | 7 | [2,5] | [1,1] | 1344 |
+
+(1m-indices measured on one symbol, US30 - the only 1m index with dense data in fold 1 - not the five symbols the cell pools; 5m-metals on two of its four. The pooled selection differs with more symbols;
+the margin below is the allowance, and the tripwire (`wave2_size_warning`, > 10 %) is the safeguard at run time.)
+
+| quantity | old (section 3.7, old definition, 8 folds) | new (this section) |
+|---|---|---|
+| ICT new sets per fold | 11.25 | 9.86 at 7 folds, 14.5 at 2 folds (pooled 10.9); alone 14.0-16 |
+| Wyckoff new sets per fold | 7.75 | 7.14 at 7 folds, 8.0 at 2 folds (pooled 7.3); alone 10.6 at 7 |
+| Wyckoff groups per set (folds alone) | 0.51 | 0.514 (5m), 0.44 (1m); pooled 0.50 |
+| Wyckoff W6=600 group share | 0.69 | 0.82 (5m), 0.29 (1m); pooled 0.73 |
+| ICT groups | 2 | 2 (every fold) |
+
+The union grows more slowly than the fold count (the folds choose overlapping values), so a constant per fold over- or under-states: ICT 14.5 per fold at 2 folds but 9.86 at 7. The model is therefore
+**affine in the fold count**: `sets = ceil(1.10 x (fixed + per_fold x folds))` with the two measured points per method (2 and 7 folds):
+ICT `fixed 13.0, per_fold 8.0` (29 and 69 exactly), Wyckoff `fixed 2.4, per_fold 6.8` (16 and 50). **Safety margin: x 1.10** (`WAVE2_SAFETY_MARGIN`; the old model had none).
+Constants: `WAVE2_SETS_PER_FOLD = {ict 8.0, wyckoff 6.8}`, `WAVE2_SETS_FIXED = {ict 13.0, wyckoff 2.4}`, `WAVE2_GROUPS_PER_SET = {ict 1.0, wyckoff 0.52}`, `WAVE2_W600_GROUP_SHARE = {ict 0.0, wyckoff 0.82}`
+(the groups and W6 share are the WORST of the two measured cells rounded up; the 1m cells measured 0.29, so the 1m Wyckoff slices are over- not under-estimated).
+Layout estimates (sets): 1m-metals ICT 94 / Wyckoff 70 (9 folds, extrapolated), 1m-indices 32 / 18 (2 folds), 5m-metals 76 / 56 (7 folds).
+
+**Evaluate-time model.** The evaluate step verifies and runs `trades_for` on every value set of the cell (wave 1 + wave 2); the number of cache entries per candidate follows `wave2_set_count`
+(94 / 70 / 32 / 18 / 76 / 56 as above), the formula (`evaluate_seconds`) is unchanged. Wave 2 per cell is about the same size as before (9 folds: 94 vs 11.25 x 9 = 102 ICT, 70 vs 70 Wyckoff).
+
+### 10.3 Layout at the declared plan (real cells file, real grids, layout factor 3.0; `shard_plan` / `shard_summary`)
+
+| factor | shards | runner-hours | longest shard (min) | critical path (plan + w1 + w2 + evaluate) |
+|---|---:|---:|---:|---|
+| 1.0 | 284 | 347.8 | 102 | 219 min (100 + 102 + 12) |
+| 2.0 | 284 | 669.0 | 198 | 416 min (195 + 198 + 18) |
+| 3.0 (layout) | 284 | 988.3 | 294 | 612 min (289 + 294 + 24) |
+
+Shards: **62 wave 1 + 222 wave 2** (before: 288 = 62 + 226 at HEAD 06d1a6f; section 9 quoted 289 = 62 + 227 before the final folds). Each wave's matrix is below GitHub's 256-job limit (222 is the larger; headroom 34 - a wave-2 re-slice by the tripwire
+does not change the matrix, it is a re-run of one cell's slices). No shard over the 300-minute cap at factor 3.0 (longest 294 min, none flagged `over_cap`); the 355-minute job timeout is not approached.
+
+Per (cell, method), shards / runner-hours / longest shard (min) / evaluate (min):
+
+| cell / method | f1.0 | f2.0 | f3.0 |
+|---|---|---|---|
+| 1m-metals / ict | 80 / 126.8 h / 102 / 12 | 80 / 245.7 h / 198 / 18 | 80 / 364.4 h / 294 / 24 |
+| 1m-metals / wyckoff | 168 / 205.4 h / 76 / 9 | 168 / 395.9 h / 147 / 12 | 168 / 584.6 h / 217 / 15 |
+| 1m-indices / ict | 10 / 4.0 h / 35 / 8 | 10 / 7.0 h / 64 / 10 | 10 / 10.0 h / 93 / 12 |
+| 1m-indices / wyckoff | 10 / 5.2 h / 47 / 7 | 10 / 9.2 h / 87 / 8 | 10 / 13.4 h / 128 / 9 |
+| 5m-metals / ict | 8 / 3.0 h / 30 / 7 | 8 / 5.1 h / 54 / 9 | 8 / 7.3 h / 78 / 10 |
+| 5m-metals / wyckoff | 8 / 3.4 h / 43 / 7 | 8 / 6.0 h / 80 / 8 | 8 / 8.6 h / 117 / 9 |
+
+1m-metals is 248 of 284 shards and 949 of 988 runner-hours at factor 3.0. Honest uncertainty unchanged from section 7, plus: 1m-metals wave 2 (9 folds) and the five-symbol / four-symbol pooled selections were not
+measured (extrapolation and single/two-symbol measurement, covered by the x 1.10 margin and the run-time tripwire only).
+
+Reproduce: `python3 scripts/research/shard_calibration.py job '{"kind":"bars_span", "symbols":[...], "methods":["ict","wyckoff"], "tf":"1m", "dev_start":"2020-03-01T00:00:00Z", "warmup_days":14}'`;
+`drive --jobs FILE --out FILE --workers 1` with `{"kind":"wave2", ..., "workers":4, "timeout_s":2700}` lines (needs `BT_HISTORY_ROOT` = the FTMO history root); layout: `python3 scripts/fund-search.py list-scan-shards [--wave 1|2] [--explain]`.

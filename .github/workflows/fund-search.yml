@@ -17,7 +17,9 @@
 # (scripts/fund-search.py `declare`) -- the ledger declaration precedes every scan and every evaluation. A scan-cache
 # entry made by other code / plan / settings / history is REFUSED by `run` and by `scan --wave 2` (never silently used).
 #
-# Wave-2 tripwire / override: wave 2 is sized by an ESTIMATE (scripts/fund-search.py WAVE2_SETS_PER_FOLD); a wave-2 shard that finds
+# Wave-2 tripwire / override: wave 2 is sized by an ESTIMATE (scripts/fund-search.py WAVE2_SETS_FIXED / WAVE2_SETS_PER_FOLD x
+# WAVE2_SAFETY_MARGIN, measured under the sealed perturbation definition: docs/audits/2026-10-01-shard-calibration.md section 10;
+# each wave's matrix stays within GitHub's 256-job limit: `list-scan-shards --wave N` is checked by the layout test); a wave-2 shard that finds
 # its real list >10 % longer prints "WARNING: ... --slice I/N" to stderr (the job log). To re-slice, re-run every wave-2 slice of that
 # (cell, method, symbol) with the printed N (entries are keyed per value set, any N gives the same cache). Before `declare`, record the
 # runner speed with fund-search-benchmark.yml (docs/audits/2026-10-01-shard-calibration.md section 6).

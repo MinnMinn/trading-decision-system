@@ -1997,27 +1997,46 @@ SHARD_MODEL = {
     "assumed": ("runner_vcpu", "runner_ram_bytes", "job_fixed_s", "plan_job_min", "cache_entry_s", "select_s_per_fold",
                 "layout_factor", "report_factors", "budget_s", "job_timeout_min"),
 }
-SHARD_MODEL_LABEL = (f"MEASURED ({', '.join(SHARD_MODEL['measured'])}, WAVE2_SETS_PER_FOLD, WAVE2_GROUPS_PER_SET, "
+SHARD_MODEL_LABEL = (f"MEASURED ({', '.join(SHARD_MODEL['measured'])}, WAVE2_SETS_PER_FOLD, WAVE2_SETS_FIXED, WAVE2_GROUPS_PER_SET, "
                      f"WAVE2_W600_GROUP_SHARE; docs/audits/2026-10-01-shard-calibration.md) | ASSUMED "
                      f"({', '.join(SHARD_MODEL['assumed'])}; the runner-speed factor is a parameter, never a measurement)")
-#: Wave-2 shape, MEASURED on 2-3 real folds of three cells (doc section 3.7): NEW value sets per fold after de-duplication
-#: across folds, and how they fall into detection groups. Wave 2 depends on the selection, so a real cell's size is only
-#: known at run time; the 8 folds measured bracket the audit's zero-edge counts (ICT 8.7-10.8 per fold at 4-17 folds).
-# NOTE (b20-stats-sealed, 2026-10-02): these two figures were measured under the OLD perturbation definition (every item +/- one
-# grid step). Since then wave 2 = the fold's combined chosen set + the ORDINAL one-component neighbours + the categorical flips
-# (`FS.perturbation_trade_sets`, `FS.categorical_flip_sets`). The layout estimate below is therefore UNMEASURED for the new
-# definition: re-run scripts/research/shard_calibration.py before sizing the real run. It sizes jobs only; it never changes a result.
-WAVE2_SETS_PER_FOLD = {"ict": 11.25, "wyckoff": 7.75}
-WAVE2_GROUPS_PER_SET = {"ict": 1.0, "wyckoff": 0.51}      # distinct detection groups per wave-2 set (35 groups / 69 sets per
-#                                                            fold alone; ICT is capped at 2 groups however many sets)
-WAVE2_W600_GROUP_SHARE = {"ict": 0.0, "wyckoff": 0.69}     # share of a Wyckoff wave-2 slice's groups on the W6 = 600 window
-#                                                            (24 of those 35 groups; it follows what the folds select)
+#: Wave-2 shape under the SEALED perturbation definition (the fold's combined chosen set + the ORDINAL one-component
+#: neighbours + the categorical flips: `FS.perturbation_trade_sets`, `FS.categorical_flip_sets`), MEASURED 2026-10-02 on the
+#: real folds of two declared cells (docs/audits/2026-10-01-shard-calibration.md section 10; raw rows
+#: docs/audits/2026-10-02-shard-recalibration-data/res-wave2.jsonl): 5m-metals (7 folds, XAUUSD + XPTUSD) and 1m-indices
+#: (2 folds, US30). NEW value sets after de-duplication across folds are AFFINE in the fold count (the folds share chosen
+#: values, so the union grows slower than linearly): ICT 69 at 7 folds / 29 at 2, Wyckoff 50 / 16 -> slope and intercept
+#: below, times WAVE2_SAFETY_MARGIN (a layout ESTIMATE: the real list exists only once selection has run; the tripwire
+#: `wave2_size_warning` fires beyond +10 %). 9 folds (1m-metals) is an EXTRAPOLATION beyond the measured 7.
+WAVE2_SETS_PER_FOLD = {"ict": 8.0, "wyckoff": 6.8}
+WAVE2_SETS_FIXED = {"ict": 13.0, "wyckoff": 2.4}           # the intercept of the affine fit (sets that no fold count scales)
+WAVE2_SAFETY_MARGIN = 1.10                                # stated margin over the fit (the old model's 11.25 / 7.75 had none)
+#: detection groups per wave-2 set and the W6 = 600 share: the WORST of the two measured cells (rounded up), pooled over the
+#: folds taken alone (the way slices of consecutive sets meet them): ICT is capped at its 2 B-POOL groups however many sets.
+WAVE2_GROUPS_PER_SET = {"ict": 1.0, "wyckoff": 0.52}      # 5m 38 groups / 74 sets (0.51), 1m 7 / 16 (0.44); pooled 0.50
+WAVE2_W600_GROUP_SHARE = {"ict": 0.0, "wyckoff": 0.82}     # 5m 31 of 38 groups (0.82), 1m 2 of 7 (0.29); pooled 0.73
+
+
+#: Bars one shard really scans for a cell with a DECLARED later start, measured with the harness's own `dev_start` cut
+#: (BtEngine: series loaded from dev_start - warmup_days minus the method's own window, PIT-truncated at DEV_CUTOFF), per
+#: (timeframe, symbol, dev_start): the larger of the ICT and Wyckoff counts (they differ by < 0.03 %). Raw rows:
+#: docs/audits/2026-10-02-shard-recalibration-data/res-bars.jsonl (scripts/research/shard_calibration.py job `bars_span`).
+#: Time-scaling DEV_BARS by the share of the span is WRONG for these cells: the 1m index series are sparse before late 2021
+#: (US30: 1,418,201 measured vs 1,367,919 scaled; US500: 852,695 vs 552,680), so the layout would be too small. Counts only; sizing, never a result.
+SPAN_BARS = {
+    ("1m", "US500", "2020-03-01T00:00:00Z"): 852695, ("1m", "US30", "2020-03-01T00:00:00Z"): 1418201,
+    ("1m", "USTEC", "2020-03-01T00:00:00Z"): 867342, ("1m", "DE40", "2020-03-01T00:00:00Z"): 747188,
+    ("1m", "FRA40", "2020-03-01T00:00:00Z"): 801548,
+    ("5m", "XAUUSD", "2015-01-07T00:00:00Z"): 645119, ("5m", "XAGUSD", "2015-01-07T00:00:00Z"): 644621,
+    ("5m", "XPTUSD", "2015-01-07T00:00:00Z"): 494217, ("5m", "XPDUSD", "2015-01-07T00:00:00Z"): 480765}
 
 
 def cell_bars(cell, sym):
-    """Bars one shard of (`cell`, `sym`) scans: the audit's whole-development-span count, scaled by the share of the
-    symbol's span a DECLARED later start keeps (a sizing ESTIMATE, same model; it never changes a result).
-    A cell that starts from data (dev_start_override null) is the audit's number unchanged."""
+    """Bars one shard of (`cell`, `sym`) scans (a sizing figure; it never changes a result). A cell that starts from data
+    (dev_start_override null) is the audit's whole-development-span count (DEV_BARS). A cell with a DECLARED later start
+    uses the MEASURED count of the cut series incl. its warm-up (SPAN_BARS, keyed by timeframe, symbol and the declared
+    start); a declared start with no measured row falls back to DEV_BARS scaled by the share of the symbol's span it keeps
+    (an ESTIMATE that ignores the warm-up and under-counts sparse early history: add the row instead)."""
     try:
         bars = DEV_BARS[cell["timeframe"]][sym]
     except KeyError:
@@ -2027,6 +2046,9 @@ def cell_bars(cell, sym):
     ov = cell.get("dev_start_override")
     if ov is None:
         return bars
+    measured = SPAN_BARS.get((cell["timeframe"], sym, ov))
+    if measured is not None:
+        return measured
     end = FS.ts(FS.DEV_CUTOFF)
     first = FS.ts(cell["symbol_first_bar"][sym])
     return int(bars * ((end - max(FS.ts(ov), first)) / (end - first)))
@@ -2158,9 +2180,9 @@ def wave2_groups_in_slice(method, n_in_slice):
 
 
 def wave2_set_count(method, n_folds):
-    """Wave-2 value sets of a cell: the measured NEW sets per fold x the cell's folds, rounded up (a layout ESTIMATE:
-    the real list is only known once the selection has run)."""
-    return -int(-(WAVE2_SETS_PER_FOLD[method] * n_folds) // 1)
+    """Wave-2 value sets of a cell: the measured affine fit (WAVE2_SETS_FIXED + WAVE2_SETS_PER_FOLD x the cell's folds) times
+    WAVE2_SAFETY_MARGIN, rounded up (a layout ESTIMATE: the real list is only known once the selection has run)."""
+    return -int(-(WAVE2_SAFETY_MARGIN * (WAVE2_SETS_FIXED[method] + WAVE2_SETS_PER_FOLD[method] * n_folds)) // 1)
 
 
 def slice_bounds(n, i, slices):
@@ -2321,7 +2343,7 @@ def wave2_size_warning(cell_id, method, symbol, n_slices, real, est):
         return None
     need = -(-n_slices * real // est)
     return (f"WARNING: wave 2 of {cell_id}/{method} has {real} value sets, {100 * (real / est - 1):.0f} % more than the "
-            f"{est} the shard layout assumed (WAVE2_SETS_PER_FOLD); this slice may run longer than modelled. Re-run EVERY "
+            f"{est} the shard layout assumed (WAVE2_SETS_FIXED / WAVE2_SETS_PER_FOLD); this slice may run longer than modelled. Re-run EVERY "
             f"wave-2 slice of {cell_id}/{method}/{symbol} with --slice I/{need} (I = 0..{need - 1}) if the time limit is at "
             f"risk; entries are keyed per value set, so any N gives the same cache.")
 

@@ -2011,6 +2011,38 @@ class DeclaredCells(_Tmp):
         no_later_symbol = dict(later, symbol_first_bar={"XAUUSD": "2015-01-01T00:00:00Z"})     # starts after the override
         self.assertEqual(self.fs.cell_bars(no_later_symbol, "XAUUSD"), self.fs.DEV_BARS["5m"]["XAUUSD"])
 
+    def test_a_measured_span_row_wins_over_the_time_scaled_estimate(self):
+        cell = {"timeframe": "1m", "dev_start_override": "2020-03-01T00:00:00Z",
+                "symbol_first_bar": {"US30": "2017-12-27T23:00:00Z"}}
+        self.assertEqual(self.fs.cell_bars(cell, "US30"), self.fs.SPAN_BARS[("1m", "US30", "2020-03-01T00:00:00Z")])
+        scaled = dict(cell, dev_start_override="2020-03-02T00:00:00Z")          # no measured row for this start: the estimate
+        self.assertLess(self.fs.cell_bars(scaled, "US30"), self.fs.cell_bars(cell, "US30"))   # sparse history: it UNDER-counts
+
+    def test_every_declared_later_start_has_a_measured_span_row_that_fits_the_audit_table(self):
+        """Real cells file: each (timeframe, symbol, declared start) has a SPAN_BARS row (the estimate is never used for the
+        real plan), and a cut series never has MORE bars than the whole development span plus the warm-up of the cut."""
+        spec = self.fs.load_cells_file(os.path.join(ROOT, "docs", "architecture"))[0]
+        later = [c for c in spec["cells"] if c["dev_start"]]
+        self.assertEqual({c["id"] for c in later}, {"1m-indices", "5m-metals"})
+        for c in later:
+            for sym in c["symbols"]:
+                key = (c["timeframe"], sym, c["dev_start"])
+                self.assertIn(key, self.fs.SPAN_BARS, f"no measured bars for {key}")
+                self.assertLessEqual(self.fs.SPAN_BARS[key], _REAL_DEV_BARS[c["timeframe"]][sym])
+                self.assertGreater(self.fs.SPAN_BARS[key], 0.3 * _REAL_DEV_BARS[c["timeframe"]][sym])
+
+    def test_wave2_set_count_is_the_measured_affine_fit_with_its_margin(self):
+        fs = self.fs
+        for method, (n2, n7) in {"ict": (29, 69), "wyckoff": (16, 50)}.items():
+            # the two measured points (2026-10-02, real folds of 1m-indices and 5m-metals) are covered by the estimate ...
+            self.assertGreaterEqual(fs.wave2_set_count(method, 2), n2)
+            self.assertGreaterEqual(fs.wave2_set_count(method, 7), n7)
+            # ... by no more than the stated margin plus rounding, and it grows with the folds
+            self.assertLessEqual(fs.wave2_set_count(method, 2), 1.15 * n2 + 1)
+            self.assertLessEqual(fs.wave2_set_count(method, 7), 1.15 * n7 + 1)
+            self.assertLess(fs.wave2_set_count(method, 2), fs.wave2_set_count(method, 9))
+        self.assertEqual(fs.WAVE2_SAFETY_MARGIN, 1.10)
+
 
 class SeriesStartSeam(unittest.TestCase):
     """bt.series_start / load(): the declared start cuts ONE (symbol, timeframe) series, nothing else."""
@@ -2439,8 +2471,18 @@ class ShardLayout(_Helpers):
         self.assertEqual(self.fs.SHARD_MODEL["layout_factor"], 3.0)
         self.assertFalse([r["name"] for r in rows if r["over_cap"]])
         self.assertLessEqual(max(r["est_min"] for r in rows), self.fs.SHARD_MODEL["budget_s"] / 60)
-        self.assertEqual(len(rows), 288)
-        self.assertEqual((sum(1 for r in rows if r["wave"] == 1), sum(1 for r in rows if r["wave"] == 2)), (62, 226))
+        self.assertEqual(len(rows), 284)
+        waves = (sum(1 for r in rows if r["wave"] == 1), sum(1 for r in rows if r["wave"] == 2))
+        self.assertEqual(waves, (62, 222))
+        self.assertLessEqual(max(waves), 256, "a GitHub Actions matrix may hold at most 256 jobs")
+        # the declared later starts are laid out from the MEASURED bars of the cut series (warm-up included), not from
+        # DEV_BARS scaled by time: the real cells file, no monkeypatch
+        by_cell = {c["id"]: c for c in plan["cells"]}
+        self.assertEqual({r["bars"] for r in rows if r["cell"] == "1m-indices" and r["symbol"] == "US30"}, {1418201})
+        self.assertEqual({r["bars"] for r in rows if r["cell"] == "5m-metals" and r["symbol"] == "XAUUSD"}, {645119})
+        self.assertEqual({r["bars"] for r in rows if r["cell"] == "1m-metals" and r["symbol"] == "XAUUSD"},
+                         {_REAL_DEV_BARS["1m"]["XAUUSD"]})
+        self.assertIsNotNone(by_cell["1m-indices"]["dev_start_override"])
 
     def test_the_wave2_tripwire_fires_only_beyond_ten_percent(self):
         w = self.fs.wave2_size_warning
