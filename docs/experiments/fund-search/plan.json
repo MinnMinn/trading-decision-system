@@ -248,7 +248,23 @@
   "ict": 87,
   "wyckoff": 48
  },
- "cost_profile": "ftmo_demo_2026_09",
+ "cost_profile": "ftmo_demo_2026_09_relspread",
+ "cost_profile_pin": {
+  "profile": "ftmo_demo_2026_09_relspread",
+  "spread_scaling": "relative_price_ref",
+  "price_ref": {
+   "DE40": 18528.03,
+   "FRA40": 7355.27,
+   "US30": 40115.3,
+   "US500": 5488.65,
+   "USTEC": 19391.85,
+   "XAGUSD": 29.733,
+   "XAUUSD": 2471.98,
+   "XPDUSD": 1239.78,
+   "XPTUSD": 987.96
+  },
+  "price_ref_provenance_sha256": "410ddebf1e1c33eb3a37b6900f4c387ebdea55b527fa0c02d379101c671923a8"
+ },
  "dev_cutoff": "2024-03-01T00:00:00Z",
  "adopted_f_keys": [
   "fx_b2a_fvg_in_leg",
@@ -260,7 +276,8 @@
   "fx_w3_mSOW_spring",
   "fx_w5_vp_abandon",
   "fx_w7_htf_target",
-  "fx_admission_entry_cost"
+  "fx_admission_entry_cost",
+  "fx_gap_fill"
  ],
  "embargo": {
   "rule": "training trades need exit_label < test_start - 2 x H bars (H = bt.P[tf]['H']), on top of the one-bar purge; 'none' time stops are covered only by this same window",
@@ -318,6 +335,6 @@
   "real_cost_reprice_runs": 1,
   "min_rr_values_tried": 3
  },
- "plan_hash": "4a476bee674afcbb324c25a2103a49dfea5d48f95f88a68a572340ae78b7eacc",
- "generated_at": "2026-10-01T23:35:07Z"
+ "plan_hash": "5476f042bdde09f1800e4c3bc5438ccaf4aa1e0588fda66c9f300ffe2b87ea7a",
+ "generated_at": "2026-10-02T01:33:49Z"
 }

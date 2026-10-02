@@ -122,7 +122,7 @@ def _chunk_ict(bt, sym, tf, c, S, idx, opts_list, lo, hi):
     for o in opts_list:
         with _opts(bt, o):
             methods = bt.resolve_methods(sym)
-            xs.append(bt._ict_ctx(sym, tf, c, S["Tm"], HZ, S["H"], S["L"], S["C"], methods, idx_of_time=idx))
+            xs.append(bt._ict_ctx(sym, tf, c, S["Tm"], HZ, S["H"], S["L"], S["C"], methods, idx_of_time=idx, O=S["O"]))
     gk = ict_group_key(bt, xs[0])
     if any(ict_group_key(bt, x) != gk for x in xs):
         raise AssertionError("scan_many: overlays of one ICT analysis group disagree on the analyze()-reading keys")
@@ -308,7 +308,7 @@ def scan_many(bt, sym, tf, method, overlays, workers=1, chunks=None, min_chunk_b
         keys = []
         for o, m in zip(full, methods_of):
             with _opts(bt, o):       # grouping only reads x.methods / x.fx_opts; the id-of-time index is built per chunk
-                x = bt._ict_ctx(sym, tf, c, Tm, HZ, S["H"], S["L"], S["C"], m, idx_of_time={})
+                x = bt._ict_ctx(sym, tf, c, Tm, HZ, S["H"], S["L"], S["C"], m, idx_of_time={}, O=S["O"])
             keys.append(ict_group_key(bt, x))
         bars, _recent = bt.lr.scan_spec(tf)
         lo, hi = bars - 1, n

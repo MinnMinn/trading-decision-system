@@ -42,6 +42,18 @@ under `spread_stat="p90"`, the disclosed stress option); exit pays the exit bar'
 recorded bars (n=0 -- e.g. the broker's daily break) falls back to the symbol's overall median/p90, a coarser
 but still MEASURED figure, flagged via the returned `note` rather than silently substituted.
 
+ABSOLUTE vs RELATIVE SPREAD (C2, red-team 2026-10-02)
+------------------------------------------------------
+The recorded spreads are ABSOLUTE price units (points * point) measured on 2022-07..2026-09 prices. Charged unchanged
+against a 2007-2024 trade (XAUUSD ~$1,100-1,700 then, ~$4,000 now) that overstates spread_R 2-4x in early folds and
+drifts across folds. The profile `ftmo_demo_2026_09_relspread` (same files, same hours, same fallback) therefore
+scales the spread with the entry price: `spread_price(trade) = spread_points * point * entry / price_ref(symbol)` for
+both legs, median and p90 alike, where `price_ref(symbol)` is the MEDIAN CLOSE of the symbol's M15 bars over EXACTLY the
+spreads' recording window (spec `recorded_spread_m15.first_bar_server` .. `last_bar_server`, converted to UTC with the
+profile's own server clock, both bar-open labels inclusive) from the committed `data/history/ftmo` M15 series. At
+entry == price_ref the two profiles agree. Swap is unaffected (every fund trade is flat before the rollover; swap is not
+rescaled here). `ftmo_demo_2026_09` keeps the ABSOLUTE behaviour byte-identically (the reported sensitivity).
+
 SWAP CONVENTION
 -----------------
 One swap charge per server-LOCAL calendar day the position was held across a rollover (`nights_held`), tripled
@@ -60,14 +72,17 @@ uses only the clock, never a later price).
 """
 import datetime
 import functools
+import gzip
 import hashlib
 import json
 import os
+import statistics
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import mt5_time as _MT   # noqa: E402 -- THE server-zone resolver (docs/architecture/providers.json)
+import history_store as _HS   # noqa: E402 -- THE history reader (single-file / split-gz shapes)
 
 COSTS_ROOT = os.path.join(ROOT, "data", "history", "costs")
 UNKNOWN = "UNKNOWN"
@@ -82,6 +97,17 @@ PROFILES = {
         "provider": "mt5_bridge_ftmo",
         "spec_dir": os.path.join(COSTS_ROOT, "ftmo"),
         "symbol_map": os.path.join(COSTS_ROOT, "ftmo", "symbol-map.json"),
+    },
+    # C2: the SAME FTMO files and server clock, spread scaled by entry / price_ref (module docstring). A NEW profile name,
+    # so a record's `profile` still names the exact pricing rule it was measured under.
+    "ftmo_demo_2026_09_relspread": {
+        "server": "FTMO-Demo",
+        "provider": "mt5_bridge_ftmo",
+        "spec_dir": os.path.join(COSTS_ROOT, "ftmo"),
+        "symbol_map": os.path.join(COSTS_ROOT, "ftmo", "symbol-map.json"),
+        "spread_scaling": "relative_price_ref",
+        "price_ref_history_dir": os.path.join(ROOT, "data", "history", "ftmo"),
+        "price_ref_timeframe": "15m",
     },
     "metaquotes_demo_2026_09": {
         "server": "MetaQuotes-Demo",
@@ -183,8 +209,17 @@ def profile_snapshot(profile_name, canonical_symbols=()):
         p = spec_path(profile_name, sym)
         if os.path.exists(p):
             files[os.path.relpath(p, ROOT).replace(os.sep, "/")] = _sha256(p)
-    return {"profile": profile_name, "server": profile["server"], "provider": profile["provider"],
-            "source_files_sha256": files}
+    out = {"profile": profile_name, "server": profile["server"], "provider": profile["provider"],
+           "source_files_sha256": files}
+    if profile.get("spread_scaling", ABSOLUTE) == RELATIVE:
+        # C2: the relative profile is only reproducible with the price_ref values AND where they came from.
+        info = {sym: price_ref_info(profile_name, sym) for sym in sorted(canonical_symbols)}
+        out["spread_scaling"] = RELATIVE
+        out["price_ref"] = {sym: i["price_ref"] for sym, i in info.items()}
+        out["price_ref_provenance"] = info
+        out["price_ref_provenance_sha256"] = hashlib.sha256(
+            json.dumps(info, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return out
 
 
 def _parse_z(stamp):
@@ -269,6 +304,95 @@ def spread_price(profile_name, canonical_symbol, hour_utc, stat="median"):
     return overall * point, "overall_fallback"
 
 
+ABSOLUTE, RELATIVE = "absolute", "relative_price_ref"
+
+
+def spread_scaling(profile_name):
+    """"absolute" (every profile that declares nothing: the original behaviour) or "relative_price_ref" (C2)."""
+    return _profile(profile_name).get("spread_scaling", ABSOLUTE)
+
+
+def _server_stamp_to_utc_iso(stamp, provider):
+    """A spec's `first_bar_server`/`last_bar_server` ("2022.07.06 08:00", server wall clock, no zone) -> UTC "...Z"."""
+    zone_name, zone = server_zone(provider)
+    iso = stamp.strip().replace(".", "-", 2).replace(" ", "T")
+    utc, _resolved = _MT.to_utc_ordered(iso, zone, zone_name, f"recorded_spread_m15 window {stamp!r}", None)
+    return _MT.iso_z(utc)
+
+
+def price_ref_window(profile_name, canonical_symbol):
+    """(first_utc, last_utc) ISO "...Z" bar-open labels of the spreads' recording window, from the spec."""
+    rec = spec(profile_name, canonical_symbol).get("recorded_spread_m15") or {}
+    a, b = rec.get("first_bar_server"), rec.get("last_bar_server")
+    if not a or not b:
+        raise CostRefused(f"{canonical_symbol!r} under {profile_name!r}: recorded_spread_m15 has no "
+                          f"first_bar_server/last_bar_server window, so price_ref cannot be defined.")
+    provider = _profile(profile_name)["provider"]
+    return _server_stamp_to_utc_iso(a, provider), _server_stamp_to_utc_iso(b, provider)
+
+
+def _window_candles(hist_dir, sym, tf, first_utc, last_utc):
+    """The candles of `sym`/`tf` under `hist_dir` whose open label is in [first_utc, last_utc]. A split series reads
+    ONLY the year parts the window touches (a 500k-bar M15 series is never parsed whole)."""
+    path, shape = _HS.resolve(sym, tf, root=hist_dir)
+    if shape is None:
+        raise CostRefused(f"no {tf} history for {sym!r} under {hist_dir}: price_ref needs the series of the "
+                          f"spreads' recording window.")
+    if shape == "file":
+        cs = _HS.read_at(path, shape)["candles"]
+    else:
+        with open(os.path.join(path, "index.json"), encoding="utf-8") as fh:
+            years = sorted(json.load(fh).get("years") or ())
+        y0, y1 = int(first_utc[:4]), int(last_utc[:4])
+        cs = []
+        for y in years:
+            if y0 <= int(y) <= y1:
+                with gzip.open(os.path.join(path, f"{y}.json.gz"), "rt", encoding="utf-8") as fh:
+                    cs.extend(json.load(fh)["candles"])
+    return [c for c in cs if first_utc <= c["time"] <= last_utc]
+
+
+@functools.lru_cache(maxsize=64)
+def _price_ref_cached(hist_dir, sym, tf, first_utc, last_utc):
+    cs = _window_candles(hist_dir, sym, tf, first_utc, last_utc)
+    if not cs:
+        raise CostRefused(f"{sym!r}: no {tf} bars in the recording window {first_utc}..{last_utc} under {hist_dir}.")
+    closes = [float(c["close"]) for c in cs]
+    h = hashlib.sha256()
+    for c in cs:
+        h.update(f"{c['time']}|{float(c['close'])!r}\n".encode())
+    ref = float(statistics.median(closes))
+    if not ref > 0:
+        raise CostRefused(f"{sym!r}: median close over the recording window is {ref} (not a positive price).")
+    return {"price_ref": ref, "n_bars": len(cs), "window_utc": [first_utc, last_utc],
+            "first_bar": cs[0]["time"], "last_bar": cs[-1]["time"], "timeframe": tf,
+            "closes_sha256": h.hexdigest()}
+
+
+def price_ref_info(profile_name, canonical_symbol):
+    """Provenance of `price_ref`: {price_ref, n_bars, window_utc, first_bar, last_bar, timeframe, closes_sha256}.
+    Refuses on a profile that scales nothing (an absolute profile has no price_ref)."""
+    prof = _profile(profile_name)
+    if prof.get("spread_scaling", ABSOLUTE) != RELATIVE:
+        raise CostRefused(f"profile {profile_name!r} prices spreads in absolute price units; it has no price_ref.")
+    first_utc, last_utc = price_ref_window(profile_name, canonical_symbol)
+    return dict(_price_ref_cached(prof["price_ref_history_dir"], canonical_symbol, prof["price_ref_timeframe"],
+                                  first_utc, last_utc))
+
+
+def price_ref(profile_name, canonical_symbol):
+    """The median CLOSE of the symbol's M15 bars over exactly the spreads' recording window (cached, deterministic)."""
+    return price_ref_info(profile_name, canonical_symbol)["price_ref"]
+
+
+def spread_scale(profile_name, canonical_symbol, entry):
+    """Multiplier applied to the recorded absolute spread: `entry / price_ref` under the relative profile, else None
+    (the absolute profile multiplies by nothing, so its numbers are untouched)."""
+    if spread_scaling(profile_name) != RELATIVE:
+        return None
+    return float(entry) / price_ref(profile_name, canonical_symbol)
+
+
 def swap_price(profile_name, canonical_symbol, side, entry_time_iso, exit_time_iso):
     """(signed_price, nights, note) -- the total swap PRICE MOVEMENT applied to the position across every
     server-local night held (negative = a debit that costs the trade, positive = a credit), tripled on the
@@ -318,13 +442,33 @@ def cost_r(entry, stop, entry_time_iso, exit_time_iso, canonical_symbol, side, p
     spread_entry, entry_note = spread_price(profile_name, canonical_symbol, entry_hour, spread_stat)
     spread_exit, exit_note = spread_price(profile_name, canonical_symbol, exit_hour, spread_stat)
     spread_cost_price = spread_entry / 2 + spread_exit / 2
+    scale = spread_scale(profile_name, canonical_symbol, entry)       # None on an absolute profile: untouched
+    if scale is not None:
+        spread_cost_price = spread_cost_price * scale
     swap_signed, nights, swap_note = swap_price(profile_name, canonical_symbol, side, entry_time_iso, exit_time_iso)
     commission_R, commission_state = commission_r(profile_name, canonical_symbol)
     spread_R = (spread_cost_price / entry) / dist
     swap_R = -(swap_signed / entry) / dist
-    return {"spread_R": spread_R, "swap_R": swap_R, "commission_R": commission_R,
-            "total_R": spread_R + swap_R + commission_R,
-            "nights_held": nights, "spread_stat": spread_stat,
-            "spread_entry_note": entry_note, "spread_exit_note": exit_note,
-            "swap_note": swap_note, "commission_state": commission_state,
-            "profile": profile_name, "symbol": canonical_symbol}
+    out = {"spread_R": spread_R, "swap_R": swap_R, "commission_R": commission_R,
+           "total_R": spread_R + swap_R + commission_R,
+           "nights_held": nights, "spread_stat": spread_stat,
+           "spread_entry_note": entry_note, "spread_exit_note": exit_note,
+           "swap_note": swap_note, "commission_state": commission_state,
+           "profile": profile_name, "symbol": canonical_symbol}
+    if scale is not None:
+        out["spread_scale"] = scale
+    return out
+
+
+def mean_spread_r(trades, profile_name, spread_stat="median"):
+    """{"n": priced trades, "mean_spread_R": float | None} -- the mean SPREAD cost in R over `trades` (dicts with
+    symbol, side, entry, stop, entry_time, exit_time), for the per-fold cost report. A COST figure, not a result: it reads
+    no outcome. A trade with no valid stop distance is not priced (the planned-risk rule refuses it elsewhere)."""
+    vals = []
+    for t in trades:
+        if not (isinstance(t.get("entry"), (int, float)) and isinstance(t.get("stop"), (int, float))
+                and t["entry"] > 0 and t["entry"] != t["stop"]):
+            continue
+        vals.append(cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"], t["side"],
+                           profile_name, spread_stat=spread_stat)["spread_R"])
+    return {"n": len(vals), "mean_spread_R": (sum(vals) / len(vals)) if vals else None}

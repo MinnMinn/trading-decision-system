@@ -588,7 +588,29 @@ class FixedRules(_Tmp):
         o = self.fs.fixed_opts()
         self.assertTrue(o["flat_before_rollover"])
         self.assertEqual(o["rollover_provider"], "mt5_bridge_ftmo")
-        self.assertEqual(self.fs.COST_PROFILE, "ftmo_demo_2026_09")
+        self.assertEqual(self.fs.COST_PROFILE, "ftmo_demo_2026_09_relspread")          # C2: relative spread (red-team 2026-10-02)
+        self.assertEqual(self.fs.COST_PROFILE_ABSOLUTE, "ftmo_demo_2026_09")           # the reported sensitivity
+
+    def test_cost_profile_pin_carries_the_price_refs_and_their_provenance_hash(self):
+        import real_costs as RC
+        pin = self.fs.cost_profile_pin(["XAUUSD", "US500", "XAUUSD"])
+        self.assertEqual(pin["profile"], "ftmo_demo_2026_09_relspread")
+        self.assertEqual(pin["spread_scaling"], "relative_price_ref")
+        self.assertEqual(pin["price_ref"], {"US500": RC.price_ref(self.fs.COST_PROFILE, "US500"),
+                                            "XAUUSD": RC.price_ref(self.fs.COST_PROFILE, "XAUUSD")})
+        self.assertEqual(len(pin["price_ref_provenance_sha256"]), 64)
+
+    def test_plan_and_declaration_config_pin_the_cost_profile_and_price_refs(self):
+        plan = self.fs.build_plan(grid_dir=FIXTURES, first_bar=lambda s, t: "2010-01-01T00:00:00Z")
+        self.assertEqual(plan["cost_profile"], "ftmo_demo_2026_09_relspread")
+        syms = sorted({s for c in plan["cells"] for s in c["symbols"]})
+        self.assertEqual(sorted(plan["cost_profile_pin"]["price_ref"]), syms)
+        cfg = self.fs.evaluation_config(plan)
+        self.assertEqual((cfg["cost_profile"], cfg["cost_profile_pin"]), (plan["cost_profile"], plan["cost_profile_pin"]))
+        pin = dict(plan["cost_profile_pin"], price_ref_provenance_sha256="0" * 64)         # a changed history = a changed plan
+        with mock.patch.object(self.fs, "cost_profile_pin", return_value=pin):
+            self.assertNotEqual(self.fs.build_plan(grid_dir=FIXTURES, first_bar=lambda s, t: "2010-01-01T00:00:00Z")
+                                ["plan_hash"], plan["plan_hash"])
 
     def test_scope_is_the_17_pinned_symbols(self):
         """The universe cells may draw from (owner 2026-10-01): the original 7 + XPTUSD XPDUSD + UK100 EU50 JP225 HK50 AUS200
@@ -897,6 +919,7 @@ class SimulateGuards(unittest.TestCase):
     def test_post_ruin_trades_fail_loud_even_without_a_ruin_stamp(self):
         fs = _fs()
         bt = mock.Mock()
+        bt._OPTS_BASE = {"min_rr": 2.5, "fx_b_exit": "-2.0|H|floor"}     # the simulate-time context is built from it (C1)
         bt.simulate.return_value = (1.0, [], [])
         bt.SIM_LAST = {"post_ruin": [{"symbol": "X"}], "ruin": None}
         with self.assertRaises(RuntimeError):
@@ -1632,6 +1655,7 @@ class MergeTimeGuards(_Helpers):
 
     def test_checked_simulate_refuses_an_overlay_without_flat_before_rollover(self):
         bt = mock.Mock()
+        bt._OPTS_BASE = {"min_rr": 2.5, "fx_b_exit": "-2.0|H|floor"}     # the simulate-time context is built from it (C1)
         bt.simulate.return_value = (1.0, [], [])
         bt.SIM_LAST = {}
         with self.assertRaises(SystemExit):
@@ -1810,7 +1834,8 @@ class DeclaredCells(_Tmp):
         want = hashlib.sha256(open(os.path.join(gd, "fund-search-cells.json"), "rb").read()).hexdigest()
         self.assertEqual(plan["cells_file"]["sha256"], want)
         core = {k: v for k, v in plan.items() if k in ("cells", "cells_file", "excluded_cells", "grids", "candidates",
-                                                       "n_by_method", "cost_profile", "dev_cutoff", "adopted_f_keys",
+                                                       "n_by_method", "cost_profile", "cost_profile_pin", "dev_cutoff",
+                                                       "adopted_f_keys",
                                                        "embargo", "constants")}
         self.assertEqual(self.fs._hash(core), plan["plan_hash"])            # cells_file is inside what is hashed
         core.pop("cells_file")
@@ -2146,8 +2171,9 @@ class AdoptedFKeys(unittest.TestCase):
 
     def test_the_nine_keys_are_in_every_overlay_and_are_engine_keys_that_default_off(self):
         bt = self.fs._load_bt()
-        self.assertEqual(len(self.fs.ADOPTED_F_KEYS), 10)              # nine F items + O1 fx_admission_entry_cost
+        self.assertEqual(len(self.fs.ADOPTED_F_KEYS), 11)              # nine F items + O1 fx_admission_entry_cost + C3 fx_gap_fill
         self.assertIn("fx_admission_entry_cost", self.fs.ADOPTED_F_KEYS)
+        self.assertIn("fx_gap_fill", self.fs.ADOPTED_F_KEYS)
         fixed = self.fs.fixed_opts()
         for k in self.fs.ADOPTED_F_KEYS:
             self.assertIn(k, bt._OPTS_BASE, k)
@@ -2542,7 +2568,8 @@ class _ScanCacheBase:
                     "candidates": [{"id": "ict-" + cls.CELL, "method": "ict", "runner_method": "ICT", "cell": cls.CELL,
                                     "timeframe": cls.TF, "symbols": list(cls.SYMS)}],
                     "embargo": {"h_multiple": 2}, "grids": {"ict": {"sha256": "g" * 8}},
-                    "cells_file": {"sha256": "c" * 8, "warmup_days": 14}}
+                    "cells_file": {"sha256": "c" * 8, "warmup_days": 14},
+                    "cost_profile": cls.fs.COST_PROFILE, "cost_profile_pin": {}}
         try:
             with cls._patched():
                 cls.plain_engine = cls._engine()

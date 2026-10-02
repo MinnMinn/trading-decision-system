@@ -381,6 +381,8 @@ def backtest_config_snapshot(bt, *, timeframes, methods, configs=None, fee_pct=N
                                      "fx_w5_vp_abandon", "fx_w7_htf_target",
                                      # O1 (2026-09-30): simulate()'s min_rr admission cost basis; default v1.
                                      "fx_admission_entry_cost",
+                                     # C3 (2026-10-02): walk()'s stop-fill rule on a gap; default v1.
+                                     "fx_gap_fill",
                                      # Batch 2(a) Wyckoff V items (plan §3 V grid): read on the scan path
                                      # (backtest-methods._fires_from / _wy_params / scan); baseline = v1.
                                      "fx_w_stop", "fx_w4a_linger_closes", "fx_w6_window", "fx_w_spt",

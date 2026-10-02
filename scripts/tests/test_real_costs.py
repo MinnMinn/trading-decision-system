@@ -23,6 +23,7 @@ import importlib.util
 import os
 import sys
 import unittest
+import unittest.mock
 import zoneinfo
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -457,6 +458,120 @@ class DefaultCostProfileIsByteIdenticalToPreA0(unittest.TestCase):
                    "R": 3.0, "R_planned": 3.0, "event": "e1"}]
         with self.assertRaises(RC.CostRefused):
             self.bt.simulate(trades, fee, cost_profile=FTMO)
+
+
+REL = "ftmo_demo_2026_09_relspread"
+
+
+class RelativeSpreadProfile(unittest.TestCase):
+    """C2 (red-team 2026-10-02): the recorded spreads are absolute price units from 2022-07..2026-09; the relative
+    profile scales them by entry / price_ref (median M15 close over EXACTLY the recording window). The absolute profile
+    stays byte-identical. Every number here is a COST, never an outcome."""
+
+    # XAUUSD's spec window in server time is 2022.07.06 08:00 .. 2026.09.28 18:15; the FTMO server is UTC+3 on both dates
+    # (US DST dates fixed offset: summer), so the UTC bar-open labels are 05:00 and 15:15.
+    WIN = ("2022-07-06T05:00:00Z", "2026-09-28T15:15:00Z")
+
+    def test_the_window_is_the_specs_recording_window_in_utc(self):
+        self.assertEqual(RC.price_ref_window(REL, "XAUUSD"), self.WIN)
+
+    def test_price_ref_equals_the_median_close_over_exactly_that_window_and_is_reproducible(self):
+        import gzip
+        import json
+        import statistics
+        d = os.path.join(ROOT, "data", "history", "ftmo", "ohlcv.XAUUSD.15m")
+        closes = []
+        for y in range(2022, 2027):
+            with gzip.open(os.path.join(d, f"{y}.json.gz"), "rt", encoding="utf-8") as fh:
+                closes += [c["close"] for c in json.load(fh)["candles"] if self.WIN[0] <= c["time"] <= self.WIN[1]]
+        # the window holds exactly the 100,000 M15 bars the spec says it recorded
+        self.assertEqual(len(closes), RC.spec(REL, "XAUUSD")["recorded_spread_m15"]["bars"])
+        want = statistics.median(closes)
+        self.assertEqual(RC.price_ref(REL, "XAUUSD"), want)
+        RC._price_ref_cached.cache_clear()
+        self.assertEqual(RC.price_ref(REL, "XAUUSD"), want)                 # deterministic across a cold cache
+        self.assertEqual(RC.price_ref_info(REL, "XAUUSD")["n_bars"], len(closes))
+
+    def test_window_bounds_are_inclusive_and_bars_outside_are_excluded(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            rows = [("2022-07-06T04:45:00Z", 1.0), (self.WIN[0], 10.0), ("2024-01-01T00:00:00Z", 20.0),
+                    (self.WIN[1], 30.0), ("2026-09-28T15:30:00Z", 1000.0)]
+            doc = {"symbol": "XAUUSD", "timeframe": "15m",
+                   "candles": [{"time": t, "open": c, "high": c, "low": c, "close": c, "volume": 1.0} for t, c in rows]}
+            with open(os.path.join(tmp, "ohlcv.XAUUSD.15m.json"), "w", encoding="utf-8") as fh:
+                json.dump(doc, fh)
+            prof = dict(RC.PROFILES[REL], price_ref_history_dir=tmp)
+            with unittest.mock.patch.dict(RC.PROFILES, {"rel_tmp": prof}):
+                info = RC.price_ref_info("rel_tmp", "XAUUSD")
+        self.assertEqual((info["price_ref"], info["n_bars"]), (20.0, 3))
+        self.assertEqual((info["first_bar"], info["last_bar"]), self.WIN)
+
+    def test_missing_history_refuses_rather_than_guessing(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            with unittest.mock.patch.dict(RC.PROFILES, {"rel_tmp": dict(RC.PROFILES[REL], price_ref_history_dir=tmp)}):
+                with self.assertRaises(RC.CostRefused):
+                    RC.price_ref("rel_tmp", "XAUUSD")
+
+    def test_an_absolute_profile_has_no_price_ref(self):
+        with self.assertRaises(RC.CostRefused):
+            RC.price_ref(FTMO, "XAUUSD")
+        self.assertEqual(RC.spread_scaling(FTMO), "absolute")
+        self.assertEqual(RC.spread_scaling(REL), "relative_price_ref")
+
+    def test_at_the_recording_window_price_level_relative_equals_absolute(self):
+        for sym in ("XAUUSD", "US500", "XAGUSD"):
+            pr = RC.price_ref(REL, sym)
+            for stat in ("median", "p90"):
+                a = RC.cost_r(pr, pr * 0.999, "2023-03-07T09:00:00Z", "2023-03-07T13:00:00Z", sym, "long", FTMO, spread_stat=stat)
+                r = RC.cost_r(pr, pr * 0.999, "2023-03-07T09:00:00Z", "2023-03-07T13:00:00Z", sym, "long", REL, spread_stat=stat)
+                self.assertAlmostEqual(r["spread_R"], a["spread_R"], places=10, msg=(sym, stat))
+                self.assertAlmostEqual(r["spread_scale"], 1.0, places=12)
+                self.assertEqual(r["swap_R"], a["swap_R"])                      # swap is not rescaled
+
+    def test_a_2012_like_price_level_gets_a_proportionally_smaller_spread(self):
+        pr = RC.price_ref(REL, "XAUUSD")
+        t_in, t_out = "2012-03-07T09:00:00Z", "2012-03-07T13:00:00Z"
+        base = RC.cost_r(pr, pr - 5.0, t_in, t_out, "XAUUSD", "long", REL)["spread_R"]
+        early = RC.cost_r(pr / 2.5, pr / 2.5 - 5.0, t_in, t_out, "XAUUSD", "long", REL)["spread_R"]
+        self.assertAlmostEqual(early, base / 2.5, places=10)       # same $5 stop, price 2.5x lower -> spread 2.5x smaller
+        # the same PERCENT stop: relative spread_R is price-level invariant, the absolute one is overstated 2.5x
+        e_abs = RC.cost_r(pr / 2.5, pr / 2.5 * 0.998, t_in, t_out, "XAUUSD", "long", FTMO)["spread_R"]
+        e_rel = RC.cost_r(pr / 2.5, pr / 2.5 * 0.998, t_in, t_out, "XAUUSD", "long", REL)["spread_R"]
+        l_rel = RC.cost_r(pr, pr * 0.998, t_in, t_out, "XAUUSD", "long", REL)["spread_R"]
+        self.assertAlmostEqual(e_rel, l_rel, places=10)
+        self.assertGreater(e_abs / e_rel, 2.4)
+
+    def test_absolute_profile_is_byte_identical_to_the_pre_c2_formula(self):
+        r = RC.cost_r(2000.0, 1995.0, "2023-03-07T09:00:00Z", "2023-03-09T21:00:00Z", "XAUUSD", "long", FTMO)
+        self.assertNotIn("spread_scale", r)
+        spread_entry, _ = RC.spread_price(FTMO, "XAUUSD", 9)
+        spread_exit, _ = RC.spread_price(FTMO, "XAUUSD", 21)
+        self.assertEqual(r["spread_R"], ((spread_entry / 2 + spread_exit / 2) / 2000.0) / (abs(2000.0 - 1995.0) / 2000.0))
+
+    def test_snapshot_pins_price_ref_values_and_provenance_only_for_the_relative_profile(self):
+        snap = RC.profile_snapshot(REL, ["XAUUSD", "US500"])
+        self.assertEqual(snap["spread_scaling"], "relative_price_ref")
+        self.assertEqual(snap["price_ref"], {"US500": RC.price_ref(REL, "US500"), "XAUUSD": RC.price_ref(REL, "XAUUSD")})
+        self.assertEqual(len(snap["price_ref_provenance_sha256"]), 64)
+        self.assertEqual(snap, RC.profile_snapshot(REL, ["US500", "XAUUSD"]))      # order-independent
+        absolute = RC.profile_snapshot(FTMO, ["XAUUSD"])
+        self.assertNotIn("price_ref", absolute)
+        self.assertEqual(set(absolute), {"profile", "server", "provider", "source_files_sha256"})
+
+    def test_mean_spread_r_helper_prices_only_valid_trades(self):
+        pr = RC.price_ref(REL, "XAUUSD")
+        mk = lambda e, st: {"symbol": "XAUUSD", "side": "long", "entry": e, "stop": st,
+                            "entry_time": "2023-03-07T09:00:00Z", "exit_time": "2023-03-07T13:00:00Z"}
+        trades = [mk(pr, pr - 5.0), mk(pr, pr - 10.0), mk(pr, pr)]                  # the last has no stop distance
+        out = RC.mean_spread_r(trades, REL)
+        a = RC.cost_r(pr, pr - 5.0, "2023-03-07T09:00:00Z", "2023-03-07T13:00:00Z", "XAUUSD", "long", REL)["spread_R"]
+        b = RC.cost_r(pr, pr - 10.0, "2023-03-07T09:00:00Z", "2023-03-07T13:00:00Z", "XAUUSD", "long", REL)["spread_R"]
+        self.assertEqual(out["n"], 2)
+        self.assertAlmostEqual(out["mean_spread_R"], (a + b) / 2, places=12)
+        self.assertEqual(RC.mean_spread_r([], REL), {"n": 0, "mean_spread_R": None})
 
 
 class RolloverOptionSeparatesScanCacheEntries(unittest.TestCase):

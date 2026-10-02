@@ -26,8 +26,9 @@ THE CELLS ARE DECLARED, NOT COMPUTED: docs/architecture/fund-search-cells.json l
 1m-metals, 1m-indices, 5m-metals; no 15m or 30m cell) and each cell's optional history start (`dev_start`, null = from data); it is hashed into the plan core and pinned in
 the declaration (`evaluation_config.cells_sha256`) like the V grids, and `run`/`scan` refuse a changed one.
 
-FIXED IN EVERY CELL (plan §6 items 3, 7): real FTMO costs (`COST_PROFILE`, data/history/costs/ftmo/) and
-flat-before-rollover (no overnight holding). A grid item that tries to override either is refused
+FIXED IN EVERY CELL (plan §6 items 3, 7): real FTMO costs (`COST_PROFILE`, data/history/costs/ftmo/; since 2026-10-02 the
+relative-spread profile, pre-registration item 13b) and flat-before-rollover (no overnight holding); `simulate()` always runs
+under the fixed OPTS (`simulate_context`, item 13a) and `walk()` fills gapped stops at the bar open (`fx_gap_fill`, item 13c). A grid item that tries to override either is refused
 (`validate_grid`). The FTMO commission is UNKNOWN (symbolspec commission.status == "no_deals"): it is taken from
 the cost data only -- scripts/real_costs.py returns 0.0 with its status -- and disclosed in every record.
 
@@ -85,7 +86,12 @@ CONTEXT_TIMEFRAMES = ("30m", "1H", "4H", "1D", "1W")
 METHODS = {"ict": "ICT", "wyckoff": "WYCKOFF-BOOK"}                             # grid `method` -> bt runner method
 GRID_FILES = {"ict": "v-grid-ict.json", "wyckoff": "v-grid-wyckoff.json"}
 CELLS_FILE = "fund-search-cells.json"      # the declared cell list + each cell's history start (pinned like the grids)
-COST_PROFILE = "ftmo_demo_2026_09"                                              # §6 item 3: REAL costs, fixed on
+#: §6 item 3: REAL costs, fixed on. C2 (red-team 2026-10-02): the RELATIVE-spread profile -- the recorded absolute spread is
+#: scaled by entry / price_ref (scripts/real_costs.py "ABSOLUTE vs RELATIVE SPREAD"), because 2022-2026 absolute spreads
+#: applied to 2007-2024 price levels overstate spread_R 2-4x in early folds. `ftmo_demo_2026_09` (absolute, byte-identical to
+#: before) stays selectable in real_costs as the reported sensitivity; it is never the fund-search profile.
+COST_PROFILE = "ftmo_demo_2026_09_relspread"
+COST_PROFILE_ABSOLUTE = "ftmo_demo_2026_09"                                    # the reported sensitivity, not used by a cell
 DEV_PERIOD_ID = "cfd-development-pre-2024-03"                                   # research-ledger.json period
 LEDGER_SECTION = "fund_search"                                                  # the declaration lives here
 #: The nine F (fidelity) items the owner adopted for the evaluation baseline (docs/plans/2026-09-30-owner-decisions.md):
@@ -93,9 +99,13 @@ LEDGER_SECTION = "fund_search"                                                  
 #: Plus O1 (owner-approved 2026-09-30): `fx_admission_entry_cost` -- min_rr admission uses only entry-knowable costs
 #: (scripts/backtest-methods.py simulate()). It is a fixed engine rule, not an F item; it lives in this tuple so it
 #: is ON in every cell, in the plan hash and declaration config, and can never be set by a grid item.
+#: Plus C3 (red-team 2026-10-02, coordinator decision, owner to ack before declare): `fx_gap_fill` -- walk() fills a stop at
+#: the WORSE of the stop and the bar open when the bar opens beyond it (no more stop fills at a price the market never
+#: traded). Fixed ON in every cell like O1; it is read at SCAN time (walk), so it travels with the scan overlay, and
+#: simulate() never reads it (it is outside SIMULATE_TIME_OPTS).
 ADOPTED_F_KEYS = ("fx_b2a_fvg_in_leg", "fx_b2b_ce_fail", "fx_b1_pivot1", "fx_braid_optional",
                   "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon", "fx_w7_htf_target",
-                  "fx_admission_entry_cost")
+                  "fx_admission_entry_cost", "fx_gap_fill")
 FIXED_KEYS = ("flat_before_rollover", "rollover_provider") + ADOPTED_F_KEYS       # a grid item may never set these
 
 #: O2 (owner-approved 2026-09-30): walk-forward training embargo = EMBARGO_H_MULTIPLE x H bars of the cell's
@@ -124,6 +134,16 @@ def embargo_for(tf, bt=None):
 #: one disclosed A0 re-pricing; min_rr_values_tried = 3.0, 2.0, 2.5. Not in the plan hash (plan core excludes it).
 PRIOR_COUNTS = {"prop_search_records": 180, "diagnosis_slices": 30, "fidelity_funnel_rows_ict": 18,
                 "fidelity_funnel_rows_wyckoff": 11, "real_cost_reprice_runs": 1, "min_rr_values_tried": 3}
+
+
+def cost_profile_pin(symbols):
+    """What the plan and the declaration pin about the cost profile (C2): the profile name, how it scales the spread and,
+    for the relative profile, every symbol's `price_ref` plus the sha256 of the provenance (window, bar count, closes hash)
+    it was derived from -- so a changed history or spec shows up as drift, not as a silently different cost."""
+    import real_costs as _RC
+    snap = _RC.profile_snapshot(COST_PROFILE, sorted(set(symbols)))
+    return {"profile": COST_PROFILE, "spread_scaling": snap.get("spread_scaling", _RC.ABSOLUTE),
+            "price_ref": snap.get("price_ref"), "price_ref_provenance_sha256": snap.get("price_ref_provenance_sha256")}
 
 
 def fixed_opts():
@@ -518,7 +538,8 @@ def build_plan(grid_dir=None, first_bar=None, check_ready=None):
                   "sha256": cells_sha, "warmup_days": cells_spec["warmup_days"],
                   "removed_cells": cells_spec.get("removed_cells", [])}
     core = {"cells": cells, "cells_file": cells_info, "excluded_cells": excluded, "grids": grids_info, "candidates": candidates,
-            "n_by_method": n_by_method, "cost_profile": COST_PROFILE, "dev_cutoff": FS.DEV_CUTOFF,
+            "n_by_method": n_by_method, "cost_profile": COST_PROFILE,
+            "cost_profile_pin": cost_profile_pin(s for c in cells for s in c["symbols"]), "dev_cutoff": FS.DEV_CUTOFF,
             "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": embargo,
             "constants": {k: getattr(FS, k) for k in (
                 "FAMILY_ALPHA", "MIN_FOLD_TRADES", "MIN_TRAIN_TRADES", "MAX_TRADE_SHARE", "MAX_GAP_DAYS",
@@ -761,6 +782,7 @@ def evaluation_config(plan):
             "regime_split": FS.REGIME_SPLIT_DEFINITION,
             "ruin_handling": "bt.RUIN_FRAC = 0.0 on the harness's own bt instance; post_ruin trades fail loud",
             "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": plan["embargo"],
+            "cost_profile": plan["cost_profile"], "cost_profile_pin": plan["cost_profile_pin"],
             # owner 2026-09-30: planned R:R floor at entry (net of fees), both methods; None = unreadable -> drift
             "min_rr": _TE.min_rr(),
             "grid_sha256": {m: g["sha256"] for m, g in plan["grids"].items()},
@@ -934,12 +956,74 @@ def assert_flat_overlay(overlay):
                           "(no overnight holding is a FIXED rule, plan §6 item 7)")
 
 
+#: C1 (red-team 2026-10-02): the OPTS keys `bt.simulate()` (and every function it calls: planned_risk_refusal,
+#: _risk_scale, _account_stop, _venue_for_symbol, real_costs.*) reads from the MODULE-GLOBAL `OPTS` -- AUDITED by reading
+#: scripts/backtest-methods.py (`grep OPTS` over simulate and its callees) and PINNED by
+#: scripts/tests/test_simulate_time_opts.py, which re-derives the set from the source and fails if it changes:
+#:   * `min_rr`                   -- the planned-R:R admission floor (not a V item; ALLOWED_EXISTING_OPTS is only `mgmt`)
+#:   * `fx_admission_entry_cost`  -- O1, ON in every cell (ADOPTED_F_KEYS)
+#:   * `fx_b_exit`                -- only its 2R-FLOOR token ("floor" | "no_floor") is read at simulate time; the grid
+#:                                   (B-EXIT) declares only "...|floor" values, so the token is a fixed constant
+#: `mgmt` is NOT read by simulate(): it is read by `walk()` (scan time) and therefore travels with the scan overlay.
+#: simulate() is fold-independent, which `prop_pass` relies on (it pools trades of folds that chose different V values):
+#: it must run under the FIXED simulate-time set only, never under any one candidate's V overlay.
+SIMULATE_TIME_OPTS = ("min_rr", "fx_admission_entry_cost", "fx_b_exit")
+SIMULATE_FLOOR_TOKEN = "floor"
+
+
+def _floor_token(v):
+    parts = v.split("|") if isinstance(v, str) else []
+    return parts[2] if len(parts) == 3 else None
+
+
+def simulate_time_opts(bt, overlay=None):
+    """The OPTS dict `bt.simulate()` must run under: `dict(bt._OPTS_BASE, **fixed_opts())` -- the frozen engine baseline plus
+    the fixed fund rules, never the process-global OPTS (which is the v1 baseline unless a scan is running). Refuses
+    loudly when a candidate's V overlay tries to change a simulate-time key (a V key that became simulate-time would make
+    simulate() fold-dependent), or when the fixed set is not what the pre-registration says (O1 on, floor token 'floor')."""
+    sim = dict(bt._OPTS_BASE, **fixed_opts())
+    if sim.get("fx_admission_entry_cost") is not True:
+        raise GridRefused("fx_admission_entry_cost is not True in the simulate-time OPTS: O1 is a fixed fund rule "
+                          "(the harness would run the v1 exit-hour admission)")
+    if _floor_token(sim.get("fx_b_exit")) != SIMULATE_FLOOR_TOKEN:
+        raise GridRefused(f"simulate-time fx_b_exit={sim.get('fx_b_exit')!r}: the 2R-floor token must be "
+                          f"{SIMULATE_FLOOR_TOKEN!r} in every fund cell (owner 2026-09-30)")
+    if not isinstance(sim.get("min_rr"), (int, float)) or isinstance(sim.get("min_rr"), bool):
+        raise GridRefused(f"simulate-time min_rr={sim.get('min_rr')!r} is not a number")
+    for k, v in (overlay or {}).items():
+        if k not in SIMULATE_TIME_OPTS:
+            continue
+        if k == "fx_b_exit":
+            if _floor_token(v) != SIMULATE_FLOOR_TOKEN:
+                raise GridRefused(f"a V value sets fx_b_exit={v!r}: its 2R-floor token is read by simulate() and must "
+                                  f"be {SIMULATE_FLOOR_TOKEN!r} (a fold-dependent simulate-time key is refused)")
+        elif v != sim[k]:
+            raise GridRefused(f"the candidate overlay sets simulate-time OPTS key {k!r}={v!r} (fixed: {sim[k]!r}): a V "
+                              f"key may never become simulate-time -- prop_pass pools trades of different folds")
+    return sim
+
+
+@contextlib.contextmanager
+def simulate_context(bt, overlay=None):
+    """Run `bt.simulate()` under `simulate_time_opts` and restore the module OPTS afterwards (exception-safe)."""
+    sim = simulate_time_opts(bt, overlay)
+    saved = bt.OPTS
+    bt.OPTS = sim
+    try:
+        yield sim
+    finally:
+        bt.OPTS = saved
+
+
 def checked_simulate(bt, trades, fee, *, overlay, **kw):
     """`bt.simulate` that FAILS LOUD when the run ended in ruin / dropped trades (I1), so a lost trade is never a
     silent outcome, and when the candidate's overlay does not have flat_before_rollover on (round 2, item 5b).
+    It runs under `simulate_context` (C1): simulate() reads the module-global OPTS, which is NOT the candidate's
+    overlay (that only reaches `bt.scan(opts=...)`), so without this the harness simulated with the v1 admission.
     Returns simulate's own (equity, curve, taken)."""
     assert_flat_overlay(overlay)
-    out = bt.simulate(trades, fee, **kw)
+    with simulate_context(bt, overlay):
+        out = bt.simulate(trades, fee, **kw)
     last = getattr(bt, "SIM_LAST", None) or {}
     post = last.get("post_ruin") or []
     if post or last.get("ruin") is not None:
@@ -1357,6 +1441,8 @@ class BtEngine:
         # it) and NOT entered; it is a counted `zero_risk` admission row. The rule is `bt.planned_risk_refusal`, the
         # SAME function simulate() applies, so both sides refuse exactly the same candidates (asserted below).
         rows = []
+        # the admission cost the SIMULATE-TIME opts apply (O1: entry-hour, no swap) -- not the exit-hour cost v1 charged
+        adm_entry_only = simulate_time_opts(self.bt, overlay)["fx_admission_entry_cost"]
         for t in raw:
             why = self.bt.planned_risk_refusal(t.get("side"), t.get("entry"), t.get("stop"),
                                                _RC.tick_size(COST_PROFILE, t["symbol"]))
@@ -1364,7 +1450,8 @@ class BtEngine:
                 rows.append({"entry_time": t["entry_time"], "zero_risk": why})
                 continue
             rows.append({"entry_time": t["entry_time"], "R_planned": t.get("R_planned", 99),
-                         "fee_R": _RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"],
+                         "fee_R": _RC.cost_r(t["entry"], t["stop"], t["entry_time"],
+                                             t["entry_time"] if adm_entry_only else t["exit_time"], t["symbol"],
                                              t["side"], COST_PROFILE)["total_R"]})
         self._admission[key] = rows
         taken = checked_simulate(self.bt, raw, 0.0, overlay=overlay, cost_profile=COST_PROFILE,
@@ -1428,6 +1515,10 @@ ADMISSION_LIMITATION = ("O1 DECIDED 2026-09-30: every fund cell runs with fx_adm
                         "admission subtracts only entry-knowable costs (entry-hour half-spread + an exit-leg half-spread "
                         "estimated at the entry hour, no swap); the reported net R still uses the real entry+exit costs. "
                         "Under v1 (key off) admission would include the EXIT-hour spread, a look-ahead against plan §37. "
+                        "ENFORCED IN THE HARNESS (C1, 2026-10-02): simulate() reads the module-global OPTS, not the scan "
+                        "overlay, so `checked_simulate` runs it under `simulate_context` = dict(bt._OPTS_BASE, **fixed_opts()) "
+                        "for BOTH trades_for and prop_pass (fixed simulate-time keys: min_rr, fx_admission_entry_cost, the "
+                        "fx_b_exit floor token); the admission rows below use the same entry-hour cost. "
                         "The refusal counts and near-floor margins are still disclosed here.")
 
 

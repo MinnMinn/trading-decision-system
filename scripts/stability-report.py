@@ -87,6 +87,8 @@ def config_opts(cfg, ict_target):
                 fx_w7_htf_target=False,
                 # O1 (2026-09-30): v1 default; True = min_rr admission uses entry-knowable costs only.
                 fx_admission_entry_cost=False,
+                # C3 (2026-10-02): v1 default; True = walk() fills a stop at the worse of the stop and the bar open.
+                fx_gap_fill=False,
                 # Batch 2(a) Wyckoff V items (plan §3 V grid; docs/architecture/v-grid-wyckoff.json): the baseline
                 # (= v1) of each key, stated for the same "complete overlay" reason. W-MGMT is `mgmt` above.
                 fx_w_stop="current", fx_w4a_linger_closes=None, fx_w6_window=300, fx_w_spt="AR", fx_w_touch="off",
@@ -138,6 +140,8 @@ _SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "slope
                        # O1 (2026-09-30): changes which candidates simulate() admits (min_rr) -> must separate cache
                        # entries / config identity.
                        "fx_admission_entry_cost",
+                       # C3 (2026-10-02): changes the R / outcome of trades whose stop bar opened beyond the stop (walk()).
+                       "fx_gap_fill",
                        # Batch 2(a) Wyckoff V items: fx_w4a_linger_closes / fx_w_tw change DETECTION (per-call P=
                        # overrides, `_WY_CANDIDATES` key); fx_w6_window changes the window scan() walks;
                        # fx_w_stop / fx_w_spt / fx_w_touch change `_fires_from`'s stop / target / gate. All six

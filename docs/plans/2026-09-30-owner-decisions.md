@@ -209,3 +209,41 @@ Source: the adversarial review of docs/plans/2026-09-29-fund-search-preregistrat
 9. **Ledger.** XPTUSD and XPDUSD were added to the instrument list of the development period `cfd-development-pre-2024-03` in `docs/architecture/research-ledger.json` (the 5m-metals cell reads them). No `fund_search` declaration was written.
 
 **Pinned files changed by this decision:** `scripts/fund-search.py` (FINGERPRINT_FILES, pinning, `PRIOR_COUNTS`, `ROLLOVER_EDGE_NOTE`; `plan_hash` unchanged), and, under the new `scripts/` tree pin, `scripts/tests/test_fund_search.py`. `docs/architecture/research-ledger.json` (the instrument list) is NOT pinned: the ledger is excluded from the docs/architecture tree pin by design. `declare` must run after this change.
+
+
+## 2026-10-02: engine realism before `declare` (coordinator decision from the red-team review, owner to ack before `declare`)
+
+**Status: coordinator decision, owner to ack before `declare`.** Not an owner decision yet. Pre-registration item 13
+(`docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md`) is the sealed text; item 9 (cost model) is amended. Nothing was
+evaluated: no R, expectancy or win rate was computed for any of this; only counts and equivalence hashes.
+
+**Findings (an expert red-team review; each confirmed by reading the code).**
+1. **C1 (harness bug).** `BtEngine.trades_for` passed the overlay to `bt.scan(opts=...)` but `bt.simulate()` reads the module-global
+   `OPTS`, so the harness ran the v1 exit-hour min_rr admission although O1 (owner 2026-09-30) is ON in every cell and the
+   record said so. Fixed: every harness simulate runs under `dict(bt._OPTS_BASE, **fixed_opts())` (restored exception-safe); the
+   simulate-time OPTS reads are audited and pinned (`min_rr`, `fx_admission_entry_cost`, the `floor` token of `fx_b_exit`;
+   `mgmt` is read by `walk()`, not `simulate()`); `prop_pass` uses the fixed set only; a V key that became simulate-time is refused.
+   Consequence for the owner: O1 as decided is now what the harness does. Under the old code the declared record text was wrong.
+2. **C2 (absolute spread at today's prices).** New cost profile `ftmo_demo_2026_09_relspread` (spread scaled by `entry /
+   price_ref`, `price_ref` = median M15 close over exactly the spreads' recording window). The old absolute profile is
+   byte-identical and stays selectable as the reported sensitivity. The declaration pins the profile, the `price_ref` values and
+   a provenance hash. Measured price ratios (not R) are in item 13(b): the old profile overstated gold's spread by ~1.5-2x for
+   most folds and up to 6x in 2004; it UNDERstated palladium's in 2020-2022.
+3. **C3 (no gap slippage).** `walk()` filled a stop at the stop price even when a bar opened beyond it. New fixed key
+   `fx_gap_fill` (default False = v1; ON in every fund cell; live never sets it): a stop (also a breakeven stop) fills at the worse of
+   the stop and the bar open when the open is beyond the stop; targets and limit entries fill at their own price (no improvement);
+   a same-bar fill-and-stop obeys the same rule; `R_planned` and min_rr admission are unchanged. v1 (key off) is byte-identical.
+
+**Owner questions this raises (not decided here).** (i) Accept `fx_gap_fill` and `ftmo_demo_2026_09_relspread` as fixed rules of
+the evaluation baseline (they make the backtest less optimistic about costs and fills; neither changes a threshold, grid, cell,
+min_rr or statistic). (ii) A trade stopped by a gap now has `R < -1`; the 1%-risk sizing is unchanged, so a gap loss exceeds the
+planned risk, as it would live. (iii) The relative profile also RAISES a cost where the symbol traded above its reference price
+(palladium 2020-2022); that is intended (the spread is a fraction of price) but is a different sign from the gold case.
+
+**Evidence (counts and hashes; see item 13 for the figures).** see pre-registration item 13 (`Evidence`) and `docs/audits/2026-10-02-engine-realism-census.md`.
+
+**Pinned files changed (declare must run AFTER):** `scripts/backtest-methods.py`, `scripts/real_costs.py`,
+`scripts/fund-search.py`, `scripts/scan_many.py` (all in or beside `FINGERPRINT_FILES`), `docs/experiments/fund-search/plan.json`
+(the plan core gained `cost_profile_pin`, `adopted_f_keys` gained `fx_gap_fill`, `cost_profile` changed; `plan_hash`
+4a476bee674afcbb -> 5476f042bdde09f1). Also touched, not pinned: `scripts/snapshot.py`, `scripts/stability-report.py` (`fx_gap_fill` registered),
+`scripts/diagnose-methods.py` (the two `walk` wrappers forward `**kw`). The cells file, grids, thresholds and `min_rr` are untouched.
