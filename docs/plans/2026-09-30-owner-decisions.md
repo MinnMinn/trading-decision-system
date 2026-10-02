@@ -213,7 +213,7 @@ Source: the adversarial review of docs/plans/2026-09-29-fund-search-preregistrat
 
 ## 2026-10-02: engine realism before `declare` (coordinator decision from the red-team review, disclosed to the owner in chat and covered by the owner's authorisation to declare after red-team alignment (2026-10-02))
 
-**Status: coordinator decision, owner to ack before `declare`.** Not an owner decision yet. Pre-registration item 13
+**Status: coordinator decision (red-team review); disclosed to the owner in chat and covered by the owner's authorisation to declare after red-team alignment (2026-10-02).** Pre-registration item 13
 (`docs/plans/2026-09-29-fund-search-preregistration-DRAFT.md`) is the sealed text; item 9 (cost model) is amended. Nothing was
 evaluated: no R, expectancy or win rate was computed for any of this; only counts and equivalence hashes.
 
