@@ -301,3 +301,23 @@ listed here.
 `docs/experiments/fund-search/plan.json` (plan core: `family` and `perturbation_axes` replace `n_by_method`, candidates carry `family_size` /
 `floor_confidence`, constants gained the stress and MDE constants; `plan_hash` 5476f042bdde09f1 -> a043358b89314982). `scripts/performance.py`,
 `scripts/prop-search.py`, `scripts/backtest-methods.py`, `scripts/real_costs.py`, the grids, the cells file and `min_rr` are untouched.
+
+## dev_start decisions by availability rule (2026-10-02)
+
+Rule: draft section 0.3 (owner approved 2026-10-02 for `5m-metals`): per cell, the EARLIEST candidate start with P(every test fold >= 30 admitted trades) >= 0.80 for BOTH methods under the availability-aware model (cell-selection T3-avail; rho 0.3; fixed seeds; 2000 replications), else the last candidate. Inputs: admitted-trade counts per symbol-year (harness engine as merged) and bar counts only; no outcome figure was read. Full numbers: `docs/audits/2026-10-02-dev-start-decision.md`.
+
+**Disclosure of the extension.** The owner approved the rule for `5m-metals`. The coordinator extended the SAME principle to `1m-indices` after the engine census (`docs/audits/2026-10-02-engine-realism-census.md`) showed sparse 1m index data before 2021, and added the condition that every test fold needs at least ceil(2m/3) = 4 of 5 symbols with dense data (>= 50 % of expected bars) in the fold or its preceding training window. Both were fixed before any count was read and before any outcome was seen. The owner may overrule the extension (1m-indices then reverts to `dev_start` null, 4 folds, and `plan_hash` changes again).
+
+| cell | candidate | folds | P ICT | P Wyckoff | dense condition | verdict |
+|---|---|---|---|---|---|---|
+| 5m-metals | 2004-06-11 | 17 | 0.562 | 0.101 | n/a | fails |
+| 5m-metals | 2009-03-01 | 13 | 0.735 | 0.905 | n/a | fails (ICT < 0.80) |
+| 5m-metals | **2015-01-07** | 7 | 0.994 | 1.000 | n/a | **chosen** |
+| 1m-indices | 2017-12-27 | 4 | 1.000 | 1.000 | FAIL (fold 1, 2020-03..2021-03: only US30 dense) | fails |
+| 1m-indices | **2020-03-01** | 2 | 1.000 | 1.000 | PASS (5 of 5 dense in both folds) | **chosen** |
+
+Open point for the owner: the 5m-metals verdict depends on the discount convention of the availability model. Primary (T3-avail, the cell's full k in the rho-0.3 discount) is what the rule names and is what was applied. A sensitivity (discount over only the symbols that have trades in the fold) gives 2009-03-01 P 0.923 (ICT) / 0.980 (Wyckoff), i.e. it would pass and win (13 folds); 2004-06-11 still fails (0.892 / 0.559).
+
+Applied: `docs/architecture/fund-search-cells.json` (1m-indices 2020-03-01T00:00:00Z, 5m-metals 2015-01-07T00:00:00Z; `1m-metals` null), `scripts/research/span_equivalence.py` re-run for both cells (sha256 identical, full vs cut, both methods; section 3 of the audit), `docs/experiments/fund-search/plan.json` recommitted (no ledger declaration exists): `plan_hash` a043358b89314982 -> 12331b40583a6bd3. Folds now: 1m-metals 9, 1m-indices 2, 5m-metals 7. The real-plan shard layout (test pin) is now 288 shards (62 wave 1 + 226 wave 2; was 289 = 62 + 227); `shard_calibration.py` should be re-measured before the real run is laid out (as already noted 2026-10-02).
+
+**Pinned files changed:** `docs/architecture/fund-search-cells.json` (hashed into `plan_hash`), `docs/experiments/fund-search/plan.json`, `scripts/research/trade_rates.py`, `scripts/research/dev_start_decision.py` (new), `scripts/tests/test_fund_search.py` (scripts/ tree pin). `declare` must run AFTER this change and after the owner's ack.

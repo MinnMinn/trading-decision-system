@@ -65,8 +65,9 @@ conjunctive. Full definition: item A2.
 
 ### 0.3 The 5m-metals history start is decided by a rule stated BEFORE looking
 
-`dev_start` of `5m-metals` (docs/architecture/fund-search-cells.json) is currently null (data start, 17 folds). It is set
-by this rule, applied by a later step AFTER the engine fixes and BEFORE `declare`, and not adjustable afterwards:
+`dev_start` of `5m-metals` (docs/architecture/fund-search-cells.json) was null (data start, 17 folds) until this rule was
+applied on 2026-10-02: DECIDED 2015-01-07 (7 folds), numbers in `docs/audits/2026-10-02-dev-start-decision.md`. The rule is
+applied AFTER the engine fixes and BEFORE `declare`, and is not adjustable afterwards:
 
 1. Measure the number of ADMITTED trades per test fold in the early-fold years for both methods with the final engine
    (counts only: no R, no win rate, no performance figure is read for this decision).
@@ -77,6 +78,13 @@ by this rule, applied by a later step AFTER the engine fixes and BEFORE `declare
    its first bar, so early folds hold only XAUUSD and XAGUSD), recomputed on the measured admitted-trade counts.
 4. If none qualifies, use 2015-01-07.
 
+Extension (coordinator, 2026-10-02, disclosed; before any outcome was seen): the same principle was applied to `1m-indices`
+because the engine census found the same availability problem (US500/USTEC/FRA40 ~260 bars/year until 2021-09, DE40 dense
+from 2022-01, US30 from 2019-02). Candidates {2017-12-27 (4 folds), 2020-03-01 (2 folds)}, the same P >= 0.80 test for both
+methods, plus: admissible only if in every test fold at least ceil(2m/3) of the cell's symbols have dense data (>= 50 % of
+expected bars) in that fold or its preceding training window. DECIDED 2020-03-01 (2 folds): 2017-12-27 fails the dense-symbol
+condition in fold 1 (`docs/audits/2026-10-02-dev-start-decision.md`).
+
 A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) and must re-run
 `scripts/research/span_equivalence.py` for the cell (docs/plans/2026-09-30-owner-decisions.md, 2026-10-01 item 1).
 
@@ -86,9 +94,10 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
    Folds end exactly at the development cutoff (2024-03-01) and step back in 365-day folds while >= 730 days of
    training precede the fold. Resulting fold counts (reviewer-computed, printed by `plan --dry-run` from the data):
    metals 1m 9 folds; metals 5m/15m 17 (and 30m 17 until the 30m cells were removed, owner 2026-10-01); indices (all
-   timeframes) 4. The plan output and the report carry these per cell. Not changed in this round. Since 2026-10-01 each
-   cell's history START is a declared, pinned field (`docs/architecture/fund-search-cells.json` `dev_start`, null = from
-   data); every cell currently keeps its original data start, so the counts above are unchanged.
+   timeframes) 4. Since 2026-10-01 each cell's history START is a declared, pinned field
+   (`docs/architecture/fund-search-cells.json` `dev_start`, null = from data). As of 2026-10-02 (section 0.3, availability
+   rule): 1m-metals null (9 folds), 1m-indices 2020-03-01 (2 folds), 5m-metals 2015-01-07 (7 folds); the counts quoted
+   above for those two cells are the data-start values and are superseded. `plan --dry-run` prints the current folds per cell.
 2. **The statistic (REPLACED 2026-10-02, family A).** Primary metric = net expectancy per trade in R after REAL costs,
    computed on POOLED TEST-fold trades only. Per candidate there are five one-sided bounds at one common confidence
    level: the iid Student-t bound and the CR1 cluster-robust bounds by UTC entry date, by 30-day window, by calendar
@@ -124,7 +133,7 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
    AR(1) 30-day and 180-day persistence scenarios still passed the first three (owner default: tighten).
    **DISCLOSED PRICE (power).** Measured by the harness author on 20 seeds of iid +0.30R at n=600: the five-way min
    passed 20/20 over 6 development years, 17/20 over 4, 9/20 over 2 (the reviewer's figures for a 90-day bound:
-   0.99 -> 0.91; persistent-regime edges lose more). A cell with few quarters/half-years (e.g. indices, 4 folds)
+   0.99 -> 0.91; persistent-regime edges lose more). A cell with few quarters/half-years (e.g. 1m-indices, 2 folds since the 2026-10-02 dev_start decision)
    is structurally harder to pass. Not loosened.
 3. **Selection rule.** One factor at a time against the baseline, on the TRAINING window only; a value is eligible
    with >= 30 training trades and is chosen only if its training expectancy STRICTLY beats the baseline's (ties keep
