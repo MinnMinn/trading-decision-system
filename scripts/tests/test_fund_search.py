@@ -2646,7 +2646,8 @@ class AdoptedFKeys(unittest.TestCase):
 
     def test_the_nine_keys_are_in_every_overlay_and_are_engine_keys_that_default_off(self):
         bt = self.fs._load_bt()
-        self.assertEqual(len(self.fs.ADOPTED_F_KEYS), 11)              # nine F items + O1 fx_admission_entry_cost + C3 fx_gap_fill
+        self.assertEqual(len(self.fs.ADOPTED_F_KEYS), 12)              # nine F items + O1 fx_admission_entry_cost + C3 fx_gap_fill + D3 fx_fvg_formed_start
+        self.assertIn("fx_fvg_formed_start", self.fs.ADOPTED_F_KEYS)
         self.assertIn("fx_admission_entry_cost", self.fs.ADOPTED_F_KEYS)
         self.assertIn("fx_gap_fill", self.fs.ADOPTED_F_KEYS)
         fixed = self.fs.fixed_opts()
