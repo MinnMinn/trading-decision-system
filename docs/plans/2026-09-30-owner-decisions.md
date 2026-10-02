@@ -321,3 +321,29 @@ Open point for the owner: the 5m-metals verdict depends on the discount conventi
 Applied: `docs/architecture/fund-search-cells.json` (1m-indices 2020-03-01T00:00:00Z, 5m-metals 2015-01-07T00:00:00Z; `1m-metals` null), `scripts/research/span_equivalence.py` re-run for both cells (sha256 identical, full vs cut, both methods; section 3 of the audit), `docs/experiments/fund-search/plan.json` recommitted (no ledger declaration exists): `plan_hash` a043358b89314982 -> 12331b40583a6bd3. Folds now: 1m-metals 9, 1m-indices 2, 5m-metals 7. The real-plan shard layout (test pin) is now 288 shards (62 wave 1 + 226 wave 2; was 289 = 62 + 227); `shard_calibration.py` should be re-measured before the real run is laid out (as already noted 2026-10-02).
 
 **Pinned files changed:** `docs/architecture/fund-search-cells.json` (hashed into `plan_hash`), `docs/experiments/fund-search/plan.json`, `scripts/research/trade_rates.py`, `scripts/research/dev_start_decision.py` (new), `scripts/tests/test_fund_search.py` (scripts/ tree pin). `declare` must run AFTER this change and after the owner's ack.
+
+## 2026-10-02: review fix round 1 before the fund-search `declare` (branch `b26-review-fixes`; coordinator decisions, owner to ack before `declare`)
+
+**Status: fixes to the merged engine-realism and statistics work; no threshold loosened, no cell, grid, cost, spread or `min_rr` change; nothing evaluated (no R, expectancy or win rate of real data read).**
+
+- **Regime split balance rule (TIGHTENING; owner to ack).** Each D1-ADX half must hold at least 25 % of the pooled TEST trades, else the regime check FAILS with
+  'regime halves unbalanced'. Reason: ties at the median (many trades share one symbol-day D1 ADX) could leave a tiny half that still passed (ADX [10, 20, 20, 20, 50],
+  all +0.5 R: low 4 / high 1, `ok`). Documented in the draft item 7 and pinned in `REGIME_SPLIT_DEFINITION` (so `evaluation_config.regime_split` carries it). Only ever fails
+  more candidates; allowed before sealing.
+- **Holm never loosens the verdict** is now guarded by a test of `verdict_from` (only `lower_bound_positive` failing is a FAIL) and by a `cmd_report` test (a candidate Holm
+  rejects at rank 2 while it fails the floor is not in the passes and is listed under "would reject, but the floor fails (NOT a pass)"); mutation-checked.
+- **Fail-closed robustness.** `verdict_from` treats a missing `folds_sufficient` as not sufficient (no KeyError); `stress_commission_r` / `stressed_net_r` return None when not
+  computable and the stress gate FAILS on it (unreachable today because of the zero-risk refusal; the guard stays); `build_cells` REFUSES a declared `dev_start` that yields
+  fewer than `MIN_TEST_FOLDS` (2) folds.
+- **Dirty-tree check.** `scoped_dirty()` ignores a `*.lock` file only when `git check-ignore` says the repo's own `.gitignore` ignores it (so the 0-byte, gitignored
+  `docs/architecture/automation-config.json.lock` does not make `declare` refuse), and it now ALSO refuses a tracked file under the scoped paths that carries the
+  skip-worktree or assume-unchanged flag.
+- **Same-bar fill-and-stop in COMBINED-BOOK obeys the gap rule (13c)** now has its own hand-built-bar test (mutation-checked); engine behaviour unchanged.
+- **Disclosures.** `price_ref`: XPTUSD / XPDUSD have 99,999 bars in the spec window (spec 100,000; last bar 02:45 UTC missing; the other seven symbols match; median effect nil), and
+  `price_ref` reads closes up to 2026-09 / 10, after the development cutoff, as a constant cost-calibration scale (not an outcome read); added to the draft item 9. Comments and
+  docstrings aligned with the facts (draft 13b: 1.5-2.1x spread overstatement for most gold / silver folds; ICT N = 29; B-EXIT = 12 value sets; fold counts 9 / 2 / 7;
+  the D1 label convention is `us_dst_dates_fixed_offset`).
+- **Plan test.** `docs/experiments/fund-search/plan.json` `plan_hash` is now tested against `build_plan()` on the real cells file, grids and data, so a stale committed plan fails a test.
+
+**Pinned files changed (declare must run AFTER):** `scripts/fund_stats.py`, `scripts/fund-search.py`, `scripts/real_costs.py` (docstring only), the tests under the `scripts/` tree pin,
+`docs/experiments/fund-search/plan.json` (recommitted at the end of this branch).

@@ -48,11 +48,15 @@ The recorded spreads are ABSOLUTE price units (points * point) measured on 2022-
 against a 2007-2024 trade (XAUUSD ~$1,100-1,700 then, ~$4,000 now) that overstates spread_R 2-4x in early folds and
 drifts across folds. The profile `ftmo_demo_2026_09_relspread` (same files, same hours, same fallback) therefore
 scales the spread with the entry price: `spread_price(trade) = spread_points * point * entry / price_ref(symbol)` for
-both legs, median and p90 alike, where `price_ref(symbol)` is the MEDIAN CLOSE of the symbol's M15 bars over EXACTLY the
+both legs, median and p90 alike, where `price_ref(symbol)` is the MEDIAN CLOSE of the symbol's M15 bars over the
 spreads' recording window (spec `recorded_spread_m15.first_bar_server` .. `last_bar_server`, converted to UTC with the
-profile's own server clock, both bar-open labels inclusive) from the committed `data/history/ftmo` M15 series. At
+profile's own server clock, both bar-open labels inclusive) from the committed `data/history/ftmo` M15 series. The window
+is the spec's, but the stored XPTUSD / XPDUSD series hold 99,999 bars in it against the spec's 100,000 (the last spec bar,
+02:45 UTC, is missing from the history; the other seven symbols match exactly; the effect on the median is nil). The closes
+run to 2026-09 / 10, after the development cutoff: `price_ref` is a constant per-symbol cost-calibration scale (not an
+outcome read), consistent with the spreads' own recording window. At
 entry == price_ref the two profiles agree. Swap is unaffected (every fund trade is flat before the rollover; swap is not
-rescaled here). `ftmo_demo_2026_09` keeps the ABSOLUTE behaviour byte-identically (the reported sensitivity).
+rescaled here). `ftmo_demo_2026_09` keeps the ABSOLUTE behaviour byte-identically (a comparison baseline; no fund-search code uses it).
 
 SWAP CONVENTION
 -----------------

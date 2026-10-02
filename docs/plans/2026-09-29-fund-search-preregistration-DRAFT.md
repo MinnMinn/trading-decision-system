@@ -88,7 +88,7 @@ condition in fold 1 (`docs/audits/2026-10-02-dev-start-decision.md`).
 A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) and must re-run
 `scripts/research/span_equivalence.py` for the cell (docs/plans/2026-09-30-owner-decisions.md, 2026-10-01 item 1).
 
-## A. Choices to pre-register (the 12)
+## A. Choices to pre-register (items 1-13)
 
 1. **Fold geometry.** `TEST_FOLD_DAYS=365`, `MIN_TRAIN_DAYS=730`, `MIN_TEST_FOLDS=2`, `MIN_TRAIN_TRADES=30`.
    Folds end exactly at the development cutoff (2024-03-01) and step back in 365-day folds while >= 730 days of
@@ -171,7 +171,13 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
 7. **Regime split (REPLACED 2026-10-02, closes O7).** Regime = the D1 ADX(14) (Wilder) of the last COMPLETED D1 bar
    at or before the entry time (a D1 bar is completed once its close time is <= the entry time; the entry day's own
    forming bar is never read); split at the MEDIAN of the pooled TEST trades' D1 ADX values (<= median low half, > median
-   high half); BOTH halves must have positive mean net R; a trade with no D1 ADX value (warm-up) fails the check. The
+   high half); BOTH halves must have positive mean net R; a trade with no D1 ADX value (warm-up) fails the check. **Balance rule (TIGHTENED
+   2026-10-02, coordinator decision after the fix-round-1 review; owner to ack before `declare`):** EACH half must also hold at least
+   25 % of the pooled TEST trades, else the check FAILS with the reason 'regime halves unbalanced'. Why: many trades share one
+   symbol-day D1 ADX, so ties at the median can leave a half tiny and still 'positive' (reproduced: ADX [10, 20, 20, 20, 50], every
+   trade +0.5 R: low n = 4, high n = 1 passed). Because `<= median` goes to the low half, the high half is the one that can shrink;
+   the boundary is exact (2 of 8 passes, 2 of 9 fails; decided in integers). This only ever fails more candidates, so it is a
+   tightening and allowed before sealing; no threshold is loosened. The rule is part of `REGIME_SPLIT_DEFINITION`. The
    earlier definition (ADX(14) of the cell's own timeframe) is superseded; the code follows (`REGIME_SPLIT_DEFINITION`
    in `fund_stats.py` is pinned in `evaluation_config.regime_split`, so a declaration made before the code follows
    would show drift). **Implemented** (`b20-stats-sealed`): the trade field is `adx14_d1` (`FS.d1_adx_index` / `FS.d1_adx_at`; the
@@ -201,20 +207,22 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
    from every admitted trade's net R AFTER `simulate()` and before the bootstrap reads it (the shift is applied in the harness:
    `scripts/performance.py` and `scripts/prop-search.py` are untouched, so prop-search is byte-identical by construction); the
    unshifted requirement is evaluated first and stays; a shift that cannot be computed (no bound) fails closed.
-9. **Cost model.** Real FTMO costs, profile `ftmo_demo_2026_09`, `spread_stat="median"`, swap from the export;
-   flat before the daily server rollover (FIXED on; checked after every simulation; an entry-bar fill on the last bar
-   of a server day is flattened at that bar's close, see O8). **FTMO commission is UNKNOWN**
-   (`no_deals`): taken from the cost data only (0.0 with its status), so net R is NOT net of commission; the stress
-   gate of item 8 applies a 0.003 % margin instead (O6).
-
-   the bootstrap spread must also be >= 0.70.
-9. **Cost model.** Real FTMO costs, profile `ftmo_demo_2026_09_relspread` (AMENDED 2026-10-02 by item 13: the recorded
-   spread is scaled with the entry price; the absolute profile `ftmo_demo_2026_09` is no longer the fund profile and is
-   kept only as the reported sensitivity), `spread_stat="median"`, swap from the export;
-   flat before the daily server rollover (FIXED on; checked after every simulation). **FTMO commission is UNKNOWN**
-   (`no_deals`): taken from the cost data only (0.0 with its status), so net R is NOT net of commission.
+9. **Cost model (AMENDED 2026-10-02 by item 13).** Real FTMO costs, profile `ftmo_demo_2026_09_relspread`: the recorded
+   spread is scaled with the entry price (`entry / price_ref(symbol)`, item 13b); the absolute profile `ftmo_demo_2026_09` is no
+   longer the fund profile and stays selectable and byte-identical, but no fund-search code or report uses it (a comparison baseline for
+   the cost tests and the earlier re-pricing script only). `spread_stat="median"` for the net R of every trade; the stress gate re-prices the SAME trades with the p90
+   spread (item 8a). Swap comes from the export. Stops fill gap-aware under the fixed key `fx_gap_fill` (item 13c). Flat
+   before the daily server rollover (FIXED on; checked after every simulation; an entry-bar fill on the last bar of a server day
+   is flattened at that bar's close, see O8). **FTMO commission is UNKNOWN** (`no_deals`): taken from the cost data only (0.0
+   with its status), so net R is NOT net of commission; the stress gate of item 8 applies a 0.003 % margin instead (O6).
    Ruin handling: the harness sets `RUIN_FRAC=0.0` on its own engine instance (R does not depend on equity) and
    fails loud if any trade would have gone to `post_ruin`. **min_rr semantics: see item O1 (DECIDED).**
+   **Disclosure on `price_ref` (2026-10-02).** (i) The window is the spec's recording window, but the history of XPTUSD and
+   XPDUSD has 99,999 bars in it against the spec's 100,000: the last spec bar (02:45 UTC) is missing from the stored history; the
+   other seven symbols match the spec's bar count exactly; the effect on the median is nil. (ii) `price_ref` uses closes up to
+   2026-09 / 10, i.e. AFTER the development cutoff (2024-03-01). It is a constant per-symbol cost-calibration scale (a median of
+   closes over the window in which the spreads were themselves recorded), not an outcome read, and no development trade's
+   entry, stop, target or R is read from those closes.
 10. **Code SHAs, tree hashes and grid hashes (REPLACED 2026-10-02, red-team I5).** The declaration pins:
     - the last-commit SHA and dirty flag of every module in `FINGERPRINT_FILES` (`scripts/fund-search.py`): `fund_stats`,
       `fund-search`, `prop-search`, `backtest-methods`, `real_costs`, `performance`, `mt5_time`, `ict-scan`,
@@ -307,11 +315,11 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
       its spread there). The coordinator brief said 2-4x; the measured overstatement is 1.5-2x for most of the gold/silver
       folds and larger only before 2010. Profile `ftmo_demo_2026_09_relspread`
       (`scripts/real_costs.py`) scales both legs, median and p90 alike, by `entry / price_ref(symbol)`, where `price_ref` is the
-      median CLOSE of the symbol's committed M15 bars (`data/history/ftmo`) over EXACTLY the spreads' recording window (spec
+      median CLOSE of the symbol's committed M15 bars (`data/history/ftmo`) over the spreads' recording window (spec
       `recorded_spread_m15.first_bar_server .. last_bar_server`, converted to UTC with the profile's server clock; 100,000 bars
-      for XAUUSD, matching the spec's own `bars`). At `entry == price_ref` it equals the absolute profile. Swap is not rescaled (every trade is
+      for XAUUSD, matching the spec's own `bars`; XPTUSD / XPDUSD have 99,999, see the disclosure in item 9). At `entry == price_ref` it equals the absolute profile. Swap is not rescaled (every trade is
       flat before the rollover). `ftmo_demo_2026_09` stays selectable and BYTE-IDENTICAL (cost_r and `profile_snapshot` sha256
-      identical before/after on 180 priced trades) as the reported sensitivity. The plan core (`cost_profile`, `cost_profile_pin`)
+      identical before/after on 180 priced trades) as a comparison baseline. The plan core (`cost_profile`, `cost_profile_pin`)
       and the declaration's `evaluation_config` pin the profile, every cell symbol's `price_ref` and the sha256 of its
       provenance (window, bar count, closes hash); a changed history or spec is drift. `real_costs.mean_spread_r` returns the mean
       spread_R of a trade list (the per-fold cost report is a later step).
@@ -341,8 +349,8 @@ A non-null `dev_start` changes `plan_hash` (the cells file is hashed into it) an
   exit-hour admission was still applied although the key was in the overlay.
 - **O2 (embargo).** DECIDED 2026-09-30 (owner): implemented as `2 x H` bars of the cell's timeframe before each
   test fold, on top of the one-bar purge (see A4).
-- **O3 (fold size). DECIDED 2026-10-02.** Keep `TEST_FOLD_DAYS=365` / `MIN_TRAIN_DAYS=730` (fold counts 9 / 4 / 17 by
-  cell; the 5m-metals start is subject to the rule in section 0.3).
+- **O3 (fold size). DECIDED 2026-10-02.** Keep `TEST_FOLD_DAYS=365` / `MIN_TRAIN_DAYS=730` (fold counts 9 / 2 / 7 by
+  cell: 1m-metals / 1m-indices / 5m-metals, after the `dev_start` rule of section 0.3).
 - **O4 (deployment rule). DECIDED 2026-10-02:** per item 11 (the same selection rule re-run on the training data through
   2024-03-01; every pass to a separately pre-registered forward demo).
 - **O5 (allow-list). DECIDED 2026-10-02:** the allow-list stays. The harness refuses a grid item whose OPTS key is
