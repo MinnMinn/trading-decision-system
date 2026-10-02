@@ -1,0 +1,471 @@
+{
+ "cands": {
+  "1m-indices|ict": {
+   "ci_units": [
+    0.0,
+    0.030502826120405835,
+    0.09386219436826665
+   ],
+   "ci_years": [
+    0.0,
+    0.02886067926712064,
+    0.09416131708400853
+   ],
+   "cross_symbol_corr": 0.05558043431875283,
+   "d": 0.0008332857976220784,
+   "folds": 2,
+   "lag1_autocorr": -0.16728436557252788,
+   "observed_gaps": {
+    "folds": [
+     {
+      "max_gap_days": 4,
+      "n": 2063,
+      "test_start": "2022-03-02"
+     },
+     {
+      "max_gap_days": 4,
+      "n": 1779,
+      "test_start": "2023-03-02"
+     }
+    ],
+    "rule_ok": true,
+    "share_ok": 1.0
+   },
+   "per_symbol": {
+    "DE40": {
+     "sigma": 0.0,
+     "trades_test": 791,
+     "units": 2
+    },
+    "FRA40": {
+     "sigma": 0.021451553761181325,
+     "trades_test": 582,
+     "units": 2
+    },
+    "US30": {
+     "sigma": 0.024262411808086647,
+     "trades_test": 864,
+     "units": 2
+    },
+    "US500": {
+     "sigma": 0.09516050738322114,
+     "trades_test": 743,
+     "units": 2
+    },
+    "USTEC": {
+     "sigma": 0.0,
+     "trades_test": 862,
+     "units": 2
+    }
+   },
+   "pooled_monthly_cv": 0.08177830336046743,
+   "sigma": 0.02886067926712064,
+   "units_total": 10,
+   "units_used": 10
+  },
+  "1m-indices|wyckoff": {
+   "ci_units": [
+    0.08110954693804671,
+    0.13918196505237806,
+    0.19220323466320757
+   ],
+   "ci_years": [
+    0.04460398602262687,
+    0.14215171818385045,
+    0.1951890232933465
+   ],
+   "cross_symbol_corr": 0.2680131166659413,
+   "d": 0.020412656811017997,
+   "folds": 2,
+   "lag1_autocorr": -0.0873953883297618,
+   "observed_gaps": {
+    "folds": [
+     {
+      "max_gap_days": 4,
+      "n": 1339,
+      "test_start": "2022-03-02"
+     },
+     {
+      "max_gap_days": 4,
+      "n": 1093,
+      "test_start": "2023-03-02"
+     }
+    ],
+    "rule_ok": true,
+    "share_ok": 1.0
+   },
+   "per_symbol": {
+    "DE40": {
+     "sigma": 0.10557096822524123,
+     "trades_test": 476,
+     "units": 2
+    },
+    "FRA40": {
+     "sigma": 0.21718358866886714,
+     "trades_test": 392,
+     "units": 2
+    },
+    "US30": {
+     "sigma": 0.12824832233758626,
+     "trades_test": 496,
+     "units": 2
+    },
+    "US500": {
+     "sigma": 0.11792110055496784,
+     "trades_test": 459,
+     "units": 2
+    },
+    "USTEC": {
+     "sigma": 0.1090854001199605,
+     "trades_test": 609,
+     "units": 2
+    }
+   },
+   "pooled_monthly_cv": 0.16926987927066947,
+   "sigma": 0.14215171818385045,
+   "units_total": 10,
+   "units_used": 10
+  },
+  "1m-metals|ict": {
+   "ci_units": [
+    0.08268257714868583,
+    0.1702477223039471,
+    0.24806595198269776
+   ],
+   "ci_years": [
+    0.07689986893641433,
+    0.1720883383888433,
+    0.25015004855791056
+   ],
+   "cross_symbol_corr": 0.09654116742075744,
+   "d": 0.03068710232947366,
+   "folds": 9,
+   "lag1_autocorr": -0.008030512320916481,
+   "observed_gaps": {
+    "folds": [
+     {
+      "max_gap_days": 5,
+      "n": 653,
+      "test_start": "2015-03-04"
+     },
+     {
+      "max_gap_days": 5,
+      "n": 585,
+      "test_start": "2016-03-03"
+     },
+     {
+      "max_gap_days": 6,
+      "n": 444,
+      "test_start": "2017-03-03"
+     },
+     {
+      "max_gap_days": 6,
+      "n": 386,
+      "test_start": "2018-03-03"
+     },
+     {
+      "max_gap_days": 6,
+      "n": 469,
+      "test_start": "2019-03-03"
+     },
+     {
+      "max_gap_days": 6,
+      "n": 671,
+      "test_start": "2020-03-02"
+     },
+     {
+      "max_gap_days": 5,
+      "n": 720,
+      "test_start": "2021-03-02"
+     },
+     {
+      "max_gap_days": 4,
+      "n": 799,
+      "test_start": "2022-03-02"
+     },
+     {
+      "max_gap_days": 5,
+      "n": 707,
+      "test_start": "2023-03-02"
+     }
+    ],
+    "rule_ok": true,
+    "share_ok": 1.0
+   },
+   "per_symbol": {
+    "XAGUSD": {
+     "sigma": 0.23591975755463265,
+     "trades_test": 2041,
+     "units": 9
+    },
+    "XAUUSD": {
+     "sigma": 0.06426102921817735,
+     "trades_test": 3393,
+     "units": 9
+    }
+   },
+   "pooled_monthly_cv": 0.1697151225165013,
+   "sigma": 0.1738553119016503,
+   "units_total": 18,
+   "units_used": 18
+  },
+  "1m-metals|wyckoff": {
+   "ci_units": [
+    0.1581589508656712,
+    0.2504174342051846,
+    0.34703300899609674
+   ],
+   "ci_years": [
+    0.13207828270047484,
+    0.2514974621899834,
+    0.36224055986581016
+   ],
+   "cross_symbol_corr": 0.3759907711485116,
+   "d": 0.06982717761324965,
+   "folds": 9,
+   "lag1_autocorr": 0.08355679810583311,
+   "observed_gaps": {
+    "folds": [
+     {
+      "max_gap_days": 7,
+      "n": 395,
+      "test_start": "2015-03-04"
+     },
+     {
+      "max_gap_days": 9,
+      "n": 428,
+      "test_start": "2016-03-03"
+     },
+     {
+      "max_gap_days": 6,
+      "n": 410,
+      "test_start": "2017-03-03"
+     },
+     {
+      "max_gap_days": 7,
+      "n": 360,
+      "test_start": "2018-03-03"
+     },
+     {
+      "max_gap_days": 7,
+      "n": 401,
+      "test_start": "2019-03-03"
+     },
+     {
+      "max_gap_days": 5,
+      "n": 512,
+      "test_start": "2020-03-02"
+     },
+     {
+      "max_gap_days": 17,
+      "n": 294,
+      "test_start": "2021-03-02"
+     },
+     {
+      "max_gap_days": 6,
+      "n": 593,
+      "test_start": "2022-03-02"
+     },
+     {
+      "max_gap_days": 5,
+      "n": 474,
+      "test_start": "2023-03-02"
+     }
+    ],
+    "rule_ok": true,
+    "share_ok": 1.0
+   },
+   "per_symbol": {
+    "XAGUSD": {
+     "sigma": 0.26772154606875737,
+     "trades_test": 1965,
+     "units": 9
+    },
+    "XAUUSD": {
+     "sigma": 0.25159865986720553,
+     "trades_test": 1902,
+     "units": 9
+    }
+   },
+   "pooled_monthly_cv": 0.27783533652436154,
+   "sigma": 0.25980207693427204,
+   "units_total": 18,
+   "units_used": 18
+  },
+  "5m-metals|ict": {
+   "ci_units": [
+    0.0,
+    0.12854214166591352,
+    0.24480620237531936
+   ],
+   "ci_years": [
+    0.0,
+    0.1288452165105669,
+    0.23720812910562739
+   ],
+   "cross_symbol_corr": -0.03346897046904916,
+   "d": 0.016841276665409143,
+   "folds": 7,
+   "lag1_autocorr": 0.046668174993137294,
+   "observed_gaps": {
+    "folds": [
+     {
+      "max_gap_days": 23,
+      "n": 115,
+      "test_start": "2017-03-03"
+     },
+     {
+      "max_gap_days": 17,
+      "n": 118,
+      "test_start": "2018-03-03"
+     },
+     {
+      "max_gap_days": 14,
+      "n": 138,
+      "test_start": "2019-03-03"
+     },
+     {
+      "max_gap_days": 9,
+      "n": 193,
+      "test_start": "2020-03-02"
+     },
+     {
+      "max_gap_days": 14,
+      "n": 162,
+      "test_start": "2021-03-02"
+     },
+     {
+      "max_gap_days": 12,
+      "n": 216,
+      "test_start": "2022-03-02"
+     },
+     {
+      "max_gap_days": 12,
+      "n": 185,
+      "test_start": "2023-03-02"
+     }
+    ],
+    "rule_ok": true,
+    "share_ok": 1.0
+   },
+   "per_symbol": {
+    "XAGUSD": {
+     "sigma": 0.13552061074824515,
+     "trades_test": 336,
+     "units": 7
+    },
+    "XAUUSD": {
+     "sigma": 0.038059409920341625,
+     "trades_test": 375,
+     "units": 7
+    },
+    "XPDUSD": {
+     "sigma": 0.0,
+     "trades_test": 228,
+     "units": 5
+    },
+    "XPTUSD": {
+     "sigma": 0.25506936032024297,
+     "trades_test": 188,
+     "units": 4
+    }
+   },
+   "pooled_monthly_cv": 0.3037292626688059,
+   "sigma": 0.12923248331606502,
+   "units_total": 28,
+   "units_used": 23
+  },
+  "5m-metals|wyckoff": {
+   "ci_units": [
+    0.0,
+    0.1409782802274418,
+    0.25772836363927093
+   ],
+   "ci_years": [
+    0.0,
+    0.15183275640463978,
+    0.2568939668259399
+   ],
+   "cross_symbol_corr": 0.17377069242497303,
+   "d": 0.022737690006857363,
+   "folds": 7,
+   "lag1_autocorr": 0.04199547812266027,
+   "observed_gaps": {
+    "folds": [
+     {
+      "max_gap_days": 13,
+      "n": 152,
+      "test_start": "2017-03-03"
+     },
+     {
+      "max_gap_days": 13,
+      "n": 137,
+      "test_start": "2018-03-03"
+     },
+     {
+      "max_gap_days": 13,
+      "n": 171,
+      "test_start": "2019-03-03"
+     },
+     {
+      "max_gap_days": 13,
+      "n": 168,
+      "test_start": "2020-03-02"
+     },
+     {
+      "max_gap_days": 16,
+      "n": 160,
+      "test_start": "2021-03-02"
+     },
+     {
+      "max_gap_days": 10,
+      "n": 225,
+      "test_start": "2022-03-02"
+     },
+     {
+      "max_gap_days": 12,
+      "n": 212,
+      "test_start": "2023-03-02"
+     }
+    ],
+    "rule_ok": true,
+    "share_ok": 1.0
+   },
+   "per_symbol": {
+    "XAGUSD": {
+     "sigma": 0.0,
+     "trades_test": 330,
+     "units": 7
+    },
+    "XAUUSD": {
+     "sigma": 0.0,
+     "trades_test": 350,
+     "units": 7
+    },
+    "XPDUSD": {
+     "sigma": 0.21523438650272028,
+     "trades_test": 258,
+     "units": 7
+    },
+    "XPTUSD": {
+     "sigma": 0.3263149865219827,
+     "trades_test": 287,
+     "units": 7
+    }
+   },
+   "pooled_monthly_cv": 0.32647230304648994,
+   "sigma": 0.1499434612934711,
+   "units_total": 28,
+   "units_used": 28
+  }
+ },
+ "meta": {
+  "estimator": "per (fold, symbol): monthly counts N_m over covered weekdays w_m, Y_m = (N_m/w_m)/lambda_hat; d = Var(Y) - mean(1/(lambda_hat w_m)) = exp(sigma^2) - 1; pooled d = mean over units; sigma = sqrt(ln(1+d))",
+  "job_statuses": {
+   "OK": 134
+  },
+  "min_symbol_fold_trades": 24,
+  "n_boot": 1000,
+  "source": "docs/audits/2026-10-02-e2e-dates.jsonl"
+ }
+}

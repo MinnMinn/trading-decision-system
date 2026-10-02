@@ -102,8 +102,11 @@ def run_job(job):
                     f"warm-up + slice", bars=info.get("slice_bars"), seconds=round(time.time() - t0, 1))
     taken = eng.trades_for(grid.baseline())
     n = sum(1 for t in taken if start <= t["entry_time"] < end)
-    return dict(job, status="OK", trades=n, bars=info["slice_bars"], seconds=round(time.time() - t0, 1),
-                workers=1, first_bar=info["first_bar"], partial=bool(info.get("partial")))
+    out = dict(job, status="OK", trades=n, bars=info["slice_bars"], seconds=round(time.time() - t0, 1),
+               workers=1, first_bar=info["first_bar"], partial=bool(info.get("partial")))
+    if job.get("dates"):     # e2e calibration (docs/audits/2026-10-02-e2e-power.md section 8): ENTRY DATES only, no outcome field
+        out["entry_dates"] = sorted(t["entry_time"][:10] for t in taken if start <= t["entry_time"] < end)
+    return out
 
 
 def all_jobs(symbols=None, tfs=None):
@@ -141,6 +144,17 @@ def year_jobs(census_path, cells):
                 for m in METHODS:
                     jobs.append(dict(method=m, symbol=sym, tf=c["tf"], slice=f"Y{y}", allow_partial=True))
     return jobs
+
+
+def calib_jobs():
+    """e2e calibration: calendar-year jobs over the FINAL test folds of the three declared cells (1m-metals 2015-2023,
+    1m-indices 2022-2024, 5m-metals 2017-2024; Y2024 is cut by the PIT cutoff at 2024-03-01), `dates` = also store entry dates."""
+    sys.path.insert(0, os.path.join(ROOT, "scripts", "research"))
+    import dev_start_decision as D
+    spans = {"1m-metals": ("1m", ["XAUUSD", "XAGUSD"], range(2015, 2025)), "1m-indices": ("1m", D.CELLS["1m-indices"]["symbols"], range(2022, 2025)),
+             "5m-metals": ("5m", D.CELLS["5m-metals"]["symbols"], range(2017, 2025))}
+    return [dict(method=m, symbol=sym, tf=tf, slice=f"Y{y}", allow_partial=True, dates=True)
+            for tf, syms, yrs in spans.values() for sym in syms for y in yrs for m in METHODS]
 
 
 def drive(out, workers, timeout, only_tf=None, symbols=None, tfs=None, jobs=None):
@@ -313,6 +327,7 @@ def main(argv=None):
     r.add_argument("--tfs", nargs="*", help="b16: timeframes of the job set (default 1m 5m 15m 30m)")
     r.add_argument("--year-cells", nargs="*", help="dev-start decision: calendar-year jobs for these cells (needs --census)")
     r.add_argument("--census")
+    r.add_argument("--calib", action="store_true", help="e2e calibration jobs (entry dates of the final test folds)")
     j = sub.add_parser("job")
     j.add_argument("spec")
     a = ap.parse_args(argv)
@@ -323,7 +338,7 @@ def main(argv=None):
     elif a.cmd == "job":
         print(json.dumps(run_job(json.loads(a.spec))))
     else:
-        yj = year_jobs(a.census, a.year_cells) if a.year_cells else None
+        yj = calib_jobs() if a.calib else (year_jobs(a.census, a.year_cells) if a.year_cells else None)
         drive(a.out, a.workers, a.timeout, a.tf, a.symbols, a.tfs, yj)
 
 

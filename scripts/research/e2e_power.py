@@ -482,7 +482,7 @@ def run_prop_job(job):
     total = float(m.sum(axis=0).mean())                   # pooled trades / year, averaged over the final folds
     years = max(20, math.ceil(PM.PROP_TRADES / total))
     r = PM.run_prop(dict(label=f"e2e|{vname}|{cand[1]}|{cand[0]}", method=MNAME[cand[1]], cell=cand[0], years=years, k=k,
-                         rate_sym=total / k, cost=BASE["cost"], sigma=BASE["sigma"], tau=BASE["tau"], rho=rho))
+                         rate_sym=total / k, cost=BASE["cost"], sigma=job.get("sigma", BASE["sigma"]), tau=BASE["tau"], rho=rho))
     es = [r["by_fund"][f]["e_for_pass_070"] for f in r["by_fund"]]
     return {"kind": "prop", "cand": list(cand), "variant": vname, "rate_total": total, "years": years,
             "by_fund": {f: r["by_fund"][f] for f in r["by_fund"]}, "e_star": None if any(x is None for x in es) else max(es),
@@ -490,7 +490,7 @@ def run_prop_job(job):
 
 
 def _dispatch(item):
-    return {"curve": run_curve_point, "attrib": run_attrib, "fp": run_fp, "floor": run_floor_point, "prop": run_prop_job}[item["kind"]](item)
+    return {"curve": run_curve_point, "attrib": run_attrib, "fp": run_fp, "floor": run_floor_point, "prop": run_prop_job, "freq": run_freq}[item["kind"]](item)
 
 
 # ============================================================================================================ scheduler
@@ -802,6 +802,342 @@ def report(doc):
     return "\n".join(L) + "\n"
 
 
+# ============================================================================================ calibration (section 8 of the doc)
+DATES_JSONL = os.path.join(ROOT, "docs", "audits", "2026-10-02-e2e-dates.jsonl")
+CELL_OF = {("1m", "XAUUSD"): "1m-metals", ("1m", "XAGUSD"): "1m-metals", ("5m", "XAUUSD"): "5m-metals", ("5m", "XAGUSD"): "5m-metals",
+           ("5m", "XPTUSD"): "5m-metals", ("5m", "XPDUSD"): "5m-metals"}
+for _s in CELLS["1m-indices"]["symbols"]:
+    CELL_OF[("1m", _s)] = "1m-indices"
+MIN_SY_TRADES = 24          # a symbol-fold with fewer admitted trades (< 2 a month) is Poisson noise: kept out of the dispersion fit
+N_BOOT = 1000
+
+
+def load_dates(path=DATES_JSONL):
+    """{(cell, method, symbol): sorted entry dates} and the job statuses. Dates only: the jobs store no outcome field."""
+    d, status = {}, {}
+    for line in open(path):
+        if not line.strip():
+            continue
+        r = json.loads(line)
+        cell = CELL_OF[(r["tf"], r["symbol"])]
+        status[(cell, r["method"], r["symbol"], r["slice"])] = r["status"]
+        if r["status"] == "OK":
+            d.setdefault((cell, r["method"], r["symbol"]), []).extend(r.get("entry_dates", []))
+    return {k: sorted(v) for k, v in d.items()}, status
+
+
+def _fold_windows(cell):
+    import datetime
+    out = []
+    for f in FS.make_folds(CELLS[cell]["dev_start"]):
+        out.append((datetime.date.fromisoformat(f["test_start"][:10]), datetime.date.fromisoformat(f["test_end"][:10])))
+    return out
+
+
+def monthly_units(cell, dates):
+    """Per (fold, symbol): the calendar months of the test fold with trade count N and covered weekdays w (months with < 10 covered
+    weekdays are dropped). Returns {(fold_i, symbol): [(N, w), ...]} for the symbols in `dates` ({symbol: [iso dates]})."""
+    import datetime
+    units = {}
+    for i, (a, b) in enumerate(_fold_windows(cell)):
+        for sym, ds in dates.items():
+            cnt = {}
+            for x in ds:
+                dx = datetime.date.fromisoformat(x)
+                if a <= dx < b:
+                    cnt[(dx.year, dx.month)] = cnt.get((dx.year, dx.month), 0) + 1
+            wk, d = {}, a
+            while d < b:
+                if d.weekday() < 5:
+                    wk[(d.year, d.month)] = wk.get((d.year, d.month), 0) + 1
+                d += datetime.timedelta(days=1)
+            units[(i, sym)] = [(cnt.get(m, 0), w) for m, w in sorted(wk.items()) if w >= 10]
+    return units
+
+
+def unit_stats(rows):
+    """For one (fold, symbol) unit: (d, y_series, n_total) with d = excess variance of the rate-normalised monthly counts over Poisson noise
+    (= exp(sigma^2) - 1 under the lognormal mean-1 multiplier model); None when the unit has < MIN_SY_TRADES trades."""
+    n_tot = sum(n for n, _ in rows)
+    wsum = sum(w for _, w in rows)
+    if n_tot < MIN_SY_TRADES or len(rows) < 6:
+        return None
+    lam = n_tot / wsum                                        # per weekday
+    y = [(n / w) / lam for n, w in rows]
+    s2 = sum((v - 1.0) ** 2 for v in y) / (len(y) - 1)
+    pois = sum(1.0 / (lam * w) for _, w in rows) / len(rows)
+    return {"d": s2 - pois, "y": y, "n": n_tot}
+
+
+def _sigma_of_d(d):
+    return math.sqrt(math.log(1.0 + d)) if d > 0 else 0.0
+
+
+def calibrate(path=DATES_JSONL, seed_label="e2e-calib"):
+    """Fit sigma per (cell, method) from the REAL admitted-trade dates; bootstrap over folds (years) and over fold x symbol units."""
+    dates, status = load_dates(path)
+    res = {"meta": {"source": os.path.relpath(path, ROOT), "min_symbol_fold_trades": MIN_SY_TRADES, "n_boot": N_BOOT,
+                    "estimator": "per (fold, symbol): monthly counts N_m over covered weekdays w_m, Y_m = (N_m/w_m)/lambda_hat; "
+                                 "d = Var(Y) - mean(1/(lambda_hat w_m)) = exp(sigma^2) - 1; pooled d = mean over units; sigma = sqrt(ln(1+d))",
+                    "job_statuses": {k: sum(1 for kk, v in status.items() if v == k) for k in set(status.values())}},
+           "cands": {}}
+    for cell, method in CANDS:
+        syms = CELLS[cell]["symbols"]
+        sd = {s: dates.get((cell, method, s), []) for s in syms}
+        units = monthly_units(cell, sd)
+        st = {k: unit_stats(v) for k, v in units.items()}
+        use = {k: v for k, v in st.items() if v is not None}
+        if not use:
+            res["cands"][f"{cell}|{method}"] = {"error": "no usable unit"}
+            continue
+        d_all = sum(v["d"] for v in use.values()) / len(use)
+        folds = sorted({k[0] for k in use})
+        rng = np.random.default_rng(PM.seed_for(seed_label, cell, method))
+        by_fold = {f: [v["d"] for k, v in use.items() if k[0] == f] for f in folds}
+        bf, bu = [], []
+        keys = list(use)
+        for _ in range(N_BOOT):
+            pick = rng.integers(0, len(folds), len(folds))
+            vals = [x for p in pick for x in by_fold[folds[p]]]
+            bf.append(_sigma_of_d(sum(vals) / len(vals)))
+            pu = rng.integers(0, len(keys), len(keys))
+            bu.append(_sigma_of_d(sum(use[keys[p]]["d"] for p in pu) / len(pu)))
+        # lag-1 autocorrelation of the normalised monthly series (within unit), mean over units; cross-symbol correlation per fold
+        ac = []
+        for v in use.values():
+            y = np.array(v["y"])
+            if len(y) > 3 and y[:-1].std() > 0 and y[1:].std() > 0:
+                ac.append(float(np.corrcoef(y[:-1], y[1:])[0, 1]))
+        xc = []
+        for f in folds:
+            ys = [np.array(v["y"]) for k, v in use.items() if k[0] == f]
+            for i in range(len(ys)):
+                for j in range(i + 1, len(ys)):
+                    if len(ys[i]) == len(ys[j]) and ys[i].std() > 0 and ys[j].std() > 0:
+                        xc.append(float(np.corrcoef(ys[i], ys[j])[0, 1]))
+        per_sym = {}
+        for s in syms:
+            ds = [v["d"] for k, v in use.items() if k[1] == s]
+            per_sym[s] = {"units": len(ds), "sigma": _sigma_of_d(sum(ds) / len(ds)) if ds else None,
+                          "trades_test": sum(1 for x in sd[s] if any(a.isoformat() <= x < b.isoformat() for a, b in _fold_windows(cell)))}
+        pooled = pooled_monthly_cv(cell, sd)
+        res["cands"][f"{cell}|{method}"] = {
+            "sigma": _sigma_of_d(d_all), "d": d_all, "units_used": len(use), "units_total": len(st), "folds": len(folds),
+            "ci_years": [float(np.quantile(bf, q)) for q in (0.05, 0.5, 0.95)], "ci_units": [float(np.quantile(bu, q)) for q in (0.05, 0.5, 0.95)],
+            "lag1_autocorr": float(np.mean(ac)) if ac else None, "cross_symbol_corr": float(np.mean(xc)) if xc else None,
+            "per_symbol": per_sym, "pooled_monthly_cv": pooled,
+            "observed_gaps": observed_gaps(cell, sd)}
+    return res
+
+
+def pooled_monthly_cv(cell, sd):
+    """Descriptive: CV of the pooled (all symbols) monthly count per weekday, normalised within each fold (observed)."""
+    pooled = {}
+    for s, ds in sd.items():
+        pooled.setdefault("all", []).extend(ds)
+    units = monthly_units(cell, {"pooled": sorted(pooled.get("all", []))})
+    cvs = []
+    for rows in units.values():
+        if len(rows) >= 6 and sum(n for n, _ in rows) >= MIN_SY_TRADES:
+            y = np.array([(n / w) for n, w in rows])
+            cvs.append(float(y.std(ddof=1) / y.mean()))
+    return float(np.mean(cvs)) if cvs else None
+
+
+def observed_gaps(cell, sd):
+    """DESCRIPTIVE FACT (dates only, not an outcome, never used to select a cell): per test fold the longest run of calendar days
+    without a pooled baseline ENTRY (fund_stats.max_gap_days), and the share of folds within MAX_GAP_DAYS."""
+    allds = sorted(x for ds in sd.values() for x in ds)
+    out = []
+    for f in FS.make_folds(CELLS[cell]["dev_start"]):
+        a, b = FS.ts(f["test_start"]).date().isoformat(), FS.ts(f["test_end"]).date().isoformat()
+        trades = [{"entry_time": x + "T12:00:00Z"} for x in allds if a <= x < b]
+        out.append({"test_start": a, "n": len(trades), "max_gap_days": FS.max_gap_days(trades, f["test_start"], f["test_end"])})
+    share = sum(1 for g in out if g["max_gap_days"] <= FS.MAX_GAP_DAYS) / len(out)
+    return {"folds": out, "share_ok": share, "rule_ok": share >= FS.MIN_FOLD_SHARE_OK}
+
+
+def run_freq(job):
+    """P(frequency rule fails) of the model (arrivals do not depend on the edge): FS.check_frequency on `reps` synthetic streams."""
+    cand, cfg, reps = tuple(job["cand"]), job["cfg"], job["reps"]
+    w = World(cand, cfg)
+    rng = np.random.default_rng(_seed("freq", cand, cfg_key(cfg)))
+    nfail = 0
+    maxgaps = []
+    for _ in range(reps):
+        d = w.draw(rng, 0.2)
+        r = FS.check_frequency(d["fold_results"])
+        nfail += int(not r["ok"])
+        maxgaps.append(max(f["max_gap_days"] for f in r["folds"]))
+        FS.ts.cache_clear()
+    return {"kind": "freq", "cand": list(cand), "cfg": cfg, "n": reps, "fail": nfail, "max_gap_q": [float(np.quantile(maxgaps, q)) for q in (0.1, 0.5, 0.9)]}
+
+
+def run_cal(a):
+    """The e2e power re-run with the CALIBRATED sigma per candidate (primary sum03 + the disc03 convention + the floor-only rule grids)."""
+    t0 = time.time()
+    cal = json.load(open(a.calib))
+    sig = {c: round(cal["cands"][f"{c[0]}|{c[1]}"]["sigma"], 4) for c in CANDS}
+    R_MAIN, R_DISC, R_ATT, R_FP, R_FREQ = (30, 20, 20, 300, 100) if a.quick else (200, 60, 80, 3000, 1000)
+    R_FLOOR = {"1m-metals": 40, "1m-indices": 40, "5m-metals": 40} if a.quick else {"1m-metals": 300, "1m-indices": 300, "5m-metals": 800}
+    res = {"meta": {"script": "scripts/research/e2e_power.py run-cal", "base_seed": PM.BASE_SEED, "quick": a.quick, "sigma": {f"{c[0]}|{c[1]}": v for c, v in sig.items()},
+                    "tau": BASE["tau"], "calibration": a.calib}}
+
+    def cf(c, over=None):
+        return cfg_of(dict({"sigma": sig[c]}, **(over or {})))
+    jobs = [dict(kind="prop", cand=list(c), variant=v, sigma=sig[c]) for c in CANDS for v in RULE_VARIANTS]
+    jobs += [dict(kind="fp", cand=list(c), cfg=cf(c), reps=R_FP) for c in CANDS]
+    jobs += [dict(kind="freq", cand=list(c), cfg=cf(c, {"variant": v}), reps=R_FREQ) for c in CANDS for v in ("sum03", "disc03")]
+    jobs += [dict(kind="freq", cand=list(c), cfg=cfg_of({"variant": v}), reps=R_FREQ) for c in CANDS for v in ("sum03", "disc03")]    # sigma 0.75
+    jobs.sort(key=lambda j: -(weight(j) if j["kind"] in ("fp",) else (400 if j["kind"] == "prop" else 100)))
+    s1 = pmap(jobs, a.procs, "cal stage1 e*/type-I/frequency")
+    res["prop"] = [r for r in s1 if r["kind"] == "prop"]
+    res["fp"] = [r for r in s1 if r["kind"] == "fp"]
+    res["freq"] = [r for r in s1 if r["kind"] == "freq"]
+    estar = {(tuple(r["cand"]), r["variant"]): r["e_star"] for r in res["prop"]}
+    jobs = [dict(kind="curve", cand=list(c), cfg=cf(c), e=e, reps=R_MAIN) for c in CANDS for e in EGRID]
+    jobs += [dict(kind="curve", cand=list(c), cfg=cf(c, {"variant": "disc03"}), e=e, reps=R_DISC) for c in CANDS for e in EGRID]
+    jobs += [dict(kind="curve", cand=list(c), cfg=cf(c), e=round(estar[(c, PRIMARY)], 4), reps=R_MAIN, early=False)
+             for c in CANDS if estar[(c, PRIMARY)] is not None and round(estar[(c, PRIMARY)], 4) not in EGRID]
+    jobs.sort(key=lambda j: -weight(j))
+    cur = [r for r in pmap(jobs, a.procs, "cal stage2 curves") if r["kind"] == "curve"]
+    ext = []
+    for vv, rep in ((PRIMARY, R_MAIN), ("disc03", R_DISC)):
+        for c in CANDS:
+            pts = {round(r["e"], 4): (r["pass"], r["n"]) for r in cur if tuple(r["cand"]) == c and r["cfg"] == cf(c, {"variant": vv})}
+            if e80_of(pts, EGRID) is None:
+                ext += [dict(kind="curve", cand=list(c), cfg=cf(c, {"variant": vv}), e=e, reps=rep) for e in EGRID_EXT]
+    if ext:
+        cur += [r for r in pmap(ext, a.procs, "cal stage2b extension") if r["kind"] == "curve"]
+    res["curve"] = cur
+    e80 = {"primary": {}, "disc03": {}}
+    for vv, key in ((PRIMARY, "primary"), ("disc03", "disc03")):
+        for c in CANDS:
+            pts = {round(r["e"], 4): (r["pass"], r["n"]) for r in cur if tuple(r["cand"]) == c and r["cfg"] == cf(c, {"variant": vv})}
+            e80[key][f"{c[0]}|{c[1]}"] = e80_of(pts, EGRID + EGRID_EXT)
+    res["e80"] = e80
+    jobs = [dict(kind="floor", cand=list(c), cfg=cf(c, {"variant": v}), e=e, reps=R_FLOOR[c[0]]) for c in CANDS for v in RULE_VARIANTS for e in COARSE]
+    jobs.sort(key=lambda j: -weight(j))
+    fl = [r for r in pmap(jobs, a.procs, "cal stage3 floor-only coarse") if r["kind"] == "floor"]
+    ref = []
+    for c in CANDS:
+        for v in RULE_VARIANTS:
+            pts = sorted((r["e"], r["floor"] / r["n"]) for r in fl if tuple(r["cand"]) == c and r["cfg"]["variant"] == v)
+            for (e0, p0), (e1, p1) in zip(pts, pts[1:]):
+                if p0 < 0.80 <= p1 and e1 <= 0.40:
+                    ref.append(dict(kind="floor", cand=list(c), cfg=cf(c, {"variant": v}), e=round((e0 + e1) / 2, 4), reps=R_FLOOR[c[0]]))
+                    break
+    fl += [r for r in pmap(ref, a.procs, "cal stage3b floor-only refine") if r["kind"] == "floor"] if ref else []
+    res["floor"] = fl
+    jobs = []
+    for c in CANDS:
+        x = e80["primary"][f"{c[0]}|{c[1]}"]
+        for e in ([0.30, 0.60] if x is None else sorted({nearest_grid(x / 2.0), x})):
+            jobs.append(dict(kind="attrib", cand=list(c), cfg=cf(c), e=e, reps=R_ATT))
+    res["attrib"] = [r for r in pmap(jobs, a.procs, "cal stage4 attribution") if r["kind"] == "attrib"]
+    res["meta"]["seconds"] = round(time.time() - t0, 1)
+    json.dump(res, open(a.out, "w"), indent=1, sort_keys=True)
+    print(f"wrote {a.out} in {time.time() - t0:.0f}s")
+
+
+def report_cal(cal, doc, old):
+    """Tables of section 8: calibration fit, observed facts, calibrated-sigma results next to the sigma-0.75 ones, the rule."""
+    L = []
+    estar = {(r["cand"][0], r["cand"][1], r["variant"]): r for r in doc["prop"]}
+    e80 = doc["e80"]
+    fp = {tuple(r["cand"]): r for r in doc["fp"]}
+    fq = {}
+    for r in doc["freq"]:
+        fq[(tuple(r["cand"]), r["cfg"]["variant"], r["cfg"]["sigma"])] = r
+    cfg_of_c = lambda c, v=PRIMARY: cfg_of({"sigma": doc["meta"]["sigma"][f"{c[0]}|{c[1]}"], "variant": v})
+    L.append("### C1. Calibration of the monthly rate dispersion from the REAL baseline entry dates (counts and dates only; test folds of the final starts)\n")
+    L.append("sigma = sqrt(ln(1 + d)), d = excess variance of the rate-normalised monthly counts over Poisson noise, pooled over (fold, symbol) units with >= 24 trades; "
+             "90 % interval = 5-95 % quantiles of the bootstrap over folds (years) and over fold x symbol units (1000 draws each). The model used 0.75.\n")
+    L.append("| candidate | units used / total | folds | sigma (fit) | 90 % CI over folds | 90 % CI over units | lag-1 autocorr of monthly series | cross-symbol corr of monthly series (model 0.3) | observed pooled monthly CV |")
+    L.append("|---|---|---|---|---|---|---|---|---|")
+    for c, m in CANDS:
+        r = cal["cands"][f"{c}|{m}"]
+        f = lambda x: "n/a" if x is None else f"{x:.2f}"
+        L.append(f"| {c} {MNAME[m]} | {r['units_used']} / {r['units_total']} | {r['folds']} | **{r['sigma']:.2f}** | {r['ci_years'][0]:.2f} - {r['ci_years'][2]:.2f} | "
+                 f"{r['ci_units'][0]:.2f} - {r['ci_units'][2]:.2f} | {f(r['lag1_autocorr'])} | {f(r['cross_symbol_corr'])} | {f(r['pooled_monthly_cv'])} |")
+    L.append("\nPer symbol sigma (units with >= 24 trades): " + "; ".join(
+        f"{c} {MNAME[m]}: " + ", ".join(f"{s} {('n/a' if v['sigma'] is None else format(v['sigma'], '.2f'))} ({v['units']}u)" for s, v in cal['cands'][f'{c}|{m}']['per_symbol'].items())
+        for c, m in CANDS))
+    L.append("\n### C2. OBSERVED frequency-rule outcome (descriptive count/date fact of the baseline admitted entries; NOT a performance number and NOT used to pick cells)\n")
+    L.append("Longest run of calendar days without a pooled baseline entry in each test fold, oldest fold first (rule: <= 30 days in every fold). Baseline value set only, each symbol scanned separately and pooled by date "
+             "(no cross-symbol simulate() interaction); the sealed procedure's chosen values differ per fold.\n")
+    L.append("| candidate | max gap per fold (days) | folds within 30 d | rule outcome |")
+    L.append("|---|---|---|---|")
+    for c, m in CANDS:
+        g = cal["cands"][f"{c}|{m}"]["observed_gaps"]
+        L.append(f"| {c} {MNAME[m]} | {' '.join(str(x['max_gap_days']) for x in g['folds'])} | {sum(1 for x in g['folds'] if x['max_gap_days'] <= 30)}/{len(g['folds'])} | {'satisfied' if g['rule_ok'] else 'NOT satisfied'} |")
+    L.append("\n### C3. P(frequency rule fails) in the model (independent of the edge): calibrated sigma vs the inherited 0.75\n")
+    L.append("| candidate | sigma cal | P(fail) sum03, calibrated | P(fail) sum03, sigma 0.75 | P(fail) disc03, calibrated | P(fail) disc03, sigma 0.75 | model median of the largest fold gap (days, calibrated sum03; observed max in C2) |")
+    L.append("|---|---|---|---|---|---|---|")
+    for c, m in CANDS:
+        s = doc["meta"]["sigma"][f"{c}|{m}"]
+        def p(v, sg):
+            r = fq[((c, m), v, sg)]
+            return f"{r['fail'] / r['n']:.3f}"
+        r = fq[((c, m), "sum03", s)]
+        obs = max(x["max_gap_days"] for x in cal["cands"][f"{c}|{m}"]["observed_gaps"]["folds"])
+        L.append(f"| {c} {MNAME[m]} | {s:.2f} | {p('sum03', s)} | {p('sum03', 0.75)} | {p('disc03', s)} | {p('disc03', 0.75)} | {r['max_gap_q'][1]:.0f} (observed {obs}) |")
+    L.append("\n### C4. End-to-end with the calibrated sigma (PRIMARY: measured pooled rate; tau 0.03 unchanged: it cannot be calibrated without outcomes)\n")
+    L.append("| candidate | sigma | e* (calibrated sigma) | e* (sigma 0.75) | e_min floor-only | e80 whole conjunction | e80 / e* | e80 at sigma 0.75 | P(PASS) at e* | type I at e = 0 (Wilson upper) | binding check at e80 |")
+    L.append("|---|---|---|---|---|---|---|---|---|---|---|")
+    old_e80 = old["e80"]["primary"]
+    old_es = {(r["cand"][0], r["cand"][1], r["variant"]): r["e_star"] for r in old["prop"]}
+    for c, m in CANDS:
+        es = estar[(c, m, "sum03")]["e_star"]
+        e8 = e80["primary"][f"{c}|{m}"]
+        em = floor_emin(doc, (c, m), "sum03")
+        ats = sorted((x for x in doc["attrib"] if tuple(x["cand"]) == (c, m)), key=lambda x: x["e"])
+        lead = "n/a"
+        if ats:
+            r = ats[-1]
+            lead = "none fails" if not r["fail_counts"] else "{} ({:.0%})".format(*(lambda kv: (kv[0], kv[1] / r["n"]))(max(r["fail_counts"].items(), key=lambda kv: kv[1])))
+        pe = [r for r in doc["curve"] if tuple(r["cand"]) == (c, m) and r["cfg"] == cfg_of_c((c, m)) and es is not None and abs(r["e"] - round(es, 4)) < 1e-9]
+        ppe = "n/a" if not pe else f"{max(pe, key=lambda x: x['n'])['pass'] / max(pe, key=lambda x: x['n'])['n']:.2f}"
+        r0 = fp[(c, m)]
+        L.append(f"| {c} {MNAME[m]} | {doc['meta']['sigma'][f'{c}|{m}']:.2f} | {pct(es, 3)} | {pct(old_es[(c, m, 'sum03')], 3)} | {pct(em, 3)} | **{pct(e8)}** | {pct(None if (e8 is None or not es) else e8 / es)} | "
+                 f"{pct(old_e80[f'{c}|{m}'])} | {ppe} | {r0['pass']}/{r0['n']} ({r0['wilson_pass']:.4f}) | {lead} |")
+    P = {}
+    for r in doc["curve"]:
+        c = tuple(r["cand"])
+        if r["cfg"] == cfg_of_c(c):
+            P.setdefault(c, {})[round(r["e"], 4)] = r
+    grid = sorted({e for c in P for e in P[c] if e in EGRID or e in EGRID_EXT})
+    L.append("\n### C5. P(PASS) vs true net edge e, calibrated sigma, PRIMARY\n")
+    L.append("| candidate | n/point | " + " | ".join(f"{e:.2f}" for e in grid) + " | e80 |")
+    L.append("|---|---|" + "---|" * (len(grid) + 1))
+    for c, m in CANDS:
+        L.append(f"| {c} {MNAME[m]} | {max(r['n'] for r in P[(c, m)].values())} | " + " | ".join(("-" if P[(c, m)].get(e) is None else f"{P[(c, m)][e]['pass'] / P[(c, m)][e]['n']:.2f}") for e in grid) + f" | **{pct(e80['primary'][f'{c}|{m}'])}** |")
+    L.append("\n### C6. The inclusion rule re-applied with the calibrated sigma (k = 2; primary convention disc03: rate discounted at rho 0.3, regime rho 0.3; final folds; floor confidence 0.98333)\n")
+    L.append("| cell | method | sigma | e_min (floor-only, grid) | e_min (interp) | e* (binding) | ratio e_min/e* | <= 2 ? | ratio at sigma 0.75 (section 4) | full-conjunction e80 (disc03) |")
+    L.append("|---|---|---|---|---|---|---|---|---|---|")
+    ratios = {}
+    for c, m in CANDS:
+        em, emi = floor_emin(doc, (c, m), "disc03"), floor_emin(doc, (c, m), "disc03", "interp")
+        es = estar[(c, m, "disc03")]["e_star"]
+        ratio = None if (em is None or not es) else em / es
+        o_em, o_es = floor_emin(old, (c, m), "disc03"), old_es[(c, m, "disc03")]
+        o_ratio = None if (o_em is None or not o_es) else o_em / o_es
+        L.append(f"| {c} | {MNAME[m]} | {doc['meta']['sigma'][f'{c}|{m}']:.2f} | {pct(em, 3)} | {pct(emi, 3)} | {pct(es, 3)} | {pct(ratio)} | {'yes' if ratio is not None and ratio <= K_RULE else 'no'} | {pct(o_ratio)} | {pct(e80['disc03'][f'{c}|{m}'])} |")
+    L.append("\n### C7. Inclusion verdict per cell, calibrated sigma: robustness (best ratio over the methods)\n")
+    L.append("| cell | variant | best ratio | k=1.5 | k=2 (RULE) | k=2.5 | k=3 |")
+    L.append("|---|---|---|---|---|---|---|")
+    for cell in CELLS:
+        for v in RULE_VARIANTS:
+            rs = []
+            for m in METHODS:
+                em, es = floor_emin(doc, (cell, m), v), estar[(cell, m, v)]["e_star"]
+                rs.append(None if (em is None or not es) else em / es)
+            ok = [x for x in rs if x is not None]
+            best = min(ok) if ok else None
+            L.append(f"| {cell} | {v}{' (primary convention)' if v == 'disc03' else ''} | {pct(best)} | " + " | ".join(("INCLUDED" if best is not None and best <= k else "NOT SATISFIED") for k in K_LIST) + " |")
+    return "\n".join(L) + "\n"
+
+
 # =============================================================================================================== selfcheck
 def selfcheck(n=60):
     """(1) the lazy verdict equals FS.evaluate_cell's verdict (every check computed) on random streams; (2) the vectorised stress
@@ -849,7 +1185,29 @@ def main():
     q.add_argument("--json", required=True)
     q.add_argument("--out", required=True)
     sub.add_parser("selfcheck")
+    c = sub.add_parser("calib")
+    c.add_argument("--dates", default=DATES_JSONL)
+    c.add_argument("--out", required=True)
+    rc = sub.add_parser("run-cal")
+    rc.add_argument("--calib", required=True)
+    rc.add_argument("--out", required=True)
+    rc.add_argument("--procs", type=int, default=4)
+    rc.add_argument("--quick", action="store_true")
+    qc = sub.add_parser("report-cal")
+    qc.add_argument("--calib", required=True)
+    qc.add_argument("--json", required=True)
+    qc.add_argument("--old", required=True, help="the sigma-0.75 run (docs/audits/2026-10-02-e2e-power.json)")
+    qc.add_argument("--out", required=True)
     a = ap.parse_args()
+    if a.cmd == "calib":
+        json.dump(calibrate(a.dates), open(a.out, "w"), indent=1, sort_keys=True)
+        return
+    if a.cmd == "run-cal":
+        run_cal(a)
+        return
+    if a.cmd == "report-cal":
+        open(a.out, "w").write(report_cal(json.load(open(a.calib)), json.load(open(a.json)), json.load(open(a.old))))
+        return
     if a.cmd == "selfcheck":
         print(json.dumps(selfcheck(), indent=1))
     elif a.cmd == "report":
