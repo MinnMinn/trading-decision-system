@@ -28,7 +28,7 @@ the declaration (`evaluation_config.cells_sha256`) like the V grids, and `run`/`
 
 FIXED IN EVERY CELL (plan §6 items 3, 7): real FTMO costs (`COST_PROFILE`, data/history/costs/ftmo/; since 2026-10-02 the
 relative-spread profile, pre-registration item 13b) and flat-before-rollover (no overnight holding); `simulate()` always runs
-under the fixed OPTS (`simulate_context`, item 13a). A grid item that tries to override either is refused
+under the fixed OPTS (`simulate_context`, item 13a) and `walk()` fills gapped stops at the bar open (`fx_gap_fill`, item 13c). A grid item that tries to override either is refused
 (`validate_grid`). The FTMO commission is UNKNOWN (symbolspec commission.status == "no_deals"): it is taken from
 the cost data only -- scripts/real_costs.py returns 0.0 with its status -- and disclosed in every record.
 
@@ -98,9 +98,13 @@ LEDGER_SECTION = "fund_search"                                                  
 #: Plus O1 (owner-approved 2026-09-30): `fx_admission_entry_cost` -- min_rr admission uses only entry-knowable costs
 #: (scripts/backtest-methods.py simulate()). It is a fixed engine rule, not an F item; it lives in this tuple so it
 #: is ON in every cell, in the plan hash and declaration config, and can never be set by a grid item.
+#: Plus C3 (red-team 2026-10-02, coordinator decision, owner to ack before declare): `fx_gap_fill` -- walk() fills a stop at
+#: the WORSE of the stop and the bar open when the bar opens beyond it (no more stop fills at a price the market never
+#: traded). Fixed ON in every cell like O1; it is read at SCAN time (walk), so it travels with the scan overlay, and
+#: simulate() never reads it (it is outside SIMULATE_TIME_OPTS).
 ADOPTED_F_KEYS = ("fx_b2a_fvg_in_leg", "fx_b2b_ce_fail", "fx_b1_pivot1", "fx_braid_optional",
                   "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon", "fx_w7_htf_target",
-                  "fx_admission_entry_cost")
+                  "fx_admission_entry_cost", "fx_gap_fill")
 FIXED_KEYS = ("flat_before_rollover", "rollover_provider") + ADOPTED_F_KEYS       # a grid item may never set these
 
 #: O2 (owner-approved 2026-09-30): walk-forward training embargo = EMBARGO_H_MULTIPLE x H bars of the cell's

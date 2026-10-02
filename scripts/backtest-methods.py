@@ -153,7 +153,12 @@ OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see
             # (False) = simulate()'s min_rr admission uses the real round-turn cost incl. the EXIT-hour spread and
             # swap. True = admission uses only what is knowable at the entry decision (see simulate()). The live
             # runner never sets it.
-            fx_admission_entry_cost=False)
+            fx_admission_entry_cost=False,
+            # C3 (red-team 2026-10-02): default v1 (False) = walk() fills a stop at EXACTLY the stop price even when the bar
+            # OPENS beyond it. True = a stop (incl. a breakeven stop) fills at the WORSE of the stop and the bar open when
+            # the open is beyond the stop (see walk()). Fixed ON in every fund cell (scripts/fund-search.py
+            # ADOPTED_F_KEYS); the live runner never sets it.
+            fx_gap_fill=False)
 # The four fx_ keys that change WYCKOFF-BOOK/COMBINED-BOOK DETECTION (not just gating) -- read once per
 # `_WY_CANDIDATES` cache build, bridged into the module-level wyckoff_rules.PARAMS the same way
 # `spring_max_bars_outside` already is (see `_wyckoff_candidates`'s own docstring: it must stay OPTS-
@@ -561,8 +566,36 @@ def last_pivot(piv, upto):
     return piv[k] if k >= 0 else None
 
 
-def walk(side, entry, stop, target, H_, L_, C_, start, horizon, Tm=None):
-    """`Tm` (A0, plan §2): the series' own bar-close timestamps, parallel to `H_`/`L_`/`C_` -- only consulted
+def gap_stop_fill(side, stop, open_):
+    """The price a stop fills at under `OPTS["fx_gap_fill"]` (C3) when the bar OPENED BEYOND it -- the bar open, which is the
+    WORSE of the stop and the open (long min(stop, open), short max(stop, open)) -- or None when the open is at or inside the stop
+    (the stop price fills, exactly as in v1)."""
+    if side == "long":
+        return open_ if open_ < stop else None
+    return open_ if open_ > stop else None
+
+
+def gap_stop_R(side, entry, stop, open_):
+    """R of a planned-stop leg booked on a bar that OPENED beyond that stop (gap_stop_fill), measured on the PLANNED risk
+    |entry - stop| (R_planned and the min_rr admission are unchanged, so a gap loss is below -1); None when the bar did not
+    open beyond the stop or there is no valid risk -- the caller keeps its v1 figure."""
+    risk = (entry - stop) if side == "long" else (stop - entry)
+    fill = gap_stop_fill(side, stop, open_)
+    if not risk > 0 or fill is None:
+        return None
+    return ((fill - entry) if side == "long" else (entry - fill)) / risk
+
+
+def walk(side, entry, stop, target, H_, L_, C_, start, horizon, Tm=None, O_=None):
+    """`O_` (C3): the series' own bar OPENS, parallel to `H_`/`L_`/`C_` -- only consulted when `OPTS["fx_gap_fill"]` is set
+    (default False = v1, byte-identical; a caller passing nothing gets v1). When set, a stop (the planned stop, or the
+    breakeven stop once moved) that a bar's OPEN already lies beyond fills at the WORSE of the stop and that open instead of
+    at the stop price (`gap_stop_fill`): long min(stop, open), short max(stop, open). Targets are unchanged (filled at their own
+    price, never improved) and so is the bar order (stop checked before target within one bar). The realised R comes
+    from the actual fill; `outcome` is "loss" for such a fill (a gap through the breakeven stop is a loss, not a breakeven).
+    Setting the key without `O_` raises: filling at the stop silently would be the v1 optimism the key exists to remove.
+
+    `Tm` (A0, plan §2): the series' own bar-close timestamps, parallel to `H_`/`L_`/`C_` -- only consulted
     when `OPTS["flat_before_rollover"]` is set (every existing caller passes nothing, or `Tm=None`, and gets
     byte-identical behaviour). When set, a position still open at the last bar that closes before the
     server's own daily rollover (`OPTS["rollover_provider"]`, via `real_costs.crosses_rollover`) is closed at
@@ -571,6 +604,10 @@ def walk(side, entry, stop, target, H_, L_, C_, start, horizon, Tm=None):
     r = (entry - stop) if side == "long" else (stop - entry)
     if r <= 0:
         return None
+    gap = bool(OPTS.get("fx_gap_fill"))
+    if gap and O_ is None:
+        raise ValueError("OPTS['fx_gap_fill'] is set but walk() got no bar opens (O_): refusing to fill stops at the stop "
+                         "price, the v1 behaviour the key removes")
     rp = abs(target - entry) / r
     # Breakeven trigger. The BOOK (WMT p272) says to consider moving the stop to entry "once price has moved
     # favorably or consolidated into a new zone" and prints NO R figure -- "+1R" is this project's
@@ -607,6 +644,11 @@ def walk(side, entry, stop, target, H_, L_, C_, start, horizon, Tm=None):
         hit_stop = L_[j] <= cur_stop if side == "long" else H_[j] >= cur_stop
         hit_tgt = H_[j] >= target if side == "long" else L_[j] <= target
         if hit_stop:
+            if gap:
+                fill = gap_stop_fill(side, cur_stop, O_[j])      # the stop in force (planned, or breakeven once moved)
+                if fill is not None:                             # R on the PLANNED risk r: below -1 / below 0 on a gap
+                    R_gap = ((fill - entry) if side == "long" else (entry - fill)) / r
+                    return dict(outcome="loss", R=R_gap, exit=j, R_planned=rp, mfe=mfe, mae=mae, bars_held=j - start + 1)
             return dict(outcome="loss" if not be else "breakeven", R=-1.0 if not be else 0.0, exit=j,
                         R_planned=rp, mfe=mfe, mae=mae, bars_held=j - start + 1)
         if hit_tgt:
@@ -1064,7 +1106,7 @@ def ict_setups_live(sym, tf, c, Tm, HZ, H, L, C, methods):
     return out
 
 
-def _ict_ctx(sym, tf, c, Tm, HZ, H, L, C, methods, idx_of_time=None):
+def _ict_ctx(sym, tf, c, Tm, HZ, H, L, C, methods, idx_of_time=None, O=None):
     """Everything ict_setups_live() derives from OPTS once per scan -- moved verbatim out of its head so that
     scan_many() (scripts/scan_many.py) can build one per overlay and share the per-bar analysis between them.
     Reads the CURRENT module OPTS, exactly as ict_setups_live() always did. `x.fx_opts` is the overlay the
@@ -1091,7 +1133,10 @@ def _ict_ctx(sym, tf, c, Tm, HZ, H, L, C, methods, idx_of_time=None):
     b3_tfa = OPTS["fx_b3"] == "tfa_p5"                                # B3
     b7_kz = OPTS["fx_b7"] == "killzone" and (_I.display(sym).get("asset_class") == "indices")   # B7: indices only
     K = P[tf]["K"] * (2 if k_tok == "2K" else 1)      # B-LB: K-bar expiry K (v1) or 2K
-    return types.SimpleNamespace(sym=sym, tf=tf, c=c, Tm=Tm, H=H, L=L, C=C, methods=methods, n=n,
+    # C3: the bar opens, read only by walk()/the same-bar fill-and-stop booking under `fx_gap_fill`; None (v1) otherwise.
+    if O is None and OPTS.get("fx_gap_fill"):
+        O = [b["open"] for b in c]
+    return types.SimpleNamespace(sym=sym, tf=tf, c=c, Tm=Tm, H=H, L=L, C=C, O=O, methods=methods, n=n,
                                  idx_of_time=idx_of_time, fx_opts=fx_opts, lookback=lookback, hz=hz,
                                  b3_tfa=b3_tfa, b7_kz=b7_kz, K=K)
 
@@ -1198,10 +1243,14 @@ def _ict_trade(x, i, su):
         # ICT-8: same-bar fill+stop is unknowable from OHLC. Book the pessimistic -1R loss instead of the
         # pre-2026-09-24 behaviour (fvg_fill returned None here and the trade silently vanished from the
         # backtest -- §38 "unrealistic execution assumptions").
+        R_sb = -1.0
+        if OPTS.get("fx_gap_fill"):      # C3: the stop leg of a same-bar fill+stop obeys the same worse-of-stop-and-open rule
+            g = gap_stop_R(su["side"], entry, stop, x.O[fill_bar])
+            R_sb = R_sb if g is None else g
         return dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], event=event, entry=entry, entry_time=Tm[fill_bar],
                     stop=stop, target=target, exit_time=Tm[fill_bar], vol_type=None,
-                    outcome="loss", R=-1.0, R_planned=su.get("R"), exit=fill_bar, mfe=0.0, mae=-1.0, bars_held=1)
-    w = walk(su["side"], entry, stop, target, H, L, C, fill_bar + 1, hz, Tm=Tm)
+                    outcome="loss", R=R_sb, R_planned=su.get("R"), exit=fill_bar, mfe=0.0, mae=R_sb, bars_held=1)
+    w = walk(su["side"], entry, stop, target, H, L, C, fill_bar + 1, hz, Tm=Tm, O_=x.O)
     if not w:
         return None
     return dict(symbol=sym, tf=tf, side=su["side"], time=Tm[i], event=event, entry=entry, entry_time=Tm[fill_bar],
@@ -1458,12 +1507,12 @@ def _wy_fire(x, side, f, a, last, trades):
                 st_pct=r["st_pct"], sot=r["sot"], path=r["path"])
     if f["leg"] == "phase_d":
         if "WYCKOFF-BOOK" in want:
-            w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ, Tm=Tm)
+            w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ, Tm=Tm, O_=O)
             if w:
                 trades["WYCKOFF-BOOK"].append(dict(base, event=base["event"] + "-D", entry=f["entry"], entry_time=Tm[last], stop=f["stop"], target=f["target"], exit_time=Tm[w["exit"]], leg="phase_d", **w))
         return
     if "WYCKOFF-BOOK" in want:
-        w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ, Tm=Tm)
+        w = walk(side, f["entry"], f["stop"], f["target"], H, L, C, last + 1, HZ, Tm=Tm, O_=O)
         if w:
             trades["WYCKOFF-BOOK"].append(dict(base, entry=f["entry"], entry_time=Tm[last], stop=f["stop"], target=f["target"], exit_time=Tm[w["exit"]], leg="spring", **w))
     if "COMBINED-BOOK" in want and r["reclaim"] is not None:
@@ -1497,11 +1546,15 @@ def _wy_fire(x, side, f, a, last, trades):
                 # from OHLC -- book the pessimistic -1R loss rather than silently dropping it.
                 stop_dist = abs(edge - f["stop"])
                 rp = abs(f["target"] - edge) / stop_dist if stop_dist else None
+                R_sb = -1.0
+                if OPTS.get("fx_gap_fill"):      # C3: same worse-of-stop-and-open rule as ICT's same-bar fill+stop
+                    g = gap_stop_R(side, edge, f["stop"], O[e_bar])
+                    R_sb = R_sb if g is None else g
                 trades["COMBINED-BOOK"].append(dict(base, entry=edge, entry_time=Tm[e_bar], stop=f["stop"], target=f["target"],
-                                                    exit_time=Tm[e_bar], via="fvg", outcome="loss", R=-1.0, R_planned=rp,
-                                                    exit=e_bar, mfe=0.0, mae=-1.0, bars_held=1))
+                                                    exit_time=Tm[e_bar], via="fvg", outcome="loss", R=R_sb, R_planned=rp,
+                                                    exit=e_bar, mfe=0.0, mae=R_sb, bars_held=1))
                 return
-            cw = walk(side, edge, f["stop"], f["target"], H, L, C, e_bar + 1, HZ, Tm=Tm)
+            cw = walk(side, edge, f["stop"], f["target"], H, L, C, e_bar + 1, HZ, Tm=Tm, O_=O)
             if cw:
                 trades["COMBINED-BOOK"].append(dict(base, entry=edge, entry_time=Tm[e_bar], stop=f["stop"], target=f["target"], exit_time=Tm[cw["exit"]], via="fvg", **cw))
 
