@@ -166,7 +166,8 @@
     "XAUUSD",
     "XAGUSD"
    ],
-   "n_comparisons": 87
+   "family_size": 6,
+   "floor_confidence": 0.9833333333333333
   },
   {
    "id": "wyckoff-1m-metals",
@@ -179,7 +180,8 @@
     "XAUUSD",
     "XAGUSD"
    ],
-   "n_comparisons": 48
+   "family_size": 6,
+   "floor_confidence": 0.9833333333333333
   },
   {
    "id": "ict-1m-indices",
@@ -195,7 +197,8 @@
     "DE40",
     "FRA40"
    ],
-   "n_comparisons": 87
+   "family_size": 6,
+   "floor_confidence": 0.9833333333333333
   },
   {
    "id": "wyckoff-1m-indices",
@@ -211,7 +214,8 @@
     "DE40",
     "FRA40"
    ],
-   "n_comparisons": 48
+   "family_size": 6,
+   "floor_confidence": 0.9833333333333333
   },
   {
    "id": "ict-5m-metals",
@@ -226,7 +230,8 @@
     "XPTUSD",
     "XPDUSD"
    ],
-   "n_comparisons": 87
+   "family_size": 6,
+   "floor_confidence": 0.9833333333333333
   },
   {
    "id": "wyckoff-5m-metals",
@@ -241,12 +246,27 @@
     "XPTUSD",
     "XPDUSD"
    ],
-   "n_comparisons": 48
+   "family_size": 6,
+   "floor_confidence": 0.9833333333333333
   }
  ],
- "n_by_method": {
-  "ict": 87,
-  "wyckoff": 48
+ "family": {
+  "size": 6,
+  "alpha": 0.1,
+  "floor_confidence": 0.9833333333333333,
+  "members": [
+   "ict-1m-metals",
+   "wyckoff-1m-metals",
+   "ict-1m-indices",
+   "wyckoff-1m-indices",
+   "ict-5m-metals",
+   "wyckoff-5m-metals"
+  ],
+  "rule": "the multiple-testing family is the CANDIDATE PROCEDURES (cells x methods = 6): grid values are not hypotheses (the nested walk-forward handles value selection); per-candidate primary bound = MIN of five one-sided bounds (iid t, CR1 by UTC date / 30-day window / calendar quarter / half-year), i.e. candidate p = MAX of the five one-sided p-values; floor confidence 1 - FAMILY_ALPHA/6 for every candidate; Holm step-down at FWER FAMILY_ALPHA over the six candidates at report time (a candidate with the k-th smallest p is rejected iff p_(k) <= FAMILY_ALPHA/(6-k+1) and every smaller p was rejected; NOT RUN and insufficient candidates enter with p = 1); the verdict rests on the floor test, so a candidate that fails the floor is never a PASS",
+  "grid_values_disclosed_not_in_family": {
+   "ict": 29,
+   "wyckoff": 16
+  }
  },
  "cost_profile": "ftmo_demo_2026_09_relspread",
  "cost_profile_pin": {
@@ -288,6 +308,109 @@
    "15m": 2880
   }
  },
+ "perturbation_axes": {
+  "B-BUF": [
+   {
+    "component": "stop_buffer",
+    "part": null,
+    "order": [
+     "0",
+     "0.1atr",
+     "0.25atr"
+    ]
+   }
+  ],
+  "B-EX": [
+   {
+    "component": "entry_model",
+    "part": null,
+    "order": [
+     "iofed",
+     "ce",
+     "fill"
+    ]
+   }
+  ],
+  "B-EXIT": [
+   {
+    "component": "target",
+    "part": 0,
+    "order": [
+     "-2.0",
+     "-2.25",
+     "-2.5"
+    ]
+   },
+   {
+    "component": "time_stop",
+    "part": 1,
+    "order": [
+     "H",
+     "1.5H",
+     "2H",
+     "none"
+    ]
+   }
+  ],
+  "B-LB": [
+   {
+    "component": "lookback",
+    "part": 0,
+    "order": [
+     "8",
+     "12",
+     "16"
+    ]
+   },
+   {
+    "component": "expiry",
+    "part": 1,
+    "order": [
+     "K",
+     "2K"
+    ]
+   }
+  ],
+  "W6": [
+   {
+    "component": "structure_window",
+    "part": null,
+    "order": [
+     300,
+     600
+    ]
+   }
+  ],
+  "W-TW": [
+   {
+    "component": "test_window",
+    "part": 0,
+    "order": [
+     8,
+     12,
+     20
+    ]
+   },
+   {
+    "component": "phase_b_swings",
+    "part": 1,
+    "order": [
+     2,
+     3
+    ]
+   }
+  ],
+  "W4a": [
+   {
+    "component": "linger_closes",
+    "part": null,
+    "order": [
+     3,
+     4
+    ]
+   }
+  ]
+ },
  "constants": {
   "FAMILY_ALPHA": 0.1,
   "MIN_FOLD_TRADES": 30,
@@ -299,15 +422,14 @@
   "ADX_PERIOD": 14,
   "TEST_FOLD_DAYS": 365,
   "MIN_TRAIN_DAYS": 730,
-  "MIN_TEST_FOLDS": 2
+  "MIN_TEST_FOLDS": 2,
+  "STRESS_SPREAD_STAT": "p90",
+  "STRESS_COMMISSION_FRACTION": 3e-05,
+  "MDE_POWER": 0.8
  },
  "_source": "docs/plans/2026-09-28-methodology-improvement-plan.md",
  "cell_count": 3,
  "candidate_count": 6,
- "confidence_by_method": {
-  "ict": 0.9988505747126437,
-  "wyckoff": 0.9979166666666667
- },
  "fund_symbols": [
   "XAUUSD",
   "XAGUSD",
@@ -335,6 +457,6 @@
   "real_cost_reprice_runs": 1,
   "min_rr_values_tried": 3
  },
- "plan_hash": "5476f042bdde09f1800e4c3bc5438ccaf4aa1e0588fda66c9f300ffe2b87ea7a",
- "generated_at": "2026-10-02T01:33:49Z"
+ "plan_hash": "a043358b89314982e521a3e257ebfc0d47a6900e80d5fe321b5e71b5c0ac5aae",
+ "generated_at": "2026-10-02T03:01:24Z"
 }
