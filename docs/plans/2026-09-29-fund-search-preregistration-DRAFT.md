@@ -12,7 +12,7 @@ file still contains an older number or sentence that conflicts with section 0 or
 
 **Implemented 2026-10-02 (branch `b20-stats-sealed`, "implementation of the sealed statistics", dated entry in
 docs/plans/2026-09-30-owner-decisions.md):** family A, the ordinal perturbation, the D1-ADX regime split, the stress gate, the shifted
-prop pass and the report obligations of section C (all but the placebo, which stays "definition only") are now in
+prop pass and the report obligations of section C (the placebo followed on `b28-report-obligations`, report-only; see section C) are now in
 `scripts/fund_stats.py` and `scripts/fund-search.py`; the paragraphs "Implemented" under items A2, A5, A7 and A8 and the status
 paragraph of section C say how, and where the text left a choice, which reading was taken (the most conservative one).
 
@@ -383,8 +383,32 @@ a verdict unless item 2, 5, 6, 7 or 8 says so; they exist so the owner can read 
 
 **Implementation status (branch `b20-stats-sealed`).** Items 1-5 and 7-9 are computed from the stored record by `cmd_report`
 (`report_candidate_lines`, `report_holm_lines`, `report_statement_lines`; the per-bound `se` / `df` are stored in `primary.components`,
-so MDE and the upper bound are derived, not recomputed from data). Item 6, the placebo, is NOT IMPLEMENTED in this build: the report
-prints "placebo: NOT IMPLEMENTED in this build" and the git sha of the build that produced it. The MDE uses the half-year CR1
+so MDE and the upper bound are derived, not recomputed from data). **Implemented (`b28-report-obligations`, 2026-10-02, REPORT-ONLY):**
+item 6, the placebo, is now computed AT RUN TIME (it needs the bars, which the report does not read) by `BtEngine.placebo_trades`
+and stored in the record under `metrics.evaluation.placebo` (a new key; no existing field changed, nothing hashed into `plan_hash`);
+`cmd_report` prints it per candidate and prints the build sha in the header and in the statements (the "NOT IMPLEMENTED" line is
+gone). Exact definition (`FS.PLACEBO_DEFINITION`): per real pooled TEST trade ONE placebo trade on the same symbol, in the same
+fold, entry bar drawn uniformly among the decision-timeframe bars of the SAME UTC hour-of-day inside that fold, entry = that bar's
+OPEN (no limit order, so no fill rule is asked), side 50/50, the SAME stop distance (price units) and the SAME `R_planned`
+(target = entry +/- `R_planned` x stop distance on the drawn side), then the engine's own `walk()` from the next bar (as every
+real fill: the entry bar itself is not walked) under the fold's chosen overlay (gap-aware stop fills, flat before the rollover,
+the time stop of the chosen values), the same `real_costs.cost_r` (entry + exit leg) and the same planned-risk and `min_rr`
+admission (entry-hour cost, O1). Choices the text left open, taken the plainest way: (a) the RNG is seeded per real trade from
+sha256(`PLACEBO_SEED` = "fund-search-placebo-v1" | candidate | fold | symbol | entry time | side | entry | stop), so the draw does not
+depend on candidate, fold or trade order; (b) a placebo that cannot be generated (no bar in that hour, walk cut by the end of the
+series, refused by admission, no cost row) is skipped and COUNTED by reason, never redrawn; (c) the one-position-per-symbol rule
+is not applied to placebo trades and `simulate()` is not used (its ruin stop must not be able to lose a finished evaluation);
+(d) the interval is a percentile bootstrap (2000 resamples, 95 %) over the TEST FOLDS as blocks (fold-years), real and placebo
+resampled together, so it is rough with few folds (the cell with 2 folds gets none); (e) the difference is real minus placebo,
+pooled over all test trades. Printed next to it: "REPORT-ONLY: a PASS requires nothing from this". No check, margin, verdict
+or Holm step reads the placebo or the per-year table (tests assert the verdict and every check are identical with them on, off,
+better than the candidate, or failing to compute). A placebo failure is recorded as `status: ERROR` in the record, never raised.
+The same branch stores `metrics.evaluation.fold_year_report` (per test fold: trades, mean net R, mean `spread_R`, mean net R under
+the stress re-pricing, share of entries per UTC hour bucket 00-06 / 06-12 / 12-18 / 18-24, and the cost regime ratio = mean over
+trades of `spread_R / R_planned`) and the report header prints a data disclosure (first bar of every stored series from its
+`index.json`, the export bar count, bars scanned from the record's snapshot, each cell's development start and earliest symbol;
+the 1m-metals 5,000,000-bar export-cap note with both metals' real first bars; the sparse-data note for the 1m indices from
+`docs/audits/2026-10-02-dev-start-density.json`). The MDE uses the half-year CR1
 `se` / `df` and is also printed for the numerically smallest bound when that is another one. Item 4 stores, per fold, the mean net R
 and the mean `spread_R` (`real_costs.mean_spread_r` under the fund profile) of the chosen values' test trades.
 

@@ -42,8 +42,10 @@ import bisect
 import datetime
 import fractions
 import itertools
+import hashlib
 import json
 import math
+import random
 
 # ---------------------------------------------------------------------------------------------- constants
 DEV_CUTOFF = "2024-03-01T00:00:00Z"   # plan §1.1 / §1.4: development = all history before this (exclusive)
@@ -1160,3 +1162,118 @@ def d1_adx_at(index, entry_iso):
     closes, vals = index
     i = bisect.bisect_right(closes, ts(entry_iso)) - 1
     return vals[i] if i >= 0 else None
+
+
+# ------------------------------------------------------------------------------ report-only obligations (section C item 6)
+# NOTHING below is read by `verdict_from`, `evaluate_cell` or any check: these are figures printed next to the result
+# (pre-registration section C: placebo benchmark, per-year table). Pure functions over lists of numbers / trade dicts.
+PLACEBO_SEED = "fund-search-placebo-v1"        # pinned (recorded in every stored placebo block and printed in the report)
+PLACEBO_BOOT_B = 2000                          # bootstrap resamples (blocks = test folds, i.e. fold-years)
+PLACEBO_CI = 0.95                              # two-sided percentile interval
+PLACEBO_DEFINITION = (
+    "per real pooled TEST trade, ONE placebo trade: the same symbol and the same test fold, the entry bar drawn uniformly "
+    "among the decision-timeframe bars of the SAME UTC hour-of-day inside that fold (entry = that bar's open, no limit, so "
+    "no fill rule is asked), side 50/50, the SAME stop distance (price units) and the SAME R_planned (target = entry +/- "
+    "R_planned x stop distance on the drawn side), run through the engine's own walk() (gap-aware stop fills, flat before "
+    "the rollover, the time stop of the fold's chosen values), the same real costs (real_costs.cost_r, entry + exit) and the "
+    "same planned-risk and min_rr admission (entry-hour cost, O1). Seeded per real trade from "
+    "sha256(seed | candidate | fold | symbol | entry time | side | entry | stop), so the result does not depend on the order "
+    "of candidates, folds or trades. A placebo that cannot be generated (no bar in the hour, the walk cut by the end of the "
+    "series, refused by admission, no cost row) is skipped and counted, never redrawn. The one-position-per-symbol rule is "
+    "NOT applied (placebo trades of one symbol may overlap). The interval is a percentile bootstrap over the test folds "
+    "(fold-year blocks, resampled with replacement; real and placebo resampled together). REPORT-ONLY: a PASS requires "
+    "nothing from this.")
+HOUR_BUCKETS = ((0, 6), (6, 12), (12, 18), (18, 24))      # UTC hour-of-day buckets of the per-year table
+
+
+def stable_seed(*parts):
+    """A 64-bit integer from the parts (sha256): the same parts always give the same seed, in every process."""
+    h = hashlib.sha256("|".join(str(p) for p in parts).encode("utf-8")).digest()
+    return int.from_bytes(h[:8], "big")
+
+
+def hour_bucket(iso_time):
+    """Index (0..3) of the UTC hour-of-day bucket of an ISO time (`HOUR_BUCKETS`)."""
+    h = ts(iso_time).hour
+    return next(i for i, (a, b) in enumerate(HOUR_BUCKETS) if a <= h < b)
+
+
+def hour_bucket_shares(trades):
+    """Share of `trades` entered in each UTC hour bucket (4 numbers summing to 1), None when there are no trades."""
+    if not trades:
+        return None
+    n = [0] * len(HOUR_BUCKETS)
+    for t in trades:
+        n[hour_bucket(t["entry_time"])] += 1
+    return [x / len(trades) for x in n]
+
+
+def fold_year_row(test_start, trades, mean_spread_r=None, spread_r_each=None, stress_trades=None):
+    """One row of the per-year / fold table (report-only): trades, mean net R, mean spread_R (`mean_spread_r`, the engine's
+    existing helper), mean net R under the commission/p90 stress (`stress_trades`: the same trades re-priced, None when
+    not computable), the share of trades per UTC hour bucket and the cost regime ratio = the mean over trades of
+    spread_R / R_planned (`spread_r_each`: one spread_R per trade or None; a trade without both figures is not in the mean)."""
+    ratios = []
+    for t, sr in zip(trades, spread_r_each or [None] * len(trades)):
+        rp = t.get("R_planned")
+        if isinstance(sr, (int, float)) and isinstance(rp, (int, float)) and rp > 0:
+            ratios.append(sr / rp)
+    return {"test_start": test_start, "n_trades": len(trades),
+            "mean_net_R": mean([t["net_R"] for t in trades]),
+            "mean_spread_R": mean_spread_r,
+            "mean_stress_R": mean([t["net_R"] for t in stress_trades]) if stress_trades else None,
+            "hour_share": hour_bucket_shares(trades),
+            "cost_regime_ratio": mean(ratios), "cost_regime_n": len(ratios)}
+
+
+def block_bootstrap(blocks, key, b=PLACEBO_BOOT_B, ci=PLACEBO_CI):
+    """Percentile bootstrap over BLOCKS (one block = one test fold): `blocks` = [{"n_real", "sum_real", "n_pl", "sum_pl"}].
+    Each resample draws len(blocks) blocks with replacement and recomputes the pooled mean of the real trades, of the placebo
+    trades and their difference (real - placebo). A resample with no real or no placebo trade is dropped (counted). The RNG is
+    seeded from (PLACEBO_SEED, 'boot', key): the same inputs give the same interval. Returns None below two blocks."""
+    k = len(blocks)
+    if k < 2:
+        return None
+    rng = random.Random(stable_seed(PLACEBO_SEED, "boot", key))
+    real, pl, diff, dropped = [], [], [], 0
+    for _ in range(b):
+        pick = [blocks[rng.randrange(k)] for _ in range(k)]
+        nr, sr = sum(x["n_real"] for x in pick), sum(x["sum_real"] for x in pick)
+        npl, spl = sum(x["n_pl"] for x in pick), sum(x["sum_pl"] for x in pick)
+        if nr == 0 or npl == 0:
+            dropped += 1
+            continue
+        real.append(sr / nr)
+        pl.append(spl / npl)
+        diff.append(sr / nr - spl / npl)
+    if not diff:
+        return None
+    lo_q, hi_q = (1 - ci) / 2, 1 - (1 - ci) / 2
+
+    def _q(xs):
+        xs = sorted(xs)
+        return [xs[min(len(xs) - 1, max(0, int(math.floor(q * len(xs)))))] for q in (lo_q, hi_q)]
+    return {"resamples": len(diff), "dropped": dropped, "blocks": k, "ci": ci,
+            "real": _q(real), "placebo": _q(pl), "diff": _q(diff)}
+
+
+def placebo_summary(fold_rows, key):
+    """The stored placebo block of one candidate from per-fold lists: `fold_rows` = [{"test_start", "real": [net R of the real
+    test trades], "placebo": [net R of the generated placebo trades], "skipped": {reason: n}}]. Pure; no verdict reads it."""
+    by_fold, blocks, skipped = [], [], {}
+    for r in fold_rows:
+        for why, n in (r.get("skipped") or {}).items():
+            skipped[why] = skipped.get(why, 0) + n
+        real, pl = list(r["real"]), list(r["placebo"])
+        by_fold.append({"test_start": r["test_start"], "n_real": len(real), "n_placebo": len(pl),
+                        "mean_real": mean(real), "mean_placebo": mean(pl), "skipped": dict(r.get("skipped") or {})})
+        blocks.append({"n_real": len(real), "sum_real": sum(real), "n_pl": len(pl), "sum_pl": sum(pl)})
+    nr, npl = sum(x["n_real"] for x in blocks), sum(x["n_pl"] for x in blocks)
+    mr = (sum(x["sum_real"] for x in blocks) / nr) if nr else None
+    mp = (sum(x["sum_pl"] for x in blocks) / npl) if npl else None
+    return {"status": "OK", "report_only": True, "seed": PLACEBO_SEED, "definition": PLACEBO_DEFINITION,
+            "by_fold": by_fold,
+            "pooled": {"n_real": nr, "n_placebo": npl, "mean_real": mr, "mean_placebo": mp,
+                       "diff": (mr - mp) if (mr is not None and mp is not None) else None},
+            "bootstrap": block_bootstrap(blocks, key), "skipped": skipped,
+            "skipped_total": sum(skipped.values())}
