@@ -88,10 +88,11 @@ GRID_FILES = {"ict": "v-grid-ict.json", "wyckoff": "v-grid-wyckoff.json"}
 CELLS_FILE = "fund-search-cells.json"      # the declared cell list + each cell's history start (pinned like the grids)
 #: §6 item 3: REAL costs, fixed on. C2 (red-team 2026-10-02): the RELATIVE-spread profile -- the recorded absolute spread is
 #: scaled by entry / price_ref (scripts/real_costs.py "ABSOLUTE vs RELATIVE SPREAD"), because 2022-2026 absolute spreads
-#: applied to 2007-2024 price levels overstate spread_R 2-4x in early folds. `ftmo_demo_2026_09` (absolute, byte-identical to
-#: before) stays selectable in real_costs as the reported sensitivity; it is never the fund-search profile.
+#: applied to 2004-2024 price levels overstate spread_R: measured 1.5-2.1x for most gold/silver folds, 6.0x XAUUSD 2004, 2.9x
+#: XAGUSD 2008 (draft item 13b). `ftmo_demo_2026_09` (absolute, byte-identical to before) stays selectable in real_costs as
+#: a comparison baseline (tests, scripts/research/reprice_real_costs.py); NO fund-search code or report prices a trade with it.
 COST_PROFILE = "ftmo_demo_2026_09_relspread"
-COST_PROFILE_ABSOLUTE = "ftmo_demo_2026_09"                                    # the reported sensitivity, not used by a cell
+COST_PROFILE_ABSOLUTE = "ftmo_demo_2026_09"                                    # comparison baseline only, not used by a cell
 DEV_PERIOD_ID = "cfd-development-pre-2024-03"                                   # research-ledger.json period
 LEDGER_SECTION = "fund_search"                                                  # the declaration lives here
 #: The nine F (fidelity) items the owner adopted for the evaluation baseline (docs/plans/2026-09-30-owner-decisions.md):
@@ -495,6 +496,11 @@ def build_cells(first_bar=None, spec=None):
                                f"({data_start}): no symbol can cover the start of the declared span")
         dev_start = override or data_start
         nf = len(FS.make_folds(dev_start))
+        if override is not None and nf < FS.MIN_TEST_FOLDS:
+            raise CellsRefused(f"cell {cid!r}: declared dev_start {override} yields {nf} test fold(s), fewer than "
+                               f"MIN_TEST_FOLDS = {FS.MIN_TEST_FOLDS}: a walk-forward needs at least that many "
+                               f"(folds end at {FS.DEV_CUTOFF}, each {FS.TEST_FOLD_DAYS} days, after >= "
+                               f"{FS.MIN_TRAIN_DAYS} days of training)")
         cells.append({"id": cid, "timeframe": tf, "asset_class": ac,
                       "symbols": [s for s, _ in with_dev],
                       "symbols_without_development": without,
@@ -665,10 +671,12 @@ def require_declaration(plan):
     return decl
 
 
-def _git(*a, root=None):
+def _git(*a, root=None, cfg=()):
+    """Run `git -C root [-c key=value ...] a...`; stdout stripped, or None when git fails. `cfg` = ("key=value", ...)."""
     import subprocess
     try:
-        out = subprocess.run(["git", "-C", root or ROOT, *a], capture_output=True, text=True, timeout=20)
+        out = subprocess.run(["git", "-C", root or ROOT, *[x for kv in cfg for x in ("-c", kv)], *a],
+                             capture_output=True, text=True, timeout=20)
         return out.stdout.strip() if out.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):
         return None
@@ -677,8 +685,9 @@ def _git(*a, root=None):
 # Every module the evaluation imports (statically or by spec_from_file_location) from fund-search.py: the engine, the
 # metrics, the PIT / quality / validity layer, the account + environment readers, the history reader, the scan cache
 # and the ledger. The git TREE pins below (`PINNED_TREES`) cover the whole of scripts/ as well; this per-file list
-# stays because it names WHICH file moved in a drift message. Excluded on purpose (not imported on the fund-search
-# path, so a change cannot alter a result; still covered by the scripts/ tree pin): htf_context, i18n,
+# stays because it names WHICH file moved in a drift message. Excluded on purpose (not imported by fund-search.py or by
+# the listed modules' computation, so a change cannot alter a result; still covered by the scripts/ tree pin): htf_context,
+# i18n (NOTE: i18n.py IS imported, by methods.py, for display strings only; the scripts/ tree pin covers it),
 # selection_criteria, method_purity, setup_version, cron-templates, rank-setups, win_services, get_secret.
 FINGERPRINT_FILES = ("scripts/fund_stats.py", "scripts/fund-search.py", "scripts/prop-search.py",
                      "scripts/backtest-methods.py", "scripts/real_costs.py", "scripts/performance.py",
@@ -738,18 +747,51 @@ def runtime_env():
             "platform": platform.platform(), "machine": platform.machine()}
 
 
+def _ignored_by_repo_gitignore(path, root=None):
+    """True iff `path` (repo-relative) is ignored by a `.gitignore` OF THE REPO (`git check-ignore -v` names the source rule;
+    a developer's global excludes file or .git/info/exclude does not count: those could hide a file the code reads)."""
+    # the developer's GLOBAL excludes file is switched off for this question (a global `docs/*` would be reported as the
+    # deciding rule and hide the repo's own line); .git/info/exclude is rejected below by the source check
+    out = _git("check-ignore", "-v", "--", path, root=root, cfg=(f"core.excludesFile={os.devnull}",))
+    if not out:
+        return False
+    source = out.split("\t", 1)[0].split(":", 1)[0]
+    return os.path.basename(source) == ".gitignore"
+
+
+def _hidden_change_flags(root=None):
+    """Tracked files under DIRTY_SCOPE that carry the skip-worktree ('S') or assume-unchanged (lowercase tag) flag: `git
+    status` never reports their modifications, so the ordinary dirty check cannot see them. None if git cannot answer."""
+    out = _git("ls-files", "-v", "--", *DIRTY_SCOPE, root=root)
+    if out is None:
+        return None
+    rows = []
+    for ln in out.splitlines():
+        if len(ln) > 2 and ln[1] == " " and (ln[0] == "S" or ln[0].islower()):
+            rows.append(f"hidden-change-flag[{ln[0]}] {ln[2:]}")
+    return rows
+
+
 def scoped_dirty(root=None):
     """Lines of `git status` for tracked modifications AND untracked files under DIRTY_SCOPE only (config/env.example,
-    .claude/worktrees/ and every other path are ignored). None if git cannot answer (treated as dirty by the caller)."""
+    .claude/worktrees/ and every other path are ignored), plus tracked files under DIRTY_SCOPE flagged skip-worktree or
+    assume-unchanged (their edits are invisible to `git status`). None if git cannot answer (treated as dirty by the caller)."""
     out = _git("status", "--porcelain", "--untracked-files=all", "--", *DIRTY_SCOPE, root=root)
     # `status` hides files a (global) ignore rule matches -- e.g. a developer's `docs/*` -- yet the code may still read
-    # them: list every untracked file in scope, ignored or not, except interpreter / OS cruft
+    # them: list every untracked file in scope, ignored or not, except interpreter / OS cruft and a `.lock` file that the
+    # repo's OWN .gitignore ignores (scripts/automation.py's 0-byte config lock). A stray `.lock` that is tracked or not
+    # ignored by the repo still blocks.
     other = _git("ls-files", "--others", "--", *DIRTY_SCOPE, root=root)
-    if out is None or other is None:
+    flagged = _hidden_change_flags(root)
+    if out is None or other is None or flagged is None:
         return None
     cruft = ("__pycache__/", ".pyc", ".DS_Store")
+
+    def benign(path):
+        return any(c in path for c in cruft) or (path.endswith(".lock") and _ignored_by_repo_gitignore(path, root))
     lines = {ln.strip() for ln in out.splitlines() if ln.strip() and not any(c in ln for c in cruft)}
-    lines |= {"?? " + ln.strip() for ln in other.splitlines() if ln.strip() and not any(c in ln for c in cruft)}
+    lines |= {"?? " + ln.strip() for ln in other.splitlines() if ln.strip() and not benign(ln.strip())}
+    lines |= set(flagged)
     return sorted(lines)
 
 
@@ -1545,14 +1587,17 @@ class BtEngine:
         """The SAME admitted trades re-priced under stress (pre-registration A8a): gross R - the real round-turn cost with the
         p90 spread on both legs (`real_costs.cost_r(..., spread_stat='p90')`: price-scaled by the relative-spread profile, swap
         unchanged) - the commission stress margin 0.00003 * entry / |entry - stop| in R (a margin, NOT an estimate). No trade is
-        added or removed and admission is not re-run: only `net_R` changes (`net_R_median` keeps the unstressed value)."""
+        added or removed and admission is not re-run: only `net_R` changes (`net_R_median` keeps the unstressed value). Returns
+        None when any trade's margin is not computable; the stress gate then FAILS (`check_stress`)."""
         import real_costs as _RC
         out = []
         for t in pooled:
             cr = _RC.cost_r(t["entry"], t["stop"], t["entry_time"], t["exit_time"], t["symbol"], t["side"], COST_PROFILE,
                             spread_stat=FS.STRESS_SPREAD_STAT)
-            out.append(dict(t, net_R_median=t["net_R"],
-                            net_R=FS.stressed_net_r(t["R"], cr["total_R"], t["entry"], t["stop"])))
+            net = FS.stressed_net_r(t["R"], cr["total_R"], t["entry"], t["stop"])
+            if net is None:        # the commission margin is not computable (no valid stop distance): FAIL CLOSED, not a raise
+                return None
+            out.append(dict(t, net_R_median=t["net_R"], net_R=net))
         return out
 
     def mean_spread_r(self, trades):

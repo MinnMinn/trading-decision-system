@@ -35,11 +35,12 @@ INTERPRETATION CHOICES the plan leaves open (each stated where it is used, and r
     0.10/6 a percentile bootstrap still needs thousands of resamples to resolve its own quantile;
   * TEST_FOLD_DAYS / MIN_TRAIN_DAYS / MIN_TEST_FOLDS / MIN_TRAIN_TRADES (fold geometry and a training floor);
   * the frequency gap includes the fold's edges (stricter than gaps between trades only);
-  * the regime split requires BOTH halves > 0 (stricter than "same sign");
+  * the regime split requires BOTH halves > 0 (stricter than "same sign") and each half >= 25 % of the pooled trades;
   * a symbol with development data but no test trades counts as NOT positive (never dropped).
 """
 import bisect
 import datetime
+import fractions
 import itertools
 import json
 import math
@@ -90,8 +91,10 @@ FAMILY_DEFINITION = ("the multiple-testing family is the CANDIDATE PROCEDURES (c
 REGIME_SPLIT_DEFINITION = ("D1 ADX(14) (Wilder) of the last D1 bar whose CLOSE is at or before the entry time (close = "
                            "max(open label + 24 h, next D1 open label); the entry day's forming bar is never read), from "
                            "the symbol's own stored D1 series, point-in-time; split at the MEDIAN of the pooled TEST "
-                           "trades' values (<= median = low half, > median = high half); BOTH halves must have "
-                           "positive mean net R; a trade with no value fails the check")
+                           "trades' values (<= median = low half, > median = high half); EACH half must hold at least 25 % of the "
+                           "pooled test trades (ties on one symbol-day ADX can leave a tiny half: 'regime halves "
+                           "unbalanced' fails the check); BOTH halves must have positive mean net R; a trade with no "
+                           "value fails the check")
 
 #: Pre-registration A5 (REPLACED 2026-10-02): ordinal components only, one at a time, the other components at the fold's
 #: chosen values; the neighbour must have pooled mean net R > 0 AND a primary bound > 0 at the floor confidence.
@@ -385,7 +388,8 @@ class GridError(ValueError):
 class Grid:
     """docs/architecture/v-grid-<method>.json: {"method":..., "items":[{"id","key","existing_opts_key",
     "values":[baseline,...],"joint_group","source","implemented"}]}. Items sharing a `joint_group` form ONE
-    factor whose candidate set is the cartesian product of their value lists (plan §3: B-EXIT = 3 x 4 x 2 = 24)."""
+    factor whose candidate set is the cartesian product of their value lists (the ICT grid's B-EXIT is ONE factor of 12 value
+    sets: target x time stop, the `no_floor` sets removed 2026-09-30; see v-grid-ict.json `n_formula`)."""
 
     def __init__(self, data):
         if not isinstance(data, dict) or not data.get("method") or not isinstance(data.get("items"), list) \
@@ -461,7 +465,7 @@ def load_grid(path):
 
 
 def n_per_method(grid):
-    """Plan §3: N per cell = 1 baseline + the non-baseline values + 1 combined candidate (ICT 41, Wyckoff 16)."""
+    """Plan §3: N per cell = 1 baseline + the non-baseline values + 1 combined candidate (ICT 29, Wyckoff 16: the `n_formula` of each grid file)."""
     return 1 + sum(len(g["candidates"]) for g in grid.groups) + 1
 
 
@@ -778,11 +782,19 @@ def check_frequency(fold_results):
             "required_share": MIN_FOLD_SHARE_OK, "max_gap_days": MAX_GAP_DAYS, "folds": per}
 
 
+REGIME_MIN_HALF_SHARE = 0.25   # each regime half must hold >= this share of the pooled test trades (tightened 2026-10-02)
 REGIME_KEY = "adx14_d1"   # the trade field the regime split reads: the D1 ADX(14) of the last COMPLETED D1 bar (pre-reg 0.7)
 
 
+def _share_fraction(x):
+    """A share as an exact (numerator, denominator) pair, so the 25 % boundary is decided in integers."""
+    f = fractions.Fraction(str(x))
+    return f.numerator, f.denominator
+
+
 def check_regime_split(trades):
-    """D1 ADX(14) median split of the pooled test trades (`REGIME_SPLIT_DEFINITION`): BOTH halves must have positive net
+    """D1 ADX(14) median split of the pooled test trades (`REGIME_SPLIT_DEFINITION`): EACH half must hold at least
+    REGIME_MIN_HALF_SHARE (25 %) of the pooled trades (else "regime halves unbalanced") and BOTH halves must have positive net
     expectancy. A trade without a D1 ADX value (no completed D1 bar yet, warm-up, no D1 series) cannot be split and fails
     the check (never dropped from it). The decision-timeframe ADX (`adx14`) plays no part in the verdict."""
     if not trades:
@@ -796,8 +808,18 @@ def check_regime_split(trades):
     low = [t["net_R"] for t in trades if t[REGIME_KEY] <= med]
     high = [t["net_R"] for t in trades if t[REGIME_KEY] > med]
     lm, hm = mean(low), mean(high)
-    return {"ok": bool(low) and bool(high) and lm > 0 and hm > 0, "median_adx14_d1": med,
-            "low": {"n": len(low), "mean_R": lm}, "high": {"n": len(high), "mean_R": hm}}
+    # Many trades share one symbol-day D1 ADX, so ties at the median can leave a half tiny ([10, 20, 20, 20, 50]: low 4, high
+    # 1). Each half must hold >= REGIME_MIN_HALF_SHARE of the pooled trades (integer arithmetic, no float boundary).
+    share_n, share_d = _share_fraction(REGIME_MIN_HALF_SHARE)
+    balanced = bool(low) and bool(high) and share_d * min(len(low), len(high)) >= share_n * n
+    out = {"ok": balanced and lm > 0 and hm > 0, "median_adx14_d1": med,
+           "low": {"n": len(low), "mean_R": lm}, "high": {"n": len(high), "mean_R": hm},
+           "min_half_share": REGIME_MIN_HALF_SHARE,
+           "smaller_half_share": (min(len(low), len(high)) / n)}
+    if not balanced:
+        out["reason"] = (f"regime halves unbalanced: low n={len(low)}, high n={len(high)} of {n} pooled test trades; each half "
+                         f"must hold at least {REGIME_MIN_HALF_SHARE:.0%} (ties at the median D1 ADX)")
+    return out
 
 
 def check_perturbation(perturbations, confidence, skips=None):
@@ -827,17 +849,26 @@ def categorical_report(flips, confidence):
 # ------------------------------------------------------------------------- stress gate and the shifted prop pass
 def stress_commission_r(entry, stop):
     """The commission stress margin in R: 0.00003 of notional per round turn -> 0.00003 * entry / |entry - stop|. A stress
-    margin, NOT an estimate (the FTMO commission is UNKNOWN)."""
-    entry, stop = float(entry), float(stop)
-    if entry <= 0 or entry == stop:
-        raise ValueError(f"no valid stop distance (entry {entry}, stop {stop}): the stress margin is not defined")
+    margin, NOT an estimate (the FTMO commission is UNKNOWN). NOT COMPUTABLE (no valid stop distance, a non-finite or
+    non-positive price) returns None, never a raise: the stress gate treats a trade whose margin is None as a FAIL (fail
+    closed; the zero-risk refusal at admission keeps this unreachable on real data, the guard stays)."""
+    try:
+        entry, stop = float(entry), float(stop)
+    except (TypeError, ValueError):
+        return None
+    if not (math.isfinite(entry) and math.isfinite(stop)) or entry <= 0 or entry == stop:
+        return None
     return STRESS_COMMISSION_FRACTION * entry / abs(entry - stop)
 
 
 def stressed_net_r(gross_r, stress_cost_r, entry, stop):
     """Net R of one admitted trade under stress: gross R - the real round-turn cost re-priced at the p90 spread (both legs,
-    swap unchanged; `stress_cost_r` = real_costs.cost_r(..., spread_stat='p90')['total_R']) - the commission margin."""
-    return gross_r - stress_cost_r - stress_commission_r(entry, stop)
+    swap unchanged; `stress_cost_r` = real_costs.cost_r(..., spread_stat='p90')['total_R']) - the commission margin.
+    None when the commission margin is not computable (see `stress_commission_r`)."""
+    margin = stress_commission_r(entry, stop)
+    if margin is None:
+        return None
+    return gross_r - stress_cost_r - margin
 
 
 def check_stress(stressed_trades, confidence):
@@ -848,6 +879,9 @@ def check_stress(stressed_trades, confidence):
         return {"ok": False, "reason": "no stress pricing was computed (fail closed)", "definition": STRESS_DEFINITION}
     if not stressed_trades:
         return {"ok": False, "reason": "no trades", "definition": STRESS_DEFINITION}
+    if any(t.get("net_R") is None for t in stressed_trades):
+        return {"ok": False, "reason": "the stress re-pricing is not computable for at least one admitted trade (no valid "
+                                       "stop distance; fail closed)", "definition": STRESS_DEFINITION}
     lb = robust_lower_bound(stressed_trades, confidence)
     m = lb["mean"]
     return {"ok": m is not None and m > 0, "n": len(stressed_trades), "mean_R_stressed": m,
@@ -930,8 +964,10 @@ def split_by_volume_kind(trades, confidence):
 
 def verdict_from(checks):
     """The ONE place a verdict is derived, so `report` re-derives it from stored checks instead of trusting a
-    stored boolean."""
-    if not checks["folds_sufficient"]["ok"]:
+    stored boolean. A record with no `folds_sufficient` check is treated as NOT sufficient (fail closed, never a KeyError and
+    never a PASS)."""
+    fs = checks.get("folds_sufficient")
+    if not isinstance(fs, dict) or not fs.get("ok"):
         return INSUFFICIENT
     if any(k not in checks for k in REQUIRED_CHECKS):
         return FAIL
@@ -986,6 +1022,9 @@ def check_margins(checks):
         lo, hi = (rg.get("low") or {}).get("mean_R"), (rg.get("high") or {}).get("mean_R")
         rows.append(_margin("regime_split", "smaller of the two D1-ADX half means",
                             None if lo is None or hi is None else min(lo, hi), 0.0, "R"))
+        if rg.get("smaller_half_share") is not None:
+            rows.append(_margin("regime_split", "smaller half's share of the pooled test trades",
+                                rg["smaller_half_share"], rg.get("min_half_share", REGIME_MIN_HALF_SHARE), "share of trades"))
     pt = checks.get("perturbation") or {}
     if pt:
         vals = [v for r in pt.get("rows", []) for v in (r.get("mean_R"), r.get("lower_bound"))]
@@ -1101,8 +1140,12 @@ D1_BAR = datetime.timedelta(days=1)
 
 def d1_adx_index(candles):
     """([close time of each D1 bar], [ADX(14) of each D1 bar]) for a D1 series whose `time` is the bar's OPEN label (UTC, the
-    repo's convention: the broker's server midnight converted by scripts/mt5_time.py, so 21:00Z or 22:00Z on the previous
-    calendar day). The CLOSE of a bar = max(open label + 24 h, the next bar's open label): never earlier than the true
+    repo's convention: the broker's server midnight converted to UTC, so 21:00Z or 22:00Z on the previous calendar day).
+    The FTMO server clock follows the `us_dst_dates_fixed_offset` convention declared in docs/architecture/providers.json
+    (`mt5_bridge_ftmo`: +02:00 standard / +03:00 on US DST dates; implemented by scripts/mt5_time.py `UsDatesFixedOffsetZone`,
+    which `real_costs` and `history_store` use for the conversion). All 27,013 D1 labels of the 9 cell symbols were verified
+    to sit at the server midnight under that convention (the 2026-10-02 review's check; the labels are not read from any
+    other clock). The CLOSE of a bar = max(open label + 24 h, the next bar's open label): never earlier than the true
     close (a 25 h DST day closes at the next open, a 23 h day is read one hour late, a weekend or holiday gap only matters at
     hours the market is shut). Wilder's ADX of bar i uses bars <= i only, so the value is point-in-time."""
     vals = adx14([c["high"] for c in candles], [c["low"] for c in candles], [c["close"] for c in candles])

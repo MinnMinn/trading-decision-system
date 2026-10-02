@@ -432,6 +432,25 @@ class EndToEndVerdicts(unittest.TestCase):
         self.assertEqual(FS.verdict_from(checks), FS.FAIL)
         self.assertEqual(FS.verdict_from(ev["checks"]), FS.PASS)
 
+    def test_the_primary_bound_alone_failing_is_a_fail_when_every_other_check_is_ok(self):
+        """Holm never loosens the verdict: the floor test is one of the conjuncts, so ONLY lower_bound_positive.ok = False
+        (a candidate Holm might still reject at rank >= 2) is a FAIL."""
+        ev = self._run(SynthEngine(mean=0.6))
+        checks = copy.deepcopy(ev["checks"])
+        self.assertEqual(FS.verdict_from(checks), FS.PASS)
+        checks["lower_bound_positive"]["ok"] = False
+        self.assertTrue(all(c["ok"] for k, c in checks.items() if k != "lower_bound_positive"))
+        self.assertEqual(FS.verdict_from(checks), FS.FAIL)
+
+    def test_a_record_without_folds_sufficient_fails_closed_instead_of_raising(self):
+        ev = self._run(SynthEngine(mean=0.6))
+        checks = {k: v for k, v in ev["checks"].items() if k != "folds_sufficient"}
+        verdict = FS.verdict_from(checks)                      # no KeyError
+        self.assertNotEqual(verdict, FS.PASS)
+        self.assertEqual(verdict, FS.INSUFFICIENT)             # a missing sufficiency check is treated as NOT ok
+        self.assertEqual(FS.verdict_from({}), FS.INSUFFICIENT)
+        self.assertNotEqual(FS.verdict_from(dict(ev["checks"], folds_sufficient={})), FS.PASS)
+
     def test_fold_cost_report_and_chosen_value_stability_per_component(self):
         ev = self._run(SynthEngine(mean=0.6))
         self.assertEqual(len(ev["fold_cost_report"]), len(ev["folds"]))
@@ -569,6 +588,52 @@ class Regime(unittest.TestCase):
         trades = [self._t(10 + i % 5, -0.5) for i in range(20)] + [self._t(30 + i % 5, -0.3) for i in range(20)]
         self.assertFalse(FS.check_regime_split(trades)["ok"])
 
+    def _split(self, n_low, n_high, r=0.5):
+        """n_low trades at one tied ADX (the median) and n_high above it, every trade net R = r."""
+        return [self._t(20.0, r) for _ in range(n_low)] + [self._t(50.0, r) for _ in range(n_high)]
+
+    def test_ties_at_the_median_cannot_leave_a_tiny_half_that_still_passes(self):
+        # reproduced by the review: [10, 20, 20, 20, 50], all net R +0.5 -> low n = 4, high n = 1 was "ok"
+        trades = [self._t(a, 0.5) for a in (10, 20, 20, 20, 50)]
+        chk = FS.check_regime_split(trades)
+        self.assertEqual((chk["low"]["n"], chk["high"]["n"]), (4, 1))
+        self.assertFalse(chk["ok"])
+        self.assertIn("regime halves unbalanced", chk["reason"])
+        self.assertAlmostEqual(chk["smaller_half_share"], 0.2)
+
+    def test_a_balanced_split_passes_and_carries_no_reason(self):
+        trades = [self._t(10 + i, 0.4) for i in range(8)]
+        chk = FS.check_regime_split(trades)
+        self.assertTrue(chk["ok"])
+        self.assertNotIn("reason", chk)
+        self.assertEqual(chk["min_half_share"], 0.25)
+
+    def test_each_half_needs_at_least_25_percent_exactly_at_the_boundary(self):
+        self.assertEqual(FS.REGIME_MIN_HALF_SHARE, 0.25)
+        for n_low, n_high, ok in ((6, 2, True),      # 2/8 = 25 % exactly: passes
+                                  (9, 3, True),      # 3/12 = 25 %
+                                  (10, 2, False),    # 2/12 = 16.7 %
+                                  (7, 2, False),     # 2/9 = 22.2 %
+                                  (75, 25, True), (76, 24, False), (3, 1, True), (4, 1, False)):
+            chk = FS.check_regime_split(self._split(n_low, n_high))
+            self.assertEqual(chk["ok"], ok, (n_low, n_high))
+            self.assertEqual("reason" in chk, not ok, (n_low, n_high))
+
+    def test_balance_does_not_replace_the_sign_requirement(self):
+        trades = self._split(10, 10)
+        trades[-1] = dict(trades[-1], net_R=-50.0)                 # a balanced split whose high half is negative on average
+        self.assertFalse(FS.check_regime_split(trades)["ok"])
+        self.assertNotIn("regime halves unbalanced", FS.check_regime_split(trades).get("reason", ""))
+
+    def test_the_balance_rule_is_in_the_pinned_definition_and_the_margins(self):
+        self.assertIn("25 %", FS.REGIME_SPLIT_DEFINITION)
+        self.assertIn("regime halves unbalanced", FS.REGIME_SPLIT_DEFINITION)
+        chk = FS.check_regime_split(self._split(4, 1))
+        rows = FS.check_margins({"regime_split": chk})
+        row = next(r for r in rows if r["measure"].startswith("smaller half's share"))
+        self.assertFalse(row["ok"])
+        self.assertAlmostEqual(row["margin"], 0.2 - 0.25)
+
 
 class VolumeKindAndPerSymbol(unittest.TestCase):
     def test_wyckoff_results_are_split_by_volume_kind_with_the_limitation_labelled(self):
@@ -684,7 +749,7 @@ class FixedRules(_Tmp):
         self.assertTrue(o["flat_before_rollover"])
         self.assertEqual(o["rollover_provider"], "mt5_bridge_ftmo")
         self.assertEqual(self.fs.COST_PROFILE, "ftmo_demo_2026_09_relspread")          # C2: relative spread (red-team 2026-10-02)
-        self.assertEqual(self.fs.COST_PROFILE_ABSOLUTE, "ftmo_demo_2026_09")           # the reported sensitivity
+        self.assertEqual(self.fs.COST_PROFILE_ABSOLUTE, "ftmo_demo_2026_09")           # comparison baseline only
 
     def test_cost_profile_pin_carries_the_price_refs_and_their_provenance_hash(self):
         import real_costs as RC
@@ -1560,6 +1625,69 @@ class PinningAndDirtyTree(_Tmp):
                 self.assertIn(os.path.basename(rel), str(cm.exception))
                 self.assertIn("--allow-dirty", str(cm.exception))
 
+    def _commit_gitignore(self, text):
+        self._write(".gitignore", text)
+        self.g("add", "-A")
+        self.g("commit", "-q", "-m", "gitignore")
+
+    def test_a_zero_byte_lock_file_ignored_by_the_repos_own_gitignore_does_not_block(self):
+        lock = "docs/architecture/automation-config.json.lock"
+        self._commit_gitignore(lock + "\n")
+        self.assertEqual(self.real.scoped_dirty(self.repo), [])
+        self._write(lock, "")                                                      # scripts/automation.py's 0-byte lock
+        self.assertEqual(self.real.scoped_dirty(self.repo), [])
+        self.assertEqual(self.real.check_clean_tree(False, root=self.repo), [])
+
+    def test_a_stray_lock_that_the_repo_does_not_ignore_still_blocks(self):
+        self._commit_gitignore("docs/architecture/automation-config.json.lock\n")
+        for rel in ("scripts/stray.lock", "docs/architecture/other.lock", "data/history/ftmo/x.lock"):
+            with self.subTest(rel):
+                self._write(rel, "")
+                dirty = self.real.scoped_dirty(self.repo)
+                self.assertEqual(dirty, ["?? " + rel])
+                with self.assertRaises(self.real.DirtyTreeRefused):
+                    self.real.check_clean_tree(False, root=self.repo)
+                os.remove(os.path.join(self.repo, rel))
+        self.assertEqual(self.real.scoped_dirty(self.repo), [])
+
+    def test_a_lock_hidden_only_by_a_local_exclude_not_the_repos_gitignore_still_blocks(self):
+        lock = "docs/architecture/automation-config.json.lock"
+        with open(os.path.join(self.repo, ".git", "info", "exclude"), "a") as fh:
+            fh.write(lock + "\n")                                                  # a developer-local rule, not the repo's
+        self._write(lock, "")
+        self.assertEqual(self.real.scoped_dirty(self.repo), ["?? " + lock])
+
+    def test_a_tracked_lock_file_that_changes_blocks_and_only_lock_files_are_exempt(self):
+        self._write("scripts/tracked.lock", "a\n")
+        self.g("add", "-A")
+        self.g("commit", "-q", "-m", "tracked lock")
+        self._commit_gitignore("scripts/tracked.lock\nscripts/ignored_other.json\n")   # ignored AND tracked
+        self.assertEqual(self.real.scoped_dirty(self.repo), [])
+        self._write("scripts/tracked.lock", "b\n")
+        self.assertEqual(len(self.real.scoped_dirty(self.repo)), 1)                      # a tracked change is reported
+        self._write("scripts/ignored_other.json", "{}\n")                                # ignored, not a .lock: still listed
+        self.assertIn("?? scripts/ignored_other.json", self.real.scoped_dirty(self.repo))
+
+    def test_skip_worktree_and_assume_unchanged_files_in_scope_block(self):
+        for flag, undo, tag in (("--skip-worktree", "--no-skip-worktree", "S"), ("--assume-unchanged", "--no-assume-unchanged", "h")):
+            with self.subTest(flag):
+                self.assertEqual(self.real.scoped_dirty(self.repo), [])                  # clean first
+                self.g("update-index", flag, "scripts/a.py")
+                self._write("scripts/a.py", "x = 99\n")                                  # `git status` no longer shows this edit
+                dirty = self.real.scoped_dirty(self.repo)
+                self.assertEqual(dirty, [f"hidden-change-flag[{tag}] scripts/a.py"])
+                with self.assertRaises(self.real.DirtyTreeRefused) as cm:
+                    self.real.check_clean_tree(False, root=self.repo)
+                self.assertIn("scripts/a.py", str(cm.exception))
+                self.g("update-index", undo, "scripts/a.py")
+                self.g("checkout", "-q", "--", "scripts/a.py")
+        self.assertEqual(self.real.scoped_dirty(self.repo), [])
+
+    def test_a_skip_worktree_file_outside_the_scope_does_not_block(self):
+        self.g("update-index", "--skip-worktree", "config/env.example")
+        self._write("config/env.example", "A=3\n")
+        self.assertEqual(self.real.scoped_dirty(self.repo), [])
+
     def test_allow_dirty_is_loud_and_returns_the_lines(self):
         self._write("scripts/a.py", "x = 2\n")
         err = io.StringIO()
@@ -1883,6 +2011,16 @@ class DeclaredCells(_Tmp):
         with self.assertRaises(SystemExit) as cm:
             self.fs.build_plan(gd, first_bar=self._first_bar)
         self.assertIn("before the first bar its data has", str(cm.exception))
+
+    def test_a_declared_start_that_yields_fewer_than_min_test_folds_is_refused(self):
+        # folds end at the cutoff 2024-03-01, 365 days each, after >= 730 training days: 2020-03-01 is the first start with 2
+        ok = _grid_dir_with_cells(self.tmp, lambda spec: spec["cells"][2].update(dev_start="2020-03-01T00:00:00Z"))
+        self.assertEqual(self._folds(self.fs.build_plan(ok, first_bar=self._first_bar))["5m-metals"], 2)
+        gd = _grid_dir_with_cells(self.tmp, lambda spec: spec["cells"][2].update(dev_start="2021-03-01T00:00:00Z"))
+        with self.assertRaises(SystemExit) as cm:
+            self.fs.build_plan(gd, first_bar=self._first_bar)
+        self.assertIn("MIN_TEST_FOLDS", str(cm.exception))
+        self.assertIn("5m-metals", str(cm.exception))
 
     def test_a_malformed_cells_file_is_refused_not_repaired(self):
         bad = [lambda s: s["cells"][0].update(timeframe="30m", id="30m-metals"),
@@ -3843,9 +3981,10 @@ class StressArithmetic(unittest.TestCase):
         self.assertAlmostEqual(FS.stress_commission_r(50.0, 49.5), 0.00003 * 50 / 0.5)
         # a tighter stop makes the same margin cost more R: it is a fraction of NOTIONAL, not of risk
         self.assertGreater(FS.stress_commission_r(2000.0, 1999.0), FS.stress_commission_r(2000.0, 1990.0))
-        for e, s in ((0.0, 1.0), (100.0, 100.0), (-1.0, -2.0)):
-            with self.assertRaises(ValueError):
-                FS.stress_commission_r(e, s)
+        # not computable: a result the gate fails on, never a raise
+        for e, s in ((0.0, 1.0), (100.0, 100.0), (-1.0, -2.0), (float("nan"), 1.0), (100.0, float("inf")), (None, 1.0)):
+            self.assertIsNone(FS.stress_commission_r(e, s), (e, s))
+            self.assertIsNone(FS.stressed_net_r(1.0, 0.1, e, s), (e, s))
         self.assertEqual(FS.STRESS_COMMISSION_FRACTION, 0.00003)
         self.assertEqual(FS.STRESS_SPREAD_STAT, "p90")
 
@@ -3862,6 +4001,11 @@ class StressArithmetic(unittest.TestCase):
         self.assertLess(chk["mean_R_stressed"], 0)
         self.assertFalse(FS.check_stress(None, FLOOR)["ok"])
         self.assertFalse(FS.check_stress([], FLOOR)["ok"])
+        # a not-computable trade (net_R None) fails the gate even when every other trade is a big winner
+        broken = win + [dict(win[0], net_R=None)]
+        chk = FS.check_stress(broken, FLOOR)
+        self.assertFalse(chk["ok"])
+        self.assertIn("not computable", chk["reason"])
         self.assertEqual(FS.prop_shift_r({"value": 0.1, "mean": 0.25}), 0.15)
         self.assertIsNone(FS.prop_shift_r({"value": None, "mean": 0.25}))
 
@@ -3958,6 +4102,13 @@ class StressAndShiftOnTheEngine(_RealSliceEngine):
             self.assertEqual(p90["spread_stat"], "p90")
             self.assertIn("spread_scale", p90)                                            # price-scaled (relative-spread profile)
 
+    def test_a_not_computable_stress_margin_makes_the_engine_offer_nothing_and_the_gate_fails(self):
+        eng = self._engine([self._t(0, 1900.0, 1898.0), self._t(1, 1900.0, 1902.0, side="short")])
+        taken = eng.trades_for(self.grid.baseline())
+        with mock.patch.object(FS, "stressed_net_r", return_value=None):
+            self.assertIsNone(eng.stress_trades(taken))            # no raise: fail closed
+        self.assertFalse(FS.check_stress(None, FLOOR)["ok"])
+
     def test_a_trade_that_only_just_wins_loses_under_stress(self):
         import real_costs as RC
         t0 = self._t(0, 1900.0, 1899.0, R=0.0)
@@ -3994,6 +4145,26 @@ class StressAndShiftOnTheEngine(_RealSliceEngine):
         for a, b in zip(base, sh):
             self.assertAlmostEqual(b, a - 0.15, places=12)
         self.assertEqual(shifted, plain)                                    # (the stub returns a constant)
+
+
+class CommittedPlanIsCurrent(unittest.TestCase):
+    """C1 (review 2026-10-02): `declare` / `run` refuse a stale `docs/experiments/fund-search/plan.json` (`load_plan`), but until
+    now nothing in the suite did, so a cells file / grid / engine-pin edit after the plan was committed only failed at `declare`.
+    This test recomputes the plan on the REAL cells file, grids and data and compares its hash with the committed one."""
+
+    def test_the_committed_plan_hash_equals_build_plan_on_the_real_inputs(self):
+        fs = _fs()                                   # unpatched: PLAN_PATH is the committed file, GRID_DIR the real grids
+        if not os.path.exists(fs.PLAN_PATH):
+            self.skipTest(f"LOUD SKIP: {fs.PLAN_PATH} is absent (deleted before `plan`?). Recreate it with `python3 -W ignore "
+                          f"scripts/fund-search.py plan` and `git add -f` it; this test asserts it again once it exists.")
+        committed = json.load(open(fs.PLAN_PATH, encoding="utf-8"))
+        with mock.patch.dict(os.environ, {"BT_HISTORY_ROOT": os.path.join(ROOT, "data", "history", "ftmo")}):
+            fresh = fs.build_plan()
+        self.assertEqual(
+            fresh["plan_hash"], committed["plan_hash"],
+            f"STALE PLAN: {fs.PLAN_PATH} has plan_hash {committed['plan_hash'][:12]} but the real cells file, grids, cost pins "
+            f"and data now give {fresh['plan_hash'][:12]}. Delete the file, run `python3 -W ignore scripts/fund-search.py plan`, "
+            f"`git add -f` it, after the LAST change to the plan core.")
 
 
 class ReportAndLedger(_Tmp):
@@ -4089,6 +4260,45 @@ class ReportAndLedger(_Tmp):
         self.assertIn(plan["candidates"][0]["id"], md.split("candidates passed:**")[1].splitlines()[0])
         self.assertNotIn(plan["candidates"][1]["id"], md.split("candidates passed:**")[1].splitlines()[0])
         self.assertIn("A candidate that fails the floor is never reported as a pass", md)
+
+    def test_holm_rescue_of_a_floor_failure_is_not_a_pass_through_cmd_report(self):
+        """Candidate A: tiny p, floor pass. Candidate B: every other check ok, but p between the floor 0.10/6 and Holm's
+        rank-2 threshold 0.10/5, i.e. Holm rejects it at rank 2 while it FAILS the floor. cmd_report must NOT pass B and must
+        list it under 'would reject, but the floor fails (NOT a pass)'."""
+        plan = self._plan()
+        size = plan["family"]["size"]                                       # the fixture family (12); the real one is 6
+        floor_p, rank2_p = 0.10 / size, 0.10 / (size - 1)                    # real family: 0.01667 and 0.02
+        p_b = (floor_p + rank2_p) / 2                                       # above the floor, below Holm's rank-2 threshold
+        self.assertTrue(floor_p < p_b < rank2_p)
+        grids, paths = self.fs.load_grids(FIXTURES)
+        os.makedirs(self.records, exist_ok=True)
+        for c, p_target in zip(plan["candidates"][:2], (1e-9, p_b)):
+            cell = dict(next(x for x in plan["cells"] if x["id"] == c["cell"]), development_start=LONG_START)
+            eng = SynthEngine(mean=0.6, symbols=cell["symbols"])
+            res = self.fs.evaluate_with_engine(eng, grid_two_items(), cell, c["family_size"], axes={"a": TEST_AXES["a"]})
+            self.assertEqual(res["verdict"], FS.PASS)                          # every check ok before the tamper
+            if p_target == p_b:                                                  # B: only the floor test fails, p sits at p_b
+                res["primary"]["p_robust"] = p_b
+                res["checks"]["lower_bound_positive"]["ok"] = False
+                res["verdict"] = FS.FAIL
+                res["failed_checks"] = ["lower_bound_positive"]
+            else:
+                res["primary"]["p_robust"] = p_target
+            rec = self.fs.build_record(c, plan["plan_hash"], grids[c["method"]], paths[c["method"]], res,
+                                       {"snapshot_id": "t", "series": []}, cell)
+            X.write(types.MappingProxyType(dict(rec)), store=self.records)
+        a_id, b_id = plan["candidates"][0]["id"], plan["candidates"][1]["id"]
+        md = self.fs.cmd_report()
+        holm_rows = {ln.split("|")[2].strip(): ln for ln in md.splitlines() if ln.startswith("| ") and "rejected" in ln}
+        self.assertIn("| rejected |", holm_rows[a_id])
+        self.assertIn("| rejected |", holm_rows[b_id])                            # Holm DOES reject B at rank 2 ...
+        passed_line = next(ln for ln in md.splitlines() if "evaluated candidates passed:**" in ln)
+        self.assertIn(a_id, passed_line)
+        self.assertNotIn(b_id, passed_line)                                      # ... and B is still NOT a pass
+        self.assertIn("**1 of 2 evaluated candidates passed:**", md)
+        holm_only_line = next(ln for ln in md.splitlines() if "Holm would reject, but the floor fails (NOT a pass)" in ln)
+        self.assertIn(b_id, holm_only_line)
+        self.assertNotIn(a_id, holm_only_line)
 
     def test_holm_only_rejections_are_listed_but_do_not_pass(self):
         plan = self._plan()
