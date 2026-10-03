@@ -58,14 +58,18 @@ def trades(sym, events, hold):
         dist = 2.0 * sig * math.sqrt(x - e + 1) * px
         stop = px - side * dist
         exit_px, how, j_exit = s.C[x], "time", x
+        worst = 0.0                                   # most adverse price move while open (for FTMO's FLOATING loss limits)
         for j in range(e, x + 1):
             if (s.L[j] <= stop) if side > 0 else (s.H[j] >= stop):
                 exit_px = (min(stop, s.O[j]) if side > 0 else max(stop, s.O[j])) if j > e else stop
                 how, j_exit = "stop", j
+                worst = min(worst, side * (exit_px - px))
                 break
+            worst = min(worst, side * ((s.L[j] if side > 0 else s.H[j]) - px))
         cost = costs.round_trip(s.dt[e].hour, s.dt[j_exit].hour) * px
         out.append({"symbol": sym, "entry_time": s.T[e], "exit_time": s.T[j_exit], "server_day": str(s.sday[j_exit]),
-                    "R": (side * (exit_px - px) - cost) / dist, "exit": how, "stop_bp": dist / px * 1e4})
+                    "R": (side * (exit_px - px) - cost) / dist, "mae_R": (worst - cost) / dist, "exit": how,
+                    "stop_bp": dist / px * 1e4})
     return out
 
 

@@ -37,3 +37,12 @@ attempt fail rate; the same with retry (a new attempt the day after a fail, unti
 A direction is called EFFECTIVE only if the chosen policy beats the reference on the primary metric in the confirmation starts
 AND in the 50 %-haircut bootstrap. Otherwise it is reported as not effective. The component edges were read on this history
 (disclosed): this study validates the POLICY, the forward paper/demo record validates the EDGE.
+
+## Amendment A1 (2026-10-03, before the re-run) -- FTMO counts FLOATING P&L
+
+Rules audit (docs/audits/2026-10-03-ftmo-rules-audit.md): FTMO's 5 % daily and 10 % maximum loss include OPEN positions'
+floating P&L; the original run realised P&L at exit only (disclosed there as a limitation). The FULL grid is re-run with
+`--floating mae`: at every entry all open positions, the new one included, are assumed at their own worst excursion (mae_R,
+from the 5m bars, incl. gaps through the stop) simultaneously -- an UPPER bound on fails. Same grid, same selection protocol,
+same bootstrap, same verdict criterion. The truth lies between the two runs; a direction is kept only if it is effective under
+BOTH. Output: docs/audits/2026-10-03-pass-policy-floating.json.

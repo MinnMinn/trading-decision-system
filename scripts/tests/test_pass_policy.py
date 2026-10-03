@@ -50,6 +50,23 @@ class Phase(unittest.TestCase):
         self.assertTrue(all(r <= PP.CEILING for r in PP.RISKS))
 
 
+class Floating(unittest.TestCase):
+    def test_floating_drawdown_fails_a_day_that_closes_fine(self):
+        trades = [dict(tr(0, 0.5, hour=10, hold_h=3), mae=-0.9), dict(tr(0, 0.5, hour=11, hold_h=3), mae=-0.9),
+                  dict(tr(0, 0.5, hour=12, hold_h=3), mae=-0.9)] + [tr(d, 0.0) for d in range(1, 6)]
+        pol = dict(POL, risk=0.02)                        # clamped to 1 %: three open trades, each -0.9 R at worst
+        self.assertNotEqual(PP.run_phase(trades, 0, D0, 0.10, pol)[0], "fail")      # realised: the day closes +1.5 %
+        bad = [dict(t, mae=-2.0) for t in trades[:3]] + trades[3:]
+        self.assertEqual(PP.run_phase(bad, 0, D0, 0.10, pol)[0], "open")            # realised mode never sees -6 % floating
+        o, at, _ = PP.run_phase(bad, 0, D0, 0.10, dict(pol, floating="mae"))
+        self.assertEqual((o, at), ("fail", bad[2]["entry"]))                       # 3 x -2 % floating = -6 % <= -5 %
+
+    def test_prepare_carries_mae(self):
+        raw = {"a": [{"entry_time": "2022-01-03T10:00:00Z", "exit_time": "2022-01-03T12:00:00Z", "server_day": "2022-01-03",
+                      "R": 0.3, "mae_R": -0.7}]}
+        self.assertEqual(PP.prepare(raw, ["a"])[0]["mae"], -0.7)
+
+
 class Challenge(unittest.TestCase):
     def test_p2_starts_after_p1_and_counts_calendar_days(self):
         trades = [tr(d, 4.0) for d in range(0, 20)]

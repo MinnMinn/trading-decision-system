@@ -74,14 +74,18 @@ def _entries(trades):
 def run_phase(trades, k, start, target, pol):
     """One phase on `trades` (sorted by entry, dicts with entry/exit datetimes, day keys, R) from index k / time `start`.
     Returns (outcome 'pass'|'fail'|'open', end datetime or None, next index). Balance in units of the initial balance;
-    P&L realised at each trade's exit; fail on balance <= 1 - MAX_LOSS or a server day's realised loss <= -DAILY_LOSS."""
+    P&L realised at each trade's exit; fail on balance <= 1 - MAX_LOSS or a server day's realised loss <= -DAILY_LOSS.
+    pol['floating'] == 'mae' (FTMO counts FLOATING P&L in both limits): at every entry, every open position -- the new one
+    included -- is assumed to sit at its own worst excursion (mae_R) at the same moment; a breach of either limit by that
+    bound fails the phase. An upper bound on fails (the worst points of different trades rarely coincide; gaps through a stop
+    are already in mae_R)."""
     bal, days, day_pnl, pend = 1.0, set(), collections.defaultdict(float), []
     k = max(k, bisect.bisect_left(_entries(trades), start))
 
     def realise(until):
         nonlocal bal
         while pend and pend[0][0] <= until:
-            x, _n, pnl, day = heapq.heappop(pend)
+            x, _n, pnl, day, _m = heapq.heappop(pend)
             bal += pnl
             day_pnl[day] += pnl
             if bal <= 1.0 - MAX_LOSS or day_pnl[day] <= -DAILY_LOSS:
@@ -99,8 +103,12 @@ def run_phase(trades, k, start, target, pol):
         if pol["day_stop"] is None or day_pnl[t["entry_day"]] > -pol["day_stop"]:
             r = min(CEILING, pol["risk"] * throttle_mult(pol["throttle"], bal))
             n += 1
-            heapq.heappush(pend, (t["exit"], n, r * t["R"], t["exit_day"]))
+            heapq.heappush(pend, (t["exit"], n, r * t["R"], t["exit_day"], r * t.get("mae", min(0.0, t["R"]))))
             days.add(t["entry_day"])
+            if pol.get("floating", "realised") == "mae":
+                fl = sum(q[4] for q in pend)
+                if bal + fl <= 1.0 - MAX_LOSS or day_pnl[t["exit_day"]] + fl <= -DAILY_LOSS:
+                    return "fail", t["entry"], k + 1
         k += 1
     hit = realise(datetime.datetime.max.replace(tzinfo=datetime.timezone.utc))
     return (hit[0], hit[1], k) if hit else ("open", None, k)
@@ -159,7 +167,7 @@ def prepare(raw, comps, haircut=0.0):
         for t in rows:
             e, x = _ts(t["entry_time"]), _ts(t["exit_time"])
             out.append({"entry": e, "exit": x, "entry_day": t["entry_time"][:10], "exit_day": t["server_day"],
-                        "R": t["R"] - haircut * mu, "c": c})
+                        "R": t["R"] - haircut * mu, "mae": t.get("mae_R", min(0.0, t["R"])), "c": c})
     out.sort(key=lambda t: (t["entry"], t["c"]))
     return out
 
@@ -222,15 +230,16 @@ def load_raw():
     return {k: BS.trades(*BS.COMPONENTS[k]) for k in names}
 
 
-def run(out_path, raw=None):
+def run(out_path, raw=None, floating="realised"):
     raw = raw or load_raw()
     span_from = max(min(t["entry_time"] for t in raw[c]) for c in raw)
     raw = {c: [t for t in v if t["entry_time"] >= span_from] for c, v in raw.items()}
-    res = {"meta": {"span_from": span_from, "select_end": SELECT_END, "policies": len(POLICIES), "max_fail": MAX_FAIL,
+    res = {"meta": {"floating": floating, "span_from": span_from, "select_end": SELECT_END, "policies": len(POLICIES), "max_fail": MAX_FAIL,
                     "bootstrap": {"paths": BOOT_PATHS, "days": BOOT_DAYS, "block": BOOT_BLOCK, "seed": SEED, "haircut": HAIRCUT}},
            "selection": {}, "confirmation": {}, "bootstrap": {}}
     books = {b: prepare(raw, c) for b, c in BOOKS.items()}
     for p in POLICIES:
+        p = dict(p, floating=floating)
         pid = policy_id(p)
         res["selection"][pid] = evaluate_hist(books[p["book"]], p, "2000-01-01", SELECT_END)
         res["confirmation"][pid] = evaluate_hist(books[p["book"]], p, SELECT_END, "2100-01-01")
@@ -239,7 +248,10 @@ def run(out_path, raw=None):
     admissible = [p for p in POLICIES if res["selection"][policy_id(p)]["first_attempt_fail"] <= MAX_FAIL]
     best = max(admissible, key=lambda p: (res["selection"][policy_id(p)]["funded_le_122d"], -res["selection"][policy_id(p)]["first_attempt_fail"]))
     best_retry = max(POLICIES, key=lambda p: res["selection"][policy_id(p)]["funded_le_122d_with_retry"])
-    reference = dict(book="base3", risk=0.01, throttle="none", day_stop=None)
+    admissible = [dict(p, floating=floating) for p in admissible]
+    best = dict(best, floating=floating)
+    best_retry = dict(best_retry, floating=floating)
+    reference = dict(book="base3", risk=0.01, throttle="none", day_stop=None, floating=floating)
     res["chosen"] = {"no_retry": policy_id(best), "with_retry": policy_id(best_retry), "reference": policy_id(reference)}
     for p in {policy_id(x): x for x in (best, best_retry, reference)}.values():
         res["bootstrap"][policy_id(p)] = evaluate_boot(books[p["book"]], p, prepare(raw, BOOKS[p["book"]], HAIRCUT))
@@ -253,8 +265,9 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
     r.add_argument("--out", required=True)
+    r.add_argument("--floating", choices=("realised", "mae"), default="realised")
     a = ap.parse_args()
-    run(a.out)
+    run(a.out, floating=a.floating)
 
 
 if __name__ == "__main__":
