@@ -62,7 +62,7 @@ def run(n_losses=12, n=60):
     out = []
     for i in range(n):
         t = (d + datetime.timedelta(days=i)).isoformat()
-        out.append(dict(entry_time=t + "T10:00:00Z", exit_time=t + "T15:00:00Z", symbol="XAUUSD",
+        out.append(dict(entry_time=t + "T10:00:00Z", exit_time=t + "T15:00:00Z", symbol="XAUUSD", side="long",
                         entry=100.0, stop=99.0, R=(-1.0 if i < n_losses else 1.2), R_planned=9.0))
     return out
 
@@ -106,7 +106,7 @@ class TheSameSetupIsTwoDifferentAnswers(unittest.TestCase):
         fractional % returns are scale-invariant, so the fix rescales the equity/peak/day-start facts onto the
         profile's own declared balance rather than changing what the numbers MEAN."""
         wins = [dict(entry_time=f"2025-01-0{1 + i}T10:00:00Z", exit_time=f"2025-01-0{1 + i}T15:00:00Z",
-                     symbol="XAUUSD", entry=100.0, stop=99.0, R=1.0, R_planned=9.0) for i in range(5)]
+                     symbol="XAUUSD", side="long", entry=100.0, stop=99.0, R=1.0, R_planned=9.0) for i in range(5)]
         _, _, taken = bt.simulate(wins, 0.0001, account=AP.get("ftmo-challenge-phase1"))
         self.assertEqual(len(taken), 5, bt.SIM_LAST["failed_by"])
         self.assertIsNone(bt.SIM_LAST["failed_by"])
@@ -115,7 +115,7 @@ class TheSameSetupIsTwoDifferentAnswers(unittest.TestCase):
         """The fix must not just stop halting -- it must halt at the SAME PERCENTAGE the profile declares,
         just measured against the profile's own $100,000 rather than the engine's $10,000."""
         losses = [dict(entry_time=f"2025-02-{1 + i:02d}T10:00:00Z", exit_time=f"2025-02-{1 + i:02d}T15:00:00Z",
-                       symbol="XAUUSD", entry=100.0, stop=95.0, R=-1.0, R_planned=9.0) for i in range(25)]
+                       symbol="XAUUSD", side="long", entry=100.0, stop=95.0, R=-1.0, R_planned=9.0) for i in range(25)]
         _, _, taken = bt.simulate(losses, 0.0001, account=AP.get("ftmo-challenge-phase1"))
         self.assertLess(len(taken), 25, "a 5 % stop repeated 25 times must breach a 10 % max_total_drawdown")
         self.assertIn("drawdown", bt.SIM_LAST["failed_by"])
@@ -255,7 +255,7 @@ class HaltIsTwoDifferentFacts(unittest.TestCase):
         losses = []
         for i in range(30):
             t = (d + datetime.timedelta(days=i)).isoformat()
-            losses.append(dict(entry_time=t + "T10:00:00Z", exit_time=t + "T15:00:00Z", symbol="XAUUSD",
+            losses.append(dict(entry_time=t + "T10:00:00Z", exit_time=t + "T15:00:00Z", symbol="XAUUSD", side="long",
                                entry=100.0, stop=99.0, R=-1.0, R_planned=9.0))
         _, _, taken = bt.simulate(losses, 0.0005, account=AP.get("pilot-mt5-demo"))
         self.assertEqual(len(taken), 5)
