@@ -36,8 +36,10 @@ import zipfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
 import instruments as I  # noqa: E402 -- THE allowlist (CLAUDE.md: nothing else may hard-code a symbol list)
 
-BASE = "https://data.binance.vision/data/futures/um/monthly"
-FIRST_MONTH = "2019-09"
+BASES = {"um": "https://data.binance.vision/data/futures/um/monthly",
+         "spot": "https://data.binance.vision/data/spot/monthly"}
+BASE = BASES["um"]
+FIRST_MONTH = "2017-08"                         # the earliest spot month; missing months (404) are skipped
 UA = {"User-Agent": "trading-decision-system research importer"}
 KLINE_COLS = ("open_time", "open", "high", "low", "close", "volume", "close_time", "quote_volume", "count",
               "taker_buy_volume", "taker_buy_quote_volume", "ignore")
@@ -89,26 +91,35 @@ def _rows(blob):
             yield row
 
 
-def _iso(ms):
-    return datetime.datetime.fromtimestamp(int(ms) / 1000, tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+def _iso(ts):
+    """Archive timestamps are milliseconds, except SPOT files from 2025-01-01 on, which are MICROseconds
+    (binance-public-data README). 1e14 separates them for any date after 1973 / before 5138."""
+    t = int(ts)
+    return datetime.datetime.fromtimestamp(t / (1e6 if t > 10 ** 14 else 1e3), tz=datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ")
 
 
-def import_klines(sym, interval, root, last_month):
+def _ms(ts):
+    t = int(ts)
+    return t // 1000 if t > 10 ** 14 else t
+
+
+def import_klines(sym, interval, root, last_month, market="um", first_month=FIRST_MONTH):
     out_dir = os.path.join(root, f"ohlcv.{sym}.{interval}")
     tmp = out_dir + f".tmp{os.getpid()}"
     os.makedirs(tmp, exist_ok=True)
     sources, years, by_year = [], [], {}
     prev, n = None, 0
     try:
-        for mo in months(FIRST_MONTH, last_month):
-            url = f"{BASE}/klines/{sym}/{interval}/{sym}-{interval}-{mo}.zip"
+        for mo in months(first_month, last_month):
+            url = f"{BASES[market]}/klines/{sym}/{interval}/{sym}-{interval}-{mo}.zip"
             got = fetch_verified(url)
             if got is None:
                 continue
             blob, sha = got
             sources.append({"url": url, "sha256": sha})
             for r in _rows(blob):
-                t = int(r[0])
+                t = _ms(r[0])
                 if prev is not None and t <= prev:
                     raise Refused(f"{sym} {interval}: bar {_iso(t)} is not after {_iso(prev)} ({url})")
                 prev = t
@@ -128,7 +139,8 @@ def import_klines(sym, interval, root, last_month):
         first = by_year[years[0]][0]["time"]
         last = by_year[years[-1]][-1]["time"]
         index = {"symbol": sym, "timeframe": interval, "_format": "split-gz-year-v1", "years": years, "first": first,
-                 "last": last, "_bars": n, "_source": "binance_um_public_archive", "_venue": "Binance USDT-M perpetual",
+                 "last": last, "_bars": n, "_source": f"binance_{market}_public_archive",
+                 "_venue": "Binance USDT-M perpetual" if market == "um" else "Binance spot", "market_type": "PERPETUAL" if market == "um" else "SPOT",
                  "_price": "last-trade klines (not bid/ask); charge taker fee + an explicit spread/slippage assumption",
                  "_volume": "volume / taker_buy_volume in base asset: real traded and aggressor-buy volume",
                  "_fetched_at_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -147,7 +159,7 @@ def import_klines(sym, interval, root, last_month):
 
 def import_funding(sym, root, last_month):
     rows, sources = [], []
-    for mo in months(FIRST_MONTH, last_month):
+    for mo in months("2019-09", last_month):
         url = f"{BASE}/fundingRate/{sym}/{sym}-fundingRate-{mo}.zip"
         got = fetch_verified(url)
         if got is None:
@@ -170,12 +182,43 @@ def import_funding(sym, root, last_month):
     print(f"wrote {p}: {len(rows)} settlements {rows[0]['time'] if rows else '-'} -> {rows[-1]['time'] if rows else '-'}")
 
 
+def import_funding_rest(sym, root, before="2020-01-01T00:00:00Z"):
+    """Realized funding BEFORE the archive's first month, from the public REST endpoint /fapi/v1/fundingRate (the archive's
+    fundingRate files start 2020-01). Paged by startTime; stored separately (provenance: REST, not archive)."""
+    end = int(datetime.datetime.fromisoformat(before.replace("Z", "+00:00")).timestamp() * 1000)
+    start, rows = 1546300800000, []                    # 2019-01-01: before every USDT-M listing
+    while start < end:
+        url = (f"https://fapi.binance.com/fapi/v1/fundingRate?symbol={sym}&startTime={start}&endTime={end - 1}"
+               f"&limit=1000")
+        page = json.loads(_get(url))
+        if not page:
+            break
+        for r in page:
+            rows.append({"time": _iso(r["fundingTime"]), "rate": float(r["fundingRate"])})
+        start = int(page[-1]["fundingTime"]) + 1
+        if len(page) < 1000:
+            break
+    rows.sort(key=lambda x: x["time"])
+    doc = {"symbol": sym, "_source": "binance_um_rest /fapi/v1/fundingRate", "_before": before,
+           "_meaning": "rate charged at `time` on the position notional: longs pay a positive rate",
+           "_fetched_at_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+           "_importer": "scripts/import-binance-um-history.py --rest-funding", "rows": rows}
+    os.makedirs(root, exist_ok=True)
+    p = os.path.join(root, f"funding_rest.{sym}.json.gz")
+    with gzip.open(p, "wt", encoding="utf-8") as fh:
+        json.dump(doc, fh, separators=(",", ":"))
+    print(f"wrote {p}: {len(rows)} settlements {rows[0]['time'] if rows else '-'} -> {rows[-1]['time'] if rows else '-'}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--symbols", help="comma list (default: instruments.backtested('crypto'))")
     ap.add_argument("--intervals", default="5m,1h")
     ap.add_argument("--funding", action="store_true")
     ap.add_argument("--root", default="data/history/binance_um")
+    ap.add_argument("--market", choices=("um", "spot"), default="um", help="um = USDT-M perpetual (default), spot = spot")
+    ap.add_argument("--first-month", default=FIRST_MONTH)
+    ap.add_argument("--rest-funding", action="store_true", help="also fetch pre-2020 funding from the REST endpoint")
     ap.add_argument("--end-month", help="last COMPLETE month to import (default: the month before the current one)")
     a = ap.parse_args()
     today = datetime.date.today()
@@ -188,9 +231,11 @@ def main():
     try:
         for sym in syms:
             for iv in [x for x in a.intervals.split(",") if x]:
-                import_klines(sym, iv, a.root, last)
-            if a.funding:
+                import_klines(sym, iv, a.root, last, a.market, a.first_month)
+            if a.funding and a.market == "um":
                 import_funding(sym, a.root, last)
+            if a.rest_funding:
+                import_funding_rest(sym, a.root)
     except Refused as e:
         print(f"REFUSED: {e}", file=sys.stderr)
         sys.exit(2)

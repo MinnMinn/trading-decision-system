@@ -102,3 +102,4 @@ __pycache__/
 # index.json files (provenance + digests) are tracked.
 data/history/binance_um/**/*.json.gz
 data/history/binance_um/*.json.gz
+data/history/binance_spot/**/*.json.gz
