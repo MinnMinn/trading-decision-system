@@ -35,8 +35,9 @@ END = "9999-12-31T00:00:00Z"
 RISKS = (0.0025, 0.005, 0.01)
 
 
-def trades(sym, events, hold):
-    """hold: int bars, or 'eod'."""
+def trades(sym, events, hold, stop_k=2.0):
+    """hold: int bars, or 'eod'. stop_k: the protective stop in sigma_5m x sqrt(hold) units (2.0 everywhere before the A1 study,
+    docs/plans/2026-10-03-vol-schedule-preregistration.md; the default keeps every earlier result byte-identical)."""
     s = EC.load(sym, end=END)
     costs = EC.Costs(sym)
     last = {}
@@ -55,7 +56,7 @@ def trades(sym, events, hold):
         if not sig:
             continue
         px = ev["entry_px"] if ev.get("entry_px") is not None else s.O[e]
-        dist = 2.0 * sig * math.sqrt(x - e + 1) * px
+        dist = stop_k * sig * math.sqrt(x - e + 1) * px
         stop = px - side * dist
         exit_px, how, j_exit = s.C[x], "time", x
         worst = 0.0                                   # most adverse price move while open (for FTMO's FLOATING loss limits)
