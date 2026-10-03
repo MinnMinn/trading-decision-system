@@ -25,6 +25,8 @@ import os
 import sys
 import unittest
 
+import fresh_calendar as FC  # noqa: E402  (a current, quiet copy of the real calendar)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import account_profile as AP
@@ -724,9 +726,11 @@ class AccountLimitsOnTheOrderPath(unittest.TestCase):
         # gate it means to test rather than whether the exchange answered a filters query.
         sr.min_notional = lambda *a, **k: 5.0
         sr.log = lambda kind, **kw: logs.append((kind, kw))
+        old_load, sr.ER.load = sr.ER.load, FC.fresh_load    # the §36 step-3 precheck reads the calendar itself
         try:
             sr.tick(live=False, tick_time=sr.now(), ignore_gate=True)
         finally:
+            sr.ER.load = old_load
             for k, v in old.items():
                 setattr(sr, k, v)
             for p in tmps:

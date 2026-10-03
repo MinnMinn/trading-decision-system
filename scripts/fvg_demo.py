@@ -37,6 +37,8 @@ CONFIG = os.path.join(ROOT, "docs", "architecture", "fvg-demo.json")
 STATE = os.path.join(ROOT, "data", "live", "forward", "fvg-demo-state.json")
 LOG = os.path.join(ROOT, "data", "live", "forward", "fvg-demo.jsonl")
 BAR = datetime.timedelta(minutes=5)
+import providers as P  # noqa: E402  (connector paths come from docs/architecture/providers.json, never hard-coded)
+BRIDGE_ADAPTER = P.adapter("mt5_bridge")
 
 
 def _iso(t):
@@ -54,7 +56,7 @@ class Bridge:
         self.env = dict(os.environ, MT5_BRIDGE_SUBDIR=subdir)
 
     def __call__(self, *args):
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "mt5-order-bridge.py"), *map(str, args)],
+        r = subprocess.run([sys.executable, BRIDGE_ADAPTER, *map(str, args)],
                            capture_output=True, text=True, env=self.env)
         out = r.stdout.strip() or r.stderr.strip()
         try:

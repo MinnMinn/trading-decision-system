@@ -23,6 +23,8 @@ import re
 import sys
 import unittest
 
+import fresh_calendar as FC  # noqa: E402  (a current, quiet copy of the real calendar)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import decision_order as DO
@@ -305,6 +307,8 @@ class TheTwoDefectsThisFound(unittest.TestCase):
             def _fail(*_a, **_k):
                 raise sr.ER.CalendarUnavailable("calendar file is unreadable", "BLOCK_ENTRY")
             sr.ER.load = _fail
+        else:
+            sr.ER.load = FC.fresh_load                      # readable and current, whatever today's date is
         sr.log = lambda kind, **kw: logs.append((kind, kw))
         try:
             sr.tick(live=False, tick_time=sr.now(), ignore_gate=True)
