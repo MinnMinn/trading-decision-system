@@ -242,5 +242,31 @@ class RealExportsOnDisk(unittest.TestCase):
             self.assertEqual(t.tzinfo, datetime.timezone.utc)
 
 
+class ShrinkGuard(unittest.TestCase):
+    """A truncated export must never silently delete stored history (2026-10-03: a 1m export covering 2012-2017 replaced
+    the stored 2012-2026 series)."""
+
+    def test_shrinks(self):
+        prior = ("2012-01-02T00:00:00Z", "2026-09-28T17:00:00Z")
+        self.assertIsNone(M.shrinks(None, "2020-01-01T00:00:00Z", "2020-02-01T00:00:00Z"))
+        self.assertIsNone(M.shrinks(prior, "2012-01-02T00:00:00Z", "2026-10-02T20:45:00Z"))     # append-only: fine
+        self.assertIn("EARLIER", M.shrinks(prior, "2012-01-02T00:00:00Z", "2017-03-01T00:00:00Z"))
+        self.assertIn("LATER", M.shrinks(prior, "2018-01-02T00:00:00Z", "2026-10-02T20:45:00Z"))
+
+    def test_existing_span_reads_split_and_file(self):
+        import gzip
+        d = tempfile.mkdtemp()
+        os.makedirs(os.path.join(d, "ohlcv.XAUUSD.5m"))
+        json.dump({"_format": "split-gz-year-v1", "years": [2020], "first": "2020-01-01T00:00:00Z",
+                   "last": "2020-12-31T23:55:00Z"}, open(os.path.join(d, "ohlcv.XAUUSD.5m", "index.json"), "w"))
+        with gzip.open(os.path.join(d, "ohlcv.XAUUSD.5m", "2020.json.gz"), "wt") as fh:
+            json.dump({"year": 2020, "candles": []}, fh)
+        self.assertEqual(M.existing_span(d, "XAUUSD", "5m"), ("2020-01-01T00:00:00Z", "2020-12-31T23:55:00Z"))
+        json.dump({"candles": [{"time": "2021-01-01T00:00:00Z"}, {"time": "2021-02-01T00:00:00Z"}]},
+                  open(os.path.join(d, "ohlcv.XAUUSD.1H.json"), "w"))
+        self.assertEqual(M.existing_span(d, "XAUUSD", "1H"), ("2021-01-01T00:00:00Z", "2021-02-01T00:00:00Z"))
+        self.assertIsNone(M.existing_span(d, "XAUUSD", "4H"))
+
+
 if __name__ == "__main__":
     unittest.main()

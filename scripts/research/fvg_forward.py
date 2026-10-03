@@ -78,19 +78,24 @@ def _dt(t):
     return datetime.datetime.fromisoformat(t.replace("Z", "+00:00"))
 
 
+HOLE_MIN = datetime.timedelta(hours=24)       # a missing trading DAY; shorter gaps are sessions (holiday early closes)
+
+
 def holes(times, since=None):
-    """[(last bar before, first bar after)] for every gap > GAP_WARN between consecutive bar times (ISO 'Z' strings, sorted)
-    at or after `since`, except the weekend close (a gap that starts on Friday or Saturday UTC, ends on Sunday or Monday and
-    lasts <= 72 h). A market holiday also shows up here: it fails closed, it is not filled in."""
+    """[(last bar before, first bar after)] for every gap of >= HOLE_MIN between consecutive bar times (ISO 'Z' strings,
+    sorted) at or after `since` -- a missing trading day, which corrupts the previous day's range, the momentum and sigma --
+    except a weekend, possibly stretched by a holiday (a gap that starts Thursday-Saturday UTC, ends Sunday-Tuesday and lasts
+    <= 96 h: Christmas, New Year, Good Friday). Shorter gaps (a holiday's early close, e.g. US Labor Day on the US indices,
+    or a few hours' outage) are not holes; a CURRENT outage is caught by the stale-bar gate instead."""
     out = []
     for a, b in zip(times, times[1:]):
         if since is not None and _dt(b) < since:
             continue
         ta, tb = _dt(a), _dt(b)
         gap = tb - ta
-        if gap <= GAP_WARN:
+        if gap < HOLE_MIN:
             continue
-        if ta.weekday() in (4, 5) and tb.weekday() in (6, 0) and gap <= datetime.timedelta(hours=72):
+        if ta.weekday() in (3, 4, 5) and tb.weekday() in (6, 0, 1) and gap <= datetime.timedelta(hours=96):
             continue
         out.append((a, b))
     return out
