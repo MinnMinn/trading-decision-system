@@ -79,6 +79,44 @@ class Forward(unittest.TestCase):
             with self.assertRaises(ValueError):
                 FF.signals(s, "XAUUSD", "eod", "ZZ")
 
+    def test_holes_skip_the_weekend_but_not_a_weekday_gap(self):
+        fri, mon = "2026-09-25T20:55:00Z", "2026-09-27T22:00:00Z"            # Fri close -> Sun open: the weekend
+        self.assertEqual(FF.holes([fri, mon]), [])
+        a, b = "2026-09-28T17:00:00Z", "2026-10-02T04:10:00Z"                # Mon -> Fri: a real hole
+        self.assertEqual(FF.holes([a, b]), [(a, b)])
+        self.assertEqual(FF.holes(["2026-09-29T10:00:00Z", "2026-09-29T13:00:00Z"]), [])   # 3 h <= GAP_WARN
+        self.assertEqual(FF.holes([a, b], since=FF._dt("2026-10-03T00:00:00Z")), [])        # outside the window
+
+    def test_paper_signal_after_a_hole_is_refused(self):
+        import datetime as _dt
+        t0 = _dt.datetime(2026, 9, 1, tzinfo=UTC)
+        bs = []
+        for d in range(25):
+            if d in (14, 15):                                               # Tue-Wed 2026-09-15/16 missing
+                continue
+            n = 288 if d < 24 else 20
+            for b in range(n):
+                t = t0 + _dt.timedelta(days=d, minutes=5 * b)
+                px = 100.0 + (0.1 if b % 2 else -0.1) + (2.0 if d == 24 and b >= 10 else 0.0)
+                bs.append({"time": t.strftime("%Y-%m-%dT%H:%M:%SZ"), "open": px, "high": px + 0.5, "low": px - 0.5, "close": px})
+        s = EC.Series("XAUUSD", bs, UTC, end="9999-12-31T00:00:00Z", sigma_every_day=True)
+        with mock.patch.object(FF, "FORWARD_START", "2000-01-01T00:00:00Z"):
+            rows = FF.signals(s, "XAUUSD", "eod", "G9", "G9_XAUUSD_eod")
+        self.assertTrue(rows)
+        self.assertEqual(rows[-1]["status"], "refused")
+        self.assertIn("data hole", rows[-1]["reason"])
+
+    def test_accumulate_keeps_warning_while_a_hole_remains(self):
+        import json, tempfile
+        live, store = tempfile.mkdtemp(), tempfile.mkdtemp()
+        b1 = bars("2030-01-07T10:00:00", [(1.0, 1.1, 0.9, 1.0)] * 3)
+        json.dump({"candles": b1}, open(os.path.join(live, "ohlcv.XAUUSD.5m.json"), "w"))
+        with mock.patch.object(FF, "merged_candles", lambda sym, l, s: [{"time": "2030-01-02T10:00:00Z"}] + b1):
+            FF.accumulate("XAUUSD", live, store)
+            _n, w = FF.accumulate("XAUUSD", live, store)                  # second cycle: the store is no longer empty
+        self.assertIsNotNone(w)
+        self.assertIn("hole", w)
+
     def test_live_file_uses_the_broker_spelling(self):
         import json, tempfile
         live, store = tempfile.mkdtemp(), tempfile.mkdtemp()
@@ -100,7 +138,8 @@ class Forward(unittest.TestCase):
         b2 = bars("2030-01-07T10:10:00", [(1.0, 1.1, 0.9, 1.0)] * 3)                 # overlaps by one bar
         json.dump({"candles": b2}, open(os.path.join(live, "ohlcv.XAUUSD.5m.json"), "w"))
         n, w = FF.accumulate("XAUUSD", live, store)
-        self.assertEqual((n, w), (2, None))
+        self.assertEqual(n, 2)
+        self.assertIn("hole", w)              # the history -> store hole is still there: the warning persists until filled
         self.assertEqual(len(json.load(open(os.path.join(store, "XAUUSD.5m.json")))), 5)
 
     def test_places_no_order(self):

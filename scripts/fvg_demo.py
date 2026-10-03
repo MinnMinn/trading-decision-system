@@ -210,11 +210,26 @@ def _isolated(log_path, sym, component, fn, *args):
         log("error", log_path, symbol=sym, component=component, error=f"{type(e).__name__}: {e}")
 
 
+def data_ok(s, sym, now, cfg, log_path, component):
+    """§20/§52 gate for a NEW entry: the latest closed bar is fresh AND the bars the decision reads (the last
+    FF.HOLE_LOOKBACK) have no hole. A hole means the previous day's range, the momentum and sigma would be computed on the wrong
+    days -- WAIT, never trade through it."""
+    if not s.T or now - (_parse(s.T[-1]) + BAR) > datetime.timedelta(minutes=cfg["max_bar_age_minutes"]):
+        log("wait", log_path, symbol=sym, component=component, reason="bars stale: no NEW entry (§20/§52)",
+            last_bar=s.T[-1] if s.T else None)
+        return False
+    hs = FF.holes(s.T, since=now - FF.HOLE_LOOKBACK)
+    if hs:
+        log("wait", log_path, symbol=sym, component=component, reason="data hole in the decision window: no NEW entry (§20/§52)",
+            holes=hs[:3])
+        return False
+    return True
+
+
 def _fvg_component(st, sym, h, now, cfg, bridge, base, log_path, live_dir, event_blocked):
     """E5 FVG retrace on one symbol: a LIMIT at the untouched gap's near edge (see new_gaps)."""
     s = closed_series(sym, now, live_dir)
-    if not s.T or now - (_parse(s.T[-1]) + BAR) > datetime.timedelta(minutes=cfg["max_bar_age_minutes"]):
-        log("wait", log_path, symbol=sym, reason="bars stale: no NEW entry (§20/§52)", last_bar=s.T[-1] if s.T else None)
+    if not data_ok(s, sym, now, cfg, log_path, "E5"):
         return
     for g in new_gaps(s, sym, h):
         if g[0] == "refused":
@@ -258,7 +273,7 @@ def _eod_breakout(st, kind, sym, now, cfg, bridge, balance, log_path, live_dir, 
     the signal bar is the LAST closed bar (a later tick does not chase it), stop 2 sigma x sqrt(bars to the rollover), closed
     before the rollover. One trade per (component, symbol, server day, side)."""
     s = closed_series(sym, now, live_dir)
-    if not s.T or now - (_parse(s.T[-1]) + BAR) > datetime.timedelta(minutes=cfg["max_bar_age_minutes"]):
+    if not data_ok(s, sym, now, cfg, log_path, kind):
         return
     det = {"H7": lambda: FF._f3().ev_breakout_trend(s), "G9": lambda: FF._f4().ev_vol_breakout(s)}[kind]
     for ev in det():
