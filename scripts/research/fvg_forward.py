@@ -71,6 +71,29 @@ STAGE_A_MAX_DAYS = 274            # 9 calendar months
 
 STORE_DIR = os.path.join(ROOT, "data", "live", "forward", "bars")
 GAP_WARN = datetime.timedelta(hours=4)      # a hole this long between the store and the live file needs a history re-export
+HOLE_LOOKBACK = datetime.timedelta(days=35)  # the bars a live decision needs: 20-day momentum + 20 dense days of sigma + slack
+
+
+def _dt(t):
+    return datetime.datetime.fromisoformat(t.replace("Z", "+00:00"))
+
+
+def holes(times, since=None):
+    """[(last bar before, first bar after)] for every gap > GAP_WARN between consecutive bar times (ISO 'Z' strings, sorted)
+    at or after `since`, except the weekend close (a gap that starts on Friday or Saturday UTC, ends on Sunday or Monday and
+    lasts <= 72 h). A market holiday also shows up here: it fails closed, it is not filled in."""
+    out = []
+    for a, b in zip(times, times[1:]):
+        if since is not None and _dt(b) < since:
+            continue
+        ta, tb = _dt(a), _dt(b)
+        gap = tb - ta
+        if gap <= GAP_WARN:
+            continue
+        if ta.weekday() in (4, 5) and tb.weekday() in (6, 0) and gap <= datetime.timedelta(hours=72):
+            continue
+        out.append((a, b))
+    return out
 
 
 def live_path(sym, live_dir=LIVE_DIR):
@@ -115,6 +138,14 @@ def accumulate(sym, live_dir=LIVE_DIR, store_dir=STORE_DIR):
     tmp = sp + ".tmp"
     json.dump([store[t] for t in sorted(store)], open(tmp, "w"))
     os.replace(tmp, sp)
+    # every cycle, not only the first: a hole between the stored history and the rolling store stays until it is filled
+    times = [b["time"] for b in merged_candles(sym, live_dir, store_dir)]
+    if times:
+        hs = holes(times, since=_dt(times[-1]) - HOLE_LOOKBACK)
+        if hs:
+            warn = (f"{sym}: {len(hs)} hole(s) in the last {HOLE_LOOKBACK.days} days, first {hs[0][0]} -> {hs[0][1]}: no NEW "
+                    f"demo entry until filled; re-export the 5m history once "
+                    f"(integrations/mt5/ExportHistory.mq5 -> scripts/import-mt5-history.py --write)")
     return len(store) - n0, warn
 
 

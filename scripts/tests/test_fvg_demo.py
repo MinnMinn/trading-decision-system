@@ -166,6 +166,24 @@ class H7(unittest.TestCase):
         self.assertLess(float(mk[0][4]), s.C[-1])          # the stop is below the entry reference
 
 
+class DataGate(unittest.TestCase):
+    def test_a_hole_in_the_decision_window_blocks_new_entries(self):
+        tmp = tempfile.mkdtemp()
+        paths = dict(state_path=os.path.join(tmp, "s.json"), log_path=os.path.join(tmp, "l.jsonl"))
+        s, now = series_with_h7_breakout()
+        keep = [i for i, t in enumerate(s.T) if not ("2026-08-19" <= t[:10] <= "2026-08-20")]   # a Wed-Thu hole
+        bars = [{"time": s.T[i], "open": s.O[i], "high": s.H[i], "low": s.L[i], "close": s.C[i]} for i in keep]
+        holed = EC.Series("XAUUSD", bars, UTC, end="9999-12-31T00:00:00Z", sigma_every_day=True)
+        cfg = dict(CFG, components={"XAUUSD": 24}, h7_symbols=["XAUUSD"])
+        b = FakeBridge()
+        with mock.patch.object(FD, "closed_series", lambda sym, now, live_dir=None: holed), \
+                mock.patch.object(FD.FF, "_zone", lambda: UTC):
+            FD.tick(now, b, cfg, **paths, event_blocked=lambda x, t: (False, ""))
+        self.assertFalse([c for c in b.calls if c[0] in ("market", "limit")])
+        rows = [json.loads(l) for l in open(paths["log_path"])]
+        self.assertTrue(any("data hole" in r.get("reason", "") for r in rows))
+
+
 class Isolation(unittest.TestCase):
     def test_a_symbol_the_ea_does_not_know_never_blocks_the_others(self):
         tmp = tempfile.mkdtemp()
