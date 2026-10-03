@@ -26,6 +26,9 @@ class Costs0:
     def round_trip(self, a, b, stat="median"):
         return 0.0
 
+    def round_trip_at(self, a, b, stat="median"):
+        return 0.0
+
 
 class Forward(unittest.TestCase):
     def test_resolve_time_exit_and_stop(self):

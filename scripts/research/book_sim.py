@@ -67,7 +67,7 @@ def trades(sym, events, hold, stop_k=2.0):
                 worst = min(worst, side * (exit_px - px))
                 break
             worst = min(worst, side * ((s.L[j] if side > 0 else s.H[j]) - px))
-        cost = costs.round_trip(s.dt[e].hour, s.dt[j_exit].hour) * px
+        cost = costs.round_trip_at(s.dt[e], s.dt[j_exit]) * px
         out.append({"symbol": sym, "entry_time": s.T[e], "exit_time": s.T[j_exit], "server_day": str(s.sday[j_exit]),
                     "R": (side * (exit_px - px) - cost) / dist, "mae_R": (worst - cost) / dist, "exit": how,
                     "stop_bp": dist / px * 1e4})

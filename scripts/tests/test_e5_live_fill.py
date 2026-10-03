@@ -22,6 +22,12 @@ class Costs:
     def round_trip(self, h_in, h_out, stat="median"):
         return REL
 
+    def round_trip_at(self, t_in, t_out, stat="median"):
+        return REL
+
+    def leg_at(self, t, stat="median"):
+        return REL
+
 
 def bars(lows, edge=100.0):
     """Bars m-1, m, m+1 (indices 0..2) then the retrace bars; only L/O/C matter to the fill rules."""

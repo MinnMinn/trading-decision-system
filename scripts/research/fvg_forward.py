@@ -291,7 +291,7 @@ def resolve_row(s, r, costs):
             exit_px = (min(stop, s.O[j]) if side > 0 else max(stop, s.O[j])) if j > e else stop
             how, j_exit = "stop", j
             break
-    cost = costs.round_trip(s.dt[e].hour, s.dt[j_exit].hour) * px
+    cost = costs.round_trip_at(s.dt[e], s.dt[j_exit]) * px
     gross = side * (exit_px - px)
     return dict(r, status="closed", exit_time=s.T[j_exit], exit=exit_px, exit_reason=how,
                 net_bp=(gross - cost) / px * 1e4, R=(gross - cost) / r["stop_distance"])

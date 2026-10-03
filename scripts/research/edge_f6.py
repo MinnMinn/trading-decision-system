@@ -141,9 +141,9 @@ def outcome(s, ev, costs):
     if not sig:
         return None
     r = s.C[x] / s.O[e] - 1.0
-    c = costs.round_trip(s.dt[e].hour, s.dt[x].hour)
+    c = costs.round_trip_at(s.dt[e], s.dt[x])
     return {"symbol": s.sym, "date": s.dt[e].date().isoformat(), "server_day": str(ev["day"]), "window": ev["window"],
-            "z": ev["z"], "side": 1, "r": r, "cost": c, "cost90": costs.round_trip(s.dt[e].hour, s.dt[x].hour, "p90"),
+            "z": ev["z"], "side": 1, "r": r, "cost": c, "cost90": costs.round_trip_at(s.dt[e], s.dt[x], "p90"),
             "cost2x": 2.0 * c, "scale": sig * math.sqrt(x - e + 1), "entry_time": s.T[e], "exit_time": s.T[x]}
 
 

@@ -43,7 +43,7 @@ def fill(s, costs, m, side, edge, rule, sx):
     n = len(s.C)
     if m + 2 >= n:
         return None
-    sp_p = costs.med[s.dt[m + 2].hour] * edge * sx
+    sp_p = costs.leg_at(s.dt[m + 2]) * edge * sx
     for j in range(m + 2, min(n, m + 2 + EC.FVG_TOUCH_BARS)):
         if s.sday[j] != s.sday[m]:
             return None
@@ -51,7 +51,7 @@ def fill(s, costs, m, side, edge, rule, sx):
             if (side > 0 and s.L[j] <= edge) or (side < 0 and s.H[j] >= edge):
                 return j, (min(edge, s.O[j]) if side > 0 else max(edge, s.O[j])), "spread"
             continue
-        sp_j = costs.med[s.dt[j].hour] * edge * sx
+        sp_j = costs.leg_at(s.dt[j]) * edge * sx
         lim = edge if rule == "live" else edge + sp_p
         if s.L[j] + sp_j <= lim:
             return j, min(lim, s.O[j] + sp_j), "paid"
@@ -73,7 +73,7 @@ def outcome(s, costs, e, px, side, hold, sig, mode, sx):
             worst = min(worst, side * (exit_px - px))
             break
         worst = min(worst, side * ((s.L[j] if side > 0 else s.H[j]) - px))
-    cost = costs.round_trip(s.dt[e].hour, s.dt[j_exit].hour) * px * sx if mode == "spread" else 0.0
+    cost = costs.round_trip_at(s.dt[e], s.dt[j_exit]) * px * sx if mode == "spread" else 0.0
     return {"entry_time": s.T[e], "exit_time": s.T[j_exit], "server_day": str(s.sday[j_exit]), "side": side,
             "R": (side * (exit_px - px) - cost) / dist, "mae_R": (worst - cost) / dist, "exit": how,
             "net_bp": (side * (exit_px - px) - cost) / px * 1e4}

@@ -366,8 +366,12 @@ DETECTORS = {
 
 # ------------------------------------------------------------------------------------------------ outcomes
 class Costs:
+    """Round-trip relative spread of one symbol. `round_trip(bucket_in, bucket_out)` reads the table's own buckets;
+    `round_trip_at(t_in, t_out)` prices legs at INSTANTS through real_costs.table_hour (the cost-hour erratum 2026-10-04:
+    callers used to pass the leg's UTC hour, one bucket off in US standard time)."""
     def __init__(self, sym):
         import real_costs as RC
+        self.sym = sym
         self.ref = RC.price_ref(COST_PROFILE, sym)
         self.med = {h: RC.spread_price(COST_PROFILE, sym, h, "median")[0] / self.ref for h in range(24)}
         self.p90 = {h: RC.spread_price(COST_PROFILE, sym, h, "p90")[0] / self.ref for h in range(24)}
@@ -375,6 +379,15 @@ class Costs:
     def round_trip(self, h_in, h_out, stat="median"):
         t = self.med if stat == "median" else self.p90
         return 0.5 * t[h_in] + 0.5 * t[h_out]
+
+    def leg_at(self, t, stat="median"):
+        """One leg's relative spread at instant `t` (the table bucket of its server hour, real_costs.table_hour)."""
+        import real_costs as RC
+        return (self.med if stat == "median" else self.p90)[RC.table_hour(COST_PROFILE, self.sym, t)]
+
+    def round_trip_at(self, t_in, t_out, stat="median"):
+        import real_costs as RC
+        return self.round_trip(RC.table_hour(COST_PROFILE, self.sym, t_in), RC.table_hour(COST_PROFILE, self.sym, t_out), stat)
 
 
 def outcome(s, ev, h, costs):
@@ -391,8 +404,8 @@ def outcome(s, ev, h, costs):
     px_in = ev["entry_px"] if ev["entry_px"] is not None else s.O[e]
     r = ev["side"] * (s.C[x] / px_in - 1.0)
     nb = x - e + 1
-    cost = costs.round_trip(s.dt[e].hour, s.dt[x].hour)
-    cost90 = costs.round_trip(s.dt[e].hour, s.dt[x].hour, "p90")
+    cost = costs.round_trip_at(s.dt[e], s.dt[x])
+    cost90 = costs.round_trip_at(s.dt[e], s.dt[x], "p90")
     return {"symbol": s.sym, "date": s.dt[ev["i"]].date().isoformat(), "period": s.period(ev["i"]), "side": ev["side"],
             "tod": (s.dt[e].hour * 60 + s.dt[e].minute), "nb": nb, "r": r, "cost": cost, "cost90": cost90,
             "scale": sig * math.sqrt(nb), "entry_i": e, "exit_i": x}, None
