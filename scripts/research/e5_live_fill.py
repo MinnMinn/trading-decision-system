@@ -178,12 +178,71 @@ def run(out_path, boot=True):
     print(f"wrote {out_path}")
 
 
+def first_formed_only(s, costs, hold, sx=1.0):
+    """[post hoc] Another point-in-time selection: per (server day, side) only the FIRST gap formed is ever traded."""
+    seen, out = set(), []
+    for m in range(1, len(s.C) - 2):
+        g = EC.fvg_gap_at(s, m)
+        if g is None:
+            continue
+        side, edge, _far = g
+        if (s.sday[m], side) in seen:
+            continue
+        seen.add((s.sday[m], side))
+        sig = s.sigma(m + 1)
+        f = fill(s, costs, m, side, edge, "research", sx) if sig else None
+        o = outcome(s, costs, f[0], f[1], side, hold, sig, f[2], sx) if f else None
+        if o is not None:
+            out.append(o)
+    return out
+
+
+def posthoc(out_path):
+    """[post hoc, added after the pre-registered run; decides nothing alone] (1) the dropped / added trades between the
+    research selection and the demo's first-fill selection; (2) the first-formed-only PIT selection; (3) the v2 replay
+    without E5 (H7 + G9 gold), same pass_policy functions and span."""
+    res = {"meta": {"status": "POST HOC diagnostics of docs/audits/2026-10-03-e5-live-fill.md"}, "selection": {}}
+    for comp, (sym, hold) in E5.items():
+        s = EC.load(sym, end=BS.END)
+        costs = EC.Costs(sym)
+        ref = BS.trades(*BS.COMPONENTS[comp])
+        mine, _ = trades(s, costs, hold, "research", 1.0)
+        ff = first_formed_only(s, costs, hold)
+        rk, mk = {t["entry_time"]: t for t in ref}, {t["entry_time"]: t for t in mine}
+        only_ref, only_mine = set(rk) - set(mk), set(mk) - set(rk)
+        mean = lambda xs: (len(xs), statistics.mean(xs) if xs else None)
+        res["selection"][comp] = {
+            "research_reference": mean([t["R"] for t in ref]), "demo_first_fill": mean([t["R"] for t in mine]),
+            "first_formed_only": mean([t["R"] for t in ff]),
+            "first_formed_only_span": mean([t["R"] for t in ff if t["entry_time"] >= BOOK_SPAN_FROM]),
+            "only_in_reference": mean([rk[k]["R"] for k in only_ref]), "only_in_first_fill": mean([mk[k]["R"] for k in only_mine])}
+        print(comp, res["selection"][comp], flush=True)
+    comps = ["H7_XAUUSD_eod", "G9_XAUUSD_eod"]
+    raw = {k: BS.trades(*BS.COMPONENTS[k]) for k in comps + ["E5_US500_48"]}
+    span_from = max(min(t["entry_time"] for t in raw[c]) for c in raw)
+    raw = {c: [t for t in raw[c] if t["entry_time"] >= span_from] for c in comps}
+    book = PP.prepare(raw, comps)
+    mu, sd, sh = BS.daily_profile([t for c in comps for t in raw[c]])
+    row = {"span_from": span_from, "daily_sharpe": sh, "R_by_component": {c: round(sum(t["R"] for t in raw[c]), 2) for c in comps}}
+    for fl in ("mae", "realised"):
+        pol = dict(book="h7g9", risk=0.01, throttle="dd3", day_stop=None, floating=fl)
+        row[fl] = {"selection": PP.evaluate_hist(book, pol, "2000-01-01", PP.SELECT_END),
+                   "confirmation": PP.evaluate_hist(book, pol, PP.SELECT_END, "2100-01-01")}
+        if fl == "mae":
+            row[fl]["bootstrap"] = PP.evaluate_boot(book, pol, PP.prepare(raw, comps, PP.HAIRCUT))
+    res["book_h7_g9_only"] = row
+    print("H7+G9", sh, row["mae"]["confirmation"]["funded_le_122d"], flush=True)
+    json.dump(res, open(out_path, "w"), indent=1)
+    print(f"wrote {out_path}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", required=True)
     ap.add_argument("--no-bootstrap", action="store_true")
+    ap.add_argument("--posthoc", action="store_true", help="the post-hoc diagnostics instead of the pre-registered run")
     a = ap.parse_args()
-    run(a.out, boot=not a.no_bootstrap)
+    posthoc(a.out) if a.posthoc else run(a.out, boot=not a.no_bootstrap)
 
 
 if __name__ == "__main__":

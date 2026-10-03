@@ -1,0 +1,139 @@
+{
+ "meta": {
+  "status": "POST HOC diagnostics of docs/audits/2026-10-03-e5-live-fill.md"
+ },
+ "selection": {
+  "E5_XAUUSD_24": {
+   "research_reference": [
+    10337,
+    0.004230178291771941
+   ],
+   "demo_first_fill": [
+    10337,
+    -0.012274511593778853
+   ],
+   "first_formed_only": [
+    9045,
+    -0.011686073662777784
+   ],
+   "first_formed_only_span": [
+    2268,
+    -0.0051387074764968135
+   ],
+   "only_in_reference": [
+    1128,
+    0.006075631308224795
+   ],
+   "only_in_first_fill": [
+    1135,
+    -0.14353180121022194
+   ]
+  },
+  "E5_US500_48": {
+   "research_reference": [
+    2556,
+    0.00844136203690702
+   ],
+   "demo_first_fill": [
+    2556,
+    0.001327908504643108
+   ],
+   "first_formed_only": [
+    2228,
+    0.0012412191238396373
+   ],
+   "first_formed_only_span": [
+    2228,
+    0.0012412191238396373
+   ],
+   "only_in_reference": [
+    196,
+    -0.0020191680500391
+   ],
+   "only_in_first_fill": [
+    197,
+    -0.09335284078317647
+   ]
+  }
+ },
+ "book_h7_g9_only": {
+  "span_from": "2021-10-12T00:50:00Z",
+  "daily_sharpe": 0.957030362486973,
+  "R_by_component": {
+   "H7_XAUUSD_eod": 29.55,
+   "G9_XAUUSD_eod": 24.4
+  },
+  "mae": {
+   "selection": {
+    "n": 116,
+    "first_attempt_fail": 0.0,
+    "median_days_to_funded": 870.0,
+    "funded_ever": 0.9827586206896551,
+    "funded_le_91d": 0.0,
+    "funded_le_122d": 0.0,
+    "funded_le_91d_with_retry": 0.0,
+    "funded_le_122d_with_retry": 0.0,
+    "mean_attempts_within_retry_horizon": 1.0
+   },
+   "confirmation": {
+    "n": 116,
+    "first_attempt_fail": 0.0,
+    "median_days_to_funded": 246.5,
+    "funded_ever": 0.7758620689655172,
+    "funded_le_91d": 0.008620689655172414,
+    "funded_le_122d": 0.008620689655172414,
+    "funded_le_91d_with_retry": 0.008620689655172414,
+    "funded_le_122d_with_retry": 0.008620689655172414,
+    "mean_attempts_within_retry_horizon": 1.0
+   },
+   "bootstrap": {
+    "edge_as_measured": {
+     "n": 3000,
+     "first_attempt_fail": 0.0006666666666666666,
+     "median_days_to_funded": 248,
+     "funded_ever": 0.403,
+     "funded_le_91d": 0.017666666666666667,
+     "funded_le_122d": 0.038,
+     "funded_le_91d_with_retry": 0.017666666666666667,
+     "funded_le_122d_with_retry": 0.038,
+     "mean_attempts_within_retry_horizon": 1.0
+    },
+    "edge_haircut_50pct": {
+     "n": 3000,
+     "first_attempt_fail": 0.011666666666666667,
+     "median_days_to_funded": 260,
+     "funded_ever": 0.23233333333333334,
+     "funded_le_91d": 0.007666666666666666,
+     "funded_le_122d": 0.017666666666666667,
+     "funded_le_91d_with_retry": 0.007666666666666666,
+     "funded_le_122d_with_retry": 0.017666666666666667,
+     "mean_attempts_within_retry_horizon": 1.0
+    }
+   }
+  },
+  "realised": {
+   "selection": {
+    "n": 116,
+    "first_attempt_fail": 0.0,
+    "median_days_to_funded": 870.0,
+    "funded_ever": 0.9827586206896551,
+    "funded_le_91d": 0.0,
+    "funded_le_122d": 0.0,
+    "funded_le_91d_with_retry": 0.0,
+    "funded_le_122d_with_retry": 0.0,
+    "mean_attempts_within_retry_horizon": 1.0
+   },
+   "confirmation": {
+    "n": 116,
+    "first_attempt_fail": 0.0,
+    "median_days_to_funded": 246.5,
+    "funded_ever": 0.7758620689655172,
+    "funded_le_91d": 0.008620689655172414,
+    "funded_le_122d": 0.008620689655172414,
+    "funded_le_91d_with_retry": 0.008620689655172414,
+    "funded_le_122d_with_retry": 0.008620689655172414,
+    "mean_attempts_within_retry_horizon": 1.0
+   }
+  }
+ }
+}
