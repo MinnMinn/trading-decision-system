@@ -1,0 +1,139 @@
+{
+ "symbol": "BTCUSDT",
+ "timeframe": "5m",
+ "_format": "split-gz-year-v1",
+ "years": [
+  2017,
+  2018,
+  2019
+ ],
+ "first": "2017-08-17T04:00:00Z",
+ "last": "2019-12-31T23:55:00Z",
+ "_bars": 248407,
+ "_source": "binance_spot_public_archive",
+ "_venue": "Binance spot",
+ "market_type": "SPOT",
+ "_price": "last-trade klines (not bid/ask); charge taker fee + an explicit spread/slippage assumption",
+ "_volume": "volume / taker_buy_volume in base asset: real traded and aggressor-buy volume",
+ "_fetched_at_utc": "2026-10-03T16:08:09Z",
+ "_months_complete_only": true,
+ "_sources": [
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2017-08.zip",
+   "sha256": "d18c324e86822142d45f2ff33d3d0e193726fe1584ffd148c50f91fa4b2fdadd"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2017-09.zip",
+   "sha256": "b9b27b4fc6a12746dcf8dec6cd8efd3c4dfe746789c4e1162ebfe33a2989e3e5"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2017-10.zip",
+   "sha256": "4e1a5d3eb8accc2911f1fd1060ad15b1e3bbb1ff674d494ad01bc40a6bf53f9c"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2017-11.zip",
+   "sha256": "dbd53002ea79d6bfea2cdf8c00976a9c2f0647a2ad5e2b619ae60e1db2b93a07"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2017-12.zip",
+   "sha256": "fab87582c0bfd79f200dfbbeebbce39fabf7c137c768daa867d9d688f64c6b19"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2018-01.zip",
+   "sha256": "c08222ead41339fe656ac2e4389d365a0cadcc0e24c6e538bb76006e4e9ee5e0"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2018-02.zip",
+   "sha256": "44bc33f321fbc4a4dd5c99bec7bbb4ca86e5cc33ddc6459610a18db7ae872c0b"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2018-03.zip",
+   "sha256": "9f79a89dad86fbce45f7be8f0487e115a4e8d609b4c415b5a32781e823df0cd4"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2018-04.zip",
+   "sha256": "7cb8824ccd38c38320f5ec095d8e6d0fec7a6707b9a935873da9898939bca07c"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2018-05.zip",
+   "sha256": "c2965719efcc49fa3b63d53a37f4b612985836c0064297fb79af798f26e9e955"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2018-06.zip",
+   "sha256": "5bc6c6bbf69e088fe7b5715052d42eae8fd8681e26cb437881b74c77f457847b"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2018-07.zip",
+   "sha256": "f2c64ad1821b5f495694d4669895c62f961c585639cce4a0cd06214f406631ae"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2018-08.zip",
+   "sha256": "f1277c6c1e25a0c6f36a82a7c655094756ebf51b161176ad17410a73f96fddef"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2018-09.zip",
+   "sha256": "820d494c55b1b0149872f54af63d8245a98c48d83ede5f8b949ee49f42b52704"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2018-10.zip",
+   "sha256": "1dbf662fb263e9cd25889eac5ebb79f9d5b4af0b264598970fccd03324c9cbb0"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2018-11.zip",
+   "sha256": "98463143980a2cf664ee9416d7e7d585551cd76b97475ec319b370a2a120e5e9"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2018-12.zip",
+   "sha256": "75680727b955d3b371fc72e34aef79fa19ff4f3ad777016bcca9ee9cb26ec619"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2019-01.zip",
+   "sha256": "e5a64b286a194f690779557f87fc84eb35a09aae2f1e284a7da85289fe848f42"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2019-02.zip",
+   "sha256": "01c1e37145ad1a27f1159c17f5d13ee29e367838033835ea3a8808fe9148aff3"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2019-03.zip",
+   "sha256": "c91f75887afbfd6bf7da205b35c248e56b394fb12437aa0d7cd90670883122af"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2019-04.zip",
+   "sha256": "785a918b0dc9d9657578ffa7c356fa10d040c9a0262485cf1f744d2cef8467c3"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2019-05.zip",
+   "sha256": "1133835a11452420295c07d14a8b51e84c202d59af1ba4c0d89ffc531428b27b"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2019-06.zip",
+   "sha256": "afb029797231b99b7e5267d819ce77f99f0460320cea1d7f594023a63f46151e"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2019-07.zip",
+   "sha256": "514253f42219318868610b2402ef01a5509b883b3453b05b8ca04162713a5f04"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2019-08.zip",
+   "sha256": "a05861391ccc27354bd8b10e9c194f98c9ba59d1fb52711e86ec08484b9e1b78"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2019-09.zip",
+   "sha256": "359e30bfcfe07292be3eac91d99addf1db1b986eef5023b1d6d19a450903ae49"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2019-10.zip",
+   "sha256": "24cb68fee29a479e9ddfccb0e09442c1f308820c86e06a94a689bf8021f9d7c9"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2019-11.zip",
+   "sha256": "9165c6d5e2eaa27733cf5a6cf298baf3ca70b91db12de80cc1dd1eefe6f27b15"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-2019-12.zip",
+   "sha256": "ca816089ea5bcecbad5dfcc4ad84a3d1d15aed16b18664095235db29aa87b110"
+  }
+ ],
+ "_importer": "scripts/import-binance-um-history.py"
+}

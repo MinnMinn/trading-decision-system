@@ -1,0 +1,139 @@
+{
+ "symbol": "ETHUSDT",
+ "timeframe": "5m",
+ "_format": "split-gz-year-v1",
+ "years": [
+  2017,
+  2018,
+  2019
+ ],
+ "first": "2017-08-17T04:00:00Z",
+ "last": "2019-12-31T23:55:00Z",
+ "_bars": 248407,
+ "_source": "binance_spot_public_archive",
+ "_venue": "Binance spot",
+ "market_type": "SPOT",
+ "_price": "last-trade klines (not bid/ask); charge taker fee + an explicit spread/slippage assumption",
+ "_volume": "volume / taker_buy_volume in base asset: real traded and aggressor-buy volume",
+ "_fetched_at_utc": "2026-10-03T16:08:41Z",
+ "_months_complete_only": true,
+ "_sources": [
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2017-08.zip",
+   "sha256": "837f8f4bb20eea9a5689518654f991c686616ba9f98a68ec1c58b0892d39eefa"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2017-09.zip",
+   "sha256": "be5405e807a6c76cffdadb8d2dda4f2d437401aa311306261c4b6c775a8f17dc"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2017-10.zip",
+   "sha256": "f1901b4fed53c5456bc83745272915a31bb26168932a6d5e04ef4e39ba4f1eb7"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2017-11.zip",
+   "sha256": "a4c0638ef4e6086a4bb34528cefe94b78da08e0932d10079d61dace7b9ed1100"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2017-12.zip",
+   "sha256": "fce25a5ca271d3c1a175bc28a64a4dc9dc39fae5768d0c4a929197ddb7a5295b"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2018-01.zip",
+   "sha256": "de32d7db7914e3450d5d59a6e375d22e20413c4ba64f2eabc67dff0c1bada0bf"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2018-02.zip",
+   "sha256": "7bba93a7553f65acb7a1be3ca7b2fcfce4a90b02e2e1b9ae3e90b61f9fc2ae06"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2018-03.zip",
+   "sha256": "0045ce22491b346653e941b4efb91da5bfa62dac598b2e6a99b2ed389e4bc1db"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2018-04.zip",
+   "sha256": "536b04a65fd4578cc0b466d568561d4852295d622547c00d1136ee8c320fe3bf"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2018-05.zip",
+   "sha256": "b70758f008c20f995c03b667d994a63894d905fe986f8b3302776d8c5be9f83a"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2018-06.zip",
+   "sha256": "221b4dd85e949a89d281439b3a196947ffdbc1d7fabf8a3492dd6f3a838762b3"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2018-07.zip",
+   "sha256": "0fc8963675a53c11b8fa08487cc44acad386a2df285e490c6620fd07eade652b"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2018-08.zip",
+   "sha256": "fc07613ace844802fc68db03e5b763eaed4235121317c67bd2dd7b045c2ee88a"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2018-09.zip",
+   "sha256": "38fe8192c01258e699285859708596b9089ced9d5a31ca585acdee4039785e2f"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2018-10.zip",
+   "sha256": "f07136e6ac2eeae124dc068e5b693996e3e773744fe9ebd5ceff594c4c1e46dc"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2018-11.zip",
+   "sha256": "a36558e47fab0f2b41f7532edf6effb7354f72016589fbe3f774d7bcb145b484"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2018-12.zip",
+   "sha256": "8ba0ad90c17a20fdbe8b8a76e5b971e9b5815c3d806959451c3976e18067c88b"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2019-01.zip",
+   "sha256": "c80964a46578f35cc4612e76b71acfe9804fba87c944ae8451a5bcf9f7a09f3a"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2019-02.zip",
+   "sha256": "1f6c0adaba218d64b7479bf3fc2376c44a9b4c676b8a639bacaea44e8e5565b3"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2019-03.zip",
+   "sha256": "0bc8f3df2dd17e065a509f902b9638f71390bed29faaefebdaf14e199ecbd170"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2019-04.zip",
+   "sha256": "92d57e571ccca27d2bd6292f0db4a16f7501745802a194e1216e9a1c96e868c7"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2019-05.zip",
+   "sha256": "070fc2a1acb8bca1f8591f879237503d6640a88752c76bd49c2b07392dd81358"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2019-06.zip",
+   "sha256": "b4e2e4c1fedbe3bf3f15b255dc6ce06595975c324a71879b42d631a8ffb760fb"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2019-07.zip",
+   "sha256": "9c62ba82d29cf7ae833c484006bc15871c50ad78f6c5d5567fce29f5c1fc3d96"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2019-08.zip",
+   "sha256": "14b0b324cf427b7239e019ff2500da1744317ebb0682816ba970a745044fc2c5"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2019-09.zip",
+   "sha256": "5e03491b66aaf853903ad54f2d0d7d0973a5ba2f4014c664a3e9c9d3ad2f8902"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2019-10.zip",
+   "sha256": "22f6d13d37b2f362519c6eb6d0d1c05155367294a14fac27b515baa3424c32fe"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2019-11.zip",
+   "sha256": "f4ba7027c5bc51edf6f810e32484e4ffb3c8bcbed5faa881849c26bf348b7c8c"
+  },
+  {
+   "url": "https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/5m/ETHUSDT-5m-2019-12.zip",
+   "sha256": "693cc029f4cb388e97c15968ec205de7ac2882da884622a7cbb349b5df799cac"
+  }
+ ],
+ "_importer": "scripts/import-binance-um-history.py"
+}

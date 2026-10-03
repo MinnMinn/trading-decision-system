@@ -104,15 +104,27 @@ def _ms(ts):
     return t // 1000 if t > 10 ** 14 else t
 
 
-def import_klines(sym, interval, root, last_month, market="um", first_month=FIRST_MONTH):
+def _daily_urls(sym, interval, market, month):
+    """The archive's DAILY files of `month` (used for the latest month, whose monthly file is not published yet)."""
+    base = BASES[market].replace("/monthly", "/daily")
+    y, m = map(int, month.split("-"))
+    d = datetime.date(y, m, 1)
+    while d.month == m:
+        yield f"{base}/klines/{sym}/{interval}/{sym}-{interval}-{d.isoformat()}.zip"
+        d += datetime.timedelta(days=1)
+
+
+def import_klines(sym, interval, root, last_month, market="um", first_month=FIRST_MONTH, daily_month=None):
     out_dir = os.path.join(root, f"ohlcv.{sym}.{interval}")
     tmp = out_dir + f".tmp{os.getpid()}"
     os.makedirs(tmp, exist_ok=True)
     sources, years, by_year = [], [], {}
     prev, n = None, 0
     try:
-        for mo in months(first_month, last_month):
-            url = f"{BASES[market]}/klines/{sym}/{interval}/{sym}-{interval}-{mo}.zip"
+        urls = [f"{BASES[market]}/klines/{sym}/{interval}/{sym}-{interval}-{mo}.zip" for mo in months(first_month, last_month)]
+        if daily_month:
+            urls += list(_daily_urls(sym, interval, market, daily_month))
+        for url in urls:
             got = fetch_verified(url)
             if got is None:
                 continue
@@ -129,7 +141,7 @@ def import_klines(sym, interval, root, last_month, market="um", first_month=FIRS
                     "volume": float(r[5]), "quote_volume": float(r[7]), "trades": int(r[8]),
                     "taker_buy_volume": float(r[9]), "taker_buy_quote_volume": float(r[10])})
                 n += 1
-            print(f"{sym} {interval} {mo}: ok", flush=True)
+            print(f"{sym} {interval} {url.rsplit('/', 1)[-1]}: ok", flush=True)
         if not n:
             raise Refused(f"{sym} {interval}: nothing in the archive")
         for y, rows in sorted(by_year.items()):
@@ -144,7 +156,7 @@ def import_klines(sym, interval, root, last_month, market="um", first_month=FIRS
                  "_price": "last-trade klines (not bid/ask); charge taker fee + an explicit spread/slippage assumption",
                  "_volume": "volume / taker_buy_volume in base asset: real traded and aggressor-buy volume",
                  "_fetched_at_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                 "_months_complete_only": True, "_sources": sources,
+                 "_months_complete_only": daily_month is None, "_daily_month": daily_month, "_sources": sources,
                  "_importer": "scripts/import-binance-um-history.py"}
         with open(os.path.join(tmp, "index.json"), "w") as fh:
             json.dump(index, fh, indent=1)
@@ -219,6 +231,7 @@ def main():
     ap.add_argument("--market", choices=("um", "spot"), default="um", help="um = USDT-M perpetual (default), spot = spot")
     ap.add_argument("--first-month", default=FIRST_MONTH)
     ap.add_argument("--rest-funding", action="store_true", help="also fetch pre-2020 funding from the REST endpoint")
+    ap.add_argument("--daily-month", help="YYYY-MM: append that month from the archive's DAILY files (after --end-month)")
     ap.add_argument("--end-month", help="last COMPLETE month to import (default: the month before the current one)")
     a = ap.parse_args()
     today = datetime.date.today()
@@ -231,7 +244,7 @@ def main():
     try:
         for sym in syms:
             for iv in [x for x in a.intervals.split(",") if x]:
-                import_klines(sym, iv, a.root, last, a.market, a.first_month)
+                import_klines(sym, iv, a.root, last, a.market, a.first_month, a.daily_month)
             if a.funding and a.market == "um":
                 import_funding(sym, a.root, last)
             if a.rest_funding:
