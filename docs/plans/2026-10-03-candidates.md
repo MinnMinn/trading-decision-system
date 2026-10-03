@@ -13,6 +13,15 @@ daily Sharpe ~0.96 on active days, funded <= 122 d ~0.01-0.04, funded eventually
 docs/audits/2026-10-03-e5-live-fill-posthoc.json) or v2 as executed (~0.07-0.10, from variance, fails 11-15 %). That makes
 a second driver worth more than any lever.
 
+**Update after the F6 / F7 discovery read (docs/audits/2026-10-03-edge-f6-discovery.md): B1 and B2 are NULL** (0 of 16
+candidates; every excess z negative -- the night after a sell-off CONTINUES on these CFDs; gold's null is informative, MDE
+5-11 bp). The honest base (H7 + G9 gold, span 2021-10 -> 2026-09) runs at an annual Sharpe of ~0.86 and ~12 %/yr volatility
+at 1 % per trade (per weekday, zero days included; [post hoc] arithmetic on already-read trades). Consequences: (1) inside the
+allowlist, no bar-based independent driver is left with a mechanism and a prior worth a pre-registration (B3-B5 are weak);
+(2) the largest MEASURABLE improvement is A1 on the honest base -- leverage on a driver that survived three reads, to be
+labelled as such; (3) the next real driver needs a new asset class (forex: correlation test first) or new data (a historical
+event calendar for B5 / B7).
+
 ## A. Policy levers on point-in-time edges
 
 | rank | lever | mechanism | evidence so far | correlation with base | cheapest falsification test | status |
@@ -27,8 +36,8 @@ a second driver worth more than any lever.
 
 | rank | candidate | mechanism (why it should pay) | instruments | data, PIT | expected corr. with base | prior / power | cheapest falsification test |
 |---|---|---|---|---|---|---|---|
-| **B1** | **F6: overnight reversal after a US cash-session sell-off** -- long from 19:00 New York to 09:00 Berlin (W1) or 09:30 New York (W2), same server day, no swap | dealers absorb end-of-day selling and are paid to hold it until liquidity arrives (Asia, Europe); sell-offs reverse much more than rallies (Boyarchenko, Larsen, Whelan, RFS 2023; NY Fed SR 917). The paper's UNCONDITIONAL 02:00-03:00 ET window loses after the bid-ask spread -- only the conditional version is a candidate | US500, US30, USTEC | dense 5m: US30 2019-02+, US500 / USTEC 2021-09+; hourly median + p90 spread recording | low (other asset, other hours, counter-trend) | moderate prior; LOW power on US500 / USTEC discovery (~60-130 events) | **pre-registered**: docs/plans/2026-10-03-edge-f6-overnight-reversal-preregistration.md; discovery read implemented (`scripts/research/edge_f6.py`) |
-| **B2** | **F7: the same mechanism on XAUUSD** (US-session gold sell-off -> long overnight) | generic inventory / immediacy premium (Grossman-Miller); no gold-specific published evidence that I know of | XAUUSD | 5m 2004+ (22 years: real power) | likely <= 0 (counter-trend to H7 / G9, other hours) | low-moderate prior, high power | **pre-registered**: docs/plans/2026-10-03-edge-f7-gold-overnight-reversal-preregistration.md; same code |
+| ~~B1~~ NULL | **F6: overnight reversal after a US cash-session sell-off** -- long from 19:00 New York to 09:00 Berlin (W1) or 09:30 New York (W2), same server day, no swap | dealers absorb end-of-day selling and are paid to hold it until liquidity arrives (Asia, Europe); sell-offs reverse much more than rallies (Boyarchenko, Larsen, Whelan, RFS 2023; NY Fed SR 917). The paper's UNCONDITIONAL 02:00-03:00 ET window loses after the bid-ask spread -- only the conditional version is a candidate | US500, US30, USTEC | dense 5m: US30 2019-02+, US500 / USTEC 2021-09+; hourly median + p90 spread recording | low (other asset, other hours, counter-trend) | moderate prior; LOW power on US500 / USTEC discovery (~60-130 events) | **pre-registered**: docs/plans/2026-10-03-edge-f6-overnight-reversal-preregistration.md; discovery read implemented (`scripts/research/edge_f6.py`) |
+| ~~B2~~ NULL | **F7: the same mechanism on XAUUSD** (US-session gold sell-off -> long overnight) | generic inventory / immediacy premium (Grossman-Miller); no gold-specific published evidence that I know of | XAUUSD | 5m 2004+ (22 years: real power) | likely <= 0 (counter-trend to H7 / G9, other hours) | low-moderate prior, high power | **pre-registered**: docs/plans/2026-10-03-edge-f7-gold-overnight-reversal-preregistration.md; same code |
 | B3 | index relative value: US30 vs USTEC vs US500 intraday divergence reversal | transient sector-flow dislocations between price-weighted and cap-weighted indices | US30, USTEC, US500 | 5m 2021-09+ | ~0 (market neutral) | weak prior; two spreads per trade; needs a two-leg executor | next-2 h spread return after a 2 sigma divergence, net of two spreads |
 | B4 | Binance BTCUSDT weekend move -> Monday open of USTEC / US500 | risk-sentiment transmission while equity CFDs are closed (data source != venue, CLAUDE.md §4) | USTEC, US500 (signal from BTCUSDT) | BTCUSDT 1H 2022-09+ (~200 Mondays) | low | weak prior, low power | sign of Fri-close -> Sun-close BTC return vs the first US-index hour on Monday |
 | B5 | FOMC pre-announcement drift (Lucca-Moench 2015) | pre-announcement risk premium | US500, US30, USTEC | needs the public FOMC schedule (PIT: published a year ahead; not in the repo) | low | 8 events / yr; reported weakening after publication (not verified here) | long the FOMC day open -> 14:00 ET |
@@ -45,6 +54,6 @@ a second driver worth more than any lever.
 | reframes synthetic study | 0 | design |
 | Test #1 E5 live fill | 1 pre-registered descriptive check (3 rules x 3 spreads x 2 components) + 3 post-hoc diagnostics | EXPOSED data |
 | census PIT re-run | re-measure of the 40 census tests (34 unchanged, 6 E5 rows changed) | EXPOSED (development window) |
-| F6 discovery | 12 tests | discovery window only |
-| F7 discovery | 4 tests | discovery window only |
+| F6 discovery | 12 tests, 0 candidates | discovery window only; family closed |
+| F7 discovery | 4 tests, 0 candidates | discovery window only; family closed |
 | A1 vol schedule | 6 policies | not run (waits on the owner's E5 decision) |
