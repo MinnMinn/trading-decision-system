@@ -60,17 +60,25 @@ def trades(sym, events, hold, stop_k=2.0):
         stop = px - side * dist
         exit_px, how, j_exit = s.C[x], "time", x
         worst = 0.0                                   # most adverse price move while open (for FTMO's FLOATING loss limits)
+        adv = []                                      # per-bar adverse move, signed (personal-account floating floor)
         for j in range(e, x + 1):
             if (s.L[j] <= stop) if side > 0 else (s.H[j] >= stop):
                 exit_px = (min(stop, s.O[j]) if side > 0 else max(stop, s.O[j])) if j > e else stop
                 how, j_exit = "stop", j
                 worst = min(worst, side * (exit_px - px))
+                adv.append(side * (exit_px - px))
                 break
-            worst = min(worst, side * ((s.L[j] if side > 0 else s.H[j]) - px))
+            a = side * ((s.L[j] if side > 0 else s.H[j]) - px)
+            worst = min(worst, a)
+            adv.append(a)
         cost = costs.round_trip_at(s.dt[e], s.dt[j_exit]) * px
         out.append({"symbol": sym, "entry_time": s.T[e], "exit_time": s.T[j_exit], "server_day": str(s.sday[j_exit]),
                     "R": (side * (exit_px - px) - cost) / dist, "mae_R": (worst - cost) / dist, "exit": how,
-                    "stop_bp": dist / px * 1e4})
+                    "stop_bp": dist / px * 1e4,
+                    # extra keys (personal-account replay, docs/plans/2026-10-04-personal-account-backtest-design.md); no
+                    # earlier key changes
+                    "side": side, "entry_px": px, "stop_k": stop_k, "cost_R": cost / dist,
+                    "adv_path_R": [round(a / dist, 5) for a in adv]})
     return out
 
 

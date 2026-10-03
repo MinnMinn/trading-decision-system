@@ -136,9 +136,10 @@ def value(t1, t2, tf, start, p):
 
 
 # ------------------------------------------------------------------------------------------------ bootstrap, aligned days
-def sample_days(weekdays, rng):
+def sample_days(weekdays, rng, n_days=None):
+    """Stationary block bootstrap of weekdays (mean block BOOT_BLOCK); n_days defaults to BOOT_DAYS (unchanged behaviour)."""
     out, j = [], rng.randrange(len(weekdays))
-    for pos in range(BOOT_DAYS):
+    for pos in range(BOOT_DAYS if n_days is None else n_days):
         if pos and rng.random() < 1.0 / BOOT_BLOCK:
             j = rng.randrange(len(weekdays))
         out.append(weekdays[j % len(weekdays)])
