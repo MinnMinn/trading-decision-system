@@ -84,7 +84,11 @@ class Forward(unittest.TestCase):
         self.assertEqual(FF.holes([fri, mon]), [])
         a, b = "2026-09-28T17:00:00Z", "2026-10-02T04:10:00Z"                # Mon -> Fri: a real hole
         self.assertEqual(FF.holes([a, b]), [(a, b)])
-        self.assertEqual(FF.holes(["2026-09-29T10:00:00Z", "2026-09-29T13:00:00Z"]), [])   # 3 h <= GAP_WARN
+        self.assertEqual(FF.holes(["2026-09-29T10:00:00Z", "2026-09-29T13:00:00Z"]), [])   # 3 h: a session gap
+        self.assertEqual(FF.holes(["2026-09-07T16:55:00Z", "2026-09-07T22:05:00Z"]), [])   # US Labor Day early close
+        self.assertEqual(FF.holes(["2026-12-24T18:00:00Z", "2026-12-27T23:00:00Z"]), [])   # Christmas Thu -> Sun
+        t1, t2 = "2026-09-29T20:00:00Z", "2026-09-30T21:00:00Z"                              # Tue -> Wed: a missing day
+        self.assertEqual(FF.holes([t1, t2]), [(t1, t2)])
         self.assertEqual(FF.holes([a, b], since=FF._dt("2026-10-03T00:00:00Z")), [])        # outside the window
 
     def test_paper_signal_after_a_hole_is_refused(self):

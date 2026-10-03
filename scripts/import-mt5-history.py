@@ -67,6 +67,7 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from repo_paths import repo_rel
 import instruments as I      # noqa: E402
 import mt5_time as MT        # noqa: E402
+import history_store as HS   # noqa: E402
 import quality as Q          # noqa: E402
 
 SRC_DIR = os.path.join(ROOT, "data", "live", "mt5-bridge")
@@ -421,7 +422,17 @@ def main():
                          "plain single JSON file (default: SPLIT_RAW_THRESHOLD_BYTES, 45 MB, unchanged). "
                          "Pass 0 to split EVERY series regardless of size -- a public-repo dest root where "
                          "no plain, uncompressed multi-MB JSON file should exist at all.")
+    ap.add_argument("--timeframes", nargs="+", default=None,
+                    help="limit to these timeframes, e.g. --timeframes 5m (default: every timeframe found). An export "
+                         "folder holds every timeframe ever exported; importing a stale or truncated one replaces good "
+                         "history with it.")
+    ap.add_argument("--allow-shrink", action="store_true",
+                    help="write even when the new series starts LATER or ends EARLIER than the series it replaces "
+                         "(default: refuse -- a truncated export would silently delete history)")
     a = ap.parse_args()
+    if a.split_threshold_bytes is None and a.provider == "mt5_bridge_ftmo":
+        # the data/history/ftmo convention (owner fix-round-1, 2026-09-29): split-gz EVERY series, no plain JSON
+        a.split_threshold_bytes = 0
 
     try:
         zone_name, zone = _zone(a.provider)
@@ -447,8 +458,13 @@ def main():
     for row in rows:
         name = os.path.basename(row["path"])
         if row.get("error"):
+            if a.timeframes:
+                continue        # a refused file of a timeframe outside the filter is not this run's business
             print(f"  REFUSED {name}: {row['error']}", file=sys.stderr); refused += 1; continue
         sym, tf = row["symbol"], row["timeframe"]
+        if a.timeframes and tf not in a.timeframes:
+            continue
+        prior_span = existing_span(dest_root, sym, tf)
 
         if "raw" in row:   # small file: unchanged in-memory path
             try:
@@ -458,6 +474,11 @@ def main():
             except Refused as exc:
                 print(f"  REFUSED {name}: {exc}", file=sys.stderr); refused += 1; continue
             first, last, n = candles[0]["time"][:10], candles[-1]["time"][:10], len(candles)
+            why_shrink = shrinks(prior_span, candles[0]["time"], candles[-1]["time"])
+            if why_shrink and not a.allow_shrink:
+                print(f"  REFUSED {name}: {why_shrink} (pass --allow-shrink to accept)", file=sys.stderr)
+                refused += 1
+                continue
             out_path = os.path.join(dest_root, f"ohlcv.{sym}.{tf}.json")
             prior_marker = _prior_marker(out_path)
             note = f"  {sym:7} {tf:4} {n:>9} bars  {first} -> {last}  §20 {state}"
@@ -484,13 +505,26 @@ def main():
             continue
 
         # large file: stream-convert + gz-year-split, dry-run still validates every bar (no candles written)
-        if not a.write:
+        span = None
+        if not a.write or prior_span:
             try:
-                # A dry run still proves the file converts (every bar checked) without writing anything.
-                n = sum(1 for _ in _stream_and_validate(row["path"], sym, tf, zone_name, zone))
-                print(f"  {sym:7} {tf:4} {n:>9} bars  (large -- would split into per-year gz parts)")
+                # Proves the file converts (every bar checked) and finds its span, without writing anything.
+                n, f0, l0 = 0, None, None
+                for r in _stream_and_validate(row["path"], sym, tf, zone_name, zone):
+                    n += 1
+                    f0 = f0 or r["time"]
+                    l0 = r["time"]
+                span = (f0, l0)
             except Refused as exc:
                 print(f"  REFUSED {name}: {exc}", file=sys.stderr); refused += 1
+                continue
+            why_shrink = shrinks(prior_span, *span) if n else "empty export"
+            if why_shrink and not a.allow_shrink:
+                print(f"  REFUSED {name}: {why_shrink} (pass --allow-shrink to accept)", file=sys.stderr)
+                refused += 1
+                continue
+        if not a.write:
+            print(f"  {sym:7} {tf:4} {n:>9} bars  {span[0][:10]} -> {span[1][:10]}  (large -- would split into per-year gz parts)")
             continue
         prior_marker = _prior_marker_any(dest_root, sym, tf)   # read BEFORE the write replaces it (below)
         try:
@@ -536,6 +570,31 @@ def main():
                   "(CLAUDE.md §59: this changes historical research semantics). instruments.json's "
                   "`_cfd_backtested_caveat` and the §23.1 notes describe the OLD source until that happens.")
     return 0 if refused == 0 else 2
+
+
+def existing_span(dest_root, sym, tf):
+    """(first, last) ISO times of the series already stored for sym/tf under dest_root, or None."""
+    path, shape = HS.resolve(sym, tf, root=dest_root)
+    if shape is None:
+        return None
+    if shape == "file":
+        cs = HS.read_at(path, shape).get("candles") or []
+        return (cs[0]["time"], cs[-1]["time"]) if cs else None
+    with open(os.path.join(path, "index.json"), encoding="utf-8") as fh:
+        idx = json.load(fh)
+    return (idx.get("first"), idx.get("last")) if idx.get("first") and idx.get("last") else None
+
+
+def shrinks(prior, first, last):
+    """Why a new series covering [first, last] would delete stored history, or None."""
+    if not prior:
+        return None
+    p0, p1 = prior
+    if first > p0:
+        return f"the new series starts {first}, LATER than the stored one ({p0}): history before it would be deleted"
+    if last < p1:
+        return f"the new series ends {last}, EARLIER than the stored one ({p1}): recent history would be deleted"
+    return None
 
 
 def _stream_and_validate(path, sym, tf, zone_name, zone):
