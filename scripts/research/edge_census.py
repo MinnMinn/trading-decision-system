@@ -160,14 +160,21 @@ def load(sym, end=DEV_CUTOFF):
 
 # ------------------------------------------------------------------------------------------------ events
 def _first_per_day(events):
-    """Keep the first event per (server day, side)."""
-    seen, out = set(), []
-    for ev in events:
+    """Keep, per (server day, side), the event that ENTERS first (earliest entry bar; ties keep list order), returned in
+    entry order.
+
+    Point-in-time fix 2026-10-03 (docs/audits/2026-10-03-e5-lookahead-erratum.md): this used to keep the first event in
+    LIST order. For detectors that append in bar order with entry at the next bar (E1-E4, E9) the two are identical. For
+    E5 the list is in gap-FORMATION order and entry is at a later touch, so "first in list" kept an earlier-formed gap that
+    was touched LATER over a later-formed gap already filled -- a choice that needs to know the earlier gap will be touched
+    (CLAUDE.md §8, §37). The demo executor trades the first fill (its siblings are cancelled), which is what this keeps."""
+    best = {}
+    for k_list, ev in enumerate(events):
         k = (ev["day"], ev["side"])
-        if k not in seen:
-            seen.add(k)
-            out.append(ev)
-    return out
+        key = (ev["entry_i"], k_list)
+        if k not in best or key < best[k][0]:
+            best[k] = (key, ev)
+    return [ev for _key, ev in sorted(best.values(), key=lambda kv: kv[0])]
 
 
 def _ev(s, i, side, entry_i=None, entry_px=None, fixed_exit=None):
