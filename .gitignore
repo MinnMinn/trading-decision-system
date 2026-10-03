@@ -95,3 +95,10 @@ integrations/bookmap/dist/
 # per-account runtime (scripts/fvg_demo.py, strategy-runner.py --account): state, event log, STOP -- per machine
 data/live/accounts/
 __pycache__/
+
+# Binance USDT-M perpetual history imported from the PUBLIC archive data.binance.vision by
+# scripts/import-binance-um-history.py: every source zip is checksum-verified and its sha256 is recorded in the series'
+# index.json, so the data is reproducible from the archive. The bulky year parts and funding files stay local; the
+# index.json files (provenance + digests) are tracked.
+data/history/binance_um/**/*.json.gz
+data/history/binance_um/*.json.gz

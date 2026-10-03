@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""Import Binance USDT-M perpetual history (klines + funding rates) from the PUBLIC archive https://data.binance.vision
+into the repo's split-gz-year history layout (scripts/history_store.py), checksum-verified.
+
+    python3 scripts/import-binance-um-history.py --symbols BTCUSDT,ETHUSDT,SOLUSDT --intervals 5m,1h --funding \
+        --root data/history/binance_um [--end-month 2026-09]
+
+Why (docs/plans/2026-10-03-candidates.md; owner 2026-10-03: crypto first): the repo held 4 years of BTC/ETH/SOL at 1H and
+one year at 5m -- too short for three clean reads. The archive keeps every USDT-M perp since listing (BTCUSDT 2019-09).
+
+Provenance (CLAUDE.md §7, §10): every monthly zip is verified against the archive's own `.CHECKSUM` (sha256) before it is
+parsed; the index records each source file, its sha256, the fetch time and the column meaning. Prices are LAST-TRADE
+klines (not bid, not ask): a long and a short both pay the taker fee and cross half the book; research must charge fees +
+an explicit spread/slippage assumption. `taker_buy_volume` is real aggressor-side volume (signed flow), point-in-time at the
+bar's close. Funding: one row per settlement, `calc_time` (ms) and `last_funding_rate`, known at that time.
+
+Monthly files only (the current, incomplete month is not imported): every stored bar is final. Read-only on the network;
+writes only under --root. Refuses (non-zero exit) on a checksum mismatch, an out-of-order bar or a duplicate time."""
+import argparse
+import csv
+import datetime
+import gzip
+import hashlib
+import io
+import json
+import os
+import shutil
+import sys
+import urllib.error
+import urllib.request
+import zipfile
+
+BASE = "https://data.binance.vision/data/futures/um/monthly"
+FIRST_MONTH = "2019-09"
+UA = {"User-Agent": "trading-decision-system research importer"}
+KLINE_COLS = ("open_time", "open", "high", "low", "close", "volume", "close_time", "quote_volume", "count",
+              "taker_buy_volume", "taker_buy_quote_volume", "ignore")
+
+
+class Refused(Exception):
+    pass
+
+
+def _get(url, timeout=60):
+    req = urllib.request.Request(url, headers=UA)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
+
+
+def months(first, last):
+    y, m = map(int, first.split("-"))
+    ly, lm = map(int, last.split("-"))
+    while (y, m) <= (ly, lm):
+        yield f"{y:04d}-{m:02d}"
+        m += 1
+        if m == 13:
+            y, m = y + 1, 1
+
+
+def fetch_verified(url):
+    """(bytes, sha256) of a zip whose sha256 matches the archive's .CHECKSUM; None when the month does not exist (404)."""
+    try:
+        blob = _get(url)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+    want = _get(url + ".CHECKSUM").decode().split()[0].lower()
+    got = hashlib.sha256(blob).hexdigest()
+    if got != want:
+        raise Refused(f"checksum mismatch for {url}: archive says {want}, downloaded {got}")
+    return blob, got
+
+
+def _rows(blob):
+    with zipfile.ZipFile(io.BytesIO(blob)) as z:
+        name = z.namelist()[0]
+        text = z.read(name).decode("utf-8")
+    for row in csv.reader(io.StringIO(text)):
+        if row and row[0] and not row[0][0].isdigit():
+            continue                                    # header line (present in newer files)
+        if row:
+            yield row
+
+
+def _iso(ms):
+    return datetime.datetime.fromtimestamp(int(ms) / 1000, tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def import_klines(sym, interval, root, last_month):
+    out_dir = os.path.join(root, f"ohlcv.{sym}.{interval}")
+    tmp = out_dir + f".tmp{os.getpid()}"
+    os.makedirs(tmp, exist_ok=True)
+    sources, years, by_year = [], [], {}
+    prev, n = None, 0
+    try:
+        for mo in months(FIRST_MONTH, last_month):
+            url = f"{BASE}/klines/{sym}/{interval}/{sym}-{interval}-{mo}.zip"
+            got = fetch_verified(url)
+            if got is None:
+                continue
+            blob, sha = got
+            sources.append({"url": url, "sha256": sha})
+            for r in _rows(blob):
+                t = int(r[0])
+                if prev is not None and t <= prev:
+                    raise Refused(f"{sym} {interval}: bar {_iso(t)} is not after {_iso(prev)} ({url})")
+                prev = t
+                y = int(_iso(t)[:4])
+                by_year.setdefault(y, []).append({
+                    "time": _iso(t), "open": float(r[1]), "high": float(r[2]), "low": float(r[3]), "close": float(r[4]),
+                    "volume": float(r[5]), "quote_volume": float(r[7]), "trades": int(r[8]),
+                    "taker_buy_volume": float(r[9]), "taker_buy_quote_volume": float(r[10])})
+                n += 1
+            print(f"{sym} {interval} {mo}: ok", flush=True)
+        if not n:
+            raise Refused(f"{sym} {interval}: nothing in the archive")
+        for y, rows in sorted(by_year.items()):
+            with gzip.open(os.path.join(tmp, f"{y}.json.gz"), "wt", encoding="utf-8") as fh:
+                json.dump({"year": y, "candles": rows}, fh, separators=(",", ":"))
+            years.append(y)
+        first = by_year[years[0]][0]["time"]
+        last = by_year[years[-1]][-1]["time"]
+        index = {"symbol": sym, "timeframe": interval, "_format": "split-gz-year-v1", "years": years, "first": first,
+                 "last": last, "_bars": n, "_source": "binance_um_public_archive", "_venue": "Binance USDT-M perpetual",
+                 "_price": "last-trade klines (not bid/ask); charge taker fee + an explicit spread/slippage assumption",
+                 "_volume": "volume / taker_buy_volume in base asset: real traded and aggressor-buy volume",
+                 "_fetched_at_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                 "_months_complete_only": True, "_sources": sources,
+                 "_importer": "scripts/import-binance-um-history.py"}
+        with open(os.path.join(tmp, "index.json"), "w") as fh:
+            json.dump(index, fh, indent=1)
+        if os.path.exists(out_dir):
+            shutil.rmtree(out_dir)
+        os.replace(tmp, out_dir)
+        print(f"wrote {out_dir}: {n} bars {first} -> {last}", flush=True)
+    finally:
+        if os.path.exists(tmp):
+            shutil.rmtree(tmp)
+
+
+def import_funding(sym, root, last_month):
+    rows, sources = [], []
+    for mo in months(FIRST_MONTH, last_month):
+        url = f"{BASE}/fundingRate/{sym}/{sym}-fundingRate-{mo}.zip"
+        got = fetch_verified(url)
+        if got is None:
+            continue
+        blob, sha = got
+        sources.append({"url": url, "sha256": sha})
+        for r in _rows(blob):
+            rows.append({"time": _iso(r[0]), "interval_hours": int(r[1]) if r[1] else None, "rate": float(r[2])})
+    rows.sort(key=lambda x: x["time"])
+    if any(a["time"] == b["time"] for a, b in zip(rows, rows[1:])):
+        raise Refused(f"{sym}: duplicate funding settlement times")
+    doc = {"symbol": sym, "_source": "binance_um_public_archive fundingRate", "_sources": sources,
+           "_meaning": "rate charged at `time` (settlement) on the position notional: longs pay a positive rate",
+           "_fetched_at_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+           "_importer": "scripts/import-binance-um-history.py", "rows": rows}
+    os.makedirs(root, exist_ok=True)
+    p = os.path.join(root, f"funding.{sym}.json.gz")
+    with gzip.open(p, "wt", encoding="utf-8") as fh:
+        json.dump(doc, fh, separators=(",", ":"))
+    print(f"wrote {p}: {len(rows)} settlements {rows[0]['time'] if rows else '-'} -> {rows[-1]['time'] if rows else '-'}")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--symbols", required=True)
+    ap.add_argument("--intervals", default="5m,1h")
+    ap.add_argument("--funding", action="store_true")
+    ap.add_argument("--root", default="data/history/binance_um")
+    ap.add_argument("--end-month", help="last COMPLETE month to import (default: the month before the current one)")
+    a = ap.parse_args()
+    today = datetime.date.today()
+    last = a.end_month or (today.replace(day=1) - datetime.timedelta(days=1)).strftime("%Y-%m")
+    try:
+        for sym in a.symbols.split(","):
+            for iv in [x for x in a.intervals.split(",") if x]:
+                import_klines(sym, iv, a.root, last)
+            if a.funding:
+                import_funding(sym, a.root, last)
+    except Refused as e:
+        print(f"REFUSED: {e}", file=sys.stderr)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()
