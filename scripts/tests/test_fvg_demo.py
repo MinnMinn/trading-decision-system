@@ -166,6 +166,35 @@ class H7(unittest.TestCase):
         self.assertLess(float(mk[0][4]), s.C[-1])          # the stop is below the entry reference
 
 
+class Isolation(unittest.TestCase):
+    def test_a_symbol_the_ea_does_not_know_never_blocks_the_others(self):
+        tmp = tempfile.mkdtemp()
+        paths = dict(state_path=os.path.join(tmp, "s.json"), log_path=os.path.join(tmp, "l.jsonl"))
+        s, now = series_with_h7_breakout()
+
+        class Partial(FakeBridge):
+            def __call__(self, *a):
+                if a[0] == "symbol" and a[1] == "US500":
+                    self.calls.append(a)
+                    return {"ok": False, "comment": "symbol US500.cash not in the EA's symbols.json"}
+                return super().__call__(*a)
+
+        def boom(sym, now, live_dir=None):
+            if sym == "AUS200":
+                raise RuntimeError("corrupt bridge file")
+            return s
+        cfg = dict(CFG, components={"AUS200": 48}, h7_symbols=["US500", "XAUUSD"])
+        b = Partial()
+        with mock.patch.object(FD, "closed_series", boom), mock.patch.object(FD.FF, "_zone", lambda: UTC):
+            self.assertEqual(FD.tick(now, b, cfg, **paths, event_blocked=lambda x, t: (False, "")), "ok")
+        mk = [c for c in b.calls if c[0] == "market"]
+        self.assertEqual([c[1] for c in mk], ["XAUUSD"])                  # US500 skipped, AUS200 errored, gold still traded
+        kinds = [json.loads(l)["kind"] for l in open(paths["log_path"])]
+        self.assertIn("error", kinds)
+        self.assertIn("skip", kinds)
+        self.assertTrue(os.path.exists(paths["state_path"]))              # the state is still written
+
+
 class V2(unittest.TestCase):
     """Trading System v2: G9 gold market entries and the dd3 drawdown throttle."""
 

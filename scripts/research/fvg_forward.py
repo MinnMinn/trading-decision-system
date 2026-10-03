@@ -73,6 +73,12 @@ STORE_DIR = os.path.join(ROOT, "data", "live", "forward", "bars")
 GAP_WARN = datetime.timedelta(hours=4)      # a hole this long between the store and the live file needs a history re-export
 
 
+def live_path(sym, live_dir=LIVE_DIR):
+    """The bridge file of canonical `sym`, in the BROKER's spelling (FTMO: US500 -> ohlcv.US500.cash.5m.json)."""
+    import broker_symbols as BS
+    return os.path.join(live_dir, f"ohlcv.{BS.to_broker(sym)}.5m.json")
+
+
 def _store_path(sym, store_dir=STORE_DIR):
     return os.path.join(store_dir, f"{sym}.5m.json")
 
@@ -81,7 +87,7 @@ def accumulate(sym, live_dir=LIVE_DIR, store_dir=STORE_DIR):
     """Append the live bridge file's CLOSED-or-not bars to a rolling per-symbol store (dedupe by time, the live bar wins), so
     the forward record never depends on a manual history re-export. Returns (bars added, gap warning or None). The live
     file holds ~600 bars (~2 trading days): a hole opens only if the machine is off longer than that."""
-    p = os.path.join(live_dir, f"ohlcv.{sym}.5m.json")
+    p = live_path(sym, live_dir)
     if not os.path.exists(p):
         return 0, f"{p} missing (ExportOHLCV not attached, or mt5_time.py sync not run)"
     live = [b for b in json.load(open(p)).get("candles", []) if isinstance(b.get("time"), str) and b["time"].endswith("Z")]
@@ -121,7 +127,7 @@ def merged_candles(sym, live_dir=LIVE_DIR, store_dir=STORE_DIR):
     if os.path.exists(sp):
         for b in json.load(open(sp)):
             bars[b["time"]] = b
-    p = os.path.join(live_dir, f"ohlcv.{sym}.5m.json")
+    p = live_path(sym, live_dir)
     if os.path.exists(p):
         live = json.load(open(p))
         for b in live.get("candles", []):

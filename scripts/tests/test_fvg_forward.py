@@ -79,6 +79,16 @@ class Forward(unittest.TestCase):
             with self.assertRaises(ValueError):
                 FF.signals(s, "XAUUSD", "eod", "ZZ")
 
+    def test_live_file_uses_the_broker_spelling(self):
+        import json, tempfile
+        live, store = tempfile.mkdtemp(), tempfile.mkdtemp()
+        self.assertTrue(FF.live_path("US500", live).endswith("ohlcv.US500.cash.5m.json"))
+        b = bars("2030-01-07T10:00:00", [(1.0, 1.1, 0.9, 1.0)] * 3)
+        json.dump({"candles": b}, open(os.path.join(live, "ohlcv.US500.cash.5m.json"), "w"))
+        n, _w = FF.accumulate("US500", live, store)
+        self.assertEqual(n, 3)
+        self.assertTrue(os.path.exists(os.path.join(store, "US500.5m.json")))      # the store keeps the CANONICAL name
+
     def test_accumulate_builds_a_store_and_warns_on_a_hole(self):
         import json, tempfile
         live, store = tempfile.mkdtemp(), tempfile.mkdtemp()

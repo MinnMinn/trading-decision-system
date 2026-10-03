@@ -40,10 +40,32 @@ import instruments as I  # noqa: E402
 # cannot read this file; that one is a genuine second gate, and it must be kept in step by hand.
 ALLOWED = {s for m, d in I.DATA_DIR.items() if d == "mt5-bridge" for s in I.execution(m)}
 TIMEOUT = float(os.environ.get("MT5_BRIDGE_TIMEOUT", "10"))
+# Canonical -> broker spelling (FTMO: US500 -> US500.cash) at THIS boundary only (scripts/broker_symbols.py). Callers pass the
+# canonical symbol; the allowlist is checked on it; the EA receives the broker's name. MT5_SYMBOL_MAP=<path> points at another
+# terminal's map; MT5_SYMBOL_MAP=none means the terminal spells every symbol canonically.
+SYMBOL_MAP = os.environ.get("MT5_SYMBOL_MAP", "")
 
 
 def refuse(msg, code=2):
     print(json.dumps({"ok": False, "comment": msg}), file=sys.stderr); sys.exit(code)
+
+
+def resolve(sym, symbol_map=None):
+    """(canonical, broker) for a symbol given in either spelling; refuses (exit 2) off the allowlist or off the map."""
+    import broker_symbols as BSYM
+    m = SYMBOL_MAP if symbol_map is None else symbol_map
+    if m.lower() == "none":
+        canon, broker = sym, sym
+    else:
+        path = m or BSYM.MAP_PATH
+        try:
+            canon = sym if sym in ALLOWED else BSYM.to_canonical(sym, path)
+            broker = BSYM.to_broker(canon, path)
+        except BSYM.UnknownSymbol as e:
+            refuse(f"symbol {sym}: {e}")
+    if canon not in ALLOWED:
+        refuse(f"symbol {sym} not in allowlist")
+    return canon, broker
 
 
 def call(action, **fields):
@@ -98,24 +120,24 @@ def main():
     if cmd == "state":
         call("state"); print(json.dumps(snapshot("state.json"))); return
     if cmd == "symbol":
-        sym = a[1]
-        if sym not in ALLOWED:
-            refuse(f"symbol {sym} not in allowlist")
-        call("symbol"); print(json.dumps(snapshot("symbols.json")[sym])); return
+        _canon, broker = resolve(a[1])
+        call("symbol")
+        syms = snapshot("symbols.json")
+        if broker not in syms:
+            refuse(f"symbol {broker} not in the EA's symbols.json (its InpAllowedSymbols must name the broker spelling)")
+        print(json.dumps(syms[broker])); return
     if cmd == "limit":
         sym, side, lots, price, sl, tp = a[1:7]; comment = a[7] if len(a) > 7 else ""
-        if sym not in ALLOWED:
-            refuse(f"symbol {sym} not in allowlist")
+        _canon, broker = resolve(sym)
         if side not in ("buy", "sell"):
             refuse("side must be buy|sell")
-        print(json.dumps(call("limit", symbol=sym, side=side, volume=lots, price=price, sl=sl, tp=tp, comment=comment))); return
+        print(json.dumps(call("limit", symbol=broker, side=side, volume=lots, price=price, sl=sl, tp=tp, comment=comment))); return
     if cmd == "market":
         sym, side, lots, sl, tp = a[1:6]; comment = a[6] if len(a) > 6 else ""
-        if sym not in ALLOWED:
-            refuse(f"symbol {sym} not in allowlist")
+        _canon, broker = resolve(sym)
         if side not in ("buy", "sell"):
             refuse("side must be buy|sell")
-        print(json.dumps(call("market", symbol=sym, side=side, volume=lots, sl=sl, tp=tp, comment=comment))); return
+        print(json.dumps(call("market", symbol=broker, side=side, volume=lots, sl=sl, tp=tp, comment=comment))); return
     if cmd == "cancel":
         print(json.dumps(call("cancel", ticket=a[1]))); return
     if cmd == "modify":
