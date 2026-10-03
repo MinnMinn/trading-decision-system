@@ -22,8 +22,8 @@
       "what": "LIMIT at the near edge of an untouched displacement FVG known at its third bar's close; stop 2 x sigma_5m x sqrt(hold_bars); time exit after hold_bars; flat before the rollover; one filled trade per (symbol, server day, side).",
       "rule_ref": "scripts/research/edge_census.py fvg_gap_at; scripts/fvg_demo.py new_gaps",
       "params": ["hold_bars"],
-      "evidence": {"XAUUSD": "VALIDATED", "US500": "VALIDATED"},
-      "evidence_ref": "docs/audits/2026-10-02-fvg-book-sim.md"
+      "evidence": {"XAUUSD": "REJECTED", "US500": "REJECTED"},
+      "evidence_ref": "docs/audits/2026-10-03-e5-lookahead-erratum.md (the earlier evidence, docs/audits/2026-10-02-fvg-book-sim.md, rested on a look-ahead selection; under the executor's point-in-time selection E5 has no edge: docs/audits/2026-10-03-e5-live-fill.md)"
     },
     "H7": {
       "methodology": "intraday_trend",

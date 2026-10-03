@@ -419,3 +419,19 @@ declaration is kept in `research-ledger.json` `fund_search_superseded`). Pre-reg
 - Rules audit requested (overnight swap): docs/audits/2026-10-03-ftmo-rules-audit.md -- overnight holding is allowed in the
   Challenge; intraday-only was a design choice; holding the trend rules adds nothing (docs/audits/2026-10-03-edge-hold.md);
   FTMO's floating-P&L limits added to the replay leave the v2 decision unchanged.
+
+## 2026-10-03 (evening): decisions after the "Challenging the system" session (owner, in chat; binding)
+
+Context: docs/plans/2026-10-03-reframes.md (owner summary), docs/audits/2026-10-03-e5-lookahead-erratum.md, PR #8.
+
+1. **Demo runs v3 = H7 + G9 XAUUSD** ("Demo chạy v3 (H7 + G9)"). Applied: `fvg-book` v3 APPROVED (v2 without E5; same risk
+   1 %, dd3, execution), v2 RETIRED, `scripts/accounts.py switch` -> asg-0003 effective 2026-10-03T15:10:00Z, DRAIN (owner
+   default; nothing was open). E5's evidence in docs/architecture/setups.json is REJECTED (the erratum is the new audit).
+   The forward paper watch drops E5 (scripts/research/fvg_forward.py WATCH).
+2. **"1 % per trade" means the maximum loss at the stop loss** ("lỗ tối đa tại stop loss"). Consequence: a tighter stop at the
+   same 1 % worst case (A1, docs/plans/2026-10-03-vol-schedule-preregistration.md) is inside the rule; it is still a new
+   setup version with its own evidence, and gap-through losses beyond 1R must be measured.
+3. **The value of one month of delay in challenge fees: unknown to the owner.** Reports give the full frontier over a range
+   of exchange rates instead of one number.
+4. **Forex stays parked for now.** The owner wants effective methods for **crypto and CFD first**.
+5. The debate with "Khám phá hệ thống FTMO" is closed (no open disagreement); the session continues independently.

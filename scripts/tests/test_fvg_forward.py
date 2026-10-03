@@ -59,7 +59,7 @@ class Forward(unittest.TestCase):
         self.assertEqual((r["status"], r["exit_time"]), ("closed", s2.T[19]))
 
     def test_every_watched_component_is_known(self):
-        self.assertEqual(set(FF.WATCH), {"E5_XAUUSD_24", "E5_US500_48", "H7_XAUUSD_eod", "G9_XAUUSD_eod", "G9_XAGUSD_eod"})
+        self.assertEqual(set(FF.WATCH), {"H7_XAUUSD_eod", "G9_XAUUSD_eod", "G9_XAGUSD_eod"})        # E5 left 2026-10-03 (erratum)
 
     def test_g9_signal_logs_a_stop_and_unknown_kinds_refuse(self):
         import datetime as _dt

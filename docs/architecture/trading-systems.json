@@ -233,7 +233,9 @@
           "content_sha256": "2eed52d876280efe003991b4dc2687054ec1690cdcfda8de0cba4c09b73c9ce5"
         },
         "v2": {
-          "status": "APPROVED",
+          "status": "RETIRED",
+          "retired_at": "2026-10-03",
+          "retired_why": "E5's research selection was look-ahead; under the executor's point-in-time selection E5 has no edge (docs/audits/2026-10-03-e5-lookahead-erratum.md). Replaced by v3 (owner 2026-10-03).",
           "approved_at": "2026-10-03",
           "approval": "owner, chat 2026-10-03: 'Duyệt' (docs/audits/2026-10-02-pass-policy.md: + G9 XAUUSD and the dd3 throttle)",
           "dependency_profile": "book-v1",
@@ -246,6 +248,19 @@
           "risk": {"risk_pct": 0.01, "sizing_basis": "initial_balance", "throttle": "dd3"},
           "execution": {"max_bar_age_minutes": 15, "close_before_rollover_minutes": 10, "tp_stop_multiple": 5},
           "content_sha256": "e0638decd3ec233a5b040513719320918e584098c261d109fd581e65e9a2c01c"
+        },
+        "v3": {
+          "status": "APPROVED",
+          "approved_at": "2026-10-03",
+          "approval": "owner, chat 2026-10-03: 'Demo chạy v3 (H7 + G9)' -- v2 without E5 (docs/audits/2026-10-03-e5-lookahead-erratum.md §5; docs/audits/2026-10-03-e5-live-fill.md)",
+          "dependency_profile": "book-v1",
+          "components": [
+            {"setup": "H7", "instrument": "XAUUSD", "params": {}},
+            {"setup": "G9", "instrument": "XAUUSD", "params": {}}
+          ],
+          "risk": {"risk_pct": 0.01, "sizing_basis": "initial_balance", "throttle": "dd3"},
+          "execution": {"max_bar_age_minutes": 15, "close_before_rollover_minutes": 10, "tp_stop_multiple": 5},
+          "content_sha256": "ee7940be5356a4ff0a668752f10fb277707a7f9ce0b1d83c20d14ba85cd5ccf5"
         }
       }
     }

@@ -31,7 +31,9 @@ FORWARD_START = "2026-09-29T00:00:00Z"
 COMPONENTS = {"XAUUSD": 24, "US500": 48}          # the two F2 E5 survivors (symbol -> hold bars), kept for callers
 #: every component on forward watch: name -> (symbol, detector kind, hold). H7 joined after F3
 #: (docs/audits/2026-10-02-edge-f3.md, docs/plans/2026-10-02-edge-f3-preregistration.md: same forward rule as F2 §4).
-WATCH = {"E5_XAUUSD_24": ("XAUUSD", "E5", 24), "E5_US500_48": ("US500", "E5", 48), "H7_XAUUSD_eod": ("XAUUSD", "H7", "eod"),
+# E5 (FVG retrace) left the watch 2026-10-03: its research selection was look-ahead and it has no point-in-time edge
+# (docs/audits/2026-10-03-e5-lookahead-erratum.md); the owner moved the demo to fvg-book v3 = H7 + G9.
+WATCH = {"H7_XAUUSD_eod": ("XAUUSD", "H7", "eod"),
          # F4 survivors (docs/audits/2026-10-02-edge-f4.md): PAPER only -- not in the demo executor (no book improvement)
          "G9_XAUUSD_eod": ("XAUUSD", "G9", "eod"), "G9_XAGUSD_eod": ("XAGUSD", "G9", "eod")}
 _F3 = None
