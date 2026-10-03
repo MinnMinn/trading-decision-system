@@ -2,8 +2,11 @@
 """Import Binance USDT-M perpetual history (klines + funding rates) from the PUBLIC archive https://data.binance.vision
 into the repo's split-gz-year history layout (scripts/history_store.py), checksum-verified.
 
-    python3 scripts/import-binance-um-history.py --symbols BTCUSDT,ETHUSDT,SOLUSDT --intervals 5m,1h --funding \
+    python3 scripts/import-binance-um-history.py [--symbols <comma list>] --intervals 5m,1h --funding \
         --root data/history/binance_um [--end-month 2026-09]
+
+--symbols defaults to the crypto market's BACKTESTED list in docs/architecture/instruments.json (scripts/instruments.py);
+any symbol given must be on the crypto ANALYSIS allowlist.
 
 Why (docs/plans/2026-10-03-candidates.md; owner 2026-10-03: crypto first): the repo held 4 years of BTC/ETH/SOL at 1H and
 one year at 5m -- too short for three clean reads. The archive keeps every USDT-M perp since listing (BTCUSDT 2019-09).
@@ -29,6 +32,9 @@ import sys
 import urllib.error
 import urllib.request
 import zipfile
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
+import instruments as I  # noqa: E402 -- THE allowlist (CLAUDE.md: nothing else may hard-code a symbol list)
 
 BASE = "https://data.binance.vision/data/futures/um/monthly"
 FIRST_MONTH = "2019-09"
@@ -166,7 +172,7 @@ def import_funding(sym, root, last_month):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--symbols", required=True)
+    ap.add_argument("--symbols", help="comma list (default: instruments.backtested('crypto'))")
     ap.add_argument("--intervals", default="5m,1h")
     ap.add_argument("--funding", action="store_true")
     ap.add_argument("--root", default="data/history/binance_um")
@@ -174,8 +180,13 @@ def main():
     a = ap.parse_args()
     today = datetime.date.today()
     last = a.end_month or (today.replace(day=1) - datetime.timedelta(days=1)).strftime("%Y-%m")
+    syms = a.symbols.split(",") if a.symbols else I.backtested("crypto")
+    off = [x for x in syms if x not in I.analysis("crypto")]
+    if off:
+        print(f"REFUSED: {off} not on the crypto analysis allowlist (docs/architecture/instruments.json)", file=sys.stderr)
+        sys.exit(2)
     try:
-        for sym in a.symbols.split(","):
+        for sym in syms:
             for iv in [x for x in a.intervals.split(",") if x]:
                 import_klines(sym, iv, a.root, last)
             if a.funding:
