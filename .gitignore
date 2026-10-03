@@ -24,6 +24,8 @@ docs/Wyckoff Advance/
 #   - config/env.* below never move, whatever else does.
 data/live/mt5-bridge
 data/live/**/*.lock
+# forward cycle runtime (scripts/forward_cycle.py): paper log, rolling 5m store, demo executor state/log, cycle log -- per machine
+data/live/forward/
 data/live/**/*.tmp
 data/live/**/*.tmp.*
 
