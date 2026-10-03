@@ -30,8 +30,22 @@ import trading_env as TE
 
 ACCOUNT = next(pid for pid, p in AP.PROFILES.items()
                if p["environment"] not in AP.UNROUTABLE_ENVIRONMENTS)
-SETUPS = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-selection.json"),
-                        encoding="utf-8"))["setups"]
+_SEL = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-selection.json"), encoding="utf-8"))
+SETUPS = list(_SEL["setups"])
+if not SETUPS:
+    # The 2026-09-27 criteria run enabled none of its 36 candidates -- a valid research outcome, under which no real
+    # mandate may be attached at all (mandates._validate refuses a setup that is not enabled). These tests are about the
+    # RELATION (many-to-many, version pinning, the sharing cap), so they run against a fixture selection whose enabled
+    # rows are REAL candidate rows: two of one method+market, one of the other market, one of the other method.
+    import tempfile
+    _by = {}
+    for _r in _SEL.get("disabled") or []:
+        _by.setdefault((_r["method"], _r["market"]), []).append(_r)
+    SETUPS = (_by[("ICT", "crypto")][:2] + _by[("ICT", "cfd")][:1] + _by[("WYCKOFF-BOOK", "crypto")][:1])
+    _fh = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+    json.dump(dict(_SEL, setups=SETUPS), _fh)
+    _fh.close()
+    MD.SELECTION = _fh.name
 SETUP = SETUPS[0]["id"]
 VERSION = SETUPS[0].get("rule_version")
 

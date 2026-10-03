@@ -86,9 +86,17 @@ class TheLiveDataIsFresh(unittest.TestCase):
     def test_a_cfd_series_weekend_gaps_are_not_partial(self):
         """XAUUSD 1D has 125 gaps and every one is a closure. Reporting those would gate a market on correct
         data, which is the §20 error in the other direction."""
-        p = os.path.join(ROOT, "data", "live", "mt5-bridge", "ohlcv.XAUUSD.1D.json")
-        with open(p, encoding="utf-8") as fh:
-            d = json.load(fh)
+        # The STORED broker history (tracked in the repo, present on every machine) rather than the machine-local live
+        # bridge file, which exists only where MetaTrader runs -- cut at NOW so the series is as fresh as it was then.
+        import history_store as HS
+        doc, _shape = HS.read_doc("XAUUSD", "1D", root=os.path.join(ROOT, "data", "history", "ftmo"))
+        self.assertIsNotNone(doc, "precondition: the stored FTMO XAUUSD 1D history is in the repo")
+        stamp = NOW.strftime("%Y-%m-%dT%H:%M:%SZ")
+        d = dict(doc, candles=[c for c in doc["candles"] if c["time"] < stamp][-600:])
+        self.assertGreater(sum(1 for a, b in zip(d["candles"], d["candles"][1:])
+                               if b["time"][:10] > a["time"][:10] and
+                               (datetime.date.fromisoformat(b["time"][:10]) - datetime.date.fromisoformat(a["time"][:10])).days > 1),
+                           50, "precondition: the window contains many closures (weekends)")
         self.assertFalse(I.is_continuous("XAUUSD"), "precondition: the CFD tape closes")
         self.assertEqual(Q.assess(d, "1D", symbol="XAUUSD", now=NOW)[0], "FRESH")
 

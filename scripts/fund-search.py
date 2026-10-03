@@ -79,8 +79,8 @@ FTMO_HISTORY_ROOT = os.path.join(ROOT, "data", "history", "ftmo")
 #: SPN35 N25 are parked: kept here, in the registry and in the data, used by no cell, ignored by the readiness gate); this tuple is
 #: a pinned superset, the universe a cell may draw from, deliberately not shrunk. Nine of them are research-only registry
 #: symbols (instruments.json `research_only`, never orderable); XCUUSD and DXY were dropped: no history before the 2024-03-01 cutoff.
-FUND_SYMBOLS = ("XAUUSD", "XAGUSD", "XPTUSD", "XPDUSD", "US500", "US30", "USTEC", "DE40", "FRA40",
-                "UK100", "EU50", "JP225", "HK50", "AUS200", "US2000", "SPN35", "N25")
+FUND_SYMBOLS = ("XAUUSD", "XAGUSD", "XPTUSD", "XPDUSD", "US500", "US30", "USTEC", "DE40", "FRA40",  # pinned-universe
+                "UK100", "EU50", "JP225", "HK50", "AUS200", "US2000", "SPN35", "N25")             # pinned-universe
 FUND_TIMEFRAMES = ("1m", "5m", "15m")                                           # §6 item 7; 30m removed by the owner 2026-10-01
 ASSET_CLASSES = ("metals", "indices")                                           # §6 item 7
 #: Higher-timeframe context series a cell needs besides its own decision timeframe (gates, W7): see `data_readiness`.
@@ -2237,11 +2237,11 @@ def _cmd_run_inner(plan, cell_id, method, workers, grid_dir, scan_cache_dirs=(),
 #: docs/audits/2026-09-30-engine-speed-profile.md (header table; that doc is the source). Used ONLY to size shards:
 #: they change how the work is laid out over jobs, never a result.
 DEV_BARS = {
-    "1m": {"XAUUSD": 4096182, "XAGUSD": 4097904, "US500": 852695, "US30": 1729779, "USTEC": 867342, "DE40": 747188,
+    "1m": {"XAUUSD": 4096182, "XAGUSD": 4097904, "US500": 852695, "US30": 1729779, "USTEC": 867342, "DE40": 747188,  # pinned-universe
            "FRA40": 801548},
-    "5m": {"XAUUSD": 1316783, "XAGUSD": 1054081, "US500": 177185, "US30": 346651, "USTEC": 177192, "DE40": 155214,
-           "FRA40": 174454, "XPTUSD": 494217, "XPDUSD": 480765},
-    "15m": {"XAUUSD": 453893, "XAGUSD": 357694, "US500": 62776, "US30": 116405, "USTEC": 62766, "DE40": 55219,
+    "5m": {"XAUUSD": 1316783, "XAGUSD": 1054081, "US500": 177185, "US30": 346651, "USTEC": 177192, "DE40": 155214,  # pinned-universe
+           "FRA40": 174454, "XPTUSD": 494217, "XPDUSD": 480765},  # pinned-universe
+    "15m": {"XAUUSD": 453893, "XAGUSD": 357694, "US500": 62776, "US30": 116405, "USTEC": 62766, "DE40": 55219,  # pinned-universe
             "FRA40": 62283}}    # (the 30m rows were removed with the 30m cells, owner 2026-10-01)
 
 #: The shard time model (docs/audits/2026-10-01-shard-calibration.md; supersedes the owner's one-run 581 s / 213 s model of

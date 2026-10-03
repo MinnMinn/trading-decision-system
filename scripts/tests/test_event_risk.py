@@ -22,6 +22,8 @@ import os
 import sys
 import unittest
 
+import fresh_calendar as FC  # noqa: E402  (a current, quiet copy of the real calendar)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import event_risk as ER
@@ -434,7 +436,11 @@ class TheOrderPathAsksPerInstrument(unittest.TestCase):
         s.loader.exec_module(self.sr)
 
     def test_the_runner_delegates_to_the_gate(self):
-        self.assertIsNone(self.sr.event_blackout(sym="BTCUSDT"))
+        old, self.sr.ER.load = self.sr.ER.load, FC.fresh_load
+        try:
+            self.assertIsNone(self.sr.event_blackout(sym="BTCUSDT"))
+        finally:
+            self.sr.ER.load = old
 
     def test_asking_without_an_instrument_fails_closed(self):
         """§26 makes relevance per-instrument, so a global question has no answer."""

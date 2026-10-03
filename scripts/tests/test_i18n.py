@@ -622,6 +622,9 @@ def _build_all_pages():
     keep = ("analysis-params.json", "automation-config.json")
     ba.read_json = lambda path, default=None: real_read(path, default) if path.endswith(keep) else default
     ba.candles = lambda sym, tf, n, snap=None: (_synth(n, ba.TF_MIN.get(tf, 15)), "2026-09-12T00:00:00Z", "fixture")
+    # every symbol is drawable when every candle is a fixture: the real drawable() asks whether a FEED FILE exists,
+    # which on a machine without MetaTrader is never true for the cfd styles -- and build() then sys.exit()s the run
+    ba.drawable = lambda syms, tf: (list(syms), [])
     # More than one style, and not all from one market. A style's tiers decide which date formats appear, and a
     # slow style's %y-%m-%d range labels shift a DAY across the timezone switch where an intraday one shifts
     # only hours -- a difference the number check has to be built to tolerate, so it has to be exercised.

@@ -28,6 +28,8 @@ import re
 import sys
 import unittest
 
+import fresh_calendar as FC  # noqa: E402  (a current, quiet copy of the real calendar)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import account_profile as AP
@@ -69,6 +71,15 @@ def _with_dependency(dep_id, **fields):
     return data
 
 
+
+def _machine_local(rel):
+    """True for a data/live/ path git ignores ON PURPOSE (a per-machine link or runtime folder, .gitignore says why):
+    its absence on a machine without MetaTrader is the design, not a broken citation."""
+    if not rel.startswith("data/live/"):
+        return False
+    import subprocess
+    return subprocess.run(["git", "-C", ROOT, "check-ignore", "-q", rel]).returncode == 0
+
 class RegistryShape(unittest.TestCase):
     def test_roles_are_claude_mds_four_names_in_its_order(self):
         self.assertEqual(tuple(_raw()["roles"]), TS.ROLES)
@@ -97,6 +108,8 @@ class RegistryShape(unittest.TestCase):
                 # that does not exist, which is the failure this test is for.
                 tail = text[m.end():m.end() + 1]
                 target = os.path.dirname(token) if tail in ("<", "*") else token
+                if not os.path.exists(os.path.join(ROOT, target)) and _machine_local(target):
+                    continue        # e.g. data/live/mt5-bridge: a per-machine symlink into MetaTrader, ignored by design
                 self.assertTrue(os.path.exists(os.path.join(ROOT, target)),
                                 f"{dep_id} produced_by names {target}, which does not exist")
 
@@ -344,7 +357,11 @@ class WiredIntoTheLivePath(unittest.TestCase):
     def test_every_real_pilot_setup_row_resolves_to_a_trading_system(self):
         """Regression: pilot rows spell timeframes `1H`/`4H` and automation.STYLE spells them `1h`/`4h`, so
         the first wiring left three of six setups with no governing system."""
-        rows = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-selection.json")))["setups"]
+        # Every CANDIDATE row the selection wrote, enabled or not: the regression is in the row shape (`1H` vs `1h`), not
+        # in which rows passed. The 2026-09-27 criteria run enabled none of 36 (a valid research outcome), which left
+        # `setups` empty and this test vacuous-then-failing; the disabled rows carry the identical shape.
+        sel = json.load(open(os.path.join(ROOT, "docs", "architecture", "pilot-selection.json")))
+        rows = list(sel["setups"]) + list(sel.get("disabled") or [])
         self.assertTrue(rows)
         for row in rows:
             sysd = TS.for_setup(row)
@@ -509,9 +526,11 @@ class TheGateRunsOnTheRealOrderPath(unittest.TestCase):
         # gate it means to test rather than whether the exchange answered a filters query.
         sr.min_notional = lambda *a, **k: 5.0
         sr.log = lambda kind, **kw: logs.append((kind, kw))
+        old_load, sr.ER.load = sr.ER.load, FC.fresh_load    # the §36 step-3 precheck reads the calendar itself
         try:
             sr.tick(live=False, tick_time=sr.now(), ignore_gate=True)
         finally:
+            sr.ER.load = old_load
             for k, v in old.items():
                 setattr(sr, k, v)
             for p in tmps:

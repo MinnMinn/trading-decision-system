@@ -51,6 +51,21 @@ def _spec_block(after, until):
     return [ln[2:].strip() for ln in body.splitlines() if ln.startswith("- ")]
 
 
+
+def _fixture_candles(n, step_min=15, base=2000.0):
+    """Deterministic OHLC bars (no randomness), for a page build on a machine that has no feed for a style."""
+    import datetime
+    t = datetime.datetime(2026, 9, 1)
+    out, p = [], base
+    for i in range(n):
+        o = p
+        c = o + ((i * 37) % 11 - 5) * 0.4
+        out.append(dict(time=t.strftime("%Y-%m-%dT%H:%M:%SZ"), open=o, high=max(o, c) + (i * 13) % 7 * 0.1,
+                        low=min(o, c) - (i * 17) % 5 * 0.1, close=c, volume=1 + (i * 7) % 13))
+        p = c
+        t += datetime.timedelta(minutes=step_min)
+    return out
+
 class TheRegistryIsTheSpec(unittest.TestCase):
     def test_all_twenty_two_fields_50_names_are_listed_in_order(self):
         want = _spec_block("The UI must clearly expose:", "Trading Control Center must distinguish")
@@ -124,6 +139,21 @@ class EveryPageRendersWhatItOwes(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.mkdtemp()
         b = _mod("build-artifact.py")
+        # The pages are built from the REAL feeds where this machine has them. A cfd feed exists only where MetaTrader
+        # runs (data/live/mt5-bridge is a per-machine link), and build() refuses -- sys.exit -- when no symbol of a
+        # style has data, which ended the whole test run. For a style with no feed at all on this machine, the build
+        # uses deterministic fixture candles instead; what this class checks is the page's fields, not the prices.
+        real_drawable, real_candles = b.drawable, b.candles
+
+        def drawable(syms, tf):
+            drawn, absent = real_drawable(syms, tf)
+            return (drawn, absent) if drawn else (list(syms), [])
+
+        def candles(sym, tf, n, snap=None):
+            if os.path.exists(b._series_path(sym, tf)):
+                return real_candles(sym, tf, n, snap)
+            return _fixture_candles(n, b.TF_MIN.get(tf, 15)), "2026-09-12T00:00:00Z", "fixture"
+        b.drawable, b.candles = drawable, candles
         cls.html = {}
         for style in ("scalping", "cfd-scalping"):
             out = os.path.join(cls.tmp, f"{style}.html")

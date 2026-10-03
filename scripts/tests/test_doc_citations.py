@@ -35,7 +35,11 @@ DOCS = os.path.join(ROOT, "docs")
 # `(` (`def bar(`, `log("entry"`), so every anchored citation failed to parse and the anchor test passed
 # vacuously on a deliberately drifted probe. Backticks cannot appear inside a markdown inline-code span, so
 # they are the one delimiter that cannot collide with the code being quoted.
-CITE = re.compile(r"\b(?:scripts/)?([a-z0-9_-]+\.(?:py|sh)):(\d+(?:[-,]\d+)*)`?"
+#
+# The lookbehind refuses a name that is the tail of a LONGER path (2026-10-03): a security review citing the Python stdlib
+# (`.../Lib/multiprocessing/connection.py:713`) is not a citation of this repo's scripts and was reported as a missing
+# script. A repo citation is a bare name or `scripts/` / `scripts/tests/` + name; every one of those still matches.
+CITE = re.compile(r"(?<![\w/.\\-])(?:scripts/(?:tests/)?)?([a-z0-9_-]+\.(?:py|sh)):(\d+(?:[-,]\d+)*)`?"
                   r"(?:\s*\(`([^`\n]{2,60})`\))?")
 ANCHOR_SLACK = 3        # lines either side; absorbs a comment added above the anchor without a false alarm
 
@@ -216,6 +220,11 @@ class DocCitationsResolve(unittest.TestCase):
                 found = [i + 1 for i, l in enumerate(lines) if anchor in l]
                 bad.append(f"{doc} cites {script}:{line} ({anchor}) but that token is at {found or 'nowhere'}")
         self.assertEqual(bad, [], "citations that drifted off their anchor:\n  " + "\n  ".join(bad))
+
+    def test_a_path_inside_another_tree_is_not_a_repo_citation(self):
+        hits = CITE.findall("see `C:/Python314/Lib/multiprocessing/connection.py:713-723` and `scripts/tests/test_x.py:5` "
+                            "and `automation.py:12` (`def f(`)")
+        self.assertEqual([h[0] for h in hits], ["test_x.py", "automation.py"])
 
     def test_the_checker_actually_finds_citations(self):
         """A regex that matches nothing would make the tests above pass vacuously -- which is exactly how the

@@ -82,11 +82,11 @@ Unlike Wyckoff/ICT/Footprint, there is no ingested book/course covering Heatmap/
 
 Published report artifacts are kept current by three layers with distinct jobs. **Since 2026-09-13 there is ONE
 authored style vocabulary: three horizons, one timeframe each, shared by both markets** — `scalping` 15m, `day` 1h,
-`swing` 4h (`scripts/automation.py:142` (`HORIZON_TF = {"scalping": "15m"`)). The flat style names the scanner, the
-model-read layer and the builder key off are *derived* from that table at `automation.py:149`
+`swing` 4h (`scripts/automation.py:173` (`HORIZON_TF = {"scalping": "15m"`)). The flat style names the scanner, the
+model-read layer and the builder key off are *derived* from that table at `automation.py:180`
 (`STYLE = {(m, HORIZON_TF[h])`) — crypto keeps the bare horizon word, cfd takes a `cfd-` prefix. **Do not restate the
 name list here; read `automation.HORIZON_TF`.** Window sizes per timeframe come from `automation.SCAN_WINDOW`
-(`automation.py:154` (`SCAN_WINDOW = {`)) and are project parameters, not source-derived; `scan-loop.sh` reads them
+(`automation.py:185` (`SCAN_WINDOW = {`)) and are project parameters, not source-derived; `scan-loop.sh` reads them
 and skips a style rather than falling back to a hardcoded number. Each style is gated per market by `/automation`
 (`docs/architecture/automation-config.json`, `schema_version 3`; the same file's `execution.environment` selects
 `config/env.demo` or `config/env.real` for execution).

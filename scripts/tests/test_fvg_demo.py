@@ -206,7 +206,7 @@ class Isolation(unittest.TestCase):
         with mock.patch.object(FD, "closed_series", boom), mock.patch.object(FD.FF, "_zone", lambda: UTC):
             self.assertEqual(FD.tick(now, b, cfg, **paths, event_blocked=lambda x, t: (False, "")), "ok")
         mk = [c for c in b.calls if c[0] == "market"]
-        self.assertEqual([c[1] for c in mk], ["XAUUSD"])                  # US500 skipped, AUS200 errored, gold still traded
+        self.assertEqual([c[1] for c in mk], ["XAUUSD"])                  # US500 skipped, AUS200 errored, XAUUSD still traded
         kinds = [json.loads(l)["kind"] for l in open(paths["log_path"])]
         self.assertIn("error", kinds)
         self.assertIn("skip", kinds)
