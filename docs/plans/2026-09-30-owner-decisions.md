@@ -408,3 +408,14 @@ declaration is kept in `research-ledger.json` `fund_search_superseded`). Pre-reg
   approved as the next research step.
 - Note for the fund-search: research scripts added after its re-declaration changed the `scripts/` tree pin, so
   `fund-search.py run` now refuses on drift; running it needs a re-declaration (no record exists) or `--allow-drift`.
+
+## 2026-10-03: demo Trading System v2 (owner, in chat; binding)
+
+- **APPROVED** ("Duyệt"): the demo executor moves from v1 (E5 XAUUSD/US500 + H7 XAUUSD @1 %) to v2 = v1 + G9 XAUUSD volatility
+  breakout + the dd3 drawdown throttle (docs/audits/2026-10-02-pass-policy.md). DEMO only; risk never above the 1 % ceiling.
+  Config: docs/architecture/fvg-demo.json `version` v2 (revert = drop `g9_symbols`, set `throttle.kind` "none").
+- "If v2 does not really deliver, think further" -- v2 is judged with the forward record (stage (a) rule) before any
+  further change.
+- Rules audit requested (overnight swap): docs/audits/2026-10-03-ftmo-rules-audit.md -- overnight holding is allowed in the
+  Challenge; intraday-only was a design choice; holding the trend rules adds nothing (docs/audits/2026-10-03-edge-hold.md);
+  FTMO's floating-P&L limits added to the replay leave the v2 decision unchanged.

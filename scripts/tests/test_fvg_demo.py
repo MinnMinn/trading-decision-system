@@ -30,7 +30,7 @@ class FakeBridge:
         if cmd == "check":
             return {"demo": self.demo}
         if cmd == "account":
-            return {"balance": 100000}
+            return {"balance": getattr(self, "balance", 100000)}
         if cmd == "symbol":
             return {"tick_value": 1.0, "tick_size": 0.01, "volume_step": 0.01, "volume_min": 0.01, "volume_max": 50,
                     "digits": 2}
@@ -164,6 +164,63 @@ class H7(unittest.TestCase):
         self.assertEqual(len(mk), 1)
         self.assertEqual(mk[0][1:3], ("XAUUSD", "buy"))
         self.assertLess(float(mk[0][4]), s.C[-1])          # the stop is below the entry reference
+
+
+class V2(unittest.TestCase):
+    """Trading System v2: G9 gold market entries and the dd3 drawdown throttle."""
+
+    def _run(self, cfg, now_shift=datetime.timedelta(0), balances=(100000,)):
+        tmp = tempfile.mkdtemp()
+        paths = dict(state_path=os.path.join(tmp, "s.json"), log_path=os.path.join(tmp, "l.jsonl"))
+        s, now = series_with_h7_breakout()
+        b = FakeBridge()
+        with mock.patch.object(FD, "closed_series", lambda sym, now, live_dir=None: s), \
+                mock.patch.object(FD.FF, "_zone", lambda: UTC):
+            for bal in balances:
+                b.balance = bal
+                FD.tick(now + now_shift, b, cfg, **paths, event_blocked=lambda x, t: (False, ""))
+        return b, s, paths
+
+    def test_g9_places_one_market_order_on_the_live_last_bar(self):
+        cfg = dict(CFG, components={}, h7_symbols=[], g9_symbols=["XAUUSD"])
+        b, s, _ = self._run(cfg, balances=(100000, 100000))
+        mk = [c for c in b.calls if c[0] == "market"]
+        self.assertEqual(len(mk), 1)
+        self.assertEqual((mk[0][1], mk[0][2], mk[0][-1]), ("XAUUSD", "buy", "g9-XAUUSD"))
+
+    def test_g9_signal_ignored_in_the_research_series(self):
+        s, _ = series_with_h7_breakout()
+        research = EC.Series("XAUUSD", [{"time": t, "open": o, "high": h, "low": l, "close": c}
+                                        for t, o, h, l, c in zip(s.T, s.O, s.H, s.L, s.C)], UTC, end="9999-12-31T00:00:00Z")
+        self.assertFalse([e for e in FD.FF._f4().ev_vol_breakout(research) if e["i"] == len(research.T) - 1])
+        self.assertTrue([e for e in FD.FF._f4().ev_vol_breakout(s) if e["i"] == len(s.T) - 1])
+
+    def test_no_entry_inside_the_pre_rollover_window(self):
+        cfg = dict(CFG, components={}, h7_symbols=["XAUUSD"], close_before_rollover_minutes=24 * 60)
+        b, _s, paths = self._run(cfg)
+        self.assertFalse([c for c in b.calls if c[0] == "market"])
+
+    def test_throttle_steps_and_never_raises_risk(self):
+        cfg = dict(CFG, throttle={"kind": "dd3", "initial_balance": 100000})
+        self.assertEqual(FD.throttle_mult(cfg, 99000, 100000), 1.0)
+        self.assertEqual(FD.throttle_mult(cfg, 96000, 100000), 0.5)
+        self.assertEqual(FD.throttle_mult(cfg, 93000, 100000), 0.25)
+        self.assertEqual(FD.throttle_mult(cfg, 50000, None), 0.25)          # unknown reference: most conservative
+        self.assertEqual(FD.throttle_mult(dict(CFG), 50000, 100000), 1.0)   # no throttle configured
+        st = {}
+        self.assertEqual(FD.sizing(cfg, st, 120000), (0.01, 100000))        # sized on the INITIAL balance, never above 1 %
+        self.assertEqual(FD.sizing(cfg, st, 95000), (0.005, 100000))
+        st2 = {}
+        cfg2 = dict(CFG, throttle={"kind": "dd3", "initial_balance": None})
+        FD.sizing(cfg2, st2, 80000)
+        self.assertEqual(st2["initial_balance"], 80000)                     # first balance seen becomes the reference
+        self.assertEqual(FD.sizing(cfg2, st2, 75000)[0], 0.0025)
+
+    def test_throttled_lots_are_smaller(self):
+        info = {"tick_value": 1.0, "tick_size": 0.01, "volume_step": 0.01, "volume_max": 50}
+        full = FD.lots_for(info, 100000, 0.01, 2000.0, 1990.0)
+        half = FD.lots_for(info, 100000, 0.005, 2000.0, 1990.0)
+        self.assertAlmostEqual(half, full / 2, places=6)
 
 
 if __name__ == "__main__":

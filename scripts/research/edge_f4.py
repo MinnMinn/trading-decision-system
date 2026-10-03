@@ -86,8 +86,10 @@ def ev_tsmom(s):
 
 
 def _first_close_beyond(s, rows, hi, lo, want=None):
-    """First bar of `rows` (never the day's LAST bar: its next bar is the next day) closing above hi / below lo."""
-    for i in rows[:-1]:
+    """First bar of `rows` closing above hi / below lo. Research (complete days): never the day's LAST bar, whose next bar is
+    the next day. Live / paper (`sigma_every_day`, the current day is never complete): its last row is just the latest closed
+    bar, so it counts; the executor and the paper log refuse an entry that would fall in the next server day."""
+    for i in (rows if getattr(s, "_sigma_every_day", False) else rows[:-1]):
         if s.C[i] > hi and want in (None, 1):
             return i, 1
         if s.C[i] < lo and want in (None, -1):

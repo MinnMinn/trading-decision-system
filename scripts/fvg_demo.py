@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Forward DEMO executor for the FVG-retrace book (XAUUSD hold 24 bars, US500 hold 48 bars). DEMO ONLY.
+"""Forward DEMO executor for the book (Trading System v2, docs/architecture/fvg-demo.json): E5 FVG retrace (XAUUSD 24 bars,
+US500 48 bars), H7 and G9 on XAUUSD (to the rollover), 1 % per trade under the dd3 drawdown throttle. DEMO ONLY.
 
     python3 scripts/fvg_demo.py tick       # one pass: place / cancel / close as needed (run every 1-5 minutes)
     python3 scripts/fvg_demo.py status     # open orders, positions and the paired comparison so far
@@ -135,6 +136,28 @@ def lots_for(info, balance, risk_pct, entry, stop):
     return round(min(lots, float(info["volume_max"])), 8)
 
 
+def throttle_mult(cfg, balance, initial):
+    """dd3 drawdown throttle (docs/audits/2026-10-02-pass-policy.md, v2): x1 above 97 % of the initial balance, x0.5 down to
+    94 %, x0.25 below. It only ever LOWERS the configured risk; 'none' = x1."""
+    kind = (cfg.get("throttle") or {}).get("kind", "none")
+    if kind == "none":
+        return 1.0
+    if kind != "dd3":
+        raise ValueError(f"unknown throttle {kind!r}")
+    if not initial or initial <= 0:
+        return 0.25                          # unknown reference: the most conservative step, never the full risk
+    f = balance / initial
+    return 1.0 if f > 0.97 else 0.5 if f > 0.94 else 0.25
+
+
+def sizing(cfg, st, balance):
+    """(risk_pct, sizing_balance): risk on the INITIAL balance (as the replay), throttled; the initial balance is the config's
+    `throttle.initial_balance`, else the first balance this executor saw (kept in the state)."""
+    initial = (cfg.get("throttle") or {}).get("initial_balance") or st.setdefault("initial_balance", balance or None)
+    risk = min(float(cfg["risk_pct"]), float(cfg["risk_pct"]) * throttle_mult(cfg, balance, initial))
+    return risk, (initial or balance)
+
+
 def tick(now=None, bridge=None, cfg=None, state_path=STATE, log_path=LOG, live_dir=FF.LIVE_DIR, event_blocked=None):
     now = now or datetime.datetime.now(datetime.timezone.utc)
     cfg = cfg or load_config()
@@ -153,6 +176,10 @@ def tick(now=None, bridge=None, cfg=None, state_path=STATE, log_path=LOG, live_d
     st = _read_state(state_path)
     _manage(st, now, cfg, bridge, log_path)
     balance = float(bridge("account").get("balance") or 0)
+    risk, base = sizing(cfg, st, balance)
+    if risk < float(cfg["risk_pct"]):
+        log("throttled", log_path, balance=balance, initial_balance=base, risk_pct=risk, configured=cfg["risk_pct"])
+    cfg = dict(cfg, risk_pct=risk)
     for sym, h in cfg["components"].items():
         s = closed_series(sym, now, live_dir)
         if not s.T or now - (_parse(s.T[-1]) + BAR) > datetime.timedelta(minutes=cfg["max_bar_age_minutes"]):
@@ -175,7 +202,7 @@ def tick(now=None, bridge=None, cfg=None, state_path=STATE, log_path=LOG, live_d
             info = bridge("symbol", sym)
             stop = edge - side * dist
             tp = edge + side * cfg["tp_stop_multiple"] * dist
-            lots = lots_for(info, balance, cfg["risk_pct"], edge, stop)
+            lots = lots_for(info, base, cfg["risk_pct"], edge, stop)
             if lots < float(info.get("volume_min", 0) or 0) or lots <= 0:
                 log("skip", log_path, symbol=sym, gap_time=gap_time, reason=f"lots {lots} below volume_min")
                 continue
@@ -191,34 +218,42 @@ def tick(now=None, bridge=None, cfg=None, state_path=STATE, log_path=LOG, live_d
             st["pending"].append(p)
             st["placed_gaps"].append(gap_id)
             log("limit_placed", log_path, **p)
-    for sym in cfg.get("h7_symbols", []):
-        _h7(st, sym, now, cfg, bridge, balance, log_path, live_dir, event_blocked)
+    for kind, key in (("H7", "h7_symbols"), ("G9", "g9_symbols")):
+        for sym in cfg.get(key, []):
+            _eod_breakout(st, kind, sym, now, cfg, bridge, base, log_path, live_dir, event_blocked)
     _write_state(st, state_path)
     return "ok"
 
 
-def _h7(st, sym, now, cfg, bridge, balance, log_path, live_dir, event_blocked):
-    """F3 H7 (breakout of the previous day's range with the 20-day momentum): a MARKET entry when the signal bar is the
-    LAST closed bar (a later tick does not chase it), stop 2 sigma x sqrt(bars to the rollover), closed before the rollover."""
+def _eod_breakout(st, kind, sym, now, cfg, bridge, balance, log_path, live_dir, event_blocked):
+    """H7 (F3: previous-day breakout with the 20-day momentum) or G9 (F4: open +/- 0.5 x previous range): a MARKET entry when
+    the signal bar is the LAST closed bar (a later tick does not chase it), stop 2 sigma x sqrt(bars to the rollover), closed
+    before the rollover. One trade per (component, symbol, server day, side)."""
     s = closed_series(sym, now, live_dir)
     if not s.T or now - (_parse(s.T[-1]) + BAR) > datetime.timedelta(minutes=cfg["max_bar_age_minutes"]):
         return
-    for ev in FF._f3().ev_breakout_trend(s):
+    det = {"H7": lambda: FF._f3().ev_breakout_trend(s), "G9": lambda: FF._f4().ev_vol_breakout(s)}[kind]
+    for ev in det():
         if ev["i"] != len(s.T) - 1:
             continue
         side = ev["side"]
-        key = f"H7|{sym}|{s.sday[ev['i']].isoformat()}|{side}"
+        key = f"{kind}|{sym}|{s.sday[ev['i']].isoformat()}|{side}"
         if key in st["done_keys"]:
             continue
         sig = s.sigma(ev["i"])
         if not sig or not FF._vol_fresh(s, ev["i"]):
-            log("refused", log_path, symbol=sym, component="H7", reason="volatility history stale or missing")
+            log("refused", log_path, symbol=sym, component=kind, reason="volatility history stale or missing")
             continue
         blocked, why = event_blocked(sym, now)
         if blocked:
-            log("blocked", log_path, symbol=sym, component="H7", reason=why)
+            log("blocked", log_path, symbol=sym, component=kind, reason=why)
             continue
         day_end = server_day_end(now)
+        exit_due = day_end - datetime.timedelta(minutes=cfg["close_before_rollover_minutes"])
+        if now >= exit_due or s.sday[ev["i"]] != now.astimezone(FF._zone()).date():
+            st["done_keys"].append(key)
+            log("skip", log_path, symbol=sym, component=kind, reason="signal too close to the rollover: no same-day trade")
+            continue
         nb = max(1, int((day_end - now).total_seconds() // 300))
         ref = s.C[ev["i"]]
         dist = 2.0 * sig * math.sqrt(nb) * ref
@@ -227,17 +262,17 @@ def _h7(st, sym, now, cfg, bridge, balance, log_path, live_dir, event_blocked):
         stop, tp = ref - side * dist, ref + side * cfg["tp_stop_multiple"] * dist
         lots = lots_for(info, balance, cfg["risk_pct"], ref, stop)
         if lots <= 0 or lots < float(info.get("volume_min", 0) or 0):
-            log("skip", log_path, symbol=sym, component="H7", reason=f"lots {lots} below volume_min")
+            log("skip", log_path, symbol=sym, component=kind, reason=f"lots {lots} below volume_min")
             continue
-        r = bridge("market", sym, "buy" if side > 0 else "sell", f"{lots:g}", f"{stop:.{d}f}", f"{tp:.{d}f}", f"h7-{sym}")
+        r = bridge("market", sym, "buy" if side > 0 else "sell", f"{lots:g}", f"{stop:.{d}f}", f"{tp:.{d}f}", f"{kind.lower()}-{sym}")
         st["done_keys"].append(key)
         if not r.get("ok"):
-            log("rejected", log_path, symbol=sym, component="H7", response=r)
+            log("rejected", log_path, symbol=sym, component=kind, response=r)
             continue
-        pos = {"key": key, "component": "H7", "symbol": sym, "side": side, "position_ticket": r.get("ticket"),
+        pos = {"key": key, "component": kind, "symbol": sym, "side": side, "position_ticket": r.get("ticket"),
                "signal_close": ref, "fill_price": r.get("price"), "fill_slippage": (r.get("price", ref) - ref) * side,
                "stop": stop, "lots": lots, "filled_seen_at": _iso(now),
-               "exit_due": _iso(day_end - datetime.timedelta(minutes=cfg["close_before_rollover_minutes"]))}
+               "exit_due": _iso(exit_due), "risk_pct": cfg["risk_pct"]}
         st["open"].append(pos)
         log("filled", log_path, **pos)
 

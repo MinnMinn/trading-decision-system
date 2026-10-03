@@ -153,6 +153,8 @@ def signals(s, sym, h, kind="E5", name=None):
         e = ev["entry_i"]
         if e >= len(s.T) or s.T[e] < FORWARD_START:
             continue
+        if h == "eod" and s.sday[e] != s.sday[ev["i"]]:
+            continue                                  # a signal on the day's last bar: no same-day trade (as the research)
         px = ev["entry_px"] if ev.get("entry_px") is not None else s.O[e]
         row = {"component": name or f"E5_{sym}_{h}", "symbol": sym, "h": h, "side": ev["side"], "signal_time": s.T[ev["i"]],
                "entry_time": s.T[e], "entry": px, "status": "open"}
