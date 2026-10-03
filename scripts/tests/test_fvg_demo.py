@@ -378,6 +378,30 @@ class Switch(unittest.TestCase):
         self.assertEqual((pos["assignment"], pos["trading_system"], pos["account"]), ("asg-b", "fvg-book@v2", "ftmo-demo-01"))
 
 
+class FillWithoutAPrice(unittest.TestCase):
+    def test_a_market_fill_reported_without_a_price_is_still_recorded_and_managed(self):
+        """The slippage arithmetic runs AFTER the order is placed; if it raised, the live position would be missing from
+        the state and never get its time exit."""
+        tmp = tempfile.mkdtemp()
+        paths = dict(state_path=os.path.join(tmp, "s.json"), log_path=os.path.join(tmp, "l.jsonl"))
+        s, now = series_with_h7_breakout()
+
+        class NoPrice(FakeBridge):
+            def __call__(self, *a):
+                if a[0] == "market":
+                    self.calls.append(a)
+                    return {"ok": True, "ticket": 555, "price": None}
+                return super().__call__(*a)
+        with mock.patch.object(FD, "closed_series", lambda sym, now, live_dir=None: s), \
+                mock.patch.object(FD.FF, "_zone", lambda: UTC):
+            FD.tick(now, NoPrice(), dict(CFG, components={}, h7_symbols=["XAUUSD"]), **paths,
+                    event_blocked=lambda x, t: (False, ""))
+        st = json.load(open(paths["state_path"]))
+        self.assertEqual([p["position_ticket"] for p in st["open"]], [555])
+        self.assertIsNone(st["open"][0]["fill_slippage"])
+        self.assertNotIn("error", [json.loads(l)["kind"] for l in open(paths["log_path"])])
+
+
 class TerminalIdentity(unittest.TestCase):
     def _run(self, login, env):
         tmp = tempfile.mkdtemp()

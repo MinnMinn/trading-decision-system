@@ -445,7 +445,7 @@ def _eod_breakout(st, kind, sym, now, cfg, bridge, balance, log_path, live_dir, 
             log("rejected", log_path, symbol=sym, component=kind, response=r)
             continue
         pos = {"key": key, "component": kind, "symbol": sym, "side": side, "position_ticket": r.get("ticket"),
-               "signal_close": ref, "fill_price": r.get("price"), "fill_slippage": (r.get("price", ref) - ref) * side,
+               "signal_close": ref, "fill_price": r.get("price"), "fill_slippage": _slippage(r.get("price"), ref, side),
                "stop": stop, "lots": lots, "filled_seen_at": _iso(now),
                "exit_due": _iso(exit_due), "risk_pct": cfg["risk_pct"], **_attribution(cfg)}
         st["open"].append(pos)
@@ -468,6 +468,16 @@ def _wrong_terminal(cfg, bridge):
     return None
 
 
+def _slippage(price, intended, side):
+    """Fill vs intended price in the trade's direction (+ = paid worse), or None when the bridge reported no usable price.
+    Never raises: it runs AFTER the order is placed, and an exception here would leave a live position out of the state,
+    so it would never get its time exit."""
+    try:
+        return (float(price) - intended) * side if price else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _attribution(cfg):
     return {"account": cfg.get("account"), "assignment": cfg.get("assignment"), "trading_system": cfg.get("trading_system")}
 
@@ -488,7 +498,7 @@ def _manage(st, now, cfg, bridge, log_path):
             before = p.get("close_before_rollover_minutes", cfg["close_before_rollover_minutes"])
             exit_due = min(now + BAR * p["h"], server_day_end(now) - datetime.timedelta(minutes=before))
             pos = dict(p, position_ticket=o.get("position_ticket"), fill_price=o.get("price"), filled_seen_at=_iso(now),
-                       exit_due=_iso(exit_due), fill_slippage=(o.get("price", p["edge"]) - p["edge"]) * p["side"])   # + = paid worse than the edge
+                       exit_due=_iso(exit_due), fill_slippage=_slippage(o.get("price"), p["edge"], p["side"]))
             st["open"].append(pos)
             st["done_keys"].append(p["key"])
             log("filled", log_path, **pos)
@@ -538,8 +548,10 @@ def status(account_id):
     print(f"{account_id}: {live['trading_system']}@{live['version']} ({live['id']})" if live else f"{account_id}: no live assignment")
     print(f"  pending {len(st['pending'])}, open {len(st['open'])}, fills {len(fills)}, exits {len(closed)}")
     if fills:
-        print(f"  mean fill slippage vs the intended price (price units, + = worse): "
-              f"{sum(r['fill_slippage'] for r in fills) / len(fills):.5f}")
+        slips = [r["fill_slippage"] for r in fills if r.get("fill_slippage") is not None]
+        if slips:
+            print(f"  mean fill slippage vs the intended price (price units, + = worse): {sum(slips) / len(slips):.5f} "
+                  f"(n={len(slips)} of {len(fills)} fills)")
 
 
 def executor_accounts():
