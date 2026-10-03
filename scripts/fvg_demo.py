@@ -181,48 +181,76 @@ def tick(now=None, bridge=None, cfg=None, state_path=STATE, log_path=LOG, live_d
         log("throttled", log_path, balance=balance, initial_balance=base, risk_pct=risk, configured=cfg["risk_pct"])
     cfg = dict(cfg, risk_pct=risk)
     for sym, h in cfg["components"].items():
-        s = closed_series(sym, now, live_dir)
-        if not s.T or now - (_parse(s.T[-1]) + BAR) > datetime.timedelta(minutes=cfg["max_bar_age_minutes"]):
-            log("wait", log_path, symbol=sym, reason="bars stale: no NEW entry (§20/§52)", last_bar=s.T[-1] if s.T else None)
-            continue
-        for g in new_gaps(s, sym, h):
-            if g[0] == "refused":
-                log("refused", log_path, symbol=sym, gap_time=g[2], reason=g[4])
-                continue
-            _, _, gap_time, side, edge, dist, sday = g
-            key = f"{sym}|{sday}|{side}"
-            gap_id = f"{sym}|{gap_time}|{side}"
-            st.setdefault("placed_gaps", [])
-            if key in st["done_keys"] or gap_id in st["placed_gaps"]:
-                continue        # one FILLED trade per (symbol, server day, side), as the research; siblings cancel on fill
-            blocked, why = event_blocked(sym, now)
-            if blocked:
-                log("blocked", log_path, symbol=sym, gap_time=gap_time, reason=why)
-                continue
-            info = bridge("symbol", sym)
-            stop = edge - side * dist
-            tp = edge + side * cfg["tp_stop_multiple"] * dist
-            lots = lots_for(info, base, cfg["risk_pct"], edge, stop)
-            if lots < float(info.get("volume_min", 0) or 0) or lots <= 0:
-                log("skip", log_path, symbol=sym, gap_time=gap_time, reason=f"lots {lots} below volume_min")
-                continue
-            d = int(info.get("digits", 2))
-            r = bridge("limit", sym, "buy" if side > 0 else "sell", f"{lots:g}", f"{edge:.{d}f}", f"{stop:.{d}f}",
-                       f"{tp:.{d}f}", f"fvg-{sym}-{gap_time[11:16]}")
-            if not r.get("ok"):
-                log("rejected", log_path, symbol=sym, gap_time=gap_time, response=r)
-                continue
-            expires = min(_parse(gap_time) + BAR * (1 + EC.FVG_TOUCH_BARS), server_day_end(_parse(gap_time)))
-            p = {"key": key, "symbol": sym, "h": h, "side": side, "ticket": r["ticket"], "edge": edge, "stop": stop,
-                 "lots": lots, "gap_time": gap_time, "placed_at": _iso(now), "expires_at": _iso(expires)}
-            st["pending"].append(p)
-            st["placed_gaps"].append(gap_id)
-            log("limit_placed", log_path, **p)
+        _isolated(log_path, sym, "E5", _fvg_component, st, sym, h, now, cfg, bridge, base, log_path, live_dir, event_blocked)
     for kind, key in (("H7", "h7_symbols"), ("G9", "g9_symbols")):
         for sym in cfg.get(key, []):
-            _eod_breakout(st, kind, sym, now, cfg, bridge, base, log_path, live_dir, event_blocked)
+            _isolated(log_path, sym, kind, _eod_breakout, st, kind, sym, now, cfg, bridge, base, log_path, live_dir,
+                      event_blocked)
     _write_state(st, state_path)
     return "ok"
+
+
+def _symbol_info(bridge, sym, log_path, component):
+    """The bridge's contract data for `sym`, or None (logged) when it lacks what sizing needs -- e.g. the EA does not know the
+    symbol under that name. Never sizes an order from a partial answer."""
+    info = bridge("symbol", sym)
+    need = ("tick_value", "tick_size", "volume_step", "volume_max")
+    if not isinstance(info, dict) or any(info.get(k) in (None, "") for k in need):
+        log("skip", log_path, symbol=sym, component=component, reason=f"no usable contract data from the bridge: {info}")
+        return None
+    return info
+
+
+def _isolated(log_path, sym, component, fn, *args):
+    """Run one symbol's component; an exception is logged and contained so one symbol never blocks the others or the
+    state write (the open positions' exits were already managed before any entry logic runs)."""
+    try:
+        fn(*args)
+    except Exception as e:      # noqa: BLE001 -- logged with its type; fails closed (no order on this symbol this tick)
+        log("error", log_path, symbol=sym, component=component, error=f"{type(e).__name__}: {e}")
+
+
+def _fvg_component(st, sym, h, now, cfg, bridge, base, log_path, live_dir, event_blocked):
+    """E5 FVG retrace on one symbol: a LIMIT at the untouched gap's near edge (see new_gaps)."""
+    s = closed_series(sym, now, live_dir)
+    if not s.T or now - (_parse(s.T[-1]) + BAR) > datetime.timedelta(minutes=cfg["max_bar_age_minutes"]):
+        log("wait", log_path, symbol=sym, reason="bars stale: no NEW entry (§20/§52)", last_bar=s.T[-1] if s.T else None)
+        return
+    for g in new_gaps(s, sym, h):
+        if g[0] == "refused":
+            log("refused", log_path, symbol=sym, gap_time=g[2], reason=g[4])
+            continue
+        _, _, gap_time, side, edge, dist, sday = g
+        key = f"{sym}|{sday}|{side}"
+        gap_id = f"{sym}|{gap_time}|{side}"
+        st.setdefault("placed_gaps", [])
+        if key in st["done_keys"] or gap_id in st["placed_gaps"]:
+            continue        # one FILLED trade per (symbol, server day, side), as the research; siblings cancel on fill
+        blocked, why = event_blocked(sym, now)
+        if blocked:
+            log("blocked", log_path, symbol=sym, gap_time=gap_time, reason=why)
+            continue
+        info = _symbol_info(bridge, sym, log_path, "E5")
+        if info is None:
+            continue
+        stop = edge - side * dist
+        tp = edge + side * cfg["tp_stop_multiple"] * dist
+        lots = lots_for(info, base, cfg["risk_pct"], edge, stop)
+        if lots < float(info.get("volume_min", 0) or 0) or lots <= 0:
+            log("skip", log_path, symbol=sym, gap_time=gap_time, reason=f"lots {lots} below volume_min")
+            continue
+        d = int(info.get("digits", 2))
+        r = bridge("limit", sym, "buy" if side > 0 else "sell", f"{lots:g}", f"{edge:.{d}f}", f"{stop:.{d}f}",
+                   f"{tp:.{d}f}", f"fvg-{sym}-{gap_time[11:16]}")
+        if not r.get("ok"):
+            log("rejected", log_path, symbol=sym, gap_time=gap_time, response=r)
+            continue
+        expires = min(_parse(gap_time) + BAR * (1 + EC.FVG_TOUCH_BARS), server_day_end(_parse(gap_time)))
+        p = {"key": key, "symbol": sym, "h": h, "side": side, "ticket": r["ticket"], "edge": edge, "stop": stop,
+             "lots": lots, "gap_time": gap_time, "placed_at": _iso(now), "expires_at": _iso(expires)}
+        st["pending"].append(p)
+        st["placed_gaps"].append(gap_id)
+        log("limit_placed", log_path, **p)
 
 
 def _eod_breakout(st, kind, sym, now, cfg, bridge, balance, log_path, live_dir, event_blocked):
@@ -257,7 +285,9 @@ def _eod_breakout(st, kind, sym, now, cfg, bridge, balance, log_path, live_dir, 
         nb = max(1, int((day_end - now).total_seconds() // 300))
         ref = s.C[ev["i"]]
         dist = 2.0 * sig * math.sqrt(nb) * ref
-        info = bridge("symbol", sym)
+        info = _symbol_info(bridge, sym, log_path, kind)
+        if info is None:
+            continue
         d = int(info.get("digits", 2))
         stop, tp = ref - side * dist, ref + side * cfg["tp_stop_multiple"] * dist
         lots = lots_for(info, balance, cfg["risk_pct"], ref, stop)

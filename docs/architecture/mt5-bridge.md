@@ -110,3 +110,15 @@ does not export 1m (SYSTEM-DESIGN.md §12 item 6). `1D` and `1W` stay as **conte
 never scanned. No CFD chart artifact exists yet; `scripts/local-eval-brief.py cfd-scalping` (and `cfd-day` /
 `cfd-swing`) already produces the Sonnet brief, though only `cfd-scalping` has a headless prompt pair in
 `integrations/headless/`, so it is the only CFD style whose local read actually runs.
+
+## Broker symbol spelling (FTMO-Demo, 2026-10-03)
+
+FTMO spells several CFDs with a `.cash` suffix (`US500.cash`, `US30.cash`, `US100.cash` = USTEC, `GER40.cash` = DE40, ...). The
+canonical names stay everywhere inside the system; the translation lives in ONE place, `scripts/broker_symbols.py`, read from the
+broker's own export `data/history/costs/ftmo/symbol-map.json`:
+
+- bridge readers (`scripts/research/fvg_forward.py live_path`) read `ohlcv.<broker name>.5m.json`;
+- `scripts/mt5-order-bridge.py` takes the canonical symbol, checks the execution allowlist on it, and sends the broker name to
+  the EA (`MT5_SYMBOL_MAP=<path>` for another terminal's map, `MT5_SYMBOL_MAP=none` for a terminal that spells canonically);
+- the EA's own allowlist must name the BROKER spelling: on FTMO set OrderBridge's input `InpAllowedSymbols` to
+  `XAUUSD,XAGUSD,US500.cash,US30.cash,US100.cash,GER40.cash,FRA40.cash,AUS200.cash` (EA Properties -> Inputs; no recompile).
