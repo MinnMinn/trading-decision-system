@@ -522,7 +522,8 @@ class TestFiles(unittest.TestCase):
         self.assertEqual(len(w["records"]), 21)
         self.assertEqual(w["records"][3], (0, 1003, bytes([3]) * 40))
         self.assertEqual(BS.decode_note(w["records"][-1][2]), ("GAP", {"cause": "TEST"}))
-        self.assertFalse(os.access(p, os.W_OK))
+        # mode bits, not os.access(): root may write any file, so access() says "writable" under root for a 0444 file
+        self.assertEqual(stat.S_IMODE(os.stat(p).st_mode) & 0o222, 0, "a closed recording must carry no write bit")
         with self.assertRaises(FileExistsError):
             BS.RecordingFile(p, {})  # O_EXCL: a closed file is never reopened for write
 
@@ -651,6 +652,7 @@ class TestStorageLocation(unittest.TestCase):
         r = subprocess.run(["git", "-C", ROOT, "check-ignore", "-q", "integrations/bookmap/dist/tds-h1-recorder.jar"])
         self.assertEqual(r.returncode, 0)
 
+    @unittest.skipUnless(os.name == "nt" and BP is not None, "backup privatises its root with Win32 ACLs (bookmap_pipe)")
     def test_backup_verifies_hashes_and_flags_a_bad_source(self):
         _b, cfg, _pin = make_env(self)
         rd = os.path.join(cfg["recordings_root"], "run1")

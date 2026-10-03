@@ -32,7 +32,34 @@ def _mod(name):
     return m
 
 
+# The 2026-09-27 criteria run enabled none of its 36 candidates (a valid outcome), so the real selection yields no row
+# and the page renders no table body -- every rendering assertion below would test an empty page. The ranking is about
+# HOW rows are ranked and shown, so it runs on a fixture selection whose enabled rows are the REAL candidate rows (same
+# stability sources, same (tf, method, cfg) keys). The real, empty case is checked separately below.
+import json as _json          # noqa: E402
+import tempfile as _tempfile  # noqa: E402
+_REAL_PILOT = TS.PILOT_PATH
+_SEL = _json.load(open(_REAL_PILOT, encoding="utf-8"))
+if not _SEL["setups"]:
+    _fh = _tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+    _json.dump(dict(_SEL, setups=_SEL.get("disabled") or []), _fh)
+    _fh.close()
+    TS.PILOT_PATH = _fh.name
+
 SR = _mod("system-ranking.py")
+
+
+class TheRealEmptySelection(unittest.TestCase):
+    def test_no_enabled_setup_means_no_row_and_no_invented_one(self):
+        saved = TS.PILOT_PATH
+        try:
+            TS.PILOT_PATH = _REAL_PILOT
+            if _SEL["setups"]:
+                self.skipTest("the real selection enables setups; covered by the classes below")
+            self.assertEqual(SR.rows(), [])
+            self.assertNotIn("best system", SR.render([]).lower())
+        finally:
+            TS.PILOT_PATH = saved
 
 
 class RowsCoverEverySelectedSetup(unittest.TestCase):
