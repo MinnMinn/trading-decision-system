@@ -3,10 +3,11 @@
 
     python3 scripts/import-fred-series.py --series DGS10 --root data/history/fred
 
-Point-in-time note (CLAUDE.md §8): FRED's DGS10 value for date D comes from the Federal Reserve H.15 release, "posted daily
-Monday through Friday at 4:15pm" (federalreserve.gov/releases/h15) -- after a 16:00 ET close and before 16:55 ET. A decision
-taken at a New York close must therefore use the value of the PREVIOUS business day at most; the reader enforces nothing, the
-research code that uses it must lag it (docs/plans/2026-10-03-edge-m1-month-end-preregistration.md). Missing days ('.') are
+Point-in-time note (CLAUDE.md §8): FRED's DGS10 `date` is the OBSERVATION date. The Federal Reserve H.15 release ("posted
+daily Monday through Friday at 4:15pm", federalreserve.gov/releases/h15) posts day d's value on the NEXT Board business day, so
+a decision at time t may use d only when that posting day is on or before t. The reader enforces nothing; the research code
+must apply the lag (scripts/research/edge_m1.py BoardCalendar; docs/plans/2026-10-03-edge-m1-month-end-preregistration.md
+[M1-A1]). Missing days ('.') are
 kept as null, never filled. Later revisions are not tracked (the vintage is the fetch time, recorded)."""
 import argparse
 import csv
@@ -38,7 +39,7 @@ def main():
     os.makedirs(a.root, exist_ok=True)
     doc = {"series": a.series, "_source": url, "_sha256_of_download": hashlib.sha256(blob).hexdigest(),
            "_fetched_at_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-           "_pit": "value for `date` is published ~16:15 ET that day (H.15); lag one business day for a 16:55 ET decision",
+           "_pit": "`date` is the observation date; H.15 posts it at 16:15 ET on the NEXT Board business day",
            "_importer": "scripts/import-fred-series.py", "rows": rows}
     p = os.path.join(a.root, f"{a.series}.json")
     json.dump(doc, open(p, "w"), indent=0)

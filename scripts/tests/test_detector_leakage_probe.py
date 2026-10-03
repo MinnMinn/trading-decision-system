@@ -2,7 +2,7 @@
 
 Why (docs/audits/2026-10-03-e5-lookahead-erratum.md §4): the E5 selection kept an earlier-formed gap touched LATER over a
 later gap already filled -- a choice that needs future bars -- and only E1 had a "truncate and re-detect" test. This probe
-runs every detector of the census, F3, F4, AMD and F6 on a seeded random-walk series and on prefixes of it, and requires
+runs every detector of the census, F3, F4, AMD, F6 and H7x on a seeded random-walk series and on prefixes of it, and requires
 that the events whose entry (and exit, when the detector fixes one) lies before the cut are IDENTICAL. Hand-built bars only.
 
 Run from scripts/tests, ONE module per invocation:  PYTHONPATH=.. python3 -W ignore -m unittest test_detector_leakage_probe
@@ -23,7 +23,7 @@ def _load(name):
     return m
 
 
-EC, F3, F4, AMD, F6 = (_load(n) for n in ("edge_census", "edge_f3", "edge_f4", "edge_amd", "edge_f6"))
+EC, F3, F4, AMD, F6, H7X = (_load(n) for n in ("edge_census", "edge_f3", "edge_f4", "edge_amd", "edge_f6", "edge_h7x"))
 UTC = datetime.timezone.utc
 
 
@@ -55,6 +55,7 @@ def detectors():
     d.update({f"F4:{k}": (v, "US500" if k == "G7_turn_of_month_long" else "XAUUSD") for k, v in F4.DETECTORS.items()})
     d.update({f"AMD:{k}": (v, "XAUUSD") for k, v in AMD.DETECTORS.items()})
     d["F6:events"] = (F6.events, "US500")
+    d.update({f"H7x:{k}": (v, "XAUUSD") for k, v in H7X.DETECTORS.items()})     # crypto rules on a UTC-day series
     return d
 
 

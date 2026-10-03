@@ -12,14 +12,23 @@
   2026
  ],
  "first": "2020-09-14T07:00:00Z",
- "last": "2026-09-30T23:00:00Z",
- "_bars": 52865,
+ "last": "2026-10-02T23:00:00Z",
+ "_bars": 53033,
  "_source": "binance_um_public_archive",
  "_venue": "Binance USDT-M perpetual",
+ "market_type": "PERPETUAL",
  "_price": "last-trade klines (not bid/ask); charge taker fee + an explicit spread/slippage assumption",
  "_volume": "volume / taker_buy_volume in base asset: real traded and aggressor-buy volume",
- "_fetched_at_utc": "2026-10-03T15:27:49Z",
- "_months_complete_only": true,
+ "_fetched_at_utc": "2026-10-03T17:28:40Z",
+ "_months_complete_only": false,
+ "_daily_month": "2026-10",
+ "_filled_holes_from_daily": [
+  "2022-02-26",
+  "2022-02-27",
+  "2022-02-28",
+  "2022-04-01",
+  "2022-04-02"
+ ],
  "_sources": [
   {
    "url": "https://data.binance.vision/data/futures/um/monthly/klines/SOLUSDT/1h/SOLUSDT-1h-2020-09.zip",
@@ -312,6 +321,39 @@
   {
    "url": "https://data.binance.vision/data/futures/um/monthly/klines/SOLUSDT/1h/SOLUSDT-1h-2026-09.zip",
    "sha256": "e57f44b7df1f4269a06395c161d3618d9bc3d56e623825fc77c615d713a19263"
+  },
+  {
+   "url": "https://data.binance.vision/data/futures/um/daily/klines/SOLUSDT/1h/SOLUSDT-1h-2026-10-01.zip",
+   "sha256": "10884403e13102fd3b5791114db42209d8cf897a2052105bf146fc4b2ecd1099"
+  },
+  {
+   "url": "https://data.binance.vision/data/futures/um/daily/klines/SOLUSDT/1h/SOLUSDT-1h-2026-10-02.zip",
+   "sha256": "4200508d942bc5035a4119ec03b6f55c020a864c94e638646ce36f22ed3868ad"
+  },
+  {
+   "url": "https://data.binance.vision/data/futures/um/daily/klines/SOLUSDT/1h/SOLUSDT-1h-2022-02-26.zip",
+   "sha256": "24fbcb67b854564ee8f0d14028b277c272083c59ad2fd8bcbc8d496712fb57dc",
+   "filled_hole": true
+  },
+  {
+   "url": "https://data.binance.vision/data/futures/um/daily/klines/SOLUSDT/1h/SOLUSDT-1h-2022-02-27.zip",
+   "sha256": "4a3f57259893da63acf2978799f3fb28bc8130ca95f23fe08ed11eaaff1840b1",
+   "filled_hole": true
+  },
+  {
+   "url": "https://data.binance.vision/data/futures/um/daily/klines/SOLUSDT/1h/SOLUSDT-1h-2022-02-28.zip",
+   "sha256": "ea4f7d6d0dbca651066ef3e361e5457b1eba91ac077a942f48344a174abee40e",
+   "filled_hole": true
+  },
+  {
+   "url": "https://data.binance.vision/data/futures/um/daily/klines/SOLUSDT/1h/SOLUSDT-1h-2022-04-01.zip",
+   "sha256": "186d8581e36ce03557fc0e517c2923a0c7cb6f8e5ecb47b9e7086f6bcefd7971",
+   "filled_hole": true
+  },
+  {
+   "url": "https://data.binance.vision/data/futures/um/daily/klines/SOLUSDT/1h/SOLUSDT-1h-2022-04-02.zip",
+   "sha256": "9fe6fc49767488828f44db95d52412dcefd2b2b28924a92ab5461590fa80844c",
+   "filled_hole": true
   }
  ],
  "_importer": "scripts/import-binance-um-history.py"

@@ -12,14 +12,17 @@
   2026
  ],
  "first": "2020-01-01T00:00:00Z",
- "last": "2026-09-30T23:00:00Z",
- "_bars": 59160,
+ "last": "2026-10-02T23:00:00Z",
+ "_bars": 59208,
  "_source": "binance_um_public_archive",
  "_venue": "Binance USDT-M perpetual",
+ "market_type": "PERPETUAL",
  "_price": "last-trade klines (not bid/ask); charge taker fee + an explicit spread/slippage assumption",
  "_volume": "volume / taker_buy_volume in base asset: real traded and aggressor-buy volume",
- "_fetched_at_utc": "2026-10-03T15:22:51Z",
- "_months_complete_only": true,
+ "_fetched_at_utc": "2026-10-03T17:19:59Z",
+ "_months_complete_only": false,
+ "_daily_month": "2026-10",
+ "_filled_holes_from_daily": [],
  "_sources": [
   {
    "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2020-01.zip",
@@ -344,6 +347,14 @@
   {
    "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2026-09.zip",
    "sha256": "07ab960882feb6d3120673a851f2a654c4c3f31f3a74d1f3fc4b0351a8ee1483"
+  },
+  {
+   "url": "https://data.binance.vision/data/futures/um/daily/klines/BTCUSDT/1h/BTCUSDT-1h-2026-10-01.zip",
+   "sha256": "5634ccacd24313f214a8cf4b4a44da573d022241b0e051ca3b61c23e8c4eb635"
+  },
+  {
+   "url": "https://data.binance.vision/data/futures/um/daily/klines/BTCUSDT/1h/BTCUSDT-1h-2026-10-02.zip",
+   "sha256": "eecba72424982fde9db2d92d91623cb65e6f16a5d9652b6c6992887515bfb897"
   }
  ],
  "_importer": "scripts/import-binance-um-history.py"

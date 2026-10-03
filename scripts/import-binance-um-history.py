@@ -144,6 +144,37 @@ def import_klines(sym, interval, root, last_month, market="um", first_month=FIRS
             print(f"{sym} {interval} {url.rsplit('/', 1)[-1]}: ok", flush=True)
         if not n:
             raise Refused(f"{sym} {interval}: nothing in the archive")
+        # Whole UTC days missing from a MONTHLY file are sometimes published as DAILY files (SOLUSDT perp 2022-02-26..28 and
+        # 2022-04-01..02): fill every whole-day hole from the daily archive when a daily file exists, checksum-verified.
+        have = {r["time"][:10] for rows in by_year.values() for r in rows}
+        first_day = datetime.date.fromisoformat(min(have))
+        last_day = datetime.date.fromisoformat(max(have))
+        d, filled = first_day, []
+        base_daily = BASES[market].replace("/monthly", "/daily")
+        while d <= last_day:
+            if d.isoformat() not in have:
+                url = f"{base_daily}/klines/{sym}/{interval}/{sym}-{interval}-{d.isoformat()}.zip"
+                got = fetch_verified(url)
+                if got is not None:
+                    blob, sha = got
+                    sources.append({"url": url, "sha256": sha, "filled_hole": True})
+                    for r in _rows(blob):
+                        t = _ms(r[0])
+                        y = int(_iso(t)[:4])
+                        by_year.setdefault(y, []).append({
+                            "time": _iso(t), "open": float(r[1]), "high": float(r[2]), "low": float(r[3]),
+                            "close": float(r[4]), "volume": float(r[5]), "quote_volume": float(r[7]), "trades": int(r[8]),
+                            "taker_buy_volume": float(r[9]), "taker_buy_quote_volume": float(r[10])})
+                        n += 1
+                    filled.append(d.isoformat())
+            d += datetime.timedelta(days=1)
+        if filled:
+            for y in by_year:
+                by_year[y].sort(key=lambda r: r["time"])
+                ts = [r["time"] for r in by_year[y]]
+                if len(ts) != len(set(ts)):
+                    raise Refused(f"{sym} {interval}: duplicate bars after filling holes {filled}")
+            print(f"{sym} {interval}: filled whole-day holes from daily files: {filled}", flush=True)
         for y, rows in sorted(by_year.items()):
             with gzip.open(os.path.join(tmp, f"{y}.json.gz"), "wt", encoding="utf-8") as fh:
                 json.dump({"year": y, "candles": rows}, fh, separators=(",", ":"))
@@ -156,7 +187,8 @@ def import_klines(sym, interval, root, last_month, market="um", first_month=FIRS
                  "_price": "last-trade klines (not bid/ask); charge taker fee + an explicit spread/slippage assumption",
                  "_volume": "volume / taker_buy_volume in base asset: real traded and aggressor-buy volume",
                  "_fetched_at_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                 "_months_complete_only": daily_month is None, "_daily_month": daily_month, "_sources": sources,
+                 "_months_complete_only": daily_month is None, "_daily_month": daily_month,
+                 "_filled_holes_from_daily": filled, "_sources": sources,
                  "_importer": "scripts/import-binance-um-history.py"}
         with open(os.path.join(tmp, "index.json"), "w") as fh:
             json.dump(index, fh, indent=1)
@@ -169,7 +201,7 @@ def import_klines(sym, interval, root, last_month, market="um", first_month=FIRS
             shutil.rmtree(tmp)
 
 
-def import_funding(sym, root, last_month):
+def import_funding(sym, root, last_month, tail_end=None):
     rows, sources = [], []
     for mo in months("2019-09", last_month):
         url = f"{BASE}/fundingRate/{sym}/{sym}-fundingRate-{mo}.zip"
@@ -180,9 +212,24 @@ def import_funding(sym, root, last_month):
         sources.append({"url": url, "sha256": sha})
         for r in _rows(blob):
             rows.append({"time": _iso(r[0]), "interval_hours": int(r[1]) if r[1] else None, "rate": float(r[2])})
+    if tail_end:
+        last_t = max(r["time"] for r in rows) if rows else "2019-09-01T00:00:00Z"
+        start = int(datetime.datetime.fromisoformat(last_t.replace("Z", "+00:00")).timestamp() * 1000) + 60_000  # REST stamps carry ms
+        end = int(datetime.datetime.fromisoformat(tail_end.replace("Z", "+00:00")).timestamp() * 1000)
+        url = f"https://fapi.binance.com/fapi/v1/fundingRate?symbol={sym}&startTime={start}&endTime={end - 1}&limit=1000"
+        page = json.loads(_get(url))
+        for r in page:
+            rows.append({"time": _iso(r["fundingTime"]), "interval_hours": None, "rate": float(r["fundingRate"]),
+                         "source": "rest_tail"})
+        sources.append({"url": url, "rest_tail_rows": len(page)})
     rows.sort(key=lambda x: x["time"])
     if any(a["time"] == b["time"] for a, b in zip(rows, rows[1:])):
         raise Refused(f"{sym}: duplicate funding settlement times")
+    for a, b in zip(rows, rows[1:]):                    # REST rows carry no interval: the gap since the previous settlement
+        if b.get("interval_hours") is None:
+            ta = datetime.datetime.fromisoformat(a["time"].replace("Z", "+00:00"))
+            tb = datetime.datetime.fromisoformat(b["time"].replace("Z", "+00:00"))
+            b["interval_hours"] = round((tb - ta).total_seconds() / 3600)
     doc = {"symbol": sym, "_source": "binance_um_public_archive fundingRate", "_sources": sources,
            "_meaning": "rate charged at `time` (settlement) on the position notional: longs pay a positive rate",
            "_fetched_at_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -232,6 +279,7 @@ def main():
     ap.add_argument("--first-month", default=FIRST_MONTH)
     ap.add_argument("--rest-funding", action="store_true", help="also fetch pre-2020 funding from the REST endpoint")
     ap.add_argument("--daily-month", help="YYYY-MM: append that month from the archive's DAILY files (after --end-month)")
+    ap.add_argument("--funding-tail-end", help="ISO time: append REST funding after the last archived month, up to it")
     ap.add_argument("--end-month", help="last COMPLETE month to import (default: the month before the current one)")
     a = ap.parse_args()
     today = datetime.date.today()
@@ -246,7 +294,7 @@ def main():
             for iv in [x for x in a.intervals.split(",") if x]:
                 import_klines(sym, iv, a.root, last, a.market, a.first_month, a.daily_month)
             if a.funding and a.market == "um":
-                import_funding(sym, a.root, last)
+                import_funding(sym, a.root, last, a.funding_tail_end)
             if a.rest_funding:
                 import_funding_rest(sym, a.root)
     except Refused as e:

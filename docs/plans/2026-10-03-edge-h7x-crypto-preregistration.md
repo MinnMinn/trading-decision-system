@@ -18,6 +18,20 @@ exist on BTC / ETH / SOL? The parameters come from gold, not from crypto data: a
 - Point-in-time completeness: day D is excluded only when D-1 or the MOM20 / range lookback is incomplete (fewer than 288
   bars), never because of bars missing AFTER the signal (then: exit at the last available open before 23:55).
 
+## Amendment [H7x-A1] (2026-10-04, before any read, outcome-blind)
+
+(1) §1 "no funding" was WRONG: Binance USDT-M settles funding at 00/08/16 UTC (and every 2 h on some SOL days), so an intraday
+trade crosses settlements. A perp-era trade (entry >= 2020-01-01T00:00Z) pays side x rate_tau, a fraction of the entry
+notional (longs pay a positive rate), for every settlement tau in `data/history/binance_um/funding.{SYM}.json.gz` with
+entry_time <= tau < exit_time. cost = 12 bp + funding; stress = 14 bp + funding; spot era: no funding. Owner sizing pays the
+settlements before its stop fill; the MOM20 comparator pays its own slot-matched funding; a read refuses if any perp-era
+trade lacks funding coverage. (2) 2020-01-01, the spot -> perp switch day, is not eligible; MOM20 and sigma for the following
+~20 days mix venues (disclosed and counted). (3) A complete day has exactly 288 distinct on-grid 5m bars. T1, T2 and BH are
+unchanged. Report-only additions: a leave-own-day-out placebo; trade rows in the read JSON.
+§6 note: the "138 per coin-year" figure was counted on 1H closes; the rule fires on the first 5m close. Outcome-blind dry-run
+5m counts: discovery H7x 1,377 / G9x 2,010; confirmation 1,258 / 1,901; exposed 1,263 / 1,926 (pooled).
+Found by an adversarial reviewer of the implementation (design workflow `implement-c1-m1-h7x`); the error was mine.
+
 ## 2. Data and periods
 
 - BTCUSDT, ETHUSDT: Binance SPOT 5m 2017-08-17 -> 2019-12-31 (`data/history/binance_spot`), PERP 5m from 2020-01-01

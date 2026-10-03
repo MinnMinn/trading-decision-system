@@ -99,3 +99,31 @@ joint pass ~0.03. The test can confirm an edge near the published size; it canno
 - Earlier repo crypto work: ICT / Wyckoff on spot 2022-08 -> (research-ledger `crypto-history-2023-2026`, development); a
   different mechanism, same bars.
 - The 2021-2022 bull and bear markets are public knowledge.
+
+## Amendment [C1-A1] (2026-10-04, before any read, outcome-blind)
+
+Implementation choices where §2-§7 left room, fixed by the implementer and two adversarial reviewers (design workflow
+`implement-c1-m1-h7x`) BEFORE any C1 outcome existed; they are also written into every read's meta
+(`scripts/research/edge_c1.py` RESOLVED_AMBIGUITIES). Data: the SOLUSDT perp 5m days 2022-02-26..28 and 2022-04-01..02, absent
+from the archive's monthly files, are filled from its daily files (checksum-verified); the EXPOSED read's END mark (the
+2026-10-01 00:05 bar) and the 2026-10-01 00:00 settlement come from the archive's daily files and the REST funding endpoint.
+C1's point-in-time probe is the `PointInTime` class of scripts/tests/test_edge_c1.py (truncating closes never changes a past
+signal, stop, sigma, eligibility, target or held weight; perturbing every price after a read's END leaves that read's JSON
+identical): C1's decisions are daily weights, not bar events, so the shared event probe does not apply.
+
+1. decide/held_at: W_held = the weight set at the coin's last trade (not the price-drifted exposure since); the 20 % rule compares W_target with it.
+2. coin_signals: a missing spot 1d close = no state update (positions and stops carry); sigma's log returns are taken between consecutive AVAILABLE closes, sample SD (n - 1); a sub-model whose n closes do not exist yet stays flat; entry needs C_t == Up exactly.
+3. build/coverage: eligible from the first fill day with 360 prior spot closes (sigma then always defined); the dates must equal ELIGIBLE_FROM (§3) and the window's first day must be a grid day, or the read refuses.
+4. simulate: benchmark r_B = equal-capital SUB-ACCOUNTS re-split on the sleeve's re-split days (first day, first UTC day of a month, a coin joining) and drifting with each coin's P1/P0 between them; N6's funded benchmark the same with P1/P0 - F/P0.
+5. simulate: positions open at the window's start are placed at an equal split of capital 1.0 without a fee; units = held weight x the coin's capital BEFORE the fee / P0, the fee then leaves the coin's cash.
+6. simulate: the one interval spanning the spot -> perp switch books the spot/perp basis in sleeve and benchmark; no switch trade is charged.
+7. coverage/price_at: every fill (every eligible day from the coin's eligibility) and the END mark need a 5m bar OPENING at 00:05:00 UTC; one missing -> the read refuses (never a delayed fill).
+8. funding_mark: P_tau = the open of the 5m bar starting at tau; with no bar there, the close of the last bar ending at or before tau (never a later price), counted in meta.funding_mark_lookups.
+9. load_coin/settlements_in/coverage: REST rows before the archive, the archive from its first month (the archive wins on an equal stamp); before the first realized settlement the 0.01 %/8 h proxy at 00/08/16 UTC; the read refuses on a step > 8 h between realized settlements in the window or without the 00:00 settlement after the last day.
+10. regress: one-sided p of the Newey-West t against Student-t with n - 2 df; fewer than 12 observations -> no test.
+11. T2-T4: the coin's sub-account net daily return regressed on its own P1/P0 - 1; each read's thresholds are T1's.
+12. placebo: the shift acts on each coin's list of eligible window days (L_c of them); L_c = L -> k; a coin joining inside the window -> k_c = 60 + (k - 60) mod (L_c - 119), so 60 <= k_c <= L_c - 60; L_c < 120 -> unshifted and its own p_P is None; the carried-in weight of a shifted coin = its first eligible day's lev x the circular predecessor's mask.
+13. p_placebo: a draw whose alpha is undefined counts as alpha_k >= alpha_obs (conservative).
+14. regime: 'alpha from <= 3 months' = the 3 best calendar months' summed contribution (1/N) sum (y - beta x) / alpha.
+15. N2: the target is scaled so the coin's open risk <= 1 % and the total <= 3 % (_n2_scales), and the HELD weight is capped at the same limits (_n2_cap: a cap forces a trade inside the 20 % band).
+16. single-coin promotion: T1's label VALIDATED and the coin's own read pass in all three reads.

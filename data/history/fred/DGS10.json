@@ -3,7 +3,7 @@
 "_source": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10",
 "_sha256_of_download": "107288572fcfbf2709617bec1e6c10b5e4f6c13b33bc4b5f3e6ef5c7ba5df7c5",
 "_fetched_at_utc": "2026-10-03T16:05:28Z",
-"_pit": "value for `date` is published ~16:15 ET that day (H.15); lag one business day for a 16:55 ET decision",
+"_pit": "FRED's `date` is the OBSERVATION date. H.15 posts day d's value at 16:15 ET on the NEXT Board business day (federalreserve.gov/releases/h15); a decision may use d only when that posting day is on or before it (see scripts/research/edge_m1.py BoardCalendar). Corrected 2026-10-04: the earlier note said 'that day'.",
 "_importer": "scripts/import-fred-series.py",
 "rows": [
 {
