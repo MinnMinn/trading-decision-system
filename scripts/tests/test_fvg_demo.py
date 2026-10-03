@@ -263,6 +263,28 @@ class V2(unittest.TestCase):
         self.assertEqual(st2["initial_balance"], 80000)                     # first balance seen becomes the reference
         self.assertEqual(FD.sizing(cfg2, st2, 75000)[0], 0.0025)
 
+    def test_the_stop_width_comes_from_the_version_and_the_risk_at_the_stop_stays_1pct(self):
+        """fvg-book v4 (owner 2026-10-04): stop_k 1.4 instead of 2.0 -> the stop is 0.7x as far, the position ~1/0.7x as big,
+        the loss AT the stop the same 1 %; absent stop_k keeps every earlier version's 2.0."""
+        base = dict(CFG, components={}, h7_symbols=[], g9_symbols=["XAUUSD"])
+        b2, s, p2 = self._run(base)
+        b14, _s, p14 = self._run(dict(base, stop_k={"G9|XAUUSD": 1.4}))
+        (m2,), (m14,) = [c for c in b2.calls if c[0] == "market"], [c for c in b14.calls if c[0] == "market"]
+        ref = s.C[-1]
+        self.assertAlmostEqual((ref - float(m14[4])) / (ref - float(m2[4])), 0.7, places=2)
+        self.assertAlmostEqual(float(m14[3]) * (ref - float(m14[4])), float(m2[3]) * (ref - float(m2[4])),
+                               delta=0.01 * float(m2[3]) * (ref - float(m2[4])) + 0.01 * (ref - float(m14[4])))
+        self.assertAlmostEqual((float(m14[5]) - ref) / (ref - float(m14[4])), base["tp_stop_multiple"], places=2)
+        filled = [json.loads(l) for l in open(p14["log_path"]) if json.loads(l)["kind"] == "filled"]
+        self.assertEqual(filled[0]["stop_k"], 1.4)
+        self.assertEqual([json.loads(l) for l in open(p2["log_path"]) if json.loads(l)["kind"] == "filled"][0]["stop_k"], 2.0)
+
+    def test_a_stop_k_for_another_component_does_not_leak(self):
+        base = dict(CFG, components={}, h7_symbols=[], g9_symbols=["XAUUSD"])
+        b2, _s, _p = self._run(base)
+        bx, _s, _p = self._run(dict(base, stop_k={"H7|XAUUSD": 1.0, "G9|XAGUSD": 1.0}))
+        self.assertEqual([c for c in b2.calls if c[0] == "market"], [c for c in bx.calls if c[0] == "market"])
+
     def test_throttled_lots_are_smaller(self):
         info = {"tick_value": 1.0, "tick_size": 0.01, "volume_step": 0.01, "volume_max": 50}
         full = FD.lots_for(info, 100000, 0.01, 2000.0, 1990.0)
@@ -284,6 +306,24 @@ class Registry(unittest.TestCase):
                             FD.R.assignment("asg-0002"))
         self.assertEqual({k: cfg[k] for k in self.LEGACY_V2}, self.LEGACY_V2)
         self.assertEqual((cfg["trading_system"], cfg["assignment"], cfg["account"]), ("fvg-book@v2", "asg-0002", "ftmo-demo-01"))
+
+    def test_v4_tightens_the_stop_and_keeps_the_take_profit_distance(self):
+        acc = FD.R.account("ftmo-demo-01")
+        v3 = FD.config_for(FD.R.TS.book("fvg-book", "v3"), acc)
+        v4 = FD.config_for(FD.R.TS.book("fvg-book", "v4"), acc)
+        self.assertEqual(v3["stop_k"], {"H7|XAUUSD": 2.0, "G9|XAUUSD": 2.0})
+        self.assertEqual(v4["stop_k"], {"H7|XAUUSD": 1.4, "G9|XAUUSD": 1.4})
+        self.assertAlmostEqual(v4["stop_k"]["H7|XAUUSD"] * v4["tp_stop_multiple"],
+                               v3["stop_k"]["H7|XAUUSD"] * v3["tp_stop_multiple"], delta=0.25)   # TP ~10 sigma x sqrt(bars)
+        same = ("h7_symbols", "g9_symbols", "risk_pct", "throttle", "components", "max_bar_age_minutes",
+                "close_before_rollover_minutes")
+        self.assertEqual({k: v3[k] for k in same}, {k: v4[k] for k in same})
+
+    def test_an_implausible_stop_k_is_refused(self):
+        for k in (0.0, 0.3, 4.5):
+            with self.assertRaises(ValueError):
+                FD._stop_k({"setup": "H7", "instrument": "XAUUSD", "params": {"stop_k": k}})
+        self.assertEqual(FD._stop_k({"setup": "H7", "instrument": "XAUUSD", "params": {}}), 2.0)
 
     def test_v1_had_no_g9_and_no_throttle(self):
         cfg = FD.config_for(FD.R.system_of(FD.R.assignment("asg-0001")), FD.R.account("ftmo-demo-01"))

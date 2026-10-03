@@ -27,21 +27,23 @@
     },
     "H7": {
       "methodology": "intraday_trend",
-      "version": "1",
-      "what": "MARKET entry at the bar after the first close beyond the previous server day's high (low) with the 20-day momentum; stop 2 sigma x sqrt(bars to the rollover); closed before the rollover.",
+      "version": "2",
+      "what": "MARKET entry at the bar after the first close beyond the previous server day's high (low) with the 20-day momentum; stop stop_k sigma x sqrt(bars to the rollover) (param; 2.0 when absent = version 1); closed before the rollover.",
       "rule_ref": "scripts/research/edge_f3.py ev_breakout_trend",
-      "params": [],
+      "params": ["stop_k"],
+      "_params_why": "stop_k = the protective stop in sigma_5m x sqrt(bars to the rollover); absent = 2.0 (version 1, every book version before fvg-book v4). Version 2 (2026-10-04) = the stop-width variant: same entries, its own evidence (A1, docs/audits/2026-10-03-vol-schedule.md, rated 'no (tail)' at the pre-registered 1.2 % gap tolerance; PROPOSED under the owner's 1.5 % tolerance, docs/audits/2026-10-04-a1-under-owner-tolerance.md). Range checked at registry load (scripts/trading_system.py BOOK_PARAM_RANGES).",
       "evidence": {"XAUUSD": "VALIDATED"},
-      "evidence_ref": "docs/audits/2026-10-02-edge-f3.md"
+      "evidence_ref": "docs/audits/2026-10-02-edge-f3.md (entries, stop 2.0); stop_k 1.4: docs/audits/2026-10-04-a1-under-owner-tolerance.md"
     },
     "G9": {
       "methodology": "intraday_trend",
-      "version": "1",
-      "what": "MARKET entry at the bar after the first close beyond the open +/- 0.5 x the previous dense day's range; stop 2 sigma x sqrt(bars to the rollover); closed before the rollover.",
+      "version": "2",
+      "what": "MARKET entry at the bar after the first close beyond the open +/- 0.5 x the previous dense day's range; stop stop_k sigma x sqrt(bars to the rollover) (param; 2.0 when absent = version 1); closed before the rollover.",
       "rule_ref": "scripts/research/edge_f4.py ev_vol_breakout",
-      "params": [],
+      "params": ["stop_k"],
+      "_params_why": "as H7: stop_k in sigma_5m x sqrt(bars to the rollover), absent = 2.0 (version 1); version 2 = the stop-width variant (A1).",
       "evidence": {"XAUUSD": "VALIDATED", "XAGUSD": "WATCH"},
-      "evidence_ref": "docs/audits/2026-10-02-edge-f4.md, docs/audits/2026-10-02-pass-policy.md"
+      "evidence_ref": "docs/audits/2026-10-02-edge-f4.md, docs/audits/2026-10-02-pass-policy.md (entries, stop 2.0); stop_k 1.4 on XAUUSD: docs/audits/2026-10-04-a1-under-owner-tolerance.md"
     }
   }
 }

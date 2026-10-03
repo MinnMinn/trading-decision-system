@@ -119,7 +119,7 @@ def ev_key(e):
 
 
 class Registration(unittest.TestCase):
-    def test_parameters_are_golds_and_costs_are_preregistered(self):
+    def test_parameters_are_the_xau_rules_and_costs_are_preregistered(self):
         self.assertEqual((H.MOM_DAYS, F3.MOM_DAYS, H.VOL_DAYS), (20, 20, 20))
         self.assertEqual((H.VB_K, F4.VB_K), (0.5, 0.5))
         self.assertAlmostEqual(H.COST_RT, 0.0012)
@@ -694,12 +694,12 @@ class Cli(unittest.TestCase):
 
     def test_the_guard_refuses_uncommitted_or_dirty_code_before_touching_data(self):
         out = os.path.join(H.ROOT, H.CANONICAL_OUT.format(read="discovery"))
-        self.assertFalse(os.path.exists(out))
+        before = open(out, "rb").read() if os.path.exists(out) else None      # the committed read exists since 2026-10-03
         for git in (FakeGit(untracked={H.SCRIPT}), FakeGit(dirty={H.PREREG}), FakeGit(dirty={"scripts/research/book_sim.py"}),
                     FakeGit(untracked={H.TESTS_FILE})):
             with self.guarded(git), self.assertRaises(SystemExit):
                 H.run("discovery", out, loader=boom, book=self.book, funding_loader=boom)
-        self.assertFalse(os.path.exists(out))
+        self.assertEqual(open(out, "rb").read() if os.path.exists(out) else None, before)
 
     def test_the_guard_refuses_a_non_canonical_or_already_read_out_path(self):
         with self.guarded(FakeGit()), self.assertRaises(SystemExit):

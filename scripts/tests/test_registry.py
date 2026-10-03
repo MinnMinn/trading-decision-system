@@ -182,6 +182,17 @@ class BookRefusals(unittest.TestCase):
     def test_a_duplicate_component(self):
         self._refuses(lambda v: v["components"].append(dict(v["components"][0])), "twice")
 
+    def test_an_implausible_stop_k_is_refused_at_load(self):
+        for k in (0.3, 14, "1.4", True):
+            self._refuses(lambda v, k=k: v["components"][-1]["params"].update(stop_k=k), "stop_k")
+
+    def test_a_param_the_setup_does_not_declare_is_refused(self):
+        setups = R.validate_setups(json.load(open(R.SETUPS_PATH)))
+        bad = {"status": "DRAFT", "components": [{"setup": "E5", "instrument": "XAUUSD", "params": {"stop_k": 1.4}}]}
+        with self.assertRaises(R.RegistryError) as cm:
+            R._components_ok("ftmo-demo-01", R.account("ftmo-demo-01"), bad, setups, "test")
+        self.assertIn("does not declare", str(cm.exception))
+
 
 def _as_of(doc, iso):
     """The registry as it stood at `iso`: assignments that had started by then, the then-live row's end cleared. The real

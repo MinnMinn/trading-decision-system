@@ -56,6 +56,9 @@ BOOK_STATUSES = ("DRAFT", "APPROVED", "RETIRED")
 BOOK_THROTTLES = ("none", "dd3")
 BOOK_SIZING = ("initial_balance",)
 BOOK_EXECUTION_KEYS = ("max_bar_age_minutes", "close_before_rollover_minutes", "tp_stop_multiple")
+#: Plausible values of a component's numeric params, checked when the registry loads (so a bad version is refused at import /
+#: switch time, never at an executor tick). stop_k = the H7 / G9 protective stop in sigma_5m x sqrt(bars to the rollover).
+BOOK_PARAM_RANGES = {"stop_k": (0.5, 4.0)}
 # The fields of a book version that DECIDE trades. Everything else on the version (status, approval, the digest
 # itself, `_why` notes) is metadata and may change without a new version.
 BOOK_CONTENT_KEYS = ("dependency_profile", "components", "risk", "execution")
@@ -248,6 +251,10 @@ def _validate_books(books, profiles, path):
             for c in comps:
                 if not c.get("setup") or not c.get("instrument") or not isinstance(c.get("params"), dict):
                     raise RegistryError(f"{where}: a component needs setup, instrument and params: {c}")
+                for pk, (lo, hi) in BOOK_PARAM_RANGES.items():
+                    pv = c["params"].get(pk)
+                    if pk in c["params"] and (isinstance(pv, bool) or not isinstance(pv, (int, float)) or not lo <= pv <= hi):
+                        raise RegistryError(f"{where}: component {c['setup']}/{c['instrument']} {pk} {pv!r} is outside [{lo}, {hi}]")
                 key = (c["setup"], c["instrument"])
                 if key in seen:
                     raise RegistryError(f"{where}: component {key} is listed twice")

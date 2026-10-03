@@ -74,10 +74,21 @@
       "trading_system": "fvg-book",
       "version": "v3",
       "effective_from": "2026-10-03T15:10:00Z",
-      "ended_at": null,
+      "ended_at": "2026-10-03T18:10:00Z",
       "open_position_policy": "DRAIN",
       "requested_by": "accounts.py switch",
       "reason": "Owner 2026-10-03 'Demo chạy v3 (H7 + G9)': E5 removed, its research selection was look-ahead (see the E5 look-ahead erratum of 2026-10-03 in docs/audits). DRAIN = owner default; no position or pending order was open at the switch (Saturday)."
+    },
+    {
+      "id": "asg-0004",
+      "account": "ftmo-demo-01",
+      "trading_system": "fvg-book",
+      "version": "v4",
+      "effective_from": "2026-10-03T18:10:00Z",
+      "ended_at": null,
+      "open_position_policy": "DRAIN",
+      "requested_by": "accounts.py switch",
+      "reason": "owner 2026-10-04 gap tolerance about 1.5 pct twice a year selects A1 policy 1.4/1.4 (stop_k 1.4 on H7 and G9 gold); demo only"
     }
   ],
   "_assignments_why": "Append-only history: a switch ENDS the current row (sets `ended_at`) and appends a new one; no other field of an existing row is ever edited, so every order can be traced to the version that opened it. At most one row per account is live at any instant (effective_from <= t < ended_at). A row with effective_from in the future is PENDING until then. Demo accounts are switched with `python3 scripts/accounts.py switch`; an account with real_money=true is only switched by a reviewed PR (CLAUDE.md §41, §51)."

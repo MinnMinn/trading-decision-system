@@ -435,3 +435,17 @@ Context: docs/plans/2026-10-03-reframes.md (owner summary), docs/audits/2026-10-
    of exchange rates instead of one number.
 4. **Forex stays parked for now.** The owner wants effective methods for **crypto and CFD first**.
 5. The debate with "Khám phá hệ thống FTMO" is closed (no open disagreement); the session continues independently.
+
+## 2026-10-04: gap tolerance and fvg-book v4 (owner, in chat; binding)
+
+1. **Gap tolerance: "Khoảng 1,5%, 2 lần trong 1 năm"** -- a single trade may lose about 1.5 % of the balance (a gap through
+   the stop), up to twice a year. It replaces the 1.2 % this session had assumed in A1 / A3. It was set after the results
+   were shown, so it is an informed owner choice, not a pre-registered pass (docs/audits/2026-10-04-a1-under-owner-tolerance.md).
+2. Under it the recommended policy applies: **fvg-book v4 = v3 (H7 + G9 XAUUSD, 1 % at the stop, dd3) with the protective
+   stop at 1.4 instead of 2.0 sigma_5m x sqrt(bars to the rollover)** (A1 policy 1.4/1.4; worst historical trade 1.39 %).
+   Applied: `stop_k` param on setups H7 / G9 (absent = 2.0), `fvg-book` v4 APPROVED (tp_stop_multiple 7 keeps the
+   take-profit near v3's), demo account switched to v4 (DRAIN), the paper twin's stop mirrors it. DEMO only.
+3. Not chosen and not tested: A3 (add G9 XAGUSD) also passes at 1.5 %, but it fails the first attempt 16 % of the time in
+   pre-2024 starts. Running both together has no evidence.
+4. Revert path: `python3 scripts/accounts.py switch --account ftmo-demo-01 --to fvg-book@v3 --policy DRAIN --reason ...`
+   (v3 stays APPROVED until v4 has its own forward record).

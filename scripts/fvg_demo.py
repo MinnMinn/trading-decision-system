@@ -91,6 +91,19 @@ def account_paths(account_id):
             "stop_path": os.path.join(d, "STOP")}
 
 
+DEFAULT_STOP_K = 2.0                 # protective stop of H7 / G9 in sigma_5m x sqrt(bars to the rollover); v1-v3 = 2.0
+STOP_K_RANGE = R.TS.BOOK_PARAM_RANGES["stop_k"]   # also refused at registry load
+
+
+def _stop_k(component):
+    """The component's stop multiplier (setups.json param `stop_k`; absent = 2.0, every version before v4). Out of
+    STOP_K_RANGE -> ValueError: an executor never sizes from an implausible stop."""
+    k = float(component["params"].get("stop_k", DEFAULT_STOP_K))
+    if not STOP_K_RANGE[0] <= k <= STOP_K_RANGE[1]:
+        raise ValueError(f"{component['setup']}/{component['instrument']}: stop_k {k} outside {STOP_K_RANGE}")
+    return k
+
+
 def config_for(system, account, assignment=None):
     """The executor's configuration for one book version on one account. Everything that decides a trade comes from
     the version (immutable, §47); the account contributes only where it trades (bridge channel) and the balance its
@@ -106,6 +119,7 @@ def config_for(system, account, assignment=None):
         "components": {c["instrument"]: int(c["params"]["hold_bars"]) for c in comps if c["setup"] == "E5"},
         "h7_symbols": [c["instrument"] for c in comps if c["setup"] == "H7"],
         "g9_symbols": [c["instrument"] for c in comps if c["setup"] == "G9"],
+        "stop_k": {f"{c['setup']}|{c['instrument']}": _stop_k(c) for c in comps if c["setup"] in ("H7", "G9")},
         "throttle": {"kind": risk["throttle"], "initial_balance": account.get("initial_balance")},
         "bridge_subdir": account["bridge_channel"],
         "login_ref": account.get("login_ref"),
@@ -400,8 +414,9 @@ def _fvg_component(st, sym, h, now, cfg, bridge, base, log_path, live_dir, event
 
 def _eod_breakout(st, kind, sym, now, cfg, bridge, balance, log_path, live_dir, event_blocked):
     """H7 (F3: previous-day breakout with the 20-day momentum) or G9 (F4: open +/- 0.5 x previous range): a MARKET entry when
-    the signal bar is the LAST closed bar (a later tick does not chase it), stop 2 sigma x sqrt(bars to the rollover), closed
-    before the rollover. One trade per (component, symbol, server day, side)."""
+    the signal bar is the LAST closed bar (a later tick does not chase it), stop k sigma x sqrt(bars to the rollover) with
+    k = the version's `stop_k` for this component (2.0 when absent; fvg-book v4: 1.4, owner 2026-10-04), closed before the
+    rollover. One trade per (component, symbol, server day, side)."""
     s = closed_series(sym, now, live_dir)
     if not data_ok(s, sym, now, cfg, log_path, kind):
         return
@@ -429,7 +444,8 @@ def _eod_breakout(st, kind, sym, now, cfg, bridge, balance, log_path, live_dir, 
             continue
         nb = max(1, int((day_end - now).total_seconds() // 300))
         ref = s.C[ev["i"]]
-        dist = 2.0 * sig * math.sqrt(nb) * ref
+        k_stop = (cfg.get("stop_k") or {}).get(f"{kind}|{sym}", DEFAULT_STOP_K)
+        dist = k_stop * sig * math.sqrt(nb) * ref
         info = _symbol_info(bridge, sym, log_path, kind)
         if info is None:
             continue
@@ -446,7 +462,7 @@ def _eod_breakout(st, kind, sym, now, cfg, bridge, balance, log_path, live_dir, 
             continue
         pos = {"key": key, "component": kind, "symbol": sym, "side": side, "position_ticket": r.get("ticket"),
                "signal_close": ref, "fill_price": r.get("price"), "fill_slippage": _slippage(r.get("price"), ref, side),
-               "stop": stop, "lots": lots, "filled_seen_at": _iso(now),
+               "stop": stop, "stop_k": k_stop, "lots": lots, "filled_seen_at": _iso(now),
                "exit_due": _iso(exit_due), "risk_pct": cfg["risk_pct"], **_attribution(cfg)}
         st["open"].append(pos)
         log("filled", log_path, **pos)
