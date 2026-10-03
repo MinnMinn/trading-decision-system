@@ -18,10 +18,47 @@ from live_write_isolation import redirect as _redirect_writes, assert_live_untou
 _RESTORE_WRITES = _redirect_writes()
 
 sr = load("sr", os.path.join(ROOT, "scripts", "strategy-runner.py"))
+
+import fresh_calendar as FC  # noqa: E402
+_FIXTURES = {}
+
+
+def setUpModule():
+    """Two module-wide fixtures, both made of REAL repository data, both undone in tearDownModule:
+
+    * the calendar: a current, quiet copy (fresh_calendar.py). The runner's §36 step-3 precheck reads it on every tick,
+      so every tick-driven test here failed the day the hand-maintained calendar's coverage ended. Tests that are
+      ABOUT the calendar patch sr.ER.load themselves and restore it to this.
+    * the selection: the 2026-09-27 criteria run enabled 0 of 36 candidates (a valid outcome), so load_setups() is
+      empty and every test that needs a setup row had none. The fixture enables the real candidate rows."""
+    _FIXTURES["load"] = sr.ER.load
+    sr.ER.load = FC.fresh_load
+    # §36 step 12 sizes the order inside the tick and asks the VENUE for MIN_NOTIONAL through the connector -- a network
+    # call that needs a credentials file. A unit test must do neither; tests about min_notional patch it themselves.
+    _FIXTURES["min_notional"] = sr.min_notional
+    sr.min_notional = lambda *a, **k: 5.0
+    sel = json.load(open(sr.SELECTION, encoding="utf-8"))
+    if not sel.get("setups"):
+        fh = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump(dict(sel, setups=sel.get("disabled") or []), fh)
+        fh.close()
+        _FIXTURES["selection"], _FIXTURES["tmp"] = sr.SELECTION, fh.name
+        sr.SELECTION = fh.name
+
+
+def _undo_fixtures():
+    sr.ER.load = _FIXTURES.pop("load")
+    sr.min_notional = _FIXTURES.pop("min_notional")
+    if "selection" in _FIXTURES:
+        sr.SELECTION = _FIXTURES.pop("selection")
+        os.remove(_FIXTURES.pop("tmp"))
+
+
 bt = sr.bt
 
 
 def tearDownModule():
+    _undo_fixtures()
     _RESTORE_WRITES()
 
 
@@ -168,15 +205,11 @@ class TheBacktestSeesOnlyWhatTheRunnerSaw(unittest.TestCase):
         """The case that found it, pinned so a whole-series shortcut cannot creep back into scan(). The second
         half states the reason on the detector itself; if wyckoff_rules is ever made causal at the CHoCH stage
         that half will start failing, and then it should simply be deleted -- the first half is the invariant."""
-        c = json.load(open(self.HIST))["candles"]
         sc = bt.scan("XAGUSD", "4H", only=("WYCKOFF-BOOK",))
         self.assertNotIn("2026-07-20T05:00:00Z", [t["entry_time"] for t in sc["trades"]["WYCKOFF-BOOK"]])
-        e = [b["time"] for b in c].index("2026-07-20T05:00:00Z")
-        def found(prefix):
-            O = [x["open"] for x in prefix]; H = [x["high"] for x in prefix]; L = [x["low"] for x in prefix]; C = [x["close"] for x in prefix]; V = [x.get("volume", 0) for x in prefix]
-            return any(r.get("bu") and r["bu"]["bar"] == e for r in sr.W.detect_distributions(O, H, L, C, V, volume_kind="tick"))
-        self.assertFalse(found(c[:e + 1]), "the structure is visible on the causal prefix -- the detector changed; delete this half")
-        self.assertTrue(found(c[:e + 6]), "the structure no longer appears five bars later either -- the detector changed; delete this half")
+        # The second half (the structure absent on the causal prefix, present five bars later) was deleted on 2026-10-03,
+        # as this docstring instructed: the Wyckoff detector changed (it was already failing at 3304d7e) and no longer
+        # forms that structure even five bars later, so the half stopped stating the reason. The invariant above stays.
 
 
 def _load_git_revision(ref, name):
@@ -1156,6 +1189,28 @@ class ConnectorRequestShape(unittest.TestCase):
 
     ORDER_SH = os.path.join(ROOT, "scripts", "binance-futures-testnet-order.sh")
 
+    @classmethod
+    def setUpClass(cls):
+        """A throwaway environment file for the connector: config/env.example's testnet URLs with DUMMY keys, named
+        `config/env.unittest-<pid>.local` (gitignored by config/env.*.local). These tests used to need a real
+        config/env.demo -- absent on any machine without credentials, and on a machine WITH them the fake curl was
+        all that stood between a test and real keys. Neither is acceptable for a request-shape test."""
+        cls.ENV_NAME = f"unittest-{os.getpid()}.local"
+        cls.ENV_FILE = os.path.join(ROOT, "config", f"env.{cls.ENV_NAME}")
+        lines = []
+        for line in open(os.path.join(ROOT, "config", "env.example"), encoding="utf-8"):
+            key = line.split("=", 1)[0].strip()
+            if "=" in line and not line.lstrip().startswith("#") and key.endswith(("_KEY", "_SECRET_KEY", "_PASSWORD")):
+                line = f"{key}=unittest-dummy-not-a-credential\n"
+            lines.append(line)
+        with open(cls.ENV_FILE, "w", encoding="utf-8") as fh:
+            fh.writelines(lines)
+
+    @classmethod
+    def tearDownClass(cls):
+        if os.path.exists(cls.ENV_FILE):
+            os.remove(cls.ENV_FILE)
+
     ALGO_NEW = ('{"algoId":1000000203021052,"clientAlgoId":"abc","algoType":"CONDITIONAL",'
                 '"orderType":"STOP_MARKET","symbol":"BTCUSDT","side":"SELL","algoStatus":"NEW",'
                 '"quantity":"0.0000","triggerPrice":"74000.00","closePosition":true,"priceProtect":true,'
@@ -1198,7 +1253,7 @@ class ConnectorRequestShape(unittest.TestCase):
         with open(fake_curl, "w") as f:
             f.write(script)
         os.chmod(fake_curl, 0o755)
-        env = dict(os.environ, PATH=tmp + os.pathsep + os.environ.get("PATH", ""))
+        env = dict(os.environ, PATH=tmp + os.pathsep + os.environ.get("PATH", ""), TRADING_ENV=self.ENV_NAME)
         return env, curl_log
 
     def _urls(self, curl_log):
@@ -1428,8 +1483,12 @@ class Drill(unittest.TestCase):
         sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
         json.dump({"setups": [dict(id="s1", market="crypto", tf="15m", method="WYCKOFF-BOOK", htf=False, mgmt="none", execution="futures", symbols=["BTCUSDT"], rule_version="v1")]}, sel_tmp); sel_tmp.close()
         state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); state_tmp.write("{}"); state_tmp.close()
-        saved = {k: getattr(sr, k) for k in ("AUTOMATION_CONFIG", "SELECTION", "STATE", "STOP", "fetch_candles", "log", "event_blackout", "setups", "setups_wyckoff", "htf_pass", "place_limit", "place_market", "automation_gate", "allowed_methods", "load_state", "save_state")}
+        saved = {k: getattr(sr, k) for k in ("AUTOMATION_CONFIG", "SELECTION", "STATE", "STOP", "fetch_candles", "log", "event_blackout", "setups", "setups_wyckoff", "htf_pass", "place_limit", "place_market", "automation_gate", "allowed_methods", "load_state", "save_state", "order_json")}
         try:
+            # a live tick reads the venue (balance, position-risk, open-orders); the EquityHalt suite's pattern: a quiet
+            # venue holding 10000 USDT and nothing else, so the real usdt_balance() and reconcile code still run
+            sr.order_json = lambda *a, **k: ([{"asset": "USDT", "availableBalance": "10000", "balance": "10000", "crossUnPnl": "0"}]
+                                             if a and a[0] == "balance" else [])
             sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = cfg_tmp.name, sel_tmp.name, state_tmp.name
             sr.STOP = state_tmp.name + ".no-such-stop-file"      # the real kill switch is present on this machine; the test must not read it
             candles = self._candles(n=120)
@@ -1473,9 +1532,13 @@ class TraderOverlayOnTheLivePath(unittest.TestCase):
         sel_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
         json.dump({"setups": [dict(id="s1", market="crypto", tf="15m", method=method, htf=False, mgmt="none", execution="futures", symbols=["BTCUSDT"], rule_version="v1")]}, sel_tmp); sel_tmp.close()
         state_tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False); state_tmp.write("{}"); state_tmp.close()
-        keys = ("AUTOMATION_CONFIG", "SELECTION", "STATE", "STOP", "fetch_candles", "log", "event_blackout", "setups", "setups_wyckoff", "htf_pass", "place_limit", "place_market", "automation_gate", "allowed_methods")
+        keys = ("AUTOMATION_CONFIG", "SELECTION", "STATE", "STOP", "fetch_candles", "log", "event_blackout", "setups", "setups_wyckoff", "htf_pass", "place_limit", "place_market", "automation_gate", "allowed_methods", "order_json")
         saved = {k: getattr(sr, k) for k in keys}; saved_ft = sr.TC.for_trader
         try:
+            # a live tick reads the venue (balance, position-risk, open-orders); the EquityHalt suite's pattern: a quiet
+            # venue holding 10000 USDT and nothing else, so the real usdt_balance() and reconcile code still run
+            sr.order_json = lambda *a, **k: ([{"asset": "USDT", "availableBalance": "10000", "balance": "10000", "crossUnPnl": "0"}]
+                                             if a and a[0] == "balance" else [])
             sr.AUTOMATION_CONFIG, sr.SELECTION, sr.STATE = cfg_tmp.name, sel_tmp.name, state_tmp.name
             sr.STOP = state_tmp.name + ".no-such-stop-file"
             candles = [dict(time=f"2026-01-01T{(m // 60) % 24:02d}:{m % 60:02d}:00Z", open=100, high=101, low=99, close=100, volume=1) for m in range(0, 120 * 15, 15)]
