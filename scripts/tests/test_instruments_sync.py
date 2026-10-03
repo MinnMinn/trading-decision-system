@@ -99,7 +99,13 @@ class TestSingleSource(unittest.TestCase):
         registry here can derive, and it refuses an unmapped symbol rather than guessing one.
 
         Comments and docstrings are stripped, so explaining the removal (as several of those files now do) is
-        allowed; re-introducing the literal is not."""
+        allowed; re-introducing the literal is not.
+
+        One explicit, per-line exception: a line whose source carries the comment marker `pinned-universe` is a
+        FROZEN research universe -- a pre-registered set that is part of a plan hash or a recorded measurement
+        (fund-search FUND_SYMBOLS / DEV_BARS, the diagnose-methods audit slice). Deriving those from the live registry
+        would silently change a sealed design whenever instruments.json changes (CLAUDE.md §10/§46). The marker names
+        the reason in the file itself and is visible in review; an unmarked re-listing still fails."""
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import srcscan
         cfd = set(I.analysis("cfd"))
@@ -107,7 +113,10 @@ class TestSingleSource(unittest.TestCase):
         for f in sorted(os.listdir(os.path.join(ROOT, "scripts"))):
             if not f.endswith(".py") or f in ("instruments.py", "fetch-history-cfd.py"):
                 continue
+            raw = open(os.path.join(ROOT, "scripts", f), encoding="utf-8").read().split("\n")
             for n, line in srcscan.code_lines(os.path.join(ROOT, "scripts", f)):
+                if 0 < n <= len(raw) and "pinned-universe" in raw[n - 1]:
+                    continue
                 syms = set(re.findall(r'"([A-Z0-9]{4,10})"', line)) | set(re.findall(r"'([A-Z0-9]{4,10})'", line))
                 if len(cfd & syms) >= 3:
                     offenders.append(f"{f}:{n} re-lists the MT5 symbol set (use I.data_dir / I.is_tick_volume)")

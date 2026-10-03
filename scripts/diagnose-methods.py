@@ -39,7 +39,7 @@ METHODS = ("ICT", "WYCKOFF-BOOK")
 
 # The audit's slice list (task 2026-09-28): both methods x config A x 15m/1H/4H x XAUUSD/US500/DE40, plus
 # configs B and C on 1H only.
-AUDIT_SYMBOLS = ("XAUUSD", "US500", "DE40")
+AUDIT_SYMBOLS = ("XAUUSD", "US500", "DE40")    # pinned-universe: the 2026-09-28 audit's slice, not the live allowlist
 
 
 def audit_slices():

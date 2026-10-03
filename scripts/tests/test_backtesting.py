@@ -287,11 +287,15 @@ class TheSameSystemAsLive(unittest.TestCase):
 
     def test_the_rr_floor_is_the_same_gate_on_both_paths(self):
         """The divergence found on 2026-09-18: live measured R net of fees (§34), the backtest gross."""
-        self.assertIn("t.get(\"R_planned\", 99) - fee_R < OPTS[\"min_rr\"]", BT_SRC,
+        # The admission cost is `adm_fee_R` since O1 (fx_admission_entry_cost): the round-turn fee, or with a cost profile
+        # and O1 on, the entry-hour estimate that is knowable at the decision (§8/§37). Either way the floor is on R NET.
+        self.assertIn("t.get(\"R_planned\", 99) - adm_fee_R < OPTS[\"min_rr\"]", BT_SRC,
                       "simulate() must apply the R:R floor to R NET of fees, as the live path does")
         i_fee = BT_SRC.index("fee_R = 2 * fee_pct / dist")
-        i_floor = BT_SRC.index("- fee_R < OPTS[\"min_rr\"]")
+        i_adm = BT_SRC.index("adm_fee_R = fee_R          # flat fee")
+        i_floor = BT_SRC.index("- adm_fee_R < OPTS[\"min_rr\"]")
         self.assertLess(i_fee, i_floor, "the fee must be computed before the floor is applied")
+        self.assertLess(i_adm, i_floor, "the admission cost must be set before the floor is applied")
 
     def test_the_floor_actually_refuses_a_trade_the_live_path_would_refuse(self):
         """Driven, not read: a trade whose gross R clears the floor but whose net R does not must be dropped."""
