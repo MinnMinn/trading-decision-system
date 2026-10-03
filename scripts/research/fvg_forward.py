@@ -186,6 +186,7 @@ def signals(s, sym, h, kind="E5", name=None):
            if kind == "G9" else None)
     if evs is None:
         raise ValueError(f"unknown component kind {kind!r}")
+    all_holes = holes(s.T, since=_dt(FORWARD_START) - HOLE_LOOKBACK)
     for ev in evs:
         e = ev["entry_i"]
         if e >= len(s.T) or s.T[e] < FORWARD_START:
@@ -198,7 +199,11 @@ def signals(s, sym, h, kind="E5", name=None):
         if "far" in ev:
             row["far_edge"] = ev["far"]
         sig = s.sigma(ev["i"])
-        if not sig or not _vol_fresh(s, ev["i"]):
+        t_sig = _dt(s.T[ev["i"]])
+        hole = next((h for h in all_holes if t_sig - HOLE_LOOKBACK <= _dt(h[1]) <= t_sig), None)
+        if hole:
+            row.update(status="refused", reason=f"data hole {hole[0]} -> {hole[1]} in the decision window (re-export the 5m history)")
+        elif not sig or not _vol_fresh(s, ev["i"]):
             row.update(status="refused", reason="volatility history stale or missing (re-export the 5m history)")
         else:
             nb = bars_to_day_end(s, e) if h == "eod" else h

@@ -87,6 +87,25 @@ class Forward(unittest.TestCase):
         self.assertEqual(FF.holes(["2026-09-29T10:00:00Z", "2026-09-29T13:00:00Z"]), [])   # 3 h <= GAP_WARN
         self.assertEqual(FF.holes([a, b], since=FF._dt("2026-10-03T00:00:00Z")), [])        # outside the window
 
+    def test_paper_signal_after_a_hole_is_refused(self):
+        import datetime as _dt
+        t0 = _dt.datetime(2026, 9, 1, tzinfo=UTC)
+        bs = []
+        for d in range(25):
+            if d in (14, 15):                                               # Tue-Wed 2026-09-15/16 missing
+                continue
+            n = 288 if d < 24 else 20
+            for b in range(n):
+                t = t0 + _dt.timedelta(days=d, minutes=5 * b)
+                px = 100.0 + (0.1 if b % 2 else -0.1) + (2.0 if d == 24 and b >= 10 else 0.0)
+                bs.append({"time": t.strftime("%Y-%m-%dT%H:%M:%SZ"), "open": px, "high": px + 0.5, "low": px - 0.5, "close": px})
+        s = EC.Series("XAUUSD", bs, UTC, end="9999-12-31T00:00:00Z", sigma_every_day=True)
+        with mock.patch.object(FF, "FORWARD_START", "2000-01-01T00:00:00Z"):
+            rows = FF.signals(s, "XAUUSD", "eod", "G9", "G9_XAUUSD_eod")
+        self.assertTrue(rows)
+        self.assertEqual(rows[-1]["status"], "refused")
+        self.assertIn("data hole", rows[-1]["reason"])
+
     def test_accumulate_keeps_warning_while_a_hole_remains(self):
         import json, tempfile
         live, store = tempfile.mkdtemp(), tempfile.mkdtemp()
