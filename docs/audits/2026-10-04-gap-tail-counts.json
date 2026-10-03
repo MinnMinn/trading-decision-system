@@ -1,0 +1,289 @@
+{
+ "meta": {
+  "script": "scripts/research/gap_tail_counts.py",
+  "status": "DESCRIPTIVE, post hoc",
+  "loss_unit": "% of the balance at 1 % risk at the stop, unthrottled"
+ },
+ "cases": {
+  "v3 (H7+G9 gold, k=2.0)": {
+   "trades": 5979,
+   "years": 22.2,
+   "loss_gt_1.0pct": {
+    "n": 328,
+    "share": 0.05485867201873223,
+    "per_year": 14.79037037037037,
+    "once_every_years": 0.06761155907246957
+   },
+   "loss_gt_1.05pct": {
+    "n": 2,
+    "share": 0.0003345040976751965,
+    "per_year": 0.09018518518518519,
+    "once_every_years": 11.08829568788501
+   },
+   "loss_gt_1.2pct": {
+    "n": 0,
+    "share": 0.0,
+    "per_year": 0.0,
+    "once_every_years": null
+   },
+   "loss_gt_1.5pct": {
+    "n": 0,
+    "share": 0.0,
+    "per_year": 0.0,
+    "once_every_years": null
+   },
+   "loss_gt_2.0pct": {
+    "n": 0,
+    "share": 0.0,
+    "per_year": 0.0,
+    "once_every_years": null
+   },
+   "worst5": [
+    {
+     "entry_time": "2006-05-03T13:40:00Z",
+     "loss_pct": 1.178
+    },
+    {
+     "entry_time": "2009-06-03T04:15:00Z",
+     "loss_pct": 1.102
+    },
+    {
+     "entry_time": "2015-09-15T20:45:00Z",
+     "loss_pct": 1.034
+    },
+    {
+     "entry_time": "2024-04-04T19:50:00Z",
+     "loss_pct": 1.017
+    },
+    {
+     "entry_time": "2006-07-16T22:10:00Z",
+     "loss_pct": 1.016
+    }
+   ]
+  },
+  "A1 k=1.4 (H7+G9 gold)": {
+   "trades": 5979,
+   "years": 22.2,
+   "loss_gt_1.0pct": {
+    "n": 804,
+    "share": 0.134470647265429,
+    "per_year": 36.254444444444445,
+    "once_every_years": 0.027582825094241318
+   },
+   "loss_gt_1.05pct": {
+    "n": 4,
+    "share": 0.000669008195350393,
+    "per_year": 0.18037037037037038,
+    "once_every_years": 5.544147843942505
+   },
+   "loss_gt_1.2pct": {
+    "n": 2,
+    "share": 0.0003345040976751965,
+    "per_year": 0.09018518518518519,
+    "once_every_years": 11.08829568788501
+   },
+   "loss_gt_1.5pct": {
+    "n": 0,
+    "share": 0.0,
+    "per_year": 0.0,
+    "once_every_years": null
+   },
+   "loss_gt_2.0pct": {
+    "n": 0,
+    "share": 0.0,
+    "per_year": 0.0,
+    "once_every_years": null
+   },
+   "worst5": [
+    {
+     "entry_time": "2012-06-01T12:05:00Z",
+     "loss_pct": 1.386
+    },
+    {
+     "entry_time": "2012-06-01T01:10:00Z",
+     "loss_pct": 1.228
+    },
+    {
+     "entry_time": "2021-03-17T17:15:00Z",
+     "loss_pct": 1.131
+    },
+    {
+     "entry_time": "2010-03-10T03:05:00Z",
+     "loss_pct": 1.058
+    },
+    {
+     "entry_time": "2015-09-15T20:45:00Z",
+     "loss_pct": 1.048
+    }
+   ]
+  },
+  "A1 k=1.0 (H7+G9 gold)": {
+   "trades": 5979,
+   "years": 22.2,
+   "loss_gt_1.0pct": {
+    "n": 1489,
+    "share": 0.2490383007191838,
+    "per_year": 67.14287037037037,
+    "once_every_years": 0.014893614087152465
+   },
+   "loss_gt_1.05pct": {
+    "n": 6,
+    "share": 0.0010035122930255895,
+    "per_year": 0.27055555555555555,
+    "once_every_years": 3.6960985626283365
+   },
+   "loss_gt_1.2pct": {
+    "n": 2,
+    "share": 0.0003345040976751965,
+    "per_year": 0.09018518518518519,
+    "once_every_years": 11.08829568788501
+   },
+   "loss_gt_1.5pct": {
+    "n": 2,
+    "share": 0.0003345040976751965,
+    "per_year": 0.09018518518518519,
+    "once_every_years": 11.08829568788501
+   },
+   "loss_gt_2.0pct": {
+    "n": 0,
+    "share": 0.0,
+    "per_year": 0.0,
+    "once_every_years": null
+   },
+   "worst5": [
+    {
+     "entry_time": "2012-06-01T12:05:00Z",
+     "loss_pct": 1.94
+    },
+    {
+     "entry_time": "2021-03-17T17:15:00Z",
+     "loss_pct": 1.583
+    },
+    {
+     "entry_time": "2006-07-17T05:15:00Z",
+     "loss_pct": 1.134
+    },
+    {
+     "entry_time": "2005-03-30T17:15:00Z",
+     "loss_pct": 1.092
+    },
+    {
+     "entry_time": "2015-09-15T20:45:00Z",
+     "loss_pct": 1.068
+    }
+   ]
+  },
+  "A3 silver alone (G9 XAGUSD, k=2.0)": {
+   "trades": 3019,
+   "years": 17.8,
+   "loss_gt_1.0pct": {
+    "n": 132,
+    "share": 0.04372308711493872,
+    "per_year": 7.412822878228782,
+    "once_every_years": 0.13490137514778172
+   },
+   "loss_gt_1.05pct": {
+    "n": 1,
+    "share": 0.0003312355084465055,
+    "per_year": 0.05615774907749078,
+    "once_every_years": 17.806981519507186
+   },
+   "loss_gt_1.2pct": {
+    "n": 1,
+    "share": 0.0003312355084465055,
+    "per_year": 0.05615774907749078,
+    "once_every_years": 17.806981519507186
+   },
+   "loss_gt_1.5pct": {
+    "n": 0,
+    "share": 0.0,
+    "per_year": 0.0,
+    "once_every_years": null
+   },
+   "loss_gt_2.0pct": {
+    "n": 0,
+    "share": 0.0,
+    "per_year": 0.0,
+    "once_every_years": null
+   },
+   "worst5": [
+    {
+     "entry_time": "2013-05-19T22:05:00Z",
+     "loss_pct": 1.32
+    },
+    {
+     "entry_time": "2019-10-30T17:35:00Z",
+     "loss_pct": 1.04
+    },
+    {
+     "entry_time": "2012-05-07T14:40:00Z",
+     "loss_pct": 1.029
+    },
+    {
+     "entry_time": "2023-08-25T14:05:00Z",
+     "loss_pct": 1.028
+    },
+    {
+     "entry_time": "2013-12-18T19:30:00Z",
+     "loss_pct": 1.027
+    }
+   ]
+  },
+  "A3 v3 + G9 XAGUSD (k=2.0)": {
+   "trades": 8998,
+   "years": 22.2,
+   "loss_gt_1.0pct": {
+    "n": 460,
+    "share": 0.05112247166036897,
+    "per_year": 20.742592592592594,
+    "once_every_years": 0.04820998125167396
+   },
+   "loss_gt_1.05pct": {
+    "n": 3,
+    "share": 0.00033340742387197157,
+    "per_year": 0.13527777777777777,
+    "once_every_years": 7.392197125256673
+   },
+   "loss_gt_1.2pct": {
+    "n": 1,
+    "share": 0.00011113580795732385,
+    "per_year": 0.045092592592592594,
+    "once_every_years": 22.17659137577002
+   },
+   "loss_gt_1.5pct": {
+    "n": 0,
+    "share": 0.0,
+    "per_year": 0.0,
+    "once_every_years": null
+   },
+   "loss_gt_2.0pct": {
+    "n": 0,
+    "share": 0.0,
+    "per_year": 0.0,
+    "once_every_years": null
+   },
+   "worst5": [
+    {
+     "entry_time": "2013-05-19T22:05:00Z",
+     "loss_pct": 1.32
+    },
+    {
+     "entry_time": "2006-05-03T13:40:00Z",
+     "loss_pct": 1.178
+    },
+    {
+     "entry_time": "2009-06-03T04:15:00Z",
+     "loss_pct": 1.102
+    },
+    {
+     "entry_time": "2019-10-30T17:35:00Z",
+     "loss_pct": 1.04
+    },
+    {
+     "entry_time": "2015-09-15T20:45:00Z",
+     "loss_pct": 1.034
+    }
+   ]
+  }
+ }
+}
