@@ -237,8 +237,8 @@ class IctProbe:
                 probe.ctx["stage"] = ICT_STAGES.index("htf_gate")
             return r
 
-        def fvg_fill(side, mss, edge, far, stop, H, L, K, n):
-            r = o_fill(side, mss, edge, far, stop, H, L, K, n)
+        def fvg_fill(side, mss, edge, far, stop, H, L, K, n, **kw):     # kw: start (fx_fvg_formed_start)
+            r = o_fill(side, mss, edge, far, stop, H, L, K, n, **kw)
             if probe.ctx is not None:
                 probe.ctx["fvg_calls"].append(r)
             return r

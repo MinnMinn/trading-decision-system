@@ -381,3 +381,41 @@ Applied: `docs/architecture/fund-search-cells.json` (1m-indices 2020-03-01T00:00
 - **Not touched:** thresholds, engine, cells, grids, `scripts/performance.py`, `scripts/prop-search.py`. Plan core unchanged (plan_hash 275763cb81b0518a, checked). The e2e raw results `docs/audits/2026-10-02-e2e-power-final.json` are new.
 - **Pinned files changed (declare must run AFTER):** `scripts/fund_stats.py`, `scripts/fund-search.py`, the tests under the `scripts/` tree pin, `scripts/research/e2e_power.py` (simulator only). `docs/experiments/fund-search/plan.json` unchanged.
 - **Flag for the owner:** the expected number of passes at own e* moved from 0.34 to 2.31 and the 1m cells' e80/e* fell to 1.0-1.5; no cell stops satisfying the inclusion rule, the cells file was not edited. 5m-metals still needs 2.6-3.3 x its e* (perturbation binds).
+
+## 2026-10-02 (after declare): strategic diagnosis and new direction (owner, in chat; binding)
+
+Full record: `docs/audits/2026-10-02-strategic-diagnosis.md` (read §0 and §6 first).
+1. **Goal:** pass FTMO with ANY validated method; ICT/Wyckoff are one hypothesis family, not the required edge source.
+2. **Fix defects #3 (FVG self-touch in the "already triggered" gate, backtest and live), #4 (prop-pass horizon counts
+   trade-days, not weekdays) and #5 (prop simulation risk fixed at the 1 % ceiling), then RE-DECLARE the fund-search.**
+   The current declaration (`c4ea722`, plan_hash `275763cb81b0518a`) must not be run; no fund-search record exists yet.
+   The re-declaration must add the development-window reads listed in the diagnosis §7 to the prior-reads table.
+3. **Forward demo is the primary evidence**; a looser, pre-registered nomination gate to demo is accepted; the strict
+   gate applies to real money only.
+
+**Applied 2026-10-02 (same session):** D3/D4/D5 implemented and tested; power re-run (`docs/audits/2026-10-02-e2e-power.md`
+§10); re-declared with `declare --supersede` (plan_hash 275763cb81b0518a -> 0ec4e27e15fa7df9, no record existed; the old
+declaration is kept in `research-ledger.json` `fund_search_superseded`). Pre-registration section 0.7 records the change.
+
+## 2026-10-02 (later): forward stage, book design and demo orders (owner, in chat; binding)
+
+- Historical data cannot confirm the F2 survivors (every year was read to select them); confirmation stays forward
+  (docs/plans/2026-10-02-edge-followup-preregistration.md §4). The full history is used for DESIGN only
+  (docs/audits/2026-10-02-fvg-book-sim.md).
+- **Demo order wiring APPROVED** ("Đồng ý duyệt nối demo order"): `scripts/fvg_demo.py`, DEMO only, `enabled=false` until the
+  owner switches it on (docs/architecture/fvg-demo.json). Real money is out of scope.
+- A broader pre-registered hypothesis family (daily horizons, mean reversion after large moves, volatility-regime filter) is
+  approved as the next research step.
+- Note for the fund-search: research scripts added after its re-declaration changed the `scripts/` tree pin, so
+  `fund-search.py run` now refuses on drift; running it needs a re-declaration (no record exists) or `--allow-drift`.
+
+## 2026-10-03: demo Trading System v2 (owner, in chat; binding)
+
+- **APPROVED** ("Duyệt"): the demo executor moves from v1 (E5 XAUUSD/US500 + H7 XAUUSD @1 %) to v2 = v1 + G9 XAUUSD volatility
+  breakout + the dd3 drawdown throttle (docs/audits/2026-10-02-pass-policy.md). DEMO only; risk never above the 1 % ceiling.
+  Config: docs/architecture/fvg-demo.json `version` v2 (revert = drop `g9_symbols`, set `throttle.kind` "none").
+- "If v2 does not really deliver, think further" -- v2 is judged with the forward record (stage (a) rule) before any
+  further change.
+- Rules audit requested (overnight swap): docs/audits/2026-10-03-ftmo-rules-audit.md -- overnight holding is allowed in the
+  Challenge; intraday-only was a design choice; holding the trend rules adds nothing (docs/audits/2026-10-03-edge-hold.md);
+  FTMO's floating-P&L limits added to the replay leave the v2 decision unchanged.

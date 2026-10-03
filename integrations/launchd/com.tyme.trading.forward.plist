@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <!-- The forward cycle (scripts/forward_cycle.py) every 5 minutes on macOS. Install:
+       cp integrations/launchd/com.tyme.trading.forward.plist ~/Library/LaunchAgents/ &&
+       launchctl load ~/Library/LaunchAgents/com.tyme.trading.forward.plist
+       (edit the two paths below if the repository is not at /Users/tungnguyen/TYME/Trading). -->
+  <key>Label</key><string>com.tyme.trading.forward</string>
+  <key>ProgramArguments</key><array><string>/usr/bin/env</string><string>python3</string><string>/Users/tungnguyen/TYME/Trading/scripts/forward_cycle.py</string></array>
+  <key>WorkingDirectory</key><string>/Users/tungnguyen/TYME/Trading</string>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><true/>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
+  <key>StandardOutPath</key><string>/Users/tungnguyen/TYME/Trading/data/live/forward/cycle.out</string>
+  <key>StandardErrorPath</key><string>/Users/tungnguyen/TYME/Trading/data/live/forward/cycle.err</string>
+  <key>ProcessType</key><string>Background</string>
+</dict></plist>

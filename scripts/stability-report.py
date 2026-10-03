@@ -89,6 +89,8 @@ def config_opts(cfg, ict_target):
                 fx_admission_entry_cost=False,
                 # C3 (2026-10-02): v1 default; True = walk() fills a stop at the worse of the stop and the bar open.
                 fx_gap_fill=False,
+                # D3 (2026-10-02): v1 default; True = the ICT fill scans start after the FVG's third candle closed.
+                fx_fvg_formed_start=False,
                 # Batch 2(a) Wyckoff V items (plan §3 V grid; docs/architecture/v-grid-wyckoff.json): the baseline
                 # (= v1) of each key, stated for the same "complete overlay" reason. W-MGMT is `mgmt` above.
                 fx_w_stop="current", fx_w4a_linger_closes=None, fx_w6_window=300, fx_w_spt="AR", fx_w_touch="off",
@@ -142,6 +144,8 @@ _SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "slope
                        "fx_admission_entry_cost",
                        # C3 (2026-10-02): changes the R / outcome of trades whose stop bar opened beyond the stop (walk()).
                        "fx_gap_fill",
+                       # D3 (2026-10-02): changes which ICT setups are refused as already triggered / when they fill.
+                       "fx_fvg_formed_start",
                        # Batch 2(a) Wyckoff V items: fx_w4a_linger_closes / fx_w_tw change DETECTION (per-call P=
                        # overrides, `_WY_CANDIDATES` key); fx_w6_window changes the window scan() walks;
                        # fx_w_stop / fx_w_spt / fx_w_touch change `_fires_from`'s stop / target / gate. All six

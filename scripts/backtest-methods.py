@@ -158,7 +158,14 @@ OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see
             # OPENS beyond it. True = a stop (incl. a breakeven stop) fills at the WORSE of the stop and the bar open when
             # the open is beyond the stop (see walk()). Fixed ON in every fund cell (scripts/fund-search.py
             # ADOPTED_F_KEYS); the live runner never sets it.
-            fx_gap_fill=False)
+            fx_gap_fill=False,
+            # D3 (strategic diagnosis 2026-10-02, docs/audits/2026-10-02-strategic-diagnosis.md §2 #3): default v1 (False) =
+            # the "already triggered" and fill scans start at mss_i + 1 even when the FVG's THIRD candle (which defines the
+            # IOFED edge) is at or after that bar -- the third candle then "touches" the level it defines and the canonical
+            # displacement FVG (MSS candle = FVG middle candle) is ALWAYS refused. True = both scans start after the FVG's
+            # third candle has closed (the order cannot exist before the gap does); the K-bar expiry stays anchored on mss_i.
+            # Fixed ON in every fund cell (scripts/fund-search.py ADOPTED_F_KEYS); the live runner never sets it.
+            fx_fvg_formed_start=False)
 # The four fx_ keys that change WYCKOFF-BOOK/COMBINED-BOOK DETECTION (not just gating) -- read once per
 # `_WY_CANDIDATES` cache build, bridged into the module-level wyckoff_rules.PARAMS the same way
 # `spring_max_bars_outside` already is (see `_wyckoff_candidates`'s own docstring: it must stay OPTS-
@@ -723,7 +730,7 @@ def find_ict(side, i, rec, H, L, C, K, n, PH, PL, O):
     return None
 
 
-def fvg_fill(side, mss, edge, far, stop, H, L, K, n):
+def fvg_fill(side, mss, edge, far, stop, H, L, K, n, start=None):
     """First bar after the MSS (within the K-bar window anchored on `mss`) whose range reaches the FVG near
     edge -- the resting LIMIT. Returns None if the order never triggers in the window. Otherwise returns
     (bar_index, outcome):
@@ -741,7 +748,8 @@ def fvg_fill(side, mss, edge, far, stop, H, L, K, n):
     §37): the backtest now books the pessimistic/conservative -1R loss instead of dropping the trade (§38), and
     "fill is not None" already means "already triggered, including by invalidation" for the live caller, so no
     live-side special case is needed."""
-    for j in range(mss + 1, min(mss + 1 + K, n)):
+    lo = mss + 1 if start is None else max(mss + 1, start)     # D3: `start` = first bar after the FVG's third candle
+    for j in range(lo, min(mss + 1 + K, n)):
         if side == "long":
             hit_edge, hit_stop = L[j] <= edge, L[j] <= stop
         else:
@@ -749,6 +757,15 @@ def fvg_fill(side, mss, edge, far, stop, H, L, K, n):
         if hit_edge:
             return j, ("filled_and_stopped" if hit_stop else "filled")
     return None
+
+
+def fvg_formed_start(su, idx_of_time):
+    """D3: the first bar at which a resting limit at this setup's FVG can exist = the bar after the FVG's THIRD candle
+    (`su["fvg"]["time"]` is the MIDDLE candle, scripts/ict-scan.py setup_candidate). None when the FVG bar is unknown
+    (the caller then keeps the v1 start)."""
+    fv = su.get("fvg") or {}
+    fi = idx_of_time.get(fv.get("time"))
+    return None if fi is None else fi + 2
 
 
 def range_established(H, L, a, b, support, resistance, touches, tol=0.15):
@@ -1221,9 +1238,13 @@ def _ict_trade(x, i, su):
     # window has already closed is refused outright, exactly as live refuses a `bars_left < 0` order.
     if i > mss_i + K:
         return None              # ICT-8/PAR-7: already expired by the time the setup is even detectable -- live would never place this order
-    if fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, i + 1) is not None:
+    # D3 (fx_fvg_formed_start): the limit level is defined by the FVG's third candle, so neither question may look at
+    # bars before that candle has closed -- the third candle trivially "touches" the edge it defines (IOFED = its own
+    # low/high). v1 (key off) keeps start=None = mss_i + 1.
+    start = fvg_formed_start(su, idx_of_time) if OPTS.get("fx_fvg_formed_start") else None
+    if fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, i + 1, start=start) is not None:
         return None             # the runner would refuse this as already triggered -- so neither may this
-    fill = fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, n)
+    fill = fvg_fill(su["side"], mss_i, entry, far, stop, H, L, K, n, start=start)
     if fill is None:         # the limit never filled within its K-bar window: live would hold/expire an unfilled order, not a position
         return None
     fill_bar, outcome = fill

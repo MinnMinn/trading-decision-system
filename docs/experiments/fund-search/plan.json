@@ -297,7 +297,8 @@
   "fx_w5_vp_abandon",
   "fx_w7_htf_target",
   "fx_admission_entry_cost",
-  "fx_gap_fill"
+  "fx_gap_fill",
+  "fx_fvg_formed_start"
  ],
  "embargo": {
   "rule": "training trades need exit_label < test_start - 2 x H bars (H = bt.P[tf]['H']), on top of the one-bar purge; 'none' time stops are covered only by this same window",
@@ -307,6 +308,16 @@
    "5m": 1200,
    "15m": 2880
   }
+ },
+ "prop_policy": {
+  "horizon_unit": "weekdays",
+  "risk_rule": "per fund: expected trades in the horizon N = pooled test trades / test weekdays x horizon weekdays; r = the smallest of PROP_RISK_GRID (0.25 %, 0.5 %, 1 %) with profit_target / (r x 0.10 R) <= N, else the largest grid value; never above the account's per-trade ceiling. Counts only, no outcome.",
+  "risk_grid": [
+   0.0025,
+   0.005,
+   0.01
+  ],
+  "ref_edge_R": 0.1
  },
  "perturbation_axes": {
   "B-BUF": [
@@ -455,8 +466,9 @@
   "fidelity_funnel_rows_ict": 18,
   "fidelity_funnel_rows_wyckoff": 11,
   "real_cost_reprice_runs": 1,
-  "min_rr_values_tried": 3
+  "min_rr_values_tried": 3,
+  "strategic_diagnosis_variant_reads": 8
  },
- "plan_hash": "275763cb81b0518a2502a40b13c55205b6883bfb5213e1330861118ed70b7b7e",
- "generated_at": "2026-10-02T09:14:17Z"
+ "plan_hash": "0ec4e27e15fa7df92a0c95152c9545f9bf861a8c18442e9b55bfd18c0ad5764b",
+ "generated_at": "2026-10-02T17:18:42Z"
 }

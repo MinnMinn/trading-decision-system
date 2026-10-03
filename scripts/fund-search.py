@@ -106,9 +106,12 @@ LEDGER_SECTION = "fund_search"                                                  
 #: the WORSE of the stop and the bar open when the bar opens beyond it (no more stop fills at a price the market never
 #: traded). Fixed ON in every cell like O1; it is read at SCAN time (walk), so it travels with the scan overlay, and
 #: simulate() never reads it (it is outside SIMULATE_TIME_OPTS).
+#: Plus D3 (strategic diagnosis 2026-10-02, owner decision 2): `fx_fvg_formed_start` -- the ICT "already triggered" and
+#: fill scans start after the FVG's third candle closed (docs/audits/2026-10-02-strategic-diagnosis.md §2 #3). An F item
+#: (a correctness fix of the engine, adopted on source/PIT grounds, not on performance). Read at SCAN time.
 ADOPTED_F_KEYS = ("fx_b2a_fvg_in_leg", "fx_b2b_ce_fail", "fx_b1_pivot1", "fx_braid_optional",
                   "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon", "fx_w7_htf_target",
-                  "fx_admission_entry_cost", "fx_gap_fill")
+                  "fx_admission_entry_cost", "fx_gap_fill", "fx_fvg_formed_start")
 FIXED_KEYS = ("flat_before_rollover", "rollover_provider") + ADOPTED_F_KEYS       # a grid item may never set these
 
 #: O2 (owner-approved 2026-09-30): walk-forward training embargo = EMBARGO_H_MULTIPLE x H bars of the cell's
@@ -136,7 +139,11 @@ def embargo_for(tf, bt=None):
 #: fidelity_funnel_rows_wyckoff = the 11 rows of the table in ...-wyckoff-fidelity-funnel.md; real_cost_reprice_runs = the
 #: one disclosed A0 re-pricing; min_rr_values_tried = 3.0, 2.0, 2.5. Not in the plan hash (plan core excludes it).
 PRIOR_COUNTS = {"prop_search_records": 180, "diagnosis_slices": 30, "fidelity_funnel_rows_ict": 18,
-                "fidelity_funnel_rows_wyckoff": 11, "real_cost_reprice_runs": 1, "min_rr_values_tried": 3}
+                "fidelity_funnel_rows_wyckoff": 11, "real_cost_reprice_runs": 1, "min_rr_values_tried": 3,
+                # 2026-10-02 strategic diagnosis (docs/audits/2026-10-02-strategic-diagnosis.md §7): engine runs on the
+                # development window, config A, XAUUSD/US500/DE40 x 15m/1H/4H, outcomes READ for the baseline and 7 variants
+                # (D3 self-touch fix, K x2, K x3, B6, time stop walked to 10 x H, real-cost re-pricing, Wyckoff next-open entry).
+                "strategic_diagnosis_variant_reads": 8}
 
 
 def cost_profile_pin(symbols):
@@ -561,6 +568,10 @@ def build_plan(grid_dir=None, first_bar=None, check_ready=None):
             "family": family, "cost_profile": COST_PROFILE,
             "cost_profile_pin": cost_profile_pin(s for c in cells for s in c["symbols"]), "dev_cutoff": FS.DEV_CUTOFF,
             "adopted_f_keys": list(ADOPTED_F_KEYS), "embargo": embargo,
+            # D4/D5 (2026-10-02): the prop pass counts its 120-day horizon in WEEKDAYS of the test span and sizes risk by
+            # the outcome-free frequency rule (fund_stats.prop_risk); part of the plan core so a change is a new plan_hash.
+            "prop_policy": {"horizon_unit": "weekdays", "risk_rule": FS.PROP_RISK_DEFINITION,
+                            "risk_grid": list(FS.PROP_RISK_GRID), "ref_edge_R": FS.PROP_REF_EDGE_R},
             "perturbation_axes": FS.PERTURBATION_AXES,
             "constants": {k: getattr(FS, k) for k in (
                 "FAMILY_ALPHA", "MIN_FOLD_TRADES", "MIN_TRAIN_TRADES", "MAX_TRADE_SHARE", "MAX_GAP_DAYS",
@@ -981,7 +992,10 @@ def runner_benchmark_status():
             "note": "" if ok else f"the recorded benchmark says layout_factor {got} but SHARD_MODEL has {want:g}: make them equal"}
 
 
-def cmd_declare(allow_dirty=False):
+SUPERSEDED_SECTION = LEDGER_SECTION + "_superseded"     # earlier declarations replaced BEFORE any evaluation, kept verbatim
+
+
+def cmd_declare(allow_dirty=False, supersede=None):
     """Record the final cell count in the ledger. Refuses if any evaluation record already exists (the count must
     precede evaluation), if the pinned tree (scripts/, docs/architecture/, data/history/) is not clean, or if a
     different declaration is already there (a ledger event, not an overwrite)."""
@@ -1005,11 +1019,19 @@ def cmd_declare(allow_dirty=False):
         new["allow_dirty"] = dirty                      # never silent: the declaration says it was made on a dirty tree
     old = data.get(LEDGER_SECTION)
     if old:
-        if all(old.get(k) == new[k] for k in ("plan_hash", "cell_count", "cells")):
+        if all(old.get(k) == new[k] for k in ("plan_hash", "cell_count", "cells")) and not supersede:
             print("declaration unchanged")
             return old
-        raise SystemExit(f"refusing to overwrite the existing `{LEDGER_SECTION}` declaration with a different "
-                         f"one: changing it after the fact is a ledger event, not an edit")
+        if not (isinstance(supersede, str) and supersede.strip()):
+            raise SystemExit(f"refusing to overwrite the existing `{LEDGER_SECTION}` declaration with a different "
+                             f"one: changing it after the fact is a ledger event, not an edit (use --supersede REASON, "
+                             f"allowed only while no evaluation record exists)")
+        # A ledger EVENT, not an edit: the old declaration is kept verbatim with when/why/by-what it was replaced. Only
+        # possible before any record exists (checked above), so no outcome of this search can have informed it.
+        data.setdefault(SUPERSEDED_SECTION, []).append(
+            dict(old, superseded_at=_now_iso(), superseded_reason=supersede.strip(),
+                 superseded_by_plan_hash=new["plan_hash"]))
+        new["supersedes_plan_hash"] = old.get("plan_hash")
     new["runner_benchmark"] = runner_benchmark_status()
     if not new["runner_benchmark"]["recorded"]:
         print("NOTE (does not stop the declaration): " + new["runner_benchmark"]["note"], file=sys.stderr, flush=True)
@@ -1200,12 +1222,28 @@ def admission_stats(rows, min_rr, fold=None):
             "near_floor_margin_max": near[-1] if near else None}
 
 
+def prop_kwargs(ps, acct, taken, weekdays):
+    """D4 + D5, the ONE place every prop-pass caller (BtEngine.prop_pass, research/e2e_power.py, research/power_model.py)
+    builds its extra `performance.metrics` arguments: the horizon counted in WEEKDAYS of the test span (`weekdays`, at least
+    the distinct trade days) and the per-trade risk from the outcome-free frequency rule (`FS.prop_risk`). `weekdays` None
+    = the v1 reading (trade days, ceiling risk): no extra argument."""
+    if weekdays is None:
+        return {}
+    w = max(int(weekdays), len({t["entry_time"][:10] for t in taken}))
+    pt = ((acct.get("rules") or {}).get("profit_target") or {}).get("pct")
+    return {"observed_weekdays": w,
+            "risk": FS.prop_risk(len(taken), w, ps.CHALLENGE_HORIZON_DAYS, pt, float(ps._AP.effective_risk_pct(acct)))}
+
+
 def prop_row_from_metric(p):
     """I6: a performance.metrics prop_pass_probability entry -> {value, reason, low_confidence, spread_min}."""
     if isinstance(p, dict) and isinstance(p.get("value"), (int, float)):
         spread = (p.get("spread") or {}).get("prop_pass_probability")
         return {"value": p["value"], "low_confidence": bool(p.get("low_confidence")),
-                "spread_min": spread[0] if isinstance(spread, (list, tuple)) and spread else None}
+                "spread_min": spread[0] if isinstance(spread, (list, tuple)) and spread else None,
+                # D4/D5: what the bootstrap actually used (recorded, not a verdict input)
+                "risk_per_trade": p.get("risk_per_trade"), "horizon_unit": p.get("horizon_unit"),
+                "observed_weekdays": p.get("observed_weekdays")}
     reason = p.get("unavailable") if isinstance(p, dict) else None
     return {"value": None, "reason": reason or "metric absent"}
 
@@ -1597,7 +1635,7 @@ class BtEngine:
     def rollover_edge_stats(self, values, fold=None):
         return rollover_edge_stats(self._edge.get(FS.CountingSource._key(values), []), fold)
 
-    def prop_pass(self, pooled, r_shift=0.0):
+    def prop_pass(self, pooled, r_shift=0.0, weekdays=None):
         """prop_pass_probability per fund at the pre-registration's gating horizon, over the pooled test trades,
         as explicit rows: value, status/reason when unavailable, low_confidence and the bootstrap spread minimum.
 
@@ -1614,7 +1652,9 @@ class BtEngine:
             taken = [dict(t, net_R=t["net_R"] - r_shift) for t in taken]
         out = {}
         for f in ps.FUNDS:
-            m = ps._perf.metrics(taken, equity=curve, account=ps._AP.get(f), horizon=ps.CHALLENGE_HORIZON_DAYS)
+            acct = ps._AP.get(f)
+            m = ps._perf.metrics(taken, equity=curve, account=acct, horizon=ps.CHALLENGE_HORIZON_DAYS,
+                                 **prop_kwargs(ps, acct, taken, weekdays))
             out[f] = prop_row_from_metric(m.get("prop_pass_probability"))
         return out
 
@@ -1920,9 +1960,10 @@ def evaluate_with_engine(engine, grid, cell, family_size, axes=None):
     flips = FS.categorical_flip_sets(grid, src, fold_results, axes)
     pooled = FS.pooled_test_trades(fold_results)
     conf = FS.n_adjusted_confidence(family_size)
-    prop = engine.prop_pass(pooled)
+    wd = FS.test_weekdays(folds)                                               # D4: the test span in weekdays
+    prop = engine.prop_pass(pooled, weekdays=wd)
     shift = FS.prop_shift_r(FS.robust_lower_bound(pooled, conf))               # A8b: mean - primary bound at the floor
-    prop_shifted = engine.prop_pass(pooled, r_shift=shift) if (shift is not None and pooled) else None
+    prop_shifted = engine.prop_pass(pooled, r_shift=shift, weekdays=wd) if (shift is not None and pooled) else None
     stress = engine.stress_trades(pooled) if (pooled and callable(getattr(engine, "stress_trades", None))) else None
     res = FS.evaluate_cell(fold_results, perturbs, cell["symbols"], family_size, prop, runs=src.runs, stress=stress,
                            prop_shifted=prop_shifted, shift_r=shift, categorical=flips, skips=skips, grid=grid, axes=axes,
@@ -3220,6 +3261,8 @@ def main(argv=None):
     pp.add_argument("--grid-dir", help="directory holding v-grid-ict.json / v-grid-wyckoff.json")
     dp = sub.add_parser("declare", help="record the final cell count in the research ledger (before any run)")
     dp.add_argument("--allow-dirty", action="store_true", help=_ALLOW_DIRTY_HELP)
+    dp.add_argument("--supersede", metavar="REASON",
+                    help="replace an existing declaration (a recorded ledger event; refused once any record exists)")
     sub.add_parser("list-cells", help="print the committed plan's cell ids as JSON (the CI matrix)")
     lp = sub.add_parser("list-scan-shards", help="print the scan-shard matrix (cell x method x symbol x wave x slice) "
                                                  "as JSON; --explain prints the time model's table instead")
@@ -3262,7 +3305,7 @@ def main(argv=None):
             return check_data(a.grid_dir)
         cmd_plan(dry_run=a.dry_run, grid_dir=a.grid_dir)
     elif a.cmd == "declare":
-        cmd_declare(allow_dirty=a.allow_dirty)
+        cmd_declare(allow_dirty=a.allow_dirty, supersede=a.supersede)
     elif a.cmd == "list-cells":
         print(json.dumps([{"cell": c["id"]} for c in load_plan()["cells"]]))
     elif a.cmd == "list-scan-shards":

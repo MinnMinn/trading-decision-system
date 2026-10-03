@@ -303,12 +303,14 @@ class World:
 
 
 # ============================================================================================================ verdicts
-def prop_rows(trades, shift=0.0):
+def prop_rows(trades, shift=0.0, weekdays=None):
     ps, fs = prop_search(), fund_search_mod()
     taken = trades if not shift else [dict(t, net_R=t["net_R"] - shift) for t in trades]
     out = {}
     for f in ps.FUNDS:
-        m = ps._perf.metrics(taken, account=ps._AP.get(f), horizon=ps.CHALLENGE_HORIZON_DAYS)
+        acct = ps._AP.get(f)
+        m = ps._perf.metrics(taken, account=acct, horizon=ps.CHALLENGE_HORIZON_DAYS,
+                             **fs.prop_kwargs(ps, acct, taken, weekdays))     # D4/D5, as the harness
         out[f] = fs.prop_row_from_metric(m.get("prop_pass_probability"))
     return out
 
@@ -354,7 +356,7 @@ def eval_lazy(world, d):
     if not ok:
         return done("perturbation")
     # the shifted prop pass is REPORT-ONLY since 2026-10-02 (FS.REPORT_ONLY_CHECKS): not evaluated, not in the conjunction
-    pr = prop_rows(pooled)
+    pr = prop_rows(pooled, weekdays=FS.test_weekdays([x["fold"] for x in fr]))     # D4: the harness's own test span
     checks["prop_pass_probability"] = FS.check_prop_pass(pr)
     if not checks["prop_pass_probability"]["ok"]:
         return done("prop_pass_probability")
@@ -367,7 +369,7 @@ def eval_full(world, d):
     pooled = d["trades"]
     lb = FS.robust_lower_bound(pooled, CONF)
     perturbs = world.neighbours(d)
-    prop = prop_rows(pooled)
+    prop = prop_rows(pooled, weekdays=FS.test_weekdays([x["fold"] for x in d["fold_results"]]))     # D4, as eval_lazy
     r = FS.evaluate_cell(d["fold_results"], perturbs, world.syms, FAMILY, prop, stress=world.stress_trades(d),
                          min_days_required=fund_search_mod().min_trading_days_required())
     return {"verdict": r["verdict"], "failed": list(r["failed_checks"]), "floor_ok": r["checks"]["lower_bound_positive"]["ok"],

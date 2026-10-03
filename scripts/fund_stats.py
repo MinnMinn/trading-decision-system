@@ -548,6 +548,47 @@ def component_neighbours(grid, item_id, comp, current):
 
 
 # ------------------------------------------------------------------------------ walk-forward geometry
+def test_weekdays(folds):
+    """D4: the number of Mon-Fri days inside the union of the folds' TEST windows [test_start, test_end) -- the calendar
+    span the pooled test trades were drawn from, so the prop bootstrap's horizon is counted in weekdays (empty no-trade
+    days included) rather than in days that had a trade. Dates only; never results."""
+    days = set()
+    for f in folds:
+        d, end = ts(f["test_start"]).date(), ts(f["test_end"]).date()
+        while d < end:
+            if d.weekday() < 5:
+                days.add(d)
+            d += datetime.timedelta(days=1)
+    return len(days)
+
+
+#: D5 (docs/audits/2026-10-02-strategic-diagnosis.md §2 #5): the prop simulation's per-trade risk is no longer always the
+#: 1 % ceiling. It is chosen by an OUTCOME-FREE rule from the trade FREQUENCY alone (counts, as the cell selection was):
+#: the smallest grid value at which a reference edge would reach the profit target in at most the horizon's expected
+#: number of trades, i.e. the smallest r with  target / (r * PROP_REF_EDGE_R) <= expected trades in the horizon.
+#: A high-frequency cell gets a small r (the 5 % daily / 10 % total limits stop binding on noise); a sparse cell keeps the
+#: ceiling. Never above the account's ceiling (risk-config.json max_risk_pct); the grid is declared before any result.
+PROP_RISK_GRID = (0.0025, 0.005, 0.01)
+PROP_REF_EDGE_R = 0.10
+PROP_RISK_DEFINITION = ("per fund: expected trades in the horizon N = pooled test trades / test weekdays x horizon weekdays; "
+                        "r = the smallest of PROP_RISK_GRID (0.25 %, 0.5 %, 1 %) with profit_target / (r x 0.10 R) <= N, "
+                        "else the largest grid value; never above the account's per-trade ceiling. Counts only, no outcome.")
+
+
+def prop_risk(n_trades, weekdays, horizon_days, profit_target, ceiling, grid=PROP_RISK_GRID, ref_edge=PROP_REF_EDGE_R):
+    """D5: the outcome-free per-trade risk for the prop simulation (see PROP_RISK_DEFINITION)."""
+    allowed = sorted(r for r in grid if r <= ceiling + 1e-12)
+    if not allowed:
+        return float(ceiling)
+    if not (n_trades and weekdays and horizon_days and profit_target):
+        return allowed[-1]
+    n_exp = n_trades / weekdays * horizon_days
+    for r in allowed:
+        if profit_target / (r * ref_edge) <= n_exp:
+            return r
+    return allowed[-1]
+
+
 def make_folds(data_start_iso, cutoff_iso=DEV_CUTOFF, test_days=TEST_FOLD_DAYS, min_train_days=MIN_TRAIN_DAYS):
     """Rolling-origin folds ending exactly at the development cutoff, going back in `test_days` steps while the
     training span in front of the fold is >= `min_train_days`. Determined by DATES only -- never by results."""

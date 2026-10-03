@@ -332,6 +332,12 @@ def _bootstrap_days(blocks, *, risk, horizon_days, iterations, seed, ruin_level,
     day, at the day's close -- a day-granularity reading of the same rules `_bootstrap` checks per trade,
     which is the coarsest this can be without re-deriving intra-day equity paths the input does not carry.
 
+    D4 (docs/audits/2026-10-02-strategic-diagnosis.md §2 #4): `blocks` may contain EMPTY blocks -- weekdays on which the
+    observed population traded nothing (`metrics(observed_weekdays=...)` adds them). They are resampled like any other
+    day, so `horizon_days` then counts WEEKDAYS (calendar time) instead of days-that-had-a-trade, and the trading-day
+    objective below counts only non-empty days (`traded_so_far`). Without empty blocks the two counts coincide, so the
+    v1 behaviour is byte-identical.
+
     `min_days` (the account's `min_trading_days`, an OBJECTIVE per §33, not a gate) delays the earliest day
     `prop_pass_probability`'s PASS event may fire by a plain day-INDEX count -- every simulated day here IS a
     trading day (`blocks` only ever holds days `_day_blocks` found a trade on), so `d + 1` already equals
@@ -370,9 +376,12 @@ def _bootstrap_days(blocks, *, risk, horizon_days, iterations, seed, ruin_level,
         eq, peak = 1.0, 1.0
         t_ruin = t_fail = t_target = None
         profitable_so_far = 0
+        traded_so_far = 0
         for d in range(horizon_days):
             day_start = eq
-            for r in rng.choice(blocks):
+            blk = rng.choice(blocks)
+            traded_so_far += bool(blk)          # D4: an EMPTY block is a weekday with no trade, not a trading day
+            for r in blk:
                 eq *= (1.0 + risk * r)
             peak = max(peak, eq)
             if min_profitable is not None and (eq - day_start) >= min_profitable["profit_threshold_pct"]:
@@ -385,7 +394,7 @@ def _bootstrap_days(blocks, *, risk, horizon_days, iterations, seed, ruin_level,
                 elif "trailing_drawdown" in failure and eq <= peak * (1.0 - failure["trailing_drawdown"]):
                     t_fail = d
             if (t_target is None and profit_target is not None and eq >= 1.0 + profit_target
-                    and (min_days is None or d + 1 >= min_days)
+                    and (min_days is None or traded_so_far >= min_days)
                     and (min_profitable is None or profitable_so_far >= min_profitable["count"])):
                 t_target = d
             if eq <= ruin_level:
@@ -403,8 +412,16 @@ def _bootstrap_days(blocks, *, risk, horizon_days, iterations, seed, ruin_level,
 
 
 def metrics(trades, *, equity=None, account=None, breakeven_band=BREAKEVEN_BAND, bars_per_year=None,
-            iterations=BOOTSTRAP_ITERATIONS, seed=BOOTSTRAP_SEED, horizon=None, trades_per_year=None):
+            iterations=BOOTSTRAP_ITERATIONS, seed=BOOTSTRAP_SEED, horizon=None, trades_per_year=None,
+            observed_weekdays=None, risk=None):
     """Every metric CLAUDE.md §39 names, for one population of closed trades.
+
+    `observed_weekdays` -- D4: the number of Mon-Fri days in the span the trades were drawn from. When given (day-block
+                         bootstrap only), the weekdays with no trade enter the resample as EMPTY day blocks, so a
+                         `horizon` in days means calendar weekdays, not days-that-had-a-trade (the v1 reading, kept when
+                         None). Must be >= the number of distinct trade days.
+    `risk`             -- D5: per-trade risk fraction for the three probabilities, instead of the account's ceiling
+                         (`_risk_fraction`). Refused above that ceiling (risk-config.json max_risk_pct is never exceeded).
 
     `trades`          -- records carrying an R multiple (`net_R` / `R` / `r_multiple`); optionally `outcome`,
                          `mfe`, `mae`, `bars_held`, `pnl_usd`.
@@ -417,6 +434,7 @@ def metrics(trades, *, equity=None, account=None, breakeven_band=BREAKEVEN_BAND,
 
     Every key in the returned dict is a metric id from the registry, plus `n` and `_assumptions`.
     """
+    risk_override = risk          # D5: captured before the P&L branch below reuses the name `risk`
     band = float(breakeven_band)
     rows = [t for t in (trades or []) if _r(t) is not None]
     rs = [_r(t) for t in rows]
@@ -576,7 +594,13 @@ def metrics(trades, *, equity=None, account=None, breakeven_band=BREAKEVEN_BAND,
         pt = rules.get("profit_target")
         pt = float(pt["pct"]) if isinstance(pt, dict) and isinstance(pt.get("pct"), (int, float)) else None
         ruin_level = 0.10          # the repo's own ruin convention (backtest-methods.RUIN_FRAC)
-        risk = _risk_fraction(account)
+        ceiling = _risk_fraction(account)
+        if risk_override is None:
+            risk = ceiling
+        elif not (isinstance(risk_override, (int, float)) and 0 < risk_override <= ceiling):
+            raise ValueError(f"risk={risk_override!r} must be in (0, {ceiling}] (the account's per-trade ceiling, §34)")
+        else:
+            risk = float(risk_override)
 
         # max_daily_loss needs its trades grouped by their OWN day (_day_blocks); everything else keeps the
         # per-trade bootstrap. Missing entry_time drops max_daily_loss rather than silently skipping it.
@@ -586,6 +610,12 @@ def metrics(trades, *, equity=None, account=None, breakeven_band=BREAKEVEN_BAND,
             fail = {k: v for k, v in fail.items() if k != "max_daily_loss"}
             dropped_note = "max_daily_loss excluded: no entry_time on trades"
 
+        traded_days = len(blocks) if blocks is not None else None
+        if blocks is not None and observed_weekdays is not None:
+            if not isinstance(observed_weekdays, int) or observed_weekdays < len(blocks):
+                raise ValueError(f"observed_weekdays={observed_weekdays!r} must be an int >= the {len(blocks)} "
+                                 f"distinct trade days it contains")
+            blocks = blocks + [[] for _ in range(observed_weekdays - len(blocks))]   # D4: no-trade weekdays
         if blocks is not None:
             hz = int(horizon or max(5, len(blocks)))
             ruin, failed, passed = _bootstrap_days(blocks, risk=risk, horizon_days=hz, iterations=iterations,
@@ -594,8 +624,12 @@ def metrics(trades, *, equity=None, account=None, breakeven_band=BREAKEVEN_BAND,
                                                    min_profitable=min_profitable)
             common = {"method": "day-block bootstrap: resamples whole UTC trading days with replacement, "
                                  "preserving within-day correlation for max_daily_loss (CLAUDE.md §33/§39)",
-                      "iterations": iterations, "seed": seed, "horizon_trades": hz, "horizon_unit": "days",
+                      "iterations": iterations, "seed": seed, "horizon_trades": hz,
+                      "horizon_unit": "weekdays" if observed_weekdays is not None else "days",
                       "risk_per_trade": risk, "sample": n}
+            if observed_weekdays is not None:
+                common["observed_weekdays"] = observed_weekdays
+                common["observed_trade_days"] = traded_days
             if min_profitable is not None:
                 # fix round 2, item 3: this bootstrap's OWN profitable-day gating reads ENTRY-day profit (see
                 # _bootstrap_days's docstring for why exit-day attribution is not cleanly possible inside a

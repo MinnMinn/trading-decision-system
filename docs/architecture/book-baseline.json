@@ -1,0 +1,35 @@
+{
+ "_comment": "BASELINE book for variant search (owner 2026-10-02: 'l\u01b0u l\u1ea1i M\u00f4 ph\u1ecfng book 3 th\u00e0nh ph\u1ea7n nh\u01b0 m\u1ed9t base'). Every variant is compared with this book on the SAME common span by scripts/research/book_sim.py compare. Changing it is a decision recorded in docs/plans/2026-09-30-owner-decisions.md.",
+ "name": "all_three",
+ "components": [
+  "H7_XAUUSD_eod",
+  "E5_XAUUSD_24",
+  "E5_US500_48"
+ ],
+ "risk_pct": 0.01,
+ "trade_mechanics": "stop 2 x sigma_5m x sqrt(hold bars); time exit; flat before the rollover; relative spread cost (ftmo_demo_2026_09_relspread); R = net P&L / stop distance",
+ "ftmo_replay": "a challenge starts every Monday on the real trade sequence; P1 target +10 %, P2 +5 %; fail at equity <= 90 % or a server day <= -5 %; >= 4 trading days",
+ "reference_result": {
+  "source": "docs/audits/2026-10-02-book-sim.json books['all_three|0.01']",
+  "span_from": "2021-10-12T00:50:00Z",
+  "phase1_unlimited": {
+   "starts": 254,
+   "pass": 0.9133858267716536,
+   "fail": 0.0,
+   "median_days_to_pass": 184.0
+  },
+  "phase1_120d": {
+   "starts": 254,
+   "pass": 0.4409448818897638,
+   "fail": 0.0,
+   "median_days_to_pass": 96.5
+  },
+  "phase2_unlimited": {
+   "starts": 254,
+   "pass": 0.9488188976377953,
+   "fail": 0.0,
+   "median_days_to_pass": 58
+  }
+ },
+ "status": "DESIGN on already-read history; forward paper + demo (scripts/forward_cycle.py) is the validation"
+}

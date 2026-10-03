@@ -967,7 +967,7 @@ class FundSearchWaves(unittest.TestCase):
                     self.scans.append(key)          # a value set scanned on demand, not prefetched
                 return outer._trades(values)
 
-            def prop_pass(self, pooled, r_shift=0.0):
+            def prop_pass(self, pooled, r_shift=0.0, weekdays=None):
                 return {"ftmo": {"value": 0.9}, "the5ers": {"value": 0.9}}
 
             def has(self, values):

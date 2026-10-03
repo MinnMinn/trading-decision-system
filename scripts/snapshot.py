@@ -383,6 +383,8 @@ def backtest_config_snapshot(bt, *, timeframes, methods, configs=None, fee_pct=N
                                      "fx_admission_entry_cost",
                                      # C3 (2026-10-02): walk()'s stop-fill rule on a gap; default v1.
                                      "fx_gap_fill",
+                                     # D3 (2026-10-02): ICT fill-scan start after the FVG's third candle; default v1.
+                                     "fx_fvg_formed_start",
                                      # Batch 2(a) Wyckoff V items (plan §3 V grid): read on the scan path
                                      # (backtest-methods._fires_from / _wy_params / scan); baseline = v1.
                                      "fx_w_stop", "fx_w4a_linger_closes", "fx_w6_window", "fx_w_spt",
