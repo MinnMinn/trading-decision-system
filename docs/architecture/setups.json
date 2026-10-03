@@ -1,0 +1,47 @@
+{
+  "_comment": "THE registry of the mechanical setups a book Trading System is composed of (CLAUDE.md §13-§14: Methodology != Setup != Trading System). One reader: scripts/registry.py. A setup is one explicit, independently testable rule; its code is named in `rule_ref` and is the ONE definition the research measured and the executor trades. The interpretive methodologies (ICT, Wyckoff, Footprint, Heatmap) and their pilot setups stay in docs/architecture/methods.json and docs/architecture/pilot-selection.json; this file holds the setups of books.",
+  "schema_version": 1,
+  "evidence_statuses": ["VALIDATED", "WATCH", "REJECTED", "RESEARCH"],
+  "_evidence_statuses_why": "Per (setup, instrument), because evidence is per instrument: G9 survived on both metals, but G9 silver failed the pass-policy replay (67-87 % first-attempt fail 2021-23) and is watched on paper only. An APPROVED book version may only hold components whose instrument status is VALIDATED (scripts/registry.py validate). A status changes only with a new audit named in `evidence_ref`.",
+  "methodologies": {
+    "fvg_retrace": {
+      "name": "Displacement fair value gap retrace",
+      "spec_ref": "scripts/research/edge_census.py fvg_gap_at",
+      "what": "A three-bar displacement leaves a gap; the retrace into its near edge is traded with a time exit."
+    },
+    "intraday_trend": {
+      "name": "Intraday trend breakout",
+      "spec_ref": "docs/audits/2026-10-02-edge-f3.md, docs/audits/2026-10-02-edge-f4.md",
+      "what": "A breakout through the previous server day's range in the direction of the move, held to the rollover."
+    }
+  },
+  "setups": {
+    "E5": {
+      "methodology": "fvg_retrace",
+      "version": "1",
+      "what": "LIMIT at the near edge of an untouched displacement FVG known at its third bar's close; stop 2 x sigma_5m x sqrt(hold_bars); time exit after hold_bars; flat before the rollover; one filled trade per (symbol, server day, side).",
+      "rule_ref": "scripts/research/edge_census.py fvg_gap_at; scripts/fvg_demo.py new_gaps",
+      "params": ["hold_bars"],
+      "evidence": {"XAUUSD": "VALIDATED", "US500": "VALIDATED"},
+      "evidence_ref": "docs/audits/2026-10-02-fvg-book-sim.md"
+    },
+    "H7": {
+      "methodology": "intraday_trend",
+      "version": "1",
+      "what": "MARKET entry at the bar after the first close beyond the previous server day's high (low) with the 20-day momentum; stop 2 sigma x sqrt(bars to the rollover); closed before the rollover.",
+      "rule_ref": "scripts/research/edge_f3.py ev_breakout_trend",
+      "params": [],
+      "evidence": {"XAUUSD": "VALIDATED"},
+      "evidence_ref": "docs/audits/2026-10-02-edge-f3.md"
+    },
+    "G9": {
+      "methodology": "intraday_trend",
+      "version": "1",
+      "what": "MARKET entry at the bar after the first close beyond the open +/- 0.5 x the previous dense day's range; stop 2 sigma x sqrt(bars to the rollover); closed before the rollover.",
+      "rule_ref": "scripts/research/edge_f4.py ev_vol_breakout",
+      "params": [],
+      "evidence": {"XAUUSD": "VALIDATED", "XAGUSD": "WATCH"},
+      "evidence_ref": "docs/audits/2026-10-02-edge-f4.md, docs/audits/2026-10-02-pass-policy.md"
+    }
+  }
+}

@@ -5,7 +5,7 @@
 - Tầng phân tích: `docs/architecture/automation-config.json` → `markets.<crypto|cfd>.dimensions`, bốn cờ
   `wyckoff / ict / footprint / heatmap` (SYSTEM-DESIGN.md §6.2). Đổi bằng `/automation dimension <tên> <on|off>`,
   từng cờ một, chỉ ở terminal.
-- Tầng pilot: `scripts/strategy-runner.py:95` `METHODS = ("ICT", "COMBINED", "WYCKOFF", "WYCKOFF-BOOK")`, chọn
+- Tầng pilot: `scripts/strategy-runner.py:97` `METHODS = ("ICT", "COMBINED", "WYCKOFF", "WYCKOFF-BOOK")`, chọn
   qua `docs/architecture/pilot-top5.json` và `execution.pilot_profile`. Không liên quan gì tới bốn cờ trên.
 
 Không có khái niệm "đang chạy phương pháp nào", không có chỗ nào đổi được từ ngoài máy, và thêm một phương pháp
@@ -47,7 +47,7 @@ dispatched (Wyckoff + ICT)"*; `scripts/build-artifact.py:281` hardcode `cols = [
 chỗ nào đọc hai cờ đó. Nên hôm nay `wyckoff`, `ict`, `wyckoff+ict` **giống hệt nhau** ở tầng phân tích. Muốn công
 tắc có nghĩa thì phải làm hai cờ đó có thật — đây là thay đổi hành vi của tầng phân tích, nêu rõ chứ không lén (§4.2).
 
-**2.2 Lọc method ở `load_setups()` sẽ bỏ rơi lệnh đang mở.** `scripts/strategy-runner.py:742-743`:
+**2.2 Lọc method ở `load_setups()` sẽ bỏ rơi lệnh đang mở.** `scripts/strategy-runner.py:766-767`:
 
 ```python
 s = load_state(); setups_cfg = load_setups()
@@ -77,7 +77,7 @@ Hôm nay đang lệch:
 | Thứ | Các bản sao |
 |---|---|
 | tập dimension | `automation.py:80 MARKET_DIMENSIONS`, `schemas/automation-config.schema.json` (chép tay), `build-artifact.py:90 LANES` |
-| tập runner method | `strategy-runner.py:95 METHODS`, `rank-setups.py:60 RUNNABLE` |
+| tập runner method | `strategy-runner.py:97 METHODS`, `rank-setups.py:60 RUNNABLE` |
 
 ### 3.1 Hình dạng
 
@@ -256,7 +256,7 @@ Tương tác và trạng thái:
 - Banner khi `control/heartbeat` cũ hơn 12 phút: *"không có tiến trình áp dụng — yêu cầu đang treo"*, kèm tuổi của
   request đang chờ. Không có banner này thì "trạng thái live" là lời hứa suông khi không phiên Claude nào mở.
 - Khi `execution.environment == "real"`: cột pilot thay bằng *"pilot không chạy ở REAL"*. Đây là sự thật của code:
-  `strategy-runner.py:182-183` từ chối tick khi environment là `real` (quyết định 2026-09-11, top5 là pilot testnet).
+  `strategy-runner.py:184-185` từ chối tick khi environment là `real` (quyết định 2026-09-11, top5 là pilot testnet).
   Ở `real` chỉ nửa phân tích của preset có hiệu lực.
 
 ### 4.5 Cron áp dụng — `integrations/crons/method-switch.md`
@@ -269,7 +269,7 @@ là `local_read` (`:67`), nên không khai thì tắt local read sẽ giết lu�
 Các bước trong prompt:
 
 1. Gate: `python3 scripts/automation.py allows master`; **chỉ đi tiếp khi exit 0**. Không viết "exit 2 thì dừng":
-   `automation.py:1253-1260` dành exit 2 riêng cho REFUSED và cho usage error exit **1**, nên một lệnh gõ sai hay
+   `automation.py:1218-1225` dành exit 2 riêng cho REFUSED và cho usage error exit **1**, nên một lệnh gõ sai hay
    một subcommand chưa tồn tại sẽ lọt qua cổng viết kiểu đó (CRON-01).
 2. `Artifact action='read_db'`, đọc **đúng hai đường dẫn có tên** `control/request.crypto` và `control/request.cfd`;
    không quét cả collection. Doc vắng mặt = không làm gì, không phải lỗi.
@@ -306,7 +306,7 @@ ra khỏi vòng được lưu sang file archive thay vì mất hẳn.
 
 ### 4.6 Menu chọn nhiều cặp
 
-**Cái này là thật, khác hai cờ `wyckoff`/`ict`.** `scripts/strategy-runner.py:192-199` — `enabled_symbols(market)` trả
+**Cái này là thật, khác hai cờ `wyckoff`/`ict`.** `scripts/strategy-runner.py:194-201` — `enabled_symbols(market)` trả
 về `instruments.execution(market)` **giao với** `markets.<m>.instruments`, và nó gate cả chỗ nạp nến (`:762`) lẫn bước
 3 sinh tín hiệu (`:837`). Bỏ tick một cặp là pilot thôi mở lệnh mới trên cặp đó.
 
@@ -317,7 +317,7 @@ về `instruments.execution(market)` **giao với** `markets.<m>.instruments`, v
 (PANEL-09). Mỗi chip mang nhãn trạng thái, lấy từ hàm dò sẵn có chứ không từ danh sách chép tay:
 
 - *chưa có dữ liệu* — không có file `ohlcv.<SYM>.15m.json` trong `data/live/<DATA_DIR[m]>/`; dùng đúng phép dò của
-  `automation.py:832-816` (`def mt5_freshness(`) và của `automation.py:1253` (`def cmd_instrument(`). Hôm nay USOIL/UKOIL rơi vào đây;
+  `automation.py:797-781` (`def mt5_freshness(`) và của `automation.py:1218` (`def cmd_instrument(`). Hôm nay USOIL/UKOIL rơi vào đây;
   XAUUSD và XAGUSD đều đã có export tươi.
 - *không đặt lệnh được* — có trong `analysis` nhưng ngoài `execution`, nên tick chỉ mở rộng phạm vi phân tích chứ
   không cho pilot đặt lệnh (CFG-15). Hôm nay `analysis == execution` ở cả hai market nên chưa cặp nào rơi vào đây.
@@ -340,7 +340,7 @@ history (CFG-13).
 
 Lưu ý về trần: câu "menu chỉ thu hẹp được" là **rỗng nghĩa** — `analysis == execution` ở cả hai market hôm nay, nên
 trong trần `instruments.json` một cú tick lại chạm tới mọi symbol đặt lệnh được. Trần thật sự là phép giao ở
-`strategy-runner.py:198`, và nó đứng vững.
+`strategy-runner.py:200`, và nó đứng vững.
 
 **Cron không tự tính diff** (CRON-12): nó chỉ quyết định *có hành động hay không* rồi truyền nguyên tập mong muốn;
 `automation.py` tính phần thay đổi. Không để số học tập hợp cho mô hình làm.

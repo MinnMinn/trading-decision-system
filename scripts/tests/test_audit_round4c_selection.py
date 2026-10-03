@@ -422,7 +422,7 @@ class OneSelectionPath(unittest.TestCase):
 
 
 class RenamedFilesAreWhatTheCodeOpens(unittest.TestCase):
-    def test_runner_journal_panel_outcomes_and_mandates_point_at_the_new_names(self):
+    def test_runner_journal_panel_and_outcomes_point_at_the_new_names(self):
         sr = load("strategy-runner.py", "sr_r4c")
         self.assertEqual(sr.SELECTION, os.path.join(ROOT, "docs", "architecture", "pilot-selection.json"))
         self.assertEqual(os.path.basename(sr.STATE), "pilot-selection-state.json")
@@ -438,8 +438,6 @@ class RenamedFilesAreWhatTheCodeOpens(unittest.TestCase):
         self.assertEqual(os.path.basename(j.PILOT["cfd-mt5"]), "pilot-selection-mt5-log.jsonl")
         mp = load("method-panel.py", "mp_r4c")
         self.assertEqual(os.path.basename(mp.PILOT_STATE_PATH), "pilot-selection-state.json")
-        md = load("mandates.py", "md_r4c")
-        self.assertEqual(md.SELECTION, sr.SELECTION)
 
     def test_the_runner_trades_nothing_without_a_selection_file(self):
         sr = load("strategy-runner.py", "sr_r4c_empty")

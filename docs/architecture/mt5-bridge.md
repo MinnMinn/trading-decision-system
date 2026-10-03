@@ -69,7 +69,7 @@ The EA no longer writes `ohlcv.<SYM>.<TF>.json`. It writes **`ohlcv.<SYM>.<TF>.s
 
 Same as the crypto contract: `now − last_updated > 1.5× the timeframe's own bar interval` → `STALE`, not `AVAILABLE`. Since the EA only writes when the terminal is running and connected, a stale file usually just means the terminal was closed — report it plainly rather than serving old data as current.
 
-**Since EA v1.03 `last_updated` is the last real quote**, not the EA's timer: the runner's own MT5 rule (`strategy-runner.py:776` (`MT5 export for {sym} {src_tf} is stale`)) — stale when `now − last_updated > 2 × TF + 900 s` — now fires when the quote stream freezes (terminal disconnected, server down). **Weekends read as STALE, correctly**: between Friday's close and Monday's open there is no live quote, and the CFD styles wait rather than trade from Friday's state. The EA's timer still runs then, which is exactly why its heartbeat (`_exported_at_utc`) must never be read as freshness.
+**Since EA v1.03 `last_updated` is the last real quote**, not the EA's timer: the runner's own MT5 rule (`strategy-runner.py:800` (`MT5 export for {sym} {src_tf} is stale`)) — stale when `now − last_updated > 2 × TF + 900 s` — now fires when the quote stream freezes (terminal disconnected, server down). **Weekends read as STALE, correctly**: between Friday's close and Monday's open there is no live quote, and the CFD styles wait rather than trade from Friday's state. The EA's timer still runs then, which is exactly why its heartbeat (`_exported_at_utc`) must never be read as freshness.
 
 ## Hard caveat: `volume` here is NOT real traded volume
 

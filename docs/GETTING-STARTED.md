@@ -181,7 +181,7 @@ Thêm `mock` vào cuối để diễn tập bằng dữ liệu giả: kết qu�
 4. Chỉ còn **một sàn pilot**: `PILOT_MARKETS=futures` (`config/env.example:39`). Hạ `PILOT_RISK_PCT` xuống nhỏ hơn khi mới chạy — trần cứng là `trading_env.MAX_RISK_PCT` = **0.03** (3 %/lệnh, quyết định người dùng 2026-09-13, đi kèm sàn R:R kế hoạch **3.0** đọc qua `trading_env.min_rr()`); `config/env.example` đang đặt sẵn `PILOT_RISK_PCT=0.03`, tức là ngay ở trần.
 5. Chạy lại `bash scripts/verify-automation-v3.sh`. Mục 6 sẽ gọi endpoint chỉ đọc trên mainnet.
 6. Gõ `/automation real`. Đọc kỹ phần báo cáo, đặc biệt các dòng bắt đầu bằng `!`.
-7. Theo dõi tick đầu tiên trong `data/live/pilot-futures/loop.log`. Lưu ý: `strategy-runner.py` **từ chối mọi tick khi `execution.environment == "real"`** (`strategy-runner.py:405` (`== "real"`)) — quyết định người dùng 2026-09-11, pilot demo/testnet trước. Vòng lặp có thể khởi động ở `real` nhưng sẽ không đặt lệnh.
+7. Theo dõi tick đầu tiên trong `data/live/pilot-futures/loop.log`. Lưu ý: `strategy-runner.py` **từ chối mọi tick khi `execution.environment == "real"`** (`strategy-runner.py:429` (`== "real"`)) — quyết định người dùng 2026-09-11, pilot demo/testnet trước. Vòng lặp có thể khởi động ở `real` nhưng sẽ không đặt lệnh.
 
 ---
 

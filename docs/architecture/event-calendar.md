@@ -60,6 +60,15 @@ state it read.
 Typical recurring events to track: CPI, FOMC decisions and speeches, NFP, EIA weekly petroleum status,
 OPEC+ meetings, and scheduled crypto-specific events (network upgrades, large token unlocks).
 
+## Current snapshot
+
+`cal-2026-10-03-a` (v2) covers through **2026-12-31**: the scheduled HIGH-impact US releases (FOMC
+decision and press conference, NFP, CPI, PCE, GDP advance), ECB decisions and press conferences, and RBA
+decisions, each with its official schedule page in `source` and the publisher's local clock in
+`local_time`. Its `_v2_scope` note lists what is deliberately not covered and why every row's
+`available_time` is the curation date. **Before 2026-12-31, extend the file** -- otherwise the fail-safe
+blocks all new entries from 2027-01-01.
+
 **A stale calendar is not a quiet one.** Past `covers_through`, every instrument reads UNAVAILABLE and the
 configured fail-safe applies -- by design, so that forgetting to maintain this file is loud rather than
 invisible.

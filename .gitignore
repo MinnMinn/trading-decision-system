@@ -92,3 +92,6 @@ integrations/bookmap/dist/
 !docs/contracts/**
 !docs/research/
 !docs/research/**
+# per-account runtime (scripts/fvg_demo.py, strategy-runner.py --account): state, event log, STOP -- per machine
+data/live/accounts/
+__pycache__/
