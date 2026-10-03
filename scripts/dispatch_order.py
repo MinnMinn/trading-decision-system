@@ -1,4 +1,5 @@
-"""Which customer account gets a shared signal first, and why that one.
+"""Which account gets a shared signal first, and why that one. Also the order scripts/forward_cycle.py ticks its accounts
+in each cycle (ADR 0010), so no account is structurally first.
 
     import dispatch_order as DO
     DO.rank("2026-09-19T14:00:00Z|BTCUSDT|long|cfd-scalping-ict-15m", "acc-007", accounts)

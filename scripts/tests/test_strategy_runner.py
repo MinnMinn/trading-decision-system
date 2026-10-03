@@ -1,4 +1,5 @@
 import datetime, importlib.util, json, os, subprocess, sys, tempfile, threading, time, unittest
+from unittest import mock
 
 HERE = os.path.dirname(__file__)
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -1656,13 +1657,13 @@ class PerAccountScope(unittest.TestCase):
     """
 
     def setUp(self):
-        self._saved = (sr.ACCOUNT, sr.PILOT_DIR, sr.STATE, sr.LOG, sr.MT5_LOG, sr.STOP, sr.CANDLES,
-                       dict(sr.VENUE_LOG))
-        self.account = next(pid for pid, p in sr.AP.PROFILES.items()
-                            if p["environment"] not in sr.AP.UNROUTABLE_ENVIRONMENTS)
+        self._saved = (sr.ACCOUNT, sr.ACCOUNT_ROW, sr.ACCOUNT_VENUE, sr.PILOT_DIR, sr.STATE, sr.LOG, sr.MT5_LOG,
+                       sr.STOP, sr.CANDLES, dict(sr.VENUE_LOG))
+        self.account = "ftmo-demo-01"          # docs/architecture/accounts.json
 
     def tearDown(self):
-        (sr.ACCOUNT, sr.PILOT_DIR, sr.STATE, sr.LOG, sr.MT5_LOG, sr.STOP, sr.CANDLES, vl) = self._saved
+        (sr.ACCOUNT, sr.ACCOUNT_ROW, sr.ACCOUNT_VENUE, sr.PILOT_DIR, sr.STATE, sr.LOG, sr.MT5_LOG, sr.STOP, sr.CANDLES,
+         vl) = self._saved
         sr.VENUE_LOG = dict(vl)
 
     def test_binding_none_restores_the_houses_paths_exactly(self):
@@ -1696,14 +1697,31 @@ class PerAccountScope(unittest.TestCase):
             sr.bind_account("no-such-account")
         self.assertIn("must not guess whose rules apply", str(cm.exception))
 
-    def test_a_research_template_cannot_be_traded(self):
-        research = [pid for pid, p in sr.AP.PROFILES.items()
-                    if p["environment"] in sr.AP.UNROUTABLE_ENVIRONMENTS]
-        if not research:
-            self.skipTest("no research profile in the registry")
+    def test_an_account_profile_is_not_an_account(self):
+        """ADR 0010: a profile is a rule set many accounts may share; only a registry account can be bound. (A
+        research profile cannot even be named by an account -- scripts/registry.py refuses it at import.)"""
         with self.assertRaises(SystemExit) as cm:
-            sr.bind_account(research[0])
-        self.assertIn("unroutable", str(cm.exception))
+            sr.bind_account("pilot-mt5-demo")
+        self.assertIn("must not guess whose rules apply", str(cm.exception))
+
+    def test_a_bound_account_trades_its_own_venue_under_its_own_profile_only(self):
+        sr.bind_account(self.account)
+        self.assertEqual(sr.ACCOUNT_VENUE, "mt5")
+        self.assertEqual(sr.profile("mt5")["id"], "pilot-mt5-demo")
+        with self.assertRaises(ValueError) as cm:
+            sr.profile("futures")
+        self.assertIn("one account, one market", str(cm.exception))
+
+    def test_a_bound_account_runs_only_setups_of_its_assigned_system(self):
+        """fvg-book is a book, not a pilot style: an account assigned to it is offered no pilot setup at all."""
+        sr.bind_account(self.account)
+        rows = [{"id": "x", "method": "ICT", "execution": "mt5", "market": "cfd", "horizon": "scalping", "tf": "15m"}]
+        self.assertFalse(sr._assigned(rows[0]))
+        with mock.patch.object(sr.R, "ASSIGNMENTS", [dict(sr.R.ASSIGNMENTS[-1], id="asg-t", trading_system="cfd-scalping",
+                                                            version="v1")]):
+            self.assertTrue(sr._assigned(rows[0]))
+            self.assertFalse(sr._assigned(dict(rows[0], horizon="day", tf="1h")))     # another style
+            self.assertFalse(sr._assigned(dict(rows[0], execution="futures")))        # another venue
 
 
 class TheKillSwitchIsTwoTier(unittest.TestCase):
@@ -1764,22 +1782,22 @@ class OrdersCarryTheirAccount(unittest.TestCase):
         self.assertEqual(len(sr.client_id("s", "BTCUSDT", self.SIG)), len("t5-") + 20)
 
 
-class EveryOrderSaysWhoseItIsAndUnderWhatAgreement(unittest.TestCase):
-    """Attribution, end to end (plan §0.3 item 1). A customer asking "which methodology took this trade, on
-    which version, under which agreement" must be answerable from the record alone -- and the same record is
-    the billing line."""
+class EveryOrderSaysWhoseItIsAndUnderWhichAssignment(unittest.TestCase):
+    """Attribution, end to end (ADR 0010). Which setup, on which version, under which assignment took this trade must
+    be answerable from the record alone."""
 
     def setUp(self):
-        self._saved = (sr.ACCOUNT, list(sr.MD.MANDATES))
+        self._saved = (sr.ACCOUNT, sr.R.ASSIGNMENTS)
 
     def tearDown(self):
-        sr.ACCOUNT, rows = self._saved
-        sr.MD.MANDATES = rows
+        sr.ACCOUNT, sr.R.ASSIGNMENTS = self._saved
 
     ST = {"id": "cfd-scalping-ict-15m-phase1-a", "rule_version": "abc123", "tf": "15m", "method": "ICT",
-          "execution": "mt5", "mgmt": "be"}
+          "execution": "mt5", "mgmt": "be", "market": "cfd", "horizon": "scalping"}
     SIG = {"side": "long", "time": "2026-09-19T14:00:00Z", "mss_time": "2026-09-19T13:45:00Z",
            "bars_left": 5, "htf_pass": True, "r_planned": 3.2}
+    ROW = {"id": "asg-77", "account": "ftmo-demo-01", "trading_system": "cfd-scalping", "version": "v1",
+           "effective_from": "2020-01-01T00:00:00Z", "ended_at": None, "open_position_policy": "DRAIN"}
 
     def _plan(self):
         return sr.plan_of("XAUUSD", self.ST, self.SIG, "0.1", "3300", "3290", "3330", 100.0)
@@ -1789,36 +1807,26 @@ class EveryOrderSaysWhoseItIsAndUnderWhatAgreement(unittest.TestCase):
         self.assertEqual(p["strategy"], self.ST["id"])
         self.assertEqual(p["setup_version"], "abc123")
 
-    def test_the_plan_names_the_mandate_when_one_exists(self):
-        sr.ACCOUNT = "acc-x"
-        sr.MD.MANDATES = [{"id": "m-77", "account": "acc-x", "setup": self.ST["id"],
-                           "setup_version": "abc123", "state": "ACTIVE", "started_at": "2020-01-01"}]
-        self.assertEqual(self._plan()["mandate"], "m-77")
+    def test_the_plan_names_the_live_assignment_of_its_system(self):
+        sr.ACCOUNT, sr.R.ASSIGNMENTS = "ftmo-demo-01", [self.ROW]
+        self.assertEqual(self._plan()["assignment"], "asg-77")
 
-    def test_a_setup_this_account_has_no_mandate_for_records_none_rather_than_guessing(self):
-        sr.ACCOUNT = "acc-x"
-        sr.MD.MANDATES = [{"id": "m-77", "account": "acc-x", "setup": "some-other-setup",
-                           "setup_version": "abc123", "state": "ACTIVE", "started_at": "2020-01-01"}]
-        self.assertIsNone(self._plan()["mandate"])
+    def test_an_assignment_of_another_system_is_not_named(self):
+        sr.ACCOUNT, sr.R.ASSIGNMENTS = "ftmo-demo-01", [dict(self.ROW, trading_system="cfd-day")]
+        self.assertIsNone(self._plan()["assignment"])
 
-    def test_house_mode_records_no_mandate_because_there_is_no_agreement(self):
+    def test_an_ended_assignment_is_not_the_one_an_order_runs_under(self):
+        sr.ACCOUNT, sr.R.ASSIGNMENTS = "ftmo-demo-01", [dict(self.ROW, ended_at="2021-01-01T00:00:00Z")]
+        self.assertIsNone(self._plan()["assignment"])
+
+    def test_house_mode_records_no_assignment(self):
         sr.ACCOUNT = None
-        self.assertIsNone(self._plan()["mandate"])
+        self.assertIsNone(self._plan()["assignment"])
 
-    def test_a_paused_mandate_is_not_the_agreement_an_order_runs_under(self):
-        sr.ACCOUNT = "acc-x"
-        sr.MD.MANDATES = [{"id": "m-77", "account": "acc-x", "setup": self.ST["id"],
-                           "setup_version": "abc123", "state": "PAUSED", "started_at": "2020-01-01"}]
-        self.assertIsNone(self._plan()["mandate"])
-
-    def test_an_unreadable_mandate_table_does_not_stop_an_order_decided_on_other_grounds(self):
-        sr.ACCOUNT = "acc-x"
-        saved = sr.MD.for_account
-        try:
-            sr.MD.for_account = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
-            self.assertIsNone(self._plan()["mandate"])
-        finally:
-            sr.MD.for_account = saved
+    def test_an_unreadable_registry_does_not_stop_an_order_decided_on_other_grounds(self):
+        sr.ACCOUNT = "ftmo-demo-01"
+        with mock.patch.object(sr.R, "active_assignment", side_effect=RuntimeError("boom")):
+            self.assertIsNone(self._plan()["assignment"])
 
 
 class TheSharedCandleCacheIsFetchedOncePerBar(unittest.TestCase):
@@ -1908,20 +1916,23 @@ class SeveralMt5TerminalsCanShareOneMachine(unittest.TestCase):
     """
 
     def setUp(self):
-        self._saved = sr.ACCOUNT
+        self._saved = (sr.ACCOUNT, sr.ACCOUNT_ROW)
 
     def tearDown(self):
-        sr.ACCOUNT = self._saved
+        sr.ACCOUNT, sr.ACCOUNT_ROW = self._saved
 
     def test_house_mode_keeps_the_original_folder(self):
-        sr.ACCOUNT = None
+        sr.ACCOUNT, sr.ACCOUNT_ROW = None, None
         self.assertEqual(sr.mt5_bridge_subdir(), "bridge")
 
-    def test_each_account_gets_its_own_folder(self):
-        sr.ACCOUNT = "acc-001"; a = sr.mt5_bridge_subdir()
-        sr.ACCOUNT = "acc-002"; b = sr.mt5_bridge_subdir()
-        self.assertNotEqual(a, b)
-        self.assertIn("acc-001", a)
+    def test_each_account_uses_the_channel_the_registry_declares(self):
+        """The channel is the account's `bridge_channel` (docs/architecture/accounts.json), which the registry
+        refuses to share between two live accounts -- not a name derived here."""
+        sr.ACCOUNT, sr.ACCOUNT_ROW = "acc-001", {"bridge_channel": "bridge-acc-001"}
+        a = sr.mt5_bridge_subdir()
+        sr.ACCOUNT, sr.ACCOUNT_ROW = "acc-002", {"bridge_channel": "bridge-acc-002"}
+        self.assertNotEqual(a, sr.mt5_bridge_subdir())
+        self.assertEqual(a, "bridge-acc-001")
 
     def test_the_connector_reads_the_folder_from_the_environment(self):
         src = open(os.path.join(ROOT, "scripts", "mt5-order-bridge.py"), encoding="utf-8").read()
@@ -1953,11 +1964,11 @@ class TheTerminalMustBeTheAccountWeThinkItIs(unittest.TestCase):
     """
 
     def setUp(self):
-        self._saved = (sr.ACCOUNT, dict(sr._env), sr._MT5_IDENTITY_OK, sr.mt5_json)
+        self._saved = (sr.ACCOUNT, sr.ACCOUNT_ROW, dict(sr._env), sr._MT5_IDENTITY_OK, sr.mt5_json)
         sr._MT5_IDENTITY_OK = None
 
     def tearDown(self):
-        sr.ACCOUNT, env, sr._MT5_IDENTITY_OK, sr.mt5_json = self._saved
+        sr.ACCOUNT, sr.ACCOUNT_ROW, env, sr._MT5_IDENTITY_OK, sr.mt5_json = self._saved
         sr._env.clear(); sr._env.update(env)
 
     def _terminal(self, login):
@@ -1969,7 +1980,8 @@ class TheTerminalMustBeTheAccountWeThinkItIs(unittest.TestCase):
         self.assertTrue(sr.mt5_assert_identity())
 
     def test_a_different_login_refuses_and_says_which_folder_is_wrong(self):
-        sr.ACCOUNT = "acc-001"; sr._env["MT5_ACCOUNT_LOGIN"] = "12345"
+        sr.ACCOUNT, sr.ACCOUNT_ROW = "acc-001", {"bridge_channel": "bridge-acc-001"}
+        sr._env["MT5_ACCOUNT_LOGIN"] = "12345"
         self._terminal(99999)
         with self.assertRaises(RuntimeError) as cm:
             sr.mt5_assert_identity()

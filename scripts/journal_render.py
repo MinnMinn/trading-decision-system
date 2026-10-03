@@ -26,7 +26,6 @@ import i18n  # noqa: E402
 T, DUAL = i18n.t, i18n.dual
 
 e = html.escape
-PILOT_DIRS = {"spot": "data/live/pilot", "futures": "data/live/pilot-futures"}
 # the pilot (scripts/strategy-runner.py): its logs sit next to the legacy futures log; "signal" records play the role of "eval"
 PILOT_LOGS = {"pilot crypto (futures testnet)": ("data/live/pilot-futures", "pilot-selection-log.jsonl"), "pilot CFD (MT5 demo)": ("data/live/pilot-futures", "pilot-selection-mt5-log.jsonl")}
 

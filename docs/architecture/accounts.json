@@ -1,0 +1,73 @@
+{
+  "_comment": "THE account registry (ADR 0010, design doc 'Hạ tầng đa tài khoản' approved by the owner 2026-10-03). One reader: scripts/registry.py. An account trades exactly ONE market through exactly ONE broker under ONE account profile (the fund's rules, docs/architecture/account-profiles.json), and runs at most ONE Trading System version at a time -- the one its ACTIVE assignment names. Replaces docs/architecture/mandates.json (many-to-many account x setup), which the owner rejected 2026-10-03: several methods on several markets in one account make the account's capital and its daily-loss rule impossible to budget per method.",
+  "schema_version": 1,
+  "states": [
+    "ACTIVE",
+    "PAUSED",
+    "HALTED",
+    "ENDED"
+  ],
+  "_states_why": "ACTIVE trades; PAUSED takes no new entry and manages open positions to their exits; HALTED is PAUSED set by a failure (a STOP file or a breached account rule) and needs a human; ENDED is closed for good and kept for the record. Only ACTIVE accounts are ticked for new entries.",
+  "open_position_policies": [
+    "DRAIN",
+    "CLOSE",
+    "BLOCK"
+  ],
+  "default_open_position_policy": "DRAIN",
+  "_open_position_policies_why": "What a switch does to positions the previous assignment opened. DRAIN (owner default 2026-10-03): they keep the exits they were opened with until they close; only NEW entries follow the new assignment. CLOSE: they are closed at the next tick. BLOCK: the switch is refused while any is open. In every case the drained positions' risk still counts against the account.",
+  "owners": {
+    "self": {
+      "name": "House -- the owner's own accounts",
+      "kind": "self"
+    }
+  },
+  "_owners_why": "One row today. The column exists so that 'whose account is this' is data the day a second owner appears, without a migration; renting methods to clients is out of scope (YAGNI, CLAUDE.md §57).",
+  "accounts": {
+    "ftmo-demo-01": {
+      "what": "FTMO-Demo MT5 account on the Mac terminal that runs the forward demo of the FVG book.",
+      "owner": "self",
+      "market": "cfd",
+      "broker": "mt5_bridge",
+      "broker_server": "FTMO-Demo",
+      "symbol_map": "data/history/costs/ftmo/symbol-map.json",
+      "account_profile": "pilot-mt5-demo",
+      "environment": "demo",
+      "real_money": false,
+      "bridge_channel": "bridge",
+      "_bridge_channel_why": "The MT5 Common/Files subfolder this account's OrderBridge EA serves (EA input InpBridgeDir). One terminal logs into one account, so N MT5 accounts need N terminals with N distinct channels; the validator refuses two accounts sharing one. 'bridge' is the channel the running terminal already uses.",
+      "credential_ref": null,
+      "_credential_ref_why": "The name of the environment variable holding a secret, never the secret. null: an MT5 terminal session needs no key in this repo.",
+      "login_ref": null,
+      "_login_ref_why": "The NAME of the environment variable holding this account's MT5 login; when set, scripts/fvg_demo.py refuses a bridge channel that reaches another login. Optional while this is the only MT5 account; required for every MT5 account as soon as there are two (scripts/registry.py).",
+      "initial_balance": null,
+      "_initial_balance_why": "The balance the dd3 throttle and the fund's percentage rules key off. null = the first balance the executor saw, kept in the account's state (the demo's existing value is carried over). Set it to the challenge size on a real challenge.",
+      "state": "ACTIVE",
+      "created_at": "2026-10-02T00:00:00Z"
+    }
+  },
+  "assignments": [
+    {
+      "id": "asg-0001",
+      "account": "ftmo-demo-01",
+      "trading_system": "fvg-book",
+      "version": "v1",
+      "effective_from": "2026-10-02T00:00:00Z",
+      "ended_at": "2026-10-03T00:00:00Z",
+      "open_position_policy": "DRAIN",
+      "requested_by": "owner",
+      "reason": "Demo order wiring approved 2026-10-02 (docs/plans/2026-09-30-owner-decisions.md). Times are the approval dates; the executor read docs/architecture/fvg-demo.json until 2026-10-03."
+    },
+    {
+      "id": "asg-0002",
+      "account": "ftmo-demo-01",
+      "trading_system": "fvg-book",
+      "version": "v2",
+      "effective_from": "2026-10-03T00:00:00Z",
+      "ended_at": null,
+      "open_position_policy": "DRAIN",
+      "requested_by": "owner",
+      "reason": "v2 approved 2026-10-03 ('Duyệt'): + G9 XAUUSD and the dd3 throttle."
+    }
+  ],
+  "_assignments_why": "Append-only history: a switch ENDS the current row (sets `ended_at`) and appends a new one; no other field of an existing row is ever edited, so every order can be traced to the version that opened it. At most one row per account is live at any instant (effective_from <= t < ended_at). A row with effective_from in the future is PENDING until then. Demo accounts are switched with `python3 scripts/accounts.py switch`; an account with real_money=true is only switched by a reviewed PR (CLAUDE.md §41, §51)."
+}

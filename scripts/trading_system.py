@@ -26,7 +26,7 @@ Three rules are enforced in code, not in prose:
 
 There is deliberately no runtime setter. `reclassify()` exists only to raise and say where the change belongs.
 """
-import json, os, re, sys
+import hashlib, json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -50,6 +50,15 @@ ROLES = (REQUIRED, OPTIONAL, VISUALIZATION, RESEARCH)
 NON_GATING = (OPTIONAL, VISUALIZATION, RESEARCH)
 
 _VERSION_RE = re.compile(r"^v[1-9][0-9]*$")
+
+
+BOOK_STATUSES = ("DRAFT", "APPROVED", "RETIRED")
+BOOK_THROTTLES = ("none", "dd3")
+BOOK_SIZING = ("initial_balance",)
+BOOK_EXECUTION_KEYS = ("max_bar_age_minutes", "close_before_rollover_minutes", "tp_stop_multiple")
+# The fields of a book version that DECIDE trades. Everything else on the version (status, approval, the digest
+# itself, `_why` notes) is metadata and may change without a new version.
+BOOK_CONTENT_KEYS = ("dependency_profile", "components", "risk", "execution")
 
 
 class RegistryError(ValueError):
@@ -203,13 +212,91 @@ def _validate(data, path):
         market, tf = A.STYLE_MARKET_TF[sid]
         sysd["market"], sysd["timeframe"], sysd["id"] = market, tf, sid
         sysd["horizon"] = A.TF_HORIZON[tf]
+    _validate_books(data.get("books") or {}, profiles, path)
     return data
+
+
+def book_digest(version):
+    """sha256 of a book version's decision content (BOOK_CONTENT_KEYS), canonical JSON. An APPROVED or RETIRED
+    version must carry this as `content_sha256`: editing an approved version in place changes the digest and
+    the registry refuses to load (CLAUDE.md §47 -- a meaningful change is a new version, never an edit)."""
+    blob = json.dumps({k: version.get(k) for k in BOOK_CONTENT_KEYS}, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=False)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _validate_books(books, profiles, path):
+    import trading_env
+    for bid, book in books.items():
+        if book.get("market") not in I.MARKETS:
+            raise RegistryError(f"{path}: book {bid!r} market {book.get('market')!r} is not one of {list(I.MARKETS)}")
+        versions = book.get("versions")
+        if not isinstance(versions, dict) or not versions:
+            raise RegistryError(f"{path}: book {bid!r} has no versions")
+        for ver, v in versions.items():
+            where = f"{path}: book {bid!r} {ver}"
+            if not _VERSION_RE.match(ver):
+                raise RegistryError(f"{where}: version is not vN (§47)")
+            if v.get("status") not in BOOK_STATUSES:
+                raise RegistryError(f"{where}: status {v.get('status')!r} is not one of {list(BOOK_STATUSES)}")
+            if v.get("dependency_profile") not in profiles:
+                raise RegistryError(f"{where}: unknown dependency_profile {v.get('dependency_profile')!r}")
+            comps = v.get("components")
+            if not isinstance(comps, list) or not comps:
+                raise RegistryError(f"{where}: no components")
+            seen = set()
+            for c in comps:
+                if not c.get("setup") or not c.get("instrument") or not isinstance(c.get("params"), dict):
+                    raise RegistryError(f"{where}: a component needs setup, instrument and params: {c}")
+                key = (c["setup"], c["instrument"])
+                if key in seen:
+                    raise RegistryError(f"{where}: component {key} is listed twice")
+                seen.add(key)
+            risk = v.get("risk") or {}
+            pct = risk.get("risk_pct")
+            if not isinstance(pct, (int, float)) or not 0 < pct <= float(trading_env.MAX_RISK_PCT):
+                raise RegistryError(f"{where}: risk_pct {pct!r} must be in (0, max_risk_pct "
+                                    f"{trading_env.MAX_RISK_PCT}] (docs/architecture/risk-config.json)")
+            if risk.get("throttle") not in BOOK_THROTTLES:
+                raise RegistryError(f"{where}: throttle {risk.get('throttle')!r} is not one of {list(BOOK_THROTTLES)}")
+            if risk.get("sizing_basis") not in BOOK_SIZING:
+                raise RegistryError(f"{where}: sizing_basis {risk.get('sizing_basis')!r} is not one of {list(BOOK_SIZING)}")
+            ex = v.get("execution") or {}
+            missing = [k for k in BOOK_EXECUTION_KEYS if not isinstance(ex.get(k), (int, float))]
+            if missing:
+                raise RegistryError(f"{where}: execution lacks {missing}")
+            if v["status"] != "DRAFT" and v.get("content_sha256") != book_digest(v):
+                raise RegistryError(
+                    f"{where}: content_sha256 does not match the version's content ({book_digest(v)}). An "
+                    f"{v['status']} version is immutable (CLAUDE.md §47): add a new version instead of editing it.")
+            v["id"], v["book"], v["version"], v["market"] = f"{bid}@{ver}", bid, ver, book["market"]
 
 
 _DATA = _load()
 DEPENDENCIES = _DATA["dependencies"]
 PROFILES = _DATA["dependency_profiles"]
 SYSTEMS = _DATA["systems"]
+BOOKS = _DATA.get("books") or {}
+
+
+def book(book_id, version):
+    """One version of a book Trading System (validated at import), or KeyError naming what exists."""
+    if book_id not in BOOKS:
+        raise KeyError(f"no book Trading System {book_id!r}; declared books are {sorted(BOOKS)}")
+    versions = BOOKS[book_id]["versions"]
+    if version not in versions:
+        raise KeyError(f"book {book_id!r} has no version {version!r}; declared: {sorted(versions)}")
+    return versions[version]
+
+
+def market_of(system_id, version):
+    """The market a Trading System version trades -- a style system's from automation.STYLE, a book's from
+    its own declaration. KeyError for an unknown system or version."""
+    if system_id in SYSTEMS:
+        if SYSTEMS[system_id]["version"] != version:
+            raise KeyError(f"system {system_id!r} is at {SYSTEMS[system_id]['version']}, not {version!r}")
+        return SYSTEMS[system_id]["market"]
+    return book(system_id, version)["market"]
 
 
 # --------------------------------------------------------------------------- lookup

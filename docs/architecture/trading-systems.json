@@ -192,6 +192,16 @@
         "venue.reconciliation"
       ],
       "why": "Every system in this repo gates on the same fifteen today, so the list lives once and each system NAMES the profile it uses -- the same idiom methods.json uses for presets. A system that ever needs a different gating set gets its own profile rather than an edit to this one; that is what keeps a change to one system from silently re-gating the other eight. The seven dependencies absent from this list (candles.context, display.chart, display.expected_path, display.model_narrative, research.backtest_stability, research.ranking, research.journal_review) are absent deliberately -- their baseline roles are what §35 calls VISUALIZATION_ONLY / RESEARCH_ONLY / OPTIONAL_FOR_ANALYSIS, and none of them may block an entry."
+    },
+    "book-v1": {
+      "required_for_decision": [
+        "candles.entry",
+        "event_risk.calendar",
+        "account.equity",
+        "risk.position_size",
+        "venue.reconciliation"
+      ],
+      "why": "What the forward book executor (scripts/fvg_demo.py) actually waits for before a new entry: fresh hole-free closed bars, the event-risk calendar, the account balance, the lot size from the broker's contract data, and the bridge's order/position state. The ICT/Wyckoff/Footprint/Heatmap analysis lanes are not inputs of a book: its setups are mechanical rules (docs/architecture/setups.json), so naming them here would gate the book on analysis it never reads."
     }
   },
 
@@ -203,6 +213,44 @@
     "cfd-day":      {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}},
     "cfd-swing":    {"version": "v1", "dependency_profile": "pilot-v1", "account_profile": {"venue": "mt5", "environment": "demo"}}
   },
+  "books": {
+    "fvg-book": {
+      "what": "The forward book of research survivors on the cfd market: E5 FVG retrace on XAUUSD and US500, H7 and G9 intraday trend on XAUUSD, each exited by time and flat before the broker rollover. Run by scripts/fvg_demo.py for the account its assignment names (docs/architecture/accounts.json).",
+      "market": "cfd",
+      "versions": {
+        "v1": {
+          "status": "RETIRED",
+          "approved_at": "2026-10-02",
+          "approval": "owner, chat 2026-10-02: 'Đồng ý duyệt nối demo order' (docs/plans/2026-09-30-owner-decisions.md)",
+          "dependency_profile": "book-v1",
+          "components": [
+            {"setup": "E5", "instrument": "XAUUSD", "params": {"hold_bars": 24}},
+            {"setup": "E5", "instrument": "US500", "params": {"hold_bars": 48}},
+            {"setup": "H7", "instrument": "XAUUSD", "params": {}}
+          ],
+          "risk": {"risk_pct": 0.01, "sizing_basis": "initial_balance", "throttle": "none"},
+          "execution": {"max_bar_age_minutes": 15, "close_before_rollover_minutes": 10, "tp_stop_multiple": 5},
+          "content_sha256": "2eed52d876280efe003991b4dc2687054ec1690cdcfda8de0cba4c09b73c9ce5"
+        },
+        "v2": {
+          "status": "APPROVED",
+          "approved_at": "2026-10-03",
+          "approval": "owner, chat 2026-10-03: 'Duyệt' (docs/audits/2026-10-02-pass-policy.md: + G9 XAUUSD and the dd3 throttle)",
+          "dependency_profile": "book-v1",
+          "components": [
+            {"setup": "E5", "instrument": "XAUUSD", "params": {"hold_bars": 24}},
+            {"setup": "E5", "instrument": "US500", "params": {"hold_bars": 48}},
+            {"setup": "H7", "instrument": "XAUUSD", "params": {}},
+            {"setup": "G9", "instrument": "XAUUSD", "params": {}}
+          ],
+          "risk": {"risk_pct": 0.01, "sizing_basis": "initial_balance", "throttle": "dd3"},
+          "execution": {"max_bar_age_minutes": 15, "close_before_rollover_minutes": 10, "tp_stop_multiple": 5},
+          "content_sha256": "e0638decd3ec233a5b040513719320918e584098c261d109fd581e65e9a2c01c"
+        }
+      }
+    }
+  },
+  "_books_why": "A BOOK is a Trading System whose composition is a fixed list of mechanical setup components, versioned as a whole (CLAUDE.md §47: a change to any component, parameter, risk or exit rule is a new version, never an edit). The style `systems` above stay one-per-style and resolve their composition from other registries; a book cannot, because its components ARE the decision. `content_sha256` is the digest of the version's decision content (scripts/trading_system.py book_digest); the reader refuses an APPROVED or RETIRED version whose content no longer matches it, so an approved version cannot be edited in place. `risk` sits inside the version rather than in a separate risk-model table on purpose: with one risk model per version, a separate table would be a second place to change a version's behaviour without a version bump. throttle `dd3` = risk x1 above 97 % of the initial balance, x0.5 to 94 %, x0.25 below (docs/audits/2026-10-02-pass-policy.md). Accounts are bound to a version through docs/architecture/accounts.json `assignments` (ADR 0010).",
   "_systems_why": "One Trading System per style, and the style set is NOT declared here -- it is scripts/automation.py STYLE, derived from (market x horizon). The reader refuses to load if the key set differs, so a new market or horizon cannot appear with no Trading System governing it, and a Trading System cannot exist for a style that does not. Market, timeframe, instruments, setups, entry/exit rules, risk ceiling, custom constraints and event-risk buffers are all RESOLVED from their own registries by trading_system.describe() rather than copied here -- §35 asks the system to declare its composition, not to become a second copy of six other files. `account_profile` is declared because it is the one field with no derivation: cfd-scalping and cfd-day have no pilot setup row today, so there is no execution venue to derive an account from, and naming it anyway is what makes the account's rules apply the day one of them is switched on rather than the day after. (The three fx-* systems that lived here 2026-09-17..2026-09-27 are gone with the `forex` market itself -- see the history entry below and docs/architecture/instruments.json history.)",
 
   "_version_why": "`version` is the CLAUDE.md §47 canonical Trading System version. Declared here so a configuration snapshot (§11) can record WHICH system produced a result; the rule for when it must be bumped is §47's and is not implemented yet -- scripts/tests/test_trading_system.py asserts only that the field exists and is vN.",

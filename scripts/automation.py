@@ -361,45 +361,6 @@ def _deep_merge(base, over):
     return base
 
 
-def migrate_v1(old):
-    """v1 (flat dimensions/timeframes-as-styles/instruments) -> v2 (per-market). Nothing is silently turned ON:
-    every v1 flag lands on its v2 counterpart, and the two styles v1 never had (1h, 4h) inherit the fail-open
-    default the rest of the system already assumes for an unknown key."""
-    cfg = json.loads(json.dumps(DEFAULTS))
-    cfg["enabled"] = bool(old.get("enabled", True))
-    cfg["execution"]["environment"] = _env_from_legacy(old.get("execution") or {})
-    old_dims = old.get("dimensions") or {}
-    old_styles = old.get("timeframes") or {}
-    old_inst = set(old.get("instruments") or ALLOWED_INSTRUMENTS)
-    for m in MARKETS:
-        mk = cfg["markets"][m]
-        mk["instruments"] = [s for s in MARKET_INSTRUMENTS[m] if s in old_inst]
-        mk["enabled"] = bool(mk["instruments"])
-        mk["dimensions"] = {d: bool(old_dims.get(d, True)) for d in MARKET_DIMENSIONS[m]}
-        mk["timeframes"] = {t: bool(old_styles.get(STYLE[(m, t)], True)) for t in MARKET_TIMEFRAMES[m]}
-    cfg["layers"] = {l: bool((old.get("layers") or {}).get(l, True)) for l in LAYERS}
-    cfg["last_updated"] = old.get("last_updated")
-    cfg["history"] = list(old.get("history") or [])[-HISTORY_MAX:]
-    return cfg
-
-
-def _env_from_legacy(execution):
-    """v1/v2 execution.account -> v3 execution.environment."""
-    if execution.get("environment") in ENV_NAMES:
-        return execution["environment"]
-    acct = execution.get("account", "demo_testnet")
-    return "real" if acct == "real_mainnet" else "demo"
-
-
-def migrate_v2(old):
-    """v2 (per-market, execution.account) -> v3 (execution.environment, services). Everything else is kept."""
-    cfg = _deep_merge(json.loads(json.dumps(DEFAULTS)), {k: v for k, v in old.items() if k != "execution"})
-    cfg["schema_version"] = SCHEMA_VERSION
-    cfg["execution"] = json.loads(json.dumps(DEFAULTS["execution"]))
-    cfg["execution"]["environment"] = _env_from_legacy(old.get("execution") or {})
-    return cfg
-
-
 def clean(s, limit=300):
     """Audit strings may now carry values influenced from outside (the panel applier). Strip control
     characters and ANSI so a history row can never forge a second row or steer a terminal, and cap the
@@ -410,7 +371,7 @@ def clean(s, limit=300):
 
 
 def load(require_readable=True):
-    """(config, exists, migrated). A MISSING file means UNCONFIGURED: the defaults are what every reader
+    """(config, exists, False) -- the third slot is kept for callers; nothing migrates since 2026-10-03. A MISSING file means UNCONFIGURED: the defaults are what every reader
     assumes, so a clean checkout behaves exactly as it did before this switch existed. An UNREADABLE file is
     different -- it is a corrupt state, and replacing it with permissive defaults would silently turn every
     dimension and every layer back on. CFG-02: callers that intend to write pass require_readable=True (the
@@ -426,10 +387,14 @@ def load(require_readable=True):
             raise SystemExit(2)
         return json.loads(json.dumps(DEFAULTS)), False, False
     ver = int(raw.get("schema_version", 1))
-    if ver <= 1:
-        return migrate_v1(raw), True, True
-    if ver == 2:
-        return migrate_v2(raw), True, True
+    if ver != SCHEMA_VERSION:
+        # The v1/v2 migrations were removed 2026-10-03: every config in use is v3. An old file is refused rather than
+        # guessed at -- guessing is how a flag silently turns on.
+        print(f"REFUSED: {CONFIG} is schema_version {ver}; this code reads only {SCHEMA_VERSION}. Recreate it with "
+              f"/automation (the v1/v2 migrations are in git history before 2026-10-03).", file=sys.stderr)
+        if require_readable:
+            raise SystemExit(2)
+        return json.loads(json.dumps(DEFAULTS)), False, False
     return _deep_merge(json.loads(json.dumps(DEFAULTS)), raw), True, False
 
 
@@ -1035,7 +1000,7 @@ def cmd_master(a):
     session_cron_block(want)
     if want:
         print("\nWHAT HAPPENS NOW: launchd runs scanner, pilot, keep-awake in background. Session crons run while this session is open (7-day max).")
-        print("  Watch: tail -f data/live/pilot/loop.log    (entry/exit verdicts)")
+        print("  Watch: tail -f data/live/pilot-futures/pilot-selection-log.jsonl    (entry/exit verdicts)")
         print("         tail -f data/live/scan-loop.log     (scanner ticks)")
     show(cfg, True, brief=True)
     return 0
@@ -1586,19 +1551,6 @@ def main():
     a = ap.parse_args()
     if a.cmd is None:
         a.cmd = "status"; a.json = False       # no args = status, per .claude/commands/automation.md
-
-    # v1/v2 -> v3 migration, once, in place, with an audit row. Done here (not in load()) so that a reader such as
-    # scan-loop.sh never writes this file as a side effect of gating a pass. require_readable=False: this is a
-    # pre-dispatch probe shared by every subcommand including read-only ones (status/env/allows/history), so it
-    # must never exit 2 on a corrupt file -- migrated can only be True for a file that parsed (v1/v2), so this
-    # relaxation never weakens CFG-02 for the actual migration write below. Write subcommands re-load with their
-    # own require_readable=True call and refuse independently.
-    cfg, exists, migrated = load(require_readable=False)
-    if migrated and exists and a.cmd not in ("allows",):
-        record(cfg, a, f"migrate schema_version -> {SCHEMA_VERSION}", "applied")
-        save(cfg)
-        print(f"# migrated {rel(CONFIG)} to schema_version {SCHEMA_VERSION} "
-              f"(execution.account -> execution.environment, services added); recorded in history[].")
 
     if a.cmd == "status":
         cfg, exists, _ = load(require_readable=False); show(cfg, exists, a.json); return 0

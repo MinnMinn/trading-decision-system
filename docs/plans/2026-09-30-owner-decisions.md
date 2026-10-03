@@ -30,7 +30,7 @@ B4 (ICT) and W4b (Wyckoff) are declared but not implemented (the sources define 
   every order still passes the risk check (1 %), event-risk, account rules and human confirmation (CLAUDE.md §51).
 - The forward-demo go-ahead and the pilot remain a separate explicit owner decision; the pilot stays OFF.
 - The MT5 MCP key lives only in config/env.demo (gitignored). The key that appeared in chat is compromised and must be rotated.
-  MCP research: docs/architecture/mt5-mcp-evaluation.md (official docs do not describe auth; key sharing "not documented").
+  MCP research: docs/audits/mt5-mcp-evaluation.md (official docs do not describe auth; key sharing "not documented").
 
 ## Compute plan (owner: "(b) rồi (a)")
 (b) first: make the scan engine fast enough to run cells locally (multi-value-set reuse, parallelism), byte-identical results.

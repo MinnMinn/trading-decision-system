@@ -56,7 +56,7 @@ import normalized as N          # the normalized data layer: one definition of "
 import quality as Q             # CLAUDE.md §20: the six data-quality states, and what a failing one does
 import event_risk as ER        # CLAUDE.md §24-§32: the event-risk gate, fail-CLOSED
 import account_profile as AP   # CLAUDE.md §33: the account's own rules, not this file's constants
-import mandates as MD           # the account<->setup table; order attribution reads it (plan §0.3 item 1)
+import registry as R            # accounts and their Trading System assignments (ADR 0010); attribution reads it
 import execution_safety as ES  # CLAUDE.md §51: what the KEY can do, which reading this file cannot establish
 import risk_model as RM        # CLAUDE.md §34: fees, slippage and exposure in the risk calculation
 import trading_system as TS    # CLAUDE.md §35: which dependencies may gate an entry, and which may never
@@ -90,6 +90,8 @@ FETCH = P.market_data_adapter("binance_public")
 # nothing -- a process serves one account for its whole life (one process per account, plan §4), so binding
 # once at startup is the whole requirement.
 ACCOUNT = None
+ACCOUNT_ROW = None       # the registry row (docs/architecture/accounts.json) when --account is bound
+ACCOUNT_VENUE = None     # the one venue that account trades (its broker's execution_alias)
 GLOBAL_STOP = os.path.join(ROOT, "data", "live", "STOP")   # halts EVERY account; see bind_account()
 # Test-only environment override (never set this in normal use): TRADING_TEST_PILOT_DIR redirects the
 # single-account (ACCOUNT is None) pilot directory so a test run -- or a `--dry-run` subprocess it shells out
@@ -205,7 +207,13 @@ for _v in VENUES:
 
 
 def profile(venue):
-    """The Account Profile whose rules this venue's orders obey, or a refusal naming what is undeclared."""
+    """The Account Profile whose rules this venue's orders obey, or a refusal naming what is undeclared. With an
+    account bound (--account), the account's own profile -- and only for the one venue that account trades."""
+    if ACCOUNT_ROW is not None:
+        if venue != ACCOUNT_VENUE:
+            raise ValueError(f"account {ACCOUNT!r} trades through {ACCOUNT_ROW['broker']!r} (venue {ACCOUNT_VENUE!r}) "
+                             f"only; nothing may be traded on venue {venue!r} under it (ADR 0010: one account, one market)")
+        return ACCOUNT_ROW["profile"]
     if venue not in _PROFILES:
         raise ValueError(f"no account rules are declared for venue {venue!r} in environment {ENV_NAME!r}, so "
                          f"nothing may be traded on it: {_PROFILE_ERROR.get(venue, 'unknown venue')}")
@@ -299,18 +307,20 @@ def bind_account(account_id):
     default already honours (see that constant's comment), so a test that binds an account and then unbinds
     it lands back on whatever this process started with, redirected or not.
     """
-    global ACCOUNT, PILOT_DIR, STATE, LOG, MT5_LOG, STOP, VENUE_LOG
-    ACCOUNT = account_id
+    global ACCOUNT, ACCOUNT_ROW, ACCOUNT_VENUE, PILOT_DIR, STATE, LOG, MT5_LOG, STOP, VENUE_LOG
     if account_id is None:
+        ACCOUNT, ACCOUNT_ROW, ACCOUNT_VENUE = None, None, None
         PILOT_DIR = os.environ.get("TRADING_TEST_PILOT_DIR") or os.path.join(ROOT, "data", "live", "pilot-futures")
     else:
-        if account_id not in AP.PROFILES:
-            raise SystemExit(f"--account {account_id!r} is not in {AP.PATH}. An order path must not guess "
+        if account_id not in R.ACCOUNTS:
+            raise SystemExit(f"--account {account_id!r} is not in {R.ACCOUNTS_PATH}. An order path must not guess "
                              f"whose rules apply (CLAUDE.md §33).")
-        try:
-            AP.for_account(account_id)      # refuses a research template, and says so
-        except ValueError as e:
-            raise SystemExit(f"--account {account_id!r}: {e}") from None
+        row = R.account(account_id)          # the registry already refused a research profile at import
+        venue = P.alias_of(row["broker"])
+        if venue not in VENUES:
+            raise SystemExit(f"--account {account_id!r} trades through {row['broker']!r}, which this runner does not "
+                             f"drive (venues {sorted(VENUES)})")
+        ACCOUNT, ACCOUNT_ROW, ACCOUNT_VENUE = account_id, row, venue
         PILOT_DIR = os.path.join(ROOT, "data", "live", "accounts", account_id)
     STATE = os.path.join(PILOT_DIR, "pilot-selection-state.json")
     LOG = os.path.join(PILOT_DIR, "pilot-selection-log.jsonl")
@@ -365,7 +375,7 @@ def mt5_bridge_subdir():
     other's replies and one customer's fill could be reported to another. Giving each terminal its own folder
     (EA input InpBridgeDir) and each runner the matching name is what makes N CFD accounts on one machine safe.
     """
-    return "bridge" if not ACCOUNT else f"bridge-{ACCOUNT}"
+    return ACCOUNT_ROW["bridge_channel"] if ACCOUNT_ROW else "bridge"
 
 
 def mt5_json(*args):
@@ -383,9 +393,23 @@ def load_setups():
     try:
         with open(SELECTION, encoding="utf-8") as fh:
             doc = json.load(fh)
-        return [s for s in doc["setups"] if s.get("method") in METHODS and s.get("execution") in VENUES]
+        rows = [s for s in doc["setups"] if s.get("method") in METHODS and s.get("execution") in VENUES]
     except Exception:
         return []
+    return rows if ACCOUNT is None else [s for s in rows if _assigned(s)]
+
+
+def _assigned(st):
+    """With an account bound: the setup runs only if it trades the account's venue AND belongs to the Trading System
+    the account's live assignment names (ADR 0010: one account, one Trading System at a time). No live assignment =
+    no setup = no new entry."""
+    if st.get("execution") != ACCOUNT_VENUE:
+        return False
+    row = R.active_assignment(ACCOUNT)
+    try:
+        return bool(row) and TS.for_setup(st)["id"] == row["trading_system"]
+    except Exception:
+        return False
 
 
 def automation_gate():
@@ -1274,25 +1298,25 @@ def risk_precheck(sym, st, sig, equity, risk_mult):
     return None
 
 
-def mandate_of(setup_id):
-    """The mandate id under which THIS account is running `setup_id`, or None.
+def assignment_of(st):
+    """The id of the account's live assignment when it covers setup `st`, or None.
 
-    Attribution (docs/plans/2026-09-19-multi-account.md §0.3 item 1): a customer asking "which methodology
-    took this trade, on which version, under which agreement" must be answerable from the record alone, and
-    for billing the same record is the invoice line. None in the house's own single-account mode, where there
-    is no agreement to point at -- absent rather than invented.
+    Attribution (ADR 0010): which Trading System version, under which assignment, took this trade must be answerable
+    from the record alone. None in house mode (no account bound) -- absent rather than invented -- and None when the
+    account's live assignment is a different Trading System (load_setups() never offers such a setup to an account).
     """
     if not ACCOUNT:
         return None
     try:
-        rows = MD.for_account(ACCOUNT)
-    except Exception:            # a mandate table this process cannot read must not stop an order it already
+        row = R.active_assignment(ACCOUNT)
+        style = TS.for_setup(st)["id"]
+    except Exception:            # an attribution this process cannot compute must not stop an order it already
         return None              # decided on other grounds; the missing attribution shows up as a null field
-    return next((m["id"] for m in rows if m["setup"] == setup_id), None)
+    return row["id"] if row and row["trading_system"] == style else None
 
 
 def plan_of(sym, st, sig, qty, px, stop, tp, risk_usd, expectations=None):
-    return dict(symbol=sym, strategy=st["id"], setup_version=st.get("rule_version"), mandate=mandate_of(st["id"]), tf=st["tf"], method=st["method"], side=sig["side"].upper(), qty=qty, price=px, stop=stop, tp=tp,
+    return dict(symbol=sym, strategy=st["id"], setup_version=st.get("rule_version"), assignment=assignment_of(st), tf=st["tf"], method=st["method"], side=sig["side"].upper(), qty=qty, price=px, stop=stop, tp=tp,
                 leverage=futures_leverage() if st["execution"] == "futures" else 1, risk_usd=round(risk_usd, 2), notional=round(float(qty) * float(px), 2),
                 sweep_time=sig["time"], mss_time=sig["mss_time"], expires_bar_left=sig["bars_left"], htf_pass=sig["htf_pass"], r_planned=round(sig["r_planned"], 2),
                 execution=st["execution"], mgmt=st.get("mgmt", "be"), drill=bool(sig.get("drill")),
@@ -2378,9 +2402,10 @@ def report_state(s):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--account", default=None, metavar="ID",
-                    help="run for ONE customer account (docs/architecture/account-profiles.json id): its own "
-                         "state, logs, candle cache and kill switch under data/live/accounts/<id>/. Omitted, "
-                         "the house's single-account paths are used, exactly as before.")
+                    help="run for ONE account (docs/architecture/accounts.json id): its own state, logs and kill "
+                         "switch under data/live/accounts/<id>/, its profile's rules, its venue only, and only the "
+                         "setups of the Trading System its live assignment names. Omitted, the house's "
+                         "single-account paths are used, exactly as before.")
     ap.add_argument("--live", action="store_true"); ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--replay", nargs="+", default=None, help="setup ids or 'all'"); ap.add_argument("--bars", type=int, default=900)
     ap.add_argument("--report", action="store_true"); ap.add_argument("--flatten", action="store_true"); ap.add_argument("--list", action="store_true"); ap.add_argument("--tick-time", default=None)

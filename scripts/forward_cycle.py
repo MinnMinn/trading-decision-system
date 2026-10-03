@@ -6,7 +6,11 @@
 1. `scripts/mt5_time.py sync`                     MT5 server time -> UTC for the live bridge files
 2. `fvg_forward.py accumulate`                    live 5m bars -> rolling store (no manual history re-export needed)
 3. `fvg_forward.py scan` + `resolve`              forward PAPER record of every watched component
-4. `fvg_demo.py tick`                             DEMO orders (no-op unless docs/architecture/fvg-demo.json enabled=true)
+4. `fvg_demo.py tick` once per account            DEMO orders for every account the executor drives (accounts.json), each
+                                                  its own step: one account failing never stops another's exits
+
+The accounts are ticked in the order scripts/dispatch_order.py gives for this cycle (sha256(cycle || account)): every
+account goes first about 1/N of the time, and the order of any past cycle can be recomputed from its timestamp.
 
 A lock file prevents two cycles overlapping (a lock older than 15 minutes is taken over). Every step's outcome goes to
 data/live/forward/cycle.log; a failing step is logged and the later steps still run (a sync failure must not stop exits)."""
@@ -16,6 +20,8 @@ import os
 import subprocess
 import sys
 import traceback
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FWD = os.path.join(ROOT, "data", "live", "forward")
@@ -68,6 +74,14 @@ def _step(name, fn):
         _log(f"FAIL {name}: " + traceback.format_exc().replace("\n", " | ")[:1500])
 
 
+def tick_order(account_ids, now=None):
+    """This cycle's account order: sha256(cycle id || account), the cycle id being the 5-minute slot."""
+    import dispatch_order as DO
+    now = now or _now()
+    slot = now.replace(minute=now.minute - now.minute % 5, second=0, microsecond=0)
+    return DO.order(f"forward-cycle|{slot.strftime('%Y-%m-%dT%H:%M:%SZ')}", list(account_ids))
+
+
 def main():
     if not _lock():
         _log("skipped: another cycle holds the lock")
@@ -80,7 +94,8 @@ def main():
         _step("scan", lambda: len(ff.cmd_scan()))
         _step("resolve", ff.cmd_resolve)
         fd = _mod("fvg_demo", "scripts/fvg_demo.py")
-        _step("demo tick", fd.tick)
+        for account_id in tick_order(fd.executor_accounts()):
+            _step(f"demo tick {account_id}", lambda a=account_id: fd.tick(account_id=a))
     finally:
         try:
             os.remove(LOCK)
