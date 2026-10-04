@@ -99,6 +99,102 @@ class FloorCap(unittest.TestCase):
         self.assertEqual(PA.replay(seq, PA.Account(b0=10_000), {"XAU": GOLD})["taken_above_r"], 0)    # 0.02 lot = $80 <= $100
         self.assertEqual(PA.replay(seq, PA.Account(b0=3_000, mode="floor"), {"XAU": GOLD})["taken_above_r"], 1)
 
+    def test_the_current_base_never_takes_a_trade_above_the_cap(self):
+        acct = PA.Account(b0=3_000, **self.ACCT)
+        m = PA.replay(days([row(day=1, stop_bp=140.0, R=0.0)], [row(day=2, stop_bp=100.0, R=0.0)]), acct, {"XAU": GOLD})
+        self.assertEqual((m["taken"], m["taken_above_cap"]), (2, 0))                  # $56, $40 <= $60
+        self.assertAlmostEqual(m["risk_taken_max"], 56 / 3_000)                       # the largest, not the last
+
+
+class FloorCapFixed(unittest.TestCase):
+    """Cap base "initial" (owner 2026-10-04: "Trần 2% tính theo cố định 100 USD"): the minimum lot may be traded when its
+    risk <= min_lot_cap x b0, a FIXED amount (100 USD on 5,000), not a share of the current balance."""
+    FIX = dict(b0=5_000, r=0.01, mode="floor_cap", min_lot_cap=0.02, min_lot_cap_base="initial")
+    CUR = dict(b0=5_000, r=0.01, mode="floor_cap", min_lot_cap=0.02)
+
+    def test_the_default_base_is_the_current_balance(self):
+        self.assertEqual(PA.Account().min_lot_cap_base, "current")
+        self.assertEqual(PA.Account(**self.CUR), PA.Account(min_lot_cap_base="current", **self.CUR))
+
+    def test_after_a_drawdown_the_fixed_cap_trades_where_the_current_cap_skips(self):
+        # balance 2,500: min lot at 200 bp = $80 > 2 % x 2,500 = $50 (current) but <= $100 (fixed)
+        self.assertEqual(PA.lots_for(PA.Account(**self.CUR), GOLD, 2_500, 200.0), (0.0, "min_lot_over_cap"))
+        self.assertEqual(PA.lots_for(PA.Account(**self.FIX), GOLD, 2_500, 200.0), (0.01, None))
+        self.assertEqual(PA.lots_for(PA.Account(**self.FIX), GOLD, 1_000, 200.0), (0.01, None))      # 8 % of the balance
+
+    def test_the_fixed_amount_is_inclusive(self):
+        acct = PA.Account(**self.FIX)
+        self.assertEqual(PA.lots_for(acct, GOLD, 2_500, 250.0), (0.01, None))       # $100 = 2 % x 5,000: inclusive
+        self.assertEqual(PA.lots_for(acct, GOLD, 2_500, 250.5), (0.0, "min_lot_over_cap"))   # $100.20
+
+    def test_the_fixed_amount_is_min_lot_cap_times_b0_for_any_b0(self):
+        # b0 10,000 -> $200: balance 6,000, min lot at 500 bp = $200 trades (2 % of 6,000 = $120 would skip it), 501 bp skips
+        big = PA.Account(**dict(self.FIX, b0=10_000))
+        self.assertEqual(PA.lots_for(big, GOLD, 6_000, 500.0), (0.01, None))
+        self.assertEqual(PA.lots_for(big, GOLD, 6_000, 501.0), (0.0, "min_lot_over_cap"))
+        # b0 2,500 -> $50: min lot at 125 bp = $50 trades, 130 bp = $52 skips (a constant $100 would trade it)
+        small = PA.Account(**dict(self.FIX, b0=2_500))
+        self.assertEqual(PA.lots_for(small, GOLD, 2_500, 125.0), (0.01, None))
+        self.assertEqual(PA.lots_for(small, GOLD, 2_500, 130.0), (0.0, "min_lot_over_cap"))
+
+    def test_a_trade_exactly_at_two_percent_of_the_balance_is_not_counted_above_the_cap(self):
+        # b0 5,000: a min lot at 250 bp risks $100 = exactly 2 % of 5,000 -> taken, not above the cap
+        at = PA.replay(days([row(day=1, stop_bp=250.0, R=0.0)]), PA.Account(**self.FIX), {"XAU": GOLD})
+        self.assertEqual((at["taken"], at["taken_above_cap"]), (1, 0))
+        self.assertAlmostEqual(at["risk_taken_max"], 0.02)
+        # after a $40 loss (balance 4,960) the same $100 is 2.016 % of the balance -> counted
+        seq = days([row(day=1, R=-1.0)], [row(day=2, stop_bp=250.0, R=0.0)])
+        after = PA.replay(seq, PA.Account(**self.FIX), {"XAU": GOLD})
+        self.assertEqual((after["taken"], after["taken_above_cap"]), (2, 1))
+        self.assertAlmostEqual(after["risk_taken_max"], 100 / 4_960)
+
+    def test_above_b0_the_fixed_cap_is_tighter_than_the_current_cap(self):
+        # balance 6,000: min lot at 275 bp = $110 > 1 % ($60), <= 2 % x 6,000 = $120 (current), > $100 (fixed)
+        self.assertEqual(PA.lots_for(PA.Account(**self.CUR), GOLD, 6_000, 275.0), (0.01, None))
+        self.assertEqual(PA.lots_for(PA.Account(**self.FIX), GOLD, 6_000, 275.0), (0.0, "min_lot_over_cap"))
+
+    def test_from_cap_over_r_times_b0_up_the_fixed_cap_sizes_exactly_like_skip(self):
+        # balance >= (2 % / 1 %) x 5,000 = 10,000: a min lot that 1 % cannot place risks > $100, so the fixed cap skips it
+        skip = PA.Account(b0=5_000, r=0.01)
+        for bal in (10_000, 12_000, 40_000):
+            for stop in (100.0, 200.0, 250.0, 251.0, 300.0, 400.0, 900.0):
+                want = PA.lots_for(skip, GOLD, bal, stop)
+                want = (want[0], "min_lot_over_cap") if want[1] == "min_lot" else want
+                self.assertEqual(PA.lots_for(PA.Account(**self.FIX), GOLD, bal, stop), want, (bal, stop))
+
+    def test_the_cap_check_bounds_the_fixed_amount_between_r_and_five_percent_of_b0(self):
+        with self.assertRaises(ValueError):
+            PA.Account(**dict(self.FIX, min_lot_cap=0.005))
+        with self.assertRaises(ValueError):
+            PA.Account(**dict(self.FIX, min_lot_cap=0.06))
+        with self.assertRaisesRegex(ValueError, "min_lot_cap_base"):
+            PA.Account(min_lot_cap_base="start")
+        PA.Account(**dict(self.FIX, min_lot_cap=0.05))
+
+    def test_a_deep_drawdown_can_now_end_in_blown(self):
+        # gaps of -20 R; 100 bp stop -> $40 per min lot. Current cap: trades at 5,000 / 4,200 / 3,400 / 2,600, then $40 > 2 % of
+        # 1,800 and every later signal is skipped (STALLED, money left). Fixed cap: keeps trading the $40 lot at 1,800 / 1,000 /
+        # 200; at 200 the bar at -20 R takes the floor below 0 -> stop-out -> balance -600 -> BLOWN.
+        crash = [[row(day=d, R=-20.0, adv=[0.0, -20.0])] for d in range(1, 9)]
+        cur = PA.replay(days(*crash), PA.Account(stall_k=3, **self.CUR), {"XAU": GOLD})
+        fix = PA.replay(days(*crash), PA.Account(stall_k=3, **self.FIX), {"XAU": GOLD})
+        self.assertEqual((cur["blown"], cur["stalled"], cur["taken"], cur["taken_above_cap"]), (None, 4, 4, 0))
+        self.assertAlmostEqual(cur["terminal_multiple"], 1_800 / 5_000)
+        self.assertEqual((fix["blown"], fix["stalled"], fix["taken"], fix["post_ruin"]), (6, None, 7, 1))
+        self.assertEqual((fix["taken_above_cap"], fix["skips"]), (3, {"stop_out_events": 1}))
+        self.assertEqual(fix["terminal_multiple"], 0.0)
+        # A5 binds only a trade opened next to others: the lone $40 lot at a 200 balance risks 20 %, above the 5 % portfolio cap
+        self.assertAlmostEqual(fix["risk_taken_max"], 40 / 200)
+        self.assertGreater(fix["risk_taken_max"], PA.Account(**self.FIX).portfolio_cap)
+
+    def test_after_a_drawdown_the_portfolio_cap_still_binds_a_second_open_trade(self):
+        # down to 1,000 (as above), then two overlapping signals: the first $40 lot (4 %) opens alone; the second would put
+        # $80 at risk > 5 % x 1,000 = $50 and is skipped
+        crash = [[row(day=d, R=-20.0, adv=[0.0, -20.0])] for d in range(1, 6)]
+        pair = [row(day=6, c="A", R=0.0), row(day=6, c="B", m=5, R=0.0)]
+        m = PA.replay(days(*crash, pair), PA.Account(**self.FIX), {"XAU": GOLD})
+        self.assertEqual((m["taken"], m["skips"], m["blown"]), (6, {"portfolio_cap": 1}, None))
+
 
 class Grid(unittest.TestCase):
     def test_mode_labels_expand_floor_cap_per_cap_and_parse_back(self):
@@ -107,6 +203,44 @@ class Grid(unittest.TestCase):
         a = PA.account_for(5_000.0, 0.01, "floor_cap@0.015")
         self.assertEqual((a.b0, a.r, a.mode, a.min_lot_cap), (5_000.0, 0.01, "floor_cap", 0.015))
         self.assertEqual(PA.account_for(5_000.0, 0.01, "floor"), PA.Account(b0=5_000.0, r=0.01, mode="floor"))
+
+    def test_the_cap_base_gets_its_own_label_and_the_current_base_keeps_the_old_one(self):
+        grid = {"mode": ("skip", "floor_cap"), "cap": (0.02,), "cap_base": ("current", "initial")}
+        self.assertEqual(PA.mode_labels(grid), ["skip", "floor_cap@0.02", "floor_cap@0.02/initial"])
+        self.assertEqual(PA.mode_labels({"mode": ("floor_cap",), "cap": (0.02,), "cap_base": ("initial",)}),
+                         ["floor_cap@0.02/initial"])
+        a = PA.account_for(5_000.0, 0.01, "floor_cap@0.02/initial")
+        self.assertEqual((a.mode, a.min_lot_cap, a.min_lot_cap_base), ("floor_cap", 0.02, "initial"))
+        self.assertEqual(PA.account_for(5_000.0, 0.01, "floor_cap@0.02").min_lot_cap_base, "current")
+        with self.assertRaises(ValueError):
+            PA.account_for(5_000.0, 0.01, "floor_cap@0.02/start")
+
+    def test_check_grid_reads_the_cap_base(self):
+        ok = dict(PA.GRID, mode=("floor_cap",), r=(0.01,), cap=(0.02,), cap_base=("initial",))
+        self.assertIs(PA.check_grid(ok), ok)
+        with self.assertRaises(ValueError):
+            PA.check_grid(dict(ok, cap_base=("start",)))
+        with self.assertRaises(ValueError):                       # the fixed amount below r x b0
+            PA.check_grid(dict(ok, cap=(0.005,)))
+        PA.check_grid(dict(PA.GRID, cap_base=("start",)))         # no floor_cap in the grid: the base is not read
+
+    def test_summary_adds_the_cap_keys_only_for_the_ten_field_form(self):
+        # (..., taken_above_r, taken_above_cap, risk_taken_max)
+        v = [(False, False, 0.1, 1.2, 0.04, 10, 0.010, 0, 0, 0.012), (True, False, 0.9, 0.0, -1.0, 30, 0.03, 20, 5, 0.25)]
+        s = PA.summarise_cell(v)
+        self.assertAlmostEqual(s["taken_above_cap_share"], 5 / 40)
+        self.assertAlmostEqual(s["p_any_above_cap"], 0.5)
+        self.assertEqual((s["risk_taken_max"], s["risk_taken_max_p95"]), (0.25, 0.25))
+        new = {"taken_above_cap_share", "p_any_above_cap", "risk_taken_max", "risk_taken_max_p95"}
+        self.assertEqual(PA.summarise_cell([x[:8] for x in v]), {k: s[k] for k in s if k not in new})
+
+    def test_risk_taken_max_p95_is_the_95th_percentile_of_the_per_path_maxima(self):
+        # 21 paths with maxima 0.01 .. 0.21, plus one path without a trade (None, left out): sorted[int(0.95 x 21)] = 0.20
+        v = [(False, False, 0.1, 1.0, 0.0, 1, 0.01, 0, 0, (i + 1) / 100) for i in range(21)]
+        v.append((False, False, 0.0, 1.0, 0.0, 0, None, 0, 0, None))
+        s = PA.summarise_cell(v)
+        self.assertAlmostEqual(s["risk_taken_max_p95"], 0.20)
+        self.assertAlmostEqual(s["risk_taken_max"], 0.21)
 
     def test_default_grid_cells_are_unchanged(self):
         self.assertEqual(PA.mode_labels(PA.GRID), ["skip", "floor"])

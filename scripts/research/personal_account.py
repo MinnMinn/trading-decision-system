@@ -4,7 +4,8 @@ stop-out, an exact floating floor, and ruin that ends the account (docs/plans/20
 v2: conditions A1-A11). DESCRIPTIVE research; never routes an order.
 
     python3 scripts/research/personal_account.py run --out docs/audits/<date>-personal-account.json --cache <rows.pkl>
-        [--r 0.01 --b0 5000 100000 --mode skip floor_cap --cap 0.02 0.015]      (grid overrides; default GRID)
+        [--r 0.01 --b0 5000 100000 --mode skip floor_cap --cap 0.02 0.015 --cap-base current initial]
+                                                                                (grid overrides; default GRID)
     python3 scripts/research/personal_account.py check --against <earlier.json> --cache <rows.pkl> [--new <later.json>]
 
 Scope: INTRADAY rows from `book_sim.trades` (flat before the server rollover, so no swap and no weekend gap). Every money
@@ -35,6 +36,7 @@ BAR = datetime.timedelta(minutes=5)
 WEEKDAYS_PER_YEAR = 261
 SKIP_REASONS = ("min_lot", "min_lot_over_cap", "netting", "portfolio_cap", "margin")
 MODES = ("skip", "floor", "floor_cap")
+CAP_BASES = ("current", "initial")    # floor_cap: min_lot_cap x the CURRENT balance, or x b0 (a fixed money amount)
 ABOVE_R_TOL = 1e-6                     # relative: a trade risks "above r" only beyond float rounding
 
 
@@ -69,7 +71,10 @@ class Account:
     r: float = 0.01                    # A2, risk at the stop, fraction of the CURRENT balance
     mode: str = "skip"                 # A3: "skip" = never above r; "floor" = volume_min whatever its risk (sensitivity);
                                        #     "floor_cap" = volume_min only if its risk <= min_lot_cap (owner 2026-10-04, design §7.4)
-    min_lot_cap: float = 0.02          # A3, floor_cap only: ceiling on the minimum lot's risk, fraction of the CURRENT balance
+    min_lot_cap: float = 0.02          # A3, floor_cap only: ceiling on the minimum lot's risk, a fraction of the cap's base
+    min_lot_cap_base: str = "current"  # A3, floor_cap only: "current" = min_lot_cap x the CURRENT balance (as first run);
+                                       #     "initial" = min_lot_cap x b0, a FIXED money amount (owner 2026-10-04: "Trần 2% tính
+                                       #     theo cố định 100 USD", design §7.4). Not a share of the balance after a drawdown.
     leverage: float = 30.0             # A4 (ASSUMED until the owner's broker spec exists)
     margin_rate: float = 1.0           # A4 (ASSUMED)
     portfolio_cap: float = 0.05        # A5 = risk-config.json max_portfolio_risk_pct
@@ -82,10 +87,15 @@ class Account:
     def __post_init__(self):
         if self.mode not in MODES or self.position_mode not in ("hedging", "netting"):
             raise ValueError(f"bad mode {self.mode!r} / {self.position_mode!r}")
+        if self.min_lot_cap_base not in CAP_BASES:
+            raise ValueError(f"bad min_lot_cap_base {self.min_lot_cap_base!r}: one of {CAP_BASES}")
         if not 0 < self.r <= 0.05 or self.b0 <= 0 or self.leverage <= 0:
             raise ValueError("r must be in (0, 5 %], b0 and leverage positive")
+        # base "current": the cap is a share of the balance at every trade. Base "initial": the check bounds the FIXED amount
+        # min_lot_cap x b0 between r x b0 and 5 % x b0, i.e. at the START it neither undercuts r nor exceeds the portfolio
+        # cap (A5); after a drawdown the same amount is a larger share of the balance, by design.
         if self.mode == "floor_cap" and not self.r <= self.min_lot_cap <= 0.05:
-            raise ValueError("floor_cap needs r <= min_lot_cap <= 5 %")
+            raise ValueError(f"floor_cap needs r <= min_lot_cap <= 5 % (of the {self.min_lot_cap_base} base)")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -105,7 +115,8 @@ def lots_for(acct, spec, balance, stop_bp):
     if lots + 1e-12 < spec.vmin:
         if acct.mode == "skip":
             return 0.0, "min_lot"
-        if acct.mode == "floor_cap" and spec.vmin * risk_per_lot > acct.min_lot_cap * balance * (1 + 1e-9):
+        base = balance if acct.min_lot_cap_base == "current" else acct.b0
+        if acct.mode == "floor_cap" and spec.vmin * risk_per_lot > acct.min_lot_cap * base * (1 + 1e-9):
             return 0.0, "min_lot_over_cap"
         lots = spec.vmin
     return round(lots, 8), None
@@ -124,11 +135,15 @@ def replay(days, acct, specs, edge_shift=None, keep_curve=False):
     path ENDS with >= stall_k consecutive signals too small for the minimum lot (`min_lot`, or `min_lot_over_cap` in mode
     floor_cap), i.e. the account never traded again (a temporary run of wide stops that later narrows is not STALLED; the
     money is still there either way). `taken_above_r` counts trades whose risk at the stop exceeded r x the balance (only
-    the minimum lot in floor / floor_cap); `risk_taken_mean` is the mean risk actually taken, as a fraction of the balance."""
+    the minimum lot in floor / floor_cap); `risk_taken_mean` is the mean risk actually taken, as a fraction of the balance.
+    `taken_above_cap` counts trades whose risk exceeded min_lot_cap x the balance at entry (the CURRENT-balance cap): 0 by
+    construction in floor_cap with base "current"; with base "initial" it counts what the fixed amount allowed beyond it
+    (only below b0). `risk_taken_max` is the largest risk taken, as a fraction of the balance at entry. A5 (portfolio cap)
+    binds only a trade opened next to others, so a lone minimum lot can exceed it after a deep drawdown."""
     shift = edge_shift or {}
     bal, peak, max_dd = acct.b0, acct.b0, 0.0
     skips = collections.Counter()
-    taken, post_ruin, consec_skip, above_r = 0, 0, 0, 0
+    taken, post_ruin, consec_skip, above_r, above_cap, risk_max = 0, 0, 0, 0, 0, None
     eff_risk = []
     blown = stalled = None
     streak_start, max_streak = None, 0
@@ -184,6 +199,8 @@ def replay(days, acct, specs, edge_shift=None, keep_curve=False):
                 taken += 1
                 eff_risk.append(money / (acct.r * bal))
                 above_r += money > acct.r * bal * (1 + ABOVE_R_TOL)
+                above_cap += money > acct.min_lot_cap * bal * (1 + ABOVE_R_TOL)
+                risk_max = money / bal if risk_max is None else max(risk_max, money / bal)
             if open_:
                 floor_now = bal + sum(o["money"] * (_adv_at(o, tick) - o["cost_R"]) for o in open_)
                 max_dd = max(max_dd, 1.0 - floor_now / peak)
@@ -213,7 +230,8 @@ def replay(days, acct, specs, edge_shift=None, keep_curve=False):
            "longest_min_lot_skip_streak": max_streak,
            "post_ruin": post_ruin, "skips": dict(skips),
            "effective_risk_mean": statistics.mean(eff_risk) if eff_risk else None,
-           "taken_above_r": above_r, "risk_taken_mean": statistics.mean(eff_risk) * acct.r if eff_risk else None}
+           "taken_above_r": above_r, "risk_taken_mean": statistics.mean(eff_risk) * acct.r if eff_risk else None,
+           "taken_above_cap": above_cap, "risk_taken_max": risk_max}
     if keep_curve:
         out["curve"] = curve
     return out
@@ -292,8 +310,10 @@ def haircut_shift(rows_by_ck, book, haircut, since=None):
 
 
 # ---------------------------------------------------------------------------------------------------------------- runs
-#: "cap" is read only when "floor_cap" is in "mode" (one mode label per cap: "floor_cap@0.02"); the CLI overrides any key
-GRID = {"r": (0.005, 0.01), "b0": (5_000.0, 100_000.0), "mode": ("skip", "floor"), "cap": (0.02,), "edge": (1.0, 0.5, 0.0)}
+#: "cap" and "cap_base" are read only when "floor_cap" is in "mode": one mode label per cap and base, "floor_cap@0.02" (base
+#: "current", the label of the first cap run) or "floor_cap@0.02/initial" (the fixed amount). The CLI overrides any key.
+GRID = {"r": (0.005, 0.01), "b0": (5_000.0, 100_000.0), "mode": ("skip", "floor"), "cap": (0.02,), "cap_base": ("current",),
+        "edge": (1.0, 0.5, 0.0)}
 PATHS, HORIZON_DAYS, SEED = 1000, 5 * WEEKDAYS_PER_YEAR, 20261004
 POST_DISCOVERY_FROM = datetime.date(2018, 2, 26)        # the latest discovery/confirmation split of the components (XAG)
 SURVIVE_BLOWN, SURVIVE_PAIN, BEATS_SHARE = 0.01, 0.05, 0.80
@@ -316,7 +336,7 @@ def common_span(rows_by_ck):
 
 def check_grid(grid):
     """ValueError before any work if `run` would fail late: the ranking reads edge x 0.5 (design §4) after the bootstrap,
-    and every floor_cap account needs r <= cap <= 5 %."""
+    and every floor_cap account needs r <= cap <= 5 % and a known cap base."""
     if 0.5 not in grid["edge"]:
         raise ValueError(f"edge grid {tuple(grid['edge'])} lacks 0.5: the ranking (design §4) reads edge x 0.5")
     if set(grid["mode"]) - set(MODES):
@@ -324,19 +344,25 @@ def check_grid(grid):
     if "floor_cap" in grid["mode"]:
         for r in grid["r"]:
             for cap in grid["cap"]:
-                Account(r=r, mode="floor_cap", min_lot_cap=cap)
+                for base in grid.get("cap_base", ("current",)):
+                    Account(r=r, mode="floor_cap", min_lot_cap=cap, min_lot_cap_base=base)
     return grid
 
 
 def mode_labels(grid=None):
-    """The grid's sizing modes as labels; floor_cap expands to one label per cap ("floor_cap@0.02")."""
+    """The grid's sizing modes as labels; floor_cap expands to one label per cap and base: "floor_cap@0.02" (base
+    "current", unchanged from the first cap run) and "floor_cap@0.02/initial" (the fixed amount cap x b0)."""
     grid = grid or GRID
-    return [lab for m in grid["mode"] for lab in ([f"floor_cap@{c}" for c in grid["cap"]] if m == "floor_cap" else [m])]
+    caps = [f"floor_cap@{c}" + ("" if b == "current" else f"/{b}")
+            for c in grid["cap"] for b in grid.get("cap_base", ("current",))]
+    return [lab for m in grid["mode"] for lab in (caps if m == "floor_cap" else [m])]
 
 
 def account_for(b0, r, label):
     mode, _, cap = label.partition("@")
-    return Account(b0=b0, r=r, mode=mode, **({"min_lot_cap": float(cap)} if cap else {}))
+    cap, _, base = cap.partition("/")
+    return Account(b0=b0, r=r, mode=mode, **({"min_lot_cap": float(cap)} if cap else {}),
+                   **({"min_lot_cap_base": base} if base else {}))
 
 
 def cells(grid=None):
@@ -374,7 +400,7 @@ def _paths(seeds):
             days = [(i, by.get(d, [])) for i, d in enumerate(src)]
             m = replay(days, account_for(b0, r, mode), sp, _W["shift"][(book, edge)])
             out[cell].append((m["blown"] is not None, m["stalled"] is not None, m["max_dd"], m["terminal_multiple"], m["cagr"],
-                              m["taken"], m["risk_taken_mean"], m["taken_above_r"]))
+                              m["taken"], m["risk_taken_mean"], m["taken_above_r"], m["taken_above_cap"], m["risk_taken_max"]))
     return dict(out)
 
 
@@ -394,17 +420,25 @@ def bootstrap(cache, lo, hi, paths=PATHS, jobs=10, grid=None):
 
 
 def summarise_cell(v, pain=0.5):
-    """v: per path (blown, stalled, max_dd, terminal, cagr, taken, risk_taken_mean, taken_above_r). The two trade shares
-    are pooled over every trade of every path."""
+    """v: per path (blown, stalled, max_dd, terminal, cagr, taken, risk_taken_mean, taken_above_r[, taken_above_cap,
+    risk_taken_max]). The trade shares are pooled over every trade of every path. The four cap keys (added with the cap
+    base; extra keys only) need the 10-field form: the share of trades above the current-balance cap, the share of paths
+    with at least one, and the largest risk taken (max over paths, and the p95 of the per-path maxima)."""
     q = lambda xs, p: sorted(xs)[min(len(xs) - 1, int(p * len(xs)))]
     term = [x[3] for x in v]
     n = sum(x[5] for x in v)
-    return {"p_blown": statistics.mean(x[0] for x in v), "p_stalled": statistics.mean(x[1] for x in v),
-            "p_dd_ge_25": statistics.mean(x[2] >= 0.25 for x in v), "p_dd_ge_pain": statistics.mean(x[2] >= pain for x in v),
-            "terminal_p5": q(term, 0.05), "terminal_p50": q(term, 0.5), "terminal_p95": q(term, 0.95),
-            "median_cagr": statistics.median(x[4] for x in v), "p95_max_dd": q([x[2] for x in v], 0.95),
-            "trades_taken": n, "taken_above_r_share": sum(x[7] for x in v) / n if n else None,
-            "risk_taken_mean": sum(x[5] * x[6] for x in v if x[5]) / n if n else None}
+    out = {"p_blown": statistics.mean(x[0] for x in v), "p_stalled": statistics.mean(x[1] for x in v),
+           "p_dd_ge_25": statistics.mean(x[2] >= 0.25 for x in v), "p_dd_ge_pain": statistics.mean(x[2] >= pain for x in v),
+           "terminal_p5": q(term, 0.05), "terminal_p50": q(term, 0.5), "terminal_p95": q(term, 0.95),
+           "median_cagr": statistics.median(x[4] for x in v), "p95_max_dd": q([x[2] for x in v], 0.95),
+           "trades_taken": n, "taken_above_r_share": sum(x[7] for x in v) / n if n else None,
+           "risk_taken_mean": sum(x[5] * x[6] for x in v if x[5]) / n if n else None}
+    if v and all(len(x) >= 10 for x in v):
+        mx = [x[9] for x in v if x[9] is not None]
+        out.update({"taken_above_cap_share": sum(x[8] for x in v) / n if n else None,
+                    "p_any_above_cap": statistics.mean(x[8] > 0 for x in v),
+                    "risk_taken_max": max(mx) if mx else None, "risk_taken_max_p95": q(mx, 0.95) if mx else None})
+    return out
 
 
 def rank_within_label(boot, b0, mode, grid=None):
@@ -544,8 +578,9 @@ def main():
     r.add_argument("--paths", type=int, default=PATHS)
     r.add_argument("--jobs", type=int, default=10)
     for key, typ, choices in (("r", float, None), ("b0", float, None), ("mode", str, MODES), ("cap", float, None),
-                              ("edge", float, None)):
-        r.add_argument(f"--{key}", type=typ, nargs="+", choices=choices, help=f"grid override (default {GRID[key]})")
+                              ("cap_base", str, CAP_BASES), ("edge", float, None)):
+        r.add_argument("--" + key.replace("_", "-"), dest=key, type=typ, nargs="+", choices=choices,
+                       help=f"grid override (default {GRID[key]})")
     c = sub.add_parser("check", help="replay an earlier result's historical entries; optionally compare two result files")
     c.add_argument("--against", required=True, help="an earlier result JSON")
     c.add_argument("--cache", required=True)

@@ -87,14 +87,15 @@ Design §7.4, A3 mode `floor_cap`.
 **DESCRIPTIVE re-read of already-read days.** The rule was chosen AFTER §2.3 showed mode `floor` recovering the edge. These
 numbers describe a sizing choice on exposed data (CLAUDE.md §44). They do not validate an edge.
 
-Rule (`lots_for`, scripts/research/personal_account.py:100-111):
+Rule (`lots_for`, scripts/research/personal_account.py:110-122):
 - Size at r = 1 % of the current balance, as before.
 - If that is below the minimum lot (0.01), trade 0.01 only if its risk at the stop is <= the cap x the CURRENT balance.
 - Otherwise skip (`min_lot_over_cap`). Such skips also count toward STALLED.
 - "Risk at the stop" is the stop distance only, as for r. The spread comes on top (`cost_R`, scripts/research/book_sim.py:76,
   :80). Commission is 0 in this run, as in the first read.
-- The owner's words also allow a FIXED cap: 2 % of the starting 5,000 USD = 100 USD. That cap does not shrink as the
-  balance falls, so it is looser after a drawdown (more trades; STALLED and BLOWN change). It was not run (§5.4).
+- The owner's words also allowed a FIXED cap: 2 % of the starting 5,000 USD = 100 USD. That cap does not shrink as the
+  balance falls, so it is looser after a drawdown. It was not run here. The owner chose it afterwards ("Trần 2% tính
+  theo cố định 100 USD", 2026-10-04): §5.5. This section (§5.1-§5.3) is the current-balance reading.
 
 Run: same rows, specs, seed, days and paths as §1-§3; r = 1 % only; B0 5,000 and 100,000; caps 2 % (the owner's
 example) and 1.5 % (sensitivity); 108 cells. Raw data: docs/audits/2026-10-04-personal-account-cap.json.
@@ -117,12 +118,15 @@ personal_account.py `code_version`). The committed code reproduces the run:
   `skip` at x0.5). All were equal.
 
 Experiment budget on these days (CLAUDE.md §43):
-- Read so far: 4 sizing rules (`skip`, `floor`, cap 2 %, cap 1.5 %) x 6 setups x 3 edge levels x 2 balances (5,000 and
-  100,000). `skip` and `floor` at r 0.5 % and 1 %, the caps at r 1 % only. That is 216 distinct bootstrap cells and 144
-  historical ones.
+- Read so far: 5 sizing rules (`skip`, `floor`, cap 2 %, cap 1.5 %, and the fixed 100 USD cap of §5.5) x 6 setups x 3
+  edge levels. `skip` and `floor` at r 0.5 % and 1 % and B0 5,000 and 100,000; the two current-balance caps at r 1 % and
+  both balances; the fixed cap at r 1 % and 5,000 only. That is 234 distinct bootstrap cells and 156 historical ones
+  (216 / 144 before §5.5).
+- The fixed cap is one more rule read on the same days. The owner chose its base (2026-10-04) before any fixed-cap number
+  existed; the current-balance numbers above were known. It was not picked from results.
 - Before them, two full runs were superseded: B0 10,000 / 100,000 (before the owner gave 5,000), and 5,000 / 100,000 with
   the haircut mean on the full history (fixed in b4961c9). There were also 20-path smoke runs of the same cells.
-- 2 % is the owner's number, not a backtest optimum. No further cap values should be read on these days.
+- 2 % is the owner's number, not a backtest optimum. No further cap values or bases should be read on these days.
 
 ### 5.1 Bootstrap, 5,000 USD at 1 % (5 years, 1,000 paths)
 
@@ -158,7 +162,8 @@ risk actually taken, in % of the balance. Both at edge x 0.5, pooled over all pa
 | v4 + silver | floor | 5.48 / 2.96 / 1.76 | 32 % | 36 % | 0.1 % | 0 | n/r | n/r |
 
 P(BLOWN) is the highest over the three edge levels. The one non-zero value is `floor` for v4 + silver at edge x 0: one
-path in 1,000, at r 0.5 % and at 1 % (first-read JSON; the intro is corrected). No `skip` or cap cell has a BLOWN path.
+path in 1,000, at r 0.5 % and at 1 % (first-read JSON; the intro is corrected). No `skip` or current-balance cap cell has
+a BLOWN path (the fixed cap has, at edge x 0: §5.5).
 Survival (design §4: P(BLOWN) <= 1 % and P(DD >= 50 %) <= 5 % at x0.5):
 - every setup survives at cap 2 % (highest P(DD >= 50 %): v4 + silver, 2.6 %);
 - at cap 1.5 %, v4 + silver fails (7.1 %).
@@ -210,7 +215,7 @@ few deep paths reach the minimum lot (about 120 more trades out of 2.4 million; 
 4. **Silver does not fit 5,000 USD.** At cap 2 %, 82 % of its trades are above 1 %, the mean risk is 1.36 %, and the
    half-edge median is x0.92 with P(DD >= 25 %) 44 %.
 5. **The edge levels do not mean the same thing under `skip` and under a cap.** The haircut subtracts one flat mean R per
-   component (personal_account.py:283-291). It is paid in proportion to the money at risk (:153, :197). Mean R rises with
+   component (personal_account.py:301-309). It is paid in proportion to the money at risk (:168, :214). Mean R rises with
    stop width (§2.2). So:
    - `skip` drops the wide stops but pays the full haircut on the narrow ones it keeps. Its x0.5 and x0 are below half
      and zero edge on the trades it takes.
@@ -220,21 +225,144 @@ few deep paths reach the minimum lot (about 120 more trades out of 2.4 million; 
 
 ### 5.4 Recommendation for 5,000 USD
 
-- **If the owner trades a personal 5,000 USD account: v4 (H7 + G9 gold, stop 1.4), r = 1 %, minimum lot up to the
-  owner's 2 %.** It has the highest half-edge median (x1.87) apart from the UNTESTED v4 + silver, P(DD >= 25 %) 9 % and
-  p95 drawdown 27 %. H7 gold alone is calmer (p95 22 %) but grows little (x1.12). Historically v4 took every signal.
+- **If the owner trades a personal 5,000 USD account: v4 (H7 + G9 gold, stop 1.4), r = 1 %, minimum lot up to a fixed
+  100 USD (the owner's rule, §5.5).** Half-edge median x1.79, P(DD >= 25 %) 8 %, p95 drawdown 27 %, no BLOWN or STALLED
+  path at any edge level. It beats v3 on 98 % of paths (paired CAGR, half edge). H7 gold alone grows little (x1.09) at
+  about the same p95 drawdown (26 %). Historically v4 took all but 33 signals, all skipped above 10,000 USD, where the
+  fixed cap equals `skip`.
+- **The current-balance cap of §5.1 grows v4 a little more** (x1.87 at half edge, x5.89 historically). The gap is the
+  fixed cap's tighter side above 5,000 USD (§5.5 item 1). Picking the base again from these numbers would be a choice on
+  exposed data (CLAUDE.md §43-44); the owner fixed it before they existed.
 - **How much of that gain is real depends on the volatility-condition test** (family VC,
   docs/plans/2026-10-04-vc-volatility-condition-preregistration-DRAFT.md, not sealed). VC asks, on data where the split
   was never computed, whether mean R rises on volatile days: the pattern behind §5.3 item 5. If VC fails, read the cap
-  rows here as optimistic and the `skip` rows as pessimistic. The cap still trades the whole book, which `skip` cuts on
-  its wide-stop days.
-- **Not:** silver alone, or v4 + silver (UNTESTED, P(DD >= 25 %) 41 %). Silver's minimum lot is too large for 5,000 USD
-  (§5.3 item 4).
+  rows here as optimistic and the `skip` rows as pessimistic: a cap takes wide-stop days that `skip` cuts. The fixed
+  cap takes one only while its minimum lot risks <= 100 USD, and from 10,000 USD up it cuts them like `skip`
+  (historical skips: v4 33, v3 313; §5.5).
+- **Not:** silver alone (under the fixed cap it fails survival: P(DD >= 50 %) 7.2 % at half edge), or v4 + silver
+  (UNTESTED, P(DD >= 25 %) 45 %, BLOWN paths at edge x 0). Silver's minimum lot is too large for 5,000 USD (§5.3 item 4).
 - **Labels still apply.** v4 is POLICY-EXPOSED, and the cap rule was chosen after seeing `floor`. It is a CANDIDATE: a
   forward record on demo (or a small live size) should come first.
-- **Before live use:** a personal-account risk config (the min lot above `risk-config.json` max_risk_pct = 1 %) and a book
-  version with current-balance sizing and the cap in the executor (CLAUDE.md §47). Neither is done here.
-- **Open for the owner:**
-  - the cap value: "2 % (the example, as run)" / another value, fixed now and read only on new days (§5.3 item 3);
-  - the cap's base: "2 % of the CURRENT balance (as run)" / "2 % of the starting 5,000 USD, a fixed 100 USD (looser after
-    a drawdown; not run)".
+- **Before live use:** a personal-account risk config (the min lot above `risk-config.json` max_risk_pct = 1 %, up to a
+  fixed 100 USD) and a book version with current-balance sizing and the fixed cap in the executor (CLAUDE.md §47).
+  Neither is done here.
+- **Owner decisions:**
+  - the cap's base: **closed** 2026-10-04, "Trần 2% tính theo cố định 100 USD": a fixed 100 USD (§5.5). The
+    current-balance rows stay as the earlier reading;
+  - the cap value: the same words name 2 % (100 USD on 5,000), the value as run. No other value is read on these days;
+  - A5 for a lone trade. Design A5 as written is (b); the code is (a) (personal_account.py:189 checks A5 only
+    next to an open trade). They differ only in `floor` and the fixed cap, where one minimum lot can exceed 5 %.
+    Options: "(a) as run: a lone minimum lot may risk the full 100 USD, even above 5 % of the balance (below 2,000
+    USD)" / "(b) a lone trade also stays within 5 % of the current balance (`risk-config.json`
+    max_portfolio_risk_pct)". (b) changes no v4 trade at edge x 1 or x 0.5 (largest risk 2.3 % / 2.6 %); it bounds
+    the edge-x-0 tails of §5.5 item 3. **Lead decision 2026-10-04 (owner may override): (b) for any real use**, since
+    it is the house portfolio limit as written and only binds after a 60 % drawdown. **Not read on these days**: it
+    changes no v4 row above, and a read would add a rule to the §5 budget for tails only. The replay gets its own
+    switch (default (a), so rows already read stay reproducible: silver's common-span path, §5.5, took a lone trade at
+    9.8 % of the balance) when the personal-account book version is built.
+
+### 5.5 Fixed 100 USD cap (owner's choice 2026-10-04)
+
+Owner 2026-10-04, answering §5.4: "Trần 2% tính theo cố định 100 USD". Design §7.4; A3 `min_lot_cap_base = "initial"`,
+label `floor_cap@0.02/initial`.
+
+**DESCRIPTIVE, on the same exposed days** (CLAUDE.md §44). The owner fixed the base before any fixed-cap number existed;
+the current-balance rows of §5.1-§5.2 were known. Read once; no other cap value or base.
+
+Rule (personal_account.py:110-122):
+- Size at r = 1 % of the current balance, as before.
+- Below the minimum lot, trade 0.01 only if its risk at the stop is <= 2 % x 5,000 = 100 USD, whatever the balance
+  (:118-120). Otherwise skip (`min_lot_over_cap`, counts toward STALLED).
+- Below 5,000 USD that allows more than 2 % of the balance (4 % at 2,500, 10 % at 1,000). Above 5,000 it allows less.
+  From 10,000 USD (cap / r x B0) it sizes exactly as `skip`.
+- Nothing scales the 100 USD down after a drawdown. A5 (5 % of the current balance) binds only a second open trade
+  (:189). A lone minimum lot meets only the margin check (:195), stop-out (:208) and BLOWN (:217: balance below the
+  smallest minimum-lot margin of the book's symbols, 138.55 USD for gold and 101.11 USD for silver at the assumed 1:30).
+
+Run: same rows, specs, seed, days and paths as §5.1; B0 5,000 only; r = 1 %; edge x 1 / 0.5 / 0; 18 bootstrap and 12
+historical cells. Raw data: docs/audits/2026-10-04-personal-account-cap-fixed.json.
+
+    python3 scripts/research/personal_account.py run --out <json> --cache <rows.pkl> --paths 1000 --jobs 10 \
+        --r 0.01 --b0 5000 --mode floor_cap --cap 0.02 --cap-base initial --edge 1 0.5 0
+
+Code version (`meta.code`, CLAUDE.md §46): commit 4f803bf plus the uncommitted personal_account.py (and its tests);
+script sha256 ea31d0ba76b09e3d07e78b42c79a5fbd2e1f0563ba7c1b16b7c57306ffbb09b6, the personal_account.py of the commit
+that adds this section. With that code:
+- `check --against` the first-read JSON (`--new` the cap JSON) and `check --against` the cap JSON: all 96 and all 72
+  historical entries replay exactly; the 60 shared entries are equal. The default base reproduces §1-§5.2.
+- `check --against` the fixed-cap JSON: its 12 historical entries replay exactly.
+- 12 already-read bootstrap cells (`skip` and cap 2 % of the balance, edge x 0.5, all setups) recomputed over all 1,000
+  seeds: equal to the cap JSON.
+
+**Bootstrap, 5,000 USD at 1 % (5 years, 1,000 paths).** Columns as §5.1, plus:
+- P(DD >= 50 %) (the survival line, design §4);
+- "above 2 % of balance": the share of trades whose risk at the stop was above 2 % of the balance at entry / the share
+  of paths with at least one such trade;
+- "max risk": the largest risk taken, in % of the balance at entry: the p95 of the per-path maxima / the maximum.
+
+All at edge x 0.5 except the multiples and P(BLOWN). Under the current-balance cap the last two columns are 0 and
+<= 2 % by construction.
+
+| setup | cap | median multiple x1 / x0.5 / x0 | P(DD >= 25 %) x0.5 | p95 DD x0.5 | P(DD >= 50 %) x0.5 | P(BLOWN) x1 / x0.5 / x0 | STALLED x0.5 | above 1 % | above 2 % of balance: trades / paths | mean risk | max risk: p95 path / max |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| v4 | 2 % of balance | 3.05 / 1.87 / 1.25 | 9 % | 27 % | 0 | 0 / 0 / 0 | 0 | 15 % | 0 / 0 | 0.85 % | <= 2 % |
+| v4 | **fixed 100 USD** | 2.79 / 1.79 / 1.25 | 8 % | 27 % | 0 | 0 / 0 / 0 | 0 | 13 % | 0.04 % / 20 % | 0.83 % | 2.2 % / 2.6 % |
+| v3 | 2 % of balance | 2.43 / 1.68 / 0.83 | 18 % | 41 % | 1.2 % | 0 / 0 / 0 | 0.2 % | 43 % | 0 / 0 | 1.03 % | <= 2 % |
+| v3 | **fixed 100 USD** | 1.75 / 1.28 / 0.82 | 29 % | 42 % | 2.1 % | 0 / 0 / 0.2 % | 0.2 % | 48 % | 1.9 % / 64 % | 1.06 % | 2.9 % / 7.4 % |
+| H7 gold | 2 % of balance | 1.34 / 1.12 / 0.96 | 2 % | 22 % | 0 | 0 / 0 / 0 | 0 | 62 % | 0 / 0 | 1.15 % | <= 2 % |
+| H7 gold | **fixed 100 USD** | 1.25 / 1.09 / 0.93 | 6 % | 26 % | 0 | 0 / 0 / 0 | 0.2 % | 63 % | 1.3 % / 60 % | 1.15 % | 2.5 % / 3.1 % |
+| G9 gold | 2 % of balance | 1.93 / 1.44 / 0.89 | 8 % | 28 % | 0.3 % | 0 / 0 / 0 | 0.1 % | 45 % | 0 / 0 | 1.04 % | <= 2 % |
+| G9 gold | **fixed 100 USD** | 1.48 / 1.20 / 0.89 | 9 % | 29 % | 0.3 % | 0 / 0 / 0 | 0 | 48 % | 1.1 % / 60 % | 1.05 % | 2.5 % / 4.7 % |
+| G9 silver | 2 % of balance | 1.24 / 0.92 / 0.71 | 44 % | 47 % | 1.9 % | 0 / 0 / 0 | 3.7 % | 82 % | 0 / 0 | 1.36 % | <= 2 % |
+| G9 silver | **fixed 100 USD** | 1.12 / 0.92 / 0.72 | 50 % | 54 % | 7.2 % | 0 / 0 / 0 | 1.8 % | 86 % | 12.5 % / 89 % | 1.49 % | 3.8 % / 7.1 % |
+| v4 + silver | 2 % of balance | 4.20 / 2.14 / 0.86 | 41 % | 44 % | 2.6 % | 0 / 0 / 0 | 0.2 % | 28 % | 0 / 0 | 0.94 % | <= 2 % |
+| v4 + silver | **fixed 100 USD** | 2.96 / 1.71 / 1.00 | 45 % | 43 % | 2.4 % | 0 / 0 / 0.2 % | 0.1 % | 27 % | 0.8 % / 59 % | 0.92 % | 2.8 % / 4.3 % |
+
+**Historical, 5,000 USD at 1 % (2018-02-26 -> 2026-10-02, full edge).** Columns as §5.2, plus the two above.
+
+| setup | cap | multiple | CAGR | max DD | taken / skipped | above 1 % | above 2 % of balance | mean risk | max risk | BLOWN | STALLED |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| v4 | 2 % of balance | 5.89 | 22.9 % | 13.1 % | 2,647 / 0 | 2 % | 0 | 0.9 % | <= 2 % | - | - |
+| v4 | **fixed 100 USD** | 5.10 | 20.8 % | 12.7 % | 2,614 / 33 | 1 % | 0 | 0.8 % | 1.2 % | - | - |
+| v3 | 2 % of balance | 4.43 | 18.9 % | 11.3 % | 2,633 / 14 | 10 % | 0 | 0.9 % | <= 2 % | - | - |
+| v3 | **fixed 100 USD** | 2.61 | 11.8 % | 13.9 % | 2,334 / 313 | 7 % | 0 | 0.8 % | 1.7 % | - | - |
+| H7 gold | 2 % of balance | 1.85 | 7.4 % | 7.1 % | 1,061 / 35 | 38 % | 0 | 1.0 % | <= 2 % | - | - |
+| H7 gold | **fixed 100 USD** | 1.48 | 4.7 % | 8.0 % | 915 / 181 | 42 % | 0 | 1.0 % | 1.7 % | - | - |
+| G9 gold | 2 % of balance | 3.17 | 14.4 % | 12.6 % | 1,540 / 11 | 14 % | 0 | 0.9 % | <= 2 % | - | - |
+| G9 gold | **fixed 100 USD** | 1.89 | 7.7 % | 12.6 % | 1,328 / 223 | 13 % | 0 | 0.8 % | 1.7 % | - | - |
+| G9 silver | 2 % of balance | 2.74 | 12.4 % | 21.0 % | 1,457 / 60 | 28 % | 0 | 0.9 % | <= 2 % | - | - |
+| G9 silver | **fixed 100 USD** | 1.17 | 1.8 % | 31.8 % | 1,079 / 438 | 56 % | 0 | 1.1 % | 1.8 % | - | - |
+| v4 + silver | 2 % of balance | 11.37 | 32.7 % | 18.9 % | 4,154 / 10 | 4 % | 0 | 0.9 % | <= 2 % | - | - |
+| v4 + silver | **fixed 100 USD** | 8.05 | 27.4 % | 19.3 % | 4,041 / 123 | 3 % | 0 | 0.9 % | 1.8 % | - | - |
+
+In this span: no BLOWN, no STALLED, and no trade above 2 % of the balance. Every fixed-cap skip came at a balance at or
+above 5,000 USD (silver 3 and v4 + silver 1 at exactly the starting 5,000). v4's 33 all came above 10,000 USD (lowest
+11,382); H7's, G9 gold's and silver's all below it. Method: these paths replayed with `lots_for` wrapped to record the
+balance at each skip. This is a scratch check, not committed; it used the same code, rows and specs, and its trades,
+skips and multiples equal the JSON.
+
+Over the longer common span (2008-12-10 -> 2026-10-02, in the JSON) the fixed cap did go above 2 % of the balance: v3
+17 trades, H7 2, G9 gold 7, silver 453 (largest 9.8 % of the balance). Silver fell 82 % from its peak there (current
+cap: 62 %, then STALLED from 2026-07-31). No setup blew.
+
+**What the fixed base changes:**
+1. **On these days it is mostly the tighter cap.** Most paths grow, and above 5,000 USD the 100 USD is less than 2 % of
+   the balance. The median falls against the current-balance cap for every setup at edge x 1, and for all but silver
+   (equal) at x 0.5: v4 x1.87 -> x1.79, v3 x1.68 -> x1.28, G9 gold x1.44 -> x1.20, v4 + silver x2.14 -> x1.71. At x 0
+   they are about equal, except v4 + silver (x0.86 -> x1.00). Historically every setup ends lower (v4 x5.89 -> x5.10).
+2. **Its looser side is used on paths that fall below 5,000 USD.** At x 0.5 few trades go above 2 % of the balance
+   (v4: 665 of 1.48 million; v3 1.9 %; silver 12.5 %), but many paths have one (v4 20 %, the others 59-89 %). The
+   largest risk at x 0.5 is 2.6 % (v4), 7.4 % (v3), 7.1 % (silver).
+3. **BLOWN appears, only at edge x 0:** v3 and v4 + silver, 2 paths in 1,000 each. None at x 1 or x 0.5, none for v4.
+   At x 0 the largest single risk was 52 % (v3) and 75 % (v4 + silver) of the balance: a lone minimum lot (<= 100 USD)
+   on a balance of at most 192 / 133 USD, which A5 does not stop (open item in §5.4).
+4. **Survival** (design §4, edge x 0.5): every setup but silver. Silver fails on P(DD >= 50 %) 7.2 % (current cap
+   1.9 %). Ranking: v4 beats v3 on 98 % of paths (79 % under the current cap). In COMPONENT-VALIDATED the leader
+   changes because silver drops out: under the current cap G9 gold led only through its win over silver (89 %). G9
+   gold beats H7 on 67 % of paths (78 % under the current cap; both below the 80 % bar), so the lower p95 drawdown
+   decides: H7 26 % against G9 gold 29 %.
+5. **v4 (the §5.4 candidate):** x2.79 / x1.79 / x1.25 against x3.05 / x1.87 / x1.25; P(DD >= 25 %) 8 %; p95 drawdown 27 %;
+   P(DD >= 50 %) 0 at x 0.5 and 3.5 % at x 0 (current cap 8.4 %); no BLOWN, no STALLED. Historically x5.10 (20.8 %/yr),
+   max drawdown 12.7 %.
+6. **§5.3 item 5 applies unchanged:** the edge levels mean different things under `skip` and under a cap, and part of
+   any cap's gain is the post-hoc stop-width pattern. No row here is a clean planning row.
