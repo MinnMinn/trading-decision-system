@@ -797,7 +797,7 @@ those kinds, in three places, three ways:
 |---|---|---|
 | `scripts/live_rules.py:67` (`def read_at(candles, i, tf, methods, opts=None):`) | by **index** — may read `candles[:i+1]` and nothing later | backtest/live parity |
 | `scripts/strategy-runner.py:694` (`def drop_forming(c, tf, t):`) | by **time** — drop a bar whose period has not elapsed | the live tick |
-| `scripts/ict-scan.py:555` (`if i > ref_i: break`) | by **position** — verdicts use the last completed bar `c[-2]`; the forming bar is reported separately and may never confirm a break | the scanner's facts |
+| `scripts/ict-scan.py:624` (`if i > ref_i: break`) | by **position** — verdicts use the last completed bar `c[-2]`; the forming bar is reported separately and may never confirm a break | the scanner's facts |
 
 Three correct mechanisms answering one question in three vocabularies. Survivable for candles, which all
 three were written for. It does not extend: news has no bar index, a provider correction has no position in a
@@ -1040,7 +1040,7 @@ A test now fails on any `?` in a statement, because an unresolved placeholder is
 schema assumed rather than read. (`pct` is also a fraction, not a percentage — "0.2678%" for 26.8%.)
 
 **It anchored evidence on the forming candle, and the §8 gate refused all of it.** `last_time` in the facts
-file is the *forming* bar — reported separately on purpose, since `scripts/ict-scan.py:555` (`if i > ref_i: break`)
+file is the *forming* bar — reported separately on purpose, since `scripts/ict-scan.py:624` (`if i > ref_i: break`)
 keeps it from confirming a break and verdicts use the last completed candle. Anchoring evidence there meant
 every record's `available_time` was in the future, and the gate said so. That was the gate being right about
 a badly chosen anchor. Evidence now anchors on the completed candle, matching the scanner's own verdict

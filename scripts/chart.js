@@ -30,6 +30,9 @@ const SESSIONS = [{key:'london',name:'LDN',tz:'Europe/London',a:8,b:11},{key:'ny
 // killzones are FX concepts to begin with, docs/architecture/session-model.md cites forexop for exactly this.
 // Removed with the `forex` market itself -- see docs/architecture/instruments.json history.)
 const KZ_WEIGHT = {crypto:{london:'reduced',ny_am:'reduced',ny_pm:'none',asia:'none'}, metals:{london:'full',ny_am:'full',ny_pm:'full',asia:'none'}, default:{london:'none',ny_am:'none',ny_pm:'none',asia:'none'}};
+// Pool label keys by the engine's pool `type` ([BSL/high, SSL/low]); only the two types ict_json() can actually
+// emit (core-a.md §2.7). Session/PDH-PDL pools exist only behind fx_b_pool, which the chart never sets.
+const POOL_LABEL = {equal:['chart.pool.equal_highs','chart.pool.equal_lows'], old:['chart.pool.old_high','chart.pool.old_low']};
 // A candle row is [open, high, low, close, volume, isoUTC] -- the shape scripts/build-artifact.py rows_js()
 // emits. Times are ALWAYS derived from the ISO at index 5: it is locale-free and timezone-free, which is what
 // lets the page render the same candle as 14:30 UTC or 21:30 VNT without shipping two copies of anything.
@@ -116,19 +119,31 @@ function ictFromStructures(structs, dealingRange, rows, opts){
   let dr = dealingRange||{}; if(cut && !(dr.available_at && dr.available_at<=cut)) dr = {};
   const bySweep = {};   // "pool_kind|level" -> earliest sweep bar index, for the pool's own 'x' mark
   structs.filter(s=>s.kind==='sweep').forEach(s=>{ const k=s.pool_kind+'|'+s.level; if(!(k in bySweep)) bySweep[k]=s.i; });
+  // A pool's `invalidated_at` (structures.py) is a closed_through bar, or -- for a SWEPT pool -- the first later
+  // body close beyond the level (`broken_at`; core-a.md R6/R25, mentorship-2024.md §15). Until then a swept
+  // pool is still a level: it stays open, drawn muted and labelled "swept" by ictShapes.
   const pools = structs.filter(s=>s.kind==='pool').map(p=>{
     const idx = done(p.invalidated_at) ? idxOfAvail(rows,p.invalidated_at,tfMin) : -1;
     const sweptI = bySweep[p.pool_kind+'|'+p.level];
     return {kind:p.pool_kind, type:p.type, level:p.level, from:p.from, to: idx>=0?idx+0.5:null, swept: sweptI!=null?sweptI:-1};
   });
   const last=rows.length-1;
+  // FVG lifecycle (structures.py; ICT chart-fidelity audit 2026-10-04 item 4): touched / CE-failed / inverted are
+  // STATES, each shown only once its own availability time has passed at the cursor. The box lives until the
+  // inversion (body close through CE, then through the far edge -- core-a.md §2.26 R23); a touch is the IOFED
+  // entry (§2.23 R19), not the end. `mitigated` is kept as an alias of `touched` for older readers.
+  const at = iso => done(iso) ? idxOfAvail(rows,iso,tfMin) : -1;
   const fvgs = structs.filter(s=>s.kind==='fvg').map(f=>{
-    const mitigated = !!f.mitigated && (!cut || done(f.invalidated_at));
-    return {type:f.type,i:f.i,lo:f.lo,hi:f.hi,size:f.size,ce:f.ce,end:mitigated?f.end:Math.min(f.end,last),mitigated};
+    const touchI=at(f.touched_at), ceFailI=at(f.ce_fail_at), invI=at(f.inversion_at);
+    return {type:f.type,i:f.i,lo:f.lo,hi:f.hi,size:f.size,ce:f.ce,end:invI>=0?invI:last,
+            touched:touchI>=0, touchI, ceFail:ceFailI>=0, ceFailI, inverted:invI>=0, invI, mitigated:touchI>=0};
   });
   const mss = structs.filter(s=>s.kind==='mss').map(m=>({type:m.type,i:m.i,level:m.level,disp:m.disp}));
   const hasDR = dr.hi!=null && dr.lo!=null, lastC=rows.length?rows[last][CLOSE]:0, span=(hasDR?(dr.hi-dr.lo):0)||1;
-  return {lo:hasDR?dr.lo:null, hi:hasDR?dr.hi:null, eq:hasDR?dr.eq:null, pct:hasDR?(lastC-dr.lo)/span:null, drSource:hasDR?dr.source:null,
+  // drFrom: the bar from which BOTH dealing-range edges existed (structures.py `from_i`, items 5-6) -- shading,
+  // EQ and the range-% pane start there, never at the window's left edge.
+  const drFrom = hasDR ? Math.max(0, Math.min(last, dr.from_i!=null ? dr.from_i : last)) : null;
+  return {lo:hasDR?dr.lo:null, hi:hasDR?dr.hi:null, eq:hasDR?dr.eq:null, pct:hasDR?(lastC-dr.lo)/span:null, drSource:hasDR?dr.source:null, drFrom,
           fvgs, pools, mss, obs:[], cisd:[], levels:[], sess:[], ote:null, std:null};
 }
 
@@ -157,10 +172,14 @@ function volStats(rows, P){
 // latest bar, knowledge/ict/core-a.md §2.18-2.19). Normalising every bar's close within those bounds is arithmetic on an already
 // -computed range, not a new judgement; EQ (0.5 of the range, R13) sits at 50. No volume input -- the ICT
 // corpus has none (knowledge/integrated/method.md §4.1).
+// POINT-IN-TIME (ICT chart-fidelity audit 2026-10-04, item 5): normalising EVERY past close against the LAST bar's
+// range was look-ahead -- most of those closes were printed before that range existed. The series is plotted only
+// from `ict.drFrom` (the bar from which both edges of the current range existed, structures.py `from_i`) onward;
+// earlier bars get whitespace points, so the line simply starts there. No drFrom = only the current value.
 function rangePctSeries(rows, ict){
   if(ict.lo==null||ict.hi==null) return [];   // no dealing range available at this cursor: nothing to normalise against
-  const lo=ict.lo, hi=ict.hi, span=(hi-lo)||1;
-  return rows.map(r=>({time:unix(r[ISO]), value:Math.max(0,Math.min(100,(r[CLOSE]-lo)/span*100))}));
+  const lo=ict.lo, hi=ict.hi, span=(hi-lo)||1, from=ict.drFrom!=null?ict.drFrom:rows.length-1;
+  return rows.map((r,i)=>i<from?{time:unix(r[ISO])}:{time:unix(r[ISO]), value:Math.max(0,Math.min(100,(r[CLOSE]-lo)/span*100))});
 }
 // EQ marker for the range_pct pane's own axis: a short value, like the price pane's own EQ tag ('EQ '+fmt(ict.eq)
 // in ictShapes below) -- never the pane registry's full descriptive label (methods.json pane.label, a whole
@@ -208,22 +227,52 @@ const ictShapes = (rows, ict, cfg) => {
     return S;
   }
   const hasDR = ict.hi!=null && ict.lo!=null && ict.eq!=null;   // absent at a replay cursor before the engine's range is available (I1)
-  if(hasDR){ S.push({kind:'rect',i1:null,i2:null,p1:ict.hi,p2:ict.eq,fill:'down',alpha:0.04});
-    S.push({kind:'rect',i1:null,i2:null,p1:ict.eq,p2:ict.lo,fill:'up',alpha:0.04}); }
-  ict.fvgs.forEach(f=>{ const col=f.type==='bull'?'up':'down'; S.push({kind:'rect',i1:f.i-0.5,i2:f.end+0.5,p1:f.hi,p2:f.lo,fill:col,alpha:f.mitigated?0.14:0.28,stroke:col,sw:0.6});
-    if(!f.mitigated) S.push({kind:'hseg',i1:f.i-0.5,i2:f.end+0.5,price:f.ce,stroke:col,sw:0.8,dash:[2,2],alpha:0.8}); });
-  if(hasDR){ S.push({kind:'hseg',i1:null,i2:null,price:ict.eq,stroke:'i',sw:1.4,dash:[6,4],label:'EQ '+fmt(ict.eq),labelAt:'axis'});
+  // Items 5-6 (ICT chart-fidelity audit 2026-10-04): premium/discount shading and EQ start at the bar from which
+  // both range edges existed (ict.drFrom), not at the window's left edge -- the range did not exist before it.
+  const drI1 = hasDR ? (ict.drFrom!=null?ict.drFrom:li)-0.5 : null;
+  if(hasDR){ S.push({kind:'rect',i1:drI1,i2:null,p1:ict.hi,p2:ict.eq,fill:'down',alpha:0.04});
+    S.push({kind:'rect',i1:drI1,i2:null,p1:ict.eq,p2:ict.lo,fill:'up',alpha:0.04}); }
+  // FVG lifecycle (item 4; knowledge/ict/core-a.md): the box and its dashed CE line live until the gap INVERTS
+  // (body close through CE, then through the far edge, §2.26 R23). A touch of the near edge is the IOFED entry
+  // (§2.23 R19) -- a small dot on that edge, box kept; the CE body close is the failing warning -- an × on the CE.
+  // An inverted gap acts from the other side (§2.25 "SIBI used as support / BISI used as resistance", §2.27): drawn
+  // from the inversion bar onward in the OPPOSITE colour, dashed outline, labelled IFVG.
+  ict.fvgs.forEach(f=>{ const col=f.type==='bull'?'up':'down', i2=f.end+0.5;
+    S.push({kind:'rect',i1:f.i-0.5,i2,p1:f.hi,p2:f.lo,fill:col,alpha:f.touched?0.14:0.28,stroke:col,sw:0.6});
+    S.push({kind:'hseg',i1:f.i-0.5,i2,price:f.ce,stroke:col,sw:0.8,dash:[2,2],alpha:0.8});
+    if(f.touched&&f.touchI>=0) S.push({kind:'mark',i:f.touchI,price:f.type==='bull'?f.hi:f.lo,glyph:'dot',color:col,r:2});
+    if(f.ceFail&&f.ceFailI>=0) S.push({kind:'mark',i:f.ceFailI,price:f.ce,glyph:'x',color:col,r:3});
+    if(f.inverted&&f.invI>=0){ const icol=f.type==='bull'?'down':'up';
+      S.push({kind:'rect',i1:f.invI+0.5,i2:li+0.5,p1:f.hi,p2:f.lo,fill:icol,alpha:0.05,stroke:icol,sw:0.8,dash:[4,3],strokeAlpha:0.8,
+              label:compact?null:'IFVG',labelColor:icol,labelPos:'tl'}); } });
+  if(hasDR){ S.push({kind:'hseg',i1:drI1,i2:null,price:ict.eq,stroke:'i',sw:1.4,dash:[6,4],label:'EQ '+fmt(ict.eq),labelAt:'axis'});
   S.push({kind:'label',i:null,price:ict.hi,text:'premium'+(ict.drSource==='window'?' ('+L('chart.dr.window')+')':ict.drSource==='mixed'?' ('+L('chart.dr.mixed')+')':' (BSL↔SSL)'),color:'faint',anchor:'end',dx:-4,dy:7});
   S.push({kind:'label',i:null,price:ict.lo,text:'discount',color:'faint',anchor:'end',dx:-4,dy:-6}); }
   // A2: `p.to` is null (open -- draws to the right edge) unless the engine's own invalidated_at (A1b, a
   // closed_through pool) resolved to a bar in THIS view -- an invalidated pool ends there, never edge to edge.
-  ict.pools.forEach(p=>{ const isHigh=p.kind==='BSL'||p.kind==='ERL-high'||p.kind==='OLD-H', col=isHigh?'down':'up', old=p.kind.startsWith('OLD');
-    S.push({kind:'hseg',i1:p.from,i2:p.to,price:p.level,stroke:col,sw:old?0.9:1.2,dash:[2,3]});
-    if(!compact) S.push({kind:'label',i:p.from,price:p.level,text:p.kind==='ERL-high'?'ERL (BSL)':p.kind==='ERL-low'?'ERL (SSL)':p.kind==='OLD-H'?'old high (BSL)':p.kind==='OLD-L'?'old low (SSL)':p.kind,color:col,anchor:'start',dx:0,dy:isHigh?-6:7});
-    if(p.swept>=0) S.push({kind:'mark',i:p.swept,price:p.level,glyph:'x',color:col,r:4}); });
-  ict.mss.forEach(m=>{ const col=m.type==='bull'?'up':'down', c=rows[m.i][CLOSE]; S.push({kind:'vseg',i:m.i,p1:m.level,p2:c,stroke:col,sw:m.disp?2:1,dash:m.disp?null:[3,2]});
-    if(!compact) S.push({kind:'label',i:m.i,price:c,text:(m.disp?'MSS':L('chart.mss.no_displacement'))+(m.type==='bull'?'↑':'↓'),color:col,anchor:'middle',dx:0,dy:m.type==='bull'?-9:11,bold:true}); });
-  if(!compact) ict.fvgs.filter(f=>!f.mitigated).sort((a,b)=>b.size-a.size).slice(0,2).forEach(f=>{ S.push({kind:'label',i:f.i+1,price:(f.hi+f.lo)/2,text:'FVG',color:f.type==='bull'?'up':'down',anchor:'start',dx:0,dy:0}); });
+  // Pools (item 3, item 10). Label from the engine's own pool `type` -- the deck's two liquidity types (core-a.md
+  // §2.7: "Relatively Equal Highs/Lows", "Old Highs & Lows"), BSL above / SSL below (§2.6); an unknown type falls
+  // back to the bare side. A SWEPT pool (wick through, body closed back) is still a level (mentorship-2024.md §15)
+  // -- drawn MUTED and labelled "swept" until a later body close beyond it ends the line (`p.to`, R6/R25).
+  ict.pools.forEach(p=>{ const isHigh=p.kind==='BSL', col=isHigh?'down':'up', swept=p.swept>=0;
+    S.push({kind:'hseg',i1:p.from,i2:p.to,price:p.level,stroke:swept?'muted':col,sw:p.type==='old'?0.9:1.2,dash:[2,3],alpha:swept?0.75:1});
+    if(!compact){ const key=POOL_LABEL[p.type]&&POOL_LABEL[p.type][isHigh?0:1];
+      S.push({kind:'label',i:p.from,price:p.level,text:(key?L(key):p.kind)+(swept?' · '+L('chart.pool.swept'):''),color:swept?'muted':col,anchor:'start',dx:0,dy:isHigh?-6:7}); }
+    if(swept) S.push({kind:'mark',i:p.swept,price:p.level,glyph:'x',color:col,r:4}); });
+  // MSS vs liquidity grab (item 7; core-a.md §2.17, R11): only a DISPLACED close beyond the swing is an MSS (solid,
+  // method colour, arrow). A close past the swing WITHOUT displacement is, in the deck's words, a liquidity grab
+  // ("lack of displacement ... a liquidity grab occurs", a failure to continue) -- its own neutral style: thin
+  // dotted muted segment, no arrow, its own legend entry. It is never drawn as a trend change.
+  // The engine keeps scanning after a grab for a later displaced close through the SAME swing (ict-scan.py), so
+  // consecutive bars can each be a grab of one level: every segment is drawn, the label only on the first.
+  const grabLabelled = new Set();
+  ict.mss.forEach(m=>{ const c=rows[m.i][CLOSE];
+    if(m.disp){ const col=m.type==='bull'?'up':'down'; S.push({kind:'vseg',i:m.i,p1:m.level,p2:c,stroke:col,sw:2,dash:null});
+      if(!compact) S.push({kind:'label',i:m.i,price:c,text:'MSS'+(m.type==='bull'?'↑':'↓'),color:col,anchor:'middle',dx:0,dy:m.type==='bull'?-9:11,bold:true}); }
+    else { S.push({kind:'vseg',i:m.i,p1:m.level,p2:c,stroke:'muted',sw:1,dash:[1,2]});
+      const gk=m.type+'|'+m.level;
+      if(!compact&&!grabLabelled.has(gk)){ grabLabelled.add(gk); S.push({kind:'label',i:m.i,price:c,text:L('chart.grab.no_displacement'),color:'muted',anchor:'middle',dx:0,dy:m.type==='bull'?-9:11}); } } });
+  if(!compact) ict.fvgs.filter(f=>!f.inverted).sort((a,b)=>b.size-a.size).slice(0,2).forEach(f=>{ S.push({kind:'label',i:f.i+1,price:(f.hi+f.lo)/2,text:'FVG',color:f.type==='bull'?'up':'down',anchor:'start',dx:0,dy:0}); });
   S.push({kind:'mark',i:li,price:rows[li][CLOSE],glyph:'dot',color:'ink',r:3,ring:true}); if(ict.pct!=null) S.push({kind:'label',i:li,price:rows[li][CLOSE],text:L('chart.now_pct',{pct:(ict.pct*100).toFixed(0)}),color:'ink',anchor:'end',dx:-6,dy:-10,bold:true});
   return S;
 };
@@ -402,7 +451,7 @@ const rulerShapes = (entry, stop, i1, i2, fmt) => {
   return S;
 };
 
-const api = {killzoneSpans, ictFromStructures, idxOfAvail, wyckoffAt, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, invalidationState, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, expectationShapes, rulerShapes, unix, dateShort};
+const api = {killzoneSpans, legendHtml, ictFromStructures, idxOfAvail, wyckoffAt, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, invalidationState, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, expectationShapes, rulerShapes, unix, dateShort};
 if(!root || typeof document==='undefined') return api;   // node: pure API only
 
 // =============================================================================================== browser: rendering
@@ -554,7 +603,7 @@ function makeChart(block, d, t, P, C){
     if(!h.view){ tip.style.display='none'; return; } const c=rows[i], up=c[CLOSE]>=c[OPEN], vs=h.view.vs, ict=h.view.ict, ratio=vs.ratio[i];
     let s=`<div class="t">${fmtTime(unix(c[ISO]),true)}</div><div>O ${fmt(c[OPEN])} · H ${fmt(c[HIGH])} · L ${fmt(c[LOW])}</div><div class="${up?'u':'d'}">C ${fmt(c[CLOSE])} (${((c[CLOSE]-c[OPEN])/c[OPEN]*100).toFixed(2)}%)</div>`;
     if(h.lane==='wyckoff') s+=`<div>${L('chart.vol')} ${c[VOL].toLocaleString(numLocale(),{maximumFractionDigits:2})}${ratio!=null?` · ${ratio.toFixed(2)}× ${L('chart.mean')}`:''}</div>`;
-    if(h.lane==='ict'&&ict&&ict.lo!=null&&i<ict.n) s+=`<div class="t">${L('chart.dealing_range_pct',{pct:((c[CLOSE]-ict.lo)/((ict.hi-ict.lo)||1)*100).toFixed(0)})}</div>`;
+    if(h.lane==='ict'&&ict&&ict.lo!=null&&i<ict.n&&i>=(ict.drFrom!=null?ict.drFrom:ict.n-1)) s+=`<div class="t">${L('chart.dealing_range_pct',{pct:((c[CLOSE]-ict.lo)/((ict.hi-ict.lo)||1)*100).toFixed(0)})}</div>`;
     if(h.cursor!=null) s+=`<div class="t">${L('chart.replay.count',{i:i+1,n:h.cursor+1})}</div>`;
     tip.innerHTML=s; tip.style.display='block'; const r=el.getBoundingClientRect(), x=p.point.x, y=p.point.y; tip.style.left=(el.offsetLeft+(x>r.width*0.65?x-tip.offsetWidth-14:x+14))+'px'; tip.style.top=(el.offsetTop+y+12)+'px'; });
   el.addEventListener('mouseleave',()=>{ tip.style.display='none'; });
@@ -643,6 +692,9 @@ function onClick(h, x, y){ const ts=h.chart.timeScale(), i=Math.round(ts.coordin
 // The legend is rebuilt on every lane, theme AND language change -- it already was on the first two, which is
 // why it needed no new machinery for the third. Swatch classes are markup, the words come from the catalog.
 function paneLabel(pane){ const l=pane&&pane.label; if(l==null) return ''; return (typeof l==='object')?(l[LANG]!=null?l[LANG]:l[P_DEFAULT]):l; }
+// Item 9: the killzone legend reads what is actually drawn -- `d.kz` (build-artifact.py: some tier of this symbol
+// has killzone shading enabled) AND a non-'none' weight for this asset class (the same KZ_WEIGHT killzoneSpans uses).
+function kzDrawn(d){ return !!d.kz && ['london','ny_am','ny_pm'].some(k=>((KZ_WEIGHT[d.market||'crypto']||KZ_WEIGHT.default)[k])!=='none'); }
 function legendHtml(lane, d, P){
   const sw=(cls,txt)=>`<span><i class="sw ${cls}"></i>${txt}</span>`, plain=t=>`<span>${t}</span>`;
   if(lane==='wyckoff') return sw('up',L('legend.candle_up'))+sw('down',L('legend.candle_down'))
@@ -655,8 +707,9 @@ function legendHtml(lane, d, P){
   // entries are gone too rather than promising a shape that will never draw.
   return sw('fvgb',L('legend.fvg_up'))+sw('fvgs',L('legend.fvg_down'))
     +sw('liq',L('legend.liquidity'))+sw('eq',L('legend.eq'))
-    +(d.kz?sw('kz',L('legend.killzone')):plain(L('legend.killzone_off')))
-    +plain(L('legend.mss'))+plain(L('legend.pane_range'))
+    +sw('fvgt',L('legend.fvg_lifecycle'))+sw('ifvg',L('legend.ifvg'))+sw('swept',L('legend.pool_swept'))
+    +(kzDrawn(d)?sw('kz',L('legend.killzone')):plain(L('legend.killzone_off')))
+    +plain(L('legend.mss'))+sw('grab',L('legend.grab'))+plain(L('legend.pane_range'))
     +`<span class="muted">${L('legend.thresholds')}</span>`;
 }
 

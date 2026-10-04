@@ -1074,6 +1074,21 @@ def invalidated_at(n3, fsym):
     return None
 
 
+def causal_rows(rows, tf, last_updated):
+    """The window the chart's engines may read (ICT chart-fidelity audit 2026-10-04, item 1; CLAUDE.md §8
+    availableTime <= decisionTime): `rows` with a still-forming last bar dropped, by scripts/ict-scan.py's own
+    `causal_window()` -- the SAME function the decision path applies before analyze()/setup_candidate() -- so the
+    chart window equals the decision window. `now` is the series' own `last_updated` (the moment the file's
+    content was true), not wall time, so a rebuild of the same snapshot draws the same objects. A series with no
+    `last_updated` cannot prove its last bar closed: that bar is dropped (unknown availability is not
+    availability, CLAUDE.md §20 -- never UNKNOWN -> FRESH). Display only: the drawn candles keep the forming bar;
+    structure indices still line up because this is a prefix of `rows`."""
+    now = _parse_iso(last_updated)
+    if now is None:
+        return rows[:-1]
+    return structures.ict_scan.causal_window(rows, tf, now)
+
+
 def ict_json(rows, tf):
     """The chart's ICT overlay (A2 / ADR 0009): scripts/structures.py `ict_structures()`, called on the SAME
     `rows` this tier draws -- never chart.js's own detector (removed, A2). `recent` (an events-list lookback)
@@ -1417,6 +1432,8 @@ section.symbol{background:var(--surface);border:1px solid var(--line);border-rad
 .sw.fvgb{background:var(--up);opacity:.35} .sw.fvgs{background:var(--down);opacity:.35} .sw.ob{background:var(--i);opacity:.35}
 .sw.liq{height:0;border-top:2px dotted var(--i)} .sw.eq{height:0;border-top:2px dashed var(--i)} .sw.kz{background:var(--i);opacity:.12;height:10px} .sw.lvl{height:0;border-top:2px dashed var(--ink-2)} .sw.cisd{height:0;border-top:2px dashed var(--up)}
 .sw.win{background:var(--accent);opacity:.14;height:10px}
+.sw.fvgt{background:var(--up);opacity:.22;position:relative} .sw.ifvg{background:transparent;border:1px dashed var(--down);height:6px}
+.sw.swept{height:0;border-top:2px dotted var(--muted)} .sw.grab{width:2px;height:10px;border-left:1px dotted var(--muted);border-radius:0}
 
 /* read matrix */
 .matrix{display:grid;grid-template-columns:128px repeat(var(--n),minmax(0,1fr)) minmax(0,1.15fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
@@ -1559,7 +1576,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
         # word. Kept as a per-locale dict rather than a rendered string so the footer can say it in either.
         note = {l: f"{sym} {S['tf']}: {src or '?'} · " + T("footer.updated", l, time=upd or "?") for l in i18n.LOCALES}
         # tiers above the working window (docs/architecture/timeframe-mapping.md; automation.TIERS is the table)
-        tier_rows = {}
+        tier_rows, tier_upd = {}, {}
         for tname in ("bias", "structure"):
             t = S["tiers"].get(tname)
             if not t:
@@ -1569,6 +1586,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
             except FileNotFoundError:
                 continue
             tier_rows[tname] = trows
+            tier_upd[tname] = tupd
             for l in i18n.LOCALES:
                 note[l] += f" · {tier_name(tname, l).lower()} {t['tf']} " + T("footer.updated", l, time=tupd or "?")
         src_notes.append(note)
@@ -1654,8 +1672,11 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
         # same candles this tier draws -- never the model narrative's TR/events/phases (removed, A2) and never
         # a chart-owned detector (chart.js's own ICT engine, removed, A2). The narrative's prose blocks
         # elsewhere on the page are untouched (CLAUDE.md §17); only the chart overlay's SOURCE changed.
-        wy_js = wy_json_engine(rows, S["tf"], sym, kind)
-        ict_js = ict_json(rows, S["tf"])
+        # ICT chart-fidelity audit 2026-10-04, item 1: the engines read the CAUSAL window (forming bar dropped by
+        # ict-scan.py causal_window(), now = the series' last_updated) -- the same window the decision path reads.
+        crows = causal_rows(rows, S["tf"], upd)
+        wy_js = wy_json_engine(crows, S["tf"], sym, kind)
+        ict_js = ict_json(crows, S["tf"])
         gate_style, gate_name = _auto.gate_style(style)
         # The bias the ladder shows must be read by the SAME methods whose columns the page draws -- `dims` is the
         # page's own engaged set (it also accounts for availability, which the config flags alone do not).
@@ -1664,8 +1685,9 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
         tier_wy, tier_ict, tier_q = {}, {}, {}
         for tname in tier_rows:
             t = S["tiers"][tname]; trows = tier_rows[tname]
-            tier_wy[tname] = wy_json_engine(trows, t["tf"], sym, kind)
-            tier_ict[tname] = ict_json(trows, t["tf"])
+            ctrows = causal_rows(trows, t["tf"], tier_upd[tname])   # item 1: every tier, same causal window
+            tier_wy[tname] = wy_json_engine(ctrows, t["tf"], sym, kind)
+            tier_ict[tname] = ict_json(ctrows, t["tf"])
             # A2b: this HTF tier's own §20 quality, refreshed to the ENTRY tier's clock (`upd`) -- surfaced on
             # the page (chart title badge below) so a stale higher-timeframe fact is visible where it is drawn,
             # not silently treated as fresh. Wiring this into the DECISION path's own gate (a stale HTF fact
@@ -1691,6 +1713,10 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                             # lane's chart overlay is no longer locked to the trading-selection preset.
                             analysed=[m for m, _ in LANES if dims[m]["analysed"]],
                             tiers=tiers_js, plans=trade_plans(sym),
+                            # ICT chart-fidelity audit 2026-10-04, item 9: chart.js legendHtml reads `d.kz`; it was
+                            # never set, so the legend always said "not drawn". True when ANY tier of this symbol
+                            # has killzone shading enabled (chart.js also checks the asset class's weights).
+                            kz=any(t["kz"] for t in tiers_js),
                             # P7.2 item 4: the entry tier's own narrative `updated` date, for the muted
                             # "Analysis <updated> invalidated <date>" note chart.js draws when the whole read
                             # died before the visible window even starts.

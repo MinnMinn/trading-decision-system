@@ -45,8 +45,13 @@ own bar closes -- the detection rule itself needs LATER bars' data:
         exist as a pool at all, and ict-scan.py's `add()` additively returns the LAST constituent pivot's bar
         index as `to` for exactly this reason (A1 code review round 1). available_at is therefore
         `to + PIV` -- the confirmation delay of the LATER of the pool's constituent pivots -- never `from`'s.
-`mss` and `sweep`/`closed_through` are single-bar body-close tests (`C[j] > level`); they need no look-ahead
-beyond their own bar, so their available_at is their own bar's, unchanged.
+    mss -- the body close is a single-bar test, but the state that makes it an MSS rests on pivots (the reference
+        swing, the leg anchor, the pivot that set the bias) that are confirmed only PIV bars later, and `disp` may
+        rest on an FVG that needs its third candle; ict-scan.py records them (`dep_pivots`, `disp_conf_i`) and
+        available_at is the latest of the MSS bar, each dep pivot + PIV and disp_conf_i (ICT chart-fidelity audit
+        2026-10-04, item 2; before that fix it was the MSS bar alone -- too early).
+`sweep`/`closed_through` are single-bar wick/body-close tests against an already-available level; they need no
+look-ahead beyond their own bar, so their available_at is their own bar's, unchanged.
 
 Pool objects carry FORMATION fields only (A1 code review round 1, item 3): `pool_kind` (ict-scan.py's own
 "kind", BSL/SSL -- renamed to avoid colliding with this schema's `kind`), `level`, `from`, `to`, `type`. They do
@@ -75,9 +80,15 @@ decision call (`ict_analysis`/`wyckoff_records`), only by the enriched envelope 
     later bar's wick traded back into the gap). The timestamp is that confirming bar's own `available_time()`,
     clamped to >= the object's own `available_at` (S5: never invalidated before it is available)
     -- no PIV/i+1 confirmation delay applies here (both tests are single-bar wick/close tests against an
-    already-known level, the same "no look-ahead beyond its own bar" case `mss`/`sweep`/`closed_through`
+    already-known level, the same "no look-ahead beyond its own bar" case `sweep`/`closed_through`
     already are, module docstring above). A2 (chart.js) draws an invalidated pool/FVG ending at this bar, not
     edge to edge.
+    CORRECTED 2026-10-04 (ICT chart-fidelity audit, items 3-4): the first touch is NOT the end of an FVG --
+    touching the near edge is the IOFED entry (knowledge/ict/core-a.md §2.23, R19). An FVG's `invalidated_at`
+    is now its `inversion_at` (body close through the CE, then through the far edge: §2.26, R23), with
+    `touched_at`/`ce_fail_at` as state markers. A SWEPT pool (a level that held) is no longer open forever: its
+    `invalidated_at`/`broken_at` is the first later body close beyond the level (R6, R25; mentorship-2024.md §15
+    "remain valid after being run" until then). Both come from ict-scan.py display_lifecycle(), cold path only.
   * Wyckoff phase labels (A/B/C/D/E) are boundaries read off the SAME event bars `wyckoff_records()` already
     named on its return record (sc/ar/st = Phase A stopping action; st..spring/test = Phase B building the
     cause; spring/test = Phase C testing supply/demand; sos/sos_bar..bu = Phase D; after bu = Phase E markup)
@@ -166,6 +177,13 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
     a = analysis if analysis is not None else ict_analysis(window, recent, tf, methods=methods)
     structs = []
     n = len(window)
+    # Display-only lifecycle (ICT chart-fidelity audit 2026-10-04, items 3-4): ict-scan.py's own forward scans past
+    # the first sweep / first touch, computed here on the cold path only -- never by ict_analysis() (hot path).
+    life = ict_scan.display_lifecycle(window, a)
+
+    def _state_at(i, floor):
+        """available_time of state bar `i`, clamped to >= the object's own available_at (S5); None if no bar."""
+        return None if i is None else max(_avail(window, i, tf), floor)
 
     for i in a.get("pivots_high", []):
         # Confirmation delay: a PIV-bar pivot is not confirmable until bar i+PIV closes (module docstring).
@@ -175,7 +193,7 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
         structs.append({"kind": "pivot_low", "i": i, "price": window[i]["low"],
                          "formed_at": _formed(window, i), "available_at": _avail(window, min(i + PIV, n - 1), tf)})
 
-    for p in a["pools"]:
+    for k, p in enumerate(a["pools"]):
         # Formation fields only (module docstring, "Pool objects carry FORMATION fields only") -- state/swept/
         # closed_at are forward-scanned past the pool's own formation bar and belong on the separately
         # timestamped sweep/closed_through objects below, never on this one. `invalidated_at` (A1b) is the ONE
@@ -188,10 +206,18 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
         # S5: an object can never be invalidated before it is available (CLAUDE.md §8) -- clamp to available_at.
         pool_invalidated_at = (max(_avail(window, p["closed_at"], tf), pool_available_at)
                                 if p.get("state") == "closed_through" and p.get("closed_at") is not None else None)
+        # A SWEPT pool stays a level (mentorship-2024.md §15) until a later BODY close beyond it (core-a.md R6,
+        # R25): `broken_at` is that bar's availability (ict-scan.py display_lifecycle()), and it is the swept
+        # pool's `invalidated_at` -- the chart ends the line there instead of drawing it to the right edge.
+        broken_i = (life["pools"].get(k) or {}).get("broken_i")
+        broken_at = _state_at(broken_i, pool_available_at)
+        if pool_invalidated_at is None and broken_at is not None:
+            pool_invalidated_at = broken_at
         structs.append({"kind": "pool", "pool_kind": p["kind"], "level": p["level"], "from": p["from"], "to": to,
                          "type": p["type"], "formed_at": _formed(window, p["from"]),
                          "available_at": pool_available_at,
-                         "invalidated_at": pool_invalidated_at})
+                         "invalidated_at": pool_invalidated_at,
+                         "broken_i": broken_i, "broken_at": broken_at})
         if p["swept"] >= 0:
             sf, sa = _ts(window, p["swept"], tf)
             structs.append({"kind": "sweep", "pool_kind": p["kind"], "level": p["level"], "i": p["swept"],
@@ -202,25 +228,57 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
                              "formed_at": cf, "available_at": ca})
 
     for m in a.get("mss_all", a["mss"]):
-        formed_at, available_at = _ts(window, m["i"], tf)
-        structs.append(dict(m, kind="mss", formed_at=formed_at, available_at=available_at))
+        # Confirmation delay (ICT chart-fidelity audit 2026-10-04, item 2): the body close is judged on bar m["i"],
+        # but the STATE that makes it an MSS (ict-scan.py's state machine: the reference swing `lastH`/`lastL`
+        # and the pivot that set `bias`) rests on pivots that are only confirmed PIV bars after their own bar
+        # (`dep_pivots`), and `disp` may rest on an FVG that needs its third candle (`disp_conf_i`). available_at
+        # is therefore the LATEST of those bars -- never the MSS bar alone. A record from an analysis that
+        # predates the dependency fields falls back to its own bar (unchanged behaviour).
+        conf = max([m["i"], m.get("disp_conf_i", m["i"])] + [q + PIV for q in m.get("dep_pivots", ())])
+        structs.append(dict(m, kind="mss", formed_at=_formed(window, m["i"]),
+                             available_at=_avail(window, min(conf, n - 1), tf), confirm_i=conf))
 
-    for f in a["fvgs_all"]:
+    for k, f in enumerate(a["fvgs_all"]):
         # Confirmation delay: the gap at i needs bar i+1's high/low (H[i-1] vs L[i+1], or L[i-1] vs H[i+1]).
-        # `invalidated_at` (A1b): set only when ict-scan.py's own mitigation scan already found a later bar
-        # trading back into the gap (`f["mitigated"]`) -- `f["end"]` IS that bar (ict-scan.py analyze(), the
-        # first j with L[j]<=f["hi"] (bull) / H[j]>=f["lo"] (bear)), a single-bar wick test against an
-        # already-known range, so no further confirmation delay applies (same reasoning as the pool's
-        # closed_through above).
+        # Lifecycle (ICT chart-fidelity audit 2026-10-04, item 4; ict-scan.py display_lifecycle()), each state
+        # timestamped at the availability of the bar that confirms it (single-bar wick/close tests against an
+        # already-known range, so no further delay), clamped to >= available_at (S5):
+        #   touched_at   -- first wick back into the gap (`f["end"]` when `f["mitigated"]`). A STATE, not the end:
+        #                   touching the near edge is the IOFED entry (core-a.md §2.23, R19).
+        #   ce_fail_at   -- first body close through the 0.5 CE: "treat the FVG as failing" (§2.26, R23).
+        #   inversion_at -- the next body close through the far edge: the failure is complete and the gap inverts
+        #                   (R23; §2.25/§2.27). This is the FVG's `invalidated_at` -- the box ends here.
+        # `mitigated`/`end` are still copied verbatim from analyze() (the decision path's own fields).
+        lf = life["fvgs"].get(k) or {}
         fvg_available_at = _avail(window, min(f["i"] + 1, n - 1), tf)
-        fvg_invalidated_at = (max(_avail(window, f["end"], tf), fvg_available_at) if f.get("mitigated") else None)
+        inversion_at = _state_at(lf.get("inversion_i"), fvg_available_at)
         structs.append(dict(f, kind="fvg", formed_at=_formed(window, f["i"]),
                              available_at=fvg_available_at,
-                             invalidated_at=fvg_invalidated_at))
+                             touch_i=lf.get("touch_i"), touched_at=_state_at(lf.get("touch_i"), fvg_available_at),
+                             ce_fail_i=lf.get("ce_fail_i"), ce_fail_at=_state_at(lf.get("ce_fail_i"), fvg_available_at),
+                             inversion_i=lf.get("inversion_i"), inversion_at=inversion_at,
+                             invalidated_at=inversion_at))
 
     dr_formed_at, dr_available_at = _ts(window, n - 1, tf)
+
+    def _edge_i(level, pool_kind):
+        """The bar from which this dealing-range edge existed: the availability bar (to + PIV) of the resting
+        pool analyze() chose for it (same filter as analyze()'s own `above`/`below`), else -- the window-extreme
+        fallback (dr_source mixed/window) -- the extreme's own bar. Regrouping engine output, not detection."""
+        for p in a["pools"]:
+            if (p["kind"] == pool_kind and p["level"] == level and p["swept"] < 0
+                    and p.get("state") != "closed_through"):
+                return min(p.get("to", p["from"]) + PIV, n - 1)
+        ext = [r["high"] for r in window] if pool_kind == "BSL" else [r["low"] for r in window]
+        return ext.index(level) if level in ext else 0
+
+    # ICT chart-fidelity audit 2026-10-04, items 5-6: the range is judged on the last bar (available_at above), but
+    # BOTH of its edges existed only from `from_i` on -- the later edge's availability bar. The chart starts the
+    # premium/discount shading, EQ and the range-% pane there; before it the range did not exist (CLAUDE.md §8).
+    dr_from_i = max(_edge_i(a["hi"], "BSL"), _edge_i(a["lo"], "SSL")) if n else 0
     dealing_range = {"kind": "dealing_range", "lo": a["lo"], "hi": a["hi"], "eq": a["eq"], "pct": a["pct"],
-                      "source": a["dr_source"], "formed_at": dr_formed_at, "available_at": dr_available_at}
+                      "source": a["dr_source"], "formed_at": dr_formed_at, "available_at": dr_available_at,
+                      "from_i": dr_from_i, "edges_available_at": _avail(window, dr_from_i, tf) if n else None}
 
     bias = None
     m = a.get("last_displaced_mss")

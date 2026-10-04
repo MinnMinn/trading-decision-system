@@ -378,12 +378,16 @@ class RangePctSeriesEngine(unittest.TestCase):
         lo, hi = min(r[2] for r in rows), max(r[1] for r in rows)
         ict = {"lo": lo, "hi": hi}
         want_pct = (rows[-1][3] - lo) / ((hi - lo) or 1) * 100
+        ict["drFrom"] = 70
         out = self.run_js(f"const rows={json.dumps(rows)}, ict={json.dumps(ict)};"
                           "const s=T.rangePctSeries(rows,ict);"
-                          "console.log(JSON.stringify({n:s.length, allInRange:s.every(p=>p.value>=0&&p.value<=100), "
+                          "console.log(JSON.stringify({n:s.length, allInRange:s.slice(70).every(p=>p.value>=0&&p.value<=100), "
+                          "before:s.slice(0,70).filter(p=>'value' in p).length, first:s.findIndex(p=>'value' in p), "
                           "last:s[s.length-1].value}))")
         self.assertEqual(out["n"], 120)
         self.assertTrue(out["allInRange"], "every bar's position must be clamped to [0,100]")
+        # ICT chart-fidelity audit 2026-10-04 item 5: no close BEFORE the range existed is normalised against it
+        self.assertEqual((out["before"], out["first"]), (0, 70))
         self.assertAlmostEqual(out["last"], want_pct, places=6,
                                 msg="the series' last point must agree with the last bar's own dealing-range position")
 
@@ -1153,9 +1157,13 @@ class A1bReplayNeverLeaksTheFuture(unittest.TestCase):
                                 "console.log(JSON.stringify(T.ictFromStructures(d.s,{},d.rows,{tfMin:240}).pools))")
         self.assertEqual(len(drawn), len(pools))
         for d, w, r in zip(drawn, pools, raw):
+            own = next(i for i in range(len(candles)) if _avail_iso(candles[i], 240) >= w["available_at"])
             if r["state"] == "closed_through":
-                own = next(i for i in range(len(candles)) if _avail_iso(candles[i], 240) >= w["available_at"])
                 self.assertEqual(d["to"], max(r["closed_at"], own) + 0.5, (w["level"], r["closed_at"]))
+            elif r["swept"] >= 0 and w["broken_i"] is not None:
+                # ICT chart-fidelity audit 2026-10-04 item 3: a swept pool ends at the first later body close
+                # beyond the level (structures.py broken_at), not at the right edge.
+                self.assertEqual(d["to"], max(w["broken_i"], own) + 0.5, (w["level"], w["broken_i"]))
             else:
                 self.assertIsNone(d["to"])
 
@@ -1168,15 +1176,23 @@ class A1bReplayNeverLeaksTheFuture(unittest.TestCase):
         self.assertIsNone(out[0]["to"], "the invalidation had not happened at the cursor")
 
     def test_an_fvg_mitigated_after_the_cursor_is_drawn_open_and_ends_at_the_cursor_bar(self):
+        """ICT chart-fidelity audit 2026-10-04 item 4: touched (bar 12) / CE-failed (20) / inverted (30) are each
+        shown only once their own availability time is at or before the cursor; the box ends at the inversion."""
         rows = self._rows()
-        f = {"kind": "fvg", "type": "bull", "i": 8, "lo": 100.0, "hi": 101.0, "size": 1.0, "ce": 100.5, "end": 30,
-             "mitigated": True, "available_at": self._avail(rows, 9), "invalidated_at": self._avail(rows, 30)}
+        f = {"kind": "fvg", "type": "bull", "i": 8, "lo": 100.0, "hi": 101.0, "size": 1.0, "ce": 100.5, "end": 12,
+             "mitigated": True, "available_at": self._avail(rows, 9),
+             "touch_i": 12, "touched_at": self._avail(rows, 12), "ce_fail_i": 20, "ce_fail_at": self._avail(rows, 20),
+             "inversion_i": 30, "inversion_at": self._avail(rows, 30), "invalidated_at": self._avail(rows, 30)}
+        out = self._ict(rows[:12], [f], {}, cut=self._avail(rows, 11))["fvgs"]
+        self.assertFalse(out[0]["touched"], "a touch after the cursor must not show")
+        self.assertEqual(out[0]["end"], 11, "an open FVG runs only to the last bar the reader can see")
         out = self._ict(rows[:16], [f], {}, cut=self._avail(rows, 15))["fvgs"]
-        self.assertFalse(out[0]["mitigated"], "mitigated after the cursor must not show as mitigated")
-        self.assertEqual(out[0]["end"], 15, "an open FVG runs only to the last bar the reader can see")
+        self.assertTrue(out[0]["touched"]); self.assertEqual(out[0]["touchI"], 12)
+        self.assertFalse(out[0]["ceFail"]); self.assertFalse(out[0]["inverted"])
+        self.assertEqual(out[0]["end"], 15, "a touched FVG stays open (core-a.md §2.23: the touch is the entry)")
         out2 = self._ict(rows, [f], {}, cut=self._avail(rows, 35))["fvgs"]
-        self.assertTrue(out2[0]["mitigated"])
-        self.assertEqual(out2[0]["end"], 30)
+        self.assertTrue(out2[0]["ceFail"] and out2[0]["inverted"])
+        self.assertEqual((out2[0]["ceFailI"], out2[0]["invI"], out2[0]["end"]), (20, 30, 30))
 
     def test_the_dealing_range_is_absent_before_its_available_at(self):
         rows = self._rows()
