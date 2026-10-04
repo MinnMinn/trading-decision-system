@@ -143,6 +143,14 @@ OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see
             # implemented (see the grid file), so it has no key here.
             fx_w_stop="current", fx_w4a_linger_closes=None, fx_w6_window=300, fx_w_spt="AR", fx_w_touch="off",
             fx_w_tw=(12, 2),
+            # WY-P0 engine ablation (docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md §7.2, §10 item 2): two
+            # ABLATION-ONLY keys, each holding one value of its declared set in WY_ABLATION_VALUES below, default "off" = v1
+            # (byte-identical). Only scripts/research/wyckoff_ablation.py sets them (through scan(opts=...)); the live runner,
+            # the fund search and the stability report never do. fx_w_shakeout "test": a Shakeout is traded at its Test
+            # instead of skipped (`_fires_from`); fx_w7_contain "on": the W7 target comes from the latest HTF record that
+            # CONTAINS the decision close, not `recs[-1]` (`_htf_wyckoff_target`). Both are gating/target keys, not
+            # detection keys: neither touches `_wyckoff_candidates` or the `_WY_CANDIDATES` key.
+            fx_w_shakeout="off", fx_w7_contain="off",
             # A2b decision side (plan §2, knowledge R20): default v1 = the HTF gate ignores staleness; the live
             # runner never sets it. See htf_bias_gate.
             fx_a2b_stale_htf_block=False,
@@ -209,6 +217,29 @@ def _check_wy_v_opts():
         if v not in allowed:
             raise ValueError(f"OPTS[{k!r}] = {v!r} is not in the declared set {list(allowed)!r} "
                              f"(plan §3 V grid, docs/architecture/v-grid-wyckoff.json)")
+
+
+#: WY-P0 ablation keys (docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md §7.2, §10 item 2): the DECLARED value
+#: sets, baseline (= v1) first. Kept apart from WY_V_VALUES, which test_v_items_wyckoff pins equal to
+#: docs/architecture/v-grid-wyckoff.json (the fund-search grid): these two are not grid items and must never become one.
+WY_ABLATION_VALUES = dict(
+    fx_w_shakeout=("off", "test"),
+    fx_w7_contain=("off", "on"),
+)
+
+
+def _check_wy_ablation_opts():
+    """Refuse an ablation value outside its declared set (a typo must not run the baseline under a variant's name), and
+    fx_w7_contain="on" without fx_w7_htf_target: containment only selects the W7 record, so without W7 it would be a no-op
+    that looks like a variant."""
+    for k, allowed in WY_ABLATION_VALUES.items():
+        v = OPTS.get(k, allowed[0])
+        if v not in allowed:
+            raise ValueError(f"OPTS[{k!r}] = {v!r} is not in the declared set {list(allowed)!r} "
+                             f"(WY-P0 ablation keys, docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md §7.2)")
+    if OPTS.get("fx_w7_contain", "off") == "on" and not OPTS.get("fx_w7_htf_target"):
+        raise ValueError("OPTS['fx_w7_contain'] = 'on' needs OPTS['fx_w7_htf_target']: the containment rule selects the W7 "
+                         "higher-timeframe record and changes nothing without it")
 
 
 def _fx_v_detection_opts():
@@ -997,7 +1028,7 @@ def _htf_series(sym, h, c):
     return ent
 
 
-def _htf_wyckoff_target(sym, tf, side, decision_time):
+def _htf_wyckoff_target(sym, tf, side, decision_time, price=None):
     """W7 (WA2-19, WA p83-84; docs/plans/2026-09-28-methodology-improvement-plan.md §2 item A1b "higher-
     timeframe Wyckoff trading-range detection"): the target a Phase-D LTF entry projects when
     OPTS["fx_w7_htf_target"] is set, taken from the enclosing HIGHER-timeframe Wyckoff trading range --
@@ -1022,7 +1053,19 @@ def _htf_wyckoff_target(sym, tf, side, decision_time):
 
     ADOPTED by the owner 2026-09-30 (docs/plans/2026-09-30-owner-decisions.md), fund-search sets it for every cell
     via ADOPTED_F_KEYS (scripts/fund-search.py); the live/pilot path does not set this key (OPTS default False,
-    line ~139); going live with it would need its own owner decision."""
+    line ~139); going live with it would need its own owner decision.
+
+    `price` / OPTS["fx_w7_contain"] (WY-P0 ablation key, docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md
+    §3.3, §7.2, §10 item 2). "off" (the default) is the rule above, byte-identical, and `price` is never read. "on": the
+    target comes from the LATEST same-side HTF record knowable at `decision_time` whose range [tr_lo, ceiling + TR] (a
+    short: the mirror [ceiling - TR, tr_hi], REAL prices as detect_distributions returns them) contains `price` -- the
+    LTF decision bar's own close, which `_fires_from` passes -- and whose target (the same SOS close / AR rule) lies
+    beyond `price`; None (no Phase-D trade, the rule above) when no record qualifies. `recs[-1]` alone may be a structure
+    the LTF price is not inside at all. The key on without a `price` raises instead of silently running the v1 rule."""
+    contain = OPTS.get("fx_w7_contain", "off") == "on"
+    if contain and price is None:
+        raise ValueError("OPTS['fx_w7_contain'] = 'on' but _htf_wyckoff_target got no decision price: refusing to fall "
+                         "back to recs[-1], the rule the key replaces")
     h = HTF_OF.get(tf)
     if not h or not sym:
         return None
@@ -1032,6 +1075,8 @@ def _htf_wyckoff_target(sym, tf, side, decision_time):
     sob = P[h]["sob"]
     S = _htf_series(sym, h, c)
     if not (S.monotone and S.ok):
+        if contain:
+            return _htf_w7_contained_scan(sym, h, side, decision_time, c, sob, price)
         return _htf_wyckoff_target_scan(sym, h, side, decision_time, c, sob)
     m = S.prefix_len(decision_time)          # == len(pit.series_as_of(c, h, decision_time, symbol=sym))
     if m < 2 * W.PARAMS["pivot"] + 5:
@@ -1042,6 +1087,19 @@ def _htf_wyckoff_target(sym, tf, side, decision_time):
     # OPTS, both via a per-call copy of W.PARAMS: nothing global is written, so nothing needs restoring.
     wp = _wy_params(sob)
     key = _htf_memo_key(S, side, vkind, wp, m)
+    if contain:
+        # WY-P0 fx_w7_contain: memoise the per-record candidates (a pure function of `key`) under the key plus a tag no v1
+        # key carries, and run the containment test per call -- it depends on `price`, which is not in the key.
+        ck = key + ("contain",)
+        cands = _HTF_TR_CACHE.get(ck, _MISS)
+        if cands is _MISS:
+            cands = _w7_candidates(_structures.wyckoff_records(S.O[:m], S.H[:m], S.L[:m], S.C[:m], S.V[:m], P=wp,
+                                                               volume_kind=vkind, side=side, pre=S.pre(side, wp, m)),
+                                   S.C, side)
+            if len(_HTF_TR_CACHE) >= _HTF_TR_CACHE_MAX:
+                _HTF_TR_CACHE.clear()
+            _HTF_TR_CACHE[ck] = cands
+        return _w7_contained(cands, side, price)
     target = _HTF_TR_CACHE.get(key, _MISS)
     if target is not _MISS:
         return target
@@ -1082,6 +1140,50 @@ def _htf_wyckoff_target_scan(sym, h, side, decision_time, c, sob):
         _HTF_TR_CACHE.clear()
     _HTF_TR_CACHE[key] = target
     return target
+
+
+def _w7_candidates(recs, C_, side):
+    """WY-P0 fx_w7_contain: one (lo, hi, target) per HTF record, in detection order -- the record's range [tr_lo, ceiling +
+    TR] (a short: the mirror [ceiling - TR, tr_hi]) and its v1 W7 target (`C_[sos]` when a SOS exists, else AR: `tr_hi` long,
+    `tr_lo` short). A pure function of the records and the HTF closes, so it can be memoised; `_w7_contained` applies the
+    price. [docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md §3.3]"""
+    out = []
+    for r in recs:
+        tr = r["tr_hi"] - r["tr_lo"]
+        tgt = C_[r["sos"]] if r["sos"] is not None else (r["tr_hi"] if side == "long" else r["tr_lo"])
+        out.append((r["tr_lo"], r["ceiling"] + tr, tgt) if side == "long" else (r["ceiling"] - tr, r["tr_hi"], tgt))
+    return tuple(out)
+
+
+def _w7_contained(cands, side, price):
+    """The target of the LATEST candidate whose [lo, hi] contains `price` and whose target lies beyond `price` (above it for
+    a long, below for a short); None when none does. [docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md §3.3]"""
+    for lo, hi, tgt in reversed(cands):
+        if lo <= price <= hi and (tgt > price if side == "long" else tgt < price):
+            return tgt
+    return None
+
+
+def _htf_w7_contained_scan(sym, h, side, decision_time, c, sob, price):
+    """`_htf_wyckoff_target_scan` under fx_w7_contain = "on": the same PIT truncation and detection, memoised as the
+    candidate list (`_w7_candidates`) under the per-call key plus a "contain" tag, and the containment test per call. A
+    separate function so the v1 per-call path stays exactly as it was."""
+    key = (("scan", sym, h, decision_time, side, (len(c), c[0]["time"], c[-1]["time"]), sob)
+           + _wy_detection_ck() + ("contain",))
+    cands = _HTF_TR_CACHE.get(key, _MISS)
+    if cands is _MISS:
+        cands = ()
+        trunc = _pit.series_as_of(c, h, decision_time, symbol=sym)
+        if len(trunc) >= 2 * W.PARAMS["pivot"] + 5:
+            O_ = [x["open"] for x in trunc]; H_ = [x["high"] for x in trunc]; L_ = [x["low"] for x in trunc]
+            C_ = [x["close"] for x in trunc]; V_ = [x.get("volume", 0) for x in trunc]
+            vkind = "tick" if _I.is_tick_volume(sym) else "traded"
+            cands = _w7_candidates(_structures.wyckoff_records(O_, H_, L_, C_, V_, P=_wy_params(sob), volume_kind=vkind,
+                                                               side=side), C_, side)
+        if len(_HTF_TR_CACHE) >= _HTF_TR_CACHE_MAX:
+            _HTF_TR_CACHE.clear()
+        _HTF_TR_CACHE[key] = cands
+    return _w7_contained(cands, side, price)
 
 
 def resolve_methods(sym):
@@ -1400,7 +1502,9 @@ def _fires_from(side, recs, C, Tm, sym=None, tf=None):
             if min(pbt["upper"], pbt["lower"]) < W_TOUCH_MIN:
                 continue
         tr = r["tr_hi"] - r["tr_lo"]; t0 = Tm[r["spring"] if r["spring"] is not None else r["sos"]]
-        if r["path"] == "spring" and not r["shakeout"] and not r["abandon"] and not r["sot_too_strong"] and r["vol_type"] in OPTS["types"]:
+        # WY-P0 fx_w_shakeout (ablation-only, default "off" = v1: every Shakeout is skipped here, against WA p80/WA2-12):
+        # "test" lets a Shakeout through and enters it at its Test, never at the reclaim (below). Read only for a Shakeout.
+        if r["path"] == "spring" and (not r["shakeout"] or OPTS.get("fx_w_shakeout", "off") == "test") and not r["abandon"] and not r["sot_too_strong"] and r["vol_type"] in OPTS["types"]:
             rec = r["reclaim"]; vt = r["vol_type"]; rr = r["rec_ratio"]
             # WY-1 gap (docs/audits/2026-09-24-system-audit.md): the reclaim-vs-test leg choice is Spring
             # semantics (WA p80, Bang 2.1) and cannot be reused unchanged for a short. Upthrust type 1's
@@ -1412,6 +1516,12 @@ def _fires_from(side, recs, C, Tm, sym=None, tf=None):
                 (side == "long" and (vt == 1 or (vt == 3 and rr is not None and rr >= VOL["high_min_ratio"])))
                 or (side == "short" and vt in (1, 2))
             )) else r["test"]
+            if r["shakeout"]:
+                # Reached only under fx_w_shakeout == "test" (the gate above skips every Shakeout otherwise). A Shakeout
+                # means supply remains, so the book expects a longer test (WA2-12, knowledge/wyckoff/advance.md:1083;
+                # pre-registration §3.2): the entry is the Test whatever the volume type or `entry` mode, and a Shakeout
+                # without a Test (r["test"] None) never fires. The short side mirrors it (an Upthrust that lingers).
+                w_bar = r["test"]
             # Only the last bar can be an entry -- earlier bars were earlier reads (the runner's rule, now the
             # backtest's too). An entry whose close already sits beyond its stop or target is not placeable.
             if w_bar == last:
@@ -1443,8 +1553,15 @@ def _fires_from(side, recs, C, Tm, sym=None, tf=None):
                 # False, line ~139); going live with it would need its own owner decision.
                 # decision_time = the decision bar's CLOSE (normalized.available_time), never Tm[last] (its
                 # OPEN) -- the same computation as scan()'s htf_bias_gate call; see _htf_wyckoff_target.
-                htf_t = _htf_wyckoff_target(sym, tf, side,
-                                            _N.available_time({"time": Tm[last]}, tf).isoformat().replace("+00:00", "Z") if tf else None)
+                if OPTS.get("fx_w7_contain", "off") == "on":
+                    # WY-P0 fx_w7_contain (ablation-only): the HTF record must CONTAIN this decision close (pre-
+                    # registration §3.3); the v1 call below, with its four positional arguments, is untouched.
+                    htf_t = _htf_wyckoff_target(sym, tf, side,
+                                                _N.available_time({"time": Tm[last]}, tf).isoformat().replace("+00:00", "Z") if tf else None,
+                                                price=C[last])
+                else:
+                    htf_t = _htf_wyckoff_target(sym, tf, side,
+                                                _N.available_time({"time": Tm[last]}, tf).isoformat().replace("+00:00", "Z") if tf else None)
                 if htf_t is None:
                     continue
                 target = htf_t
@@ -1482,8 +1599,10 @@ def _check_fx_registered(o):
 def _wy_window(sym, tf, n):
     """The window length one WYCKOFF-BOOK/COMBINED-BOOK scan walks (W6: OPTS["fx_w6_window"], 300 = the module's
     WYCKOFF_WINDOW), after refusing an out-of-set V value (`_check_wy_v_opts`) and a window longer than the history.
-    Moved verbatim out of scan() so scan_many() validates an overlay exactly as scan() does."""
+    Moved verbatim out of scan() so scan_many() validates an overlay exactly as scan() does. The WY-P0 ablation keys are
+    validated here too (`_check_wy_ablation_opts`; the baseline always passes)."""
     _check_wy_v_opts()
+    _check_wy_ablation_opts()
     WIN = WYCKOFF_WINDOW if OPTS["fx_w6_window"] == 300 else OPTS["fx_w6_window"]
     if WIN != WYCKOFF_WINDOW and n < WIN:
         # Review round 1 (I3): a window longer than the history yields ZERO windows, which would read as a real

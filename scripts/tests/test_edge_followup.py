@@ -25,6 +25,9 @@ class Costs0:
     def round_trip(self, a, b, stat="median"):
         return 0.0
 
+    def round_trip_at(self, a, b, stat="median"):
+        return 0.0
+
 
 class FollowUp(unittest.TestCase):
     def setUp(self):

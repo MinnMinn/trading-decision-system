@@ -31,9 +31,37 @@ FORWARD_START = "2026-09-29T00:00:00Z"
 COMPONENTS = {"XAUUSD": 24, "US500": 48}          # the two F2 E5 survivors (symbol -> hold bars), kept for callers
 #: every component on forward watch: name -> (symbol, detector kind, hold). H7 joined after F3
 #: (docs/audits/2026-10-02-edge-f3.md, docs/plans/2026-10-02-edge-f3-preregistration.md: same forward rule as F2 §4).
-WATCH = {"E5_XAUUSD_24": ("XAUUSD", "E5", 24), "E5_US500_48": ("US500", "E5", 48), "H7_XAUUSD_eod": ("XAUUSD", "H7", "eod"),
+# E5 (FVG retrace) left the watch 2026-10-03: its research selection was look-ahead and it has no point-in-time edge
+# (docs/audits/2026-10-03-e5-lookahead-erratum.md); the owner moved the demo to fvg-book v3 = H7 + G9.
+WATCH = {"H7_XAUUSD_eod": ("XAUUSD", "H7", "eod"),
          # F4 survivors (docs/audits/2026-10-02-edge-f4.md): PAPER only -- not in the demo executor (no book improvement)
          "G9_XAUUSD_eod": ("XAUUSD", "G9", "eod"), "G9_XAGUSD_eod": ("XAGUSD", "G9", "eod")}
+#: The demo account whose book the paper stop mirrors, POINT IN TIME: a paper row uses the stop of the version assigned to
+#: this account at the row's signal time (docs/architecture/accounts.json), so it is the trade the demo would have placed then.
+PAPER_TWIN_OF = "ftmo-demo-01"
+_REG = None
+
+
+def _registry():
+    global _REG
+    if _REG is None:
+        import sys
+        sys.path.insert(0, os.path.join(ROOT, "scripts"))
+        import registry
+        _REG = registry
+    return _REG
+
+
+def stop_k_at(name, at):
+    """The stop multiplier (sigma_5m x sqrt(bars)) of component `name` ("H7_XAUUSD_eod") in the book version assigned to
+    PAPER_TWIN_OF at `at` (ISO); 2.0 -- every version before fvg-book v4 -- when no live version holds the component."""
+    setup, sym = name.split("_")[:2]
+    R = _registry()
+    row = R.active_assignment(PAPER_TWIN_OF, R._parse(at))
+    for c in (R.system_of(row).get("components") or []) if row else []:
+        if (c["setup"], c["instrument"]) == (setup, sym):
+            return float(c["params"].get("stop_k", 2.0))
+    return 2.0
 _F3 = None
 _F4 = None
 
@@ -212,8 +240,9 @@ def signals(s, sym, h, kind="E5", name=None):
             row.update(status="refused", reason="volatility history stale or missing (re-export the 5m history)")
         else:
             nb = bars_to_day_end(s, e) if h == "eod" else h
-            dist = 2.0 * sig * math.sqrt(nb) * px
-            row.update(stop=px - ev["side"] * dist, stop_distance=dist)
+            k_stop = stop_k_at(name, row["signal_time"]) if name else 2.0
+            dist = k_stop * sig * math.sqrt(nb) * px
+            row.update(stop=px - ev["side"] * dist, stop_distance=dist, stop_k=k_stop)
         out.append(row)
     return out
 
@@ -262,7 +291,7 @@ def resolve_row(s, r, costs):
             exit_px = (min(stop, s.O[j]) if side > 0 else max(stop, s.O[j])) if j > e else stop
             how, j_exit = "stop", j
             break
-    cost = costs.round_trip(s.dt[e].hour, s.dt[j_exit].hour) * px
+    cost = costs.round_trip_at(s.dt[e], s.dt[j_exit]) * px
     gross = side * (exit_px - px)
     return dict(r, status="closed", exit_time=s.T[j_exit], exit=exit_px, exit_reason=how,
                 net_bp=(gross - cost) / px * 1e4, R=(gross - cost) / r["stop_distance"])
@@ -270,7 +299,7 @@ def resolve_row(s, r, costs):
 
 def cmd_resolve(live_dir=LIVE_DIR, log=LOG):
     rows = _read_log(log)
-    syms = {v[0] for v in WATCH.values()}
+    syms = {v[0] for v in WATCH.values()} | {r["symbol"] for r in rows if r.get("status") == "open"}
     series = {sym: _series(sym, live_dir) for sym in syms}
     costs = {sym: EC.Costs(sym) for sym in syms}
     out = [resolve_row(series[r["symbol"]], r, costs[r["symbol"]]) for r in rows]

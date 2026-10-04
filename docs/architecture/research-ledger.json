@@ -169,6 +169,22 @@
       "note": "docs/experiments/prop-search-2026-09-27/ -- 180 sealed CLAUDE.md §42 records, plan_hash 8137a8b1a76ce16118519037fd9baf77449bfc51c6c5f807c52c42df08b2028d (docs/experiments/prop-search-2026-09-27/plan.json). Read and scored every trade in this window against two prop-firm pass rules to select candidates (docs/plans/2026-09-27-prop-setup-search-preregistration.md)."
      }
     ]
+   },
+   {
+    "id": "cfd-2025-03-to-2026-09",
+    "range": [
+     "2025-03-01",
+     "2026-09-28"
+    ],
+    "state": "oos_exposed",
+    "why": "after the prop-search window: read by the edge families' exposed reads (F2-F5, AMD; 2024-03-01 -> 2026-09-28) that selected H7 / G9, and by the stability files that scored WYCKOFF-BOOK (data/history/stability/cfd-*.json). Registered 2026-10-04 by the Wyckoff re-test (docs/plans/2026-10-04-wyckoff-retest-preregistration.md §10 item 6), which until now called it exposed only in prose.",
+    "exposures": [
+     {
+      "trigger": "candidate_selection",
+      "experiment_id": null,
+      "note": "edge families F2-F5 exposed reads selected the H7 / G9 survivors on 2024-03-01 -> 2026-09-28 (docs/audits/2026-10-02-edge-followup-exposed.md, 2026-10-02-edge-f3.md, 2026-10-02-edge-f4.md, 2026-10-02-edge-f5.md)."
+     }
+    ]
    }
   ],
   "_no_untouched_period_exists": "There is currently NO period in `oos_untouched` or `final_holdout`. That is the honest state and it is stated rather than implied by an empty list: every span of history this repo holds has already been read by the runs that produced the live selection. A genuine OOS period has to be CARVED OUT and left alone before it can validate anything, and doing that is a decision about what the pilot trades, not a documentation change (§59)."
@@ -987,5 +1003,44 @@
    "superseded_reason": "strategic diagnosis 2026-10-02 (docs/audits/2026-10-02-strategic-diagnosis.md): owner decision 2 -- engine fix D3 (fx_fvg_formed_start, F item), prop pass D4 (weekday horizon) and D5 (frequency-based risk); no evaluation record existed",
    "superseded_by_plan_hash": "0ec4e27e15fa7df92a0c95152c9545f9bf861a8c18442e9b55bfd18c0ad5764b"
   }
- ]
+ ],
+ "wyckoff_retest": {
+  "preregistration": "docs/plans/2026-10-04-wyckoff-retest-preregistration.md",
+  "r0_counts": "docs/experiments/wyckoff-retest-r0/edge-wyckoff-R0.json",
+  "families": {
+   "W": {
+    "confirmatory_cells": [
+     "W-C-long-15m",
+     "W-D-15m",
+     "W-D-1H",
+     "W-CAMP"
+    ],
+    "bh_q": 0.1,
+    "data": "FTMO CFDs, 8 tradeable symbols, dense days before 2024-03-01 (period cfd-development-pre-2024-03)"
+   },
+   "V": {
+    "confirmatory_cells": [
+     "V2",
+     "V4"
+    ],
+    "bh_q": 0.1,
+    "data": "Binance BTC/ETH/SOL 2017-08-17 -> 2022-07-31 (never read for Wyckoff)"
+   },
+   "L1": {
+    "tests": 1,
+    "data": "6 index CFDs, 15m, exposed years (veto only)"
+   }
+  },
+  "perturbations": [
+   "P1",
+   "P2",
+   "P3",
+   "P4",
+   "P5",
+   "P6"
+  ],
+  "ablation_cells": 78,
+  "confirmatory_tests_max": 7,
+  "owner_signoff": "2026-10-04: delta 0.20R; family V and L1 kept (docs/plans/2026-09-30-owner-decisions.md)"
+ }
 }

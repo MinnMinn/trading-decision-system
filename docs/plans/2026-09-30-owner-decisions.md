@@ -419,3 +419,47 @@ declaration is kept in `research-ledger.json` `fund_search_superseded`). Pre-reg
 - Rules audit requested (overnight swap): docs/audits/2026-10-03-ftmo-rules-audit.md -- overnight holding is allowed in the
   Challenge; intraday-only was a design choice; holding the trend rules adds nothing (docs/audits/2026-10-03-edge-hold.md);
   FTMO's floating-P&L limits added to the replay leave the v2 decision unchanged.
+
+## 2026-10-03 (evening): decisions after the "Challenging the system" session (owner, in chat; binding)
+
+Context: docs/plans/2026-10-03-reframes.md (owner summary), docs/audits/2026-10-03-e5-lookahead-erratum.md, PR #8.
+
+1. **Demo runs v3 = H7 + G9 XAUUSD** ("Demo chạy v3 (H7 + G9)"). Applied: `fvg-book` v3 APPROVED (v2 without E5; same risk
+   1 %, dd3, execution), v2 RETIRED, `scripts/accounts.py switch` -> asg-0003 effective 2026-10-03T15:10:00Z, DRAIN (owner
+   default; nothing was open). E5's evidence in docs/architecture/setups.json is REJECTED (the erratum is the new audit).
+   The forward paper watch drops E5 (scripts/research/fvg_forward.py WATCH).
+2. **"1 % per trade" means the maximum loss at the stop loss** ("lỗ tối đa tại stop loss"). Consequence: a tighter stop at the
+   same 1 % worst case (A1, docs/plans/2026-10-03-vol-schedule-preregistration.md) is inside the rule; it is still a new
+   setup version with its own evidence, and gap-through losses beyond 1R must be measured.
+3. **The value of one month of delay in challenge fees: unknown to the owner.** Reports give the full frontier over a range
+   of exchange rates instead of one number.
+4. **Forex stays parked for now.** The owner wants effective methods for **crypto and CFD first**.
+5. The debate with "Khám phá hệ thống FTMO" is closed (no open disagreement); the session continues independently.
+
+## 2026-10-04: gap tolerance and fvg-book v4 (owner, in chat; binding)
+
+1. **Gap tolerance: "Khoảng 1,5%, 2 lần trong 1 năm"** -- a single trade may lose about 1.5 % of the balance (a gap through
+   the stop), up to twice a year. It replaces the 1.2 % this session had assumed in A1 / A3. It was set after the results
+   were shown, so it is an informed owner choice, not a pre-registered pass (docs/audits/2026-10-04-a1-under-owner-tolerance.md).
+2. Under it the recommended policy applies: **fvg-book v4 = v3 (H7 + G9 XAUUSD, 1 % at the stop, dd3) with the protective
+   stop at 1.4 instead of 2.0 sigma_5m x sqrt(bars to the rollover)** (A1 policy 1.4/1.4; worst historical trade 1.39 %).
+   Applied: `stop_k` param on setups H7 / G9 (absent = 2.0), `fvg-book` v4 APPROVED (tp_stop_multiple 7 keeps the
+   take-profit near v3's), demo account switched to v4 (DRAIN), the paper twin's stop mirrors it. DEMO only.
+3. Not chosen and not tested: A3 (add G9 XAGUSD) also passes at 1.5 %, but it fails the first attempt 16 % of the time in
+   pre-2024 starts. Running both together has no evidence.
+4. Revert path: `python3 scripts/accounts.py switch --account ftmo-demo-01 --to fvg-book@v3 --policy DRAIN --reason ...`
+   (v3 stays APPROVED until v4 has its own forward record).
+
+## 2026-10-04 (later): research directions and inputs (owner, in chat; binding)
+
+1. **B1 (re-evaluate everything for the cost-hour error): run.** docs/audits/2026-10-04-cost-hour-erratum.md -- no verdict
+   changed.
+2. **B2: crypto CFDs on FTMO opened for research.** docs/plans/2026-10-04-edge-cx-ftmo-crypto-preregistration.md [CX-P1];
+   the owner exports the data (its §8).
+3. **Wyckoff: full review and re-test** ("Tao không tin một phương pháp nổi tiếng lại không có bất kì một kết quả tốt nào").
+   Sign-off on docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md §12.4: δ = 0.20R; family V (real volume) and
+   L1 (the DE40 / US500 15m lead) stay in this pre-registration.
+4. **Personal-account backtests** (no prop rules; "Tại thời điểm thua hết tiền thì setup bị đánh giá là cháy tài khoản và
+   không phát sinh thêm giao dịch nào sau đó"). Inputs: B0 = 5,000 USD. Never risk more than 1 %. An account that can no
+   longer place a minimum lot is reported as STALLED, separately from BLOWN.
+   docs/plans/2026-10-04-personal-account-backtest-design.md §7.

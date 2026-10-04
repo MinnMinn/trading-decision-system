@@ -26,6 +26,9 @@ class Costs0:
     def round_trip(self, a, b, stat="median"):
         return 0.0
 
+    def round_trip_at(self, a, b, stat="median"):
+        return 0.0
+
 
 class Forward(unittest.TestCase):
     def test_resolve_time_exit_and_stop(self):
@@ -59,7 +62,20 @@ class Forward(unittest.TestCase):
         self.assertEqual((r["status"], r["exit_time"]), ("closed", s2.T[19]))
 
     def test_every_watched_component_is_known(self):
-        self.assertEqual(set(FF.WATCH), {"E5_XAUUSD_24", "E5_US500_48", "H7_XAUUSD_eod", "G9_XAUUSD_eod", "G9_XAGUSD_eod"})
+        self.assertEqual(set(FF.WATCH), {"H7_XAUUSD_eod", "G9_XAUUSD_eod", "G9_XAGUSD_eod"})        # E5 left 2026-10-03 (erratum)
+
+    def test_the_paper_stop_is_the_demo_book_at_the_signal_time(self):
+        """Point in time: before asg-0004 (fvg-book v4, 2026-10-03T18:10Z) the demo traded H7 / G9 gold at 2.0; from it, 1.4.
+        A row logged later (a scan run after the switch) must still carry the stop of ITS signal time."""
+        self.assertEqual(FF.stop_k_at("G9_XAUUSD_eod", "2026-10-03T09:43:25Z"), 2.0)
+        self.assertEqual(FF.stop_k_at("H7_XAUUSD_eod", "2026-09-30T10:00:00Z"), 2.0)
+        self.assertEqual(FF.stop_k_at("G9_XAGUSD_eod", "2026-10-05T10:00:00Z"), 2.0)       # not in any book
+        R = FF._registry()
+        for row in R.assignments(FF.PAPER_TWIN_OF):
+            comps = {(c["setup"], c["instrument"]): c["params"] for c in R.system_of(row)["components"]}
+            for name in ("H7_XAUUSD_eod", "G9_XAUUSD_eod"):
+                want = float(comps.get(tuple(name.split("_")[:2]), {}).get("stop_k", 2.0))
+                self.assertEqual(FF.stop_k_at(name, row["effective_from"]), want, (row["id"], name))
 
     def test_g9_signal_logs_a_stop_and_unknown_kinds_refuse(self):
         import datetime as _dt
@@ -76,6 +92,14 @@ class Forward(unittest.TestCase):
             rows = FF.signals(s, "XAUUSD", "eod", "G9", "G9_XAUUSD_eod")
             self.assertEqual([(r["side"], r["signal_time"]) for r in rows][-1], (1, s.T[s.day_rows[s.sday[-1]][10]]))
             self.assertLess(rows[-1]["stop"], rows[-1]["entry"])
+            self.assertEqual(rows[-1]["stop_k"], 2.0)                                   # 2026-09: the demo book's stop was 2.0
+        with mock.patch.object(FF, "FORWARD_START", "2000-01-01T00:00:00Z"), \
+                mock.patch.object(FF, "stop_k_at", lambda name, at: 1.4 if name == "G9_XAUUSD_eod" else 2.0):
+            rows = FF.signals(s, "XAUUSD", "eod", "G9", "G9_XAUUSD_eod")
+            self.assertEqual(rows[-1]["stop_k"], 1.4)
+            ag = FF.signals(s, "XAGUSD", "eod", "G9", "G9_XAGUSD_eod")[-1]
+            self.assertEqual(ag["stop_k"], 2.0)                                         # not in the book: unchanged
+            self.assertAlmostEqual(rows[-1]["stop_distance"] / ag["stop_distance"], 0.7, places=9)
             with self.assertRaises(ValueError):
                 FF.signals(s, "XAUUSD", "eod", "ZZ")
 

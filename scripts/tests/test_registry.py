@@ -182,9 +182,33 @@ class BookRefusals(unittest.TestCase):
     def test_a_duplicate_component(self):
         self._refuses(lambda v: v["components"].append(dict(v["components"][0])), "twice")
 
+    def test_an_implausible_stop_k_is_refused_at_load(self):
+        for k in (0.3, 14, "1.4", True):
+            self._refuses(lambda v, k=k: v["components"][-1]["params"].update(stop_k=k), "stop_k")
+
+    def test_a_param_the_setup_does_not_declare_is_refused(self):
+        setups = R.validate_setups(json.load(open(R.SETUPS_PATH)))
+        bad = {"status": "DRAFT", "components": [{"setup": "E5", "instrument": "XAUUSD", "params": {"stop_k": 1.4}}]}
+        with self.assertRaises(R.RegistryError) as cm:
+            R._components_ok("ftmo-demo-01", R.account("ftmo-demo-01"), bad, setups, "test")
+        self.assertIn("does not declare", str(cm.exception))
+
+
+def _as_of(doc, iso):
+    """The registry as it stood at `iso`: assignments that had started by then, the then-live row's end cleared. The real
+    file is append-only history, so a fixture pinned to an instant stays valid after later (real) switches -- the 2026-10-03
+    switch to fvg-book@v3 at 15:10 made every test that pinned NOW at 12:02 see a 'pending' assignment."""
+    d = copy.deepcopy(doc)
+    d["assignments"] = [a for a in d["assignments"] if a["effective_from"] <= iso]
+    for a in d["assignments"]:
+        if a["ended_at"] and a["ended_at"] > iso:
+            a["ended_at"] = None
+    return d
+
 
 class Switch(unittest.TestCase):
     NOW = datetime.datetime(2026, 10, 3, 12, 2, tzinfo=UTC)
+    ACC = _as_of(ACCOUNTS, "2026-10-03T12:02:00Z")
 
     def setUp(self):
         self.dir = tempfile.mkdtemp()
@@ -196,19 +220,19 @@ class Switch(unittest.TestCase):
             json.dump({"pending": list(pending), "open": list(opened)}, fh)
 
     def plan(self, target="fvg-book@v1", **kw):
-        return A.plan_switch(copy.deepcopy(ACCOUNTS), "ftmo-demo-01", target, kw.pop("reason", "test"),
+        return A.plan_switch(copy.deepcopy(self.ACC), "ftmo-demo-01", target, kw.pop("reason", "test"),
                              now=self.NOW, accounts_dir=self.dir, **kw)
 
     def test_ends_the_live_row_and_appends_one_at_the_next_slot(self):
         doc = self.plan()
         rows = doc["assignments"]
-        self.assertEqual(len(rows), len(ACCOUNTS["assignments"]) + 1)
+        self.assertEqual(len(rows), len(self.ACC["assignments"]) + 1)
         self.assertEqual(rows[-2]["ended_at"], "2026-10-03T12:05:00Z")
         new = rows[-1]
         self.assertEqual((new["id"], new["version"], new["effective_from"], new["open_position_policy"]),
                          ("asg-0003", "v1", "2026-10-03T12:05:00Z", "DRAIN"))
         # every OTHER field of every earlier row is unchanged (append-only history)
-        for old, now in zip(ACCOUNTS["assignments"], rows):
+        for old, now in zip(self.ACC["assignments"], rows):
             self.assertEqual({k: v for k, v in old.items() if k != "ended_at"},
                              {k: v for k, v in now.items() if k != "ended_at"})
 
@@ -239,7 +263,7 @@ class Switch(unittest.TestCase):
 
     def test_a_retired_target_is_refused_by_validation_and_nothing_is_written(self):
         # fvg-book v1 is RETIRED: planning succeeds, the full validation refuses, the file is untouched.
-        target = _write(ACCOUNTS)
+        target = _write(self.ACC)
         try:
             with open(target, encoding="utf-8") as fh:
                 before = fh.read()
@@ -252,11 +276,12 @@ class Switch(unittest.TestCase):
             os.remove(target)
 
     def test_a_valid_switch_is_written(self):
-        target = _write(ACCOUNTS)
+        target = _write(self.ACC)
         try:
-            with unittest.mock.patch.dict(TS.BOOKS["fvg-book"]["versions"]["v1"], {"status": "APPROVED"}):
-                A.write_validated(self.plan(), path=target)
-            self.assertEqual(_json(target)["assignments"][-1]["version"], "v1")
+            # an APPROVED target (v3, H7 + G9). Re-approving v1 by a patch no longer validates: its E5 components are
+            # REJECTED since 2026-10-03 (docs/audits/2026-10-03-e5-lookahead-erratum.md), which the validator enforces.
+            A.write_validated(self.plan("fvg-book@v3"), path=target)
+            self.assertEqual(_json(target)["assignments"][-1]["version"], "v3")
         finally:
             os.remove(target)
 

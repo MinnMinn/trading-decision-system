@@ -93,6 +93,32 @@ class Detectors(unittest.TestCase):
         self.assertEqual(len(evs), 1)
         self.assertEqual((evs[0]["side"], evs[0]["entry_i"], evs[0]["entry_px"]), (+1, 288 + 34, 101.0))
 
+    def test_fvg_keeps_the_first_FILL_not_the_first_formed_gap(self):
+        """Regression (docs/audits/2026-10-03-e5-lookahead-erratum.md): gap A forms first, gap B forms later and is touched
+        FIRST, A is touched later the same day. Keeping A would need to know at B's fill that A will be touched (look-ahead);
+        the executor trades B (its fill cancels A's order)."""
+        flat = [(100.0, 100.4, 99.6, 100.0)] * 30
+        seq = flat + [(100.0, 100.2, 99.9, 100.1),           # A: m-1, high 100.2
+                      (100.1, 102.0, 100.1, 101.9),          # A: m, displacement up
+                      (101.9, 102.5, 101.0, 102.3),          # A: m+1, low 101.0 -> gap A, near edge 101.0
+                      (102.3, 102.4, 102.0, 102.2),
+                      (102.2, 102.4, 102.1, 102.3),          # B: m-1, high 102.4
+                      (102.3, 104.3, 102.3, 104.2),          # B: m, displacement up
+                      (104.2, 104.8, 103.2, 104.6),          # B: m+1, low 103.2 -> gap B, near edge 103.2
+                      (104.6, 104.7, 103.1, 103.3),          # touches B's edge (A untouched: low 103.1 > 101.0)
+                      (103.3, 103.4, 100.9, 101.1)]          # later touches A's edge
+        day1 = [(100.0, 100.4, 99.6, 100.0)] * 288
+        s = series(bars("2023-03-05T00:00:00", day1 + seq + [(101.1, 101.2, 101.0, 101.1)] * 200))
+        longs = [e for e in EC.ev_fvg(s) if e["side"] > 0]      # (the drop bar also forms a bear gap: a short, not tested here)
+        self.assertEqual(len(longs), 1)
+        self.assertEqual((longs[0]["entry_i"], longs[0]["entry_px"]), (288 + 37, 103.2))
+
+    def test_first_per_day_is_the_earliest_entry_whatever_the_list_order(self):
+        evs = [{"day": "d", "side": 1, "entry_i": 9, "i": 1}, {"day": "d", "side": 1, "entry_i": 5, "i": 4},
+               {"day": "d", "side": -1, "entry_i": 7, "i": 6}, {"day": "d", "side": 1, "entry_i": 5, "i": 5}]
+        out = EC._first_per_day(evs)
+        self.assertEqual([(e["side"], e["entry_i"], e["i"]) for e in out], [(1, 5, 4), (-1, 7, 6)])
+
 
 class Outcomes(unittest.TestCase):
     def test_rollover_crossing_is_skipped(self):

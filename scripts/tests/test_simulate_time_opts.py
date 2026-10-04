@@ -23,8 +23,10 @@ import real_costs as RC      # noqa: E402
 
 REAL_ARCH = os.path.join(ROOT, "docs", "architecture")
 ENTRY, STOP = 2000.0, 1999.8            # a 0.2 stop distance: the spread is a visible fraction of R
-T_IN = "2024-01-10T14:00:00Z"           # entry hour 14 (median spread 15 pts)
-T_OUT = "2024-01-10T20:00:00Z"          # exit hour 20 (17 pts), same server day (no rollover crossing)
+# US summer time: server = UTC+3 = the spread table's export offset, so table bucket = the UTC hour (real_costs.table_hour;
+# before the 2026-10-04 cost-hour erratum the fixture used a January date, where the true buckets are one hour earlier).
+T_IN = "2024-07-10T14:00:00Z"           # table bucket 14 (median spread 15 pts)
+T_OUT = "2024-07-10T20:00:00Z"          # table bucket 20 (17 pts), same server day (no rollover crossing)
 
 
 def _fs():

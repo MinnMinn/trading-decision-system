@@ -12,11 +12,17 @@ Efficiency note: scan() returns BOTH ICT and WYCKOFF-BOOK trades in one call, so
 pair is scanned EXACTLY ONCE (not once per method) -- 6 scans total (3 symbols x 2 flatten-modes), not 9. A
 full run over this dataset still takes on the order of an hour (XAUUSD 15m alone is ~500k FTMO-Demo bars).
 
-Output: `docs/audits/2026-09-29-real-costs-reprice.json` (small, committed -- the raw data behind
+Usage (2026-10-04, cost-hour erratum): `python3 scripts/research/reprice_real_costs.py --out <new path>` -- --out is
+REQUIRED so a re-run never overwrites the committed 2026-09-29 record (§42). Each priced cell is computed in BOTH spread
+hour frames (`real_costs.HOUR_FRAME` "utc_legacy" = the 2026-09-29 pricing, "server_table" = the fixed one) on the same
+scan; the legacy rows sit under `legacy_frame`.
+
+Output of the 2026-09-29 run: `docs/audits/2026-09-29-real-costs-reprice.json` (small, committed -- the raw data behind
 `docs/audits/2026-09-29-real-costs-reprice.md`'s table), plus a copy on stdout. `ROOT` is derived from
 `__file__` (code review 2026-09-29, fix round 1, item 2 -- this used to be a hardcoded worktree path), so the
 script runs correctly from any checkout/worktree, not only the one it was first written in.
 """
+import argparse
 import importlib.util
 import json
 import os
@@ -84,7 +90,25 @@ def _cell(method, trades, *, cost_profile):
             "last_exit_time": last_exit}
 
 
+def _cell_frames(method, trades, *, cost_profile):
+    """The cell in the fixed frame, plus the same cell in the legacy frame (cost-hour erratum 2026-10-04)."""
+    old = RC.HOUR_FRAME
+    try:
+        RC.HOUR_FRAME = "utc_legacy"
+        legacy = _cell(method, trades, cost_profile=cost_profile)
+        RC.HOUR_FRAME = "server_table"
+        fixed = _cell(method, trades, cost_profile=cost_profile)
+    finally:
+        RC.HOUR_FRAME = old
+    return dict(fixed, legacy_frame=legacy)
+
+
 def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--out", required=True, help="output JSON (never the committed 2026-09-29 record)")
+    a = ap.parse_args()
+    if os.path.abspath(a.out) == os.path.join(ROOT, "docs", "audits", "2026-09-29-real-costs-reprice.json"):
+        raise SystemExit("refusing: that is the committed 2026-09-29 record (§42)")
     rows = []
     latest_bar_seen = None
     for sym in SYMBOLS:
@@ -105,8 +129,8 @@ def main():
             t0 = s0["trades"][method] if s0 else []
             t1 = s1["trades"][method] if s1 else []
             baseline = _cell(method, t0, cost_profile=None)
-            real_no_flat = _cell(method, t0, cost_profile=PROFILE)
-            real_flat = _cell(method, t1, cost_profile=PROFILE)
+            real_no_flat = _cell_frames(method, t0, cost_profile=PROFILE)
+            real_flat = _cell_frames(method, t1, cost_profile=PROFILE)
             for cell in (baseline, real_no_flat, real_flat):
                 if cell["last_exit_time"] and (latest_bar_seen is None or cell["last_exit_time"] > latest_bar_seen):
                     latest_bar_seen = cell["last_exit_time"]
@@ -118,7 +142,8 @@ def main():
     # or snapshots) so a committed copy of this file does not embed one machine's absolute worktree path.
     out = {"pit_cutoff": PIT_CUTOFF, "history_root": "data/history/ftmo", "profile": PROFILE,
            "latest_trade_exit_time_seen": latest_bar_seen, "rows": rows}
-    out_path = os.path.join(ROOT, "docs", "audits", "2026-09-29-real-costs-reprice.json")
+    out["hour_frames"] = {"main": "server_table", "legacy_frame": "utc_legacy"}
+    out_path = a.out
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as fh:
         json.dump(out, fh, indent=2)

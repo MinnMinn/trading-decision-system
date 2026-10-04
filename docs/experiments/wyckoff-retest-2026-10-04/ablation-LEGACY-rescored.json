@@ -1,0 +1,1318 @@
+{
+ "meta": {
+  "script": "scripts/research/wyckoff_ablation.py",
+  "script_sha256": "34824aeb99a3963ef54cfecba0b9f66a1e40c6e8816e3a351fa2c60dcc3b9cf5",
+  "code_sha256": {
+   "scripts/research/edge_wyckoff.py": "8bdeeccf9bb4bf1f403e64dfb90907bfbce0482de015c20f30c92a21539f8c14",
+   "scripts/tests/test_edge_wyckoff.py": "681bf5e0de09e6945cfac13131bea1dcf53d185aa1fc2d3fb81a316f3da5d448",
+   "scripts/research/wyckoff_ablation.py": "34824aeb99a3963ef54cfecba0b9f66a1e40c6e8816e3a351fa2c60dcc3b9cf5",
+   "scripts/tests/test_wyckoff_ablation.py": "d672ddb0f75edf99c0a59e7c715325620d353c6b320cd9315e7757a935875835",
+   "scripts/tests/test_wyckoff_price_only.py": "6e4700ee38195b909d32c390286cc6299ae45121917f374a292c2295ba202d2b",
+   "scripts/backtest-methods.py": "cf7d5fd55651e417dd196161657f1d00779f3d5145246d4865dc50d6b52fcca9",
+   "scripts/research/reprice_real_costs.py": "52407d1b72802b5a3c3b460bb435fc6be4c6d17beca66ff7baad8f9689220c73",
+   "scripts/wyckoff_rules.py": "bc9dc00536c4e1a86a3e14d77773917b92b5855c20edeb1ec5201e7af13d2c40",
+   "scripts/structures.py": "c14e153c27bfffa0de1b18c2a573abfed921e378d523d5f2b7d46dcd2fd1ffd9",
+   "scripts/real_costs.py": "572ec698d4931efb58cab12e8b0e6f20720da07baccad6c130ef239f8fd26e1c",
+   "scripts/research/edge_census.py": "e052dab288df80f613d9f4156ddacc10d892d4ed1ad62468b4f1d7d953e71afc",
+   "scripts/research/edge_h7x.py": "b503b94509c41a25af3bd859449c26bbd2c8713aa1d8038183bf66123502786d",
+   "scripts/research/edge_f3.py": "242dcde369eaf188892df3f42a9c72ee34fb47f0a11219e1c945a6060c8f8e12",
+   "scripts/research/edge_f4.py": "e5f6ec8ad60f943196b86c0a2dc0d42f8c4805af43380c1fe03ed84149bba25b",
+   "scripts/research/book_sim.py": "19e52f4781f7c83e50578a3b7bc4f08835871bf7342566fd3c0c1ff1277498d2",
+   "scripts/research/fvg_book_sim.py": "30e1a7158204cb1c653ccad23828bc556499915595c236b3f586e774290fc56b",
+   "scripts/pit.py": "63e72161714481bfa55cbe425e71bea4a9a6ceea62718e92991fda28deb9e88f",
+   "scripts/normalized.py": "f76dd8e29513c4237425fcc0c4589c2881cd4538865bbbab27827e46790ca231",
+   "scripts/history_store.py": "e0b6bebe9eb81c65b077bfa4c5064aaaa081ac290dd6f0fbdf7bcf147bd20de0",
+   "scripts/instruments.py": "4dceb0425b3bd32b9e98848f565f0fcbe624ee6cf9ab30d7d5e88c0d4badf188",
+   "scripts/mt5_time.py": "2cfac8616eac158575ebb1350f763d72fdfdca076066fb4a05375859cc0f620a",
+   "scripts/live_rules.py": "ff9727fee35fb512672c53736d0bd077b076591527dc5880f8762d8661123bc8",
+   "scripts/ict-scan.py": "1209180c176d9109a7026ac6e22d7aa2718818b2556a3d2b611edde6e460ea90",
+   "scripts/htf_context.py": "c1f7b994b43cb29bdcfc01dedf979362cb5d40e22f7034d2d4c765539edde05f",
+   "scripts/automation.py": "1fba7e3eeef2eb633ae4569a56e9cc1a5560606e3cb488355498e2c24fc2688d",
+   "scripts/trading_env.py": "4c9a02a2cf559d1559f06dd4beb7f4f8c1702219d68ee4f3078a293ce061a92e",
+   "scripts/methods.py": "dc76537b6d7c79930c8473ebcf4e13d402a859b2dedeee8976f9014fa703ba69",
+   "scripts/account_profile.py": "2061c4654afe4535904dc15a22f4c30204fbcda01f71b95990ad1059ed0c79f8",
+   "scripts/event_risk.py": "28c509331637cf6d6815da3b4dca892f7d97edbc031bfbc27feb1a79e4346524",
+   "scripts/i18n.py": "9654c7a6c9d561ab028366f4a304098f88c92e4cdad7c6b40d1644d73c8186f0",
+   "scripts/performance.py": "d79d78bde35028abab176dbd3e3a23298fd1bb63e98eb86bbc3bd8ac2181883b",
+   "scripts/providers.py": "3afed187584f597bd81fbe66da058cd9dc2f4666bfdce973fcbb635aff8adfc3",
+   "scripts/quality.py": "a2f6af3b3b32f2b558c051b899d6a7124b1956babc2b4f083f110c26e7401eb5",
+   "scripts/repo_paths.py": "6bc8c64cdedd56582f96015a0e7579985794ea3906a7d6ebaa69b14aa72d4e61",
+   "scripts/research_validity.py": "e06d5fd02ed54f83f49f2742dfa9233f5d02d68666c4e01d72c0240a4d34d110",
+   "scripts/risk_model.py": "7b4131a53d7f768ae87580eda21fcdb6115fc8d363b9ca98cd6c7bebb5589a9e",
+   "scripts/sessions.py": "607c2c6eb547e9bf0950435e77c05c26eb06e1df022fce433e5267f8f719ecd2",
+   "scripts/snapshot.py": "e4b2474d924164cc73df127a03007e4bfc9e444a89ff33a37a9b6055049f4200",
+   "scripts/trader_constraints.py": "2109a79a0bf49679f65aec159bf0f8f2842cec06a664da9f4872f72c964dab4b",
+   "scripts/trading_system.py": "9ec6aea8f9920a7f56dec56f423fb99f27f46eb51320efaf3a5a29d2dd33f9d1",
+   "docs/architecture/analysis-params.json": "5cde25c1b9c3c35f154cdc5fbdf83d1a27c767589cbda721d0a28ab2d19958e3",
+   "docs/architecture/instruments.json": "f5de740394fc3312d73a8bf53aa69f729283bb38452d01f571ae52a915d84b5d",
+   "docs/architecture/providers.json": "af1ff6e203743c8402438256eb0f1e9c2802271ac2863155823cd9f5bf02cef8",
+   "docs/architecture/account-profiles.json": "551f9a3111eaeb1741e396e0f5459f3b657c1c84ae194e30a195189da946df6e",
+   "docs/architecture/i18n.json": "8b48e9fcdb4ec646a947d276a0595ad424c728c48372dde55eeaa50e8831e254",
+   "docs/architecture/methods.json": "30aaa27db94d92f70e327d5ffd00c1dd6f46e5809f1109052e287fc18ac84ae0",
+   "docs/architecture/performance-metrics.json": "f9a06c17a24d75692d6ea910ba39cc12d9dd50b7ffd4777fba548990f28bb103",
+   "docs/architecture/research-validity.json": "b06264c8113c64c0844954a18f58746dd9dbe5b61c700d180e54f5e486723ae9",
+   "docs/architecture/risk-config.json": "0a4621240df31e19948f047b79055654b660247ae6d35ac90d77842662659598",
+   "docs/architecture/sessions.json": "8e2bbdabbaa67da822a7baad91681ba5f62936f32851363731af85b365e71e13",
+   "docs/architecture/trader-constraints.json": "07ea109e1639b3699e10c340150ebab4aa0387fc814f6951936c1babace9d39b",
+   "docs/architecture/trading-systems.json": "90d8be1858b49402e1196f425a94fc298910f58b0f3735aeb31802a7cc4f5acc"
+  },
+  "kind": "read",
+  "read": "ABL",
+  "arm": "LEGACY-rescored",
+  "preregistration": "docs/plans/2026-10-04-wyckoff-retest-preregistration.md",
+  "preregistration_sha256": "c0bba1d4b4e64596e7ff21d680970c474a1ef42f052773336e5b85ef4d21a008",
+  "preregistration_draft": "docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md",
+  "git_head": "c2ef260da396d5d0a24c5fc556f9688f5ae9970a",
+  "symbols": [
+   "XAUUSD",
+   "XAGUSD",
+   "US500",
+   "US30",
+   "USTEC",
+   "DE40",
+   "FRA40",
+   "AUS200"
+  ],
+  "timeframes": [
+   "15m",
+   "1H",
+   "4H"
+  ],
+  "legs": [
+   "spring",
+   "phase_d"
+  ],
+  "dev_cutoff": "2024-03-01T00:00:00Z",
+  "history_root": "data/history/ftmo",
+  "method": "WYCKOFF-BOOK",
+  "arms": {
+   "LEGACY-as-scored": {
+    "scan": {
+     "htf": true
+    },
+    "signals": "legacy_sim",
+    "floor": "legacy_sim",
+    "volume": "raw",
+    "change": "reference: the engine as it was judged (simulate, flat fee, floor, absolute R)",
+    "walk": {},
+    "fill": "signal_close",
+    "score": "absolute"
+   },
+   "LEGACY-rescored": {
+    "scan": {
+     "htf": true
+    },
+    "signals": "legacy_sim",
+    "floor": "legacy_sim",
+    "volume": "raw",
+    "change": "reference: LEGACY-as-scored's admitted trades, scored with \u00a75",
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "fill": "next_open",
+    "score": "placebo"
+   },
+   "ENGINE-BOOK": {
+    "change": "reference: the book-faithful engine",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A1": {
+    "change": "skip Shakeouts",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "off",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A2": {
+    "change": "2.5R floor in the harness, cost known at entry",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": "entry_cost",
+    "volume": "raw"
+   },
+   "A3": {
+    "change": "ICT HTF gate",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": true,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A4": {
+    "change": "Phase-D target ceiling + 1 x TR",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": false,
+     "fx_w7_contain": "off",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A5": {
+    "change": "600-bar window",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true,
+     "fx_w6_window": 600
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A6": {
+    "change": "fx_w_stop=spring_low",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true,
+     "fx_w_stop": "spring_low"
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A7": {
+    "change": "tick volume normalised by hour",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "hour_norm"
+   },
+   "A8": {
+    "change": "fx_w_spt=ceiling",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true,
+     "fx_w_spt": "ceiling"
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A9": {
+    "change": "fill at the signal close",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "signal_close",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A10": {
+    "change": "flat_before_rollover",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true,
+     "flat_before_rollover": true,
+     "rollover_provider": "mt5_bridge_ftmo"
+    },
+    "walk": {
+     "fx_gap_fill": true,
+     "flat_before_rollover": true,
+     "rollover_provider": "mt5_bridge_ftmo"
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   }
+  },
+  "parameters": {
+   "n_placebo": 200,
+   "placebo_draw": "without replacement; every candidate when fewer",
+   "placebo_seed": "sha256('WY-P0|sym|tf|signal_time')[:16]",
+   "placebo_slot": "server-clock minute of the day of the event's ENTRY bar k+1",
+   "atr_n": 20,
+   "dense": "R0's pinned dense start per series (edge_wyckoff counts); dense days by edge_wyckoff.dense_days from it; the detection window must lie on or after the start",
+   "dense_share": 0.8,
+   "dense_lookback_days": 60,
+   "a7_days": 20,
+   "cluster": "ISO week of the signal bar (UTC)",
+   "bootstrap_resamples": 2000,
+   "bootstrap_ci": [
+    0.05,
+    0.95
+   ],
+   "floor": "backtest-methods MIN_RR (analysis-params ict.min_rr)"
+  },
+  "costs": {
+   "profile": "ftmo_demo_2026_09_relspread",
+   "hour_frame": "server_table",
+   "lines": [
+    "median_swap",
+    "median_noswap",
+    "p90_swap",
+    "p90_noswap"
+   ],
+   "legacy_fee_per_side": 0.0005,
+   "commission": "0/UNKNOWN (real_costs.commission_r)",
+   "times": "entry = the fill instant (next open / signal close); exit = the exit bar's open label, the engine's own exit_time convention"
+  },
+  "disclosures": {
+   "descriptive_only": "no gate, no BH family, nothing selected (\u00a77.1)",
+   "legacy_admission": "LEGACY arms' signals are bt.simulate's admitted trades per (symbol, timeframe): the flat-fee floor AND its one-position-per-symbol rule, which reads earlier trades' exit times; `count` reports the floor alone",
+   "w7_contain_no_target": "fx_w7_contain keeps the engine's W7 rule 'no HTF record, no Phase-D trade'; the family-W time exit (\u00a73.3) is not an engine rule",
+   "shakeout_short": "fx_w_shakeout=test applies to both sides (a lingering Upthrust is entered at its test)",
+   "a7_neutral": "A7 bars without an earlier same-hour reference get volume 1.0 (counted per series)",
+   "engine_test_volume": "the engine's Test still needs tick volume (W:594) and its Shakeouts reclaim within sob, so A1 covers only that subset (\u00a77.2 Limitation)",
+   "dense_from_r0": "the dense table is R0's (family W's), never recomputed on the cut series; signals whose detection window reaches before the dense start are dropped (counted); the HTF series bt.scan reads for the W7 target / HTF gate are not cut at the dense start",
+   "code_fingerprint": "code_sha256 = edge_wyckoff.code_sha256() over edge_wyckoff.CODE, equal in all 13 arms and to R0's"
+  },
+  "guarded": true,
+  "sealed": {
+   "path": "docs/plans/2026-10-04-wyckoff-retest-preregistration.md",
+   "sha256": "c0bba1d4b4e64596e7ff21d680970c474a1ef42f052773336e5b85ef4d21a008",
+   "seal_date": "2026-10-04"
+  },
+  "min_rr": 2.5,
+  "horizon_bars": {
+   "15m": 96,
+   "1H": 72,
+   "4H": 30
+  },
+  "counts": {
+   "path": "docs/experiments/wyckoff-retest-r0/edge-wyckoff-R0.json",
+   "sha256": "09e215902f012f14210577684f34e0c3fac50a6a0df76d55076992fa726655f9"
+  },
+  "committed_sha256": {
+   "docs/plans/2026-10-04-wyckoff-retest-preregistration.md": "c0bba1d4b4e64596e7ff21d680970c474a1ef42f052773336e5b85ef4d21a008",
+   "docs/architecture/research-ledger.json": "dcd7ff09b782f44ca5130d7e52e6b961e4a48c96224d626db3f36e4abe95f3a6",
+   "scripts/research/edge_wyckoff.py": "8bdeeccf9bb4bf1f403e64dfb90907bfbce0482de015c20f30c92a21539f8c14",
+   "scripts/tests/test_edge_wyckoff.py": "681bf5e0de09e6945cfac13131bea1dcf53d185aa1fc2d3fb81a316f3da5d448",
+   "scripts/research/wyckoff_ablation.py": "34824aeb99a3963ef54cfecba0b9f66a1e40c6e8816e3a351fa2c60dcc3b9cf5",
+   "scripts/tests/test_wyckoff_ablation.py": "d672ddb0f75edf99c0a59e7c715325620d353c6b320cd9315e7757a935875835",
+   "scripts/tests/test_wyckoff_price_only.py": "6e4700ee38195b909d32c390286cc6299ae45121917f374a292c2295ba202d2b",
+   "scripts/backtest-methods.py": "cf7d5fd55651e417dd196161657f1d00779f3d5145246d4865dc50d6b52fcca9",
+   "scripts/research/reprice_real_costs.py": "52407d1b72802b5a3c3b460bb435fc6be4c6d17beca66ff7baad8f9689220c73",
+   "scripts/wyckoff_rules.py": "bc9dc00536c4e1a86a3e14d77773917b92b5855c20edeb1ec5201e7af13d2c40",
+   "scripts/structures.py": "c14e153c27bfffa0de1b18c2a573abfed921e378d523d5f2b7d46dcd2fd1ffd9",
+   "scripts/real_costs.py": "572ec698d4931efb58cab12e8b0e6f20720da07baccad6c130ef239f8fd26e1c",
+   "scripts/research/edge_census.py": "e052dab288df80f613d9f4156ddacc10d892d4ed1ad62468b4f1d7d953e71afc",
+   "scripts/research/edge_h7x.py": "b503b94509c41a25af3bd859449c26bbd2c8713aa1d8038183bf66123502786d",
+   "scripts/research/edge_f3.py": "242dcde369eaf188892df3f42a9c72ee34fb47f0a11219e1c945a6060c8f8e12",
+   "scripts/research/edge_f4.py": "e5f6ec8ad60f943196b86c0a2dc0d42f8c4805af43380c1fe03ed84149bba25b",
+   "scripts/research/book_sim.py": "19e52f4781f7c83e50578a3b7bc4f08835871bf7342566fd3c0c1ff1277498d2",
+   "scripts/research/fvg_book_sim.py": "30e1a7158204cb1c653ccad23828bc556499915595c236b3f586e774290fc56b",
+   "scripts/pit.py": "63e72161714481bfa55cbe425e71bea4a9a6ceea62718e92991fda28deb9e88f",
+   "scripts/normalized.py": "f76dd8e29513c4237425fcc0c4589c2881cd4538865bbbab27827e46790ca231",
+   "scripts/history_store.py": "e0b6bebe9eb81c65b077bfa4c5064aaaa081ac290dd6f0fbdf7bcf147bd20de0",
+   "scripts/instruments.py": "4dceb0425b3bd32b9e98848f565f0fcbe624ee6cf9ab30d7d5e88c0d4badf188",
+   "scripts/mt5_time.py": "2cfac8616eac158575ebb1350f763d72fdfdca076066fb4a05375859cc0f620a",
+   "scripts/live_rules.py": "ff9727fee35fb512672c53736d0bd077b076591527dc5880f8762d8661123bc8",
+   "scripts/ict-scan.py": "1209180c176d9109a7026ac6e22d7aa2718818b2556a3d2b611edde6e460ea90",
+   "scripts/htf_context.py": "c1f7b994b43cb29bdcfc01dedf979362cb5d40e22f7034d2d4c765539edde05f",
+   "scripts/automation.py": "1fba7e3eeef2eb633ae4569a56e9cc1a5560606e3cb488355498e2c24fc2688d",
+   "scripts/trading_env.py": "4c9a02a2cf559d1559f06dd4beb7f4f8c1702219d68ee4f3078a293ce061a92e",
+   "scripts/methods.py": "dc76537b6d7c79930c8473ebcf4e13d402a859b2dedeee8976f9014fa703ba69",
+   "scripts/account_profile.py": "2061c4654afe4535904dc15a22f4c30204fbcda01f71b95990ad1059ed0c79f8",
+   "scripts/event_risk.py": "28c509331637cf6d6815da3b4dca892f7d97edbc031bfbc27feb1a79e4346524",
+   "scripts/i18n.py": "9654c7a6c9d561ab028366f4a304098f88c92e4cdad7c6b40d1644d73c8186f0",
+   "scripts/performance.py": "d79d78bde35028abab176dbd3e3a23298fd1bb63e98eb86bbc3bd8ac2181883b",
+   "scripts/providers.py": "3afed187584f597bd81fbe66da058cd9dc2f4666bfdce973fcbb635aff8adfc3",
+   "scripts/quality.py": "a2f6af3b3b32f2b558c051b899d6a7124b1956babc2b4f083f110c26e7401eb5",
+   "scripts/repo_paths.py": "6bc8c64cdedd56582f96015a0e7579985794ea3906a7d6ebaa69b14aa72d4e61",
+   "scripts/research_validity.py": "e06d5fd02ed54f83f49f2742dfa9233f5d02d68666c4e01d72c0240a4d34d110",
+   "scripts/risk_model.py": "7b4131a53d7f768ae87580eda21fcdb6115fc8d363b9ca98cd6c7bebb5589a9e",
+   "scripts/sessions.py": "607c2c6eb547e9bf0950435e77c05c26eb06e1df022fce433e5267f8f719ecd2",
+   "scripts/snapshot.py": "e4b2474d924164cc73df127a03007e4bfc9e444a89ff33a37a9b6055049f4200",
+   "scripts/trader_constraints.py": "2109a79a0bf49679f65aec159bf0f8f2842cec06a664da9f4872f72c964dab4b",
+   "scripts/trading_system.py": "9ec6aea8f9920a7f56dec56f423fb99f27f46eb51320efaf3a5a29d2dd33f9d1",
+   "docs/architecture/analysis-params.json": "5cde25c1b9c3c35f154cdc5fbdf83d1a27c767589cbda721d0a28ab2d19958e3",
+   "docs/architecture/instruments.json": "f5de740394fc3312d73a8bf53aa69f729283bb38452d01f571ae52a915d84b5d",
+   "docs/architecture/providers.json": "af1ff6e203743c8402438256eb0f1e9c2802271ac2863155823cd9f5bf02cef8",
+   "docs/architecture/account-profiles.json": "551f9a3111eaeb1741e396e0f5459f3b657c1c84ae194e30a195189da946df6e",
+   "docs/architecture/i18n.json": "8b48e9fcdb4ec646a947d276a0595ad424c728c48372dde55eeaa50e8831e254",
+   "docs/architecture/methods.json": "30aaa27db94d92f70e327d5ffd00c1dd6f46e5809f1109052e287fc18ac84ae0",
+   "docs/architecture/performance-metrics.json": "f9a06c17a24d75692d6ea910ba39cc12d9dd50b7ffd4777fba548990f28bb103",
+   "docs/architecture/research-validity.json": "b06264c8113c64c0844954a18f58746dd9dbe5b61c700d180e54f5e486723ae9",
+   "docs/architecture/risk-config.json": "0a4621240df31e19948f047b79055654b660247ae6d35ac90d77842662659598",
+   "docs/architecture/sessions.json": "8e2bbdabbaa67da822a7baad91681ba5f62936f32851363731af85b365e71e13",
+   "docs/architecture/trader-constraints.json": "07ea109e1639b3699e10c340150ebab4aa0387fc814f6951936c1babace9d39b",
+   "docs/architecture/trading-systems.json": "90d8be1858b49402e1196f425a94fc298910f58b0f3735aeb31802a7cc4f5acc"
+  },
+  "loaded_code": [
+   "scripts/account_profile.py",
+   "scripts/automation.py",
+   "scripts/event_risk.py",
+   "scripts/history_store.py",
+   "scripts/i18n.py",
+   "scripts/instruments.py",
+   "scripts/methods.py",
+   "scripts/mt5_time.py",
+   "scripts/normalized.py",
+   "scripts/performance.py",
+   "scripts/pit.py",
+   "scripts/providers.py",
+   "scripts/quality.py",
+   "scripts/real_costs.py",
+   "scripts/repo_paths.py",
+   "scripts/research/wyckoff_ablation.py",
+   "scripts/research_validity.py",
+   "scripts/risk_model.py",
+   "scripts/sessions.py",
+   "scripts/snapshot.py",
+   "scripts/structures.py",
+   "scripts/trader_constraints.py",
+   "scripts/trading_env.py",
+   "scripts/trading_system.py",
+   "scripts/wyckoff_rules.py"
+  ]
+ },
+ "data": {
+  "XAUUSD|15m": {
+   "source": "data/history/ftmo/ohlcv.XAUUSD.15m",
+   "bars": 453893,
+   "first": "2004-06-11T04:15:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2012-04-01",
+    "source": "R0",
+    "dense_days": 3052,
+    "first_dense_bar": "2012-04-01T22:00:00Z"
+   }
+  },
+  "XAGUSD|15m": {
+   "source": "data/history/ftmo/ohlcv.XAGUSD.15m",
+   "bars": 357694,
+   "first": "2008-11-07T21:00:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2012-04-01",
+    "source": "R0",
+    "dense_days": 3053,
+    "first_dense_bar": "2012-04-01T22:00:00Z"
+   }
+  },
+  "US500|15m": {
+   "source": "data/history/ftmo/ohlcv.US500.15m",
+   "bars": 62776,
+   "first": "2017-12-28T22:00:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2021-09-01",
+    "source": "R0",
+    "dense_days": 645,
+    "first_dense_bar": "2021-08-31T22:00:00Z"
+   }
+  },
+  "US30|15m": {
+   "source": "data/history/ftmo/ohlcv.US30.15m",
+   "bars": 116405,
+   "first": "2019-02-08T12:15:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2019-10-01",
+    "source": "R0",
+    "dense_days": 1137,
+    "first_dense_bar": "2019-09-30T22:00:00Z"
+   }
+  },
+  "USTEC|15m": {
+   "source": "data/history/ftmo/ohlcv.USTEC.15m",
+   "bars": 62766,
+   "first": "2017-12-28T22:00:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2021-09-01",
+    "source": "R0",
+    "dense_days": 645,
+    "first_dense_bar": "2021-08-31T22:00:00Z"
+   }
+  },
+  "DE40|15m": {
+   "source": "data/history/ftmo/ohlcv.DE40.15m",
+   "bars": 55219,
+   "first": "2017-12-27T23:00:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2022-01-01",
+    "source": "R0",
+    "dense_days": 555,
+    "first_dense_bar": "2022-01-03T00:00:00Z"
+   }
+  },
+  "FRA40|15m": {
+   "why": "no R0 dense start"
+  },
+  "AUS200|15m": {
+   "source": "data/history/ftmo/ohlcv.AUS200.15m",
+   "bars": 110963,
+   "first": "2019-02-08T12:15:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2019-10-01",
+    "source": "R0",
+    "dense_days": 1102,
+    "first_dense_bar": "2019-09-30T23:45:00Z"
+   }
+  },
+  "XAUUSD|1H": {
+   "source": "data/history/ftmo/ohlcv.XAUUSD.1H",
+   "bars": 116789,
+   "first": "2004-06-11T04:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2004-06-01",
+    "source": "R0",
+    "dense_days": 4984,
+    "first_dense_bar": "2004-06-11T04:00:00Z"
+   }
+  },
+  "XAGUSD|1H": {
+   "source": "data/history/ftmo/ohlcv.XAGUSD.1H",
+   "bars": 91835,
+   "first": "2008-11-07T21:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2008-11-01",
+    "source": "R0",
+    "dense_days": 3913,
+    "first_dense_bar": "2008-11-07T21:00:00Z"
+   }
+  },
+  "US500|1H": {
+   "source": "data/history/ftmo/ohlcv.US500.1H",
+   "bars": 19167,
+   "first": "2017-12-28T22:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2021-02-01",
+    "source": "R0",
+    "dense_days": 796,
+    "first_dense_bar": "2021-01-31T22:00:00Z"
+   }
+  },
+  "US30|1H": {
+   "source": "data/history/ftmo/ohlcv.US30.1H",
+   "bars": 29169,
+   "first": "2019-02-08T12:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2019-10-01",
+    "source": "R0",
+    "dense_days": 1137,
+    "first_dense_bar": "2019-09-30T22:00:00Z"
+   }
+  },
+  "USTEC|1H": {
+   "source": "data/history/ftmo/ohlcv.USTEC.1H",
+   "bars": 19167,
+   "first": "2017-12-28T22:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2021-02-01",
+    "source": "R0",
+    "dense_days": 796,
+    "first_dense_bar": "2021-01-31T22:00:00Z"
+   }
+  },
+  "DE40|1H": {
+   "source": "data/history/ftmo/ohlcv.DE40.1H",
+   "bars": 17102,
+   "first": "2017-12-27T23:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2021-06-01",
+    "source": "R0",
+    "dense_days": 707,
+    "first_dense_bar": "2021-05-31T22:00:00Z"
+   }
+  },
+  "FRA40|1H": {
+   "why": "no R0 dense start"
+  },
+  "AUS200|1H": {
+   "source": "data/history/ftmo/ohlcv.AUS200.1H",
+   "bars": 28530,
+   "first": "2019-02-08T12:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2019-10-01",
+    "source": "R0",
+    "dense_days": 1103,
+    "first_dense_bar": "2019-09-30T23:00:00Z"
+   }
+  },
+  "XAUUSD|4H": {
+   "source": "data/history/ftmo/ohlcv.XAUUSD.4H",
+   "bars": 30194,
+   "first": "2004-06-11T01:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2004-06-01",
+    "source": "R0",
+    "dense_days": 5027,
+    "first_dense_bar": "2004-06-11T01:00:00Z"
+   }
+  },
+  "XAGUSD|4H": {
+   "source": "data/history/ftmo/ohlcv.XAGUSD.4H",
+   "bars": 23592,
+   "first": "2008-11-07T18:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2008-11-01",
+    "source": "R0",
+    "dense_days": 3938,
+    "first_dense_bar": "2008-11-07T18:00:00Z"
+   }
+  },
+  "US500|4H": {
+   "source": "data/history/ftmo/ohlcv.US500.4H",
+   "bars": 5593,
+   "first": "2017-12-28T22:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2021-02-01",
+    "source": "R0",
+    "dense_days": 798,
+    "first_dense_bar": "2021-01-31T22:00:00Z"
+   }
+  },
+  "US30|4H": {
+   "source": "data/history/ftmo/ohlcv.US30.4H",
+   "bars": 7684,
+   "first": "2019-02-08T10:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2019-10-01",
+    "source": "R0",
+    "dense_days": 1142,
+    "first_dense_bar": "2019-09-30T21:00:00Z"
+   }
+  },
+  "USTEC|4H": {
+   "source": "data/history/ftmo/ohlcv.USTEC.4H",
+   "bars": 5594,
+   "first": "2017-12-28T22:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2021-02-01",
+    "source": "R0",
+    "dense_days": 798,
+    "first_dense_bar": "2021-01-31T22:00:00Z"
+   }
+  },
+  "DE40|4H": {
+   "source": "data/history/ftmo/ohlcv.DE40.4H",
+   "bars": 5024,
+   "first": "2017-12-27T22:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2021-06-01",
+    "source": "R0",
+    "dense_days": 707,
+    "first_dense_bar": "2021-05-31T21:00:00Z"
+   }
+  },
+  "FRA40|4H": {
+   "why": "no R0 dense start"
+  },
+  "AUS200|4H": {
+   "source": "data/history/ftmo/ohlcv.AUS200.4H",
+   "bars": 7556,
+   "first": "2019-02-08T10:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2019-10-01",
+    "source": "R0",
+    "dense_days": 1109,
+    "first_dense_bar": "2019-09-30T21:00:00Z"
+   }
+  }
+ },
+ "legacy_simulate": {
+  "XAUUSD|15m": {
+   "scanned": 137,
+   "admitted": 26,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "XAGUSD|15m": {
+   "scanned": 114,
+   "admitted": 25,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "US500|15m": {
+   "scanned": 27,
+   "admitted": 10,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "US30|15m": {
+   "scanned": 52,
+   "admitted": 16,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "USTEC|15m": {
+   "scanned": 32,
+   "admitted": 10,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "DE40|15m": {
+   "scanned": 27,
+   "admitted": 8,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "AUS200|15m": {
+   "scanned": 44,
+   "admitted": 10,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "XAUUSD|1H": {
+   "scanned": 43,
+   "admitted": 19,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "XAGUSD|1H": {
+   "scanned": 20,
+   "admitted": 4,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "US500|1H": {
+   "scanned": 6,
+   "admitted": 3,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "US30|1H": {
+   "scanned": 17,
+   "admitted": 4,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "USTEC|1H": {
+   "scanned": 12,
+   "admitted": 3,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "DE40|1H": {
+   "scanned": 12,
+   "admitted": 3,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "AUS200|1H": {
+   "scanned": 19,
+   "admitted": 6,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "XAUUSD|4H": {
+   "scanned": 24,
+   "admitted": 12,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "XAGUSD|4H": {
+   "scanned": 14,
+   "admitted": 2,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "US500|4H": {
+   "scanned": 2,
+   "admitted": 1,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "US30|4H": {
+   "scanned": 2,
+   "admitted": 1,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "USTEC|4H": {
+   "scanned": 3,
+   "admitted": 1,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "DE40|4H": {
+   "scanned": 5,
+   "admitted": 1,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "AUS200|4H": {
+   "scanned": 7,
+   "admitted": 5,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  }
+ },
+ "skipped": {
+  "XAUUSD|15m": {
+   "phase_d|window_before_dense_start": 16,
+   "phase_d|prev_day_not_dense": 1
+  },
+  "XAGUSD|15m": {
+   "spring|window_before_dense_start": 3,
+   "phase_d|window_before_dense_start": 9
+  },
+  "US500|15m": {
+   "phase_d|window_before_dense_start": 1
+  },
+  "US30|15m": {
+   "phase_d|window_before_dense_start": 1
+  },
+  "USTEC|15m": {
+   "phase_d|window_before_dense_start": 1
+  },
+  "DE40|15m": {
+   "phase_d|window_before_dense_start": 3
+  },
+  "AUS200|15m": {},
+  "XAUUSD|1H": {},
+  "XAGUSD|1H": {},
+  "US500|1H": {},
+  "US30|1H": {
+   "phase_d|window_before_dense_start": 1
+  },
+  "USTEC|1H": {},
+  "DE40|1H": {},
+  "AUS200|1H": {},
+  "XAUUSD|4H": {},
+  "XAGUSD|4H": {},
+  "US500|4H": {},
+  "US30|4H": {},
+  "USTEC|4H": {},
+  "DE40|4H": {},
+  "AUS200|4H": {}
+ },
+ "cells": {
+  "spring|15m": {
+   "n": 11,
+   "weeks": 11,
+   "mean_gross_R": -0.3297780241450562,
+   "mean_net_abs_R": -0.5521016748700774,
+   "mean_placebo_R": -0.002601497634255741,
+   "mean_excess_gross": -0.3271765265108005,
+   "net_excess_median_swap": {
+    "mean": -0.5495001772358217,
+    "se_cr1_week": 0.6476144208052347,
+    "df": 10,
+    "t": -0.8484989827011278,
+    "p_one_sided": 0.7919957046661534
+   },
+   "net_excess_median_noswap": {
+    "mean": -0.45326172584997726,
+    "se_cr1_week": 0.6328698246266319,
+    "df": 10,
+    "t": -0.7162005648118611,
+    "p_one_sided": 0.7548727850004632
+   },
+   "net_excess_p90_swap": {
+    "mean": -0.8081040832133027,
+    "se_cr1_week": 0.6746803381127646,
+    "df": 10,
+    "t": -1.1977584606567235,
+    "p_one_sided": 0.8706851383096288
+   },
+   "net_excess_p90_noswap": {
+    "mean": -0.7118656318274583,
+    "se_cr1_week": 0.6518514316009092,
+    "df": 10,
+    "t": -1.092067298339988,
+    "p_one_sided": 0.8497926557277675
+   },
+   "mean_net_excess": -0.5495001772358217
+  },
+  "spring|1H": {
+   "n": 4,
+   "weeks": 4,
+   "mean_gross_R": 0.06741345540808574,
+   "mean_net_abs_R": -0.022400229875948863,
+   "mean_placebo_R": -0.03755928205803276,
+   "mean_excess_gross": 0.10497273746611846,
+   "net_excess_median_swap": {
+    "mean": 0.015159052182083799,
+    "se_cr1_week": 1.0322995615873571,
+    "df": 3,
+    "t": 0.014684741470560996,
+    "p_one_sided": 0.49460284376633484
+   },
+   "net_excess_median_noswap": {
+    "mean": 0.012786542515709931,
+    "se_cr1_week": 1.0330245258641204,
+    "df": 3,
+    "t": 0.012377772449317256,
+    "p_one_sided": 0.4954506724786613
+   },
+   "net_excess_p90_swap": {
+    "mean": -0.058154040391290546,
+    "se_cr1_week": 1.0505868143107917,
+    "df": 3,
+    "t": -0.055353864715540796,
+    "p_one_sided": 0.5203316162259977
+   },
+   "net_excess_p90_noswap": {
+    "mean": -0.06052655005766441,
+    "se_cr1_week": 1.051278817607592,
+    "df": 3,
+    "t": -0.05757421251519689,
+    "p_one_sided": 0.5211459787905103
+   },
+   "mean_net_excess": 0.015159052182083799
+  },
+  "spring|4H": {
+   "n": 2,
+   "weeks": 2,
+   "mean_gross_R": -1.0,
+   "mean_net_abs_R": -1.9826939879692325,
+   "mean_placebo_R": 0.38042332698628023,
+   "mean_excess_gross": -1.3804233269862802,
+   "net_excess_median_swap": {
+    "mean": -2.3631173149555127,
+    "se_cr1_week": 0.8420174700333479,
+    "df": 1,
+    "t": -2.80649440071822,
+    "p_one_sided": 0.891045458239874
+   },
+   "net_excess_median_noswap": {
+    "mean": -1.4142139617951694,
+    "se_cr1_week": 0.11413254125295758,
+    "df": 1,
+    "t": -12.390979349708664,
+    "p_one_sided": 0.9743667144978435
+   },
+   "net_excess_p90_swap": {
+    "mean": -2.436462058451218,
+    "se_cr1_week": 0.8096032249227876,
+    "df": 1,
+    "t": -3.0094520172935146,
+    "p_one_sided": 0.8978836338886296
+   },
+   "net_excess_p90_noswap": {
+    "mean": -1.487558705290875,
+    "se_cr1_week": 0.14654678636351803,
+    "df": 1,
+    "t": -10.150742586745622,
+    "p_one_sided": 0.9687425737407542
+   },
+   "mean_net_excess": -2.3631173149555127
+  },
+  "phase_d|15m": {
+   "n": 59,
+   "weeks": 51,
+   "mean_gross_R": 0.18670265954410872,
+   "mean_net_abs_R": 0.08552397553463119,
+   "mean_placebo_R": -0.010813840350449114,
+   "mean_excess_gross": 0.19751649989455788,
+   "net_excess_median_swap": {
+    "mean": 0.09633781588508032,
+    "se_cr1_week": 0.3103569088438239,
+    "df": 50,
+    "t": 0.3104097673996325,
+    "p_one_sided": 0.3787698129952554
+   },
+   "net_excess_median_noswap": {
+    "mean": 0.14126955740975206,
+    "se_cr1_week": 0.3176794118518013,
+    "df": 50,
+    "t": 0.4446922027029402,
+    "p_one_sided": 0.3292306339960442
+   },
+   "net_excess_p90_swap": {
+    "mean": 0.03238641716752147,
+    "se_cr1_week": 0.3101551395742108,
+    "df": 50,
+    "t": 0.10442005640139448,
+    "p_one_sided": 0.4586268773045169
+   },
+   "net_excess_p90_noswap": {
+    "mean": 0.0773181586921932,
+    "se_cr1_week": 0.3175350979330437,
+    "df": 50,
+    "t": 0.24349484260318435,
+    "p_one_sided": 0.40430917635035224
+   },
+   "mean_net_excess": 0.09633781588508032
+  },
+  "phase_d|1H": {
+   "n": 37,
+   "weeks": 37,
+   "mean_gross_R": 0.2281825943412609,
+   "mean_net_abs_R": -0.00010348365615811764,
+   "mean_placebo_R": -0.012794576314293718,
+   "mean_excess_gross": 0.24097717065555463,
+   "net_excess_median_swap": {
+    "mean": 0.012691092658135575,
+    "se_cr1_week": 0.3513761768984949,
+    "df": 36,
+    "t": 0.03611825016185364,
+    "p_one_sided": 0.48569380359540004
+   },
+   "net_excess_median_noswap": {
+    "mean": 0.21923964435476664,
+    "se_cr1_week": 0.3441806073305836,
+    "df": 36,
+    "t": 0.636990114158838,
+    "p_one_sided": 0.2640807646616494
+   },
+   "net_excess_p90_swap": {
+    "mean": -0.017326202010386465,
+    "se_cr1_week": 0.3498014152487694,
+    "df": 36,
+    "t": -0.04953153776712005,
+    "p_one_sided": 0.5196152501656015
+   },
+   "net_excess_p90_noswap": {
+    "mean": 0.18922234968624457,
+    "se_cr1_week": 0.3426589425593969,
+    "df": 36,
+    "t": 0.5522177482744217,
+    "p_one_sided": 0.2921057754791738
+   },
+   "mean_net_excess": 0.012691092658135575
+  },
+  "phase_d|4H": {
+   "n": 21,
+   "weeks": 20,
+   "mean_gross_R": 0.028967212762973333,
+   "mean_net_abs_R": -0.30782756829915975,
+   "mean_placebo_R": 0.0948087605144923,
+   "mean_excess_gross": -0.06584154775151894,
+   "net_excess_median_swap": {
+    "mean": -0.402636328813652,
+    "se_cr1_week": 0.34937061655229185,
+    "df": 19,
+    "t": -1.152461912186561,
+    "p_one_sided": 0.8682871512457344
+   },
+   "net_excess_median_noswap": {
+    "mean": -0.08178255097081066,
+    "se_cr1_week": 0.40851114195144916,
+    "df": 19,
+    "t": -0.20019662274115005,
+    "p_one_sided": 0.5782729779543405
+   },
+   "net_excess_p90_swap": {
+    "mean": -0.41888436617025765,
+    "se_cr1_week": 0.3493442867995462,
+    "df": 19,
+    "t": -1.1990588711433932,
+    "p_one_sided": 0.8773769649113013
+   },
+   "net_excess_p90_noswap": {
+    "mean": -0.09803058832741625,
+    "se_cr1_week": 0.4083650554402259,
+    "df": 19,
+    "t": -0.2400562609886815,
+    "p_one_sided": 0.5935712172384193
+   },
+   "mean_net_excess": -0.402636328813652
+  }
+ },
+ "a7_neutral_bars": {},
+ "rows": [
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAUUSD-long-book-2014-08-13T12:00:00Z","signal_time":"2014-08-13T12:00:00Z","week":"2014-W33","stop":1304.057645,"target":1311.3,"entry":1305.04,"entry_time":"2014-08-13T12:15:00Z","exit_time":"2014-08-13T12:30:00Z","R_planned":6.372441734404382,"R":6.372441734404382,"outcome":"win","bars_held":2,"atr":1.2825000000000046,"stop_atr":0.7659688109160755,"target_atr":4.8810916179336985,"placebo":0.425460465377254,"n_placebo":200,"excess":5.946981269027128,"cost":{"median_swap":0.08598652403943637,"median_noswap":0.08598652403943637,"p90_swap":0.20959215234612616,"p90_noswap":0.20959215234612616},"net_excess":5.860994744987692,"net_abs":6.286455210364946},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAUUSD-long-book-2015-01-27T00:15:00Z","signal_time":"2015-01-27T00:15:00Z","week":"2015-W05","stop":1273.3530050000002,"target":1287.39,"entry":1275.68,"entry_time":"2015-01-27T00:30:00Z","exit_time":"2015-01-27T00:30:00Z","R_planned":5.032241152215864,"R":-1.0,"outcome":"loss","bars_held":1,"atr":2.9039999999999964,"stop_atr":0.8013068181817837,"target_atr":4.032369146005527,"placebo":-0.06500262140653608,"n_placebo":200,"excess":-0.9349973785934639,"cost":{"median_swap":0.04213615907107891,"median_noswap":0.04213615907107891,"p90_swap":0.09092539589022292,"p90_noswap":0.09092539589022292},"net_excess":-0.9771335376645428,"net_abs":-1.042136159071079},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2017-04-03T22:00:00Z-D","signal_time":"2017-04-03T23:45:00Z","week":"2017-W14","stop":1253.622875,"target":1267.0899999999997,"entry":1255.55,"entry_time":"2017-04-04T00:00:00Z","exit_time":"2017-04-04T21:00:00Z","R_planned":5.988194849841157,"R":-1.0,"outcome":"loss","bars_held":85,"atr":1.1064999999999827,"stop_atr":1.7416403072751585,"target_atr":10.429281518300874,"placebo":-0.2856241539378341,"n_placebo":200,"excess":-0.7143758460621659,"cost":{"median_swap":0.4768163559401346,"median_noswap":0.046122965526939286,"p90_swap":0.5387529096477389,"p90_noswap":0.1080595192345436},"net_excess":-1.1911922020023005,"net_abs":-1.4768163559401346},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"spring","event":"XAUUSD-long-book-2020-11-08T22:00:00Z-D","signal_time":"2020-11-09T08:15:00Z","week":"2020-W46","stop":1952.4832700000002,"target":1985.3799999999999,"entry":1960.58,"entry_time":"2020-11-09T08:30:00Z","exit_time":"2020-11-09T11:30:00Z","R_planned":3.0629649253464932,"R":-1.0,"outcome":"loss","bars_held":13,"atr":2.554500000000007,"stop_atr":3.169594832648162,"target_atr":9.708357799960808,"placebo":0.029987268774339618,"n_placebo":200,"excess":-1.0299872687743397,"cost":{"median_swap":0.015672920866976008,"median_noswap":0.015672920866976008,"p90_swap":0.03624362950488202,"p90_noswap":0.03624362950488202},"net_excess":-1.0456601896413156,"net_abs":-1.015672920866976},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"spring","side":"short","path":"spring","event":"XAUUSD-short-book-2021-07-14T10:00:00Z","signal_time":"2021-07-14T10:00:00Z","week":"2021-W28","stop":1818.4287599999998,"target":1798.6,"entry":1814.37,"entry_time":"2021-07-14T10:15:00Z","exit_time":"2021-07-14T12:00:00Z","R_planned":3.8854231341592995,"R":-1.0,"outcome":"loss","bars_held":8,"atr":2.0824999999999934,"stop_atr":1.9489843937574578,"target_atr":7.572629051620663,"placebo":-0.005735813137026694,"n_placebo":200,"excess":-0.9942641868629734,"cost":{"median_swap":0.028933935878191215,"median_noswap":0.028933935878191215,"p90_swap":0.06871809771070414,"p90_noswap":0.06871809771070414},"net_excess":-1.0231981227411646,"net_abs":-1.0289339358781913},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2021-12-02T05:45:00Z-D","signal_time":"2021-12-02T07:15:00Z","week":"2021-W48","stop":1779.779445,"target":1758.7500000000002,"entry":1776.32,"entry_time":"2021-12-02T07:30:00Z","exit_time":"2021-12-02T12:30:00Z","R_planned":5.07884935300313,"R":-1.0,"outcome":"loss","bars_held":21,"atr":1.4219999999999913,"stop_atr":2.4328023909985803,"target_atr":12.355836849507607,"placebo":0.019747280549563626,"n_placebo":200,"excess":-1.0197472805495635,"cost":{"median_swap":0.0321959704981891,"median_noswap":0.0321959704981891,"p90_swap":0.0778934770117478,"p90_noswap":0.0778934770117478},"net_excess":-1.0519432510477527,"net_abs":-1.0321959704981891},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2023-01-31T06:15:00Z-D","signal_time":"2023-01-31T07:30:00Z","week":"2023-W05","stop":1916.87796,"target":1898.3600000000001,"entry":1913.46,"entry_time":"2023-01-31T07:45:00Z","exit_time":"2023-01-31T13:30:00Z","R_planned":4.417839881098649,"R":-1.0,"outcome":"loss","bars_held":24,"atr":1.874000000000001,"stop_atr":1.8238847385272101,"target_atr":8.05763073639269,"placebo":0.10956506489095208,"n_placebo":200,"excess":-1.109565064890952,"cost":{"median_swap":0.0362349312772235,"median_noswap":0.0362349312772235,"p90_swap":0.08605796178340581,"p90_noswap":0.08605796178340581},"net_excess":-1.1457999961681755,"net_abs":-1.0362349312772234},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2023-05-08T02:30:00Z-D","signal_time":"2023-05-08T03:30:00Z","week":"2023-W19","stop":2018.3703100000002,"target":2038.0800000000002,"entry":2022.54,"entry_time":"2023-05-08T03:45:00Z","exit_time":"2023-05-08T13:30:00Z","R_planned":3.7268957644336247,"R":-1.0,"outcome":"loss","bars_held":40,"atr":1.67999999999995,"stop_atr":2.48195833333324,"target_atr":9.250000000000389,"placebo":0.060965360395855,"n_placebo":200,"excess":-1.060965360395855,"cost":{"median_swap":0.032376682238065696,"median_noswap":0.032376682238065696,"p90_swap":0.07750781505476335,"p90_noswap":0.07750781505476335},"net_excess":-1.0933420426339209,"net_abs":-1.0323766822380658},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2023-09-21T11:30:00Z-D","signal_time":"2023-09-21T12:00:00Z","week":"2023-W38","stop":1923.2311349999998,"target":1904.28,"entry":1918.58,"entry_time":"2023-09-21T12:15:00Z","exit_time":"2023-09-21T14:30:00Z","R_planned":3.074518370247358,"R":-1.0,"outcome":"loss","bars_held":10,"atr":1.5,"stop_atr":3.1007566666665602,"target_atr":9.533333333333303,"placebo":0.2777117917518924,"n_placebo":200,"excess":-1.2777117917518925,"cost":{"median_swap":0.025864715945897145,"median_noswap":0.025864715945897145,"p90_swap":0.0642446170269058,"p90_noswap":0.0642446170269058},"net_excess":-1.3035765076977897,"net_abs":-1.0258647159458971},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAGUSD-long-book-2018-02-27T15:15:00Z","signal_time":"2018-02-27T15:15:00Z","week":"2018-W09","stop":16.449771,"target":16.621,"entry":16.481,"entry_time":"2018-02-27T15:30:00Z","exit_time":"2018-02-27T15:30:00Z","R_planned":4.483012584456188,"R":-1.0,"outcome":"loss","bars_held":1,"atr":0.039799999999999794,"stop_atr":0.7846482412061166,"target_atr":3.5175879396984358,"placebo":-0.19233108355333708,"n_placebo":200,"excess":-0.8076689164466629,"cost":{"median_swap":0.21299430763631758,"median_noswap":0.21299430763631758,"p90_swap":0.7277305510907517,"p90_noswap":0.7277305510907517},"net_excess":-1.0206632240829805,"net_abs":-1.2129943076363177},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAGUSD-long-book-2019-05-20T08:45:00Z","signal_time":"2019-05-20T08:45:00Z","week":"2019-W21","stop":14.360816000000002,"target":14.558,"entry":14.379,"entry_time":"2019-05-20T09:00:00Z","exit_time":"2019-05-20T21:00:00Z","R_planned":9.843818741752099,"R":-1.0,"outcome":"loss","bars_held":49,"atr":0.01805000000000003,"stop_atr":1.0074238227145678,"target_atr":9.916897506925206,"placebo":-0.39275745145962915,"n_placebo":200,"excess":-0.6072425485403709,"cost":{"median_swap":1.4043583915325728,"median_noswap":0.3457354262882846,"p90_swap":2.2553994408575804,"p90_noswap":1.1967764756132921},"net_excess":-2.0116009400729435,"net_abs":-2.404358391532573},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAGUSD-long-book-2019-10-08T00:00:00Z","signal_time":"2019-10-08T00:00:00Z","week":"2019-W41","stop":17.335328,"target":17.513,"entry":17.373,"entry_time":"2019-10-08T00:15:00Z","exit_time":"2019-10-08T00:45:00Z","R_planned":3.7162879592269684,"R":-1.0,"outcome":"loss","bars_held":3,"atr":0.06795000000000044,"stop_atr":0.5544076526858035,"target_atr":2.060338484179539,"placebo":-0.17501203847721933,"n_placebo":200,"excess":-0.8249879615227806,"cost":{"median_swap":0.21714280669844913,"median_noswap":0.21714280669844913,"p90_swap":0.8375508258368751,"p90_noswap":0.8375508258368751},"net_excess":-1.0421307682212297,"net_abs":-1.217142806698449},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAGUSD-short-book-2021-05-12T19:15:00Z-D","signal_time":"2021-05-12T20:15:00Z","week":"2021-W19","stop":27.0905385,"target":26.537,"entry":26.986,"entry_time":"2021-05-12T20:30:00Z","exit_time":"2021-05-12T22:00:00Z","R_planned":4.295068324110258,"R":-1.0,"outcome":"loss","bars_held":3,"atr":0.07944999999999958,"stop_atr":1.3157772183763483,"target_atr":5.65135305223416,"placebo":-0.4121474352377744,"n_placebo":200,"excess":-0.5878525647622256,"cost":{"median_swap":0.11014282850906615,"median_noswap":0.13023112133898043,"p90_swap":0.4183564823446532,"p90_noswap":0.4384447751745675},"net_excess":-0.6979953932712917,"net_abs":-1.1101428285090662},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAGUSD-short-book-2021-09-17T14:00:00Z-D","signal_time":"2021-09-17T16:00:00Z","week":"2021-W37","stop":22.573281,"target":22.086000000000002,"entry":22.468,"entry_time":"2021-09-17T16:15:00Z","exit_time":"2021-09-20T02:15:00Z","R_planned":3.628384988744336,"R":3.628384988744336,"outcome":"win","bars_held":37,"atr":0.09440000000000062,"stop_atr":1.1152648305084834,"target_atr":4.046610169491476,"placebo":-0.08677967468689507,"n_placebo":200,"excess":3.715164663431231,"cost":{"median_swap":0.07695018467046551,"median_noswap":0.09689680371853657,"p90_swap":0.3209865792208539,"p90_noswap":0.34093319826892493},"net_excess":3.6382144787607653,"net_abs":3.55143480407387},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2022-03-22T03:30:00Z-D","signal_time":"2022-03-22T05:15:00Z","week":"2022-W12","stop":25.2623625,"target":25.618,"entry":25.345,"entry_time":"2022-03-22T05:30:00Z","exit_time":"2022-03-22T07:30:00Z","R_planned":3.3035849342005474,"R":-1.0,"outcome":"loss","bars_held":9,"atr":0.04129999999999967,"stop_atr":2.0009079903148,"target_atr":6.610169491525469,"placebo":-0.07067476582638534,"n_placebo":200,"excess":-0.9293252341736147,"cost":{"median_swap":0.13925479651976155,"median_noswap":0.13925479651976155,"p90_swap":0.4951281654035966,"p90_noswap":0.4951281654035966},"net_excess":-1.0685800306933761,"net_abs":-1.1392547965197615},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAGUSD-short-book-2022-03-22T13:45:00Z-D","signal_time":"2022-03-22T16:45:00Z","week":"2022-W12","stop":24.8414145,"target":24.539,"entry":24.77,"entry_time":"2022-03-22T17:00:00Z","exit_time":"2022-03-22T17:30:00Z","R_planned":3.2346372235330323,"R":-1.0,"outcome":"loss","bars_held":3,"atr":0.09085000000000036,"stop_atr":0.7860704457897546,"target_atr":2.542652724270745,"placebo":-0.038564069520898456,"n_placebo":200,"excess":-0.9614359304791016,"cost":{"median_swap":0.15165063325499986,"median_noswap":0.15165063325499986,"p90_swap":0.5249444997288456,"p90_noswap":0.5249444997288456},"net_excess":-1.1130865637341014,"net_abs":-1.1516506332549998},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAGUSD-long-book-2022-10-07T12:30:00Z","signal_time":"2022-10-07T12:30:00Z","week":"2022-W40","stop":20.322833499999998,"target":20.576,"entry":20.368,"entry_time":"2022-10-07T12:45:00Z","exit_time":"2022-10-07T12:45:00Z","R_planned":4.605183044955872,"R":-1.0,"outcome":"loss","bars_held":1,"atr":0.06595000000000031,"stop_atr":0.6848597422289665,"target_atr":3.1539044730856856,"placebo":0.09215893560239916,"n_placebo":200,"excess":-1.092158935602399,"cost":{"median_swap":0.18200128889357653,"median_noswap":0.18200128889357653,"p90_swap":0.6825048333509119,"p90_noswap":0.6825048333509119},"net_excess":-1.2741602244959755,"net_abs":-1.1820012888935765},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2023-01-24T06:45:00Z-D","signal_time":"2023-01-24T07:15:00Z","week":"2023-W04","stop":23.50824,"target":24.330000000000002,"entry":23.626,"entry_time":"2023-01-24T07:30:00Z","exit_time":"2023-01-24T13:30:00Z","R_planned":5.9782608695651955,"R":-1.0,"outcome":"loss","bars_held":25,"atr":0.047900000000000095,"stop_atr":2.458455114822553,"target_atr":14.69728601252608,"placebo":-0.07461308345260387,"n_placebo":200,"excess":-0.9253869165473961,"cost":{"median_swap":0.08434584331346044,"median_noswap":0.08434584331346044,"p90_swap":0.307018869660996,"p90_noswap":0.307018869660996},"net_excess":-1.0097327598608565,"net_abs":-1.0843458433134605},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2023-03-06T03:30:00Z-D","signal_time":"2023-03-06T07:00:00Z","week":"2023-W10","stop":21.185402000000003,"target":21.517,"entry":21.269,"entry_time":"2023-03-06T07:15:00Z","exit_time":"2023-03-06T08:30:00Z","R_planned":2.9665781478027715,"R":-1.0,"outcome":"loss","bars_held":6,"atr":0.03640000000000043,"stop_atr":2.296648351648186,"target_atr":6.813186813186762,"placebo":-0.12467207622131996,"n_placebo":200,"excess":-0.8753279237786801,"cost":{"median_swap":0.11123867448965404,"median_noswap":0.11123867448965404,"p90_swap":0.37650012904190594,"p90_noswap":0.37650012904190594},"net_excess":-0.9865665982683341,"net_abs":-1.111238674489654},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2023-03-30T05:45:00Z-D","signal_time":"2023-03-30T06:30:00Z","week":"2023-W13","stop":23.438275,"target":23.814999999999998,"entry":23.519,"entry_time":"2023-03-30T06:45:00Z","exit_time":"2023-03-30T12:00:00Z","R_planned":3.666769897801283,"R":3.666769897801283,"outcome":"win","bars_held":22,"atr":0.03829999999999991,"stop_atr":2.107702349869391,"target_atr":7.728459530026111,"placebo":-0.15252513621866948,"n_placebo":200,"excess":3.8192950340199525,"cost":{"median_swap":0.12248476705401688,"median_noswap":0.12248476705401688,"p90_swap":0.4458445520766215,"p90_noswap":0.4458445520766215},"net_excess":3.6968102669659357,"net_abs":3.5442851307472663},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2023-05-04T01:30:00Z-D","signal_time":"2023-05-04T02:00:00Z","week":"2023-W18","stop":25.8080895,"target":26.076999999999998,"entry":25.86,"entry_time":"2023-05-04T02:15:00Z","exit_time":"2023-05-04T02:30:00Z","R_planned":4.180271813987657,"R":-1.0,"outcome":"loss","bars_held":2,"atr":0.08064999999999997,"stop_atr":0.6436515809051235,"target_atr":2.6906385616862845,"placebo":-0.14525515069203154,"n_placebo":200,"excess":-0.8547448493079685,"cost":{"median_swap":0.23456467747842127,"median_noswap":0.23456467747842127,"p90_swap":0.8209763711744745,"p90_noswap":0.8209763711744745},"net_excess":-1.0893095267863897,"net_abs":-1.2345646774784214},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAGUSD-short-book-2023-10-02T09:30:00Z-D","signal_time":"2023-10-02T12:15:00Z","week":"2023-W40","stop":21.862925999999998,"target":20.224,"entry":21.645,"entry_time":"2023-10-02T12:30:00Z","exit_time":"2023-10-03T13:15:00Z","R_planned":6.520562025641773,"R":2.9459541312188717,"outcome":"timeout","bars_held":96,"atr":0.07595000000000027,"stop_atr":2.8693350888742297,"target_atr":18.709677419354765,"placebo":0.1260307782747647,"n_placebo":200,"excess":2.819923352944107,"cost":{"median_swap":0.03687374686183245,"median_noswap":0.04008584638185303,"p90_swap":0.1454395808126844,"p90_noswap":0.14865168033270498},"net_excess":2.7830496060822747,"net_abs":2.9090803843570394},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2022-01-13T17:30:00Z-D","signal_time":"2022-01-13T18:30:00Z","week":"2022-W02","stop":4707.802725,"target":4663.299999999999,"entry":4696.7,"entry_time":"2022-01-13T18:45:00Z","exit_time":"2022-01-13T19:00:00Z","R_planned":3.0082704921540735,"R":-1.0,"outcome":"loss","bars_held":2,"atr":10.3875,"stop_atr":1.0688543922984104,"target_atr":3.2154031287605824,"placebo":-0.04467238384678583,"n_placebo":200,"excess":-0.9553276161532142,"cost":{"median_swap":0.021580213221393817,"median_noswap":0.021580213221393817,"p90_swap":0.04624331404584389,"p90_noswap":0.04624331404584389},"net_excess":-0.976907829374608,"net_abs":-1.0215802132213938},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2022-03-15T07:15:00Z-D","signal_time":"2022-03-15T08:15:00Z","week":"2022-W11","stop":4181.319614999999,"target":4078.33,"entry":4154.86,"entry_time":"2022-03-15T08:30:00Z","exit_time":"2022-03-15T10:45:00Z","R_planned":2.892332333633745,"R":-1.0,"outcome":"loss","bars_held":10,"atr":7.6125,"stop_atr":3.475811494252842,"target_atr":10.053201970443316,"placebo":0.124524530959719,"n_placebo":200,"excess":-1.124524530959719,"cost":{"median_swap":0.014447699976475763,"median_noswap":0.014447699976475763,"p90_swap":0.01945432868119509,"p90_noswap":0.01945432868119509},"net_excess":-1.1389722309361947,"net_abs":-1.0144476999764758},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2022-04-22T13:45:00Z-D","signal_time":"2022-04-22T14:30:00Z","week":"2022-W16","stop":4376.016914999999,"target":4239.08,"entry":4342.33,"entry_time":"2022-04-22T14:45:00Z","exit_time":"2022-04-25T01:45:00Z","R_planned":3.0649882899636873,"R":3.0649882899636873,"outcome":"win","bars_held":41,"atr":10.181500000000005,"stop_atr":3.3086396896330896,"target_atr":10.14094190443451,"placebo":0.015393265220472937,"n_placebo":200,"excess":3.049595024743214,"cost":{"median_swap":-0.0001937853487676399,"median_noswap":0.010685809888730581,"p90_swap":0.0032115826377508965,"p90_noswap":0.014091177875249118},"net_excess":3.049788810091982,"net_abs":3.065182075312455},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US500-long-book-2022-05-26T11:15:00Z-D","signal_time":"2022-05-26T12:30:00Z","week":"2022-W21","stop":3986.88556,"target":4064.08,"entry":4003.88,"entry_time":"2022-05-26T12:45:00Z","exit_time":"2022-05-26T16:30:00Z","R_planned":3.5423350225132473,"R":3.5423350225132473,"outcome":"win","bars_held":16,"atr":7.419000000000006,"stop_atr":2.2906645100417746,"target_atr":8.114301118749127,"placebo":-0.06473556821363713,"n_placebo":200,"excess":3.6070705907268845,"cost":{"median_swap":0.018028431632305553,"median_noswap":0.018028431632305553,"p90_swap":0.027901144192853826,"p90_noswap":0.027901144192853826},"net_excess":3.589042159094579,"net_abs":3.5243065908809417},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2022-11-02T13:45:00Z-D","signal_time":"2022-11-02T16:15:00Z","week":"2022-W44","stop":3842.68038,"target":3768.0,"entry":3826.71,"entry_time":"2022-11-02T16:30:00Z","exit_time":"2022-11-02T17:30:00Z","R_planned":3.67618052920475,"R":-1.0,"outcome":"loss","bars_held":5,"atr":6.703999999999996,"stop_atr":2.382216587112136,"target_atr":8.757458233890226,"placebo":-0.06837759626580282,"n_placebo":200,"excess":-0.9316224037341971,"cost":{"median_swap":0.012223703165083226,"median_noswap":0.012223703165083226,"p90_swap":0.02619364963946405,"p90_noswap":0.02619364963946405},"net_excess":-0.9438461068992804,"net_abs":-1.0122237031650831},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2023-01-25T10:00:00Z-D","signal_time":"2023-01-25T11:30:00Z","week":"2023-W04","stop":3992.1950999999995,"target":3949.0899999999997,"entry":3986.4,"entry_time":"2023-01-25T11:45:00Z","exit_time":"2023-01-25T15:30:00Z","R_planned":6.438197787787007,"R":6.438197787787007,"outcome":"win","bars_held":16,"atr":3.9899999999999407,"stop_atr":1.4524060150374565,"target_atr":9.350877192982695,"placebo":-0.05333812153965181,"n_placebo":200,"excess":6.491535909326659,"cost":{"median_swap":0.057025066275868744,"median_noswap":0.057025066275868744,"p90_swap":0.0789577840742798,"p90_noswap":0.0789577840742798},"net_excess":6.4345108430507905,"net_abs":6.381172721511138},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2023-03-02T01:45:00Z-D","signal_time":"2023-03-02T05:15:00Z","week":"2023-W09","stop":3942.6703499999994,"target":3900.29,"entry":3932.2,"entry_time":"2023-03-02T05:30:00Z","exit_time":"2023-03-02T15:00:00Z","R_planned":3.04765361234353,"R":-1.0,"outcome":"loss","bars_held":39,"atr":4.709999999999923,"stop_atr":2.2230042462844524,"target_atr":6.774946921443817,"placebo":-0.21078512381761322,"n_placebo":200,"excess":-0.7892148761823867,"cost":{"median_swap":0.02908022697432875,"median_noswap":0.02908022697432875,"p90_swap":0.03968595681202512,"p90_noswap":0.03968595681202512},"net_excess":-0.8182951031567155,"net_abs":-1.0290802269743287},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2023-04-19T08:15:00Z-D","signal_time":"2023-04-19T09:00:00Z","week":"2023-W16","stop":4141.1695500000005,"target":4106.22,"entry":4132.6,"entry_time":"2023-04-19T09:15:00Z","exit_time":"2023-04-19T14:00:00Z","R_planned":3.0783413364761985,"R":-1.0,"outcome":"loss","bars_held":20,"atr":3.2100000000001274,"stop_atr":2.6696417445482314,"target_atr":8.218068535825253,"placebo":0.06514699995301959,"n_placebo":200,"excess":-1.0651469999530196,"cost":{"median_swap":0.04173432813268936,"median_noswap":0.04173432813268936,"p90_swap":0.0571101332342065,"p90_noswap":0.0571101332342065},"net_excess":-1.106881328085709,"net_abs":-1.0417343281326894},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US500-long-book-2024-01-10T15:45:00Z-D","signal_time":"2024-01-10T18:15:00Z","week":"2024-W02","stop":4758.629495,"target":4802.599999999999,"entry":4770.01,"entry_time":"2024-01-10T18:30:00Z","exit_time":"2024-01-11T15:00:00Z","R_planned":2.8636690551077475,"R":-1.0,"outcome":"loss","bars_held":79,"atr":5.6460000000000035,"stop_atr":2.0156756996103575,"target_atr":5.77222812610684,"placebo":0.034312553186961775,"n_placebo":200,"excess":-1.0343125531869617,"cost":{"median_swap":0.1797468403027473,"median_noswap":0.027873087775949268,"p90_swap":0.197692526953016,"p90_noswap":0.045818774426217984},"net_excess":-1.214059393489709,"net_abs":-1.1797468403027473},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2019-10-07T15:45:00Z-D","signal_time":"2019-10-07T17:30:00Z","week":"2019-W41","stop":26505.990375,"target":27035.800000000003,"entry":26637.75,"entry_time":"2019-10-07T17:45:00Z","exit_time":"2019-10-07T18:45:00Z","R_planned":3.021031670361893,"R":-1.0,"outcome":"loss","bars_held":5,"atr":41.6625,"stop_atr":3.162547254725443,"target_atr":9.554155415541624,"placebo":-0.05876309736258986,"n_placebo":200,"excess":-0.9412369026374101,"cost":{"median_swap":0.0077611462087063465,"median_noswap":0.0077611462087063465,"p90_swap":0.010079410660657592,"p90_noswap":0.010079410660657592},"net_excess":-0.9489980488461165,"net_abs":-1.0077611462087064},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2020-05-05T05:00:00Z-D","signal_time":"2020-05-05T06:00:00Z","week":"2020-W19","stop":23870.758650000003,"target":24188.7,"entry":23941.7,"entry_time":"2020-05-05T06:15:00Z","exit_time":"2020-05-05T08:45:00Z","R_planned":3.4817493605634695,"R":-1.0,"outcome":"loss","bars_held":11,"atr":29.275,"stop_atr":2.42327412467967,"target_atr":8.437233134073441,"placebo":0.06374685337368761,"n_placebo":200,"excess":-1.0637468533736876,"cost":{"median_swap":0.01303998793639215,"median_noswap":0.01303998793639215,"p90_swap":0.018844885791947368,"p90_noswap":0.018844885791947368},"net_excess":-1.0767868413100796,"net_abs":-1.013039987936392},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2020-06-02T08:30:00Z-D","signal_time":"2020-06-02T09:30:00Z","week":"2020-W23","stop":25576.555325,"target":26008.35,"entry":25679.35,"entry_time":"2020-06-02T09:45:00Z","exit_time":"2020-06-02T13:00:00Z","R_planned":3.20055489255653,"R":-1.0,"outcome":"loss","bars_held":14,"atr":40.575,"stop_atr":2.533448552064014,"target_atr":8.108441158348736,"placebo":0.06859123244201486,"n_placebo":200,"excess":-1.0685912324420148,"cost":{"median_swap":0.010461950145323745,"median_noswap":0.010461950145323745,"p90_swap":0.014509728475359716,"p90_noswap":0.014509728475359716},"net_excess":-1.0790531825873386,"net_abs":-1.0104619501453238},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2020-08-24T06:15:00Z-D","signal_time":"2020-08-24T06:45:00Z","week":"2020-W35","stop":28013.336325,"target":28313.05,"entry":28037.35,"entry_time":"2020-08-24T07:00:00Z","exit_time":"2020-08-24T23:45:00Z","R_planned":11.4809582456671,"R":11.4809582456671,"outcome":"win","bars_held":64,"atr":12.775,"stop_atr":1.8797397260272664,"target_atr":21.581213307240763,"placebo":-0.2201396815292409,"n_placebo":200,"excess":11.701097927196342,"cost":{"median_swap":0.5399878309137076,"median_noswap":0.056754839711785854,"p90_swap":0.5571598080572736,"p90_noswap":0.07392681685535185},"net_excess":11.161110096282634,"net_abs":10.940970414753393},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US30-short-book-2020-09-10T18:30:00Z-D","signal_time":"2020-09-11T03:00:00Z","week":"2020-W37","stop":27728.207174999996,"target":27408.5,"entry":27680.35,"entry_time":"2020-09-11T03:15:00Z","exit_time":"2020-09-11T04:15:00Z","R_planned":5.680443945970766,"R":-1.0,"outcome":"loss","bars_held":5,"atr":37.67499999999927,"stop_atr":1.2702634372925892,"target_atr":7.215660252156703,"placebo":-0.056146432065811464,"n_placebo":200,"excess":-0.9438535679341885,"cost":{"median_swap":0.03143192414263521,"median_noswap":0.03143192414263521,"p90_swap":0.037343432811662934,"p90_noswap":0.037343432811662934},"net_excess":-0.9752854920768237,"net_abs":-1.0314319241426353},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2021-01-26T11:45:00Z-D","signal_time":"2021-01-26T14:00:00Z","week":"2021-W04","stop":30991.79635,"target":31377.9,"entry":31054.3,"entry_time":"2021-01-26T14:15:00Z","exit_time":"2021-01-26T15:00:00Z","R_planned":5.177297645817624,"R":-1.0,"outcome":"loss","bars_held":4,"atr":30.235000000000035,"stop_atr":2.0672614519596055,"target_atr":10.702827848519988,"placebo":0.21015437855765084,"n_placebo":200,"excess":-1.2101543785576507,"cost":{"median_swap":0.021550411566870244,"median_noswap":0.021550411566870244,"p90_swap":0.027123793868647026,"p90_noswap":0.027123793868647026},"net_excess":-1.231704790124521,"net_abs":-1.0215504115668703},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2021-03-26T14:15:00Z-D","signal_time":"2021-03-26T18:45:00Z","week":"2021-W12","stop":32661.561050000004,"target":33276.850000000006,"entry":32820.9,"entry_time":"2021-03-26T19:00:00Z","exit_time":"2021-03-29T19:45:00Z","R_planned":2.8615100074401854,"R":2.240506793850502,"outcome":"timeout","bars_held":96,"atr":59.77500000000018,"stop_atr":2.665645336679165,"target_atr":7.627770807193692,"placebo":0.1655670008203928,"n_placebo":200,"excess":2.0749397930301092,"cost":{"median_swap":0.3722485892127533,"median_noswap":0.008112889812193047,"p90_swap":0.37440518017548813,"p90_noswap":0.010269480774927897},"net_excess":1.702691203817356,"net_abs":1.868258204637749},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US30-short-book-2021-08-15T22:15:00Z-D","signal_time":"2021-08-15T22:45:00Z","week":"2021-W32","stop":35474.02815,"target":35343.45,"entry":35449.3,"entry_time":"2021-08-15T23:00:00Z","exit_time":"2021-08-16T06:00:00Z","R_planned":4.280546664430038,"R":4.280546664430038,"outcome":"win","bars_held":29,"atr":20.634999999999856,"stop_atr":1.198359583232156,"target_atr":5.129634116792176,"placebo":-0.050737952855552694,"n_placebo":200,"excess":4.331284617285591,"cost":{"median_swap":0.06432480791889428,"median_noswap":0.06432480791889428,"p90_swap":0.0857664105585257,"p90_noswap":0.0857664105585257},"net_excess":4.266959809366696,"net_abs":4.216221856511144},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2021-11-25T03:30:00Z-D","signal_time":"2021-11-25T05:15:00Z","week":"2021-W47","stop":35899.34135,"target":36101.9,"entry":35940.2,"entry_time":"2021-11-25T05:30:00Z","exit_time":"2021-11-25T08:30:00Z","R_planned":3.9575463212814292,"R":-1.0,"outcome":"loss","bars_held":13,"atr":13.370000000000072,"stop_atr":3.0559947643974903,"target_atr":12.094240837696596,"placebo":0.05579714091548548,"n_placebo":200,"excess":-1.0557971409154854,"cost":{"median_swap":0.042539086743325544,"median_noswap":0.042539086743325544,"p90_swap":0.054379863465694504,"p90_noswap":0.054379863465694504},"net_excess":-1.098336227658811,"net_abs":-1.0425390867433255},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2022-06-21T03:15:00Z-D","signal_time":"2022-06-21T04:45:00Z","week":"2022-W25","stop":30297.14385,"target":30666.3,"entry":30331.3,"entry_time":"2022-06-21T05:00:00Z","exit_time":"2022-06-21T05:30:00Z","R_planned":9.807896967310745,"R":-1.0,"outcome":"loss","bars_held":3,"atr":33.35,"stop_atr":1.0241724137930701,"target_atr":10.044977511244378,"placebo":-0.10310499740398017,"n_placebo":200,"excess":-0.8968950025960198,"cost":{"median_swap":0.05047158169924973,"median_noswap":0.05047158169924973,"p90_swap":0.061539911019260624,"p90_noswap":0.061539911019260624},"net_excess":-0.9473665842952695,"net_abs":-1.0504715816992498},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US30-short-book-2022-11-09T18:15:00Z-D","signal_time":"2022-11-09T18:45:00Z","week":"2022-W45","stop":32779.5816,"target":32260.500000000007,"entry":32665.9,"entry_time":"2022-11-09T19:00:00Z","exit_time":"2022-11-10T13:30:00Z","R_planned":3.5661004067501474,"R":-1.0,"outcome":"loss","bars_held":71,"atr":98.22000000000044,"stop_atr":1.1574180411321089,"target_atr":4.127468947261173,"placebo":-0.08013269949396888,"n_placebo":200,"excess":-0.9198673005060312,"cost":{"median_swap":0.007025978429814399,"median_noswap":0.012033824906289209,"p90_swap":0.010679103847795052,"p90_noswap":0.015686950324269863},"net_excess":-0.9268932789358456,"net_abs":-1.0070259784298143},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"spring","side":"long","path":"spring","event":"US30-long-book-2023-06-14T13:30:00Z","signal_time":"2023-06-14T13:30:00Z","week":"2023-W24","stop":33993.69465,"target":34309.6,"entry":34062.7,"entry_time":"2023-06-14T13:45:00Z","exit_time":"2023-06-14T18:00:00Z","R_planned":3.577983446211104,"R":-1.0,"outcome":"loss","bars_held":18,"atr":27.08000000000029,"stop_atr":2.5482034711964077,"target_atr":9.11742983751842,"placebo":0.046071791168449935,"n_placebo":200,"excess":-1.0460717911684498,"cost":{"median_swap":0.02067262106365473,"median_noswap":0.02067262106365473,"p90_swap":0.0269482381722642,"p90_noswap":0.0269482381722642},"net_excess":-1.0667444122321046,"net_abs":-1.0206726210636548},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US30-short-book-2023-06-19T13:45:00Z-D","signal_time":"2023-06-19T14:30:00Z","week":"2023-W25","stop":34218.80084999999,"target":34014.2,"entry":34191.1,"entry_time":"2023-06-19T14:45:00Z","exit_time":"2023-06-19T16:45:00Z","R_planned":6.386085625532827,"R":-1.0,"outcome":"loss","bars_held":9,"atr":19.55,"stop_atr":1.4169232736569721,"target_atr":9.048593350383706,"placebo":-0.3516740734721681,"n_placebo":200,"excess":-0.6483259265278318,"cost":{"median_swap":0.0492300090790791,"median_noswap":0.0492300090790791,"p90_swap":0.061537511348848876,"p90_noswap":0.061537511348848876},"net_excess":-0.697555935606911,"net_abs":-1.0492300090790792},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2023-08-09T09:30:00Z-D","signal_time":"2023-08-09T11:45:00Z","week":"2023-W32","stop":35309.5364,"target":35724.4,"entry":35381.1,"entry_time":"2023-08-09T12:00:00Z","exit_time":"2023-08-09T13:00:00Z","R_planned":4.7971315026074235,"R":-1.0,"outcome":"loss","bars_held":5,"atr":27.390000000000146,"stop_atr":2.6127637824023706,"target_atr":12.53377144943414,"placebo":0.32105514354202,"n_placebo":200,"excess":-1.32105514354202,"cost":{"median_swap":0.021937599790268235,"median_noswap":0.021937599790268235,"p90_swap":0.029332296348785616,"p90_noswap":0.029332296348785616},"net_excess":-1.3429927433322881,"net_abs":-1.0219375997902682},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2024-02-15T07:15:00Z-D","signal_time":"2024-02-15T08:00:00Z","week":"2024-W07","stop":38440.770000000004,"target":38705.899999999994,"entry":38493.0,"entry_time":"2024-02-15T08:15:00Z","exit_time":"2024-02-15T14:15:00Z","R_planned":4.076201416810469,"R":-1.0,"outcome":"loss","bars_held":25,"atr":11.960000000000582,"stop_atr":4.367056856186738,"target_atr":17.801003344480254,"placebo":-0.17350976536983687,"n_placebo":200,"excess":-0.8264902346301631,"cost":{"median_swap":0.0319669305667564,"median_noswap":0.0319669305667564,"p90_swap":0.04372488203958634,"p90_noswap":0.04372488203958634},"net_excess":-0.8584571651969195,"net_abs":-1.0319669305667565},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"USTEC-long-book-2021-11-05T09:45:00Z-D","signal_time":"2021-11-05T12:45:00Z","week":"2021-W44","stop":16334.478675,"target":16564.399999999998,"entry":16393.0,"entry_time":"2021-11-05T13:00:00Z","exit_time":"2021-11-05T17:15:00Z","R_planned":2.92884687761254,"R":-1.0,"outcome":"loss","bars_held":18,"atr":18.8625,"stop_atr":3.1025222001325226,"target_atr":9.086812458581726,"placebo":0.112971585089081,"n_placebo":200,"excess":-1.1129715850890811,"cost":{"median_swap":0.016250905603139982,"median_noswap":0.016250905603139982,"p90_swap":0.026362580200649306,"p90_noswap":0.026362580200649306},"net_excess":-1.129222490692221,"net_abs":-1.01625090560314},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"USTEC-short-book-2022-03-14T15:45:00Z-D","signal_time":"2022-03-14T16:45:00Z","week":"2022-W11","stop":13198.7961,"target":12761.95,"entry":13082.6,"entry_time":"2022-03-14T17:00:00Z","exit_time":"2022-03-15T13:30:00Z","R_planned":2.759559055768669,"R":-1.0,"outcome":"loss","bars_held":79,"atr":64.07750000000014,"stop_atr":1.8133681869610854,"target_atr":5.004096601771276,"placebo":-0.1284921098001909,"n_placebo":200,"excess":-0.8715078901998091,"cost":{"median_swap":0.004770166773975904,"median_noswap":0.00653184380100178,"p90_swap":0.008834425139043681,"p90_noswap":0.010596102166069557},"net_excess":-0.876278056973785,"net_abs":-1.004770166773976},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"USTEC-short-book-2022-12-20T03:15:00Z-D","signal_time":"2022-12-20T04:00:00Z","week":"2022-W51","stop":11025.7101,"target":10812.5,"entry":10974.5,"entry_time":"2022-12-20T04:15:00Z","exit_time":"2022-12-20T08:45:00Z","R_planned":3.1634384623345637,"R":-1.0,"outcome":"loss","bars_held":19,"atr":19.920000000000165,"stop_atr":2.5707881526104326,"target_atr":8.13253012048186,"placebo":-0.052484876933435745,"n_placebo":200,"excess":-0.9475151230665643,"cost":{"median_swap":0.017958218075688134,"median_noswap":0.017958218075688134,"p90_swap":0.022102422247000784,"p90_noswap":0.022102422247000784},"net_excess":-0.9654733411422524,"net_abs":-1.017958218075688},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"USTEC-long-book-2023-01-09T04:45:00Z-D","signal_time":"2023-01-09T09:30:00Z","week":"2023-W02","stop":11037.77835,"target":11304.500000000002,"entry":11105.3,"entry_time":"2023-01-09T09:45:00Z","exit_time":"2023-01-09T16:15:00Z","R_planned":2.950164873044515,"R":2.950164873044515,"outcome":"win","bars_held":27,"atr":15.6949999999998,"stop_atr":4.302112137623424,"target_atr":12.691940108315075,"placebo":0.060107599747895035,"n_placebo":200,"excess":2.8900572732966197,"cost":{"median_swap":0.011025831669773509,"median_noswap":0.011025831669773509,"p90_swap":0.015478571382566659,"p90_noswap":0.015478571382566659},"net_excess":2.879031441626846,"net_abs":2.9391390413747414},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"USTEC-long-book-2023-02-02T17:15:00Z-D","signal_time":"2023-02-03T00:00:00Z","week":"2023-W05","stop":12558.81745,"target":13055.0,"entry":12624.3,"entry_time":"2023-02-03T00:15:00Z","exit_time":"2023-02-03T07:30:00Z","R_planned":6.577324798744224,"R":-1.0,"outcome":"loss","bars_held":30,"atr":64.20999999999995,"stop_atr":1.0198185640865731,"target_atr":6.707677931786343,"placebo":0.17890906161352726,"n_placebo":200,"excess":-1.1789090616135272,"cost":{"median_swap":0.014664069165475668,"median_noswap":0.014664069165475668,"p90_swap":0.019883483614204292,"p90_noswap":0.019883483614204292},"net_excess":-1.1935731307790027,"net_abs":-1.0146640691654756},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"USTEC-long-book-2023-03-21T11:30:00Z-D","signal_time":"2023-03-21T13:00:00Z","week":"2023-W12","stop":12615.0893,"target":12762.199999999999,"entry":12645.3,"entry_time":"2023-03-21T13:15:00Z","exit_time":"2023-03-21T14:15:00Z","R_planned":3.8694899489254158,"R":-1.0,"outcome":"loss","bars_held":5,"atr":19.290000000000145,"stop_atr":1.5661327112493213,"target_atr":6.060134784862559,"placebo":0.4121520851883744,"n_placebo":200,"excess":-1.4121520851883744,"cost":{"median_swap":0.025362202882215114,"median_noswap":0.025362202882215114,"p90_swap":0.03939235766812135,"p90_noswap":0.03939235766812135},"net_excess":-1.4375142880705896,"net_abs":-1.0253622028822151},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"USTEC-short-book-2023-06-07T19:45:00Z-D","signal_time":"2023-06-07T23:15:00Z","week":"2023-W23","stop":14319.25605,"target":14164.7,"entry":14294.6,"entry_time":"2023-06-07T23:30:00Z","exit_time":"2023-06-08T09:30:00Z","R_planned":5.2684838001221515,"R":-1.0,"outcome":"loss","bars_held":41,"atr":23.99499999999989,"stop_atr":1.0275494894769621,"target_atr":5.413627839133162,"placebo":-0.007495859460749622,"n_placebo":200,"excess":-0.9925041405392504,"cost":{"median_swap":0.045593098273976146,"median_noswap":0.045593098273976146,"p90_swap":0.06128908292567285,"p90_noswap":0.06128908292567285},"net_excess":-1.0380972388132266,"net_abs":-1.045593098273976},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"USTEC-short-book-2023-06-20T05:30:00Z-D","signal_time":"2023-06-20T06:00:00Z","week":"2023-W25","stop":15052.62255,"target":14900.4,"entry":15038.2,"entry_time":"2023-06-20T06:15:00Z","exit_time":"2023-06-20T06:15:00Z","R_planned":9.554482390423857,"R":-1.0,"outcome":"loss","bars_held":1,"atr":8.135000000000218,"stop_atr":1.7729010448677236,"target_atr":16.939151813152723,"placebo":0.10382225890245192,"n_placebo":200,"excess":-1.103822258902452,"cost":{"median_swap":0.080653982947846,"median_noswap":0.080653982947846,"p90_swap":0.11291557612698438,"p90_noswap":0.11291557612698438},"net_excess":-1.184476241850298,"net_abs":-1.080653982947846},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"spring","side":"short","path":"spring","event":"USTEC-short-book-2023-07-27T06:00:00Z","signal_time":"2023-07-27T06:00:00Z","week":"2023-W30","stop":15632.212199999998,"target":15500.3,"entry":15610.0,"entry_time":"2023-07-27T06:15:00Z","exit_time":"2023-07-27T07:15:00Z","R_planned":4.938727366042536,"R":-1.0,"outcome":"loss","bars_held":5,"atr":11.3300000000002,"stop_atr":1.9604766107676723,"target_atr":9.682259488084624,"placebo":-0.13890509020071837,"n_placebo":200,"excess":-0.8610949097992816,"cost":{"median_swap":0.05979653638123093,"median_noswap":0.05979653638123093,"p90_swap":0.0779166989209979,"p90_noswap":0.0779166989209979},"net_excess":-0.9208914461805126,"net_abs":-1.059796536381231},
+  {"symbol":"DE40","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"DE40-short-book-2022-01-21T12:15:00Z-D","signal_time":"2022-01-21T12:45:00Z","week":"2022-W03","stop":15627.459824999998,"target":15361.130000000001,"entry":15570.85,"entry_time":"2022-01-21T13:00:00Z","exit_time":"2022-01-24T10:15:00Z","R_planned":3.704657274598672,"R":3.704657274598672,"outcome":"win","bars_held":82,"atr":33.61500000000005,"stop_atr":1.684064405771163,"target_atr":6.238881451732828,"placebo":0.004521793439054611,"n_placebo":200,"excess":3.7001354811596174,"cost":{"median_swap":0.016663805588458005,"median_noswap":0.012618571391037166,"p90_swap":0.024680309766293384,"p90_noswap":0.020635075568872546},"net_excess":3.6834716755711594,"net_abs":3.687993469010214},
+  {"symbol":"DE40","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"DE40-long-book-2022-02-24T19:45:00Z-D","signal_time":"2022-02-24T20:30:00Z","week":"2022-W08","stop":14219.536675000001,"target":14660.599999999999,"entry":14329.7,"entry_time":"2022-02-24T20:45:00Z","exit_time":"2022-02-24T23:00:00Z","R_planned":3.003721973714929,"R":-1.0,"outcome":"loss","bars_held":6,"atr":65.275,"stop_atr":1.6876801991574035,"target_atr":5.069322098812681,"placebo":-0.10026889944857953,"n_placebo":200,"excess":-0.8997311005514205,"cost":{"median_swap":0.07094657736229662,"median_noswap":0.029802212847154945,"p90_swap":0.07747568406379347,"p90_noswap":0.0363313195486518},"net_excess":-0.9706776779137171,"net_abs":-1.0709465773622966},
+  {"symbol":"DE40","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"DE40-short-book-2023-03-15T10:30:00Z-D","signal_time":"2023-03-15T12:45:00Z","week":"2023-W11","stop":14877.785174999999,"target":14294.6,"entry":14768.55,"entry_time":"2023-03-15T13:00:00Z","exit_time":"2023-03-15T18:15:00Z","R_planned":4.338803869724196,"R":-1.0,"outcome":"loss","bars_held":22,"atr":78.82749999999996,"stop_atr":1.3857495797786288,"target_atr":6.012495639212193,"placebo":0.10265534349621433,"n_placebo":200,"excess":-1.1026553434962143,"cost":{"median_swap":0.007661881004235974,"median_noswap":0.007661881004235974,"p90_swap":0.012696831378448185,"p90_noswap":0.012696831378448185},"net_excess":-1.1103172245004502,"net_abs":-1.007661881004236},
+  {"symbol":"DE40","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"DE40-short-book-2023-06-19T13:45:00Z-D","signal_time":"2023-06-19T14:30:00Z","week":"2023-W25","stop":16218.755324999998,"target":16144.249999999998,"entry":16204.65,"entry_time":"2023-06-19T14:45:00Z","exit_time":"2023-06-19T16:15:00Z","R_planned":4.2820707782349805,"R":-1.0,"outcome":"loss","bars_held":7,"atr":13.227500000000054,"stop_atr":1.0663636363635283,"target_atr":4.566244566244658,"placebo":0.03423254961008056,"n_placebo":200,"excess":-1.0342325496100806,"cost":{"median_swap":0.068205594389125,"median_noswap":0.068205594389125,"p90_swap":0.11098910359684887,"p90_noswap":0.11098910359684887},"net_excess":-1.1024381439992057,"net_abs":-1.068205594389125},
+  {"symbol":"DE40","tf":"15m","group":"indices","leg":"spring","side":"long","path":"spring","event":"DE40-long-book-2023-12-18T14:30:00Z","signal_time":"2023-12-18T14:30:00Z","week":"2023-W51","stop":16648.4716,"target":16787.05,"entry":16669.25,"entry_time":"2023-12-18T14:45:00Z","exit_time":"2023-12-18T14:45:00Z","R_planned":5.6693489392832745,"R":-1.0,"outcome":"loss","bars_held":1,"atr":19.290000000000145,"stop_atr":1.0771591498185111,"target_atr":6.10679108346285,"placebo":0.1493258685934682,"n_placebo":200,"excess":-1.1493258685934682,"cost":{"median_swap":0.0368038827116819,"median_noswap":0.0368038827116819,"p90_swap":0.0601851729049857,"p90_noswap":0.0601851729049857},"net_excess":-1.18612975130515,"net_abs":-1.036803882711682},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2019-12-12T03:15:00Z-D","signal_time":"2019-12-12T05:00:00Z","week":"2019-W50","stop":6714.85575,"target":6665.9,"entry":6704.45,"entry_time":"2019-12-12T05:15:00Z","exit_time":"2019-12-12T08:45:00Z","R_planned":3.70468250726767,"R":-1.0,"outcome":"loss","bars_held":13,"atr":5.25600000000004,"stop_atr":1.9797850076103156,"target_atr":7.3344748858447275,"placebo":0.04816292382322107,"n_placebo":200,"excess":-1.048162923823221,"cost":{"median_swap":0.09946776209116806,"median_noswap":0.09946776209116806,"p90_swap":0.1417415609799145,"p90_noswap":0.1417415609799145},"net_excess":-1.1476306859143892,"net_abs":-1.0994677620911681},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2020-01-03T11:00:00Z-D","signal_time":"2020-01-03T12:45:00Z","week":"2020-W01","stop":6712.49457,"target":6642.28,"entry":6696.24,"entry_time":"2020-01-03T13:00:00Z","exit_time":"2020-01-03T13:15:00Z","R_planned":3.3196817879525478,"R":-1.0,"outcome":"loss","bars_held":2,"atr":7.310500000000138,"stop_atr":2.223455304014739,"target_atr":7.3811640790642254,"placebo":-0.03031912982214687,"n_placebo":200,"excess":-0.9696808701778531,"cost":{"median_swap":0.0635986803145614,"median_noswap":0.0635986803145614,"p90_swap":0.10387784451378362,"p90_noswap":0.10387784451378362},"net_excess":-1.0332795504924146,"net_abs":-1.0635986803145614},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2020-03-18T12:00:00Z-D","signal_time":"2020-03-18T13:15:00Z","week":"2020-W12","stop":4840.99929,"target":4534.58,"entry":4771.23,"entry_time":"2020-03-18T13:30:00Z","exit_time":"2020-03-18T13:30:00Z","R_planned":3.391893482074979,"R":-1.0,"outcome":"loss","bars_held":1,"atr":37.72149999999992,"stop_atr":1.849589491404115,"target_atr":6.273610540407994,"placebo":-0.07103760543911297,"n_placebo":200,"excess":-0.928962394560887,"cost":{"median_swap":0.010557440132716141,"median_noswap":0.010557440132716141,"p90_swap":0.017243818883436367,"p90_noswap":0.017243818883436367},"net_excess":-0.9395198346936031,"net_abs":-1.0105574401327162},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"spring","side":"long","path":"spring","event":"AUS200-long-book-2020-07-07T09:00:00Z","signal_time":"2020-07-07T09:00:00Z","week":"2020-W28","stop":6018.4892500000005,"target":6048.1,"entry":6024.5,"entry_time":"2020-07-07T09:15:00Z","exit_time":"2020-07-07T09:15:00Z","R_planned":3.9262987148030577,"R":-1.0,"outcome":"loss","bars_held":1,"atr":14.3,"stop_atr":0.4203321678321302,"target_atr":1.6503496503496757,"placebo":0.22811056351608225,"n_placebo":200,"excess":-1.2281105635160823,"cost":{"median_swap":0.1547337040690438,"median_noswap":0.1547337040690438,"p90_swap":0.25273171664610483,"p90_noswap":0.25273171664610483},"net_excess":-1.382844267585126,"net_abs":-1.1547337040690437},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2020-07-30T13:00:00Z-D","signal_time":"2020-07-30T13:30:00Z","week":"2020-W31","stop":6010.50375,"target":5895.33,"entry":5989.5,"entry_time":"2020-07-30T13:45:00Z","exit_time":"2020-07-30T16:00:00Z","R_planned":4.483485091947901,"R":-1.0,"outcome":"loss","bars_held":10,"atr":9.825,"stop_atr":2.13778625954197,"target_atr":9.584732824427489,"placebo":-0.026942841137493533,"n_placebo":200,"excess":-0.9730571588625064,"cost":{"median_swap":0.0440236763697504,"median_noswap":0.0440236763697504,"p90_swap":0.07190533807059232,"p90_noswap":0.07190533807059232},"net_excess":-1.017080835232257,"net_abs":-1.0440236763697504},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2020-08-25T14:45:00Z-D","signal_time":"2020-08-25T15:15:00Z","week":"2020-W35","stop":6121.35915,"target":6078.3,"entry":6111.3,"entry_time":"2020-08-25T15:30:00Z","exit_time":"2020-08-25T19:15:00Z","R_planned":3.280595278925143,"R":-1.0,"outcome":"loss","bars_held":16,"atr":8.9,"stop_atr":1.130241573033713,"target_atr":3.7078651685393256,"placebo":-0.040060651651328376,"n_placebo":200,"excess":-0.9599393483486717,"cost":{"median_swap":0.09379180579907244,"median_noswap":0.09379180579907244,"p90_swap":0.12740053621040673,"p90_noswap":0.12740053621040673},"net_excess":-1.053731154147744,"net_abs":-1.0937918057990725},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2020-12-04T10:30:00Z-D","signal_time":"2020-12-04T11:00:00Z","week":"2020-W49","stop":6648.17425,"target":6688.5,"entry":6657.0,"entry_time":"2020-12-04T11:15:00Z","exit_time":"2020-12-06T23:00:00Z","R_planned":3.5691017760530386,"R":3.5691017760530386,"outcome":"win","bars_held":45,"atr":5.525,"stop_atr":1.5974208144796327,"target_atr":5.701357466063348,"placebo":-0.13296343722612433,"n_placebo":200,"excess":3.702065213279163,"cost":{"median_swap":1.7152474558536814,"median_noswap":0.46577857218939944,"p90_swap":1.8006401940884047,"p90_noswap":0.5511713104241227},"net_excess":1.9868177574254815,"net_abs":1.8538543201993571},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2022-02-17T16:15:00Z-D","signal_time":"2022-02-17T17:45:00Z","week":"2022-W07","stop":7264.130249999999,"target":7188.5,"entry":7252.5,"entry_time":"2022-02-17T18:00:00Z","exit_time":"2022-02-18T13:30:00Z","R_planned":5.502891167430118,"R":5.502891167430118,"outcome":"win","bars_held":75,"atr":10.6,"stop_atr":1.0971933962263445,"target_atr":6.037735849056604,"placebo":0.0656845064328042,"n_placebo":200,"excess":5.4372066609973135,"cost":{"median_swap":0.08354462928480001,"median_noswap":0.09627006510948216,"p90_swap":0.14451567052080538,"p90_noswap":0.15724110634548752},"net_excess":5.353662031712513,"net_abs":5.419346538145318},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2023-08-23T01:45:00Z-D","signal_time":"2023-08-23T03:30:00Z","week":"2023-W34","stop":7160.9177500000005,"target":7212.5,"entry":7172.5,"entry_time":"2023-08-23T03:45:00Z","exit_time":"2023-08-23T05:15:00Z","R_planned":3.453560404930114,"R":-1.0,"outcome":"loss","bars_held":7,"atr":7.519999999999982,"stop_atr":1.5401928191488703,"target_atr":5.319148936170226,"placebo":-0.0037316095114814786,"n_placebo":200,"excess":-0.9962683904885186,"cost":{"median_swap":0.09560270939545054,"median_noswap":0.09560270939545054,"p90_swap":0.10595966957995771,"p90_noswap":0.10595966957995771},"net_excess":-1.0918710998839691,"net_abs":-1.0956027093954506},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2023-08-23T20:45:00Z-D","signal_time":"2023-08-23T23:45:00Z","week":"2023-W34","stop":7158.918750000001,"target":7244.5,"entry":7177.5,"entry_time":"2023-08-24T00:00:00Z","exit_time":"2023-08-24T09:30:00Z","R_planned":3.6057854019510325,"R":-1.0,"outcome":"loss","bars_held":39,"atr":5.730000000000018,"stop_atr":3.2428010471202815,"target_atr":11.692844677137833,"placebo":0.01123712783370095,"n_placebo":200,"excess":-1.011237127833701,"cost":{"median_swap":0.059633575977703614,"median_noswap":0.059633575977703614,"p90_swap":0.07851754170397643,"p90_noswap":0.07851754170397643},"net_excess":-1.0708707038114045,"net_abs":-1.0596335759777036},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2005-05-02T14:00:00Z-D","signal_time":"2005-05-03T02:00:00Z","week":"2005-W18","stop":429.91484999999994,"target":423.8,"entry":428.2,"entry_time":"2005-05-03T03:00:00Z","exit_time":"2005-05-05T06:00:00Z","R_planned":2.565822083564213,"R":-1.0,"outcome":"loss","bars_held":50,"atr":1.1750000000000085,"stop_atr":1.45944680851059,"target_atr":3.7446808510637832,"placebo":-0.171870877321535,"n_placebo":200,"excess":-0.8281291226784651,"cost":{"median_swap":0.21077508193301744,"median_noswap":0.017172142900444026,"p90_swap":0.23249279207181428,"p90_noswap":0.03888985303924086},"net_excess":-1.0389042046114825,"net_abs":-1.2107750819330174},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2005-10-19T15:00:00Z-D","signal_time":"2005-10-20T01:00:00Z","week":"2005-W42","stop":465.0324,"target":455.0,"entry":463.1,"entry_time":"2005-10-20T02:00:00Z","exit_time":"2005-10-21T15:00:00Z","R_planned":4.191678741461466,"R":-1.0,"outcome":"loss","bars_held":37,"atr":1.2849999999999995,"stop_atr":1.503813229571964,"target_atr":6.303501945525312,"placebo":0.1130908582783585,"n_placebo":200,"excess":-1.1130908582783585,"cost":{"median_swap":0.05894796680826189,"median_noswap":0.01599619698834822,"p90_swap":0.08124569594353517,"p90_noswap":0.0382939261236215},"net_excess":-1.1720388250866205,"net_abs":-1.058947966808262},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2007-03-20T11:00:00Z-D","signal_time":"2007-03-21T07:00:00Z","week":"2007-W12","stop":656.2717,"target":670.9000000000001,"entry":660.1,"entry_time":"2007-03-21T08:00:00Z","exit_time":"2007-03-23T13:00:00Z","R_planned":2.8210955254290497,"R":-1.0,"outcome":"loss","bars_held":52,"atr":1.114999999999992,"stop_atr":3.4334529147982424,"target_atr":9.686098654708651,"placebo":0.11191702810043652,"n_placebo":200,"excess":-1.1119170281004365,"cost":{"median_swap":0.8780372750943025,"median_noswap":0.010811613573525891,"p90_swap":0.8937315528623241,"p90_noswap":0.02650589134154746},"net_excess":-1.989954303194739,"net_abs":-1.8780372750943024},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2007-11-14T16:00:00Z-D","signal_time":"2007-11-14T20:00:00Z","week":"2007-W46","stop":809.9948,"target":827.0999999999999,"entry":811.5,"entry_time":"2007-11-14T21:00:00Z","exit_time":"2007-11-15T08:00:00Z","R_planned":10.364071219771775,"R":-1.0,"outcome":"loss","bars_held":11,"atr":2.680000000000007,"stop_atr":0.5616417910447543,"target_atr":5.820895522388011,"placebo":-0.23708706030706903,"n_placebo":200,"excess":-0.762912939692931,"cost":{"median_swap":1.6902511915870992,"median_noswap":0.035985977661979085,"p90_swap":1.7436849159942802,"p90_noswap":0.08941970206916006},"net_excess":-2.45316413128003,"net_abs":-2.690251191587099},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2007-11-23T02:00:00Z-D","signal_time":"2007-11-23T06:00:00Z","week":"2007-W47","stop":806.09675,"target":839.8,"entry":813.7,"entry_time":"2007-11-23T07:00:00Z","exit_time":"2007-11-28T02:00:00Z","R_planned":3.4327425771873736,"R":-1.0,"outcome":"loss","bars_held":64,"atr":1.7349999999999852,"stop_atr":4.382276657060558,"target_atr":15.043227665706128,"placebo":-0.07896258256138439,"n_placebo":200,"excess":-0.9210374174386156,"cost":{"median_swap":0.5533955391080873,"median_noswap":0.007576317064882265,"p90_swap":0.5629200519896534,"p90_noswap":0.01710082994644846},"net_excess":-1.474432956546703,"net_abs":-1.5533955391080871},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2008-01-08T08:00:00Z-D","signal_time":"2008-01-08T11:00:00Z","week":"2008-W02","stop":870.5645000000001,"target":901.5,"entry":874.6,"entry_time":"2008-01-08T12:00:00Z","exit_time":"2008-01-10T11:00:00Z","R_planned":6.665840664106125,"R":-1.0,"outcome":"loss","bars_held":46,"atr":2.7200000000000104,"stop_atr":1.4836397058823312,"target_atr":9.889705882352896,"placebo":-0.2121939520232213,"n_placebo":200,"excess":-0.7878060479767787,"cost":{"median_swap":0.8362879060791975,"median_noswap":0.01358935571368236,"p90_swap":0.8555760238663596,"p90_noswap":0.03287747350084447},"net_excess":-1.6240939540559762,"net_abs":-1.8362879060791975},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2008-10-21T12:00:00Z-D","signal_time":"2008-10-22T08:00:00Z","week":"2008-W43","stop":780.39,"target":667.9,"entry":756.4,"entry_time":"2008-10-22T09:00:00Z","exit_time":"2008-10-27T12:00:00Z","R_planned":3.6890370987911614,"R":1.1338057523968288,"outcome":"timeout","bars_held":72,"atr":5.519999999999999,"stop_atr":4.346014492753626,"target_atr":16.03260869565218,"placebo":0.08802342409653485,"n_placebo":200,"excess":1.045782328300294,"cost":{"median_swap":0.02625920487309466,"median_noswap":0.0020407805296182267,"p90_swap":0.029065278101319723,"p90_noswap":0.00484685375784329},"net_excess":1.0195231234271993,"net_abs":1.107546547523734},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2010-08-31T13:00:00Z-D","signal_time":"2010-08-31T16:00:00Z","week":"2010-W35","stop":1244.85726,"target":1268.52,"entry":1249.28,"entry_time":"2010-08-31T17:00:00Z","exit_time":"2010-09-01T13:00:00Z","R_planned":4.350244418618348,"R":-1.0,"outcome":"loss","bars_held":19,"atr":2.451000000000067,"stop_atr":1.8044634842920666,"target_atr":7.849857201142179,"placebo":0.2603938723006931,"n_placebo":200,"excess":-1.260393872300693,"cost":{"median_swap":0.20480662181440099,"median_noswap":0.017140152612050263,"p90_swap":0.23108818915287807,"p90_noswap":0.04342171995052735},"net_excess":-1.465200494115094,"net_abs":-1.204806621814401},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2012-01-10T13:00:00Z-D","signal_time":"2012-01-11T07:00:00Z","week":"2012-W02","stop":1628.8251800000003,"target":1682.42,"entry":1642.79,"entry_time":"2012-01-11T08:00:00Z","exit_time":"2012-01-13T15:00:00Z","R_planned":2.8378453857622934,"R":-1.0,"outcome":"loss","bars_held":54,"atr":4.652000000000021,"stop_atr":3.0018959587273493,"target_atr":8.518916595012884,"placebo":0.012862722171736151,"n_placebo":200,"excess":-1.0128627221717361,"cost":{"median_swap":0.2451164775431932,"median_noswap":0.0073762130786262925,"p90_swap":0.255585941267695,"p90_noswap":0.017845676803128097},"net_excess":-1.2579791997149292,"net_abs":-1.2451164775431933},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2012-04-02T15:00:00Z-D","signal_time":"2012-04-02T23:00:00Z","week":"2012-W14","stop":1674.732215,"target":1692.94,"entry":1678.9,"entry_time":"2012-04-03T00:00:00Z","exit_time":"2012-04-03T11:00:00Z","R_planned":3.3686958420359123,"R":-1.0,"outcome":"loss","bars_held":12,"atr":3.83449999999998,"stop_atr":1.086917459903538,"target_atr":3.661494327813284,"placebo":0.03228442225331492,"n_placebo":200,"excess":-1.032284422253315,"cost":{"median_swap":0.026888000859416606,"median_noswap":0.026888000859416606,"p90_swap":0.0651830323864645,"p90_noswap":0.0651830323864645},"net_excess":-1.0591724231127315,"net_abs":-1.0268880008594166},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"spring","side":"short","path":"spring","event":"XAUUSD-short-book-2013-05-03T10:00:00Z","signal_time":"2013-05-03T10:00:00Z","week":"2013-W18","stop":1488.8240399999997,"target":1459.09,"entry":1481.86,"entry_time":"2013-05-03T11:00:00Z","exit_time":"2013-05-03T12:00:00Z","R_planned":3.269653821632343,"R":3.269653821632343,"outcome":"win","bars_held":2,"atr":5.205499999999972,"stop_atr":1.3378234559600188,"target_atr":4.3742195754490645,"placebo":0.1464185659220807,"n_placebo":200,"excess":3.123235255710262,"cost":{"median_swap":0.013342360284818609,"median_noswap":0.013342360284818609,"p90_swap":0.03314070135261397,"p90_noswap":0.03314070135261397},"net_excess":3.1098928954254434,"net_abs":3.2563114613475244},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2017-12-26T07:00:00Z-D","signal_time":"2017-12-26T13:00:00Z","week":"2017-W52","stop":1276.2815400000002,"target":1296.8100000000002,"entry":1281.2,"entry_time":"2017-12-26T14:00:00Z","exit_time":"2017-12-28T22:00:00Z","R_planned":3.1737576395864857,"R":3.1737576395864857,"outcome":"win","bars_held":57,"atr":2.145999999999981,"stop_atr":2.291919850885327,"target_atr":7.273998136067226,"placebo":0.10275988171894536,"n_placebo":200,"excess":3.0709977578675405,"cost":{"median_swap":0.8606202423659857,"median_noswap":0.01686020365465901,"p90_swap":0.885383666483766,"p90_noswap":0.04162362777243933},"net_excess":2.2103775155015546,"net_abs":2.3131373972205003},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2021-08-12T08:00:00Z-D","signal_time":"2021-08-13T12:00:00Z","week":"2021-W32","stop":1740.70921,"target":1824.02,"entry":1762.84,"entry_time":"2021-08-13T13:00:00Z","exit_time":"2021-08-18T15:00:00Z","R_planned":2.7644742912476348,"R":0.9493560781156052,"outcome":"timeout","bars_held":72,"atr":2.6510000000000105,"stop_atr":8.348091286306996,"target_atr":23.07808374198409,"placebo":-0.026894007938261116,"n_placebo":200,"excess":0.9762500860538663,"cost":{"median_swap":0.19235505429537145,"median_noswap":0.004833506262065218,"p90_swap":0.2000886643146758,"p90_noswap":0.012567116281369584},"net_excess":0.7838950317584948,"net_abs":0.7570010238202337},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2022-05-23T13:00:00Z-D","signal_time":"2022-05-24T04:00:00Z","week":"2022-W21","stop":1846.1164800000001,"target":1891.9899999999998,"entry":1855.85,"entry_time":"2022-05-24T05:00:00Z","exit_time":"2022-05-25T15:00:00Z","R_planned":3.7129424915139357,"R":-1.0,"outcome":"loss","bars_held":34,"atr":4.0604999999999905,"stop_atr":2.3971235069572208,"target_atr":8.900381726388366,"placebo":-0.13984459530062804,"n_placebo":200,"excess":-0.860155404699372,"cost":{"median_swap":0.09799892384568844,"median_noswap":0.01272658660283904,"p90_swap":0.11651032254072706,"p90_noswap":0.031237985297877663},"net_excess":-0.9581543285450604,"net_abs":-1.0979989238456884},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2022-08-15T13:00:00Z-D","signal_time":"2022-08-15T18:00:00Z","week":"2022-W33","stop":1785.022065,"target":1758.97,"entry":1778.7,"entry_time":"2022-08-15T19:00:00Z","exit_time":"2022-08-18T15:00:00Z","R_planned":3.1208157461208974,"R":3.1208157461208974,"outcome":"win","bars_held":66,"atr":4.4450000000000385,"stop_atr":1.4222868391451093,"target_atr":4.438695163104578,"placebo":-0.05472061679787441,"n_placebo":200,"excess":3.1755363629187716,"cost":{"median_swap":0.08271533090477867,"median_noswap":0.017072222205327503,"p90_swap":0.10889273828628082,"p90_noswap":0.04324962958682965},"net_excess":3.092821032013993,"net_abs":3.038100415216119},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2022-12-15T10:00:00Z-D","signal_time":"2022-12-18T23:00:00Z","week":"2022-W50","stop":1795.1871449999999,"target":1776.11,"entry":1791.05,"entry_time":"2022-12-19T00:00:00Z","exit_time":"2022-12-19T02:00:00Z","R_planned":3.611185974869227,"R":-1.0,"outcome":"loss","bars_held":3,"atr":4.229999999999984,"stop_atr":0.9780484633569584,"target_atr":3.531914893617047,"placebo":-0.2346276209287015,"n_placebo":200,"excess":-0.7653723790712985,"cost":{"median_swap":0.03327481241494987,"median_noswap":0.03327481241494987,"p90_swap":0.07267919553791682,"p90_noswap":0.07267919553791682},"net_excess":-0.7986471914862484,"net_abs":-1.0332748124149498},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2023-02-01T21:00:00Z-D","signal_time":"2023-02-02T07:00:00Z","week":"2023-W05","stop":1949.8046100000001,"target":1978.41,"entry":1955.57,"entry_time":"2023-02-02T08:00:00Z","exit_time":"2023-02-02T13:00:00Z","R_planned":3.9615706829895196,"R":-1.0,"outcome":"loss","bars_held":6,"atr":6.258500000000003,"stop_atr":0.9212095550051601,"target_atr":3.6494367659982636,"placebo":-0.11797925818281253,"n_placebo":200,"excess":-0.8820207418171875,"cost":{"median_swap":0.021954305624256324,"median_noswap":0.021954305624256324,"p90_swap":0.052141475857608775,"p90_noswap":0.052141475857608775},"net_excess":-0.9039750474414439,"net_abs":-1.0219543056242564},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2023-08-02T15:00:00Z-D","signal_time":"2023-08-02T18:00:00Z","week":"2023-W31","stop":1940.08956,"target":1901.6299999999999,"entry":1936.5,"entry_time":"2023-08-02T19:00:00Z","exit_time":"2023-08-04T12:00:00Z","R_planned":9.71428253044974,"R":-1.0,"outcome":"loss","bars_held":40,"atr":3.9194999999999935,"stop_atr":0.915820895522362,"target_atr":8.896542926393717,"placebo":-0.2737357350197809,"n_placebo":200,"excess":-0.7262642649802191,"cost":{"median_swap":0.12631740917755563,"median_noswap":0.033826964666247836,"p90_swap":0.17542106756404438,"p90_noswap":0.08293062305273659},"net_excess":-0.8525816741577747,"net_abs":-1.1263174091775556},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2023-10-12T14:00:00Z-D","signal_time":"2023-10-13T00:00:00Z","week":"2023-W41","stop":1866.92607,"target":1909.3700000000001,"entry":1872.55,"entry_time":"2023-10-13T01:00:00Z","exit_time":"2023-10-13T12:00:00Z","R_planned":6.547023167073619,"R":6.547023167073619,"outcome":"win","bars_held":12,"atr":3.2775000000000203,"stop_atr":1.7159206712433068,"target_atr":11.234172387490446,"placebo":0.17706669128464964,"n_placebo":200,"excess":6.369956475788969,"cost":{"median_swap":0.02357146700889665,"median_noswap":0.02357146700889665,"p90_swap":0.05455110936344653,"p90_noswap":0.05455110936344653},"net_excess":6.346385008780072,"net_abs":6.523451700064722},
+  {"symbol":"XAGUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2011-08-31T16:00:00Z-D","signal_time":"2011-09-01T14:00:00Z","week":"2011-W35","stop":41.149415000000005,"target":44.04,"entry":41.66,"entry_time":"2011-09-01T15:00:00Z","exit_time":"2011-09-06T19:00:00Z","R_planned":4.661319858593654,"R":0.8030004798417703,"outcome":"timeout","bars_held":72,"atr":0.19599999999999973,"stop_atr":2.605025510204044,"target_atr":12.142857142857173,"placebo":-0.07336303149108822,"n_placebo":200,"excess":0.8763635113328585,"cost":{"median_swap":0.22281150014309098,"median_noswap":0.034302241155847846,"p90_swap":0.3051368789171258,"p90_noswap":0.11662761992988269},"net_excess":0.6535520111897675,"net_abs":0.5801889796986792},
+  {"symbol":"XAGUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAGUSD-short-book-2011-12-12T10:00:00Z-D","signal_time":"2011-12-12T13:00:00Z","week":"2011-W50","stop":31.445714999999996,"target":30.030000000000005,"entry":31.11,"entry_time":"2011-12-12T14:00:00Z","exit_time":"2011-12-13T11:00:00Z","R_planned":3.2170144318842016,"R":-1.0,"outcome":"loss","bars_held":21,"atr":0.21999999999999975,"stop_atr":1.5259772727272602,"target_atr":4.9090909090908905,"placebo":0.02035059350114516,"n_placebo":200,"excess":-1.0203505935011452,"cost":{"median_swap":0.036873247337312134,"median_noswap":0.03895834928390376,"p90_swap":0.1319316195900373,"p90_noswap":0.1340167215366289},"net_excess":-1.0572238408384573,"net_abs":-1.0368732473373121},
+  {"symbol":"XAGUSD","tf":"1H","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAGUSD-long-book-2021-05-21T14:00:00Z","signal_time":"2021-05-21T14:00:00Z","week":"2021-W20","stop":27.3193335,"target":28.234,"entry":27.458,"entry_time":"2021-05-21T15:00:00Z","exit_time":"2021-05-21T16:00:00Z","R_planned":5.59616057230843,"R":-1.0,"outcome":"loss","bars_held":2,"atr":0.1455499999999999,"stop_atr":0.952706973548605,"target_atr":5.331501202335994,"placebo":-0.07792874152180537,"n_placebo":200,"excess":-0.9220712584781946,"cost":{"median_swap":0.08324700714497137,"median_noswap":0.08324700714497137,"p90_swap":0.28969958486450037,"p90_noswap":0.28969958486450037},"net_excess":-1.005318265623166,"net_abs":-1.0832470071449714},
+  {"symbol":"XAGUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAGUSD-short-book-2021-07-16T16:00:00Z-D","signal_time":"2021-07-16T20:00:00Z","week":"2021-W28","stop":25.7838855,"target":24.983999999999998,"entry":25.647,"entry_time":"2021-07-18T22:00:00Z","exit_time":"2021-07-20T14:00:00Z","R_planned":4.84346406303072,"R":4.84346406303072,"outcome":"win","bars_held":40,"atr":0.12024999999999988,"stop_atr":1.138340956340972,"target_atr":5.513513513513521,"placebo":-0.020851987165193243,"n_placebo":200,"excess":4.864316050195914,"cost":{"median_swap":0.08310651665856382,"median_noswap":0.08822027962103969,"p90_swap":0.30680793998334305,"p90_noswap":0.31192170294581895},"net_excess":4.78120953353735,"net_abs":4.760357546372156},
+  {"symbol":"US500","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US500-long-book-2021-10-07T14:00:00Z-D","signal_time":"2021-10-07T23:00:00Z","week":"2021-W40","stop":4395.801,"target":4499.5,"entry":4411.4,"entry_time":"2021-10-08T00:00:00Z","exit_time":"2021-10-08T08:00:00Z","R_planned":5.647797935765408,"R":-1.0,"outcome":"loss","bars_held":9,"atr":9.732499999999982,"stop_atr":1.6027742101206555,"target_atr":9.05214487541747,"placebo":0.04820794486588447,"n_placebo":200,"excess":-1.0482079448658845,"cost":{"median_swap":0.026019893898653255,"median_noswap":0.026019893898653255,"p90_swap":0.03503668881402815,"p90_noswap":0.03503668881402815},"net_excess":-1.0742278387645379,"net_abs":-1.0260198938986533},
+  {"symbol":"US500","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2023-02-17T09:00:00Z-D","signal_time":"2023-02-20T00:00:00Z","week":"2023-W08","stop":4083.750855,"target":4006.1,"entry":4068.9,"entry_time":"2023-02-20T01:00:00Z","exit_time":"2023-02-21T18:00:00Z","R_planned":4.2287127576157415,"R":4.2287127576157415,"outcome":"win","bars_held":37,"atr":11.69600000000005,"stop_atr":1.2697379445964108,"target_atr":5.369357045143632,"placebo":-0.07250304727169271,"n_placebo":200,"excess":4.301215804887434,"cost":{"median_swap":0.013534038210324884,"median_noswap":0.018469780967223497,"p90_swap":0.02651280321431977,"p90_noswap":0.031448545971218385},"net_excess":4.287681766677109,"net_abs":4.215178719405417},
+  {"symbol":"US500","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US500-long-book-2023-03-16T16:00:00Z-D","signal_time":"2023-03-16T19:00:00Z","week":"2023-W11","stop":3935.73115,"target":4035.41,"entry":3961.2,"entry_time":"2023-03-16T20:00:00Z","exit_time":"2023-03-17T12:00:00Z","R_planned":2.9137554306535542,"R":-1.0,"outcome":"loss","bars_held":16,"atr":18.260000000000037,"stop_atr":1.3947891566264894,"target_atr":4.064074479737124,"placebo":0.045841663588517295,"n_placebo":200,"excess":-1.0458416635885173,"cost":{"median_swap":0.08288183359536333,"median_noswap":0.015018541770250804,"p90_swap":0.08684899557241071,"p90_noswap":0.018985703747298188},"net_excess":-1.1287234971838807,"net_abs":-1.0828818335953634},
+  {"symbol":"US30","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US30-short-book-2020-05-01T16:00:00Z-D","signal_time":"2020-05-01T19:00:00Z","week":"2020-W18","stop":23821.1046,"target":23099.2,"entry":23731.2,"entry_time":"2020-05-01T20:00:00Z","exit_time":"2020-05-05T00:00:00Z","R_planned":7.029673676319275,"R":-1.0,"outcome":"loss","bars_held":27,"atr":112.2,"stop_atr":0.8012887700534583,"target_atr":5.632798573975045,"placebo":-0.07143048019689881,"n_placebo":200,"excess":-0.9285695198031012,"cost":{"median_swap":-0.02276084172723314,"median_noswap":0.015232764829050685,"p90_swap":-0.017595519744164116,"p90_noswap":0.020398086812119708},"net_excess":-0.9058086780758681,"net_abs":-0.9772391582727669},
+  {"symbol":"US30","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2020-10-08T07:00:00Z-D","signal_time":"2020-10-08T16:00:00Z","week":"2020-W41","stop":28247.918975,"target":28956.65,"entry":28393.5,"entry_time":"2020-10-08T17:00:00Z","exit_time":"2020-10-12T17:00:00Z","R_planned":3.868292588268309,"R":3.868292588268309,"outcome":"win","bars_held":47,"atr":79.37749999999978,"stop_atr":1.8340338886964176,"target_atr":7.094579698277257,"placebo":0.17646349665509706,"n_placebo":200,"excess":3.691829091613212,"cost":{"median_swap":0.48555020073210253,"median_noswap":0.007292817944749341,"p90_swap":0.487981140047019,"p90_noswap":0.009723757259665788},"net_excess":3.2062788908811095,"net_abs":3.3827423875362066},
+  {"symbol":"US30","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2021-10-20T14:00:00Z-D","signal_time":"2021-10-20T16:00:00Z","week":"2021-W42","stop":35536.672775,"target":36247.25000000001,"entry":35640.45,"entry_time":"2021-10-20T17:00:00Z","exit_time":"2021-10-20T23:00:00Z","R_planned":5.847140352808835,"R":-1.0,"outcome":"loss","bars_held":6,"atr":47.362499999999635,"stop_atr":2.1911264185800747,"target_atr":12.811823700185059,"placebo":0.12401636588582272,"n_placebo":200,"excess":-1.1240163658858227,"cost":{"median_swap":0.12765645872937634,"median_noswap":0.015838090103695468,"p90_swap":0.131937023622267,"p90_noswap":0.020118654996586133},"net_excess":-1.251672824615199,"net_abs":-1.1276564587293763},
+  {"symbol":"USTEC","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"USTEC-short-book-2022-06-30T07:00:00Z-D","signal_time":"2022-06-30T09:00:00Z","week":"2022-W26","stop":11549.071649999998,"target":11284.7,"entry":11484.0,"entry_time":"2022-06-30T10:00:00Z","exit_time":"2022-06-30T12:00:00Z","R_planned":3.0627777227103548,"R":-1.0,"outcome":"loss","bars_held":3,"atr":63.057500000000076,"stop_atr":1.0319414819806996,"target_atr":3.1606073821511957,"placebo":0.2391472054266568,"n_placebo":200,"excess":-1.2391472054266568,"cost":{"median_swap":0.015926493556613554,"median_noswap":0.015926493556613554,"p90_swap":0.019566834940982367,"p90_noswap":0.019566834940982367},"net_excess":-1.2550736989832703,"net_abs":-1.0159264935566135},
+  {"symbol":"USTEC","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"USTEC-long-book-2023-03-31T14:00:00Z-D","signal_time":"2023-03-31T16:00:00Z","week":"2023-W13","stop":13041.675900000002,"target":13369.399999999998,"entry":13105.2,"entry_time":"2023-03-31T17:00:00Z","exit_time":"2023-04-03T15:00:00Z","R_planned":4.1590514466163615,"R":-1.0,"outcome":"loss","bars_held":22,"atr":28.120000000000072,"stop_atr":2.259036273115169,"target_atr":9.395448079658479,"placebo":0.26366274115023414,"n_placebo":200,"excess":-1.2636627411502341,"cost":{"median_swap":0.5398997820724376,"median_noswap":0.008510907613756946,"p90_swap":0.5468148945086152,"p90_noswap":0.015426020049934541},"net_excess":-1.8035625232226717,"net_abs":-1.5398997820724376},
+  {"symbol":"USTEC","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"USTEC-short-book-2023-09-26T14:00:00Z-D","signal_time":"2023-09-26T18:00:00Z","week":"2023-W39","stop":14627.9103,"target":14269.1,"entry":14545.8,"entry_time":"2023-09-26T19:00:00Z","exit_time":"2023-09-27T07:00:00Z","R_planned":3.3698573747751253,"R":-1.0,"outcome":"loss","bars_held":12,"atr":44.10500000000029,"stop_atr":1.8617004874730698,"target_atr":6.27366511733357,"placebo":-0.10782011414840074,"n_placebo":200,"excess":-0.8921798858515992,"cost":{"median_swap":0.009382844918096303,"median_noswap":0.011875833008506389,"p90_swap":0.014178854402300807,"p90_noswap":0.016671842492710892},"net_excess":-0.9015627307696955,"net_abs":-1.0093828449180964},
+  {"symbol":"DE40","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"DE40-long-book-2021-06-29T10:00:00Z-D","signal_time":"2021-06-29T13:00:00Z","week":"2021-W26","stop":15667.412375000002,"target":16059.5,"entry":15748.25,"entry_time":"2021-06-29T14:00:00Z","exit_time":"2021-06-30T06:00:00Z","R_planned":3.8503110401871226,"R":-1.0,"outcome":"loss","bars_held":16,"atr":28.384999999999945,"stop_atr":2.847899418707009,"target_atr":10.965298573190086,"placebo":-0.05545286452405696,"n_placebo":200,"excess":-0.944547135475943,"cost":{"median_swap":0.06784668910829728,"median_noswap":0.011776263981382727,"p90_swap":0.0759428705954979,"p90_noswap":0.019872445468583348},"net_excess":-1.0123938245842403,"net_abs":-1.0678466891082974},
+  {"symbol":"DE40","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"DE40-long-book-2021-11-02T09:00:00Z-D","signal_time":"2021-11-02T12:00:00Z","week":"2021-W44","stop":15854.218925000001,"target":16136.750000000002,"entry":15913.95,"entry_time":"2021-11-02T13:00:00Z","exit_time":"2021-11-05T15:00:00Z","R_planned":3.7300517360520002,"R":2.221624171337944,"outcome":"timeout","bars_held":72,"atr":24.13250000000007,"stop_atr":2.475130011395401,"target_atr":9.232362995959823,"placebo":0.14081715078460877,"n_placebo":200,"excess":2.080807020553335,"cost":{"median_swap":0.24059203573666635,"median_noswap":0.012941687906829563,"p90_swap":0.2487884380776584,"p90_noswap":0.021138090247821623},"net_excess":1.8402149848166687,"net_abs":1.9810321356012777},
+  {"symbol":"DE40","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"DE40-short-book-2022-09-16T08:00:00Z-D","signal_time":"2022-09-16T12:00:00Z","week":"2022-W37","stop":12801.377489999999,"target":12306.47,"entry":12719.58,"entry_time":"2022-09-16T13:00:00Z","exit_time":"2022-09-16T14:00:00Z","R_planned":5.05039946824781,"R":-1.0,"outcome":"loss","bars_held":2,"atr":50.009000000000015,"stop_atr":1.6356553820312143,"target_atr":8.260713071647112,"placebo":-0.16937486977092142,"n_placebo":200,"excess":-0.8306251302290786,"cost":{"median_swap":0.007553462162498261,"median_noswap":0.007553462162498261,"p90_swap":0.01166590267319176,"p90_noswap":0.01166590267319176},"net_excess":-0.8381785923915769,"net_abs":-1.0075534621624982},
+  {"symbol":"AUS200","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2020-05-22T03:00:00Z-D","signal_time":"2020-05-22T05:00:00Z","week":"2020-W21","stop":5521.3593,"target":5427.1,"entry":5498.1,"entry_time":"2020-05-22T06:00:00Z","exit_time":"2020-05-22T10:00:00Z","R_planned":3.0525424238906966,"R":-1.0,"outcome":"loss","bars_held":5,"atr":22.475,"stop_atr":1.034896551724125,"target_atr":3.1590656284760845,"placebo":-0.04841046298253682,"n_placebo":200,"excess":-0.9515895370174632,"cost":{"median_swap":0.0364929164350997,"median_noswap":0.0364929164350997,"p90_swap":0.15752775594484705,"p90_noswap":0.15752775594484705},"net_excess":-0.9880824534525628,"net_abs":-1.0364929164350998},
+  {"symbol":"AUS200","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2020-10-21T09:00:00Z-D","signal_time":"2020-10-21T11:00:00Z","week":"2020-W43","stop":6158.077499999999,"target":6082.79,"entry":6143.0,"entry_time":"2020-10-21T12:00:00Z","exit_time":"2020-10-21T13:00:00Z","R_planned":3.9933676007297203,"R":-1.0,"outcome":"loss","bars_held":2,"atr":16.360500000000002,"stop_atr":0.9215794138320599,"target_atr":3.6802053726964354,"placebo":-0.07614974746330615,"n_placebo":200,"excess":-0.9238502525366938,"cost":{"median_swap":0.06289900226675478,"median_noswap":0.06289900226675478,"p90_swap":0.10273503703569947,"p90_noswap":0.10273503703569947},"net_excess":-0.9867492548034487,"net_abs":-1.0628990022667548},
+  {"symbol":"AUS200","tf":"1H","group":"indices","leg":"spring","side":"short","path":"spring","event":"AUS200-short-book-2021-07-22T07:00:00Z","signal_time":"2021-07-22T07:00:00Z","week":"2021-W29","stop":7394.2953,"target":7308.9,"entry":7378.7,"entry_time":"2021-07-22T08:00:00Z","exit_time":"2021-07-23T07:00:00Z","R_planned":4.475707424672843,"R":-1.0,"outcome":"loss","bars_held":22,"atr":16.05499999999997,"stop_atr":0.9713671753347854,"target_atr":4.347555278729387,"placebo":-0.13562374491610973,"n_placebo":200,"excess":-0.8643762550838903,"cost":{"median_swap":0.06355297749344452,"median_noswap":0.07304301615893992,"p90_swap":0.10981355439410648,"p90_noswap":0.11930359305960188},"net_excess":-0.9279292325773347,"net_abs":-1.0635529774934445},
+  {"symbol":"AUS200","tf":"1H","group":"indices","leg":"spring","side":"long","path":"spring","event":"AUS200-long-book-2022-01-18T18:00:00Z","signal_time":"2022-01-18T21:00:00Z","week":"2022-W03","stop":7315.84025,"target":7430.0,"entry":7338.6,"entry_time":"2022-01-18T23:00:00Z","exit_time":"2022-01-19T04:00:00Z","R_planned":4.015861334153449,"R":-1.0,"outcome":"loss","bars_held":6,"atr":18.860000000000035,"stop_atr":1.2067735949098688,"target_atr":4.846235418875899,"placebo":-0.08310320771629662,"n_placebo":200,"excess":-0.9168967922837034,"cost":{"median_swap":0.19911239621290408,"median_noswap":0.19911239621290408,"p90_swap":0.21985327081841494,"p90_noswap":0.21985327081841494},"net_excess":-1.1160091884966075,"net_abs":-1.199112396212904},
+  {"symbol":"AUS200","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2022-05-30T01:00:00Z-D","signal_time":"2022-05-31T15:00:00Z","week":"2022-W22","stop":7169.11365,"target":7384.2,"entry":7209.7,"entry_time":"2022-05-31T16:00:00Z","exit_time":"2022-06-01T15:00:00Z","R_planned":4.299475069820316,"R":-1.0,"outcome":"loss","bars_held":23,"atr":21.666999999999963,"stop_atr":1.8731873355794366,"target_atr":8.053722250426931,"placebo":-0.18963251497477857,"n_placebo":200,"excess":-0.8103674850252214,"cost":{"median_swap":0.081764865214116,"median_noswap":0.027423935320197892,"p90_swap":0.09913335758357467,"p90_noswap":0.044792427689656564},"net_excess":-0.8921323502393373,"net_abs":-1.081764865214116},
+  {"symbol":"AUS200","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2022-07-27T15:00:00Z-D","signal_time":"2022-07-27T18:00:00Z","week":"2022-W30","stop":6841.677450000001,"target":6998.400000000001,"entry":6876.1,"entry_time":"2022-07-27T19:00:00Z","exit_time":"2022-07-29T13:00:00Z","R_planned":3.552903547238732,"R":3.552903547238732,"outcome":"win","bars_held":41,"atr":16.9,"stop_atr":2.0368372781064688,"target_atr":7.236686390532555,"placebo":0.0026000406786388553,"n_placebo":200,"excess":3.550303506560093,"cost":{"median_swap":0.1589811355188159,"median_noswap":0.030838391881285038,"p90_swap":0.17003155927627636,"p90_noswap":0.0418888156387455},"net_excess":3.391322371041277,"net_abs":3.393922411719916},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2006-09-05T13:00:00Z-D","signal_time":"2006-09-07T05:00:00Z","week":"2006-W36","stop":631.3841500000001,"target":652.2,"entry":634.0,"entry_time":"2006-09-07T09:00:00Z","exit_time":"2006-09-07T09:00:00Z","R_planned":6.957585488464811,"R":-1.0,"outcome":"loss","bars_held":1,"atr":3.764999999999998,"stop_atr":0.6947808764940002,"target_atr":4.833997343957518,"placebo":0.09878029680860738,"n_placebo":200,"excess":-1.0987802968086073,"cost":{"median_swap":0.01568741736392184,"median_noswap":0.01568741736392184,"p90_swap":0.03627715265406926,"p90_noswap":0.03627715265406926},"net_excess":-1.1144677141725292,"net_abs":-1.0156874173639219},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAUUSD-long-book-2006-12-15T14:00:00Z","signal_time":"2006-12-15T14:00:00Z","week":"2006-W50","stop":613.79295,"target":626.7,"entry":615.1,"entry_time":"2006-12-15T18:00:00Z","exit_time":"2006-12-18T10:00:00Z","R_planned":8.874947400635008,"R":-1.0,"outcome":"loss","bars_held":5,"atr":3.3199999999999874,"stop_atr":0.3936897590361472,"target_atr":3.4939759036144777,"placebo":0.27057338682268905,"n_placebo":200,"excess":-1.2705733868226892,"cost":{"median_swap":1.9345613981661718,"median_noswap":0.02950803371952282,"p90_swap":1.9754918965513166,"p90_noswap":0.07043853210466766},"net_excess":-3.2051347849888607,"net_abs":-2.9345613981661716},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2007-08-31T13:00:00Z-D","signal_time":"2007-09-04T01:00:00Z","week":"2007-W36","stop":670.6645000000001,"target":691.0999999999999,"entry":673.5,"entry_time":"2007-09-04T05:00:00Z","exit_time":"2007-09-06T13:00:00Z","R_planned":6.2070181625817185,"R":6.2070181625817185,"outcome":"win","bars_held":15,"atr":1.964999999999975,"stop_atr":1.4430025445292352,"target_atr":8.956743002544597,"placebo":-0.034268358246345935,"n_placebo":200,"excess":6.241286520828065,"cost":{"median_swap":1.186723630401615,"median_noswap":0.01585429518733017,"p90_swap":1.209784423401368,"p90_noswap":0.038915088187083},"net_excess":5.05456289042645,"net_abs":5.020294532180103},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2008-02-20T22:00:00Z-D","signal_time":"2008-02-21T06:00:00Z","week":"2008-W08","stop":937.03125,"target":981.3000000000001,"entry":946.2,"entry_time":"2008-02-21T10:00:00Z","exit_time":"2008-02-22T14:00:00Z","R_planned":3.828220858895689,"R":-1.0,"outcome":"loss","bars_held":8,"atr":6.614999999999992,"stop_atr":1.386054421768716,"target_atr":5.306122448979601,"placebo":0.1723854625784914,"n_placebo":200,"excess":-1.1723854625784913,"cost":{"median_swap":0.09699570426788524,"median_noswap":0.00647082355895591,"p90_swap":0.10638883524056317,"p90_noswap":0.015863954531633834},"net_excess":-1.2693811668463766,"net_abs":-1.0969957042678853},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2009-05-20T13:00:00Z-D","signal_time":"2009-05-21T01:00:00Z","week":"2009-W21","stop":935.3820750000001,"target":964.4300000000001,"entry":941.78,"entry_time":"2009-05-21T05:00:00Z","exit_time":"2009-05-28T01:00:00Z","R_planned":3.5402103025591174,"R":0.8752837834141748,"outcome":"timeout","bars_held":30,"atr":5.019499999999994,"stop_atr":1.274614005378998,"target_atr":4.512401633628872,"placebo":0.10378957702637816,"n_placebo":200,"excess":0.7714942063877966,"cost":{"median_swap":1.1785823807960405,"median_noswap":0.011016333991780147,"p90_swap":1.1925761023531665,"p90_noswap":0.025010055548906118},"net_excess":-0.40708817440824385,"net_abs":-0.3032985973818657},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2009-10-13T17:00:00Z-D","signal_time":"2009-10-14T01:00:00Z","week":"2009-W42","stop":1061.498985,"target":1085.9299999999998,"entry":1068.11,"entry_time":"2009-10-14T05:00:00Z","exit_time":"2009-10-14T09:00:00Z","R_planned":2.6955013715745713,"R":-1.0,"outcome":"loss","bars_held":2,"atr":6.154999999999996,"stop_atr":1.0740885458976372,"target_atr":2.895207148659618,"placebo":0.023550672575184305,"n_placebo":200,"excess":-1.0235506725751844,"cost":{"median_swap":0.011110965708117393,"median_noswap":0.011110965708117393,"p90_swap":0.02581665561591983,"p90_noswap":0.02581665561591983},"net_excess":-1.0346616382833018,"net_abs":-1.0111109657081174},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2011-01-20T14:00:00Z-D","signal_time":"2011-01-21T10:00:00Z","week":"2011-W03","stop":1353.2362799999999,"target":1293.29,"entry":1341.98,"entry_time":"2011-01-21T14:00:00Z","exit_time":"2011-01-28T10:00:00Z","R_planned":4.3255853621268106,"R":2.1534645548973876,"outcome":"timeout","bars_held":30,"atr":6.764999999999986,"stop_atr":1.6638994826311686,"target_atr":7.197339246119756,"placebo":-0.20130862447177042,"n_placebo":200,"excess":2.354773179369158,"cost":{"median_swap":0.07383841436744269,"median_noswap":0.007475459643500951,"p90_swap":0.08468988804349245,"p90_noswap":0.01832693331955071},"net_excess":2.280934765001715,"net_abs":2.0796261405299448},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2014-05-27T17:00:00Z-D","signal_time":"2014-05-28T17:00:00Z","week":"2014-W22","stop":1267.73355,"target":1221.97,"entry":1258.44,"entry_time":"2014-05-28T21:00:00Z","exit_time":"2014-06-04T17:00:00Z","R_planned":3.924227017662846,"R":1.604338492825701,"outcome":"timeout","bars_held":30,"atr":6.25649999999996,"stop_atr":1.4854231599136782,"target_atr":5.8291376967953745,"placebo":-0.020171523843563778,"n_placebo":200,"excess":1.6245100166692648,"cost":{"median_swap":0.06235002622141442,"median_noswap":0.00876447495198486,"p90_swap":0.07467506912264313,"p90_noswap":0.02108951785321357},"net_excess":1.5621599904478503,"net_abs":1.5419884666042865},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2016-07-06T01:00:00Z-D","signal_time":"2016-07-06T21:00:00Z","week":"2016-W27","stop":1349.914705,"target":1466.28,"entry":1367.75,"entry_time":"2016-07-07T01:00:00Z","exit_time":"2016-07-07T21:00:00Z","R_planned":5.52443904067746,"R":-1.0,"outcome":"loss","bars_held":6,"atr":10.914999999999997,"stop_atr":1.6340169491525507,"target_atr":9.027027027027026,"placebo":0.2736690164981651,"n_placebo":200,"excess":-1.273669016498165,"cost":{"median_swap":0.052121047192136616,"median_noswap":0.005584110180441769,"p90_swap":0.05925629908936777,"p90_noswap":0.012719362077672922},"net_excess":-1.3257900636903015,"net_abs":-1.0521210471921365},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2017-10-02T01:00:00Z-D","signal_time":"2017-10-03T01:00:00Z","week":"2017-W40","stop":1277.77857,"target":1239.34,"entry":1269.12,"entry_time":"2017-10-03T05:00:00Z","exit_time":"2017-10-03T21:00:00Z","R_planned":3.43936700863997,"R":-1.0,"outcome":"loss","bars_held":5,"atr":5.919000000000006,"stop_atr":1.4628433857070529,"target_atr":5.0312552796080325,"placebo":-0.17302979199032187,"n_placebo":200,"excess":-0.8269702080096781,"cost":{"median_swap":0.019962347951058897,"median_noswap":0.010376469451491475,"p90_swap":0.03389646407163316,"p90_noswap":0.024310585572065738},"net_excess":-0.846932555960737,"net_abs":-1.019962347951059},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2018-10-12T01:00:00Z-D","signal_time":"2018-10-12T09:00:00Z","week":"2018-W41","stop":1215.1921,"target":1239.0800000000002,"entry":1218.89,"entry_time":"2018-10-12T13:00:00Z","exit_time":"2018-10-19T09:00:00Z","R_planned":5.459855593715193,"R":2.4987154871683157,"outcome":"timeout","bars_held":30,"atr":8.147000000000002,"stop_atr":0.45389714005156706,"target_atr":2.4782128390818765,"placebo":0.3558448071086662,"n_placebo":200,"excess":2.1428706800596498,"cost":{"median_swap":2.040733330427269,"median_noswap":0.02066788787885976,"p90_swap":2.070735103154646,"p90_noswap":0.0506696606062369},"net_excess":0.10213734963238075,"net_abs":0.4579821567410467},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2020-04-13T01:00:00Z-D","signal_time":"2020-04-13T09:00:00Z","week":"2020-W16","stop":1680.69923,"target":1776.81,"entry":1690.72,"entry_time":"2020-04-13T13:00:00Z","exit_time":"2020-04-16T21:00:00Z","R_planned":8.591156168637658,"R":-1.0,"outcome":"loss","bars_held":21,"atr":16.851000000000035,"stop_atr":0.5946691591003539,"target_atr":5.108895614503575,"placebo":0.2814382212172748,"n_placebo":200,"excess":-1.2814382212172748,"cost":{"median_swap":0.5078883759019857,"median_noswap":0.01092057801819446,"p90_swap":0.5239279748662088,"p90_noswap":0.026960176982417594},"net_excess":-1.7893265971192605,"net_abs":-1.5078883759019857},
+  {"symbol":"XAGUSD","tf":"4H","group":"metals","leg":"spring","side":"short","path":"spring","event":"XAGUSD-short-book-2012-11-08T22:00:00Z","signal_time":"2012-11-08T22:00:00Z","week":"2012-W45","stop":32.786385,"target":30.32,"entry":32.4,"entry_time":"2012-11-09T02:00:00Z","exit_time":"2012-11-12T22:00:00Z","R_planned":5.383231750714898,"R":-1.0,"outcome":"loss","bars_held":12,"atr":0.5676500000000001,"stop_atr":0.6806747115299994,"target_atr":3.6642297190169963,"placebo":0.49027326714987146,"n_placebo":200,"excess":-1.4902732671498715,"cost":{"median_swap":0.0308265777722933,"median_noswap":0.03807323589825567,"p90_swap":0.13658556637855904,"p90_noswap":0.1438322245045214},"net_excess":-1.5210998449221649,"net_abs":-1.0308265777722934},
+  {"symbol":"XAGUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2022-11-08T18:00:00Z-D","signal_time":"2022-11-09T14:00:00Z","week":"2022-W45","stop":21.100444500000002,"target":22.244,"entry":21.325,"entry_time":"2022-11-09T18:00:00Z","exit_time":"2022-11-09T18:00:00Z","R_planned":4.092529463762904,"R":-1.0,"outcome":"loss","bars_held":1,"atr":0.3101499999999998,"stop_atr":0.724022247299686,"target_atr":2.963082379493797,"placebo":0.2132417019873372,"n_placebo":200,"excess":-1.2132417019873372,"cost":{"median_swap":0.04152120651424339,"median_noswap":0.04152120651424339,"p90_swap":0.14372725331853478,"p90_noswap":0.14372725331853478},"net_excess":-1.2547629085015806,"net_abs":-1.0415212065142434},
+  {"symbol":"US500","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US500-long-book-2021-07-23T17:00:00Z-D","signal_time":"2021-07-26T13:00:00Z","week":"2021-W30","stop":4382.30775,"target":4515.700000000001,"entry":4415.5,"entry_time":"2021-07-26T17:00:00Z","exit_time":"2021-07-27T13:00:00Z","R_planned":3.0187769735405268,"R":-1.0,"outcome":"loss","bars_held":6,"atr":13.4,"stop_atr":2.4770335820895566,"target_atr":7.477611940298561,"placebo":0.16299378144420096,"n_placebo":200,"excess":-1.162993781444201,"cost":{"median_swap":0.0621307235276905,"median_noswap":0.010058327109852085,"p90_swap":0.06782640273447421,"p90_noswap":0.015754006316635795},"net_excess":-1.2251245049718915,"net_abs":-1.0621307235276904},
+  {"symbol":"US30","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2021-04-11T21:00:00Z-D","signal_time":"2021-04-12T13:00:00Z","week":"2021-W15","stop":33659.46185000001,"target":34650.35,"entry":33752.45,"entry_time":"2021-04-12T17:00:00Z","exit_time":"2021-04-13T09:00:00Z","R_planned":9.656069079770882,"R":-1.0,"outcome":"loss","bars_held":5,"atr":95.70500000000102,"stop_atr":0.9716122459640472,"target_atr":9.381954965780178,"placebo":0.22406365641459425,"n_placebo":200,"excess":-1.2240636564145944,"cost":{"median_swap":0.1387266481877303,"median_noswap":0.013934403154344521,"p90_swap":0.14415563642968274,"p90_noswap":0.019363391396296947},"net_excess":-1.3627903046023246,"net_abs":-1.1387266481877303},
+  {"symbol":"USTEC","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"USTEC-long-book-2022-08-04T17:00:00Z-D","signal_time":"2022-08-05T13:00:00Z","week":"2022-W31","stop":13058.737365,"target":13707.54,"entry":13179.12,"entry_time":"2022-08-05T17:00:00Z","exit_time":"2022-08-09T09:00:00Z","R_planned":4.3895035193406455,"R":-1.0,"outcome":"loss","bars_held":11,"atr":111.84399999999987,"stop_atr":1.0763441489932413,"target_atr":4.724616430027544,"placebo":0.15842580145961963,"n_placebo":200,"excess":-1.1584258014596196,"cost":{"median_swap":0.34326168315163696,"median_noswap":0.0067746142317714475,"p90_swap":0.34679012806401793,"p90_noswap":0.010303059144152416},"net_excess":-1.5016874846112565,"net_abs":-1.343261683151637},
+  {"symbol":"DE40","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"DE40-long-book-2022-10-25T17:00:00Z-D","signal_time":"2022-10-26T13:00:00Z","week":"2022-W43","stop":12965.81385,"target":13709.45,"entry":13162.0,"entry_time":"2022-10-26T17:00:00Z","exit_time":"2022-11-02T13:00:00Z","R_planned":2.7904620178335833,"R":0.5591628155198569,"outcome":"timeout","bars_held":30,"atr":123.71399999999994,"stop_atr":1.5858039510483828,"target_atr":4.425125693130939,"placebo":0.08715609266726275,"n_placebo":200,"excess":0.47200672285259415,"cost":{"median_swap":0.21173412236116612,"median_noswap":0.003802012984433334,"p90_swap":0.21423258803665088,"p90_noswap":0.006300478659918091},"net_excess":0.26027260049142803,"net_abs":0.3474286931586908},
+  {"symbol":"AUS200","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2020-07-02T09:00:00Z-D","signal_time":"2020-07-07T01:00:00Z","week":"2020-W28","stop":6019.08895,"target":6357.5,"entry":6088.5,"entry_time":"2020-07-07T05:00:00Z","exit_time":"2020-07-07T09:00:00Z","R_planned":3.8754636329518304,"R":-1.0,"outcome":"loss","bars_held":2,"atr":45.35,"stop_atr":1.5305633958103573,"target_atr":5.931642778390297,"placebo":0.35171212596875173,"n_placebo":200,"excess":-1.3517121259687517,"cost":{"median_swap":0.013541733871021778,"median_noswap":0.013541733871021778,"p90_swap":0.019296970766206033,"p90_noswap":0.019296970766206033},"net_excess":-1.3652538598397734,"net_abs":-1.0135417338710218},
+  {"symbol":"AUS200","tf":"4H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2021-09-09T05:00:00Z-D","signal_time":"2021-09-10T13:00:00Z","week":"2021-W36","stop":7430.21325,"target":7198.3,"entry":7395.5,"entry_time":"2021-09-10T17:00:00Z","exit_time":"2021-09-13T01:00:00Z","R_planned":5.680827925936091,"R":-1.0,"outcome":"loss","bars_held":3,"atr":34.24000000000005,"stop_atr":1.01382155373831,"target_atr":5.75934579439251,"placebo":-0.3030099811430926,"n_placebo":200,"excess":-0.6969900188569074,"cost":{"median_swap":0.01157256503239456,"median_noswap":0.032890073476576666,"p90_swap":0.02198775496664384,"p90_noswap":0.043305263410825946},"net_excess":-0.7085625838893019,"net_abs":-1.0115725650323946},
+  {"symbol":"AUS200","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2022-10-25T17:00:00Z-D","signal_time":"2022-10-26T13:00:00Z","week":"2022-W43","stop":6785.8054,"target":7073.400000000001,"entry":6847.8,"entry_time":"2022-10-26T17:00:00Z","exit_time":"2022-10-27T17:00:00Z","R_planned":3.6390266248995946,"R":-1.0,"outcome":"loss","bars_held":7,"atr":43.41350000000011,"stop_atr":1.4280028101857678,"target_atr":5.196540246697451,"placebo":0.03325467057774876,"n_placebo":200,"excess":-1.0332546705777488,"cost":{"median_swap":0.05262824692704309,"median_noswap":0.01705256775498616,"p90_swap":0.06342820650520099,"p90_noswap":0.027852527333144063},"net_excess":-1.085882917504792,"net_abs":-1.0526282469270432},
+  {"symbol":"AUS200","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2023-01-19T22:00:00Z-D","signal_time":"2023-01-20T14:00:00Z","week":"2023-W03","stop":7425.2855,"target":7642.6,"entry":7464.0,"entry_time":"2023-01-20T18:00:00Z","exit_time":"2023-01-29T22:00:00Z","R_planned":4.6132585981996455,"R":0.7103281716152855,"outcome":"timeout","bars_held":30,"atr":29.880000000000063,"stop_atr":1.2956659973226226,"target_atr":5.977242302543507,"placebo":0.018641688588160565,"n_placebo":200,"excess":0.691686483027125,"cost":{"median_swap":0.8269483709080336,"median_noswap":0.029391899818391076,"p90_swap":0.8363736214827077,"p90_noswap":0.0388171503930651},"net_excess":-0.13526188788090865,"net_abs":-0.11662019929274814},
+  {"symbol":"AUS200","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2023-06-20T17:00:00Z-D","signal_time":"2023-06-21T13:00:00Z","week":"2023-W25","stop":7291.1526,"target":7501.299999999999,"entry":7317.8,"entry_time":"2023-06-21T17:00:00Z","exit_time":"2023-06-21T21:00:00Z","R_planned":6.886225297777653,"R":-1.0,"outcome":"loss","bars_held":2,"atr":28.720000000000027,"stop_atr":0.9278342618384334,"target_atr":6.3892757660166755,"placebo":0.16382467757898966,"n_placebo":200,"excess":-1.1638246775789898,"cost":{"median_swap":0.12463146122494655,"median_noswap":0.04186541275492643,"p90_swap":0.13805665687631535,"p90_noswap":0.05529060840629524},"net_excess":-1.2884561388039364,"net_abs":-1.1246314612249466}
+ ]
+}

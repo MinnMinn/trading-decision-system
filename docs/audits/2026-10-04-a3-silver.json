@@ -1,0 +1,204 @@
+{
+ "meta": {
+  "script": "scripts/research/a3_silver.py",
+  "preregistration": "docs/plans/2026-10-04-a3-silver-preregistration.md",
+  "tag": "[A3-P1]",
+  "git_head": "a4464a450c3211bb7bfd954a9fcd2582ab480bd5",
+  "span_from": "2008-12-10T13:30:00Z",
+  "status": "DESCRIPTIVE / EXPOSED",
+  "books": {
+   "v3": [
+    "H7_XAUUSD_eod",
+    "G9_XAUUSD_eod"
+   ],
+   "v3+ag": [
+    "H7_XAUUSD_eod",
+    "G9_XAUUSD_eod",
+    "G9_XAGUSD_eod"
+   ]
+  },
+  "fee": 0.006,
+  "split": 0.8,
+  "horizon_days": 353,
+  "bootstrap_paths": 3000,
+  "seed": 20261002
+ },
+ "historical": {
+  "selection": {
+   "v3": {
+    "n": 786,
+    "funded_le_122d": 0.14376590330788805,
+    "funded_ever": 0.9758269720101781,
+    "median_days_to_funded": 205,
+    "first_attempt_fail": 0.0
+   },
+   "v3+ag": {
+    "n": 786,
+    "funded_le_122d": 0.4669211195928753,
+    "funded_ever": 0.8396946564885496,
+    "median_days_to_funded": 113.0,
+    "first_attempt_fail": 0.16030534351145037
+   }
+  },
+  "confirmation": {
+   "v3": {
+    "n": 116,
+    "funded_le_122d": 0.008620689655172414,
+    "funded_ever": 0.7758620689655172,
+    "median_days_to_funded": 246.5,
+    "first_attempt_fail": 0.0
+   },
+   "v3+ag": {
+    "n": 116,
+    "funded_le_122d": 0.27586206896551724,
+    "funded_ever": 0.8793103448275862,
+    "median_days_to_funded": 173.0,
+    "first_attempt_fail": 0.0
+   }
+  }
+ },
+ "bootstrap": {
+  "edge_x1.0": {
+   "v3": {
+    "funded_le_122d": 0.03766666666666667,
+    "first_attempt_fail": 0,
+    "E_net_pct": 2.109643605296331,
+    "E_paid_pct": 2.435843605296331,
+    "E_fees_pct": 0.6,
+    "funded_within_horizon": 0.5913333333333334
+   },
+   "v3+ag": {
+    "funded_le_122d": 0.2,
+    "first_attempt_fail": 0.005333333333333333,
+    "E_net_pct": 5.629847859857411,
+    "E_paid_pct": 5.86364785985741,
+    "E_fees_pct": 0.6028,
+    "funded_within_horizon": 0.721
+   }
+  },
+  "edge_x0.5": {
+   "v3": {
+    "funded_le_122d": 0.008,
+    "first_attempt_fail": 0.006666666666666667,
+    "E_net_pct": -0.1321286533446616,
+    "E_paid_pct": 0.40047134665533846,
+    "E_fees_pct": 0.6028,
+    "funded_within_horizon": 0.19366666666666665
+   },
+   "v3+ag": {
+    "funded_le_122d": 0.056666666666666664,
+    "first_attempt_fail": 0.07633333333333334,
+    "E_net_pct": 0.7791858142077844,
+    "E_paid_pct": 1.2781858142077844,
+    "E_fees_pct": 0.6338,
+    "funded_within_horizon": 0.3303333333333333
+   }
+  },
+  "edge_x0.0": {
+   "v3": {
+    "funded_le_122d": 0.001,
+    "first_attempt_fail": 0.08233333333333333,
+    "E_net_pct": -0.5951206844533078,
+    "E_paid_pct": 0.02467931554669221,
+    "E_fees_pct": 0.6284000000000001,
+    "funded_within_horizon": 0.03133333333333333
+   },
+   "v3+ag": {
+    "funded_le_122d": 0.008666666666666666,
+    "first_attempt_fail": 0.35233333333333333,
+    "E_net_pct": -0.6176641471122903,
+    "E_paid_pct": 0.1255358528877097,
+    "E_fees_pct": 0.7644,
+    "funded_within_horizon": 0.073
+   }
+  }
+ },
+ "corr_daily_silver_vs_v3": 0.4295757740125742,
+ "components": {
+  "G9_XAGUSD_eod": {
+   "n": 3019,
+   "mean_R": 0.06244462294678226,
+   "worst_trade_loss_pct": 1.319886140793933,
+   "by_year_mean_R": {
+    "2008": 0.2441,
+    "2009": -0.057,
+    "2010": -0.0042,
+    "2011": 0.0381,
+    "2012": 0.0487,
+    "2013": 0.1779,
+    "2014": 0.0928,
+    "2015": 0.0971,
+    "2016": 0.1525,
+    "2017": 0.1536,
+    "2018": 0.1352,
+    "2019": 0.094,
+    "2020": 0.1839,
+    "2021": -0.0161,
+    "2022": 0.0006,
+    "2023": -0.0835,
+    "2024": 0.0716,
+    "2025": 0.0434,
+    "2026": 0.0104
+   }
+  },
+  "G9_XAUUSD_eod": {
+   "n": 3063,
+   "mean_R": 0.0965966367694092,
+   "worst_trade_loss_pct": 1.0174306946249514,
+   "by_year_mean_R": {
+    "2008": -0.0284,
+    "2009": 0.0069,
+    "2010": 0.0069,
+    "2011": 0.0557,
+    "2012": 0.1104,
+    "2013": 0.2158,
+    "2014": 0.2244,
+    "2015": 0.1422,
+    "2016": 0.1831,
+    "2017": 0.1651,
+    "2018": 0.172,
+    "2019": 0.1773,
+    "2020": 0.1467,
+    "2021": 0.0035,
+    "2022": 0.0149,
+    "2023": 0.0201,
+    "2024": 0.0474,
+    "2025": -0.0028,
+    "2026": 0.0723
+   }
+  },
+  "H7_XAUUSD_eod": {
+   "n": 2114,
+   "mean_R": 0.04907124016183037,
+   "worst_trade_loss_pct": 1.1015387786671773,
+   "by_year_mean_R": {
+    "2008": 0.2939,
+    "2009": 0.0378,
+    "2010": -0.0192,
+    "2011": 0.0668,
+    "2012": 0.0963,
+    "2013": 0.0668,
+    "2014": 0.0558,
+    "2015": 0.0638,
+    "2016": 0.064,
+    "2017": 0.0431,
+    "2018": 0.0294,
+    "2019": 0.0989,
+    "2020": 0.0669,
+    "2021": -0.0262,
+    "2022": 0.0194,
+    "2023": 0.0641,
+    "2024": 0.0334,
+    "2025": 0.0781,
+    "2026": 0.0415
+   }
+  }
+ },
+ "decision": {
+  "PROPOSED": false,
+  "variance_not_edge": false,
+  "delta_E_net_pct_edge1": 3.52020425456108,
+  "delta_E_net_pct_haircut50": 0.911314467552446,
+  "delta_E_net_pct_edge0": -0.02254346265898255
+ }
+}

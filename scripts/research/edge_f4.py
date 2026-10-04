@@ -239,8 +239,8 @@ def run(out_path):
                     r = ev["side"] * (s.C[x] / px - 1.0)
                     sw, _n, _ = RC.swap_price(EC.COST_PROFILE, sym, "long" if ev["side"] > 0 else "short", s.T[e], s.T[x])
                     swap_frac = -sw / ref                         # a debit (negative points) is a positive cost
-                    cost = costs.round_trip(s.dt[e].hour, s.dt[x].hour) + swap_frac
-                    cost90 = costs.round_trip(s.dt[e].hour, s.dt[x].hour, "p90") + swap_frac
+                    cost = costs.round_trip_at(s.dt[e], s.dt[x]) + swap_frac
+                    cost90 = costs.round_trip_at(s.dt[e], s.dt[x], "p90") + swap_frac
                     base = on.get(per)
                     if not base or not base[1]:
                         continue
