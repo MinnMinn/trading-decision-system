@@ -1,0 +1,1888 @@
+#!/usr/bin/env python3
+"""WY-F1, the Wyckoff forward stage. It collects one cell of the sealed re-test, W-C-long-15m: the Phase-C Spring /
+Shakeout long (docs/plans/2026-10-04-wyckoff-retest-preregistration.md §3.2). That cell read INCONCLUSIVE, +0.25R, n 63,
+p 0.18 (docs/audits/2026-10-04-wyckoff-retest.md:20). Here it is collected on FTMO 15m bars that close AFTER the WY-F1
+seal, logged as each signal bar closes, and read ONCE.
+Pre-registration: docs/plans/2026-10-04-wyckoff-forward-wc15-preregistration-DRAFT.md ("WY-F1 §n" below).
+
+    python3 scripts/research/wyckoff_forward.py spawn                                   # scripts/forward_cycle.py runs it
+    python3 scripts/research/wyckoff_forward.py cycle [--only accumulate|scan|resolve]   # what `spawn` starts, detached
+    python3 scripts/research/wyckoff_forward.py status [--json]                         # counts only, never an R
+    python3 scripts/research/wyckoff_forward.py anchor                                  # chain heads -> anchors.jsonl
+    python3 scripts/research/wyckoff_forward.py read --out docs/experiments/wyckoff-forward-wc15/wyckoff-forward-read.json
+    python3 scripts/research/wyckoff_forward.py fingerprint --out docs/experiments/wyckoff-forward-wc15/fingerprint.json
+
+How it stays point in time and tamper-evident without freezing the repository:
+- Pinned code (WY-F1 §5). `cycle` and `read` never run the working tree. They run this file from a read-only extract of
+  the commit that ADDS the sealed pre-registration (`git archive` into data/live/forward/wyckoff-wc15/code/<sha>/), in a
+  fresh process (-E -s -B). Every other file of the repository may change. The extract is checked against the
+  fingerprint: the files the forward steps execute, load and open, traced on a synthetic canary before sealing. Every
+  record carries it. `fingerprint` also builds that extract from HEAD and runs the canary in it alone (extract_check),
+  so a file the extract would lack fails before sealing. A run that touches the live tree outside its extract (other
+  than the bar inputs and its own output directories) writes nothing.
+- Bars (§4). One append-only, hash-chained 15m store per symbol. It is fed by the bridge's 15m file and the FTMO history
+  export. Closed bars only. Times are snapped to the 15-minute grid (the v1.02 bridge stamps them +-1 s). A source appends
+  only when it holds the store's last bars at the same prices: a gap, a revised bar or a shifted clock appends nothing.
+- Events (§2, §4). edge_wyckoff.window_fire, unmodified, on each new window, with edge_wyckoff.detect_series'
+  de-duplication on (side, SC, AR), keyed by bar time. An event is logged once its signal bar has closed after the seal,
+  with its decision fields, the hash of its 300-bar window and the store's chain hash at the signal bar.
+- Resolve (§6): the event's own walk, once its exit is known. No command prints an outcome before the read.
+- Read (§7, §8): once, at >= N_EVENTS forward events or MONTHS months on data complete for every symbol (a symbol still
+  stalled GRACE_MONTHS later is dropped whole); refused before. It runs in a FRESH extract, checks the extract's
+  fingerprint against the seal commit's, and the anchors against git history. It replays every window and checks the
+  replay against the log. It runs the truncation probe and checks the bars against a later history export, both ways.
+  Then it measures with the sealed re-test's §5 (edge_wyckoff.score / summarise). PASS iff net excess > 0 and one-sided
+  p < P_PASS.
+- Interpreter (§5): the fingerprint pins the Python it was made with; every worker runs under it and refuses another
+  minor version. The read's canary refuses any numeric change.
+- Off the live path (§12): `spawn` starts `cycle` in its own session and returns at once, so research never delays the
+  next cycle's demo ticks (CLAUDE.md §40). The previous cycle's failure is reported in the cycle log.
+
+PAPER ONLY: it places no order, reads no account and touches no live configuration."""
+import argparse
+import bisect
+import calendar
+import collections
+import contextlib
+import datetime
+import gzip
+import hashlib
+import importlib.util
+import inspect
+import io
+import json
+import os
+import platform
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+
+#: The CODE root: the working tree, or a sealed extract (data/live/forward/wyckoff-wc15/code/<sha>/). Data paths are
+#: always resolved against an explicit data root (the live repository), never against this one.
+CODE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if os.path.join(CODE_ROOT, "scripts") not in sys.path:
+    sys.path.insert(0, os.path.join(CODE_ROOT, "scripts"))      # broker_symbols, history_store: this code root's
+UTC = datetime.timezone.utc
+
+# ------------------------------------------------------------------------------------------------ the registered design
+STUDY = "WY-F1"
+PREREG_DRAFT = "docs/plans/2026-10-04-wyckoff-forward-wc15-preregistration-DRAFT.md"
+PREREG = "docs/plans/2026-10-04-wyckoff-forward-wc15-preregistration.md"     # the SEALED file; its adding commit = the seal
+SCRIPT = "scripts/research/wyckoff_forward.py"
+EW_PATH = "scripts/research/edge_wyckoff.py"
+R0 = "docs/experiments/wyckoff-retest-r0/edge-wyckoff-R0.json"                # the sealed re-test's dense table (§4)
+REC_DIR = "docs/experiments/wyckoff-forward-wc15"
+FINGERPRINT = REC_DIR + "/fingerprint.json"
+ANCHORS = REC_DIR + "/anchors.jsonl"
+READ_OUT = REC_DIR + "/wyckoff-forward-read.json"
+RUNTIME = "data/live/forward/wyckoff-wc15"            # per machine, gitignored (.gitignore: data/live/forward/)
+LIVE_DIR = "data/live/mt5-bridge"
+HIST_DIR = "data/history/ftmo"
+
+CELL, TF, MINUTES, LEG, SIDE = "W-C-long-15m", "15m", 15, "W-C", "long"
+#: The sealed re-test's tradeable symbols (edge_wyckoff.TRADEABLE) that have a 15m dense start in its R0 record.
+#: FRA40 has none (R0 dense table), so R1 never read it at 15m and neither does WY-F1.
+SYMBOLS = ("XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "AUS200")
+#: The read rule (WY-F1 §7), fixed before any forward bar: once, at N_EVENTS forward events or MONTHS months after the
+#: seal, whichever comes first. PASS iff mean net excess > 0 and one-sided p < P_PASS.
+N_EVENTS, MONTHS, P_PASS = 100, 12, 0.10
+WARMUP_DAYS = 90            # store bars before the seal: >= 60 dense-rule days + one 300-bar window + the dedup context
+SNAP_TOL_S = 60             # a source time more than this off the 15-minute grid refuses the source
+OVERLAP_BARS = 4            # a source appends only if it holds the store's last bars (up to this many) at the same prices
+PRICE_DP = 8                # price comparison precision (sources print 2-5 decimals)
+HIST_COVER_MIN, HIST_AGREE_MIN = 0.95, 0.99   # §8: the read's check of the forward bars against a later history export
+#: §8: the most of the export's bars inside the checked window that the store may lack (MISSING is not EMPTY, CLAUDE.md
+#: §20). Inside every sampled event's span (its window to the end of its longest walk) the two must be identical.
+HIST_MISSING_MAX = 0.01
+#: §7 fallback (owner decision 3, option A): once any symbol is complete through GRACE_MONTHS after the T cutoff, a
+#: symbol still not complete through the T cutoff is dropped WHOLE (every event of it, before any outcome is computed).
+#: None = no fallback (option B: the read stays not due; §7 closes the study 24 months after the seal).
+GRACE_MONTHS = 3
+#: The cycle worker's cap. `spawn` runs it detached from scripts/forward_cycle.py, so it no longer delays a tick; the cap
+#: stops a hung worker from holding the lock.
+WORKER_TIMEOUT_S = 120
+LOCK_STALE_S = 900
+SPAWN_LOG_MAX = 1 << 20     # spawn.log is rotated to spawn.log.1 above this size
+#: What the sealed extract holds (WY-F1 §5): the code, the configs and cost tables it reads, the sealed history of the
+#: symbols (the warm-up and real_costs' price_ref), the R0 record, the fingerprint and the sealed pre-registration --
+#: and the two MT5 adapter files docs/architecture/providers.json names, because providers._validate (scripts/
+#: providers.py:63) refuses the whole registry when a named adapter does not EXIST (only stat()ed, never opened, so the
+#: trace cannot see it). `extract_check` proves before sealing that nothing else is missing.
+SNAPSHOT_ROOTS = ("scripts", "docs/architecture", "data/history/costs", HIST_DIR, R0, FINGERPRINT, PREREG,
+                  "integrations/mt5/ExportOHLCV.mq5", "integrations/mt5/ExportHistory.mq5")
+#: What a run may open under the DATA root outside its code root (WY-F1 §5): the live bridge files, a later history
+#: export, its own runtime directory (not another extract) and its record directory, and the sealed pre-registration.
+DATA_INPUTS = (LIVE_DIR + "/", HIST_DIR + "/", RUNTIME + "/", REC_DIR + "/")
+LATE_LOG_S = 86400          # §8: an event logged more than a day after its signal close is reported as late-logged
+#: The fields an event is decided on. The replay, the truncation probe and the log must agree on every one.
+DECISION_KEYS = ("id", "symbol", "tf", "cell", "leg", "side", "type", "sc_time", "ar_time", "s_time", "r_time", "t_time",
+                 "signal_time", "signal_close", "store_index", "tr_lo", "tr_hi", "ceiling", "spring_low", "stop", "target",
+                 "phase_b_tests", "sloped", "path", "prev_dense", "atr", "window_first", "window_sha256",
+                 "chain_at_signal")
+GENESIS = hashlib.sha256(STUDY.encode()).hexdigest()
+
+
+# ------------------------------------------------------------------------------------------------ small helpers
+def _utc(t):
+    return datetime.datetime.fromisoformat(t.replace("Z", "+00:00")).astimezone(UTC)
+
+
+def _iso(d):
+    return d.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _now():
+    return _iso(datetime.datetime.now(UTC))
+
+
+def _sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def _canon(obj):
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def _read_json(path, default=None):
+    if not os.path.exists(path):
+        return default
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _write_json(path, obj):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = f"{path}.tmp.{os.getpid()}"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(obj, fh, indent=1, sort_keys=True)
+    os.replace(tmp, path)
+
+
+def add_months(d, n):
+    """`d` plus n calendar months, the day clipped to the month's last day (2028-02-29 + 12 -> 2029-02-28).
+    [WY-F1 §7]"""
+    y, m = divmod(d.month - 1 + n, 12)
+    y, m = d.year + y, m + 1
+    return d.replace(year=y, month=m, day=min(d.day, calendar.monthrange(y, m)[1]))
+
+
+def _rt(data_root, *parts):
+    return os.path.join(data_root, RUNTIME, *parts)
+
+
+_EW = {}
+
+
+def ew():
+    """scripts/research/edge_wyckoff.py of THIS code root, loaded once and unmodified, with its engine
+    (backtest-methods) loaded too, so a trace's import phase holds every import. [WY-F1 §2, §5]"""
+    if "m" not in _EW:
+        sys.path.insert(0, os.path.join(CODE_ROOT, "scripts"))
+        spec = importlib.util.spec_from_file_location("edge_wyckoff_wyf1", os.path.join(CODE_ROOT, EW_PATH))
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        m.engine()
+        _EW["m"] = m
+    return _EW["m"]
+
+
+def det_ctx():
+    """(cfg, P, sob): DET-PO exactly as the sealed re-test registered it -- edge_wyckoff.BASE_CFG, det_params(BASE_CFG)
+    and the engine's sob for 15m. Nothing is restated here. [WY-F1 §2]"""
+    E = ew()
+    cfg = dict(E.BASE_CFG)
+    return cfg, E.det_params(cfg), E.engine().P[TF]["sob"]
+
+
+def horizon():
+    """The time cap H in bars: the engine's P['15m']['H'] times BASE_CFG's cap_mult (96). [WY-F1 §6]"""
+    E = ew()
+    return E.engine().P[TF]["H"] * E.BASE_CFG["cap_mult"]
+
+
+_DENSE = {}
+
+
+def r0_dense():
+    """The sealed re-test's R0 dense table, read from this code root (the sealed extract holds the committed file).
+    [WY-F1 §2]"""
+    if "d" not in _DENSE:
+        _DENSE["d"] = _read_json(os.path.join(CODE_ROOT, R0))["dense"]
+    return _DENSE["d"]
+
+
+# ------------------------------------------------------------------------------------------------ hash chains
+def _link(prev, rec):
+    return hashlib.sha256((prev + "|" + _canon(rec)).encode()).hexdigest()
+
+
+def link_all(prev, recs):
+    """The chain hashes the records would get if appended after `prev`. [WY-F1 §4]"""
+    out = []
+    for r in recs:
+        prev = _link(prev, r)
+        out.append(prev)
+    return out
+
+
+def read_chain(path):
+    """(records, chain hashes) of an append-only JSONL file whose every line carries `ch` = sha256(previous ch | the
+    record). An edited, removed, inserted or reordered line refuses. [WY-F1 §4]"""
+    recs, heads, head = [], [], GENESIS
+    if not os.path.exists(path):
+        return recs, heads
+    with open(path, encoding="utf-8") as fh:
+        for n, line in enumerate(fh, 1):
+            try:
+                d = json.loads(line)
+            except ValueError:
+                raise SystemExit(f"refusing: {path} line {n} is not JSON (a torn write?); the chain cannot be verified")
+            ch = d.pop("ch", None)
+            if ch != _link(head, d):
+                raise SystemExit(f"refusing: {path} line {n} breaks the hash chain (a line was edited, removed, "
+                                 f"inserted or reordered) [WY-F1 §4]")
+            head = ch
+            recs.append(d)
+            heads.append(ch)
+    return recs, heads
+
+
+def _tail_head(path):
+    """The last line's `ch` (GENESIS for a missing or empty file), read from the file's end."""
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return GENESIS
+    with open(path, "rb") as fh:
+        fh.seek(0, os.SEEK_END)
+        pos, buf = fh.tell(), b""
+        while pos > 0 and buf.count(b"\n") < 2:
+            step = min(65536, pos)
+            pos -= step
+            fh.seek(pos)
+            buf = fh.read(step) + buf
+    last = [x for x in buf.splitlines() if x.strip()][-1]
+    return json.loads(last).get("ch")
+
+
+def append_chain(path, recs, expect_head):
+    """Append `recs` after checking the file still ends at `expect_head` (no other writer since it was read).
+    [WY-F1 §4]"""
+    if _tail_head(path) != expect_head:
+        raise SystemExit(f"refusing: {path} changed while this cycle ran; nothing appended")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    lines, head = [], expect_head
+    for r in recs:
+        head = _link(head, r)
+        lines.append(_canon(dict(r, ch=head)) + "\n")
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write("".join(lines))
+        fh.flush()
+        os.fsync(fh.fileno())
+    return head
+
+
+def commit(writes):
+    """Perform a cycle's planned writes: ("chain", path, records, expected head) or ("json", path, object).
+    [WY-F1 §4]"""
+    for w in writes:
+        if w[0] == "chain":
+            append_chain(w[1], w[2], w[3])
+        else:
+            _write_json(w[1], w[2])
+
+
+# ------------------------------------------------------------------------------------------------ bars (WY-F1 §4)
+PRICE_KEYS = ("o", "h", "l", "c")
+
+
+def snap(t, minutes=MINUTES, tol=SNAP_TOL_S):
+    """The bar-open label on the `minutes` grid nearest to ISO `t`, or None when `t` is more than `tol` seconds off it.
+    The live bridge v1.02 converts with a measured offset (10799 s), so its times read "...:00:01Z". [WY-F1 §4]"""
+    s = _utc(t).timestamp()
+    step = minutes * 60
+    g = round(s / step) * step
+    if abs(s - g) > tol:
+        return None
+    return _iso(datetime.datetime.fromtimestamp(g, UTC))
+
+
+def norm(c):
+    """A source candle as a store bar {t, o, h, l, c, v} with its time snapped; None when unreadable or off-grid.
+    [WY-F1 §4]"""
+    t = c.get("time")
+    if not isinstance(t, str) or not t.endswith("Z"):
+        return None
+    try:
+        ts = snap(t)
+        o, h, lo, cl = (float(c[k]) for k in ("open", "high", "low", "close"))
+    except (KeyError, TypeError, ValueError):
+        return None
+    if ts is None or any(x != x or x in (float("inf"), float("-inf")) for x in (o, h, lo, cl)):
+        return None
+    v = c.get("volume")
+    return {"t": ts, "o": o, "h": h, "l": lo, "c": cl, "v": v if isinstance(v, (int, float)) else None}
+
+
+def clean(candles, label):
+    """(bars sorted by time, None) or ([], why): a source with ANY unreadable or off-grid bar, or two bars on one
+    label, is not used at all -- its time basis cannot be trusted. [WY-F1 §4]"""
+    out, bad, dup = {}, 0, 0
+    for c in candles:
+        b = norm(c)
+        if b is None:
+            bad += 1
+            continue
+        if b["t"] in out:
+            dup += 1
+        out[b["t"]] = b
+    if bad or dup:
+        return [], f"{label}: {bad} bar(s) unreadable or off the 15-minute grid, {dup} duplicate label(s); not used"
+    return [out[t] for t in sorted(out)], None
+
+
+def same(a, b):
+    return all(round(a[k], PRICE_DP) == round(b[k], PRICE_DP) for k in PRICE_KEYS)
+
+
+def live_source(data_root, sym):
+    """(closed bars, note) from the bridge's 15m file, in the broker's spelling (broker_symbols, e.g. DE40 ->
+    GER40.cash). The file's FINAL bar is dropped: ExportOHLCV copies from shift 0, so it may still be forming.
+    [WY-F1 §4]"""
+    import broker_symbols as BS
+    p = os.path.join(data_root, LIVE_DIR, f"ohlcv.{BS.to_broker(sym)}.{TF}.json")
+    if not os.path.exists(p):
+        return [], f"{sym}: no live 15m file ({os.path.relpath(p, data_root)}); attach ExportOHLCV to it"
+    try:
+        doc = _read_json(p)
+    except ValueError:
+        return [], f"{sym}: live 15m file unreadable"
+    bars, note = clean(doc.get("candles") or [], f"{sym} live")
+    return bars[:-1], note
+
+
+def history_source(root, sym, since=None):
+    """(closed bars, note) from the FTMO 15m history export under `root`/data/history/ftmo (history_store's file or split
+    shape). A split series reads only the year parts from `since`'s year on. The final bar is dropped (an export taken
+    while the market is open ends on a forming bar). [WY-F1 §4]"""
+    import history_store as HS
+    path, shape = HS.resolve(sym, TF, root=os.path.join(root, HIST_DIR))
+    if shape is None:
+        return [], f"{sym}: no 15m history under {os.path.join(root, HIST_DIR)}"
+    if shape == "file":
+        candles = HS.read_at(path, shape)["candles"]
+    else:
+        idx = _read_json(os.path.join(path, "index.json"))
+        y0 = int(since[:4]) if since else None
+        candles = []
+        for y in sorted(idx.get("years") or (), key=int):
+            if y0 is None or int(y) >= y0:
+                with gzip.open(os.path.join(path, f"{y}.json.gz"), "rt", encoding="utf-8") as fh:
+                    candles.extend(json.load(fh)["candles"])
+    bars, note = clean(candles, f"{sym} history")
+    return bars[:-1], note
+
+
+def history_meta(root, sym, since=None):
+    """The provenance of what `history_source(root, sym, since)` reads: the export's `_exported_at_utc` and the sha256 of
+    every file it opens (relative to `root`). [WY-F1 §8]"""
+    import history_store as HS
+    path, shape = HS.resolve(sym, TF, root=os.path.join(root, HIST_DIR))
+    if shape is None:
+        return {"exported_at_utc": None, "files": {}}
+    if shape == "file":
+        files = [path]
+        head = HS.read_at(path, shape)
+    else:
+        head = _read_json(os.path.join(path, "index.json"))
+        y0 = int(since[:4]) if since else None
+        files = [os.path.join(path, "index.json")] + [os.path.join(path, f"{y}.json.gz")
+                                                      for y in sorted(head.get("years") or (), key=int)
+                                                      if y0 is None or int(y) >= y0]
+    return {"exported_at_utc": head.get("_exported_at_utc"),
+            "files": {os.path.relpath(f, root).replace(os.sep, "/"): _sha256(f) for f in files}}
+
+
+def plan_init(source, seal_instant, at, warmup_days=WARMUP_DAYS):
+    """The first bars of an empty store: the SEALED history's closed bars from `warmup_days` before the seal on.
+    [WY-F1 §4]"""
+    lo = _iso(_utc(seal_instant) - datetime.timedelta(days=warmup_days))
+    return [dict(b, src="history", at=at) for b in source if b["t"] >= lo]
+
+
+def plan_append(store, source, src, at):
+    """(bars to append, why-not or None) from one source: its closed bars after the store's last bar, but only when the
+    source holds the store's last OVERLAP_BARS bars (those inside its span) at the same prices. Contiguity is proven.
+    A source that is behind appends nothing silently. A gap, a revised bar or a shifted clock (the v1.02 bridge after a
+    DST change) appends nothing and says why. [WY-F1 §4]"""
+    if not store or not source or source[-1]["t"] <= store[-1]["t"]:
+        return [], None
+    last = store[-1]["t"]
+    by_t = {b["t"]: b for b in source}
+    if last not in by_t:
+        if source[0]["t"] > last:
+            return [], f"hole: the store ends {last}, the {src} source starts {source[0]['t']} (re-export the history)"
+        return [], f"the {src} source lacks the store's last bar {last}"
+    tail = [b for b in store[-OVERLAP_BARS:] if b["t"] >= source[0]["t"]]
+    bad = [b["t"] for b in tail if b["t"] not in by_t or not same(b, by_t[b["t"]])]
+    if bad:
+        return [], f"the {src} source disagrees with the store at {bad[0]} (a revised bar or a shifted clock)"
+    return [dict(b, src=src, at=at) for b in source if b["t"] > last], None
+
+
+def accumulate_symbol(sym, store, data_root, init_root, seal, at):
+    """(bars to append, notes): an empty store starts from the sealed history (`init_root`, the extract); then the live
+    file appends, and the history export under `data_root` is read only when the live file does not connect (a hole
+    after downtime, or a shifted clock) -- then the live file is tried again. [WY-F1 §4]"""
+    notes, add, cur = [], [], list(store)
+    if not cur:
+        src, note = history_source(init_root, sym, since=_iso(_utc(seal["instant"])
+                                                               - datetime.timedelta(days=WARMUP_DAYS)))
+        cur = plan_init(src, seal["instant"], at)
+        add += cur
+        if not cur:
+            return [], [note or f"{sym}: no sealed history to start the store from"]
+    live, lnote = live_source(data_root, sym)
+    new, why = plan_append(cur, live, "live", at)
+    if new or (live and live[-1]["t"] <= cur[-1]["t"]):
+        return add + new, notes
+    hist, hnote = history_source(data_root, sym, since=cur[max(0, len(cur) - OVERLAP_BARS)]["t"])
+    hnew, hwhy = plan_append(cur, hist, "history", at)
+    cur, add = cur + hnew, add + hnew
+    new2, why2 = plan_append(cur, live, "live", at)
+    add += new2
+    for msg in (lnote, why if not hnew else None, hnote if not hnew else None, hwhy, why2 if hnew else None):
+        if msg:
+            notes.append(msg if msg.startswith(sym) else f"{sym}: {msg}")
+    return add, notes
+
+
+def series_of(sym, bars, dense=None):
+    """edge_wyckoff.Series over store bars, cut at the sealed R0 dense start (every store bar is after it). Its index
+    is the store's line index, so it is asserted equal. [WY-F1 §2]"""
+    E = ew()
+    dense = dense or r0_dense()
+    candles = [{"time": b["t"], "open": b["o"], "high": b["h"], "low": b["l"], "close": b["c"], "volume": b.get("v")}
+               for b in bars]
+    start = datetime.date.fromisoformat(dense[f"{sym}|{TF}"]["start"])
+    S = E.Series(sym, TF, candles, E.series_zone("ftmo"), start, venue="ftmo", volume="raw")
+    if len(S) != len(bars):
+        raise SystemExit(f"refusing: {sym} store bars precede its R0 dense start {start}; the store index would move")
+    return S
+
+
+# ------------------------------------------------------------------------------------------------ events (WY-F1 §2, §4)
+def event_id(sym, sc_time, ar_time):
+    return f"{sym}|{TF}|{sc_time}|{ar_time}"
+
+
+def window_sha256(bars, a, k):
+    """sha256 over the decision window's bars a..k (time and the four prices, repr): the detector's inputs.
+    [WY-F1 §4]"""
+    h = hashlib.sha256()
+    for b in bars[a:k + 1]:
+        h.update(f"{b['t']}|{b['o']!r}|{b['h']!r}|{b['l']!r}|{b['c']!r}\n".encode())
+    return h.hexdigest()
+
+
+def fire(S, k_lo, k_hi, emit_from, ctx, pidx):
+    """W-C (Phase-C long) events of the windows k_lo..k_hi-1, de-duplicated over those windows as
+    edge_wyckoff.detect_series does it: per leg, on (side, SC, AR), here as bar TIMES. Only events at windows >=
+    `emit_from` are returned. Starting `window - 1` windows before `emit_from` rebuilds the de-duplication exactly: a
+    structure's SC lies inside every window that sees it, so an earlier firing is at most window - 1 windows back.
+    [WY-F1 §2, §4]"""
+    E = ew()
+    cfg, P, sob = ctx
+    seen, out = set(), []
+    for k in range(max(k_lo, cfg["window"] - 1), k_hi):
+        for ev in E.window_fire(S, k, cfg, P, sob, pidx)[0]:
+            if ev["leg"] != LEG:
+                continue
+            key = (ev["side"], S.T[ev["sc"]], S.T[ev["ar"]])
+            if key in seen:
+                continue
+            seen.add(key)
+            if k >= emit_from:
+                out.append(ev)
+    return out
+
+
+def decision(S, ev, bars, heads, window):
+    """The DECISION_KEYS record of one event, everything known at the close of its signal bar k. [WY-F1 §4]"""
+    k = ev["k"]
+    a = k - window + 1
+
+    def t(i):
+        return S.T[i] if i is not None else None
+    return {"id": event_id(S.sym, S.T[ev["sc"]], S.T[ev["ar"]]), "symbol": S.sym, "tf": TF, "cell": CELL,
+            "leg": ev["leg"], "side": ev["side"], "type": ev["type"], "sc_time": t(ev["sc"]), "ar_time": t(ev["ar"]),
+            "s_time": t(ev["s"]), "r_time": t(ev["r"]), "t_time": t(ev["t"]), "signal_time": S.T[k],
+            "signal_close": _iso(S.avail[k]), "store_index": k, "tr_lo": ev["tr_lo"], "tr_hi": ev["tr_hi"],
+            "ceiling": ev["ceiling"], "spring_low": ev["spring_low"], "stop": ev["stop"], "target": ev["target"],
+            "phase_b_tests": ev["phase_b_tests"], "sloped": ev["sloped"], "path": ev["path"],
+            "prev_dense": bool(S.prev_dense[k]), "atr": S.atr[k], "window_first": S.T[a],
+            "window_sha256": window_sha256(bars, a, k), "chain_at_signal": heads[k]}
+
+
+def stamp(dec, seal, fp_digest, now):
+    return dict(dec, kind="event", study=STUDY, seal=seal["sha"], fingerprint=fp_digest,
+                python=platform.python_version(), logged_at=now)
+
+
+def scan_symbol(S, bars, heads, through, seal, ctx, logged):
+    """(new event decisions, last bar time scanned): the windows not scanned yet (after `through`, the scan cache;
+    from the first bar closing at or after the seal without it), with window - 1 earlier windows as de-duplication
+    context. An event is new when its signal bar closed at or after the seal and its id is not in `logged`; a lost
+    cache only costs a re-scan. [WY-F1 §3, §4]"""
+    E = ew()
+    if not len(S):
+        return [], through
+    cfg, P, _sob = ctx
+    seal_dt = _utc(seal["instant"])
+    k0 = bisect.bisect_left(S.avail, seal_dt)
+    if through is not None:
+        k0 = max(k0, bisect.bisect_right(S.T, through))
+    if k0 >= len(S):
+        return [], S.T[-1]
+    pidx = E.W.pivot_index(S.H, S.L, P["pivot"])
+    out = []
+    for ev in fire(S, k0 - (cfg["window"] - 1), len(S), k0, ctx, pidx):
+        if S.avail[ev["k"]] < seal_dt:
+            continue
+        dec = decision(S, ev, bars, heads, cfg["window"])
+        if dec["id"] not in logged:
+            out.append(dec)
+            logged.add(dec["id"])
+    return out, S.T[-1]
+
+
+def resolve_record(S, rec, seal, fp_digest, now):
+    """The event's own trade (sealed re-test §3.2), once it is known, or None: entry at the open of k+1; skipped when
+    that open is at or beyond the stop or the target, or ATR20 is missing; else edge_wyckoff.walk_from under
+    walk_opts (fx_gap_fill on, mgmt none). Recorded once the stop or the target is hit, or after H bars. Gross R only:
+    the placebo and the cost need the whole read window and are the read's. [WY-F1 §6]"""
+    E = ew()
+    bt = E.engine()
+    k = rec["store_index"]
+    e = k + 1
+    if S.T[k] != rec["signal_time"]:
+        raise SystemExit(f"refusing: {rec['id']}'s signal bar is no longer store line {k}")
+    if e >= len(S):
+        return None
+    entry = S.O[e]
+    base = {"kind": "resolve", "study": STUDY, "id": rec["id"], "symbol": rec["symbol"], "entry_time": S.T[e],
+            "entry": entry, "seal": seal["sha"], "fingerprint": fp_digest, "python": platform.python_version(),
+            "resolved_at": now}
+    if not E.placeable(SIDE, entry, rec["stop"], rec["target"]):
+        return dict(base, placeable=False, skip="entry_beyond_stop_or_target")
+    if not (S.atr[k] or 0) > 0:
+        return dict(base, placeable=True, skip="no_atr")
+    HZ = horizon()
+    with E.walk_opts(bt):
+        w = E.walk_from(bt, SIDE, entry, rec["stop"], rec["target"], S, e, HZ)
+    if w is None:
+        return dict(base, placeable=True, skip="no_risk")
+    if w["outcome"] not in ("win", "loss") and e + HZ > len(S):
+        return None
+    return dict(base, placeable=True, skip=None, exit_time=S.T[w["exit"]], outcome=w["outcome"], R=w["R"],
+                bars_held=w["bars_held"])
+
+
+# ------------------------------------------------------------------------------------------------ one cycle (in memory)
+def cycle_core(data_root, seal, fp_digest, now, only=None, init_root=None, symbols=SYMBOLS):
+    """One forward cycle, computed in memory: accumulate (closed 15m bars into each store), scan (new windows into the
+    log), resolve (logged events whose exit is now known). Returns {"writes": [...], "summary": {...}}; nothing is
+    written here (the worker writes after its trace check). The summary never counts resolves: a resolve a few bars
+    after its entry is a stop or a target, and the summary goes to the cycle log and last_cycle.json. [WY-F1 §4, §6]"""
+    init_root = init_root or CODE_ROOT
+    log_path = _rt(data_root, "log.jsonl")
+    log, log_heads = read_chain(log_path)
+    logged = {r["id"] for r in log if r["kind"] == "event"}
+    resolved = {r["id"] for r in log if r["kind"] == "resolve"}
+    cache_path = _rt(data_root, "scan.json")
+    cache = _read_json(cache_path, {}) or {}
+    ctx = det_ctx() if only in (None, "scan") else None
+    writes, new_log, notes = [], [], []
+    summary = {"study": STUDY, "seal": seal["sha"][:12], "added_bars": {}, "new_events": 0}
+    for sym in symbols:
+        bpath = _rt(data_root, "bars", f"{sym}.{TF}.jsonl")
+        bars, heads = read_chain(bpath)
+        if only in (None, "accumulate"):
+            add, nts = accumulate_symbol(sym, bars, data_root, init_root, seal, now)
+            notes += nts
+            if add:
+                writes.append(("chain", bpath, add, heads[-1] if heads else GENESIS))
+                heads = heads + link_all(heads[-1] if heads else GENESIS, add)
+                bars = bars + add
+            summary["added_bars"][sym] = len(add)
+        if not bars or only == "accumulate":
+            continue
+        S = series_of(sym, bars)
+        if only in (None, "scan"):
+            decs, through = scan_symbol(S, bars, heads, cache.get(sym), seal, ctx, logged)
+            new_log += [stamp(d, seal, fp_digest, now) for d in decs]
+            summary["new_events"] += len(decs)
+            if through is not None:
+                cache[sym] = through
+        if only in (None, "resolve"):
+            for rec in [r for r in log + new_log if r["kind"] == "event" and r["symbol"] == sym]:
+                if rec["id"] in resolved:
+                    continue
+                rr = resolve_record(S, rec, seal, fp_digest, now)
+                if rr is not None:
+                    new_log.append(rr)
+                    resolved.add(rec["id"])
+    if new_log:
+        writes.append(("chain", log_path, new_log, log_heads[-1] if log_heads else GENESIS))
+    if only in (None, "scan"):
+        writes.append(("json", cache_path, cache))
+    summary["notes"] = notes
+    return {"writes": writes, "summary": summary}
+
+
+# ------------------------------------------------------------------------------------------------ the read (WY-F1 §7-§8)
+def complete_through(S, HZ):
+    """The close of the last bar that has HZ bars after it in the store: every event or placebo entry up to there has
+    its whole walk. None when the store is shorter (or missing). [WY-F1 §7]"""
+    if S is None:
+        return None
+    j = len(S) - 1 - HZ
+    return S.avail[j] if j >= 0 else None
+
+
+def due(series, entry_closes, seal_instant, HZ, n_events=N_EVENTS, months=MONTHS, grace_months=GRACE_MONTHS):
+    """OUTCOME-BLIND: is the read due, and where is its window's end? `entry_closes` = the entry-bar closes of the
+    forward events that count (dense previous day, entry open strictly between stop and target, ATR20 known). Every
+    symbol must be complete through the cutoff (HZ bars after it). The N rule cuts at the n_events-th counted entry
+    close inside the common complete span; the T rule at seal + months. The earlier one wins. The fallback (T-drop):
+    when no rule is met but some symbol is complete through seal + months + grace_months, the cutoff is the T one and
+    every symbol not complete through it is dropped whole (`dropped`). It reads data times only, never a wall clock or
+    an outcome. Neither means not due. [WY-F1 §7]"""
+    seal_dt = _utc(seal_instant)
+    ends = {sym: complete_through(S, HZ) for sym, S in series.items()}
+    common = min(ends.values()) if ends and all(v is not None for v in ends.values()) else None
+    t_cut = add_months(seal_dt, months)
+    counted = sorted(c for c in entry_closes if common is not None and c <= common)
+    n_cut = counted[n_events - 1] if len(counted) >= n_events else None
+    g_cut = add_months(seal_dt, months + grace_months) if grace_months is not None else None
+    out = {"common_complete_through": _iso(common) if common else None,
+           "complete_through": {s: (_iso(v) if v else None) for s, v in ends.items()},
+           "counted_events": len(counted), "n_events": n_events, "months": months, "t_cutoff": _iso(t_cut),
+           "n_cutoff": _iso(n_cut) if n_cut else None, "grace_months": grace_months,
+           "grace_cutoff": _iso(g_cut) if g_cut else None, "dropped": []}
+    if n_cut is not None and n_cut <= t_cut:
+        return dict(out, cutoff=_iso(n_cut), rule=f"N: counted forward event number {n_events}")
+    if common is not None and common >= t_cut:
+        return dict(out, cutoff=_iso(t_cut), rule=f"T: {months} months after the seal")
+    reached = [v for v in ends.values() if v is not None]
+    if g_cut is not None and reached and max(reached) >= g_cut:
+        drop = sorted(s for s, v in ends.items() if v is None or v < t_cut)
+        return dict(out, cutoff=_iso(t_cut), dropped=drop,
+                    rule=f"T-drop: {months} months after the seal; not complete through it {grace_months} months "
+                         f"later, dropped whole: {', '.join(drop)}")
+    return dict(out, cutoff=None, rule=None)
+
+
+def member(S, ev, lo_dt, hi_dt):
+    """In the read's sample: signal bar closed at or after the seal, entry bar exists and closes by the cutoff, and the
+    server day before the signal bar was dense. [WY-F1 §3, §7]"""
+    k, e = ev["k"], ev["k"] + 1
+    return e < len(S) and S.prev_dense[k] and S.avail[k] >= lo_dt and S.avail[e] <= hi_dt
+
+
+def probe(sym, bars, heads, decs, ctx, fire_fn=None):
+    """The point-in-time truncation probe: each event is re-detected on the store CUT at its signal bar, with the
+    window's own pivots, and every DECISION_KEYS field (prev_dense and ATR20 included) must be identical. A probe that
+    checked nothing is not a pass. [WY-F1 §8]"""
+    E = ew()
+    cfg, P, sob = ctx
+    fire_fn = fire_fn or E.window_fire
+    checked, bad, first = 0, 0, None
+    for dec in decs:
+        k = dec["store_index"]
+        checked += 1
+        try:
+            cut = series_of(sym, bars[:k + 1])
+            got = [decision(cut, x, bars[:k + 1], heads[:k + 1], cfg["window"])
+                   for x in fire_fn(cut, k, cfg, P, sob, None)[0] if x["leg"] == LEG]
+            got = [g for g in got if g["id"] == dec["id"]]
+            ok = len(got) == 1 and _canon(got[0]) == _canon({f: dec[f] for f in DECISION_KEYS})
+            why = None if ok else {"event": dec["id"], "re_detected": got}
+        except Exception as exc:  # noqa: BLE001 -- a read past the cut is exactly what the probe looks for
+            ok, why = False, {"event": dec["id"], "error": repr(exc)}
+        if not ok:
+            bad += 1
+            first = first or json.loads(json.dumps(why, default=str))
+    return {"checked": checked, "violations": bad, "ok": checked > 0 and bad == 0, "first_violation": first}
+
+
+def history_check(sym, bars, S, seal_dt, cutoff_dt, HZ, hist_root, spans=()):
+    """The forward bars against a LATER FTMO history export, BOTH ways. The window is the store bars from the first one
+    closing at or after the seal to HZ bars after the cutoff bar. It reports:
+    - coverage, the share of the window's store bars the export holds, and agreement, the share of those at the same
+      prices;
+    - missing, the export's bars inside the window's time span that the store lacks (a hole the live file skipped would
+      otherwise pass with coverage 1.0);
+    - spans_end, whether the export reaches the window's last bar (an export taken too early checks nothing after it);
+    - spans, `(event id, first index, last index)` store ranges -- each sampled event's 300-bar window to HZ bars after
+      its entry, its longest walk, so no exit is needed -- where store and export must hold the same bars at the same
+      prices;
+    - the export's _exported_at_utc and the sha256 of every file read. [WY-F1 §8]"""
+    lo = bisect.bisect_left(S.avail, seal_dt)
+    j = bisect.bisect_right(S.avail, cutoff_dt) - 1
+    win = bars[lo:min(len(bars), j + HZ + 1)]
+    out = {"bars": len(win), "covered": 0, "agree": 0, "coverage": 0.0, "agreement": 0.0, "first_mismatch": None,
+           "export_bars_in_window": 0, "missing": 0, "missing_share": 0.0, "first_missing": None,
+           "window_last": win[-1]["t"] if win else None, "export_last": None, "spans_end": False,
+           "spans_checked": 0, "span_mismatches": 0, "first_span_mismatch": None, "export": None, "note": None}
+    if not win:
+        return out
+    since = min([win[0]["t"]] + [bars[a]["t"] for _i, a, _b in spans])
+    hist, note = history_source(hist_root, sym, since=since)
+    meta = history_meta(hist_root, sym, since=since)
+    htimes = [b["t"] for b in hist]
+    hmap = {b["t"]: b for b in hist}
+    smap = {b["t"] for b in bars}
+    cov = [b for b in win if b["t"] in hmap]
+    agr = [b for b in cov if same(b, hmap[b["t"]])]
+    mis = next((b["t"] for b in cov if not same(b, hmap[b["t"]])), None)
+
+    def export_in(t0, t1):
+        return hist[bisect.bisect_left(htimes, t0):bisect.bisect_right(htimes, t1)]
+    h_in = export_in(win[0]["t"], win[-1]["t"])
+    gone = [b["t"] for b in h_in if b["t"] not in smap]
+    bad = []
+    for ev_id, a, b in spans:
+        st, ht = bars[a:b + 1], export_in(bars[a]["t"], bars[b]["t"])
+        if [x["t"] for x in st] != [x["t"] for x in ht] or not all(same(x, y) for x, y in zip(st, ht)):
+            bad.append(ev_id)
+    return dict(out, covered=len(cov), agree=len(agr), coverage=len(cov) / len(win),
+                agreement=len(agr) / len(cov) if cov else 0.0, first_mismatch=mis,
+                export_bars_in_window=len(h_in), missing=len(gone),
+                missing_share=len(gone) / len(h_in) if h_in else 0.0, first_missing=gone[0] if gone else None,
+                export_last=htimes[-1] if htimes else None, spans_end=bool(htimes) and htimes[-1] >= win[-1]["t"],
+                spans_checked=len(spans), span_mismatches=len(bad), first_span_mismatch=bad[0] if bad else None,
+                export=meta, note=note)
+
+
+def history_problem(h):
+    """Why one symbol's history check fails, or None. [WY-F1 §8 item 4]"""
+    if not h["bars"]:
+        return None
+    if not h["spans_end"]:
+        return (f"the export ends {h['export_last']}, before the checked window's last bar {h['window_last']} (taken "
+                f"too early)")
+    if h["coverage"] < HIST_COVER_MIN or h["agreement"] < HIST_AGREE_MIN:
+        return f"coverage {h['coverage']:.3f}, agreement {h['agreement']:.3f} (first mismatch {h['first_mismatch']})"
+    if h["missing_share"] > HIST_MISSING_MAX:
+        return (f"the store lacks {h['missing']} of the export's {h['export_bars_in_window']} bars in the window "
+                f"(first {h['first_missing']})")
+    if h["span_mismatches"]:
+        return (f"{h['span_mismatches']} sampled event span(s) differ from the export, first "
+                f"{h['first_span_mismatch']}")
+    return None
+
+
+def _stores(data_root, symbols):
+    """(bars, heads) per symbol; a symbol without a store has none (it is not complete through any cutoff)."""
+    return {sym: read_chain(_rt(data_root, "bars", f"{sym}.{TF}.jsonl")) for sym in symbols}
+
+
+def committed_anchors(data_root):
+    """Every anchor line ever committed to ANCHORS, on any branch, each with the earliest commit holding it: a later
+    commit that drops or edits a line does not drop its pin. Refuses unless the working file is HEAD's -- an
+    uncommitted anchor pins nothing, and a working-tree edit must not stand in for the committed lines. [WY-F1 §8]"""
+    path = os.path.join(data_root, ANCHORS)
+    rc, out = _git(data_root, "rev-parse", "-q", "--verify", f"HEAD:{ANCHORS}")
+    head_blob = out.decode().strip() if rc == 0 else None
+    if os.path.exists(path) and (head_blob is None or git_blob_id(path) != head_blob):
+        raise SystemExit(f"refusing: {ANCHORS} differs from its committed version; commit it first [WY-F1 §8]")
+    rc, out = _git(data_root, "log", "--all", "--format=%H %cI", "--", ANCHORS)
+    if rc != 0:
+        raise SystemExit(f"refusing: git cannot list the history of {ANCHORS} [WY-F1 §8]")
+    seen = {}
+    for row in reversed([x for x in out.decode().splitlines() if x.strip()]):          # oldest commit first
+        sha, ci = row.split()
+        rc, blob = _git(data_root, "show", f"{sha}:{ANCHORS}")
+        if rc != 0:
+            continue                                                                    # a commit that deleted it
+        for line in blob.decode().splitlines():
+            if line.strip():
+                a = json.loads(line)
+                seen.setdefault(_canon(a), dict(a, commit=sha, committed=_iso(datetime.datetime.fromisoformat(ci))))
+    return list(seen.values())
+
+
+def verify_anchors(anchors, log_heads, stores):
+    """Every anchor must sit on the chains: the log's and each store's hash at the anchored length equal the anchored
+    head. `anchors` comes from git (`committed_anchors`), never from the working file. [WY-F1 §8]"""
+    for a in anchors:
+        pairs = [("log", a["log"], log_heads)] + [(s, v, stores[s][1]) for s, v in a.get("bars", {}).items()
+                                                  if s in stores]
+        for name, v, heads in pairs:
+            if v["n"] and (len(heads) < v["n"] or heads[v["n"] - 1] != v["head"]):
+                raise SystemExit(f"refusing: anchor {a['at']} does not sit on the {name} chain (history rewritten "
+                                 f"after it was anchored) [WY-F1 §8]")
+    return {"verified": len(anchors), "last_committed": max((a.get("committed") or "" for a in anchors), default=None)
+            or None, "log_records_anchored": max((a["log"]["n"] for a in anchors), default=0)}
+
+
+def read_core(data_root, seal, fp_digest, cost_r=None, n_events=N_EVENTS, months=MONTHS, symbols=SYMBOLS,
+              hist_root=None, price_ref=None, score_fn=None, anchors=(), grace_months=GRACE_MONTHS):
+    """The read's computation, without its guards (`worker_read` adds them and passes the committed `anchors`). In
+    order, refusing at the first failure: the chains and stamps; the anchors; the full replay of every window against
+    the log (outcome-blind); the due rule (outcome-blind -- an early read refuses here, before any walk or cost is
+    computed); the truncation probe; the history check; the price_ref check; only then the sealed §5 measurement
+    (edge_wyckoff.score: placebo, real cost, CR1 by week) and the consistency of the logged resolves. A symbol the
+    rule drops (T-drop) leaves the sample whole. [WY-F1 §7, §8]"""
+    E = ew()
+    bt = E.engine()
+    HZ = horizon()
+    ctx = det_ctx()
+    cfg = ctx[0]
+    seal_dt = _utc(seal["instant"])
+    log, log_heads = read_chain(_rt(data_root, "log.jsonl"))
+    stray = [r.get("id") for r in log if r.get("seal") != seal["sha"] or r.get("fingerprint") != fp_digest]
+    if stray:
+        raise SystemExit(f"refusing: {len(stray)} log record(s) were written under another seal or code fingerprint, "
+                         f"first {stray[0]} [WY-F1 §5]")
+    stores = _stores(data_root, symbols)
+    anchored = verify_anchors(anchors, log_heads, stores)
+    logged = {r["id"]: r for r in log if r["kind"] == "event"}
+    resolves = {r["id"]: r for r in log if r["kind"] == "resolve"}
+    series, replay = {}, {}
+    for sym in symbols:
+        bars, heads = stores[sym]
+        if not bars:
+            series[sym] = None
+            continue
+        S = series[sym] = series_of(sym, bars)
+        pidx = E.W.pivot_index(S.H, S.L, ctx[1]["pivot"])
+        for ev in fire(S, 0, len(S), 0, ctx, pidx):
+            if S.avail[ev["k"]] >= seal_dt:
+                d = decision(S, ev, bars, heads, cfg["window"])
+                replay[d["id"]] = (sym, ev, d)
+    missing = sorted(set(replay) - set(logged))
+    extra = sorted(set(logged) - set(replay))
+    changed = sorted(i for i in set(replay) & set(logged)
+                     if _canon(replay[i][2]) != _canon({f: logged[i][f] for f in DECISION_KEYS}))
+    if missing or extra or changed:
+        raise SystemExit(f"refusing: the replay does not match the log (not logged {len(missing)}, not re-detected "
+                         f"{len(extra)}, changed {len(changed)}; first {(missing + extra + changed)[0]}) [WY-F1 §8]")
+    closes = []
+    for _i, (sym, ev, d) in replay.items():
+        S, e = series[sym], ev["k"] + 1
+        if e < len(S) and S.prev_dense[ev["k"]] and E.placeable(SIDE, S.O[e], d["stop"], d["target"]) \
+                and (S.atr[ev["k"]] or 0) > 0:
+            closes.append(S.avail[e])
+    rule = due(series, closes, seal["instant"], HZ, n_events, months, grace_months)
+    if rule["cutoff"] is None:
+        raise SystemExit(f"refusing: the read is not due -- {rule['counted_events']} of {n_events} counted forward "
+                         f"events by the common complete time {rule['common_complete_through']}, and the {months}-month "
+                         f"cutoff is {rule['t_cutoff']} [WY-F1 §7]")
+    kept = [s for s in symbols if s not in rule["dropped"]]
+    cut_dt = _utc(rule["cutoff"])
+    sample = sorted(((sym, ev, d) for sym, ev, d in replay.values()
+                     if sym in kept and member(series[sym], ev, seal_dt, cut_dt)),
+                    key=lambda x: (x[2]["signal_time"], x[2]["id"]))
+    probes = {}
+    for sym in kept:
+        bars, heads = stores[sym]
+        probes[sym] = probe(sym, bars, heads, [d for s, _ev, d in sample if s == sym], ctx)
+    pr = {"checked": sum(p["checked"] for p in probes.values()), "violations": sum(p["violations"] for p in
+                                                                                    probes.values())}
+    if pr["violations"] or (sample and not pr["checked"]):
+        raise SystemExit(f"refusing: the truncation probe found {pr['violations']} violation(s) [WY-F1 §8]")
+    hist = {}
+    for sym in kept:
+        bars = stores[sym][0]
+        spans = [(d["id"], ev["k"] - cfg["window"] + 1, min(len(bars) - 1, ev["k"] + 1 + HZ))
+                 for s, ev, d in sample if s == sym]
+        hist[sym] = history_check(sym, bars, series[sym], seal_dt, cut_dt, HZ, hist_root or data_root, spans)
+    weak = {s: history_problem(h) for s, h in hist.items() if history_problem(h)}
+    if weak:
+        s0 = next(iter(weak))
+        raise SystemExit(f"refusing: the forward bars of {', '.join(weak)} cannot be verified against the history export "
+                         f"({s0}: {weak[s0]}; re-export the 15m history after the cutoff) [WY-F1 §8]")
+    if price_ref is not None:
+        cur = {s: _price_ref(s) for s in symbols}
+        if cur != price_ref:
+            raise SystemExit("refusing: real_costs.price_ref differs from the fingerprint's [WY-F1 §5]")
+    pricer = E.Pricer("ftmo", cost_r=cost_r)
+    score_fn = score_fn or E.score
+    rows, skipped, ids = [], collections.Counter(), []
+    with E.walk_opts(bt):
+        for sym, ev, d in sample:
+            r, why = score_fn(bt, series[sym], ev, HZ, pricer, seal["instant"], rule["cutoff"])
+            if r is None:
+                skipped[why] += 1
+                continue
+            rows.append(dict(r, id=d["id"]))
+            ids.append(d["id"])
+    mism = []
+    for r in rows:
+        rv = resolves.get(r["id"])
+        if rv is None or rv.get("skip") is not None or rv.get("R") != r["R"] or rv.get("outcome") != r["outcome"] \
+                or rv.get("exit_time") != r["exit_time"]:
+            mism.append(r["id"])
+    if mism:
+        raise SystemExit(f"refusing: {len(mism)} scored event(s) disagree with their logged resolve record, first "
+                         f"{mism[0]} [WY-F1 §8]")
+    lines = E.FTMO_LINES
+    s = E.summarise(rows, lines)
+    n = s.get("n", 0)
+    verdict = {"pass": bool(n) and s["net_excess"] > 0 and s["p_one_sided"] < P_PASS, "p_threshold": P_PASS,
+               "net_excess": s.get("net_excess"), "p_one_sided": s.get("p_one_sided"), "upper_95": s.get("upper_95"),
+               "against_the_book": bool(n) and s["net_excess"] < 0 and s["p_two_sided"] < E.AGAINST_P,
+               "below_delta": bool(n) and s["upper_95"] is not None and s["upper_95"] < E.DELTA, "delta": E.DELTA}
+    verdict["label"] = "PASS" if verdict["pass"] else "NOT PASSED"
+    lags = sorted((_utc(logged[r["id"]]["logged_at"]) - _utc(logged[r["id"]]["signal_close"])).total_seconds()
+                  for r in rows)
+    late = sorted(r["id"] for r in rows if (_utc(logged[r["id"]]["logged_at"])
+                                            - _utc(logged[r["id"]]["signal_close"])).total_seconds() > LATE_LOG_S)
+    hist_sourced = sum(1 for sym, ev, d in sample
+                       if any(b.get("src") != "live" for b in stores[sym][0][ev["k"] - cfg["window"] + 1:ev["k"] + 2]
+                              if b["t"] >= seal["instant"]))
+    return {"cutoff": rule, "sample": len(sample), "replay": {"events": len(replay), "logged": len(logged)},
+            "probe": dict(pr, per_symbol=probes), "history_check": hist, "symbols_read": kept,
+            "symbols_dropped": rule["dropped"],
+            "anchors": dict(anchored, note=None if anchored["verified"] else
+                            "no committed anchor: the log's timing (logged_at, the lag) is unanchored"),
+            "skipped": dict(skipped), "summary": s, "groups": E.by(rows, "group", lines),
+            "per_symbol": E.by(rows, "symbol", lines), "by_type": E.by(rows, "type", lines), "verdict": verdict,
+            "log_lag_seconds": {"median": lags[len(lags) // 2] if lags else None, "max": lags[-1] if lags else None},
+            "late_logged": {"threshold_seconds": LATE_LOG_S, "events": len(late), "ids": late},
+            "events_with_post_seal_history_bars": hist_sourced,
+            "stores": {sym: ({"bars": len(b), "head": h[-1], "first": b[0]["t"], "last": b[-1]["t"],
+                              "src": dict(collections.Counter(x.get("src") for x in b))} if b else {"bars": 0})
+                       for sym, (b, h) in stores.items()},
+            "log": {"records": len(log), "head": log_heads[-1] if log_heads else GENESIS},
+            "rows": rows}
+
+
+def _price_ref(sym):
+    info = ew().RC.price_ref_info(ew().COST_PROFILE, sym)
+    return {k: info[k] for k in ("price_ref", "n_bars", "closes_sha256", "window_utc")}
+
+
+# ------------------------------------------------------------------------------------------------ fingerprint (WY-F1 §5)
+_MON = getattr(sys, "monitoring", None)
+_TRACE = {"active": None, "tool": None, "hook": False}
+
+
+def _on_start(code, _offset):
+    t = _TRACE["active"]
+    if t is not None:
+        t.saw(code)
+    return _MON.DISABLE
+
+
+def _audit(event, args):
+    try:
+        t = _TRACE["active"]
+        if t is not None and event == "open" and args and isinstance(args[0], (str, bytes)):
+            p = os.fsdecode(args[0])
+            if os.path.isabs(p):                 # relative names are dir_fd opens (shutil.rmtree), not inputs
+                t.opened.add(os.path.normpath(p))
+    except Exception:  # noqa: BLE001 -- an audit hook must never break the open it observes
+        pass
+
+
+class Tracer:
+    """What one process executes, loads and opens under a code root: module code objects (loaded), function code
+    objects by phase ("import" until `run_phase`, then "run"), and files opened (audit hook). sys.monitoring PY_START
+    reports each code object once per phase (DISABLE, then restart_events at the phase switch); sys.setprofile where
+    sys.monitoring is missing. scripts/tests is never part of the forward path and is ignored. [WY-F1 §5]"""
+
+    def __init__(self, root=CODE_ROOT):
+        self.root = os.path.abspath(root) + os.sep
+        self.phase = "import"
+        self.exec = {"import": set(), "run": set()}
+        self.modules, self.opened = set(), set()
+
+    def _rel(self, path):
+        return os.path.relpath(path, self.root).replace(os.sep, "/")
+
+    def saw(self, code):
+        f = code.co_filename
+        if not f.startswith(self.root):
+            return
+        rel = self._rel(f)
+        if rel.startswith("scripts/tests/"):
+            return
+        if code.co_name == "<module>":
+            self.modules.add(rel)
+        elif code.co_flags & inspect.CO_NEWLOCALS:
+            self.exec[self.phase].add(rel)
+
+    def _prof(self, frame, event, _arg):
+        if event == "call":
+            self.saw(frame.f_code)
+
+    def start(self):
+        if not _TRACE["hook"]:
+            sys.addaudithook(_audit)
+            _TRACE["hook"] = True
+        _TRACE["active"] = self
+        if _MON is not None:
+            if _TRACE["tool"] is None:
+                for i in (_MON.PROFILER_ID, 3, 4):
+                    if _MON.get_tool(i) is None:
+                        _MON.use_tool_id(i, "wyckoff_forward")
+                        _TRACE["tool"] = i
+                        break
+            if _TRACE["tool"] is None:
+                raise SystemExit("refusing: no free sys.monitoring tool id for the code trace")
+            _MON.register_callback(_TRACE["tool"], _MON.events.PY_START, _on_start)
+            _MON.set_events(_TRACE["tool"], _MON.events.PY_START)
+            _MON.restart_events()
+        else:
+            sys.setprofile(self._prof)
+        return self
+
+    def run_phase(self):
+        self.phase = "run"
+        if _MON is not None:
+            _MON.restart_events()
+        return self
+
+    def stop(self):
+        if _MON is not None and _TRACE["tool"] is not None:
+            _MON.set_events(_TRACE["tool"], 0)
+        else:
+            sys.setprofile(None)
+        _TRACE["active"] = None
+        return self
+
+    def touched(self):
+        """(executed in the run phase, other code loaded, data opened): relative paths under the root. Opened data
+        excludes Python files and caches and the runtime / live / record directories (inputs and outputs, hashed
+        separately). [WY-F1 §5]"""
+        skip = (RUNTIME + "/", LIVE_DIR + "/", REC_DIR + "/")
+        run = set(self.exec["run"])
+        code = (self.modules | self.exec["import"]) - run
+        data = set()
+        for p in self.opened:
+            if not p.startswith(self.root):
+                continue
+            rel = self._rel(p)
+            if rel.endswith((".py", ".pyc")) or "__pycache__" in rel or rel.startswith(skip):
+                continue
+            data.add(rel)
+        return run, code, data
+
+
+def _hashes(root, paths):
+    return {p: (_sha256(os.path.join(root, p)) if os.path.isfile(os.path.join(root, p)) else None)
+            for p in sorted(paths)}
+
+
+def fp_digest(fp):
+    """The fingerprint's identity, stamped on every record: sha256 over its file hashes and canary digest.
+    [WY-F1 §5]"""
+    return hashlib.sha256(_canon({k: fp[k] for k in ("exec", "load", "data", "canary_sha256")}).encode()).hexdigest()
+
+
+def sealed_history_files(root=CODE_ROOT):
+    """Every file of the symbols' 15m history under `root` (the warm-up and price_ref inputs), relative. [WY-F1 §5]"""
+    out = []
+    base = os.path.join(root, HIST_DIR)
+    for sym in SYMBOLS:
+        f = os.path.join(base, f"ohlcv.{sym}.{TF}.json")
+        if os.path.isfile(f):
+            out.append(f"{HIST_DIR}/ohlcv.{sym}.{TF}.json")
+        d = os.path.join(base, f"ohlcv.{sym}.{TF}")
+        if os.path.isdir(d):
+            out += [f"{HIST_DIR}/ohlcv.{sym}.{TF}/{n}" for n in sorted(os.listdir(d))]
+    return out
+
+
+def verify_fingerprint(root=CODE_ROOT):
+    """(fingerprint, digest): every file the fingerprint names has, under `root`, the sha256 it recorded. Refuses
+    otherwise -- the extract (or the tree) is not the sealed code. [WY-F1 §5]"""
+    fp = _read_json(os.path.join(root, FINGERPRINT))
+    if not fp:
+        raise SystemExit(f"refusing: {FINGERPRINT} is missing under {root}; WY-F1 has no sealed code fingerprint")
+    bad = []
+    for sect in ("exec", "load", "data"):
+        for p, h in fp[sect].items():
+            f = os.path.join(root, p)
+            if not os.path.isfile(f) or _sha256(f) != h:
+                bad.append(p)
+    if bad:
+        raise SystemExit(f"refusing: {len(bad)} fingerprinted file(s) differ from the sealed ones, first {bad[0]} "
+                         f"[WY-F1 §5]")
+    return fp, fp_digest(fp)
+
+
+def require_committed_fingerprint(data_root, seal, root=CODE_ROOT):
+    """The extract's fingerprint must be, byte for byte, the one the SEAL COMMIT holds (git is the trust root): an
+    extract rebuilt with another fingerprint that matches its own files is refused. [WY-F1 §5]"""
+    rc, blob = _git(data_root, "cat-file", "blob", f"{seal['sha']}:{FINGERPRINT}")
+    with open(os.path.join(root, FINGERPRINT), "rb") as fh:
+        mine = fh.read()
+    if rc != 0 or blob != mine:
+        raise SystemExit(f"refusing: the extract's {FINGERPRINT} is not the seal commit's [WY-F1 §5]")
+
+
+def pinned_interpreter(fp):
+    """The interpreter the fingerprint was made with: {"command", "realpath", "version", "minor"}. [WY-F1 §5]"""
+    return fp.get("interpreter") or {}
+
+
+def require_interpreter(fp):
+    """Inside a worker: this process runs the fingerprint's Python minor version. A patch upgrade is allowed here; the
+    read's canary still refuses any numeric change. [WY-F1 §5]"""
+    want = pinned_interpreter(fp).get("minor")
+    have = "%d.%d" % sys.version_info[:2]
+    if want != have:
+        raise SystemExit(f"refusing: this worker runs Python {have}, the fingerprint pins {want} [WY-F1 §5]")
+
+
+def _interpreter(code_root):
+    """The command the launcher runs a worker with: the fingerprint's pinned interpreter, never another Python.
+    [WY-F1 §5]"""
+    try:
+        fp = _read_json(os.path.join(code_root, FINGERPRINT))
+    except ValueError:
+        raise SystemExit(f"refusing: {FINGERPRINT} in {code_root} is not readable JSON [WY-F1 §5]")
+    pin = pinned_interpreter(fp or {})
+    cmd = pin.get("command")
+    if not cmd:
+        raise SystemExit(f"refusing: {FINGERPRINT} pins no interpreter [WY-F1 §5]")
+    if not os.path.exists(cmd):
+        raise SystemExit(f"refusing: the pinned interpreter {cmd} (Python {pin.get('version')}) is missing; reinstall "
+                         f"Python {pin.get('minor')} there -- WY-F1 never runs under another Python [WY-F1 §5]")
+    return cmd
+
+
+_R0_CODE = {}
+
+
+def r0_code(root=CODE_ROOT):
+    """(R0 meta code_sha256, R0 git_head) from this root's sealed re-test record. [WY-F1 §5]"""
+    if "m" not in _R0_CODE:
+        meta = _read_json(os.path.join(root, R0))["meta"]
+        _R0_CODE["m"] = (meta["code_sha256"], meta["git_head"])
+    return _R0_CODE["m"]
+
+
+def r0_drift(root, paths):
+    """The fingerprinted inputs that are NOT what the sealed re-test's R1 ran: a path R0's `code_sha256` names must have
+    that sha256; any other (cost tables, broker_symbols, ...) must be the blob of R0's `git_head`. This file, the R0
+    record and the 15m history (re-exported before sealing, WY-F1 §12) are exempt. Returns "path: why" lines.
+    [WY-F1 §5, §7 "RT §5, unchanged"]"""
+    code, head = r0_code(root)
+    out = []
+    for p in sorted(paths):
+        if p in (SCRIPT, R0) or p.startswith(HIST_DIR + "/"):
+            continue
+        f = os.path.join(root, p)
+        if p in code:
+            if not os.path.isfile(f) or _sha256(f) != code[p]:
+                out.append(f"{p}: differs from R0's code_sha256")
+            continue
+        rc, blob = _git(root, "rev-parse", "-q", "--verify", f"{head}:{p}")
+        if rc != 0:
+            out.append(f"{p}: not in R0's git_head {head[:12]} (or git cannot say)")
+        elif not os.path.isfile(f) or git_blob_id(f) != blob.decode().strip():
+            out.append(f"{p}: differs from R0's git_head {head[:12]}")
+    return out
+
+
+def check_touched(tr, fp):
+    """After a traced run, before anything is written: every code file it executed or loaded and every data file it
+    opened is one the fingerprint names (so its hash was verified). Returns the run-phase files executed outside the
+    narrow `exec` set (verified, reported). [WY-F1 §5]"""
+    run, code, data = tr.touched()
+    named = set(fp["exec"]) | set(fp["load"]) | set(fp["data"])
+    outside = sorted((run | code | data) - named)
+    if outside:
+        raise SystemExit(f"refusing: this run used {len(outside)} file(s) the sealed fingerprint does not name, first "
+                         f"{outside[0]}; nothing was written [WY-F1 §5]")
+    return sorted(run - set(fp["exec"]))
+
+
+def check_outside(tr, data_root):
+    """After a traced run, before anything is written: under the DATA root but outside this code root, the run opened
+    only DATA_INPUTS (no other extract) and the sealed pre-registration, and no loaded module came from there (an
+    inherited PYTHONPATH pointing at the live tree would run unsealed code the trace cannot see). [WY-F1 §5]"""
+    droot = os.path.abspath(data_root) + os.sep
+    bad = []
+
+    def rel(p):
+        return os.path.relpath(p, droot).replace(os.sep, "/")
+    for p in sorted(tr.opened):
+        if p.startswith(droot) and not p.startswith(tr.root):
+            r = rel(p)
+            if r != PREREG and (not r.startswith(DATA_INPUTS) or r.startswith(RUNTIME + "/code/")):
+                bad.append(f"opened {r}")
+    for m in list(sys.modules.values()):
+        f = getattr(m, "__file__", None)
+        if isinstance(f, str):
+            f = os.path.abspath(f)
+            if f.startswith(droot) and not f.startswith(tr.root):
+                bad.append(f"imported {rel(f)}")
+    if bad:
+        raise SystemExit(f"refusing: this run used {len(bad)} file(s) of the live tree outside the sealed extract, "
+                         f"first {bad[0]}; nothing was written [WY-F1 §5]")
+
+
+# ------------------------------------------------------------------------------------------------ canary (WY-F1 §5)
+def _leg(a, b, n, vol=10.0):
+    return [(a + (b - a) * i / n, max(a + (b - a) * i / n, a + (b - a) * (i + 1) / n) + 0.05,
+             min(a + (b - a) * i / n, a + (b - a) * (i + 1) / n) - 0.05, a + (b - a) * (i + 1) / n, vol)
+            for i in range(n)]
+
+
+def _rising(n, a=100.0, b=104.0):
+    out, p = [], a
+    for i in range(n):
+        q = a + (b - a) * (i + 1) / n + (0.3 if i % 2 else -0.3)
+        out.append((p, max(p, q) + 0.1, min(p, q) - 0.1, q, 10.0))
+        p = q
+    return out
+
+
+def canary_bars(i):
+    """One synthetic 15m series: a rising zigzag (never a downtrend), one accumulation with a Spring that reclaims on
+    its own bar (the shape of scripts/tests/test_edge_wyckoff.py scenario("spring")), its Phase D, a rising tail.
+    Prices scaled by the symbol's index so the series differ. [WY-F1 §5]"""
+    b = _leg(104, 102, 5) + _leg(102, 99, 5) + _leg(99, 101, 5) + _leg(101, 97, 5) + _leg(97, 100, 5)
+    b += _leg(100, 90, 5) + _leg(90, 96, 5) + _leg(96, 80, 5) + _leg(80, 110, 6) + _leg(110, 85, 6) + _leg(85, 108, 6)
+    b += _leg(108, 88, 6) + _leg(88, 106, 6) + _leg(106, 90, 6) + _leg(90, 100, 6) + _leg(100, 92, 6)
+    b += _leg(92, 82, 4) + [(82, 82.5, 78, 81, 20.0)] + _leg(81, 86, 3, vol=5.0) + _leg(86, 108, 6)
+    b += [(108, 114, 107.5, 113.5, 30.0), (113.5, 114.5, 112, 114, 10.0), (114, 114.2, 111, 111.5, 5.0),
+          (111.5, 115, 113.2, 114.8, 10.0)] + _leg(114.8, 118, 5)
+    bars = _rising(1200) + b + _rising(400, 118, 122)
+    off = 1.0 + 0.01 * i
+    return [(o * off, h * off, lo * off, c * off, v) for (o, h, lo, c, v) in bars]
+
+
+CANARY_START, CANARY_SEAL_BAR, CANARY_HIST_END, CANARY_LIVE_FROM = "2026-06-01T00:00:00Z", 1250, 1500, 1400
+
+
+def canary_data(tmp):
+    """Writes the canary's data root under `tmp`: per symbol a history export (file shape) ending at bar
+    CANARY_HIST_END and a live 15m file from bar CANARY_LIVE_FROM with the bridge's +1 s stamps. Returns the seal.
+    [WY-F1 §5]"""
+    import broker_symbols as BS
+    t0 = _utc(CANARY_START)
+
+    def t(j, jitter=0):
+        return _iso(t0 + datetime.timedelta(minutes=MINUTES * j, seconds=jitter))
+    for i, sym in enumerate(SYMBOLS):
+        bars = canary_bars(i)
+        cs = [{"time": t(j), "open": o, "high": h, "low": lo, "close": c, "volume": v}
+              for j, (o, h, lo, c, v) in enumerate(bars)]
+        _write_json(os.path.join(tmp, HIST_DIR, f"ohlcv.{sym}.{TF}.json"),
+                    {"symbol": sym, "timeframe": TF, "candles": cs[:CANARY_HIST_END]})
+        live = [dict(c, time=t(j, j % 2)) for j, c in enumerate(cs) if j >= CANARY_LIVE_FROM]
+        _write_json(os.path.join(tmp, LIVE_DIR, f"ohlcv.{BS.to_broker(sym)}.{TF}.json"),
+                    {"symbol": BS.to_broker(sym), "timeframe": TF, "candles": live})
+    return {"sha": "canary", "instant": t(CANARY_SEAL_BAR)}
+
+
+def canary(tmp, cost_r=None):
+    """Every forward step on synthetic bars, with the real detector, walk and cost: init, live append, scan, resolve,
+    then the read core with N = 1. Returns (sha256 of its records and rows, the read result). Deterministic: wall
+    clock fields are fixed, and the records' `python` stamp is left out, so a routine Python patch upgrade during the
+    12 months does not lock the read out -- a numeric change still would. [WY-F1 §5]"""
+    seal = canary_data(tmp)
+    now = "2026-07-01T00:00:00Z"
+    res = cycle_core(tmp, seal, "canary", now, init_root=tmp)
+    commit(res["writes"])
+    out = read_core(tmp, seal, "canary", cost_r=cost_r, n_events=1)
+    log, _ = read_chain(_rt(tmp, "log.jsonl"))
+    keep = ("id", "R", "outcome", "exit_time", "excess", "placebo", "n_placebo", "cost", "net_excess")
+    body = {"log": [{k: v for k, v in r.items() if k != "python"} for r in log],
+            "rows": [{k: r.get(k) for k in keep} for r in out["rows"]], "summary": out["summary"]}
+    return hashlib.sha256(_canon(json.loads(json.dumps(body, default=str))).encode()).hexdigest(), out
+
+
+# ------------------------------------------------------------------------------------------------ git, seal, extract
+def _git(root, *args, timeout=120):
+    try:
+        p = subprocess.run(["git", "-C", root, *args], capture_output=True, timeout=timeout)
+        return p.returncode, p.stdout
+    except (OSError, subprocess.SubprocessError):
+        return None, b""
+
+
+def seal_info(data_root=CODE_ROOT):
+    """{"sha", "instant", "date"} of the commit that ADDED the sealed pre-registration, by its committer date (a rebase
+    or cherry-pick keeps the author date, not this one); None when no commit adds it (not sealed). [WY-F1 §3]"""
+    rc, out = _git(data_root, "log", "--diff-filter=A", "--format=%H %cI", "--", PREREG)
+    lines = [x for x in out.decode().splitlines() if x.strip()] if rc == 0 else []
+    if not lines:
+        return None
+    sha, ci = lines[-1].split()
+    t = datetime.datetime.fromisoformat(ci)
+    return {"sha": sha, "instant": _iso(t), "date": t.astimezone(UTC).date().isoformat()}
+
+
+def _wanted(name):
+    if name == HIST_DIR or name.startswith(HIST_DIR + "/"):
+        return any(name == f"{HIST_DIR}/ohlcv.{s}.{TF}.json" or name.startswith(f"{HIST_DIR}/ohlcv.{s}.{TF}/")
+                   for s in SYMBOLS)
+    return any(name == r or name.startswith(r + "/") for r in SNAPSHOT_ROOTS)
+
+
+def _extract(data_root, rev, dest, need_fingerprint=True):
+    """`git archive` of `rev` (SNAPSHOT_ROOTS only) unpacked at `dest`; returns the file count. core.autocrlf is
+    forced off: the extract holds the committed bytes, the ones the fingerprint hashed, on any checkout. [WY-F1 §5]"""
+    rc, out = _git(data_root, "ls-tree", "-r", "-z", "--name-only", rev, "--", *SNAPSHOT_ROOTS)
+    names = [n for n in out.decode().split("\0") if n and _wanted(n)] if rc == 0 else []
+    if not names:
+        raise SystemExit(f"refusing: cannot list commit {rev} (is git available?)")
+    if need_fingerprint and FINGERPRINT not in names:
+        raise SystemExit(f"refusing: the sealed commit {rev} has no {FINGERPRINT}")
+    rc, tar = _git(data_root, "-c", "core.autocrlf=false", "archive", "--format=tar", rev, "--", *names, timeout=600)
+    if rc != 0:
+        raise SystemExit(f"refusing: git archive of {rev} failed")
+    shutil.rmtree(dest, ignore_errors=True)
+    with tarfile.open(fileobj=io.BytesIO(tar)) as tf:
+        try:
+            tf.extractall(dest, filter="data")
+        except TypeError:
+            tf.extractall(dest)
+    return len(names)
+
+
+def materialize(data_root, sha, fresh=False):
+    """The read-only extract of commit `sha` (SNAPSHOT_ROOTS only) at data/live/forward/wyckoff-wc15/code/<sha>/,
+    made once and reused; a half-made one is replaced. `fresh` (the read): rebuilt from git every time, at
+    code/<sha>.read/, so no file a cycle could have touched since is used. [WY-F1 §5]"""
+    dest = _rt(data_root, "code", sha + (".read" if fresh else ""))
+    if not fresh and os.path.isfile(os.path.join(dest, ".complete")):
+        return dest
+    tmp = f"{dest}.tmp.{os.getpid()}"
+    n = _extract(data_root, sha, tmp)
+    _write_json(os.path.join(tmp, ".complete"), {"sha": sha, "files": n, "at": _now()})
+    shutil.rmtree(dest, ignore_errors=True)
+    os.replace(tmp, dest)
+    return dest
+
+
+def _worker_cmd(code_root, what, data_root, seal, *extra):
+    """The fingerprint's pinned interpreter on the extract's own copy of this file: -E (no PYTHONPATH from the
+    scheduler's environment), -s (no user site), -B (nothing written into the extract). [WY-F1 §5]"""
+    return [_interpreter(code_root), "-B", "-E", "-s", os.path.join(code_root, SCRIPT), "_worker", what, "--data-root",
+            os.path.abspath(data_root), "--seal-sha", seal["sha"], "--seal-instant", seal["instant"], *extra]
+
+
+def extract_check(fp, root=CODE_ROOT, rev="HEAD", timeout=900):
+    """BEFORE sealing: build the extract `materialize` will build, from `rev`, put the new fingerprint in it, and run
+    the canary there BY ITSELF -- a fresh process, the fingerprint verified, the trace checks -- to the fingerprint's
+    digest. A file the forward path needs but the extract would lack fails here, not at the first cycle after the
+    seal. Returns the extract's file count. [WY-F1 §5, §12]"""
+    with tempfile.TemporaryDirectory() as tmp:
+        dest = os.path.join(tmp, "code")
+        n = _extract(root, rev, dest, need_fingerprint=False)
+        _write_json(os.path.join(dest, FINGERPRINT), fp)
+        p = subprocess.run(_worker_cmd(dest, "canary", tmp, {"sha": "extract-check", "instant": _now()}),
+                           capture_output=True, text=True, timeout=timeout)
+        got = (p.stdout.strip().splitlines() or [""])[-1]
+        if p.returncode != 0:
+            raise SystemExit(f"refusing: the extract of {rev} cannot run the forward path by itself: "
+                             + (p.stderr or p.stdout).strip()[-700:])
+        if got != fp["canary_sha256"]:
+            raise SystemExit(f"refusing: the canary in the extract of {rev} gives {got[:16]}, the working tree "
+                             f"{fp['canary_sha256'][:16]}")
+    return n
+
+
+class Busy(SystemExit):
+    """Another WY-F1 process holds the lock: a skip, not a failure."""
+
+
+@contextlib.contextmanager
+def _lock(data_root, name="worker.lock"):
+    d = _rt(data_root)
+    os.makedirs(d, exist_ok=True)
+    p = os.path.join(d, name)
+    if os.path.exists(p) and time.time() - os.path.getmtime(p) > LOCK_STALE_S:
+        os.remove(p)
+    try:
+        fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        raise Busy(f"WY-F1: another process holds {name}; skipped")
+    try:
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
+        yield
+    finally:
+        with contextlib.suppress(OSError):
+            os.remove(p)
+
+
+def _require_seal(data_root, seal, fp=None):
+    """The seal passed in is the commit that adds the sealed file. With the fingerprint: that commit has ONE parent, the
+    commit the fingerprint was taken at (`git_head`), and it adds exactly the sealed file and the fingerprint -- so the
+    sealed code is the fingerprinted code and nothing rode in with the seal. [WY-F1 §3, §12]"""
+    cur = seal_info(data_root)
+    if cur is None or cur["sha"] != seal["sha"] or cur["instant"] != seal["instant"]:
+        raise SystemExit(f"refusing: the seal passed in ({seal['sha'][:12]}) is not the commit that adds {PREREG}")
+    if fp is None:
+        return
+    rc, out = _git(data_root, "rev-list", "--parents", "-n", "1", seal["sha"])
+    parents = out.decode().split()[1:] if rc == 0 else None
+    if parents != [fp.get("git_head")]:
+        raise SystemExit(f"refusing: the seal commit's parent(s) {parents} are not the fingerprinted commit "
+                         f"{fp.get('git_head')}; the seal is ONE commit on top of it [WY-F1 §12]")
+    rc, out = _git(data_root, "diff-tree", "-r", "--no-commit-id", "--name-status", seal["sha"])
+    got = sorted(tuple(x.split("\t", 1)) for x in out.decode().splitlines() if x.strip()) if rc == 0 else None
+    if got != sorted([("A", FINGERPRINT), ("A", PREREG)]):
+        raise SystemExit(f"refusing: the seal commit must add exactly {PREREG} and {FINGERPRINT}, got {got} "
+                         f"[WY-F1 §12]")
+
+
+def prereg_record(data_root, seal):
+    """The sealed pre-registration as the read cites it: the sha256 of its text AT THE SEAL (git), of its committed text
+    now, and every later commit that changed it (errata, disclosed). [WY-F1 §7]"""
+    rc, blob = _git(data_root, "show", f"{seal['sha']}:{PREREG}")
+    if rc != 0:
+        raise SystemExit(f"refusing: git cannot show {PREREG} at the seal")
+    rc2, now = _git(data_root, "show", f"HEAD:{PREREG}")
+    rc3, later = _git(data_root, "log", "--format=%H", f"{seal['sha']}..HEAD", "--", PREREG)
+    return {"sealed_sha256": hashlib.sha256(blob).hexdigest(),
+            "head_sha256": hashlib.sha256(now).hexdigest() if rc2 == 0 else None,
+            "changed_after_seal": [x for x in later.decode().split() if x] if rc3 == 0 else None}
+
+
+# ------------------------------------------------------------------------------------------------ workers (sealed code)
+def worker_cycle(data_root, seal, only=None):
+    """In the sealed extract: trace, verify the fingerprint, run one cycle in memory, check what it touched, then
+    write. Prints a one-line JSON summary for scripts/forward_cycle.py's log. [WY-F1 §4, §5]"""
+    tr = Tracer(CODE_ROOT).start()
+    fp, digest = verify_fingerprint(CODE_ROOT)
+    require_interpreter(fp)
+    ew()
+    tr.run_phase()
+    with _lock(data_root):
+        _require_seal(data_root, seal, fp)
+        require_committed_fingerprint(data_root, seal)
+        res = cycle_core(data_root, seal, digest, _now(), only=only)
+        tr.stop()
+        extra = check_touched(tr, fp)
+        check_outside(tr, data_root)
+        commit(res["writes"])
+    s = res["summary"]
+    s["notes"] = s["notes"][:3] + ([f"+{len(s['notes']) - 3} more"] if len(s["notes"]) > 3 else [])
+    if extra:
+        s["outside_exec"] = extra
+    print(json.dumps(s, separators=(",", ":")))
+    return s
+
+
+def worker_read(data_root, seal, out):
+    """In a FRESH extract of the seal (`cmd_read`): the read, ONCE, under every guard -- the sealed pre-registration
+    committed and clean in the data root, its adding commit the seal, one commit on the fingerprinted one; the
+    fingerprint the seal commit's, every file verified, the pinned Python, the canary re-run to the same digest; the
+    hour frame; the canonical --out path with no git history; the anchors from git; the trace check -- then
+    `read_core`. [WY-F1 §5, §7, §8]"""
+    tr = Tracer(CODE_ROOT).start()
+    fp, digest = verify_fingerprint(CODE_ROOT)
+    require_interpreter(fp)
+    E = ew()
+    tr.run_phase()
+    want = os.path.join(data_root, READ_OUT)
+    if os.path.abspath(out) != want:
+        raise SystemExit(f"refusing: the read writes {READ_OUT} (got {out})")
+    if os.path.exists(want):
+        raise SystemExit(f"{READ_OUT} exists: WY-F1 is read ONCE [WY-F1 §7]")
+    rc, log = _git(data_root, "log", "--all", "--format=%H", "--", READ_OUT)
+    if rc != 0 or log.strip():
+        raise SystemExit(f"refusing: {READ_OUT} has git history (or git cannot say) -- the read was already run")
+    rc, st = _git(data_root, "status", "--porcelain", "--", PREREG)
+    if rc != 0 or st.strip():
+        raise SystemExit(f"refusing: {PREREG} has uncommitted changes")
+    _require_seal(data_root, seal, fp)
+    require_committed_fingerprint(data_root, seal)
+    prereg = prereg_record(data_root, seal)
+    anchors = committed_anchors(data_root)
+    E._require_hour_frame()
+    with tempfile.TemporaryDirectory() as tmp:
+        cdig, _ = canary(tmp)
+    if cdig != fp["canary_sha256"]:
+        raise SystemExit("refusing: the canary no longer reproduces its sealed digest (Python or a sealed input "
+                         "changed) [WY-F1 §5]")
+    with _lock(data_root):
+        res = read_core(data_root, seal, digest, price_ref=fp.get("price_ref"), anchors=anchors)
+        tr.stop()
+        extra = check_touched(tr, fp)
+        check_outside(tr, data_root)
+        res["meta"] = {"study": STUDY, "cell": CELL, "script": SCRIPT, "preregistration": PREREG,
+                       "preregistration_sha256": prereg["sealed_sha256"], "preregistration_git": prereg,
+                       "seal": seal, "fingerprint": FINGERPRINT, "fingerprint_digest": digest,
+                       "python": platform.python_version(), "interpreter": sys.executable, "read_at": _now(),
+                       "n_events": N_EVENTS, "months": MONTHS, "grace_months": GRACE_MONTHS, "p_pass": P_PASS,
+                       "outside_exec": extra,
+                       "measurement": "sealed re-test §5: edge_wyckoff.score / summarise, FTMO cost lines"}
+        rows = res.pop("rows")
+        res["rows"] = {CELL: rows}
+        E._dump(res, want)
+    v = res["verdict"]
+    print(f"WY-F1 {CELL}: n {res['summary'].get('n', 0)} | {v['label']} (rule {res['cutoff']['rule']}, cutoff "
+          f"{res['cutoff']['cutoff']})\nwrote {want}")
+    return res
+
+
+def worker_canary(data_root):
+    """In an extract (`extract_check`, before sealing): the fingerprint verified, the canary run under the trace and
+    both trace checks; prints its digest. Synthetic bars only. [WY-F1 §5]"""
+    tr = Tracer(CODE_ROOT).start()
+    fp, _digest = verify_fingerprint(CODE_ROOT)
+    require_interpreter(fp)
+    ew()
+    tr.run_phase()
+    with tempfile.TemporaryDirectory() as tmp:
+        cdig, _ = canary(tmp)
+    tr.stop()
+    check_touched(tr, fp)
+    check_outside(tr, data_root)
+    print(cdig)
+    return cdig
+
+
+# ------------------------------------------------------------------------------------------------ launcher commands
+BUSY_RC = 75                # a worker that found the lock held exits with this (EX_TEMPFAIL): a skip, not a failure
+
+
+def cmd_cycle(only=None, data_root=CODE_ROOT, timeout=WORKER_TIMEOUT_S):
+    """One collection cycle (what `spawn` starts): nothing before the seal; after it, the worker in the sealed extract,
+    in a fresh process under the pinned interpreter. Records the outcome in last_cycle.json and returns the worker's
+    one-line summary. A checkout that lacks the seal while the stores exist is a FAILURE (collection would pause
+    silently); another cycle still running is a skip. [WY-F1 §5, §12]"""
+    last = _rt(data_root, "last_cycle.json")
+    s = seal_info(data_root)
+    if s is None:
+        if os.path.isdir(_rt(data_root, "bars")) or os.path.exists(_rt(data_root, "log.jsonl")):
+            err = (f"the stores exist but the checked-out branch has no commit adding {PREREG}: collection is PAUSED "
+                   f"(check out the branch that holds the seal)")
+            _write_json(last, {"at": _now(), "ok": False, "error": err})
+            raise SystemExit(f"{STUDY}: {err}")
+        return f"{STUDY} is not sealed ({PREREG} is not committed): nothing collected"
+    try:
+        with _lock(data_root, "launcher.lock"):
+            try:
+                code = materialize(data_root, s["sha"])
+                p = subprocess.run(_worker_cmd(code, "cycle", data_root, s, *(["--only", only] if only else [])),
+                                   capture_output=True, text=True, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                _write_json(last, {"at": _now(), "ok": False, "error": f"worker timed out after {timeout} s"})
+                raise SystemExit(f"{STUDY} worker timed out after {timeout} s; nothing was written")
+            except SystemExit as exc:
+                _write_json(last, {"at": _now(), "ok": False, "error": str(exc)[-700:]})
+                raise
+    except Busy as exc:
+        return f"{STUDY}: skipped ({exc})"
+    if p.returncode == BUSY_RC:
+        return f"{STUDY}: skipped (the worker lock is held)"
+    if p.returncode != 0:
+        err = (p.stderr or p.stdout).strip()[-700:]
+        _write_json(last, {"at": _now(), "ok": False, "error": err})
+        raise SystemExit(f"{STUDY} worker failed ({p.returncode}): " + err)
+    line = (p.stdout.strip().splitlines() or [""])[-1]
+    _write_json(last, {"at": _now(), "ok": True, "summary": line})
+    return line
+
+
+def cmd_spawn(data_root=CODE_ROOT, popen=subprocess.Popen):
+    """What scripts/forward_cycle.py calls, AFTER the demo ticks: start `cycle` in a DETACHED process and return at once,
+    so WY-F1 adds no time to the forward cycle and never delays the next cycle's ticks (CLAUDE.md §40; the cycle log
+    shows launchd starting the next cycle about 300 s after the previous one ends). The child gets its own session
+    (POSIX setsid; DETACHED_PROCESS on Windows), so launchd's end-of-job kill of the job's process group does not reach
+    it; its output goes to spawn.log. If the PREVIOUS cycle failed, this raises after spawning, so the cycle log
+    shows an EXIT line. [WY-F1 §12]"""
+    os.makedirs(_rt(data_root), exist_ok=True)
+    logp = _rt(data_root, "spawn.log")
+    if os.path.exists(logp) and os.path.getsize(logp) > SPAWN_LOG_MAX:
+        os.replace(logp, logp + ".1")
+    cmd = [sys.executable, "-B", os.path.join(CODE_ROOT, SCRIPT), "cycle", "--background", "--data-root",
+           os.path.abspath(data_root)]
+    kw = {"stdin": subprocess.DEVNULL, "stderr": subprocess.STDOUT, "cwd": os.path.abspath(data_root),
+          "close_fds": True}
+    if os.name == "nt":
+        kw["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        kw["start_new_session"] = True
+    with open(logp, "a", encoding="utf-8") as fh:
+        child = popen(cmd, stdout=fh, **kw)
+    prev = None
+    with contextlib.suppress(ValueError):
+        prev = _read_json(_rt(data_root, "last_cycle.json"))
+    if prev and not prev.get("ok"):
+        raise SystemExit(f"{STUDY}: spawned pid {child.pid}; the previous cycle FAILED at {prev.get('at')}: "
+                         f"{str(prev.get('error'))[:300]}")
+    return f"{STUDY}: spawned pid {child.pid}"
+
+
+def cmd_read(out, data_root=CODE_ROOT):
+    """The read, in a FRESH extract of the seal (rebuilt from git, never the cycles' cached one), in a fresh process
+    under the pinned interpreter. [WY-F1 §5, §7]"""
+    s = seal_info(data_root)
+    if s is None:
+        raise SystemExit(f"refusing: {STUDY} is not sealed; nothing can be read")
+    code = materialize(data_root, s["sha"], fresh=True)
+    return subprocess.run(_worker_cmd(code, "read", data_root, s, "--out", os.path.abspath(out))).returncode
+
+
+class _Closes:
+    """Only what `due` reads of a store: its bars' closes."""
+
+    def __init__(self, bars):
+        self.avail = [_utc(b["t"]) + datetime.timedelta(minutes=MINUTES) for b in bars]
+
+    def __len__(self):
+        return len(self.avail)
+
+
+def status(data_root=CODE_ROOT):
+    """Counts only, and none that times an exit -- never an R, an outcome, a mean or a resolve count (WY-F1 §6: a
+    resolve a few bars after its entry is a stop or a target). Per symbol: the store, the live file, the complete-
+    through time, the events, those kept (dense previous day), entered, and past their longest walk (entry + H bars
+    stored), with `unresolved_past_walk` (0 when healthy). The read rule's state from `due` itself, counted from the
+    logged events and the stored entry open, as the read counts. The pinned interpreter, the committed anchors, the
+    last cycle, the working tree's drift from the sealed executed files. [WY-F1 §6, §7, §12]"""
+    E = ew()
+    s = seal_info(data_root)
+    HZ = horizon()
+    log, log_heads = read_chain(_rt(data_root, "log.jsonl"))
+    ev = {r["id"]: r for r in log if r["kind"] == "event"}
+    rs = {r["id"] for r in log if r["kind"] == "resolve"}
+    out = {"study": STUDY, "cell": CELL, "sealed": s, "symbols": {}, "log": {"events": len(ev),
+           "head": log_heads[-1] if log_heads else None}}
+    series, closes = {}, []
+    for sym in SYMBOLS:
+        bars, heads = read_chain(_rt(data_root, "bars", f"{sym}.{TF}.jsonl"))
+        series[sym] = _Closes(bars) if bars else None
+        ct = complete_through(series[sym], HZ)
+        mine = [r for r in ev.values() if r["symbol"] == sym]
+        entered = [r for r in mine if r["store_index"] + 1 < len(bars)]
+        past = [r for r in mine if r["store_index"] + 1 + HZ <= len(bars)]
+        for r in entered:
+            e = r["store_index"] + 1
+            if r["prev_dense"] and (r["atr"] or 0) > 0 and E.placeable(SIDE, bars[e]["o"], r["stop"], r["target"]):
+                closes.append(series[sym].avail[e])
+        live, note = live_source(data_root, sym)
+        out["symbols"][sym] = {"bars": len(bars), "last": bars[-1]["t"] if bars else None,
+                               "src": dict(collections.Counter(b.get("src") for b in bars)),
+                               "complete_through": _iso(ct) if ct else None,
+                               "live_last_closed": live[-1]["t"] if live else None, "live_note": note,
+                               "events": len(mine), "kept": sum(1 for r in mine if r["prev_dense"]),
+                               "entered": len(entered), "past_walk": len(past),
+                               "unresolved_past_walk": sum(1 for r in past if r["id"] not in rs),
+                               "head": heads[-1] if heads else None}
+    if s:
+        r = due(series, closes, s["instant"], HZ)
+        out["rule"] = dict(r, read_due=r["cutoff"] is not None)
+    else:
+        out["rule"] = {"read_due": False, "note": "not sealed"}
+    out["last_cycle"] = _read_json(_rt(data_root, "last_cycle.json"))
+    try:
+        anc = committed_anchors(data_root) if s else []
+        out["anchors"] = {"committed": len(anc), "last_committed": max((a["committed"] for a in anc), default=None)}
+    except SystemExit as exc:
+        out["anchors"] = {"error": str(exc)}
+    fp = _read_json(os.path.join(data_root, FINGERPRINT))
+    if fp:
+        out["fingerprint_digest"] = fp_digest(fp)
+        out["working_tree_drift"] = sorted(p for p, h in fp["exec"].items()
+                                           if not os.path.isfile(os.path.join(data_root, p))
+                                           or _sha256(os.path.join(data_root, p)) != h)
+        pin = pinned_interpreter(fp)
+        now = None
+        if pin.get("command") and os.path.exists(pin["command"]):
+            with contextlib.suppress(OSError, subprocess.SubprocessError):
+                now = subprocess.run([pin["command"], "-c", "import platform; print(platform.python_version())"],
+                                     capture_output=True, text=True, timeout=30).stdout.strip() or None
+        out["interpreter"] = dict(pin, now=now, ok=bool(now) and now.rsplit(".", 1)[0] == pin.get("minor"))
+    return out
+
+
+def _print_status(st):
+    s = st["sealed"]
+    print(f"{STUDY} {CELL}: " + (f"sealed {s['sha'][:12]} at {s['instant']}" if s else "NOT sealed (no collection)"))
+    for sym, v in st["symbols"].items():
+        print(f"  {sym:7s} bars {v['bars']:6d} last {v['last']} complete-through {v['complete_through']} | events "
+              f"{v['events']} (kept {v['kept']}, entered {v['entered']}, past walk {v['past_walk']}"
+              + (f", UNRESOLVED past walk {v['unresolved_past_walk']}" if v["unresolved_past_walk"] else "") + ")"
+              + (f" | {v['live_note']}" if v["live_note"] else ""))
+    r = st["rule"]
+    if s:
+        print(f"  read rule: {r['counted_events']} of {r['n_events']} counted events by {r['common_complete_through']}; "
+              f"{r['months']}-month cutoff {r['t_cutoff']} (fallback {r['grace_cutoff']}); due: {r['read_due']}"
+              + (f" -- {r['rule']}" if r["read_due"] else ""))
+    lc = st.get("last_cycle")
+    if lc:
+        print(f"  last cycle {lc['at']}: " + ("ok" if lc["ok"] else f"FAILED -- {lc.get('error', '')[:300]}"))
+    a = st.get("anchors") or {}
+    if s:
+        print("  anchors: " + (a["error"] if "error" in a else f"{a['committed']} committed, last {a['last_committed']}"))
+    ip = st.get("interpreter")
+    if ip:
+        print(f"  interpreter: {ip.get('command')} pinned {ip.get('version')}, now {ip.get('now')}"
+              + ("" if ip["ok"] else "  ** NOT the pinned minor version or missing: cycles will refuse **"))
+    if st.get("working_tree_drift"):
+        print("  working tree differs from the sealed executed files (the forward stage keeps the sealed ones): "
+              + ", ".join(st["working_tree_drift"]))
+
+
+def cmd_anchor(data_root=CODE_ROOT):
+    """Append the chains' current lengths and heads to docs/experiments/wyckoff-forward-wc15/anchors.jsonl. Committed,
+    each line pins the history before it; the read checks every one. [WY-F1 §8, §12]"""
+    log, lh = read_chain(_rt(data_root, "log.jsonl"))
+    line = {"at": _now(), "study": STUDY, "log": {"n": len(log), "head": lh[-1] if lh else None}, "bars": {}}
+    for sym in SYMBOLS:
+        bars, heads = read_chain(_rt(data_root, "bars", f"{sym}.{TF}.jsonl"))
+        line["bars"][sym] = {"n": len(bars), "head": heads[-1] if heads else None, "last": bars[-1]["t"] if bars
+                             else None}
+    p = os.path.join(data_root, ANCHORS)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "a", encoding="utf-8") as fh:
+        fh.write(_canon(line) + "\n")
+    return line
+
+
+def git_blob_id(path):
+    """git's object id of a file's bytes as they are (sha1 of "blob <size>\\0" + bytes): no filter, no eol conversion."""
+    with open(path, "rb") as fh:
+        data = fh.read()
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def _require_clean(root, paths, rev="HEAD"):
+    """Every path is committed at `rev` and its bytes on disk ARE the committed blob -- so the extract of a later
+    commit that keeps them holds the hashed bytes. Stricter than `git status`: a checkout with core.autocrlf on shows
+    clean while its bytes differ from the blob (docs/plans/2026-09-20-windows-migration.md §5). [WY-F1 §5]"""
+    rc, out = _git(root, "ls-tree", "-r", "-z", rev, "--", *sorted(paths))
+    if rc != 0:
+        raise SystemExit(f"refusing: cannot list {rev} (is git available?)")
+    blob = {}
+    for ent in out.decode().split("\0"):
+        if "\t" in ent:
+            meta, name = ent.split("\t", 1)
+            blob[name] = meta.split()[2]
+    bad = []
+    for p in sorted(paths):
+        if p not in blob:
+            bad.append(f"{p}: not committed at {rev}")
+        elif git_blob_id(os.path.join(root, p)) != blob[p]:
+            bad.append(f"{p}: bytes differ from {rev} (uncommitted change, or core.autocrlf)")
+    if bad:
+        raise SystemExit("refusing: the fingerprint is taken on committed files only: " + "; ".join(bad[:6]))
+
+
+def cmd_fingerprint(out, require_clean=True, cost_r=None):
+    """BEFORE sealing, from the working tree: trace the canary through every forward step and record what it executes
+    (run phase: `exec`, the narrow set), what else it loads (`load`), what it opens (`data`, plus every file of the
+    symbols' sealed 15m history), real_costs' price_ref per symbol, the canary's digest and the interpreter (pinned:
+    every worker runs it). Refuses unless every recorded file is inside SNAPSHOT_ROOTS and is what the sealed re-test's
+    R1 ran (`r0_drift`), and, with `require_clean`, tracked and clean. Run it with the interpreter the scheduler uses.
+    [WY-F1 §5, §12]"""
+    if os.path.exists(out):
+        raise SystemExit(f"{out} exists; refusing to overwrite a fingerprint")
+    if require_clean and os.path.abspath(out) != os.path.join(CODE_ROOT, FINGERPRINT):
+        raise SystemExit(f"refusing: the fingerprint is written to {FINGERPRINT}")
+    tr = Tracer(CODE_ROOT).start()
+    ew()
+    tr.run_phase()
+    with tempfile.TemporaryDirectory() as tmp:
+        digest, res = canary(tmp, cost_r=cost_r)
+    pref = {s: _price_ref(s) for s in SYMBOLS} if cost_r is None else None
+    tr.stop()
+    run, code, data = tr.touched()
+    data |= set(sealed_history_files(CODE_ROOT)) | {R0}         # inputs a warm process may have cached
+    files = run | code | data
+    outside = sorted(f for f in files if not _wanted(f))
+    if outside:
+        raise SystemExit(f"refusing: {outside[0]} is used but lies outside SNAPSHOT_ROOTS (the extract would miss it)")
+    drift = r0_drift(CODE_ROOT, files)
+    if drift:
+        raise SystemExit(f"refusing: {len(drift)} fingerprinted input(s) are not what the sealed re-test ran, first "
+                         f"{drift[0]} -- the read would not be 'RT §5, unchanged' [WY-F1 §5, §7]")
+    if require_clean:
+        _require_clean(CODE_ROOT, files)
+    rc, head = _git(CODE_ROOT, "rev-parse", "HEAD")
+    fp = {"study": STUDY, "created": _now(), "git_head": head.decode().strip() if rc == 0 else None,
+          "python": platform.python_version(),
+          "interpreter": {"command": sys.executable, "realpath": os.path.realpath(sys.executable),
+                          "version": platform.python_version(), "minor": "%d.%d" % sys.version_info[:2]},
+          "exec": _hashes(CODE_ROOT, run), "load": _hashes(CODE_ROOT, code),
+          "data": _hashes(CODE_ROOT, data), "price_ref": pref, "canary_sha256": digest,
+          "canary": {"events": res["replay"]["events"], "rows": res["summary"].get("n", 0)},
+          "r0_pinned": sorted(f for f in files if f not in (SCRIPT, R0) and not f.startswith(HIST_DIR + "/")),
+          "snapshot_roots": list(SNAPSHOT_ROOTS)}
+    fp["digest"] = fp_digest(fp)
+    if require_clean:
+        fp["extract_check"] = {"rev": head.decode().strip() if rc == 0 else None,
+                               "files": extract_check(fp, CODE_ROOT, "HEAD"), "canary_sha256": digest}
+    _write_json(out, fp)
+    print(f"fingerprint: {len(fp['exec'])} executed, {len(fp['load'])} loaded, {len(fp['data'])} data files; canary "
+          f"{fp['canary']['events']} events; digest {fp['digest'][:16]}; wrote {out}")
+    return fp
+
+
+# ------------------------------------------------------------------------------------------------ CLI
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("spawn")
+    c = sub.add_parser("cycle")
+    c.add_argument("--only", choices=("accumulate", "scan", "resolve"))
+    c.add_argument("--data-root", default=CODE_ROOT)
+    c.add_argument("--background", action="store_true")      # started by `spawn`: lower CPU priority
+    st = sub.add_parser("status")
+    st.add_argument("--json", action="store_true")
+    sub.add_parser("anchor")
+    r = sub.add_parser("read")
+    r.add_argument("--out", required=True)
+    f = sub.add_parser("fingerprint")
+    f.add_argument("--out", required=True)
+    w = sub.add_parser("_worker")                      # internal: runs inside the sealed extract
+    w.add_argument("what", choices=("cycle", "read", "canary"))
+    w.add_argument("--data-root", required=True)
+    w.add_argument("--seal-sha", required=True)
+    w.add_argument("--seal-instant", required=True)
+    w.add_argument("--only", choices=("accumulate", "scan", "resolve"))
+    w.add_argument("--out")
+    a = ap.parse_args(argv)
+    if a.cmd == "spawn":
+        print(cmd_spawn())
+    elif a.cmd == "cycle":
+        if a.background and hasattr(os, "nice"):
+            with contextlib.suppress(OSError):
+                os.nice(10)
+        print(f"{_now()} " + cmd_cycle(a.only, data_root=a.data_root), flush=True)
+    elif a.cmd == "status":
+        s = status()
+        print(json.dumps(s, indent=1)) if a.json else _print_status(s)
+    elif a.cmd == "anchor":
+        print(json.dumps(cmd_anchor()))
+    elif a.cmd == "read":
+        return cmd_read(a.out)
+    elif a.cmd == "fingerprint":
+        cmd_fingerprint(a.out)
+    else:
+        seal = {"sha": a.seal_sha, "instant": a.seal_instant}
+        try:
+            if a.what == "cycle":
+                worker_cycle(a.data_root, seal, a.only)
+            elif a.what == "canary":
+                worker_canary(a.data_root)
+            else:
+                worker_read(a.data_root, seal, a.out)
+        except Busy as exc:
+            print(exc, file=sys.stderr)
+            return BUSY_RC
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
