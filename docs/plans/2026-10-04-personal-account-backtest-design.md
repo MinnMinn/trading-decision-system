@@ -112,3 +112,11 @@ against each runner-up.
 2. **Does STALLED count as cháy?** And is mode `floor` acceptable on a personal account (trading the minimum lot even when it
    is more than 1 %, so the account can really be lost)?
 3. **Broker:** its spec (leverage, margin rates, commission) if it is not FTMO-like.
+
+## 7. Owner decisions (2026-10-04, chat; binding)
+
+1. **B0 = 5,000 USD.**
+2. **"Không vượt 1%, báo 'đứng' riêng".** Mode `skip` is primary: never risk more than r. **Cháy (BLOWN) only when the money
+   is really gone.** STALLED (the account can no longer place a minimum lot within r) is reported separately and is not ruin.
+   Mode `floor` stays a reported sensitivity only.
+3. Broker: not given. FTMO-Demo specs remain the stated proxy.

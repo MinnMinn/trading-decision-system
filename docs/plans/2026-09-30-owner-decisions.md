@@ -449,3 +449,17 @@ Context: docs/plans/2026-10-03-reframes.md (owner summary), docs/audits/2026-10-
    pre-2024 starts. Running both together has no evidence.
 4. Revert path: `python3 scripts/accounts.py switch --account ftmo-demo-01 --to fvg-book@v3 --policy DRAIN --reason ...`
    (v3 stays APPROVED until v4 has its own forward record).
+
+## 2026-10-04 (later): research directions and inputs (owner, in chat; binding)
+
+1. **B1 (re-evaluate everything for the cost-hour error): run.** docs/audits/2026-10-04-cost-hour-erratum.md -- no verdict
+   changed.
+2. **B2: crypto CFDs on FTMO opened for research.** docs/plans/2026-10-04-edge-cx-ftmo-crypto-preregistration.md [CX-P1];
+   the owner exports the data (its §8).
+3. **Wyckoff: full review and re-test** ("Tao không tin một phương pháp nổi tiếng lại không có bất kì một kết quả tốt nào").
+   Sign-off on docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md §12.4: δ = 0.20R; family V (real volume) and
+   L1 (the DE40 / US500 15m lead) stay in this pre-registration.
+4. **Personal-account backtests** (no prop rules; "Tại thời điểm thua hết tiền thì setup bị đánh giá là cháy tài khoản và
+   không phát sinh thêm giao dịch nào sau đó"). Inputs: B0 = 5,000 USD. Never risk more than 1 %. An account that can no
+   longer place a minimum lot is reported as STALLED, separately from BLOWN.
+   docs/plans/2026-10-04-personal-account-backtest-design.md §7.

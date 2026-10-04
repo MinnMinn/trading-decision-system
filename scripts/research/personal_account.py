@@ -42,9 +42,9 @@ def _load(name, rel):
 @dataclasses.dataclass(frozen=True)
 class Account:
     """A1-A11 inputs. Defaults are NAMED assumptions (design §1, §6), not owner facts."""
-    b0: float = 10_000.0               # A1, USD
+    b0: float = 5_000.0                # A1, USD (owner 2026-10-04: "5.000 USD")
     r: float = 0.01                    # A2, risk at the stop, fraction of the CURRENT balance
-    mode: str = "skip"                 # A3: "skip" = never above r; "floor" = trade volume_min whatever its risk
+    mode: str = "skip"                 # A3: "skip" = never above r (owner 2026-10-04); "floor" = volume_min whatever its risk (sensitivity)
     leverage: float = 30.0             # A4 (ASSUMED until the owner's broker spec exists)
     margin_rate: float = 1.0           # A4 (ASSUMED)
     portfolio_cap: float = 0.05        # A5 = risk-config.json max_portfolio_risk_pct
@@ -257,7 +257,7 @@ def haircut_shift(rows_by_ck, book, haircut):
 
 
 # ---------------------------------------------------------------------------------------------------------------- runs
-GRID = {"r": (0.005, 0.01), "b0": (10_000.0, 100_000.0), "mode": ("skip", "floor"), "edge": (1.0, 0.5, 0.0)}
+GRID = {"r": (0.005, 0.01), "b0": (5_000.0, 100_000.0), "mode": ("skip", "floor"), "edge": (1.0, 0.5, 0.0)}
 PATHS, HORIZON_DAYS, SEED = 1000, 5 * WEEKDAYS_PER_YEAR, 20261004
 POST_DISCOVERY_FROM = datetime.date(2018, 2, 26)        # the latest discovery/confirmation split of the components (XAG)
 SURVIVE_BLOWN, SURVIVE_PAIN, BEATS_SHARE = 0.01, 0.05, 0.80
