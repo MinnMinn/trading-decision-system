@@ -62,6 +62,11 @@ function fmtTime(unixSec, withDate){ const t=tzNow();
   const d=new Date((unixSec + t.offset_minutes*60)*1000);
   const iso=d.toISOString();
   return (withDate? iso.slice(5,16).replace('T',' ') : iso.slice(11,16))+' '+t.name; }
+// An axis tick: the date at the DISPLAY zone's midnight, else the time. Decided from the shifted clock, not from
+// the library's TickMarkType, which marks UTC day boundaries (07:00 in Vietnam time would read as a date).
+function fmtTick(unixSec){ const t=tzNow();
+  const iso=new Date((unixSec + t.offset_minutes*60)*1000).toISOString();
+  return iso.slice(11,16)==='00:00' ? iso.slice(5,10) : iso.slice(11,16); }
 
 // Killzone shading (PROJECT-DEFINED, session-model.md §2-4): which session windows this tier's bars fall in,
 // and their scoring weight for this market (sessions.weight_class registry, KZ_WEIGHT above). This is a pure
@@ -361,10 +366,14 @@ const wyckoffShapes = (rows, wy, cfg) => {
     const dead=invalidated && a<=endIdx, i2=dead?endIdx+0.5:(toIdx>=0?toIdx+0.5:null);
     [[wy.tr.high,wy.tr.high_label||'AR'],[wy.tr.low,wy.tr.low_label||'SC']].forEach(([v,lb])=>{ if(v==null)return;
       S.push({kind:'hseg',i1:a-0.4,i2,price:v,stroke:dead?'muted':'w',sw:dead?1:1.6,dash:[5,3],alpha:dead?0.4:1,
-        label:lb+' '+fmt(v)+(dead?suffix:''),labelAt:'axis'}); }); }
+        label:lb+' '+fmt(v),note:dead?suffix.replace(/^ · /,''):null,labelAt:'axis'}); }); }
   (wy.events||[]).map(f=>({f,i:idxOf(rows,f.time)})).filter(o=>o.i>=0).sort((a,b)=>a.i-b.i).forEach(({f,i})=>{ const c=rows[i];
     const faded=invalidated && i<=endIdx;
-    S.push({kind:'flag',i,price:f.up?c[HIGH]:c[LOW],text:compact?String(f.label||'').split(' · ')[0]:String(f.label||''),up:!!f.up,color:faded?'muted':'w'}); });
+    // W8 as a flag (structures.choch_outside_box, ADR 0009): the decision path reads this structure, so it is drawn,
+    // and a CHoCH beyond the SC-AR box (WA p68-69) says so on its own flag instead of being hidden.
+    const off=f.kind==='choch' && wy.tr && wy.tr.choch_outside_box;
+    const text=String(f.label||'')+(off?' · '+L('chart.wyckoff.choch_outside_box'):'');
+    S.push({kind:'flag',i,price:f.up?c[HIGH]:c[LOW],text:compact?text.split(' · ')[0]:text,up:!!f.up,color:faded?'muted':(off?'warn':'w')}); });
   if(invalidated){ const c=rows[endIdx];   // P7.2 item 3: mark the breaking candle itself
     S.push({kind:'mark',i:endIdx,price:c[CLOSE],glyph:'x',color:'warn',r:4});
     if(!compact) S.push({kind:'label',i:endIdx,price:c[CLOSE],text:L('chart.wyckoff.invalidation_mark',{close:fmt(c[CLOSE])}),color:'warn',anchor:'start',dx:4,dy:10,bold:true}); }
@@ -392,7 +401,7 @@ const levelShapes = (rows, levels, lane, fmt, invalidatedAt) => {
     .map(lv=>{
       const a=Math.max(0,spanOf(rows,lv.time)-0.5), endIdx=wyState==='in'?idxOf(rows,invalidatedAt):-1, dead=endIdx>=0;
       return {kind:'hseg',i1:a,i2:dead?endIdx+0.5:null,price:lv.price,stroke:dead?'muted':(lv.method==='neutral'?'muted':lane==='ict'?'i':'w'),sw:dead?0.9:1.2,
-        dash:[6,4],alpha:dead?0.4:1,label:(lv.short||'')+' '+fmt(lv.price)+(dead?(' · '+L('chart.wyckoff.invalidated_suffix',{date:dateShort(invalidatedAt)})):''),labelAt:'axis'};
+        dash:[6,4],alpha:dead?0.4:1,label:(lv.short||'')+' '+fmt(lv.price),note:dead?L('chart.wyckoff.invalidated_suffix',{date:dateShort(invalidatedAt)}):null,labelAt:'axis'};
     });
 };
 
@@ -475,7 +484,28 @@ const rulerShapes = (entry, stop, i1, i2, fmt) => {
   return S;
 };
 
-const api = {killzoneSpans, legendHtml, ictFromStructures, idxOfAvail, wyckoffAt, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, invalidationState, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, expectationShapes, rulerShapes, unix, dateShort};
+// One price-axis tag per price (pure; Annotations.set renders it, node tests read it).
+function axisGroups(shapes){
+  const byPrice=new Map();   // one axis tag per price: "AR 77,425" from the TR and "AR" from the anchors become one tag, Spring + invalidation likewise
+  shapes.filter(s=>s.kind==='hseg'&&s.labelAt==='axis'&&s.label).forEach(s=>{ const k=Math.round(s.price*1e6); const g=byPrice.get(k); if(g){ const base=t=>t.replace(/\s[\d.,]+$/,''); if(!g.parts.some(t=>base(t)===base(s.label))) g.parts.push(base(s.label)); if(s.note&&!g.notes.includes(s.note)) g.notes.push(s.note); } else byPrice.set(k,{price:s.price,stroke:s.stroke,parts:[s.label],notes:s.note?[s.note]:[]}); });
+  // A shape's `note` ("invalidated 09-15 21:00") is kept OUT of `label`: priceText reads the label's trailing
+  // number, and a note ending in a clock time made the axis tag read "00" (2026-10-04 render review).
+  // The axis tag carries the PRICE only. The words ("SOS", "Wyckoff: after entry · target_1 · POTENTIAL") are
+  // drawn inside the plot at the right edge instead (see _draw). Before this the whole sentence sat on the
+  // price axis, lightweight-charts widened the axis to the longest sentence, and the three tiers of one
+  // instrument ended up with three different plot widths -- the entry tier, which carries the most labels,
+  // lost a third of its width to an axis (user comment on the CFD Scalping page, 2026-09-18).
+  const priceText=g=>{ for(const t of g.parts){ const m=t.match(/([\d][\d.,]*)\s*$/); if(m) return m[1]; } return String(g.price); };
+  const wordsOf=g=>{
+    // Strip the price off each part, drop pure numbers, then drop any part already CONTAINED in another.
+    // The containment pass is what stopped the duplicated axis words reported 2026-09-19:
+    // a level label that ends in a bracket keeps its own price, so the plain "AR"/"ST" tag from the
+    // trading-range shape no longer deduped against it and both were drawn (user report 2026-09-19).
+    const parts=[...new Set(g.parts.map(t=>t.replace(/\s[\d][\d.,]*\s*$/,'').trim()).filter(t=>t&&!/^[\d.,]+$/.test(t)))];
+    return parts.filter((t,i)=>!parts.some((u,j)=>j!==i&&u.length>t.length&&u.includes(t))).join(' · ');
+  };
+  return [...byPrice.values()].map(g=>Object.assign(g,{priceText:priceText(g),words:[wordsOf(g),...g.notes].filter(Boolean).join(' · ')})); }
+const api = {killzoneSpans, legendHtml, ictFromStructures, idxOfAvail, wyckoffAt, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, invalidationState, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, expectationShapes, rulerShapes, unix, dateShort, axisGroups};
 if(!root || typeof document==='undefined') return api;   // node: pure API only
 
 // =============================================================================================== browser: rendering
@@ -497,23 +527,7 @@ class Annotations {
   attached({chart,series,requestUpdate}){ this._chart=chart; this._series=series; this._req=requestUpdate; }
   detached(){ this._chart=null; this._series=null; this._req=null; }
   set(shapes){ this.shapes=shapes||[]; const C=this.C, self=this;
-    const byPrice=new Map();   // one axis tag per price: "AR 77,425" from the TR and "AR" from the anchors become one tag, Spring + invalidation likewise
-    this.shapes.filter(s=>s.kind==='hseg'&&s.labelAt==='axis'&&s.label).forEach(s=>{ const k=Math.round(s.price*1e6); const g=byPrice.get(k); if(g){ const base=t=>t.replace(/\s[\d.,]+$/,''); if(!g.parts.some(t=>base(t)===base(s.label))) g.parts.push(base(s.label)); } else byPrice.set(k,{price:s.price,stroke:s.stroke,parts:[s.label]}); });
-    // The axis tag carries the PRICE only. The words ("SOS", "Wyckoff: after entry · target_1 · POTENTIAL") are
-    // drawn inside the plot at the right edge instead (see _draw). Before this the whole sentence sat on the
-    // price axis, lightweight-charts widened the axis to the longest sentence, and the three tiers of one
-    // instrument ended up with three different plot widths -- the entry tier, which carries the most labels,
-    // lost a third of its width to an axis (user comment on the CFD Scalping page, 2026-09-18).
-    const priceText=g=>{ for(const t of g.parts){ const m=t.match(/([\d][\d.,]*)\s*$/); if(m) return m[1]; } return String(g.price); };
-    const wordsOf=g=>{
-      // Strip the price off each part, drop pure numbers, then drop any part already CONTAINED in another.
-      // The containment pass is what stopped the duplicated axis words reported 2026-09-19:
-      // a level label that ends in a bracket keeps its own price, so the plain "AR"/"ST" tag from the
-      // trading-range shape no longer deduped against it and both were drawn (user report 2026-09-19).
-      const parts=[...new Set(g.parts.map(t=>t.replace(/\s[\d][\d.,]*\s*$/,'').trim()).filter(t=>t&&!/^[\d.,]+$/.test(t)))];
-      return parts.filter((t,i)=>!parts.some((u,j)=>j!==i&&u.length>t.length&&u.includes(t))).join(' · ');
-    };
-    this._axisGroups=[...byPrice.values()].map(g=>Object.assign(g,{priceText:priceText(g),words:wordsOf(g)}));
+    this._axisGroups=axisGroups(this.shapes);
     this._axis=this._axisGroups.map(g=>({ coordinate:()=>{ const y=self._series?self._series.priceToCoordinate(g.price):null; return y==null?-1e6:y; }, text:()=>g.priceText, textColor:()=>'#FFFFFF', backColor:()=>C[g.stroke]||C.ink, visible:()=>!!self._series&&self._series.priceToCoordinate(g.price)!=null, tickVisible:()=>true }));
     if(this._req) this._req(); }
   setColors(C){ this.C=C; if(this._req) this._req(); }
@@ -543,15 +557,25 @@ class Annotations {
         ctx.globalAlpha=s.alpha==null?1:s.alpha;
         if(s.kind==='hseg'){ const x1=x1of(s), x2=x2of(s), y=Y(s.price); if(x1==null||x2==null||y==null) continue;
           ctx.strokeStyle=C[s.stroke]||s.stroke; ctx.lineWidth=s.sw||1; ctx.setLineDash(s.dash||[]); ctx.beginPath(); ctx.moveTo(x1,y); ctx.lineTo(x2,y); ctx.stroke(); ctx.setLineDash([]);
-          if(s.label&&s.labelAt&&s.labelAt!=='axis'&&x1>=-1&&x1<W){ ctx.font=font(false,9.5); ctx.fillStyle=C[s.labelColor||s.stroke]||C.ink; ctx.textBaseline='middle'; if(s.labelAt==='end'){ ctx.textAlign='right'; ctx.fillText(s.label,x2-3,y-6); } else { ctx.textAlign='left'; ctx.fillText(s.label,x1+2,s.labelAt==='start-below'?y+7:y-7); } } }
+          // In-plot line labels (pools, swept levels) are de-collided like flags (2026-10-04 render review: stacked
+          // equal-highs/lows labels overprinted into unreadable text). Try the home row, then one and two rows away;
+          // a label that still clashes is not drawn -- its line stays, and the legend/crosshair still name it.
+          if(s.label&&s.labelAt&&s.labelAt!=='axis'&&x1>=-1&&x1<W){ ctx.font=font(false,9.5); ctx.fillStyle=C[s.labelColor||s.stroke]||C.ink; ctx.textBaseline='middle';
+            const tw=ctx.measureText(s.label).width, end=s.labelAt==='end', lx=end?x2-3-tw:x1+2, y0=end?y-6:(s.labelAt==='start-below'?y+7:y-7);
+            const ly=[0,-11,11,-22,22].map(d=>y0+d).find(yy=>!placed.some(p=>p.x2!=null&&Math.abs(p.y-yy)<10&&lx<p.x2&&lx+tw>p.x1));
+            if(ly!=null){ placed.push({x:lx,y:ly,x1:lx,x2:lx+tw}); ctx.textAlign='left'; ctx.fillText(s.label,lx,ly); } } }
         else if(s.kind==='vseg'){ const x=X(s.i), y1=Y(s.p1), y2=Y(s.p2); if(x==null||y1==null||y2==null) continue; ctx.strokeStyle=C[s.stroke]||s.stroke; ctx.lineWidth=s.sw||1; ctx.setLineDash(s.dash||[]); ctx.beginPath(); ctx.moveTo(x,y1); ctx.lineTo(x,y2); ctx.stroke(); ctx.setLineDash([]); }
-        else if(s.kind==='label'){ const x=s.i==null?W:X(s.i), y=Y(s.price); if(x==null||y==null||x<-2||x>W+2||y<-2||y>Hh+2) continue; ctx.font=font(s.bold,s.bold?10:9.5); ctx.fillStyle=C[s.color]||s.color||C.ink; ctx.textAlign=s.anchor==='middle'?'center':s.anchor==='end'?'right':'left'; ctx.textBaseline='middle'; ctx.fillText(s.text,x+(s.dx||0),y+(s.dy||0)); }
+        else if(s.kind==='label'){ const x=s.i==null?W:X(s.i), y=Y(s.price); if(x==null||y==null||x<-2||x>W+2||y<-2||y>Hh+2) continue; ctx.font=font(s.bold,s.bold?10:9.5); ctx.fillStyle=C[s.color]||s.color||C.ink; ctx.textAlign='left'; ctx.textBaseline='middle';
+          // Same de-collision as line labels above (pool / grab labels stacked into unreadable text, 2026-10-04).
+          const tw=ctx.measureText(s.text).width, lx=x+(s.dx||0)-(s.anchor==='middle'?tw/2:s.anchor==='end'?tw:0), y0=y+(s.dy||0);
+          const ly=[0,-11,11,-22,22].map(d=>y0+d).find(yy=>!placed.some(p=>p.x2!=null&&Math.abs(p.y-yy)<10&&lx<p.x2&&lx+tw>p.x1));
+          if(ly!=null){ placed.push({x:lx,y:ly,x1:lx,x2:lx+tw}); ctx.fillText(s.text,lx,ly); } }
         else if(s.kind==='mark'){ const x=X(s.i), y=Y(s.price); if(x==null||y==null) continue; const col=C[s.color]||s.color, r=s.r||3; ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=1.8;
           if(s.glyph==='x'){ ctx.beginPath(); ctx.moveTo(x-r,y-r); ctx.lineTo(x+r,y+r); ctx.moveTo(x+r,y-r); ctx.lineTo(x-r,y+r); ctx.stroke(); }
           else if(s.glyph==='check'){ ctx.beginPath(); ctx.moveTo(x-r,y); ctx.lineTo(x-r/4,y+r*0.75); ctx.lineTo(x+r,y-r*0.75); ctx.stroke(); }
           else { ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); if(s.ring){ ctx.strokeStyle=C.surface2; ctx.lineWidth=1.5; ctx.stroke(); } } }
         else if(s.kind==='flag'){ const x=X(s.i), ay=Y(s.price); if(x==null||ay==null) continue; const col=C[s.color]||s.color; ctx.font=font(true,10); const w=ctx.measureText(s.text).width;
-          let lvl=0, fy; for(;;){ fy=ay+(s.up?-10-lvl*12:15+lvl*12); const clash=placed.some(p=>p.flag&&p.up===s.up&&Math.abs(p.y-fy)<11&&(x-w/2)<p.x2&&(x+w/2)>p.x1); if(!clash||lvl>=4) break; lvl++; }
+          let lvl=0, fy; for(;;){ fy=ay+(s.up?-10-lvl*12:15+lvl*12); const clash=placed.some(p=>p.x2!=null&&(!p.flag||p.up===s.up)&&Math.abs(p.y-fy)<11&&(x-w/2)<p.x2&&(x+w/2)>p.x1); if(!clash||lvl>=4) break; lvl++; }
           placed.push({flag:true,up:s.up,y:fy,x1:x-w/2,x2:x+w/2,x:x,y:fy});
           ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,ay,3,0,Math.PI*2); ctx.fill(); ctx.strokeStyle=C.surface2; ctx.lineWidth=1.5; ctx.stroke();
           if(lvl>0){ ctx.strokeStyle=col; ctx.lineWidth=0.8; ctx.globalAlpha=0.7; ctx.beginPath(); ctx.moveTo(x,ay); ctx.lineTo(x,fy+(s.up?3:-9)); ctx.stroke(); ctx.globalAlpha=1; }
@@ -583,9 +607,11 @@ function chartOptions(C, fmt){ return {
   // tickMarkFormatter was UNSET until 2026-09-17, so the library formatted axis labels from a Date in the
   // BROWSER's timezone while the crosshair below hard-appended 'Z'. The two already disagreed for any viewer
   // outside UTC; offering a timezone control would have made that contradiction visible on the same chart.
-  // Both now come from one place, and both name their zone.
+  // Both now come from one place. The crosshair label names its zone; an axis tick is short (the date at a day
+  // boundary, else the time) because a full 'MM-DD HH:MM ZONE' per tick overprinted its neighbours (2026-10-04
+  // render review) -- the zone is named once in the block header and on the crosshair.
   timeScale:{borderColor:C.lineStrong, timeVisible:true, secondsVisible:false, rightOffset:4, barSpacing:6, minBarSpacing:1.2, fixLeftEdge:false, fixRightEdge:false, lockVisibleTimeRangeOnResize:true,
-    tickMarkFormatter:t=>fmtTime(t,true)},
+    tickMarkFormatter:t=>fmtTick(t)},
   // Numerals stay en-US in every language, deliberately: a price shown 1.234,56 on the chart while the ladder
   // beside it says 1,234.56 would be two renderings of one number on one screen. Only words and zones follow
   // the language. See docs/architecture/i18n.json `_locales_note`.

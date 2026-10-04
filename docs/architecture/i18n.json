@@ -986,6 +986,10 @@
       "en": "invalidated",
       "vi": "vô hiệu"
     },
+    "chart.wyckoff.choch_outside_box": {
+      "en": "outside SC–AR box (WA p68–69)",
+      "vi": "ngoài hộp SC–AR (WA tr.68–69)"
+    },
     "chart.wyckoff.invalidated_suffix": {
       "en": "invalidated {date}",
       "vi": "hết hiệu lực {date}"

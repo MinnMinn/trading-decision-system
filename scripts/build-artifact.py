@@ -1144,8 +1144,8 @@ def _wy_event_label(e, side, rows, kind, tick):
 
 def wy_ship(rows, tf, sym, kind, side, P=None):
     """The shipped (chart/ladder) Wyckoff read of ONE side: the most recent trading_range by its own `available_at`,
-    from scripts/structures.py wyckoff_structures() with the chart's ENVELOPE_PARAMS (W8 on, VISUALIZATION_ONLY;
-    structures.py). Returns None when that side detected nothing. Every object carries the engine's point-in-time
+    from scripts/structures.py wyckoff_structures() with the chart's ENVELOPE_PARAMS -- the decision path's own
+    parameters (ADR 0009); W8 is shipped as the `choch_outside_box` flag, not applied as a filter (structures.py). Returns None when that side detected nothing. Every object carries the engine's point-in-time
     `available_at` (structures._wy_availability): replay never shows a label, a phase end or an invalidation
     before a prefix run would have emitted it."""
     O = [r["open"] for r in rows]; H = [r["high"] for r in rows]; L = [r["low"] for r in rows]
@@ -1168,7 +1168,8 @@ def wy_ship(rows, tf, sym, kind, side, P=None):
     inv = tr.get("invalidated")
     return {"tr": {"high": tr["tr_hi"], "low": tr["tr_lo"], "high_label": high_label, "low_label": low_label,
                    "from": tr["formed_at"], "available_at": tr["available_at"],
-                   "to": tr["to"], "to_available_at": tr["to_available_at"], "end_reason": tr["end_reason"]},
+                   "to": tr["to"], "to_available_at": tr["to_available_at"], "end_reason": tr["end_reason"],
+                   "choch_outside_box": tr["choch_outside_box"]},
             "events": events, "phases": phases, "side": side,
             "phase": phases[-1]["label"] if phases else None,
             # ADR 0004 / chart.js wyckoffShapes: `time` is the breaking candle's own open time (idxOf), the

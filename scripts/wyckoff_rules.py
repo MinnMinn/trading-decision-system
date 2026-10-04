@@ -103,8 +103,9 @@ already is):
                      at the box edge" needs one so a CHoCH a tick above the AR is not thrown away.
                      The decision path (backtest-methods.py / live runner) does NOT set this key: flipping it
                      changes WYCKOFF-BOOK trade counts (Trading-System-version significant, CLAUDE.md §47/§59)
-                     and is an owner decision. scripts/structures.py ENVELOPE_PARAMS sets it for the CHART
-                     only (VISUALIZATION_ONLY), and says so.
+                     and is an owner decision. Until then the chart detects with these same PARAMS (ADR 0009)
+                     and shows W8 as a flag (scripts/structures.py `choch_outside_box`); W8_PARAMS there is
+                     the candidate setting, read only by research and tests.
   (W7 -- Phase-D target from the higher-timeframe TR's AR/SOS, WA2-19 -- is a SEPARATE key,
   `fx_w7_htf_target`, read by backtest-methods.py `_fires_from`/`_htf_wyckoff_target`, not by this module: it
   needs a second, higher-timeframe candle series this module has no access to. See that module's docstring.)

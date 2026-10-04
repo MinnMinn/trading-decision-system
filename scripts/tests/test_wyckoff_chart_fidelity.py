@@ -5,7 +5,8 @@ property must hold "on the data the page actually draws"; node runs scripts/char
 
 The decision path is NOT exercised for change here on purpose: every fix below is either chart-only
 (structures.py envelope, build-artifact.py labels, chart.js) or, for W8, a wyckoff_rules.py PARAMS key that is
-False by default and set only by structures.ENVELOPE_PARAMS -- see W8ChochInsideBox.
+False by default. The chart detects with the decision path's own PARAMS (ADR 0009) and shows W8 as the
+`choch_outside_box` flag; structures.W8_PARAMS (the candidate setting) is exercised here for research only.
 """
 import glob
 import importlib.util
@@ -107,14 +108,33 @@ class W8ChochInsideBox(unittest.TestCase):
     """Finding 1 (WA p68-69): the confirming CHoCH must lie inside (or at the edge of) the SC->AR box; the ran-away
     guard runs before the LPS[C]/SOS test."""
 
-    def test_flag_is_off_for_the_decision_path_and_on_for_the_chart(self):
+    def test_chart_detects_with_the_decision_params_and_w8_stays_off(self):
+        """ADR 0009 rule 1: the chart draws what the decision reads. W8 is an owner decision (§47), so the chart
+        neither filters with it nor lets it leak into the decision path."""
         self.assertIs(W.PARAMS["fx_w8_choch_in_box"], False, "v1 decision semantics: W8 is an owner decision")
-        self.assertTrue(structures.ENVELOPE_PARAMS["fx_w8_choch_in_box"])
+        self.assertIs(structures.ENVELOPE_PARAMS, W.PARAMS, "the chart must detect with the decision path's PARAMS")
+        self.assertTrue(structures.W8_PARAMS["fx_w8_choch_in_box"])
         for f in ("backtest-methods.py", "live_rules.py", "strategy-runner.py", "fvg_demo.py"):
             p = os.path.join(ROOT, "scripts", f)
             if os.path.exists(p):
                 self.assertNotIn("fx_w8", open(p, encoding="utf-8").read(), f"{f} must not set W8 silently")
-                self.assertNotIn("ENVELOPE_PARAMS", open(p, encoding="utf-8").read(), f)
+                self.assertNotIn("W8_PARAMS", open(p, encoding="utf-8").read(), f)
+
+    def test_outside_box_flag_matches_the_w8_filter(self):
+        """Every v1 structure the W8 filter would drop at its first gate carries choch_outside_box=True, and every
+        other carries False: the flag is exactly W8's box test, shown instead of applied."""
+        flagged = 0
+        for name, sym, tf, rows in _all_series(600):
+            O, H, L, C, V = _arrays(rows)
+            for side in ("long", "short"):
+                Hd = _det(rows, side)[1]
+                env = structures.wyckoff_structures(O, H, L, C, V, rows, tf, side=side, pit=False)
+                for s in env["structures"]:
+                    lo, hi = (s["tr_lo"], s["tr_hi"]) if side == "long" else (-s["tr_hi"], -s["tr_lo"])
+                    want = Hd[s["choch"]] > hi + W.PARAMS["choch_box_tol_tr"] * (hi - lo) + 1e-12
+                    self.assertIs(s["choch_outside_box"], want, f"{name} {side}")
+                    flagged += want
+        self.assertGreater(flagged, 0, "no flagged structure on this data: the flag is unpinned")
 
     def test_every_chart_record_has_its_choch_inside_the_box(self):
         tol = W.PARAMS["choch_box_tol_tr"]
@@ -123,7 +143,7 @@ class W8ChochInsideBox(unittest.TestCase):
             O, H, L, C, V = _arrays(rows)
             for side in ("long", "short"):
                 Hd = _det(rows, side)[1]
-                for P, chart in ((structures.ENVELOPE_PARAMS, True), (W.PARAMS, False)):
+                for P, chart in ((structures.W8_PARAMS, True), (W.PARAMS, False)):
                     for r in structures.wyckoff_records(O, H, L, C, V, P=P, side=side):
                         lo, hi = (r["tr_lo"], r["tr_hi"]) if side == "long" else (-r["tr_hi"], -r["tr_lo"])
                         inside = Hd[r["choch"]] <= hi + tol * (hi - lo) + 1e-12
@@ -143,7 +163,7 @@ class W8ChochInsideBox(unittest.TestCase):
             O, H, L, C, V = _arrays(rows)
             for side in ("long", "short"):
                 Hd = _det(rows, side)[1]
-                for r in structures.wyckoff_records(O, H, L, C, V, P=structures.ENVELOPE_PARAMS, side=side):
+                for r in structures.wyckoff_records(O, H, L, C, V, P=structures.W8_PARAMS, side=side):
                     lo, hi = (r["tr_lo"], r["tr_hi"]) if side == "long" else (-r["tr_hi"], -r["tr_lo"])
                     ceiling = r["ceiling"] if side == "long" else -r["ceiling"]
                     start = max(r["choch"], r["st"]) + 1
@@ -186,7 +206,7 @@ class PointInTimePrefixRedetection(unittest.TestCase):
 
     def test_every_shipped_object_appears_exactly_at_its_available_at(self):
         objects = springs_after_reclaim = 0
-        for P in (structures.ENVELOPE_PARAMS, W.PARAMS):
+        for P in (structures.W8_PARAMS, W.PARAMS):
             for name, sym, tf, side, rows, env in _envs(P, 300):
                 bar_of = {_iso(c, tf): i for i, c in enumerate(rows)}
                 cache = {}
@@ -256,7 +276,7 @@ class EngineObjectsOnData(unittest.TestCase):
 
     def test_invalidation_is_emitted_and_means_what_the_books_say(self):
         seen = 0
-        for P in (structures.ENVELOPE_PARAMS, W.PARAMS):
+        for P in (structures.W8_PARAMS, W.PARAMS):
             for name, sym, tf, side, rows, env in _envs(P, 360):
                 Cd = _det(rows, side)[3]
                 for tr in env["structures"]:
@@ -279,7 +299,7 @@ class EngineObjectsOnData(unittest.TestCase):
 
     def test_lps_c_path_has_a_phase_c_and_an_lps_c_event(self):
         seen = 0
-        for P in (structures.ENVELOPE_PARAMS, W.PARAMS):
+        for P in (structures.W8_PARAMS, W.PARAMS):
             for name, sym, tf, side, rows, env in _envs(P, 360):
                 for tr in env["structures"]:
                     if tr["path"] != "lps_c":
@@ -297,7 +317,7 @@ class EngineObjectsOnData(unittest.TestCase):
 
     def test_phase_e_starts_beyond_the_sos_leg_after_the_bu_and_the_range_ends(self):
         e_seen = ended = 0
-        for P in (structures.ENVELOPE_PARAMS, W.PARAMS):
+        for P in (structures.W8_PARAMS, W.PARAMS):
             for name, sym, tf, side, rows, env in _envs(P, 360):
                 Hd, Cd = _det(rows, side)[1], _det(rows, side)[3]
                 times = [r["time"] for r in rows]
@@ -361,9 +381,15 @@ class NarrativeContractOnEngineOutput(unittest.TestCase):
                 reads += 1
                 wy = self._narrative(w)
                 tag = f"{name} {side}"
-                cn.phase_grammar(tag, wy, bad.append)
-                cn.confirmation_grammar(tag, wy, rr, rr[-1]["time"], bad.append)
-                cn.tick_volume_checks(tag, {"text_html": " · ".join(e["label"] for e in w["events"])}, {}, True, bad.append)
+                mine = []
+                cn.phase_grammar(tag, wy, mine.append)
+                cn.confirmation_grammar(tag, wy, rr, rr[-1]["time"], mine.append)
+                cn.tick_volume_checks(tag, {"text_html": " · ".join(e["label"] for e in w["events"])}, {}, True, mine.append)
+                # The chart draws the decision path's structures (ADR 0009). One whose CHoCH lies beyond the SC-AR box
+                # is off-textbook by construction (W8, WA p68-69: a trend leg, not Phase B) and is drawn flagged as
+                # such, so a grammar breach there is the flag's subject, not a rendering bug.
+                if not w["tr"]["choch_outside_box"]:
+                    bad.extend(mine)
         self.assertEqual(bad, [])
         self.assertGreater(reads, 5, "too few engine reads to pin the contract")
 
@@ -476,7 +502,30 @@ class ChartBuilders(unittest.TestCase):
         self.assertEqual(flags[0]["text"], "Spring 103")
         self.assertEqual(flags[0]["color"], "muted")
         self.assertTrue(any(s["kind"] == "mark" and s.get("glyph") == "x" and s["i"] == 30 for s in out))
-        self.assertTrue(all("chart.wyckoff.invalidated_suffix" in s["label"] for s in out if s["kind"] == "hseg"))
+        hsegs = [s for s in out if s["kind"] == "hseg"]
+        # The suffix rides in `note`, never in `label`: the axis tag reads the label's trailing number, and a note
+        # ending in a clock time made the tag read "00" (2026-10-04 render review).
+        self.assertTrue(hsegs and all("chart.wyckoff.invalidated_suffix" in (s.get("note") or "") for s in hsegs))
+        self.assertTrue(all(s["label"].split()[-1] in ("150", "100") for s in hsegs), hsegs)
+
+    def test_choch_outside_the_box_is_drawn_and_flagged_not_hidden(self):
+        """ADR 0009 + W8 as a flag: the structure is drawn, and its CHoCH flag says it is outside the box."""
+        out = self.run_js(
+            "const wy={tr:{high:150,low:100,from:rows[2][5],choch_outside_box:true},events:[{time:rows[5][5],"
+            "label:'CHoCH 170',up:true,kind:'choch'},{time:rows[8][5],label:'ST 101',up:false,kind:'st'}],phases:[]};"
+            "console.log(JSON.stringify(T.wyckoffShapes(rows,wy,{compact:false,fmt:String})));")
+        flags = {f["text"].split()[0]: f for f in out if f["kind"] == "flag"}
+        self.assertIn("chart.wyckoff.choch_outside_box", flags["CHoCH"]["text"])
+        self.assertEqual(flags["CHoCH"]["color"], "warn")
+        self.assertEqual(flags["ST"]["text"], "ST 101")
+
+    def test_axis_tag_shows_the_price_when_a_note_ends_in_a_clock_time(self):
+        """2026-10-04 render review: 'AR 79,890 · invalidated 09-15 21:00' made the axis tag read '00'."""
+        out = self.run_js(
+            "console.log(JSON.stringify(T.axisGroups([{kind:'hseg',price:79890,stroke:'muted',label:'AR 79,890',"
+            "note:'invalidated 09-15 21:00',labelAt:'axis'},{kind:'hseg',price:79890,stroke:'w',label:'AR 79,890',"
+            "labelAt:'axis'}]).map(g=>[g.priceText,g.words])));")
+        self.assertEqual(out, [["79,890", "AR · invalidated 09-15 21:00"]])
 
 
 if __name__ == "__main__":

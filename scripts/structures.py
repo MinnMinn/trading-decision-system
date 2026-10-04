@@ -319,12 +319,25 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
 # ------------------------------------------------------------------------------------------------- Wyckoff
 
 
-# The chart's detection parameters (VISUALIZATION_ONLY): W.PARAMS plus the W8 fidelity correction (CHoCH inside the
-# SC->AR box, WA p68-69; wyckoff_rules.py module docstring). The decision path never reads this dict -- it calls
-# wyckoff_records() with backtest-methods.py's own bridged copy, where fx_w8 stays False (v1) until the owner flips
-# it. The page builders (build-artifact.py wy_json_engine, build-pit-page.py through it) pass it explicitly, so the
-# chart does not draw a trend leg as Phase B (docs/audits/2026-10-04-wyckoff-chart-fidelity.md finding 1).
-ENVELOPE_PARAMS = dict(W.PARAMS, fx_w8_choch_in_box=True)
+# The chart's detection parameters ARE the decision path's (ADR 0009 rule 1: one structure source -- the chart draws
+# what the decision reads, never a stricter or looser set). W8 (CHoCH inside the SC->AR box, WA p68-69;
+# wyckoff_rules.py module docstring) is an owner decision that changes Trading System semantics (§47/§59), so until it
+# is approved the chart does not FILTER with it: every structure instead carries `choch_outside_box` and the page
+# marks such a CHoCH as off-textbook (docs/audits/2026-10-04-wyckoff-chart-fidelity.md finding 1). W8_PARAMS is the
+# candidate setting, read only by research and tests.
+ENVELOPE_PARAMS = W.PARAMS
+W8_PARAMS = dict(W.PARAMS, fx_w8_choch_in_box=True)
+
+
+def choch_outside_box(r, H, L, P=None, side="long"):
+    """W8's test as a FLAG (WA p68-69): the confirming CHoCH swing lies more than `choch_box_tol_tr` x TR beyond the
+    AR border of the SC->AR box (above it for an accumulation, below it for a distribution). Reads only the record's
+    own bars, so it is as point-in-time as the record."""
+    tol = (W.PARAMS if P is None else P)["choch_box_tol_tr"]
+    tr = r["tr_hi"] - r["tr_lo"]
+    if side == "long":
+        return H[r["choch"]] > r["tr_hi"] + tol * tr + 1e-12
+    return L[r["choch"]] < r["tr_lo"] - tol * tr - 1e-12
 
 # Drawable Wyckoff events (built in `_wy_view`): sc, ar, st, choch, spring, test, lps_c, sos_bar, bu. "reclaim"
 # (R6's close-back-inside bar) is a typing input, not a Wyckoff event name, and "sos" (the SOS confirmation bar)
@@ -556,8 +569,8 @@ def wyckoff_structures(O, H, L, C, V, candles, tf, P=None, volume_kind="traded",
     """The Wyckoff trading ranges and events `candles` implies, wrapped from `wyckoff_records()`.
 
     `candles` is the same OHLCV list O/H/L/C/V were built from (bar `i`'s time is `candles[i]["time"]`).
-    `P`: detection parameters (None = wyckoff_rules.PARAMS, the decision path's v1 defaults); the chart passes
-    ENVELOPE_PARAMS.
+    `P`: detection parameters (None = wyckoff_rules.PARAMS, the decision path's v1 defaults; the chart passes
+    ENVELOPE_PARAMS, the same dict). Each structure also carries `choch_outside_box` (W8 as a flag).
 
     Returns {"records": recs, "structures": [...]} where `recs` is EXACTLY what `wyckoff_records()` returned
     (same objects, not copied). Each trading_range structure carries `events`, `phases`, its end (`to`,
@@ -599,5 +612,6 @@ def wyckoff_structures(O, H, L, C, V, candles, tf, P=None, volume_kind="traded",
                             to_available_at=at(("tr_end",)) if end else None,
                             end_reason=end[1] if end else None,
                             invalidated=invalidated,
-                            invalidated_at=invalidated["available_at"] if invalidated else None))
+                            invalidated_at=invalidated["available_at"] if invalidated else None,
+                            choch_outside_box=choch_outside_box(r, H, L, PP, side)))
     return {"records": recs, "structures": structs}
