@@ -232,7 +232,12 @@ class AvailableTimeInvariant(unittest.TestCase):
                 continue
             c = window[s["i"]]
             self.assertEqual(s["formed_at"], c["time"])
-            self.assertEqual(s["available_at"], N.available_time(c, "4H").isoformat().replace("+00:00", "Z"))
+            # ICT chart-fidelity audit 2026-10-04, item 2: an MSS is available only once its dependent pivots
+            # (each + PIV) and its displacement-confirming bar have closed -- not at its own bar alone.
+            conf = s["i"] if s["kind"] != "mss" else max(
+                [s["i"], s["disp_conf_i"]] + [q + structures.PIV for q in s["dep_pivots"]])
+            self.assertEqual(s["available_at"],
+                             N.available_time(window[conf], "4H").isoformat().replace("+00:00", "Z"))
             checked += 1
         self.assertGreater(checked, 0)
 
@@ -346,34 +351,54 @@ class A1bInvalidatedAt(unittest.TestCase):
         self.env = structures.ict_structures(self.window, 4, "4H", methods=("ict",))
 
     def test_pool_invalidated_at_only_when_closed_through(self):
+        """closed_through -> invalidated at closed_at; SWEPT -> invalidated only at the first LATER body close
+        beyond the level (ICT chart-fidelity audit 2026-10-04 item 3; core-a.md R6/R25, mentorship-2024 §15);
+        intact -> open."""
         a = self.env["analysis"]
         pools = [s for s in self.env["structures"] if s["kind"] == "pool"]
         self.assertEqual(len(pools), len(a["pools"]))
-        saw_invalidated = saw_live = 0
+        C = [c["close"] for c in self.window]
+        saw_invalidated = saw_live = saw_broken = 0
         for wrapped, raw in zip(pools, a["pools"]):
             if raw["state"] == "closed_through":
                 self.assertIsNotNone(wrapped["invalidated_at"])
                 self.assertEqual(wrapped["invalidated_at"], _iso(self.window[raw["closed_at"]], "4H"))
                 saw_invalidated += 1
+            elif raw["swept"] >= 0:
+                beyond = [j for j in range(raw["swept"] + 1, len(C))
+                          if (C[j] > raw["level"] if raw["kind"] == "BSL" else C[j] < raw["level"])]
+                self.assertEqual(wrapped["broken_i"], beyond[0] if beyond else None)
+                if beyond:
+                    self.assertEqual(wrapped["invalidated_at"],
+                                     max(_iso(self.window[beyond[0]], "4H"), wrapped["available_at"]))
+                    saw_broken += 1
+                else:
+                    self.assertIsNone(wrapped["invalidated_at"])
+                    saw_live += 1
             else:
                 self.assertIsNone(wrapped["invalidated_at"], f"a {raw['state']!r} pool must not carry invalidated_at")
                 saw_live += 1
         self.assertGreater(saw_invalidated, 0, "fixture must exercise at least one closed_through pool")
         self.assertGreater(saw_live, 0, "fixture must exercise at least one intact/swept pool")
 
-    def test_fvg_invalidated_at_only_when_mitigated(self):
+    def test_fvg_invalidated_at_only_when_inverted(self):
+        """The first touch is NOT an FVG's end (core-a.md §2.23 R19): invalidated_at is the inversion -- a body
+        close through CE, then through the far edge (§2.26 R23). touched_at is the old first-touch bar."""
         a = self.env["analysis"]
         fvgs = [s for s in self.env["structures"] if s["kind"] == "fvg"]
         self.assertEqual(len(fvgs), len(a["fvgs_all"]))
-        saw_mitigated = 0
+        saw_touched = 0
         for wrapped, raw in zip(fvgs, a["fvgs_all"]):
             if raw["mitigated"]:
-                self.assertIsNotNone(wrapped["invalidated_at"])
-                self.assertEqual(wrapped["invalidated_at"], _iso(self.window[raw["end"]], "4H"))
-                saw_mitigated += 1
+                self.assertEqual(wrapped["touched_at"], _iso(self.window[raw["end"]], "4H"))
+                saw_touched += 1
             else:
-                self.assertIsNone(wrapped["invalidated_at"])
-        self.assertGreater(saw_mitigated, 0, "fixture must exercise at least one mitigated FVG")
+                self.assertIsNone(wrapped["touched_at"])
+            self.assertEqual(wrapped["invalidated_at"], wrapped["inversion_at"])
+            if wrapped["inversion_i"] is not None:
+                self.assertIsNotNone(wrapped["ce_fail_i"])
+                self.assertLess(wrapped["ce_fail_i"], wrapped["inversion_i"])
+        self.assertGreater(saw_touched, 0, "fixture must exercise at least one touched FVG")
 
     def test_invalidated_at_never_before_the_structures_own_available_at(self):
         for s in self.env["structures"]:
