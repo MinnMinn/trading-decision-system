@@ -61,6 +61,29 @@ class Forward(unittest.TestCase):
         r = FF.resolve_row(s2, row, Costs0())
         self.assertEqual((r["status"], r["exit_time"]), ("closed", s2.T[19]))
 
+    def test_resolve_keeps_closed_rows_of_symbols_that_left_the_watch(self):
+        """Regression (cycle.log, 2026-10-03T15:18Z on): E5 US500 left WATCH; its CLOSED rows raised KeyError in every resolve,
+        so no open row resolved. Closed / refused rows need no series and must pass through byte-identical."""
+        s = EC.Series("XAUUSD", bars("2026-10-05T00:00:00", [(100.0, 100.5, 99.5, 100.0)] * 30), UTC,
+                      end="9999-12-31T00:00:00Z")
+        open_row = {"symbol": "XAUUSD", "component": "H7_XAUUSD_eod", "h": 24, "side": 1, "entry_time": s.T[0],
+                    "entry": 100.0, "stop": 98.0, "stop_distance": 2.0, "status": "open"}
+        gone = [{"symbol": "US500", "component": "E5_US500_48", "h": 48, "side": -1, "entry_time": "2026-10-01T14:00:00Z",
+                 "status": st, "R": 0.5} for st in ("closed", "refused")]
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "fvg-paper.jsonl")
+            with open(log, "w") as fh:
+                for r in gone + [open_row]:
+                    fh.write(json.dumps(r) + "\n")
+            with mock.patch.object(FF, "_series", lambda sym, live_dir: s), \
+                    mock.patch.object(FF.EC, "Costs", lambda sym: Costs0()):
+                FF.cmd_resolve(live_dir=d, log=log)
+            out = [json.loads(line) for line in open(log)]
+        self.assertEqual(out[:2], gone)
+        self.assertEqual((out[2]["status"], out[2]["exit_reason"]), ("closed", "time"))
+
     def test_every_watched_component_is_known(self):
         self.assertEqual(set(FF.WATCH), {"H7_XAUUSD_eod", "G9_XAUUSD_eod", "G9_XAGUSD_eod"})        # E5 left 2026-10-03 (erratum)
 

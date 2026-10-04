@@ -302,7 +302,8 @@ def cmd_resolve(live_dir=LIVE_DIR, log=LOG):
     syms = {v[0] for v in WATCH.values()} | {r["symbol"] for r in rows if r.get("status") == "open"}
     series = {sym: _series(sym, live_dir) for sym in syms}
     costs = {sym: EC.Costs(sym) for sym in syms}
-    out = [resolve_row(series[r["symbol"]], r, costs[r["symbol"]]) for r in rows]
+    # only open rows can change: closed / refused rows of components that left WATCH (E5 US500) have no series here
+    out = [resolve_row(series[r["symbol"]], r, costs[r["symbol"]]) if r.get("status") == "open" else r for r in rows]
     with open(log, "w") as fh:
         for r in out:
             fh.write(json.dumps(r) + "\n")
