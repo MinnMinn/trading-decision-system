@@ -13,8 +13,11 @@ front-month futures files were in the repo from commit 3070e2e to 345e586, and t
     python3 scripts/research/edge_oil.py run --read exposed      --screen <json> --after <confirmation json> --out ...
 
 dry-run and screen are outcome-blind (bar / day / event COUNTS, event timing, volatility and spreads; no return after a
-signal). A read computes outcome rows only for the days of its own window, runs once, from committed code whose sha256 the
-SEALED pre-registration lists (scripts/research/prereg_guard.py: `manifest`, `require_fingerprint`, `require_covered`).
+signal). Order, as [CX-P1] §2 (:52-61): the cost screen runs on EVERY universe symbol; D* and membership are then fixed on
+the ADMITTED symbols only (`split_after_screen`), so a symbol the screen refuses never moves the split. A read computes
+outcome rows only for the members and the days of its own window, runs once (one output name per read,
+`prereg_guard.require_read_once`), from committed code whose sha256 the SEALED pre-registration lists
+(scripts/research/prereg_guard.py: `manifest`, `require_fingerprint`, `require_covered`).
 
 Rules: scripts/research/pit_trend.py ([CX-P1] §1 text), prev_rule "trading" (a 5-day market), min_bars = floor(0.8 x the
 regular weekday session's 5m bars in the committed symbol-list export). Measurement, gates and screen: [CX-P1] §2, §4, §5
@@ -56,6 +59,7 @@ def _ec():
 
 PREREG = "docs/plans/2026-10-04-oil-trend-transfer-preregistration.md"
 TAG = "[OIL-P1]"
+FAMILY = "oil"                                                 # read outputs: docs/audits/<YYYY-MM-DD>-edge-oil-<read>.json
 SCRIPT = "scripts/research/edge_oil.py"
 TESTS_FILE = "scripts/tests/test_edge_oil.py"
 #: Every file whose content can change an OIL read: this script, its tests, and every repository module a read executes
@@ -147,24 +151,39 @@ def dry_symbol(b, min_bars):
 
 
 def dry_summary(per_sym, end_day):
-    qual = {s: v["qualifying_days"] for s, v in per_sym.items()}
-    d_star = split_date(qual)
-    mem = members(qual, d_star) if d_star else []
-    out = {"d_star": str(d_star) if d_star else None, "members": mem, "end": str(end_day), "symbols": {}}
+    """Outcome-blind, per symbol: the counts, S, and the inputs of the split (qualifying days and event days, ISO). No D* and
+    no windows here: they are fixed AFTER the cost screen, on the admitted symbols (`split_after_screen`)."""
+    out = {"end": str(end_day), "symbols": {}}
     for s, v in per_sym.items():
+        row = {k: v[k] for k in ("bars", "first_bar", "last_bar", "min_bars", "eligible_days", "median_hold_bars",
+                                 "last_slot_mode", "median_bars_per_weekday", "largest_overnight_gaps_daily_sd")}
+        sig = v["sigma_pre_dev"]
+        row.update(qualifying_days_pre_dev=sum(1 for d in v["qualifying_days"] if d < DEV_END),
+                   events_pre_dev={r: sum(1 for d in v["events"][r] if d < DEV_END) for r in PT.RULES},
+                   S=(statistics.median(sig) * math.sqrt(v["median_hold_bars"]) if sig and v["median_hold_bars"] else None),
+                   qualifying_days=[str(d) for d in v["qualifying_days"]],
+                   event_days={r: [str(d) for d in v["events"][r]] for r in PT.RULES})
+        out["symbols"][s] = row
+    return out
+
+
+def split_after_screen(dry, admitted):
+    """D*, the members and their per-window counts, from the ADMITTED symbols only ([CX-P1] §2 order: the cost screen, then
+    D* over the screened group's pooled qualifying days before DEV_END, then membership). Outcome-blind."""
+    end_day = datetime.date.fromisoformat(dry["end"])
+    qual = {s: [datetime.date.fromisoformat(x) for x in dry["symbols"][s]["qualifying_days"]] for s in admitted}
+    d_star = split_date(qual) if qual else None
+    mem = members(qual, d_star) if d_star else []
+    windows = {}
+    for s in mem:
+        ev = {r: [datetime.date.fromisoformat(x) for x in dry["symbols"][s]["event_days"][r]] for r in PT.RULES}
         w = {}
         for read in READS:
-            lo, hi = window(read, d_star or DEV_END, end_day)
-            w[read] = {"qualifying_days": sum(1 for d in v["qualifying_days"] if lo <= d < hi),
-                       "events": {r: sum(1 for d in v["events"][r] if lo <= d < hi) for r in PT.RULES}}
-        out["symbols"][s] = {k: v[k] for k in ("bars", "first_bar", "last_bar", "min_bars", "eligible_days",
-                                               "median_hold_bars", "last_slot_mode", "median_bars_per_weekday",
-                                               "largest_overnight_gaps_daily_sd")}
-        out["symbols"][s]["windows"] = w
-        sig = v["sigma_pre_dev"]
-        out["symbols"][s]["S"] = (statistics.median(sig) * math.sqrt(v["median_hold_bars"])
-                                  if sig and v["median_hold_bars"] else None)
-    return out
+            lo, hi = window(read, d_star, end_day)
+            w[read] = {"qualifying_days": sum(1 for d in qual[s] if lo <= d < hi),
+                       "events": {r: sum(1 for d in ev[r] if lo <= d < hi) for r in PT.RULES}}
+        windows[s] = w
+    return {"d_star": str(d_star) if d_star else None, "members": mem, "windows": windows}
 
 
 # ------------------------------------------------------------------------------------------------ screen
@@ -303,6 +322,8 @@ def main():
         print("\n".join(G.manifest_lines(ROOT, CODE)))
         return
     G.refuse_overwrite(a.out)
+    if a.cmd == "run":
+        G.require_read_once(ROOT, _rel(a.out), FAMILY, a.read)
     zone = _zone()
     if a.cmd == "dry-run":
         sl = {x["name"]: x for x in json.load(open(a.symbol_list))["symbols"]}
@@ -319,17 +340,19 @@ def main():
         dry = json.load(open(a.dry))["summary"]
         com = json.load(open(a.commission))
         out = {}
-        for canon in dry["members"]:
+        import history_store as HS
+        for canon in sorted(dry["symbols"]):                   # EVERY universe symbol, before any split
             raw = SYMBOLS[canon]
             spec = json.load(open(os.path.join(a.spec_dir, f"symbolspec.{raw}.json")))
-            import history_store as HS
             m15, _ = HS.read_doc(canon, "15m", root=HIST_ROOT)
             sc = PT.SpecCost(spec, PT.price_ref(m15["candles"], spec, zone), com.get(canon), zone)
             v = dry["symbols"][canon]
             out[canon] = dict(screen_symbol(sc, v["S"], v["last_slot_mode"]), c_sym=com.get(canon))
+        admitted = [c for c, v in out.items() if v["admitted"]]
+        split = split_after_screen(dry, admitted)
         _dump({"meta": {"script": SCRIPT, "kind": "screen (outcome-blind)", "dry": a.dry, "spec_dir": a.spec_dir,
-                        "commission": a.commission}, "d_star": dry["d_star"], "end": dry["end"],
-                "admitted": [c for c, v in out.items() if v["admitted"]], "symbols": out}, a.out)
+                        "commission": a.commission}, "end": dry["end"], "admitted": admitted, "d_star": split["d_star"],
+               "members": split["members"], "windows": split["windows"], "symbols": out}, a.out)
         return
     text = G.require_sealed(ROOT, PREREG, TAG)
     scr = json.load(open(a.screen))
@@ -341,10 +364,10 @@ def main():
     if k > 0:
         if not a.after:
             raise G.Refused(f"refused: --after <{READS[k - 1]} json> is required")
-        prev = json.load(open(a.after))
-        if prev["meta"]["read"] != READS[k - 1]:
-            raise G.Refused(f"refused: --after is the {prev['meta']['read']} read, not {READS[k - 1]}")
-        prior = prev["verdicts"]
+        # the committed previous OIL read: its output name, tag and read are checked, not just its "read" field
+        prior = G.require_read_json(ROOT, _rel(a.after), FAMILY, READS[k - 1], TAG)["verdicts"]
+    if not scr.get("members"):
+        raise G.Refused("refused: no OIL member after the screen and the split: the family is 'not run (screen)'")
     d_star, end = datetime.date.fromisoformat(scr["d_star"]), datetime.date.fromisoformat(scr["end"])
     lo, hi = window(a.read, d_star, end)
     active = [rule for t, rule in TESTS if prior is None or prior.get(t, {}).get("advances")]
@@ -353,7 +376,7 @@ def main():
     rows = {rule: [] for rule in active}
     missing, sizing = {}, {}
     import history_store as HS
-    for canon in scr["admitted"]:
+    for canon in scr["members"]:
         spec = json.load(open(os.path.join(scr["meta"]["spec_dir"], f"symbolspec.{SYMBOLS[canon]}.json")))
         m15, _ = HS.read_doc(canon, "15m", root=HIST_ROOT)
         sc = PT.SpecCost(spec, PT.price_ref(m15["candles"], spec, zone), scr["symbols"][canon]["c_sym"], zone)
@@ -363,13 +386,14 @@ def main():
         for rule in active:
             rows[rule] += got[rule]
         missing[canon] = miss
-        sizing[canon] = owner_sizing(b, ctx, lo, hi, sc, len(scr["admitted"]), active)
+        sizing[canon] = owner_sizing(b, ctx, lo, hi, sc, len(scr["members"]), active)
     tests = {t: (EC.summarise(rows[rule]) if rule in active else {"n": 0, "retired_unread": True}) for t, rule in TESTS}
     res = {"meta": {"script": SCRIPT, "preregistration": PREREG, "tag": TAG, "read": a.read, "window": [str(lo), str(hi)],
                     "git_head": G.git_head(ROOT), "screen": a.screen, "after": a.after, "active_rules": active,
-                    "dataset": G.dataset_snapshot(HIST_ROOT, [(c, tf) for c in scr["admitted"] for tf in ("5m", "15m")]),
+                    "members": scr["members"],
+                    "dataset": G.dataset_snapshot(HIST_ROOT, [(c, tf) for c in scr["members"] for tf in ("5m", "15m")]),
                     "specs": {c: G.file_sha256(os.path.join(scr["meta"]["spec_dir"], f"symbolspec.{SYMBOLS[c]}.json"))
-                              for c in scr["admitted"]}},
+                              for c in scr["members"]}},
            "tests": tests, "verdicts": verdicts(a.read, tests, prior), "missing_placebo": missing,
            "owner_sizing_report_only": sizing, "by_symbol_year_report_only": by_symbol_year(rows), "rows": rows}
     G.require_covered(man)

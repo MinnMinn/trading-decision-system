@@ -142,11 +142,16 @@ class Detection(unittest.TestCase):
         c, d = history_then([110.0] * 5 + [140.0] + [141.0 + k for k in range(30)])
         b = PT.Bars("X", c, UTC)
         ctx = PT.context(b, 230)
+        probed = 0
         for rule in PT.RULES:
             full = [x for x in PT.DETECTORS[rule](b, ctx) if x["day"] == d]
             if not full:
                 continue
-            cut = [x for x in c if x["time"] <= b.T[full[0]["i"] + 1]]   # keep the entry bar's open only
+            probed += 1
+            cut = [dict(x) for x in c if x["time"] <= b.T[full[0]["i"] + 1]]
+            entry = cut[-1]                                             # keep the entry bar's OPEN only: no later price
+            self.assertEqual(entry["time"], b.T[full[0]["entry_i"]])
+            entry.update(high=entry["open"], low=entry["open"], close=entry["open"])
             bt = PT.Bars("X", cut, UTC)
             ctx_t = PT.context(bt, 230)
             tr = [x for x in PT.DETECTORS[rule](bt, ctx_t) if x["day"] == d]
@@ -154,6 +159,7 @@ class Detection(unittest.TestCase):
             self.assertEqual((tr[0]["i"], tr[0]["side"]), (full[0]["i"], full[0]["side"]))
             for key in ("mom", "sigma", "prev_range", "prev_high", "prev_low", "open"):
                 self.assertEqual(ctx_t[d][key], ctx[d][key])
+        self.assertEqual(probed, len(PT.RULES))                         # both rules fire on this day: none skipped
 
 
 class Outcomes(unittest.TestCase):

@@ -5,7 +5,13 @@ Status: DRAFT. Not sealed.
 Sealing: the coordinator commits this text, after review, as
 `docs/plans/2026-10-04-oil-trend-transfer-preregistration.md`, with the status line above replaced by a line that reads
 exactly "Status: SEALED" and with §10's code manifest filled in. `scripts/research/edge_oil.py` refuses every read until then
-(scripts/research/prereg_guard.py `require_sealed`, `require_fingerprint`).
+(scripts/research/prereg_guard.py `require_sealed`, `require_fingerprint`), and runs each read once (`require_read_once`: one
+output name per read, refused if that read's output exists or was ever committed).
+
+Revised three times after reviews (2026-10-04). Revision 1: the Yahoo oil files and their reads disclosed (below).
+Revision 2 (review items 18, 20): the split now follows the cost screen, as [CX-P1] orders it (§2); read-once is enforced;
+§5 states how a survivor is carried to both account layers. Revision 3 (the review of revision 2): §5 names the row adapter
+both account layers need; a later read checks the earlier read's JSON (name, commit, tag, read: §9).
 
 **Written before any FTMO oil bar exists in this repository.** The owner universe of 2026-10-01 excluded energies
 (docs/plans/2026-10-01-symbol-universe-design.md:3), so no FTMO oil CFD was ever exported. The underlying was NOT unseen,
@@ -58,16 +64,22 @@ on windows no test has read?
   the `real_costs` convention (scripts/real_costs.py:314, :426), computed by pit_trend `SpecCost` because
   scripts/real_costs.py is frozen by the Wyckoff re-test fingerprint. Every development-window net is labelled "modelled
   at the export window's spreads".
-- **Cost screen (outcome-blind), [CX-P1] §2:** K = 0.5 x median over the 24 buckets of the relative spread + 0.5 x the
-  relative spread at the bucket of the server day's last bar + 2 x c_sym; S = median over qualifying days before
-  2024-03-01 of sigma_5m x sqrt(median hold bars of the dry run's events). Admitted iff K <= 0.5 x 0.05 x S.
-- **Split and membership ([CX-P1] §2):** D* = the date by which 60 % of the pooled qualifying symbol-days before 2024-03-01
-  have elapsed; members = symbols with >= 250 qualifying days in both [start, D*) and [D*, 2024-03-01). Fixed once.
-  USOIL may fail membership (its history starts 2020-12-31); then the family is UKOIL alone.
-- **Screening amendment**, committed before the discovery read: per symbol K, S, c_sym, min_bars, qualifying days per
-  window, D*, members, the fixed EXPOSED end date, the dataset snapshot (history_store digests, spec sha256), median bars
-  per weekday, the 20 largest overnight gaps in daily-SD units, power in distinct server days per read. Counts only,
-  never split by side.
+- **Order, as [CX-P1] §2 (docs/plans/2026-10-04-edge-cx-ftmo-crypto-preregistration.md:52-61): the cost screen first, then
+  the split of the screened group (review item 20).** The first draft's code fixed D* and membership over both symbols
+  before the screen; a symbol the screen refused would still have moved the split of the other. Now it cannot
+  (`edge_oil.split_after_screen`; test `test_a_refused_symbol_does_not_move_the_split`).
+- **Cost screen (outcome-blind), [CX-P1] §2, on BOTH universe symbols:** K = 0.5 x median over the 24 buckets of the
+  relative spread + 0.5 x the relative spread at the bucket of the server day's last bar + 2 x c_sym; S = median over
+  qualifying days before 2024-03-01 of sigma_5m x sqrt(median hold bars of the dry run's events). Admitted iff
+  K <= 0.5 x 0.05 x S.
+- **Split and membership, on the ADMITTED symbols only:** D* = the date by which 60 % of the admitted symbols' pooled
+  qualifying symbol-days before 2024-03-01 have elapsed; members = admitted symbols with >= 250 qualifying days in both
+  [start, D*) and [D*, 2024-03-01). Fixed once, in the screen's output. USOIL may fail the screen or membership (its history
+  starts 2020-12-31); then the family is UKOIL alone. No member: "not run (screen)".
+- **Screening amendment**, committed before the discovery read: per symbol K, S, c_sym, min_bars, admitted or not; D* and
+  members (from the admitted symbols); qualifying days and events per window per member; the fixed EXPOSED end date, the
+  dataset snapshot (history_store digests, spec sha256), median bars per weekday, the 20 largest overnight gaps in
+  daily-SD units, power in distinct server days per read. Counts only, never split by side.
 - **Futures-roll caution (data quality, CLAUDE.md §20).** The .cash oil CFDs follow a futures contract; a roll can shift
   the price between two server days. A trade never crosses a server day, but MOM20 and the previous day's range can
   straddle a roll. No filter is applied; the dry run lists the largest overnight gaps so the coordinator can compare them
@@ -75,7 +87,8 @@ on windows no test has read?
 
 ## 3. Windows and reads
 
-- One group: the members. Three reads, in order, each once, each in its own commit:
+- One group: the members. Three reads, in order, each once, each in its own commit, each to its one output name
+  `docs/audits/<YYYY-MM-DD>-edge-oil-<read>.json` (any other path, or a second run, is refused):
   DISCOVERY = [first bar, D*), CONFIRMATION = [D*, 2024-03-01), EXPOSED = [2024-03-01, the fixed end date].
 - Grades (research-directions §0): DISCOVERY and CONFIRMATION are FRESH (no intraday oil bar of those years was ever in the
   repo). EXPOSED is UNREAD-FOR-H: the same market path, as futures 1H / 4H bars, was read by the ICT / Wyckoff stability
@@ -108,6 +121,22 @@ T1 = H7 pooled over the members, T2 = G9 pooled.
   worst trade. A survivor with any server day beyond -5 % is not proposed.
 - A survivor then goes to `book_sim compare` against fvg-book v4 (daily P&L correlation) and to the forward stage of
   docs/plans/2026-10-02-edge-followup-preregistration.md §4, before any symbol leaves research-only.
+- **Both account layers (described, not run).** After the forward stage, and only if the owner approves:
+  - **A row adapter comes first.** Both tools replay book_sim-shaped rows. `pass_policy.prepare` needs entry / exit times,
+    the exit's server day and R, plus the worst excursion `mae_R` for FTMO's floating limits (without it, min(0, R))
+    (scripts/research/pass_policy.py:161-170). `personal_account.replay` also needs cost_R, stop_bp and the per-bar
+    adverse path `adv_path_R`, and loads only the book_sim components of its `BOOKS`
+    (scripts/research/personal_account.py:131-133, :241-243 at b818e99). OIL's rows (pit_trend `stop_trade`) carry neither
+    path, so the adapter rebuilds both from the bars, as scripts/research/book_sim.py:62-81 does. personal_account.py
+    belongs to the personal-account workflow, which adds any loader it needs.
+  - **FTMO (challenge layer):** v4 plus the oil basket is replayed with the existing book / challenge machinery at the
+    book's risk (`scripts/research/pass_policy.py` `challenge` / `evaluate_hist` / `evaluate_boot`: Phase 1 +10 %, Phase 2
+    +5 %, 5 % daily and 10 % total loss limits; the 12-month value replay of `scripts/research/vol_schedule.py`), labelled
+    POLICY-EXPOSED, against v4 alone.
+  - **Personal 5,000 USD account:** the basket's rows are replayed descriptively with `scripts/research/personal_account.py`
+    (minimum lot, the owner's capped minimum-lot mode, margin, compounding). Its oil contract sizes come from the owner's
+    broker spec, which does not exist yet; until then the FTMO spec is a labelled proxy. Any personal-account use is an
+    owner decision.
 - Zero survivors is a valid result.
 
 ## 6. Power and prior
@@ -139,14 +168,17 @@ Sealing should precede the import; it must precede the dry run.
 1. Review; reconcile pit_trend with `scripts/research/edge_cx.py` if that file exists (one rule text for CX and OIL).
 2. Commit the final code; paste `python3 scripts/research/edge_oil.py manifest` into §10; seal under the final name with
    the exact "Status: SEALED" line; ledger periods (EXPOSED window labelled UNREAD-FOR-H with the stability runs named).
-3. After the export and import: `edge_oil.py dry-run --symbol-list <committed list> --end <fixed end> --out ...`, then
-   `edge_oil.py screen ...`; commit both with the screening amendment.
+3. After the export and import: `edge_oil.py dry-run --symbol-list <committed list> --end <fixed end> --out ...` (per
+   symbol counts, no split), then `edge_oil.py screen ...` (K and S for both symbols, then D*, members and the window
+   counts of the admitted ones); commit both with the screening amendment.
 4. Reads: `edge_oil.py run --read discovery|confirmation|exposed --screen <json> [--after <previous read json>] --out
-   docs/audits/<date>-edge-oil-<read>.json`, one commit each.
+   docs/audits/<date>-edge-oil-<read>.json`, one commit each. `--after` must be the committed previous read: its name,
+   commit state, tag and read are checked (`prereg_guard.require_read_json`).
 
 ## 10. Code
 
-- `scripts/research/edge_oil.py` (split, membership, screen, reads, gates, registration guard, dataset snapshot).
+- `scripts/research/edge_oil.py` (screen, then `split_after_screen`: split and membership on the admitted symbols; reads,
+  gates, registration guard with read-once, dataset snapshot).
 - `scripts/research/pit_trend.py` (rules, placebo, SpecCost), `scripts/research/prereg_guard.py`.
 - Tests: `scripts/tests/test_edge_oil.py`, `scripts/tests/test_pit_trend.py`, `scripts/tests/test_prereg_guard.py`
   (hand-built bars and temporary repositories only).

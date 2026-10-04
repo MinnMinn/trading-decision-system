@@ -66,3 +66,6 @@ one of 78 descriptive cells, found after the fact.
 3. The only way to settle the open cell is forward data (§4 R4). The pre-registration runs R4 only for survivors, and an
    inconclusive cell is not a survivor. Forward collection for W-C-long-15m would need an owner decision and its own
    pre-registered forward rule.
+
+Test-file note (2026-10-04, after all reads). `scripts/tests/test_edge_wyckoff.py` changed after every registered read had run. Its guard tests `test_nothing_reads_before_the_sealed_preregistration_exists` and `test_the_guard` asserted the pre-seal state: no sealed text, no ledger entry. They now assert the sealed state. Why: no read remains. R1 has no survivor, so R2, R3, the perturbations and R4 never run. V and L1 have no forward read. The WY-F1 fingerprint names no test file.
+sha256 before `681bf5e0de09e6945cfac13131bea1dcf53d185aa1fc2d3fb81a316f3da5d448` (R0's `code_sha256`), after `414bdab50ba007a991b89d2cf8041df29d084d1894ce069eac79462c8e5a6bc6`. A later guarded edge_wyckoff read would refuse the new hash (`_tie`, `_r0`).

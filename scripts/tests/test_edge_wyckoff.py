@@ -1117,15 +1117,22 @@ class Guards(unittest.TestCase):
         return os.path.join(self.tmp.name, name)
 
     def test_nothing_reads_before_the_sealed_preregistration_exists(self):
-        self.assertFalse(os.path.exists(os.path.join(ROOT, M.PREREG)))              # still a DRAFT today
-        for read in M.READS:
-            with fresh(), self.assertRaises(SystemExit):
-                M.run(read, self.p("x.json"), counts_path=self.p("r0.json"), loader=boom, vloader=boom,
-                      funding_loader=boom, l1=boom, require_clean=False)
-        with fresh(), self.assertRaises(SystemExit):
-            M.forward("W-C-long-15m", self.p("f.json"), loader=boom, require_clean=False)
-        with fresh(), self.assertRaises(SystemExit):
-            M.report(self.p("rep.json"), require_clean=False)
+        # SEALED at c0d6ccb: the sealed text exists and is committed, and its adding commit dates the records
+        # (docs/experiments/wyckoff-retest-2026-10-04/). The rule itself is checked on a sealed text that is absent.
+        self.assertTrue(os.path.exists(os.path.join(ROOT, M.PREREG)))
+        self.assertEqual(M._require_sealed()["seal_date"], "2026-10-04")
+        with mock.patch.object(M, "PREREG", "docs/plans/absent-wyckoff-retest-preregistration.md"):
+            for read in M.READS:
+                with fresh(), self.assertRaises(SystemExit) as cm:
+                    M.run(read, self.p("x.json"), counts_path=self.p("r0.json"), loader=boom, vloader=boom,
+                          funding_loader=boom, l1=boom, require_clean=False)
+                self.assertIn("does not exist", str(cm.exception))
+            with fresh(), self.assertRaises(SystemExit) as cm:
+                M.forward("W-C-long-15m", self.p("f.json"), loader=boom, require_clean=False)
+            self.assertIn("does not exist", str(cm.exception))     # the sealed-text guard, not a later refusal
+            with fresh(), self.assertRaises(SystemExit) as cm:
+                M.report(self.p("rep.json"), require_clean=False)
+            self.assertIn("does not exist", str(cm.exception))
 
     def r0(self, meta=None, probe="pass", **kw):
         """An R0 record (the meta this code writes, a passing probe unless given) at r0.json.
@@ -1220,9 +1227,15 @@ class Guards(unittest.TestCase):
                 self.assertIn(msg, str(cm.exception))
         with fresh(sealed, named, relp, ledger, dump, mock.patch.object(M, "_git", FakeGit())), self.assertRaises(SystemExit):
             M.run("R1", self.p("r1.json"), counts_path=self.p("r0.json"), loader=boom)    # not the canonical path
-        with fresh(sealed, named, relp, dump, mock.patch.object(M, "_git", FakeGit())), self.assertRaises(SystemExit):
-            M.run("R1", want, counts_path=self.p("r0.json"), loader=boom)              # the real ledger lacks the study
-        real_sha = M._sha256                         # the sealed file does not exist yet: hash it as absent
+        M._require_ledger()                          # SEALED (c0d6ccb): the real ledger names the study
+        lacking = self.p("ledger.json")
+        with open(lacking, "w") as fh:
+            fh.write("{}")
+        with fresh(sealed, named, relp, dump, mock.patch.object(M, "_git", FakeGit()),
+                   mock.patch.object(M, "LEDGER", lacking)), self.assertRaises(SystemExit) as cm:
+            M.run("R1", want, counts_path=self.p("r0.json"), loader=boom)              # a ledger that lacks the study
+        self.assertIn("register the study", str(cm.exception))
+        real_sha = M._sha256                         # a file that does not exist is hashed as absent
         sha = mock.patch.object(M, "_sha256", lambda p: real_sha(p) if os.path.exists(p) else "absent")
         with fresh(sealed, named, relp, ledger, dump, sha, mock.patch.object(M, "_git", FakeGit())):
             with self.assertRaises(Reached):

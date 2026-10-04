@@ -87,6 +87,26 @@ re-test `docs/plans/2026-10-04-wyckoff-retest-preregistration.md` [WY-P1], AU = 
     `chain_at_signal` (the store's chain hash at the signal bar);
   - the seal SHA, the fingerprint digest (§5), the Python version, `logged_at`.
 
+**Torn writes** (WF `read_chain`, `cycle_core`, `drop_torn`):
+- Every chain line ends with a newline. A worker killed during `commit` (the launcher kills it at 120 s) can leave an
+  UNTERMINATED last line. Those bytes were never part of the chain.
+- The read and `anchor` refuse such a file; `status` names it as pending. Nothing is appended after it: the torn bytes
+  would join the new line into a terminated, broken one, and that refuses forever.
+- The next cycle drops it, and only it:
+  - under each file's writer lock (WF `_flock`), so a live writer is never cut;
+  - only if the bytes after the last newline are exactly the planned ones, with no newline among them;
+  - after logging them in `data/live/forward/wyckoff-wc15/repairs.jsonl`, hash-chained: the file, the offset, the records
+    and head that remain, the bytes and their sha256.
+- One cut can go unlogged. A worker killed after cutting `repairs.jsonl`'s own torn tail, and before appending the new
+  records, leaves that cut without a record. Those bytes were an incomplete repair record. The drops it described were
+  not done, so the next cycle plans and logs them (WF `drop_torn`).
+- A terminated line that does not verify is never dropped. It refuses every step, as before: collection stops
+  (`last_cycle.json`, the cycle log) until a person looks. It is evidence, not a torn write.
+- Nothing is lost. Lines the killed worker appended whole stay. The scan cache is written last, so the next cycle
+  appends the rest again and re-detects a dropped event; its later `logged_at` shows in the lag (§8).
+- Tests: `test_an_unterminated_last_line_is_dropped_and_logged_and_a_terminated_one_never`,
+  `test_a_live_writer_is_never_cut_and_the_repair_log_heals_itself`.
+
 **Anchors.** `wyckoff_forward.py anchor` appends the chains' lengths and heads to
 `docs/experiments/wyckoff-forward-wc15/anchors.jsonl`. The coordinator commits it monthly.
 - The read takes the anchors from **git history**, not from the file on disk: every line ever committed, on any branch
@@ -95,6 +115,11 @@ re-test `docs/plans/2026-10-04-wyckoff-retest-preregistration.md` [WY-P1], AU = 
   is no longer on its chain (WF `verify_anchors`).
 - Anchors are not required. The read reports how many it verified and the last one's commit date. With none, it says
   the log's timing (`logged_at`, the lag) is unanchored.
+- `anchor` writes under the file's lock and fsyncs. It refuses a file that does not end with a newline, or that holds a
+  line that is not an anchor record (WF `anchor_lines`). So a new line never joins a torn one.
+- A committed line that is not an anchor record refuses the read, naming its commit. Git keeps it, so it is evidence,
+  like a terminated chain line that does not verify. Commit `anchors.jsonl` only after `anchor` printed its new line.
+  Test: `test_an_anchor_never_joins_a_torn_line_and_a_committed_non_record_refuses_by_its_commit`.
 
 ## 5. The code fingerprint: pinned by commit, not by freezing the repository
 
@@ -144,13 +169,28 @@ studies will edit `instruments.json`, `real_costs.py` and more.
     tree's (WF `extract_check`). This check found a real defect in the first version of this code: the extract lacked
     the `.mq5` adapter files, so every cycle would have failed after the seal. A committed test repeats it on a
     throwaway clone (`ExtractCheck`).
-- **The interpreter is pinned.** The fingerprint records the Python it was made with: `sys.executable` (on this Mac
-  `/opt/homebrew/opt/python@3.14/bin/python3.14`, which brew keeps on 3.14 across patch upgrades), its real path and
-  version. Every worker is started with that command, never another Python (WF `_interpreter`). A worker refuses a
-  different minor version (WF `require_interpreter`). If the command is gone, the cycle fails loudly. `status` shows the
-  pinned and the current version. A patch upgrade is allowed; the read's canary still refuses any numeric change (the
-  digest leaves the version string out). Run `fingerprint` with the interpreter launchd uses (`/opt/homebrew/bin/python3`
-  today).
+- **The interpreter is pinned, by a stable versioned path** (WF `interpreter_pin`, `stable_interpreter`).
+  - The fingerprint records `sys.executable`, its real path and its version. Every worker is started with that command,
+    never another Python (WF `_interpreter`).
+  - The sealing run refuses a command that a patch upgrade would delete or re-point. It must be absolute and named
+    `python<minor>` (`python3` follows the package manager's default minor). No part of it may name a patch release
+    (`3.14.5`) or be Homebrew's `Cellar`. It must also run this very Python.
+  - On this Mac, `sys.executable` is `/opt/homebrew/opt/python@3.14/bin/python3.14`, also when launchd's
+    `/opt/homebrew/bin/python3` starts the process. Brew keeps that link on 3.14 across patch upgrades. The real path,
+    `/opt/homebrew/Cellar/python@3.14/3.14.5/...`, goes with the next patch upgrade: it is recorded, never run.
+  - **A patch upgrade (3.14.5 -> 3.14.6) keeps collecting.** The read's canary still refuses any numeric change (its
+    digest leaves the version string out).
+  - The old patch release does not stay. `brew upgrade` runs `brew cleanup` unless `HOMEBREW_NO_INSTALL_CLEANUP` is set,
+    and `brew cleanup` removes old versions (`brew help upgrade`, `brew help cleanup`). If a patch changed the canary's
+    digest, the read could not run under the sealed release any more: INVALID. §12 step 5 recommends `brew pin`.
+  - **A minor change (3.15) refuses loudly** (WF `require_interpreter`). Every cycle FAILS, `last_cycle.json` records
+    it, the next `spawn` puts it in the cycle log, and `status` flags the interpreter. A missing command fails the same
+    way. Nothing is collected under another minor version.
+  - Tests:
+    - `test_the_pin_names_a_stable_versioned_interpreter`;
+    - `test_a_patch_upgrade_keeps_collecting_and_a_minor_change_refuses_loudly`: shim interpreters present this Python
+      as 3.14.6 and as 3.15.0, and run the whole forward path in an extract;
+    - `test_a_minor_python_change_fails_every_cycle_loudly`.
 - **Not pinned.**
   - The launcher: `spawn`, `cycle`'s seal lookup and `status` run from the working tree. They decide nothing. The worker
     in the extract checks everything.
@@ -174,6 +214,8 @@ studies will edit `instruments.json`, `real_costs.py` and more.
     It shows events entered and events past their longest walk (entry + 96 bars), which are times, not outcomes. The
     rule's count comes from the entry open, as the read counts.
   - The cycle summary (the cycle log, `last_cycle.json`) counts new bars and new events, never resolves.
+  - Repairs (§4) appear by file name only, in `status` and in the cycle summary. The dropped bytes can hold an R; they
+    stay in `repairs.jsonl`.
 
 ## 7. The read: rule and measurement (fixed now)
 
@@ -188,7 +230,8 @@ studies will edit `instruments.json`, `real_costs.py` and more.
   through it is **dropped whole**: all its events leave the sample before any walk or cost is computed (WF `due`,
   `read_core`). The rule reads data times only, never a wall clock or an outcome. The read lists the dropped symbols.
 - **Never due.** If the read is still not due 24 months after the seal (every symbol stalled), WY-F1 closes with no
-  verdict (INVALID: never due). The coordinator records that in the ledger. No partial read, no new rule.
+  verdict (INVALID: never due). The coordinator records that in the ledger (§13): the study closed; the forward window,
+  if registered, ended at seal + 24 months and kept reserved. No partial read, no new rule.
 - A read before the cutoff refuses **before any walk, placebo or cost is computed** (test
   `test_an_early_read_refuses_before_any_walk_or_cost_is_computed`). The log already holds the resolves' gross R
   (§6); the test proves the read computes nothing from them early, not that no outcome exists.
@@ -196,7 +239,7 @@ studies will edit `instruments.json`, `real_costs.py` and more.
   EW:168-169).
 - **Reported, not decisive:** the other three cost lines, the 95 % upper bound, AGAINST (two-sided p < 0.05 with a
   negative mean), below delta (upper bound < 0.20R), splits by symbol, group and type, the log lag, the late-logged count,
-  the dropped symbols, the anchors verified.
+  the dropped symbols, the anchors verified, the repairs (§4: file, offset, size, sha256).
 - Output: `docs/experiments/wyckoff-forward-wc15/wyckoff-forward-read.json`. Never overwritten.
 
 **Measurement: RT §5, unchanged.**
@@ -216,8 +259,9 @@ studies will edit `instruments.json`, `real_costs.py` and more.
 ## 8. The read's validity checks and point in time (CLAUDE.md §8, §37, §38)
 
 **The read is INVALID and writes nothing unless all hold** (WF `read_core`, `worker_read`):
-1. every chain intact; every committed anchor (from git history) on its chain; every record made under this seal and
-   this fingerprint;
+1. every chain intact and ending with a newline (a `cycle` drops an unterminated last line first, §4); every committed
+   `anchors.jsonl` line an anchor record, and every anchor (from git history) on its chain; every record made under
+   this seal and this fingerprint;
 2. the full replay of every window equals the log: nothing missing, nothing extra, no decision field changed;
 3. the truncation probe finds 0 violations, and checks at least one event when the sample is not empty;
 4. a FTMO 15m history export re-exported after the cutoff confirms the forward bars, **both ways** (WF `history_check`,
@@ -304,6 +348,12 @@ current committed text's hash and every later commit that changed it (errata, di
 - **The tracer sees opens and executions, not `stat()` calls.** `extract_check` covers that gap before sealing (§5).
 - **Interim look.** The bars and the log on disk show outcomes; only procedure prevents a look (§6).
 - **Anchors depend on the coordinator.** Without monthly commits the log's timing is unanchored. The read says so.
+- **A torn write.** A worker killed during `commit` leaves an unterminated last line. The next cycle drops it, logged
+  (§4). Only bytes after the last newline can go; a terminated line never does.
+- **A Python upgrade.** A patch upgrade keeps collecting; a minor change stops collection until Python 3.14 is back at
+  the pinned path (§5). Bars missed meanwhile come from a history re-export (§4). A patch that changes the canary's
+  digest makes the read INVALID once Homebrew has removed the sealed release; `brew pin python@3.14` prevents that
+  (§12 step 5).
 
 ## 12. Sealing and wiring steps (coordinator)
 
@@ -315,15 +365,31 @@ current committed text's hash and every later commit that changed it (errata, di
    Without the re-export the first cycle reports a hole and waits.
 4. **AUS200.** Attach ExportOHLCV to an AUS200.cash 15m chart. Today `data/live/mt5-bridge/` has no
    `ohlcv.AUS200.cash.15m.json`. Without it AUS200 stalls, and the read can never be due.
-5. With the interpreter launchd uses, run
-   `/opt/homebrew/bin/python3 scripts/research/wyckoff_forward.py fingerprint --out docs/experiments/wyckoff-forward-wc15/fingerprint.json`.
-   It refuses on uncommitted bytes, on any input that is not R1's (`r0_drift`) or on a broken extract (`extract_check`).
-   It pins that interpreter.
+5. With the stable versioned interpreter (§5), run
+   `/opt/homebrew/opt/python@3.14/bin/python3.14 scripts/research/wyckoff_forward.py fingerprint --out docs/experiments/wyckoff-forward-wc15/fingerprint.json`.
+   It pins that interpreter: every worker runs it. It refuses, first, a command that a patch upgrade would delete or
+   re-point (a `Cellar` path, a patch release in the path) or that is not named `python3.14`. Then it refuses on
+   uncommitted bytes, on any input that is not R1's (`r0_drift`) or on a broken extract (`extract_check`). launchd's
+   `/opt/homebrew/bin/python3` reports the same `sys.executable` today; the explicit path does not depend on that.
+   **Recommended (owner, §14 item 5):** `brew pin python@3.14` before the seal, `brew unpin python@3.14` after the
+   read. `brew upgrade` then skips it (`brew help pin`), so the read runs under the sealed release (§5). Homebrew
+   warns that packages needing a newer version of a pinned formula may not install or run.
 6. Copy this file to the sealed name, with "Status: SEALED" and a sealing record (date, fingerprint digest, the owner's
    §14 answers). Commit the sealed file and the fingerprint in ONE commit on top of the fingerprinted HEAD, with nothing
    else. That commit is the seal. Every worker checks this shape (§5); a seal commit with anything else, or on another
    parent, collects nothing.
-7. Add the ledger entry (§13) in a later commit.
+7. **Ledger** (§13), by hand, in the next commit, never in the seal commit (step 6).
+   - Always: the study entry `wyckoff_forward_wc15`, with the reservation.
+   - The forward window as an `oos.periods` entry ONLY if option (C) is in place (§13, §14 item 4). Without (C), the
+     study entry alone records the reservation, and the period is added in the commit that lands (C).
+   - With the period, the same commit updates every statement that "no period is untouched": the ledger's
+     `_no_untouched_period_exists` note, `scripts/research_ledger.py:28-31`, `scripts/outcomes.py:398-403`,
+     `docs/architecture/SYSTEM-DESIGN.md:629` and `:862`, `docs/architecture/SPEC-COMPLIANCE.md:107`, and the
+     `TheHonestCurrentState` tests in `scripts/tests/test_research_ledger.py` that pin it (four fail under (A); under
+     (C) at least `test_every_declared_period_is_development_or_exposed`). Under (C), "nothing can validate a
+     candidate" stays true; "no period is untouched" does not.
+   - Then run every consumer's tests, one module per call: `test_research_ledger`, `test_outcomes`, `test_validation`,
+     `test_improve_loop`. Under (C), `test_outcomes` must pass unchanged: a reserved period does not open §41.
 8. **Wire the cycle** (coordinator; `scripts/forward_cycle.py`). After the demo-tick loop (lines 97-98,
    `for account_id in tick_order(fd.executor_accounts()):` and its `_step`), still inside the `try` (before line 99,
    `finally:`), add ONE line at the loop's indentation:
@@ -345,16 +411,72 @@ current committed text's hash and every later commit that changed it (errata, di
    - The cycle log shows "OK wyckoff WY-F1: 'WY-F1: spawned pid N'". If the PREVIOUS cycle failed, the step is an EXIT
      line with that error, one cycle late. `status` shows the last cycle.
 9. Run `python3 scripts/research/wyckoff_forward.py cycle` once by hand. It builds the extract. Then run `status`.
-10. Monthly: `wyckoff_forward.py anchor`, then commit `anchors.jsonl`.
-11. At the cutoff, re-export the 15m history (§8 item 4), run one `cycle`, then run
+10. Monthly: `wyckoff_forward.py anchor`. Commit `anchors.jsonl` only after it printed the new line (§4).
+11. At the cutoff, re-export the 15m history (§8 item 4) and run one `cycle` (it also drops an unterminated last line,
+    §4). Then run
     `python3 scripts/research/wyckoff_forward.py read --out docs/experiments/wyckoff-forward-wc15/wyckoff-forward-read.json`.
+    In the commit that adds the read file, edit the ledger by hand (§13 "At the read") and run the four ledger
+    consumers' tests (step 7).
 
-## 13. Budget (CLAUDE.md §43, §44)
+## 13. Budget and OOS exposure (CLAUDE.md §43, §44)
 
 - One hypothesis, one test, its own family, m = 1. No other cell is collected. No variant.
 - The forward window is untouched data. Bars before the seal are context only and produce no event.
-- The ledger (`docs/architecture/research-ledger.json`) gets the study at sealing: `wyckoff_forward_wc15`, forward
-  period from the seal instant, status collecting. The coordinator writes it, not the script.
+- **The ledger** (`docs/architecture/research-ledger.json`) is edited by hand by the coordinator, never by the script,
+  starting in the commit after the seal (§12 step 7). `research_ledger.expose()` changes only the loaded copy and never
+  writes the file (`scripts/research_ledger.py:191-209`). So every state change below is a hand edit of the JSON.
+  1. **The study** `wyckoff_forward_wc15`: this pre-registration, the cell, the read rule (§7), status collecting, and
+     the reservation: FTMO 15m bars of the 7 symbols (§2) that close at or after the seal instant.
+  2. **The forward window, in `oos.periods`, reserved for WY-F1, only once option (C) exists** (§14 item 4). CLAUDE.md
+     §44: untouched OOS data must be told apart from exposed data.
+     - `id` `cfd-forward-wyf1-wc15`; `state` `oos_untouched`; `reserved_for` {"study": "wyckoff_forward_wc15", "cell":
+       "W-C-long-15m"}; `instruments`: FTMO 15m, XAUUSD, XAGUSD, US500, US30, USTEC, DE40, AUS200 (§2);
+     - `range` [the seal INSTANT, null]: UTC, to the second, as WF `seal_info` gives it. Not the seal date: bars of the
+       seal day that close before the seal are context only (§3). Nothing in `scripts/` parses `range`;
+     - `why`, for example: "WY-F1 forward window: FTMO 15m bars that close at or after the WY-F1 seal. Reserved for its
+       one pre-registered test (docs/plans/2026-10-04-wyckoff-forward-wc15-preregistration.md). No other study may use
+       these bars for a choice about this cell before WY-F1 ends."
+- **The `why` must not contain the letters "read"**, not even inside "already", "spread" or "ready".
+  `scripts/research_ledger.py:80-83` refuses an `oos_untouched` period whose reason says it was read.
+- **Why a plain `oos_untouched` period is not enough.** A period's state is global, and "reserved" in `why` is only
+  words:
+  - `periods()` sets `validation_available` for ANY untouched or holdout period (`scripts/research_ledger.py:186`);
+  - then `blocked_by()` stops blocking the §41 approval of ANY proposal (`scripts/outcomes.py:404-411`; no stage is
+    absent), as `test_outcomes.py:288` shows for a walked proposal;
+  - `validation.oos()` lets any study validate on it (`scripts/validation.py:136`), and `improve-loop.py` lists it as
+    available OOS (`scripts/improve-loop.py:246-255`);
+  - other studies use the same prices in the same months: `fvg_forward` (XAUUSD, US500 5m) and the CAL draft (US500,
+    US30, USTEC 5m). So this window can be untouched only FOR THIS CELL.
+  Measured on 2026-10-04 with the period added in memory: `test_research_ledger` fails 4 tests and `test_outcomes` 3.
+- **Option (C): what the ledger's reader must do first.** Its own stream, built and tested before §12 step 7
+  (`scripts/research_ledger.py` and its consumers are not WY-F1's files):
+  - `periods()` keeps a reserved period out of `validation_available` and lists it apart;
+  - `assert_untouched` refuses a reserved period to every caller that does not name the reserved study;
+  - the loader refuses a `reserved_for` that names a study the ledger does not hold;
+  - tests: `test_research_ledger`, `test_outcomes` (a reserved period still blocks approval), `test_validation`
+    (`oos()` refuses it to another study), `test_improve_loop` (not listed as available).
+- **Without (C) at step 7**, no period is added. The study entry alone records the reservation. Nothing can validate
+  on an undeclared period: `assert_untouched` raises `NotDeclared`, and `validation.oos()` refuses
+  (`scripts/validation.py:136-140`). The period is added in the commit that lands (C), before the read.
+- **Before the read**, any use of these bars that informs a choice about this cell (§44's five triggers) exposes the
+  period first, by hand: `state` `oos_exposed`, plus an `exposures` entry {trigger, `experiment_id` null, a note naming
+  the use}. Without (C), the study entry records the same. The coordinator then reports the read as exposed, not as
+  untouched validation. The read itself does not consult the ledger.
+- **At the read** (§12 step 11), in the commit that adds the read file, edit the period by hand, as
+  `cfd-prop-search-2024-03-2025-03` records its exposure:
+  - `state` `oos_exposed`;
+  - `range` end = the close of the last bar the read used: the latest `history_check.<symbol>.window_last` in the read
+    file (an open time) + 15 minutes. That bar is 96 bars after the cutoff bar. The walks and the history check use
+    bars up to it, so they are exposed too;
+  - append to `exposures`: {"trigger": "candidate_selection", "experiment_id": null, "note": the read file's path and
+    sha256}. The read selects or closes the cell.
+  - Without (C), the study entry records the same: status read, the file and its sha256.
+- **If WY-F1 closes without a read** (§7 "never due", 24 months after the seal), in the commit that records the close:
+  - the study: status closed, INVALID: never due;
+  - the period, if registered: `range` end = seal instant + 24 months. The reservation is closed, not released. Other
+    studies use the same prices, and the log holds this cell's resolves, so the window never becomes validation data
+    for anyone. Under (C) a reserved period is never available, so it never opens §41. The `why` adds "WY-F1 closed
+    with no verdict (never due) on <date>", which has no "read" in it.
 
 ## 14. Open decisions (owner, before sealing)
 
@@ -374,6 +496,22 @@ current committed text's hash and every later commit that changed it (errata, di
    - (B) "No fallback": the read stays not due; 24 months after the seal WY-F1 closes with no verdict.
    This draft registers (A) (WF `GRACE_MONTHS = 3`; (B) is `GRACE_MONTHS = None`). Either way, 24 months after the seal
    with no read due, WY-F1 closes with no verdict.
+4. **The forward window in the ledger (§13).** It would be the repository's first untouched period. The ledger's own
+   note calls carving one out "a decision about what the pilot trades, not a documentation change". Options:
+   - (A) `oos_untouched`, with "reserved for WY-F1" in its `why` only. No code honors a reservation in `why`. The window
+     becomes validation data for EVERY study, and the §41 gate approves ANY fully walked proposal (§13). Not
+     recommended.
+   - (B) `final_holdout`. The same two effects, and it claims the system's last holdout, which a one-cell forward test
+     is not. Not recommended.
+   - Under (A) or (B), §12 step 7 must also change `scripts/tests/test_outcomes.py:280`, `:326` and `:331` (they pin
+     that no proposal can be approved) and `docs/architecture/ui-fields.json:42`.
+   - (C) `oos_untouched` with a `reserved_for` field that the ledger's reader enforces (§13): never counted as
+     available, refused to any other study. Built and tested in its own stream before §12 step 7. Until it exists,
+     the study entry alone records the reservation.
+   This draft registers (C). (A) and (B) both open the §41 approval gate.
+5. **Homebrew pin (§5, §12 step 5).** Keep `python@3.14` pinned from the seal to the read (`brew pin`), or let it
+   upgrade. A pinned Python gets no patch fixes for up to 24 months. An unpinned one risks an INVALID read if a patch
+   changes the canary's digest after Homebrew removed the sealed release. This draft recommends the pin.
 
 ## 15. Code
 
@@ -381,10 +519,13 @@ current committed text's hash and every later commit that changed it (errata, di
   `anchor`, `fingerprint`, `read`. EW is imported, never modified. Until the seal, a test asserts every fingerprinted
   input is what R1 ran (`test_every_fingerprinted_input_is_what_the_sealed_retest_ran`); `cmd_fingerprint` refuses
   otherwise.
-- `scripts/tests/test_wyckoff_forward.py`: synthetic and hand-built bars only. It covers the store, the chain, detection
+- `scripts/tests/test_wyckoff_forward.py`: synthetic and hand-built bars only. It covers the store, the chain, torn
+  writes (an unterminated last line dropped and logged; never a terminated line, never under a live writer), detection
   equivalence, the seal boundary, resolve, the read rule and its fallback, the early-read refusal, the truncation probe
   (including a leaky detector), replay and resolve mismatches, the two-way history check (an early export, a store
-  hole, one changed bar in an event's span), anchors from git, the fingerprint (R0 pin, interpreter pin, both trace
-  checks), `extract_check` on a throwaway clone (and the extract without the `.mq5` adapters), the seal commit's shape,
-  the sealed pre-registration's hash, `status` without resolve counts, and the launcher (detached spawn, the previous
-  failure, a skip on a held lock, a checkout without the seal).
+  hole, one changed bar in an event's span), anchors from git (`anchor` never appends after a torn line; a committed
+  line that is not an anchor record refuses by its commit), the fingerprint (R0 pin, both trace checks), the
+  interpreter pin (a stable versioned path; a patch upgrade collects, a minor change fails every cycle), `extract_check`
+  on a throwaway clone (and the extract without the `.mq5` adapters), the seal commit's shape, the sealed
+  pre-registration's hash, `status` without resolve counts, and the launcher (detached spawn, the previous failure, a
+  skip on a held lock, a checkout without the seal).

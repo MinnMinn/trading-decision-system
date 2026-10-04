@@ -82,8 +82,10 @@ class DryRun(unittest.TestCase):
         self.assertGreater(len(out["events"]["H7"]) + len(out["events"]["G9"]), 0)
         self.assertFalse(set(out) & {"r", "R", "R_net", "R_gross", "net_bp", "excess", "rows"})   # no return field
         s = O.dry_summary({"UKOIL": out}, datetime.date(2022, 6, 30))
-        self.assertIn("windows", s["symbols"]["UKOIL"])
+        self.assertNotIn("d_star", s)                       # the split comes after the screen (review item 20)
+        self.assertNotIn("windows", s["symbols"]["UKOIL"])
         self.assertIsNotNone(s["symbols"]["UKOIL"]["S"])
+        self.assertEqual(len(s["symbols"]["UKOIL"]["qualifying_days"]), len(out["qualifying_days"]))
         self.assertLessEqual(len(s["symbols"]["UKOIL"]["largest_overnight_gaps_daily_sd"]), 20)
 
     def test_monday_uses_friday_as_previous_day(self):
@@ -92,6 +94,47 @@ class DryRun(unittest.TestCase):
         mondays = [d for d in ctx if d.weekday() == 0]
         self.assertTrue(mondays)
         self.assertTrue(all(ctx[d]["prev_day"].weekday() == 4 for d in mondays))
+
+
+class SplitAfterScreen(unittest.TestCase):
+    """Review item 20: [CX-P1] §2 screens first and splits the SCREENED group; OIL now does the same."""
+
+    @staticmethod
+    def dry(days_by_sym, end="2026-09-30"):
+        return {"end": end, "symbols": {s: {"qualifying_days": [str(d) for d in v],
+                                            "event_days": {"H7": [str(d) for d in v[::3]], "G9": [str(d) for d in v[::2]]}}
+                                        for s, v in days_by_sym.items()}}
+
+    def setUp(self):
+        start = datetime.date(2016, 4, 25)
+        self.uk = [d for d in (start + datetime.timedelta(days=k) for k in range(2800)) if d.weekday() < 5]
+        us0 = datetime.date(2021, 1, 4)
+        self.us = [d for d in self.uk if d >= us0]
+
+    def test_a_refused_symbol_does_not_move_the_split(self):
+        dry = self.dry({"UKOIL": self.uk, "USOIL": self.us})
+        alone = O.split_after_screen(dry, ["UKOIL"])
+        both = O.split_after_screen(dry, ["UKOIL", "USOIL"])
+        self.assertEqual(alone["d_star"], str(O.split_date({"UKOIL": self.uk})))
+        self.assertGreater(both["d_star"], alone["d_star"])          # USOIL's later days push the pooled 60 % later
+        self.assertEqual(alone["members"], ["UKOIL"])
+        self.assertTrue(set(both["members"]) <= {"UKOIL", "USOIL"})
+
+    def test_members_are_admitted_and_windows_count_inside_the_split(self):
+        dry = self.dry({"UKOIL": self.uk, "USOIL": self.us})
+        out = O.split_after_screen(dry, ["UKOIL"])
+        d_star = datetime.date.fromisoformat(out["d_star"])
+        w = out["windows"]["UKOIL"]
+        self.assertEqual(set(w), set(O.READS))
+        self.assertEqual(w["discovery"]["qualifying_days"], sum(1 for d in self.uk if d < d_star))
+        self.assertEqual(w["confirmation"]["qualifying_days"], sum(1 for d in self.uk if d_star <= d < O.DEV_END))
+        self.assertEqual(sum(w[r]["qualifying_days"] for r in O.READS),
+                         sum(1 for d in self.uk if d <= datetime.date(2026, 9, 30)))
+        self.assertNotIn("USOIL", out["windows"])
+
+    def test_nothing_admitted_means_no_split(self):
+        out = O.split_after_screen(self.dry({"UKOIL": self.uk}), [])
+        self.assertEqual((out["d_star"], out["members"], out["windows"]), (None, [], {}))
 
 
 class Screen(unittest.TestCase):
@@ -176,6 +219,21 @@ class Guard(unittest.TestCase):
         self.assertEqual(len(O.CODE), len(set(O.CODE)))
         for p in O.CODE:
             self.assertTrue(os.path.exists(os.path.join(ROOT, p)), p)
+
+    def test_a_read_writes_only_its_one_output_name(self):
+        """Review item 18: a read to another path is refused before anything is loaded (prereg_guard.require_read_once)."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            argv = sys.argv
+            sys.argv = ["edge_oil.py", "run", "--read", "discovery", "--screen", os.path.join(tmp, "s.json"),
+                        "--out", os.path.join(tmp, "x.json")]
+            try:
+                with self.assertRaises(SystemExit) as cm:
+                    O.main()
+            finally:
+                sys.argv = argv
+            self.assertIn("edge-oil-discovery.json", str(cm.exception))
+            self.assertFalse(os.path.exists(os.path.join(tmp, "x.json")))
 
     def test_code_lists_every_module_a_read_loads(self):
         """Every repository module an OIL read loads (fresh, under the trace) is in CODE."""

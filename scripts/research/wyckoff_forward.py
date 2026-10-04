@@ -23,6 +23,11 @@ How it stays point in time and tamper-evident without freezing the repository:
 - Bars (§4). One append-only, hash-chained 15m store per symbol. It is fed by the bridge's 15m file and the FTMO history
   export. Closed bars only. Times are snapped to the 15-minute grid (the v1.02 bridge stamps them +-1 s). A source appends
   only when it holds the store's last bars at the same prices: a gap, a revised bar or a shifted clock appends nothing.
+- Torn writes (§4). A chain line ends with a newline. A worker killed during `commit` can leave an UNTERMINATED last
+  line, which was never part of the chain: the read and `anchor` refuse it, nothing is appended after it, and the next
+  cycle drops it -- only it, never a terminated line, never under a live writer's lock -- after logging the bytes in
+  repairs.jsonl. `status` names it; the read reports every drop. `anchor` never appends after an unterminated line,
+  and a committed anchors.jsonl line that is not an anchor record refuses the read.
 - Events (§2, §4). edge_wyckoff.window_fire, unmodified, on each new window, with edge_wyckoff.detect_series'
   de-duplication on (side, SC, AR), keyed by bar time. An event is logged once its signal bar has closed after the seal,
   with its decision fields, the hash of its 300-bar window and the store's chain hash at the signal bar.
@@ -33,13 +38,15 @@ How it stays point in time and tamper-evident without freezing the repository:
   replay against the log. It runs the truncation probe and checks the bars against a later history export, both ways.
   Then it measures with the sealed re-test's §5 (edge_wyckoff.score / summarise). PASS iff net excess > 0 and one-sided
   p < P_PASS.
-- Interpreter (§5): the fingerprint pins the Python it was made with; every worker runs under it and refuses another
-  minor version. The read's canary refuses any numeric change.
+- Interpreter (§5): the fingerprint pins the Python it was made with, by a stable versioned path (python3.14 outside
+  Homebrew's Cellar, no patch release in it); every worker runs under it. A patch upgrade keeps collecting; another
+  minor version refuses every cycle, recorded as a failure. The read's canary refuses any numeric change.
 - Off the live path (§12): `spawn` starts `cycle` in its own session and returns at once, so research never delays the
   next cycle's demo ticks (CLAUDE.md §40). The previous cycle's failure is reported in the cycle log.
 
 PAPER ONLY: it places no order, reads no account and touches no live configuration."""
 import argparse
+import base64
 import bisect
 import calendar
 import collections
@@ -53,12 +60,18 @@ import io
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
 import tarfile
 import tempfile
 import time
+
+try:
+    import fcntl                # the chain files' writer lock (`_flock`); POSIX only
+except ImportError:             # Windows: no writer lock. WY-F1 runs on the sealed Mac (WY-F1 §5).
+    fcntl = None
 
 #: The CODE root: the working tree, or a sealed extract (data/live/forward/wyckoff-wc15/code/<sha>/). Data paths are
 #: always resolved against an explicit data root (the live repository), never against this one.
@@ -79,6 +92,9 @@ FINGERPRINT = REC_DIR + "/fingerprint.json"
 ANCHORS = REC_DIR + "/anchors.jsonl"
 READ_OUT = REC_DIR + "/wyckoff-forward-read.json"
 RUNTIME = "data/live/forward/wyckoff-wc15"            # per machine, gitignored (.gitignore: data/live/forward/)
+#: Under RUNTIME: one hash-chained record per dropped UNTERMINATED last line (WY-F1 §4, `drop_torn`).
+REPAIRS = "repairs.jsonl"
+REPAIR_KEEP = 1 << 16       # a repair record keeps up to this many of the dropped bytes (base64); their sha256 covers all
 LIVE_DIR = "data/live/mt5-bridge"
 HIST_DIR = "data/history/ftmo"
 
@@ -232,18 +248,55 @@ def link_all(prev, recs):
     return out
 
 
-def read_chain(path):
+def _torn(path):
+    """(offset, bytes) of the file's UNTERMINATED last line -- every byte after its last newline -- or None when the
+    file is missing, empty or ends with a newline. A chain line ends with a newline (`append_chain` writes whole lines),
+    so these bytes are a write that never completed (a worker killed during `commit`): never part of the chain.
+    [WY-F1 §4]"""
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as fh:
+        end = fh.seek(0, os.SEEK_END)
+        if end == 0:
+            return None
+        fh.seek(end - 1)
+        if fh.read(1) == b"\n":
+            return None
+        pos, buf = end, b""
+        while pos > 0:
+            step = min(65536, pos)
+            pos -= step
+            fh.seek(pos)
+            buf = fh.read(step) + buf
+            cut = buf.rfind(b"\n")
+            if cut >= 0:
+                return pos + cut + 1, buf[cut + 1:]
+        return 0, buf
+
+
+def read_chain(path, torn=None):
     """(records, chain hashes) of an append-only JSONL file whose every line carries `ch` = sha256(previous ch | the
-    record). An edited, removed, inserted or reordered line refuses. [WY-F1 §4]"""
+    record). An edited, removed, inserted or reordered line refuses, and so does any TERMINATED line that is not JSON:
+    a terminated line is never dropped. An UNTERMINATED last line (`_torn`) was never part of the chain. It refuses
+    here too, unless `torn` (a dict) is passed: then its (offset, bytes) go to torn[path] and the records before it are
+    returned -- the cycle plans its drop (`cycle_core`, `drop_torn`). [WY-F1 §4]"""
     recs, heads, head = [], [], GENESIS
     if not os.path.exists(path):
         return recs, heads
-    with open(path, encoding="utf-8") as fh:
+    tail, off = None, 0
+    with open(path, "rb") as fh:
         for n, line in enumerate(fh, 1):
+            if not line.endswith(b"\n"):                 # only the last line can lack its newline
+                tail = (off, line)
+                break
+            off += len(line)
             try:
                 d = json.loads(line)
             except ValueError:
-                raise SystemExit(f"refusing: {path} line {n} is not JSON (a torn write?); the chain cannot be verified")
+                d = None
+            if not isinstance(d, dict):
+                raise SystemExit(f"refusing: {path} line {n} is not a JSON record, and it is terminated, so it is never "
+                                 f"dropped; the chain cannot be verified [WY-F1 §4]")
             ch = d.pop("ch", None)
             if ch != _link(head, d):
                 raise SystemExit(f"refusing: {path} line {n} breaks the hash chain (a line was edited, removed, "
@@ -251,11 +304,35 @@ def read_chain(path):
             head = ch
             recs.append(d)
             heads.append(ch)
+    if tail is not None:
+        if torn is None:
+            raise SystemExit(f"refusing: {path} ends with an unterminated line (a write that never completed, never "
+                             f"part of the chain); the next `cycle` drops it and logs the drop in {RUNTIME}/{REPAIRS} "
+                             f"[WY-F1 §4]")
+        torn[path] = tail
     return recs, heads
 
 
+def _flock(fh, block=False):
+    """An exclusive advisory lock on an open chain file: True when held. It is released when the file is closed or its
+    process dies, so a writer killed during `commit` holds nothing while a live one (a stale worker lock, a woken
+    laptop) still does -- its line is never cut, nor appended to. No lock without fcntl (Windows). [WY-F1 §4]"""
+    if fcntl is None:
+        return True
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | (0 if block else fcntl.LOCK_NB))
+    except BlockingIOError:
+        return False
+    return True
+
+
 def _tail_head(path):
-    """The last line's `ch` (GENESIS for a missing or empty file), read from the file's end."""
+    """The last line's `ch` (GENESIS for a missing or empty file), read from the file's end. Refuses on an unterminated
+    last line: nothing is appended after one (the torn bytes would join the new line into a terminated, broken one).
+    [WY-F1 §4]"""
+    if _torn(path) is not None:
+        raise SystemExit(f"refusing: {path} ends with an unterminated line; nothing appended (the next `cycle` drops it) "
+                         f"[WY-F1 §4]")
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         return GENESIS
     with open(path, "rb") as fh:
@@ -271,27 +348,94 @@ def _tail_head(path):
 
 
 def append_chain(path, recs, expect_head):
-    """Append `recs` after checking the file still ends at `expect_head` (no other writer since it was read).
-    [WY-F1 §4]"""
-    if _tail_head(path) != expect_head:
-        raise SystemExit(f"refusing: {path} changed while this cycle ran; nothing appended")
+    """Append `recs` as whole lines, holding the file's lock from the check that it still ends at `expect_head` (no
+    other writer since it was read, and no unterminated last line) to the fsync. [WY-F1 §4]"""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     lines, head = [], expect_head
     for r in recs:
         head = _link(head, r)
         lines.append(_canon(dict(r, ch=head)) + "\n")
-    with open(path, "a", encoding="utf-8") as fh:
-        fh.write("".join(lines))
+    with open(path, "ab") as fh:
+        if not _flock(fh):
+            raise SystemExit(f"refusing: another writer holds {path}; nothing appended [WY-F1 §4]")
+        if _tail_head(path) != expect_head:
+            raise SystemExit(f"refusing: {path} changed while this cycle ran; nothing appended")
+        fh.write("".join(lines).encode())
         fh.flush()
         os.fsync(fh.fileno())
     return head
 
 
+def _complete_record(data, head):
+    """Do the dropped bytes hold a whole record on `head` (a write that lost only its newline)? Reported, not used."""
+    try:
+        d = json.loads(data)
+        return isinstance(d, dict) and d.pop("ch", None) == _link(head, d)
+    except ValueError:
+        return False
+
+
+def repair_plan(data_root, path, tail, kept, seal, fp_digest, now):
+    """The planned drop of one chain file's UNTERMINATED last line (`read_chain` with `torn`) and its repairs.jsonl
+    record: the file, the offset, the records and head that remain, the dropped bytes (base64, up to REPAIR_KEEP) and
+    their sha256. Nothing is written here. [WY-F1 §4]"""
+    off, data = tail
+    n, head = kept
+    rec = {"kind": "repair", "study": STUDY, "file": os.path.relpath(path, _rt(data_root)).replace(os.sep, "/"),
+           "offset": off, "kept_records": n, "kept_head": head, "dropped_bytes": len(data),
+           "dropped_sha256": hashlib.sha256(data).hexdigest(),
+           "dropped_b64": base64.b64encode(data[:REPAIR_KEEP]).decode(), "dropped_b64_complete": len(data) <= REPAIR_KEEP,
+           "complete_record": _complete_record(data, head), "seal": seal["sha"], "fingerprint": fp_digest,
+           "python": platform.python_version(), "repaired_at": now}
+    return {"path": path, "offset": off, "bytes": data, "record": rec}
+
+
+def drop_torn(rep_path, rep_head, plans):
+    """Drop each planned UNTERMINATED last line, and nothing else (WY-F1 §4). First every file is locked (`_flock`: a
+    live writer refuses the whole step) and its bytes from the offset must be exactly the planned ones, with no newline
+    -- a terminated line is never dropped, and a file that changed since the plan refuses. Then repairs.jsonl's own
+    torn tail is cut (a repair record that never completed: the drop it described was not done and is planned again),
+    every record is appended to repairs.jsonl and fsynced, and only then are the other files cut. Killed in between, the
+    next cycle logs the same drop again. One cut can go unlogged: killed after repairs.jsonl's own tail is cut and
+    before the records are appended, that cut has no record. Those bytes were an incomplete repair record, and the drops
+    it described were not done: the next cycle plans and logs them. [WY-F1 §4]"""
+    held = []
+    try:
+        for p in plans:
+            fh = open(p["path"], "r+b")
+            held.append(fh)
+            if not _flock(fh):
+                raise SystemExit(f"refusing: a writer still holds {p['path']}; its unterminated last line is not "
+                                 f"dropped [WY-F1 §4]")
+            fh.seek(p["offset"])
+            rest = fh.read()
+            if rest != p["bytes"] or b"\n" in rest:
+                raise SystemExit(f"refusing: {p['path']} changed while this cycle ran; nothing dropped [WY-F1 §4]")
+
+        def cut(fh, off):
+            fh.truncate(off)
+            fh.flush()
+            os.fsync(fh.fileno())
+        for fh, p in zip(held, plans):
+            if p["path"] == rep_path:
+                cut(fh, p["offset"])
+                fh.close()                               # its lock goes before append_chain takes it
+        append_chain(rep_path, [p["record"] for p in plans], rep_head)
+        for fh, p in zip(held, plans):
+            if p["path"] != rep_path:
+                cut(fh, p["offset"])
+    finally:
+        for fh in held:
+            fh.close()
+
+
 def commit(writes):
-    """Perform a cycle's planned writes: ("chain", path, records, expected head) or ("json", path, object).
-    [WY-F1 §4]"""
+    """Perform a cycle's planned writes: ("repair", repairs.jsonl, its head, plans), ("chain", path, records, expected
+    head) or ("json", path, object). [WY-F1 §4]"""
     for w in writes:
-        if w[0] == "chain":
+        if w[0] == "repair":
+            drop_torn(w[1], w[2], w[3])
+        elif w[0] == "chain":
             append_chain(w[1], w[2], w[3])
         else:
             _write_json(w[1], w[2])
@@ -595,13 +739,20 @@ def resolve_record(S, rec, seal, fp_digest, now):
 
 # ------------------------------------------------------------------------------------------------ one cycle (in memory)
 def cycle_core(data_root, seal, fp_digest, now, only=None, init_root=None, symbols=SYMBOLS):
-    """One forward cycle, computed in memory: accumulate (closed 15m bars into each store), scan (new windows into the
+    """One forward cycle, computed in memory: repair (a chain's UNTERMINATED last line, left by a worker killed during
+    `commit`, is planned for `drop_torn`), accumulate (closed 15m bars into each store), scan (new windows into the
     log), resolve (logged events whose exit is now known). Returns {"writes": [...], "summary": {...}}; nothing is
     written here (the worker writes after its trace check). The summary never counts resolves: a resolve a few bars
     after its entry is a stop or a target, and the summary goes to the cycle log and last_cycle.json. [WY-F1 §4, §6]"""
     init_root = init_root or CODE_ROOT
+    torn, kept = {}, {}
+
+    def chain(path):
+        recs, hs = read_chain(path, torn)
+        kept[path] = (len(recs), hs[-1] if hs else GENESIS)
+        return recs, hs
     log_path = _rt(data_root, "log.jsonl")
-    log, log_heads = read_chain(log_path)
+    log, log_heads = chain(log_path)
     logged = {r["id"] for r in log if r["kind"] == "event"}
     resolved = {r["id"] for r in log if r["kind"] == "resolve"}
     cache_path = _rt(data_root, "scan.json")
@@ -611,7 +762,7 @@ def cycle_core(data_root, seal, fp_digest, now, only=None, init_root=None, symbo
     summary = {"study": STUDY, "seal": seal["sha"][:12], "added_bars": {}, "new_events": 0}
     for sym in symbols:
         bpath = _rt(data_root, "bars", f"{sym}.{TF}.jsonl")
-        bars, heads = read_chain(bpath)
+        bars, heads = chain(bpath)
         if only in (None, "accumulate"):
             add, nts = accumulate_symbol(sym, bars, data_root, init_root, seal, now)
             notes += nts
@@ -641,6 +792,12 @@ def cycle_core(data_root, seal, fp_digest, now, only=None, init_root=None, symbo
         writes.append(("chain", log_path, new_log, log_heads[-1] if log_heads else GENESIS))
     if only in (None, "scan"):
         writes.append(("json", cache_path, cache))
+    rep_path = _rt(data_root, REPAIRS)
+    chain(rep_path)
+    if torn:                                    # first: every later append expects the chains without their torn tails
+        plans = [repair_plan(data_root, p, torn[p], kept[p], seal, fp_digest, now) for p in sorted(torn)]
+        writes.insert(0, ("repair", rep_path, kept[rep_path][1], plans))
+        summary["repaired"] = [p["record"]["file"] for p in plans]
     summary["notes"] = notes
     return {"writes": writes, "summary": summary}
 
@@ -793,10 +950,46 @@ def _stores(data_root, symbols):
     return {sym: read_chain(_rt(data_root, "bars", f"{sym}.{TF}.jsonl")) for sym in symbols}
 
 
+def _anchor_problem(a):
+    """Why one parsed anchors.jsonl line is not an anchor record (`cmd_anchor`'s shape: an `at` time, and the log's and
+    each store's chain length `n` and `head`), or None. [WY-F1 §8]"""
+    if not isinstance(a, dict) or not isinstance(a.get("at"), str):
+        return "not a JSON object with an `at` time"
+    bars = a.get("bars", {})
+    if not isinstance(bars, dict):
+        return "`bars` is not an object"
+    for name, v in [("log", a.get("log"))] + sorted(bars.items()):
+        if not (isinstance(v, dict) and isinstance(v.get("n"), int) and v["n"] >= 0
+                and (v.get("head") is None or isinstance(v["head"], str))):
+            return f"no chain length and head for `{name}`"
+    return None
+
+
+def anchor_lines(data, where):
+    """The anchor records in one anchors.jsonl text (bytes). A line that is not an anchor record refuses, naming `where`
+    it is. A torn or glued line is never read as a pin. A committed one stays in git history, so `cmd_anchor` never
+    writes one. [WY-F1 §4, §8]"""
+    out = []
+    for n, line in enumerate(data.split(b"\n"), 1):
+        if not line.strip():
+            continue
+        try:
+            a = json.loads(line)
+        except ValueError:
+            a = None
+        why = _anchor_problem(a)
+        if why:
+            raise SystemExit(f"refusing: {ANCHORS} line {n} ({where}) is not an anchor record: {why} [WY-F1 §8]")
+        out.append(a)
+    return out
+
+
 def committed_anchors(data_root):
     """Every anchor line ever committed to ANCHORS, on any branch, each with the earliest commit holding it: a later
     commit that drops or edits a line does not drop its pin. Refuses unless the working file is HEAD's -- an
-    uncommitted anchor pins nothing, and a working-tree edit must not stand in for the committed lines. [WY-F1 §8]"""
+    uncommitted anchor pins nothing, and a working-tree edit must not stand in for the committed lines. A committed
+    line that is not an anchor record refuses too, naming its commit (`anchor_lines`): git keeps it, so it is evidence,
+    like a terminated chain line that does not verify. [WY-F1 §4, §8]"""
     path = os.path.join(data_root, ANCHORS)
     rc, out = _git(data_root, "rev-parse", "-q", "--verify", f"HEAD:{ANCHORS}")
     head_blob = out.decode().strip() if rc == 0 else None
@@ -811,10 +1004,8 @@ def committed_anchors(data_root):
         rc, blob = _git(data_root, "show", f"{sha}:{ANCHORS}")
         if rc != 0:
             continue                                                                    # a commit that deleted it
-        for line in blob.decode().splitlines():
-            if line.strip():
-                a = json.loads(line)
-                seen.setdefault(_canon(a), dict(a, commit=sha, committed=_iso(datetime.datetime.fromisoformat(ci))))
+        for a in anchor_lines(blob, f"commit {sha[:12]}"):
+            seen.setdefault(_canon(a), dict(a, commit=sha, committed=_iso(datetime.datetime.fromisoformat(ci))))
     return list(seen.values())
 
 
@@ -839,7 +1030,8 @@ def read_core(data_root, seal, fp_digest, cost_r=None, n_events=N_EVENTS, months
     the log (outcome-blind); the due rule (outcome-blind -- an early read refuses here, before any walk or cost is
     computed); the truncation probe; the history check; the price_ref check; only then the sealed §5 measurement
     (edge_wyckoff.score: placebo, real cost, CR1 by week) and the consistency of the logged resolves. A symbol the
-    rule drops (T-drop) leaves the sample whole. [WY-F1 §7, §8]"""
+    rule drops (T-drop) leaves the sample whole. A chain with an unterminated last line refuses (a `cycle` drops it
+    first); the drops logged in repairs.jsonl are reported. [WY-F1 §4, §7, §8]"""
     E = ew()
     bt = E.engine()
     HZ = horizon()
@@ -851,6 +1043,7 @@ def read_core(data_root, seal, fp_digest, cost_r=None, n_events=N_EVENTS, months
     if stray:
         raise SystemExit(f"refusing: {len(stray)} log record(s) were written under another seal or code fingerprint, "
                          f"first {stray[0]} [WY-F1 §5]")
+    repairs, _rh = read_chain(_rt(data_root, REPAIRS))
     stores = _stores(data_root, symbols)
     anchored = verify_anchors(anchors, log_heads, stores)
     logged = {r["id"]: r for r in log if r["kind"] == "event"}
@@ -962,6 +1155,12 @@ def read_core(data_root, seal, fp_digest, cost_r=None, n_events=N_EVENTS, months
                               "src": dict(collections.Counter(x.get("src") for x in b))} if b else {"bars": 0})
                        for sym, (b, h) in stores.items()},
             "log": {"records": len(log), "head": log_heads[-1] if log_heads else GENESIS},
+            "repairs": {"records": len(repairs), "files": dict(collections.Counter(r.get("file") for r in repairs)),
+                        "list": [{k: r.get(k) for k in ("file", "offset", "kept_records", "dropped_bytes",
+                                                        "dropped_sha256", "complete_record", "repaired_at", "seal",
+                                                        "fingerprint")} for r in repairs],
+                        "note": "each dropped an UNTERMINATED last line, a write that never completed and was never "
+                                "part of a chain (repairs.jsonl holds the bytes); disclosed, not a check"},
             "rows": rows}
 
 
@@ -1135,13 +1334,75 @@ def pinned_interpreter(fp):
     return fp.get("interpreter") or {}
 
 
+def _minor(version):
+    """"3.14" of "3.14.5". [WY-F1 §5]"""
+    return ".".join(str(version).split(".")[:2])
+
+
+def _command_version(cmd, timeout=30):
+    """The Python version `cmd` runs (platform.python_version()), or None when it does not run. [WY-F1 §5]"""
+    try:
+        p = subprocess.run([cmd, "-c", "import platform; print(platform.python_version())"], capture_output=True,
+                           text=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return (p.stdout.strip() or None) if p.returncode == 0 else None
+
+
+def stable_interpreter(command, version, minor):
+    """Why `command` is NOT a stable, versioned interpreter to pin, or None. Pinned, a command must keep working through a
+    patch upgrade (3.14.5 -> 3.14.6) and never turn into another minor version:
+    - it is an absolute path;
+    - it is named python<minor> (python3.14): `python3` follows whichever minor the package manager makes the default;
+    - no part of it names a patch release (3.14.5) and none is Homebrew's Cellar: a patch upgrade deletes or re-points
+      those (/opt/homebrew/Cellar/python@3.14/3.14.5/..., pyenv's versions/3.14.5/...).
+    Homebrew's /opt/homebrew/opt/python@3.14/bin/python3.14 passes: brew keeps that link on 3.14 across patch upgrades.
+    [WY-F1 §5]"""
+    if not os.path.isabs(command):
+        return f"{command} is not an absolute path"
+    parts = command.replace("\\", "/").split("/")
+    name = parts[-1][:-4] if parts[-1].lower().endswith(".exe") else parts[-1]
+    if name != f"python{minor}":
+        return (f"{command} is not named python{minor}: a name without the minor version (python3) follows the "
+                f"package manager's default")
+    m = re.search(r"(?<![\d.])\d+\.\d+\.\d+", command)
+    if m:
+        return f"{command} names the patch release {m.group(0)}: a patch upgrade deletes or re-points it"
+    if "Cellar" in parts:
+        return f"{command} lies in Homebrew's Cellar, which a patch upgrade deletes"
+    return None
+
+
+def interpreter_pin(require_stable=True):
+    """The interpreter this process runs, as the fingerprint pins it: {"command" (sys.executable), "realpath", "version",
+    "minor"}. With `require_stable` (the sealing fingerprint), the command must be stable and versioned
+    (`stable_interpreter`) and must run this very Python, so every worker runs what the canary was traced with.
+    [WY-F1 §5, §12 step 5]"""
+    pin = {"command": sys.executable, "realpath": os.path.realpath(sys.executable),
+           "version": platform.python_version(), "minor": "%d.%d" % sys.version_info[:2]}
+    if require_stable:
+        why = stable_interpreter(pin["command"], pin["version"], pin["minor"])
+        if why:
+            raise SystemExit(f"refusing to pin the interpreter: {why}. Run `fingerprint` with a stable versioned path, "
+                             f"e.g. /opt/homebrew/opt/python@{pin['minor']}/bin/python{pin['minor']} [WY-F1 §5, §12]")
+        now = _command_version(pin["command"])
+        if now != pin["version"]:
+            raise SystemExit(f"refusing to pin the interpreter: {pin['command']} runs Python {now}, this process runs "
+                             f"{pin['version']} [WY-F1 §5]")
+    return pin
+
+
 def require_interpreter(fp):
-    """Inside a worker: this process runs the fingerprint's Python minor version. A patch upgrade is allowed here; the
-    read's canary still refuses any numeric change. [WY-F1 §5]"""
-    want = pinned_interpreter(fp).get("minor")
+    """Inside a worker: this process runs the fingerprint's Python minor version. A patch upgrade keeps collecting (the
+    read's canary still refuses any numeric change); a minor change refuses every cycle, which the launcher records as
+    a failure (`cmd_cycle`, `cmd_spawn`, `status`). [WY-F1 §5]"""
+    pin = pinned_interpreter(fp)
+    want = pin.get("minor")
     have = "%d.%d" % sys.version_info[:2]
     if want != have:
-        raise SystemExit(f"refusing: this worker runs Python {have}, the fingerprint pins {want} [WY-F1 §5]")
+        raise SystemExit(f"refusing: this worker runs Python {have} ({platform.python_version()}), the fingerprint pins "
+                         f"{want} ({pin.get('version')} at {pin.get('command')}); a patch upgrade keeps collecting, a "
+                         f"minor change never does: reinstall Python {want} there [WY-F1 §5]")
 
 
 def _interpreter(code_root):
@@ -1575,8 +1836,10 @@ def cmd_cycle(only=None, data_root=CODE_ROOT, timeout=WORKER_TIMEOUT_S):
                 p = subprocess.run(_worker_cmd(code, "cycle", data_root, s, *(["--only", only] if only else [])),
                                    capture_output=True, text=True, timeout=timeout)
             except subprocess.TimeoutExpired:
-                _write_json(last, {"at": _now(), "ok": False, "error": f"worker timed out after {timeout} s"})
-                raise SystemExit(f"{STUDY} worker timed out after {timeout} s; nothing was written")
+                err = (f"worker timed out after {timeout} s and was killed; lines it had appended whole stay, an "
+                       f"unterminated last line is dropped by the next cycle ({REPAIRS})")
+                _write_json(last, {"at": _now(), "ok": False, "error": err})
+                raise SystemExit(f"{STUDY} {err}")
             except SystemExit as exc:
                 _write_json(last, {"at": _now(), "ok": False, "error": str(exc)[-700:]})
                 raise
@@ -1649,18 +1912,20 @@ def status(data_root=CODE_ROOT):
     through time, the events, those kept (dense previous day), entered, and past their longest walk (entry + H bars
     stored), with `unresolved_past_walk` (0 when healthy). The read rule's state from `due` itself, counted from the
     logged events and the stored entry open, as the read counts. The pinned interpreter, the committed anchors, the
-    last cycle, the working tree's drift from the sealed executed files. [WY-F1 §6, §7, §12]"""
+    last cycle, the repairs logged and pending (file names only: a torn line's bytes can hold an R), the working tree's
+    drift from the sealed executed files. [WY-F1 §4, §6, §7, §12]"""
     E = ew()
     s = seal_info(data_root)
     HZ = horizon()
-    log, log_heads = read_chain(_rt(data_root, "log.jsonl"))
+    torn = {}
+    log, log_heads = read_chain(_rt(data_root, "log.jsonl"), torn)
     ev = {r["id"]: r for r in log if r["kind"] == "event"}
     rs = {r["id"] for r in log if r["kind"] == "resolve"}
     out = {"study": STUDY, "cell": CELL, "sealed": s, "symbols": {}, "log": {"events": len(ev),
            "head": log_heads[-1] if log_heads else None}}
     series, closes = {}, []
     for sym in SYMBOLS:
-        bars, heads = read_chain(_rt(data_root, "bars", f"{sym}.{TF}.jsonl"))
+        bars, heads = read_chain(_rt(data_root, "bars", f"{sym}.{TF}.jsonl"), torn)
         series[sym] = _Closes(bars) if bars else None
         ct = complete_through(series[sym], HZ)
         mine = [r for r in ev.values() if r["symbol"] == sym]
@@ -1685,6 +1950,10 @@ def status(data_root=CODE_ROOT):
     else:
         out["rule"] = {"read_due": False, "note": "not sealed"}
     out["last_cycle"] = _read_json(_rt(data_root, "last_cycle.json"))
+    rep, _rh = read_chain(_rt(data_root, REPAIRS), torn)
+    out["repairs"] = {"logged": len(rep),
+                      "last": {"at": rep[-1].get("repaired_at"), "file": rep[-1].get("file")} if rep else None,
+                      "pending": sorted(os.path.relpath(p, _rt(data_root)).replace(os.sep, "/") for p in torn)}
     try:
         anc = committed_anchors(data_root) if s else []
         out["anchors"] = {"committed": len(anc), "last_committed": max((a["committed"] for a in anc), default=None)}
@@ -1697,12 +1966,8 @@ def status(data_root=CODE_ROOT):
                                            if not os.path.isfile(os.path.join(data_root, p))
                                            or _sha256(os.path.join(data_root, p)) != h)
         pin = pinned_interpreter(fp)
-        now = None
-        if pin.get("command") and os.path.exists(pin["command"]):
-            with contextlib.suppress(OSError, subprocess.SubprocessError):
-                now = subprocess.run([pin["command"], "-c", "import platform; print(platform.python_version())"],
-                                     capture_output=True, text=True, timeout=30).stdout.strip() or None
-        out["interpreter"] = dict(pin, now=now, ok=bool(now) and now.rsplit(".", 1)[0] == pin.get("minor"))
+        now = _command_version(pin["command"]) if pin.get("command") and os.path.exists(pin["command"]) else None
+        out["interpreter"] = dict(pin, now=now, ok=bool(now) and _minor(now) == pin.get("minor"))
     return out
 
 
@@ -1722,6 +1987,12 @@ def _print_status(st):
     lc = st.get("last_cycle")
     if lc:
         print(f"  last cycle {lc['at']}: " + ("ok" if lc["ok"] else f"FAILED -- {lc.get('error', '')[:300]}"))
+    rp = st.get("repairs") or {}
+    if rp.get("logged") or rp.get("pending"):
+        last = rp.get("last") or {}
+        print(f"  repairs: {rp.get('logged', 0)} unterminated last line(s) dropped and logged"
+              + (f" (last {last.get('at')} in {last.get('file')})" if last else "")
+              + (f"; pending, dropped by the next cycle: {', '.join(rp['pending'])}" if rp.get("pending") else ""))
     a = st.get("anchors") or {}
     if s:
         print("  anchors: " + (a["error"] if "error" in a else f"{a['committed']} committed, last {a['last_committed']}"))
@@ -1736,7 +2007,10 @@ def _print_status(st):
 
 def cmd_anchor(data_root=CODE_ROOT):
     """Append the chains' current lengths and heads to docs/experiments/wyckoff-forward-wc15/anchors.jsonl. Committed,
-    each line pins the history before it; the read checks every one. [WY-F1 §8, §12]"""
+    each line pins the history before it; the read checks every one. Under the file's lock, the file must end with a
+    newline and hold anchor records only (`anchor_lines`): a new line never joins a torn one, and a committed line that
+    is not a record refuses every read. The line is fsynced. Commit the file only after this printed the line.
+    [WY-F1 §4, §8, §12]"""
     log, lh = read_chain(_rt(data_root, "log.jsonl"))
     line = {"at": _now(), "study": STUDY, "log": {"n": len(log), "head": lh[-1] if lh else None}, "bars": {}}
     for sym in SYMBOLS:
@@ -1745,8 +2019,18 @@ def cmd_anchor(data_root=CODE_ROOT):
                              else None}
     p = os.path.join(data_root, ANCHORS)
     os.makedirs(os.path.dirname(p), exist_ok=True)
-    with open(p, "a", encoding="utf-8") as fh:
-        fh.write(_canon(line) + "\n")
+    with open(p, "ab") as fh:
+        if not _flock(fh):
+            raise SystemExit(f"refusing: another writer holds {ANCHORS}; nothing appended [WY-F1 §8]")
+        if _torn(p) is not None:
+            raise SystemExit(f"refusing: {ANCHORS} ends with an unterminated line (a write that never completed); "
+                             f"nothing appended. Remove that partial line, or end it with a newline if it is a whole "
+                             f"record, then anchor again [WY-F1 §4, §8]")
+        with open(p, "rb") as cur:
+            anchor_lines(cur.read(), "the working file")
+        fh.write((_canon(line) + "\n").encode())
+        fh.flush()
+        os.fsync(fh.fileno())
     return line
 
 
@@ -1784,12 +2068,14 @@ def cmd_fingerprint(out, require_clean=True, cost_r=None):
     (run phase: `exec`, the narrow set), what else it loads (`load`), what it opens (`data`, plus every file of the
     symbols' sealed 15m history), real_costs' price_ref per symbol, the canary's digest and the interpreter (pinned:
     every worker runs it). Refuses unless every recorded file is inside SNAPSHOT_ROOTS and is what the sealed re-test's
-    R1 ran (`r0_drift`), and, with `require_clean`, tracked and clean. Run it with the interpreter the scheduler uses.
-    [WY-F1 §5, §12]"""
+    R1 ran (`r0_drift`), and, with `require_clean` (the sealing run), tracked and clean, and the interpreter stable and
+    versioned (`interpreter_pin`, checked first). Run it with that path: /opt/homebrew/opt/python@3.14/bin/python3.14.
+    [WY-F1 §5, §12 step 5]"""
     if os.path.exists(out):
         raise SystemExit(f"{out} exists; refusing to overwrite a fingerprint")
     if require_clean and os.path.abspath(out) != os.path.join(CODE_ROOT, FINGERPRINT):
         raise SystemExit(f"refusing: the fingerprint is written to {FINGERPRINT}")
+    pin = interpreter_pin(require_stable=require_clean)
     tr = Tracer(CODE_ROOT).start()
     ew()
     tr.run_phase()
@@ -1811,9 +2097,7 @@ def cmd_fingerprint(out, require_clean=True, cost_r=None):
         _require_clean(CODE_ROOT, files)
     rc, head = _git(CODE_ROOT, "rev-parse", "HEAD")
     fp = {"study": STUDY, "created": _now(), "git_head": head.decode().strip() if rc == 0 else None,
-          "python": platform.python_version(),
-          "interpreter": {"command": sys.executable, "realpath": os.path.realpath(sys.executable),
-                          "version": platform.python_version(), "minor": "%d.%d" % sys.version_info[:2]},
+          "python": platform.python_version(), "interpreter": pin,
           "exec": _hashes(CODE_ROOT, run), "load": _hashes(CODE_ROOT, code),
           "data": _hashes(CODE_ROOT, data), "price_ref": pref, "canary_sha256": digest,
           "canary": {"events": res["replay"]["events"], "rows": res["summary"].get("n", 0)},

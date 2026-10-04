@@ -5,8 +5,10 @@ Pre-registration (DRAFT until sealed): docs/plans/2026-10-04-cal-us-index-calend
 
     python3 scripts/research/edge_cal.py manifest                                   # the code-sha256 lines for the seal
     python3 scripts/research/edge_cal.py dry-run --fomc <calendar json> --out <json>  # outcome-blind: event / overlap COUNTS
-    python3 scripts/research/edge_cal.py run --read forward --fomc <json> --seal-date YYYY-MM-DD --end YYYY-MM-DD --out ...
-    python3 scripts/research/edge_cal.py run --read history --fomc <json> --out ...   # ONLY under an owner override
+    python3 scripts/research/edge_cal.py run --read forward --fomc <json> --out docs/audits/<date>-edge-cal-forward.json
+        # window: from the server day after the seal commit (git) to the last full server day all three series hold
+    python3 scripts/research/edge_cal.py run --read history --fomc <json> --out docs/audits/<date>-edge-cal-history.json
+        # ONLY under an owner override
 
 FORWARD ONLY by default. Both classes were judged before this family: pre-holiday is B6 "history CONTAMINATED (G7 / H2
 read): forward only" (docs/plans/2026-10-03-candidates.md:44) and "no source, MDE about 32 bp"
@@ -17,8 +19,11 @@ return an earlier family read: G7's turn-of-month days (`edge_f4.tom_days` on ea
 and M1's discovery return days (week 4, the falsification placebo and the reversal; scripts/research/edge_m1.py:654-701).
 Those days are skipped and counted, and they are not in the calendar null either.
 
-Each read ONCE, from committed code whose sha256 the SEALED pre-registration lists (scripts/research/prereg_guard.py).
-Without a FOMC calendar file T1 is "not run (data)" and enters BH with p = 1.
+Each read ONCE (one output name per read; a second run is refused even to another path, prereg_guard.require_read_once),
+from committed code whose sha256 the SEALED pre-registration lists (scripts/research/prereg_guard.py). Without a FOMC
+calendar file T1 is "not run (data)" and enters BH with p = 1. The forward read takes no date from the command line: it
+starts on the server day after the seal commit's (`prereg_guard.first_forward_day`) and ends on the last full server day
+that all three series hold (`last_full_day`), so neither an early seal date nor an end past the data can be typed in.
 
 Events (long only; the server day D = 17:00 New York on D - 1 -> 17:00 New York on D, FTMO-Demo clock):
 * T1 PRE-FOMC: D = a SCHEDULED FOMC announcement date (the calendar file, sourced from federalreserve.gov, carries each
@@ -29,9 +34,12 @@ Events (long only; the server day D = 17:00 New York on D - 1 -> 17:00 New York 
   exit at the CLOSE of the bar opening 12:50 New York (closes 12:55: before any 13:00 early close).
 * Eligibility: D's previous server day is dense (edge_census.Series.prev_dense) and D has a sigma (sigma_every_day: the
   previous 20 dense days); the exit bar exists in D. No swap (one server day).
-* Calendar null: excess = r - the mean r of the SAME window over every other NYSE business day of the same symbol and
-  calendar year (and, forward, on or after the seal date) that is neither an event day nor an excluded read day.
-  Pooled over the three symbols; CR1 by the NYSE date; edge_census.summarise.
+* Calendar null: excess = r - the mean r of the SAME window over every other NYSE business day of the same symbol, calendar
+  year and WEEKDAY (and, forward, from the first forward day on) that is neither an event day nor an excluded read day; at
+  least MIN_NULL_DAYS such days, else the event is skipped and counted (`thin_null`). Weekday-matched because the events
+  are not spread over the week: more than half of the pre-holiday days are Fridays (45 of 83, 2017-12-28 -> 2026-09-25;
+  four of the ten regular holidays are Mondays), and FOMC statements come mid-week. The all-weekday null of the same year
+  is report-only (`excess_all_days`). Pooled over the three symbols; CR1 by the NYSE date; edge_census.summarise.
 * Gate: BH (m = 2, q = 0.10) on the one-sided p of the excess, AND mean net > 0 -> CANDIDATE (discovery grade even when
   forward: ~17 events a year)."""
 import argparse
@@ -62,6 +70,7 @@ EC = M1.EC
 
 PREREG = "docs/plans/2026-10-04-cal-us-index-calendar-preregistration.md"
 TAG = "[CAL-P1]"
+FAMILY = "cal"                                  # read outputs: docs/audits/<YYYY-MM-DD>-edge-cal-<read>.json
 SCRIPT = "scripts/research/edge_cal.py"
 TESTS_FILE = "scripts/tests/test_edge_cal.py"
 #: Every file whose content can change a CAL read (traced: scripts/tests/test_edge_cal.py
@@ -84,6 +93,7 @@ TESTS = (("T1", "pre_fomc"), ("T2", "pre_holiday"))
 M1_READ = "discovery"                           # the only M1 read that ran (docs/audits/2026-10-04-edge-m1-discovery.json)
 FWD_MIN_EVENT_DAYS = 40                         # forward read due: >= 40 event dates in EACH run test ...
 FWD_MAX_YEARS = 5                               # ... or 5 years after the seal, whichever comes first
+MIN_NULL_DAYS = 8                               # a calendar-null cell (symbol, year, weekday) needs >= 8 days with a window
 
 
 # ------------------------------------------------------------------------------------------------ calendars
@@ -172,18 +182,21 @@ def window_return(s, w):
     return s.C[x] / s.O[e] - 1.0
 
 
-def placebo(s, cal, clock, year, exclude, start_day=None, end_day=END_DAY):
-    """Mean window return over the NYSE days of `year` in [start_day, end_day] not in `exclude` (the calendar null)."""
+def placebo(s, cal, clock, year, exclude, start_day=None, end_day=END_DAY, weekday=None):
+    """The calendar null: mean window return over the NYSE days of `year` (and of `weekday`, Monday = 0, unless None) in
+    [start_day, end_day] not in `exclude`; None when fewer than MIN_NULL_DAYS such days have a window."""
     acc, n = 0.0, 0
     for d in cal.days:
         if d.year != year or d in exclude or d > end_day or (start_day and d < start_day):
+            continue
+        if weekday is not None and d.weekday() != weekday:
             continue
         w = day_window(s, d, clock)
         if w is None:
             continue
         acc += window_return(s, w)
         n += 1
-    return acc / n if n else None
+    return acc / n if n >= MIN_NULL_DAYS else None
 
 
 def event_rows(s, cal, events, kind, exclude, costs, end_day=END_DAY, start_day=None, drop=None):
@@ -207,18 +220,20 @@ def event_rows(s, cal, events, kind, exclude, costs, end_day=END_DAY, start_day=
         if w is None:
             skipped["no_window"] += 1
             continue
-        key = (clock, d.year)
-        if key not in cache:
-            cache[key] = placebo(s, cal, clock, d.year, null_exclude, start_day, end_day)
-        base = cache[key]
+        for key in ((clock, d.year, d.weekday()), (clock, d.year, None)):
+            if key not in cache:
+                cache[key] = placebo(s, cal, clock, d.year, null_exclude, start_day, end_day, weekday=key[2])
+        base, base_all = cache[(clock, d.year, d.weekday())], cache[(clock, d.year, None)]
         if base is None:
-            skipped["no_placebo"] += 1
+            skipped["thin_null"] += 1
             continue
         e, x = w
         r = window_return(s, w)
         nb = x - e + 1
-        rows.append({"symbol": s.sym, "kind": kind, "date": d.isoformat(), "year": d.year, "side": 1, "r": r,
-                     "excess": r - base, "scale": s.sigma(e) * math.sqrt(nb), "nb": nb,
+        rows.append({"symbol": s.sym, "kind": kind, "date": d.isoformat(), "year": d.year, "weekday": d.weekday(),
+                     "side": 1, "r": r, "excess": r - base,
+                     "excess_all_days": None if base_all is None else r - base_all,          # report-only
+                     "scale": s.sigma(e) * math.sqrt(nb), "nb": nb,
                      "cost": costs.round_trip_at(s.dt[e], s.dt[x]) if costs else 0.0,
                      "cost90": costs.round_trip_at(s.dt[e], s.dt[x], "p90") if costs else 0.0,
                      "entry_time": s.T[e], "exit_time": s.T[x]})
@@ -246,18 +261,41 @@ def by(rows, key):
     return {k: EC.summarise(v) for k, v in sorted(out.items())}
 
 
+def last_full_day(candles, zone):
+    """The last server day an export surely holds whole: the day before the server day of its last bar (an export can stop
+    mid-session). None without bars."""
+    if not candles:
+        return None
+    t = max(c["time"] for c in candles)
+    return datetime.datetime.fromisoformat(t.replace("Z", "+00:00")).astimezone(zone).date() - datetime.timedelta(days=1)
+
+
 # ------------------------------------------------------------------------------------------------ CLI
-def _series(sym, end_day):
-    import history_store as HS
+def _zone():
     import real_costs as RC
-    zone = RC.server_zone(EC.PROVIDER)[1]
-    doc, _ = HS.read_doc(sym, "5m", root=EC.HIST_ROOT)
-    if doc is None:
-        raise G.Refused(f"refused: no FTMO 5m history for {sym}")
+    return RC.server_zone(EC.PROVIDER)[1]
+
+
+_DOCS = {}
+
+
+def _candles(sym):
+    """The stored FTMO 5m bars of `sym` (read once per process)."""
+    if sym not in _DOCS:
+        import history_store as HS
+        doc, _ = HS.read_doc(sym, "5m", root=EC.HIST_ROOT)
+        if doc is None:
+            raise G.Refused(f"refused: no FTMO 5m history for {sym}")
+        _DOCS[sym] = doc["candles"]
+    return _DOCS[sym]
+
+
+def _series(sym, end_day):
+    zone = _zone()
     n = end_day + datetime.timedelta(days=1)
     end_iso = datetime.datetime(n.year, n.month, n.day, tzinfo=zone).astimezone(
         datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")        # the end of server day end_day: nothing later is loaded
-    return EC.Series(sym, doc["candles"], zone, end=end_iso, sigma_every_day=True)
+    return EC.Series(sym, _candles(sym), zone, end=end_iso, sigma_every_day=True)
 
 
 def _dump(res, path):
@@ -272,15 +310,18 @@ def _rel(p):
 
 
 def dry_counts(s, cal, events):
-    """Outcome-blind, one series: per kind, eligible events (a window exists), and how many fall on read days by reason."""
+    """Outcome-blind, one series: its first dense day (US500 / USTEC start 2021-09, US30 2019-02: the history read's event
+    dates before 2021-09 come from US30 alone), and per kind the eligible events (a window exists), how many fall on read
+    days by reason, and the eligible events per weekday (Monday = 0; the null is weekday-matched)."""
     drop = read_days(s, cal)
-    out = {}
+    out = {"first_dense_day": str(s.dense_days[0]) if s.dense_days else None}
     for kind, ev in events.items():
         c = collections.Counter()
         for d, rel in ev.items():
             if d > END_DAY or not cal.in_range(d) or not cal.is_open(d) or day_window(s, d, exit_clock(kind, rel)) is None:
                 continue
             c["eligible"] += 1
+            c[f"weekday:{d.weekday()}"] += 1
             if d in drop:
                 c[f"read_day:{drop[d]}"] += 1
             else:
@@ -299,8 +340,6 @@ def main():
     r = sub.add_parser("run")
     r.add_argument("--read", required=True, choices=READS)
     r.add_argument("--fomc")
-    r.add_argument("--seal-date", help="forward: the seal commit's date")
-    r.add_argument("--end", help="forward: the last full server day of the re-exported history")
     r.add_argument("--out", required=True)
     a = ap.parse_args()
     if a.cmd == "manifest":
@@ -325,24 +364,32 @@ def main():
     if a.read == "history" and not HISTORICAL_READ:
         raise G.Refused("refused: CAL is forward-only (B6, docs/plans/2026-10-03-candidates.md:44); the history read needs a "
                         "recorded owner override and HISTORICAL_READ = True at the seal (CAL-P1 §0)")
+    G.require_read_once(ROOT, _rel(a.out), FAMILY, a.read)
     text = G.require_sealed(ROOT, PREREG, TAG)
     G.require_committed(ROOT, CODE + ((_rel(a.fomc),) if a.fomc else ()))
     man = G.require_fingerprint(ROOT, text, CODE)
+    G.trace_start(ROOT)                                 # before any data is loaded: everything the read executes is traced
+    window = {}
     if a.read == "forward":
-        if not a.seal_date or not a.end:
-            raise G.Refused("refused: --seal-date and --end are required for the forward read")
-        start, end = datetime.date.fromisoformat(a.seal_date), datetime.date.fromisoformat(a.end)
+        zone = _zone()
+        seal = G.seal_time(ROOT, PREREG)                # git: the commit that added the sealed text; never typed
+        start = G.first_forward_day(ROOT, PREREG, zone)
+        data_end = {sym: last_full_day(_candles(sym), zone) for sym in SYMBOLS}
+        if any(v is None for v in data_end.values()):
+            raise G.Refused(f"refused: an index series has no 5m bars ({data_end})")
+        end = min(data_end.values())                    # every event day of the read has bars in all three series
         ph = pre_holidays(cal, start.year, end.year)
         fwd_dates = {"pre_holiday": {x for x in ph if start <= x <= end}}
         if fomc:
             fwd_dates["pre_fomc"] = {x for x in fomc if start <= x <= end}
-        if not forward_due(fwd_dates, start, end):
-            raise G.Refused(f"refused: forward read not due ({ {k: len(v) for k, v in fwd_dates.items()} } event dates, "
-                            f"< {FWD_MIN_EVENT_DAYS} each, < {FWD_MAX_YEARS} years)")
+        if not forward_due(fwd_dates, start - datetime.timedelta(days=1), end):
+            raise G.Refused(f"refused: forward read not due ({ {k: len(v) for k, v in fwd_dates.items()} } event dates "
+                            f"from {start} to {end}, < {FWD_MIN_EVENT_DAYS} each, < {FWD_MAX_YEARS} years)")
+        window = {"seal_commit": seal.isoformat(), "first_forward_day": str(start),
+                  "data_end_by_symbol": {k: str(v) for k, v in data_end.items()}}
     else:
         start, end = None, END_DAY
         ph = pre_holidays(cal, 2017, END_DAY.year)
-    G.trace_start(ROOT)
     events = {"pre_fomc": fomc, "pre_holiday": {x: None for x in ph}}
     exclude = set(fomc) | set(ph)
     rows = {kind: [] for _, kind in TESTS}
@@ -358,12 +405,16 @@ def main():
     tests = {t: (EC.summarise(rows[kind]) if (kind != "pre_fomc" or fomc) else {"n": 0, "not_run": "no FOMC calendar"})
              for t, kind in TESTS}
     res = {"meta": {"script": SCRIPT, "preregistration": PREREG, "tag": TAG, "read": a.read, "start": str(start),
-                    "end_day": str(end), "fomc": a.fomc, "git_head": G.git_head(ROOT), "cost_profile": EC.COST_PROFILE,
+                    "end_day": str(end), **window,
+                    "fomc": a.fomc, "git_head": G.git_head(ROOT), "cost_profile": EC.COST_PROFILE,
                     "historical_read": HISTORICAL_READ,
                     "dataset": G.dataset_snapshot(EC.HIST_ROOT, [(x, "5m") for x in SYMBOLS]),
                     "fomc_sha256": G.file_sha256(a.fomc) if a.fomc else None},
            "tests": tests, "verdicts": verdicts(tests), "skipped": skipped,
-           "report_only": {kind: {"by_symbol": by(rows[kind], "symbol"), "by_year": by(rows[kind], "year")}
+           "report_only": {kind: {"by_symbol": by(rows[kind], "symbol"), "by_year": by(rows[kind], "year"),
+                                  "by_weekday": by(rows[kind], "weekday"),
+                                  "all_weekday_null": EC.summarise([dict(r, excess=r["excess_all_days"]) for r in rows[kind]
+                                                                    if r["excess_all_days"] is not None])}
                            for _, kind in TESTS},
            "rows": rows}
     G.require_covered(man)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Registration guard for the 2026-10-04 research-direction drafts (VC, OIL, CAL): a read runs only from committed code whose
-sha256 the SEALED pre-registration lists, and never overwrites an earlier read.
+sha256 the SEALED pre-registration lists, and runs once (`require_read_once`: one output name per read, refused when an
+output of that read is on disk or was ever committed).
 
 A draft pre-registration ends in "-DRAFT.md". Sealing = the coordinator commits the final text under the name without
 "-DRAFT", carrying its tag (e.g. "[VC-P1]"), a line that is exactly "Status: SEALED" (and no line starting "Status: DRAFT"),
@@ -12,8 +13,14 @@ At read time the guard recomputes every listed file's sha256 and refuses on any 
 the seal), and refuses when a file the read needs is not listed. While the read runs, `trace_start` records every repository
 file the process opens (an audit hook, so modules loaded through importlib.util.spec_from_file_location are seen too);
 `require_covered` then refuses to write the result if a repository .py file outside the manifest was executed. Non-Python
-files opened outside data/history are recorded with their sha256 (`opened_files`) for reproducibility (CLAUDE.md §46)."""
+files opened outside data/history are recorded with their sha256 (`opened_files`) for reproducibility (CLAUDE.md §46).
+
+Dates and inputs a read must not take from the command line: a forward read starts after the seal instant git records
+(`seal_time`, `first_forward_day`), and an earlier read's JSON is used only when its name, commit state, tag and read
+match (`require_read_json`)."""
+import datetime
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -181,6 +188,80 @@ def dataset_snapshot(hist_root, pairs):
     return {f"{sym}|{tf}": HS.digest(sym, tf, root=hist_root) for sym, tf in pairs}
 
 
+def candles_digest(candles):
+    """sha256 of the bars a read used, in a canonical form: one line [time, open, high, low, close] per bar, in the given
+    order (CLAUDE.md §10, §46: a merged series that no single file holds)."""
+    h = hashlib.sha256()
+    for b in candles:
+        h.update(json.dumps([b["time"], b["open"], b["high"], b["low"], b["close"]], separators=(",", ":")).encode("utf-8"))
+        h.update(b"\n")
+    return h.hexdigest()
+
+
 def refuse_overwrite(path):
+    """Never overwrite an output (dry runs and screens; a read also needs `require_read_once`)."""
     if os.path.exists(path):
         raise Refused(f"refused: {path} exists (each read runs once)")
+
+
+READ_DIR = "docs/audits"
+
+
+def read_name(family, read):
+    """The one output name a read may write: docs/audits/<YYYY-MM-DD>-edge-<family>-<read>.json (any date)."""
+    return re.compile(rf"^{READ_DIR}/\d{{4}}-\d{{2}}-\d{{2}}-edge-{re.escape(family)}-{re.escape(read)}\.json$")
+
+
+def require_read_once(root, out_rel, family, read):
+    """'Each read runs once', beyond one output path (`refuse_overwrite` alone lets a second run write elsewhere):
+    1. the output must match `read_name(family, read)`;
+    2. no file of that name pattern may exist in the working tree, tracked or not;
+    3. none may ever have been committed, on any branch (`git log --all`, deleted files included).
+    A first output deleted before any commit escapes (3); (2) refuses a re-run while it is still on disk."""
+    pat = read_name(family, read)
+    if not pat.match(out_rel):
+        raise Refused(f"refused: a {family} {read} read writes {READ_DIR}/<YYYY-MM-DD>-edge-{family}-{read}.json, "
+                      f"not {out_rel}")
+    d = os.path.join(root, *READ_DIR.split("/"))
+    here = sorted(f"{READ_DIR}/{f}" for f in (os.listdir(d) if os.path.isdir(d) else ()) if pat.match(f"{READ_DIR}/{f}"))
+    if here:
+        raise Refused(f"refused: the {family} {read} read already ran ({', '.join(here)}); each read runs once")
+    r = _git(root, "log", "--all", "--format=", "--name-only", "--", READ_DIR)
+    if r.returncode != 0:
+        raise Refused(f"refused: cannot check the git history for an earlier {family} {read} read ({r.stderr.strip()})")
+    hist = sorted({ln.strip() for ln in r.stdout.splitlines() if pat.match(ln.strip())})
+    if hist:
+        raise Refused(f"refused: the {family} {read} read was committed before ({', '.join(hist)}); each read runs once")
+
+
+def require_read_json(root, path_rel, family, read, tag):
+    """An earlier read's output, checked before any of its numbers is used: the path is that read's one output name
+    (`read_name`), it is committed unchanged, and its meta carries `tag` and `read`. Returns the parsed JSON."""
+    if not read_name(family, read).match(path_rel):
+        raise Refused(f"refused: {path_rel} is not the {family} {read} read's output "
+                      f"({READ_DIR}/<YYYY-MM-DD>-edge-{family}-{read}.json)")
+    require_committed(root, [path_rel])
+    with open(os.path.join(root, path_rel), encoding="utf-8") as fh:
+        doc = json.load(fh)
+    meta = doc.get("meta") or {}
+    if meta.get("tag") != tag or meta.get("read") != read:
+        raise Refused(f"refused: {path_rel} carries tag {meta.get('tag')!r} and read {meta.get('read')!r}, "
+                      f"not {tag!r} and {read!r}")
+    return doc
+
+
+def seal_time(root, prereg):
+    """The committer time of the OLDEST commit that added `prereg` (the sealed text) to this branch's history: the seal
+    instant. Taken from git, never from a date typed on the command line (an earlier date would let rows from before the
+    seal into a window graded FRESH). A later amendment of the text does not move it."""
+    r = _git(root, "log", "--diff-filter=A", "--format=%cI", "--", prereg)
+    stamps = [datetime.datetime.fromisoformat(x.strip()) for x in r.stdout.splitlines() if x.strip()]
+    if r.returncode != 0 or not stamps:
+        raise Refused(f"refused: no commit adds {prereg}; the seal instant is unknown")
+    return min(stamps)
+
+
+def first_forward_day(root, prereg, zone):
+    """The first server day (`zone`) of forward data: the day AFTER the server day of the seal commit, so nothing that
+    started before the seal counts as forward, not even on the seal's own day."""
+    return seal_time(root, prereg).astimezone(zone).date() + datetime.timedelta(days=1)

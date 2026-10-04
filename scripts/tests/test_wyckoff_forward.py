@@ -4,6 +4,7 @@ test_edge_wyckoff's Costs tests. Pre-registration: docs/plans/2026-10-04-wyckoff
 
 Run from scripts/tests, ONE module per invocation:  PYTHONPATH=.. python3 -W ignore -m unittest test_wyckoff_forward
 """
+import base64
 import contextlib
 import datetime
 import hashlib
@@ -11,6 +12,7 @@ import importlib.util
 import io
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -135,6 +137,34 @@ def rewrite_chain(path, recs):
         os.remove(path)
     if recs:
         WF.append_chain(path, recs, WF.GENESIS)
+
+
+def shim_python(where, version):
+    """A test interpreter at `where`/python<major>.<minor>: THIS Python, presenting itself as `version` (sys.version_info
+    and sys.version) to what it runs -- a script with its arguments, or `-c` code. It lets the pin's patch / minor rule
+    run end to end without installing another Python (WY-F1 §5)."""
+    major, minor, micro = (int(x) for x in version.split("."))
+    os.makedirs(where, exist_ok=True)
+    boot = os.path.join(where, "boot.py")
+    with open(boot, "w") as fh:
+        fh.write("import collections, runpy, sys\n"
+                 "V = collections.namedtuple('version_info', 'major minor micro releaselevel serial')\n"
+                 f"sys.version_info = V({major}, {minor}, {micro}, 'final', 0)\n"
+                 f"sys.version = {version!r} + sys.version[sys.version.index(' '):]\n"
+                 "args = sys.argv[1:]\n"
+                 "if args[:1] == ['-c']:\n"
+                 "    sys.argv = ['-c'] + args[2:]\n"
+                 "    exec(compile(args[1], '<string>', 'exec'), {'__name__': '__main__'})\n"
+                 "else:\n"
+                 "    sys.argv = args\n"
+                 "    runpy.run_path(args[0], run_name='__main__')\n")
+    exe = os.path.join(where, f"python{major}.{minor}")
+    with open(exe, "w") as fh:
+        fh.write("#!/bin/sh\n"
+                 'while [ "$1" = "-B" ] || [ "$1" = "-E" ] || [ "$1" = "-s" ]; do shift; done\n'
+                 f'exec {shlex.quote(sys.executable)} -B -E -s {shlex.quote(boot)} "$@"\n')
+    os.chmod(exe, 0o755)
+    return exe
 
 
 # ------------------------------------------------------------------------------------------------ registration
@@ -282,6 +312,123 @@ class Bars(unittest.TestCase):
                 fh.write("\n".join(bad) + "\n")
             with self.assertRaises(SystemExit):
                 WF.read_chain(p)
+
+
+# ------------------------------------------------------------------------------------------------ torn writes (WY-F1 §4)
+class TornWrites(unittest.TestCase):
+    """A worker killed during `commit` (the cycle's 120 s cap) leaves an UNTERMINATED last line: bytes that were never
+    part of the chain. The next cycle drops exactly those bytes, after logging them in repairs.jsonl. A terminated line
+    is never dropped, and a live writer is never cut."""
+
+    def tear(self, d):
+        """The XAUUSD store and the log as a killed `commit` leaves them: part of a bar line, and a whole resolve line
+        but its newline (its R is what status must never show). Returns the paths, the clean bytes, the torn bytes and
+        each chain's (records, head)."""
+        bp, lp = WF._rt(d, "bars", "XAUUSD.15m.jsonl"), WF._rt(d, "log.jsonl")
+        bars, heads = WF.read_chain(bp)
+        log, lheads = WF.read_chain(lp)
+        clean = {p: open(p, "rb").read() for p in (bp, lp)}
+        nxt = dict(bars[-1], t="2099-01-01T00:00:00Z")
+        fake = {"kind": "resolve", "id": log[0]["id"] + "|torn", "R": 123.456789, "outcome": "win"}
+        torn = {bp: WF._canon(dict(nxt, ch=WF._link(heads[-1], nxt))).encode()[:37],
+                lp: WF._canon(dict(fake, ch=WF._link(lheads[-1], fake))).encode()}
+        for p in (bp, lp):
+            with open(p, "ab") as fh:
+                fh.write(torn[p])
+        return bp, lp, clean, torn, {bp: (len(bars), heads[-1]), lp: (len(log), lheads[-1])}
+
+    def test_an_unterminated_last_line_is_dropped_and_logged_and_a_terminated_one_never(self):
+        d, seal = canary_root()
+        bp, lp, clean, torn, kept = self.tear(d)
+        for p in (bp, lp):
+            with self.assertRaises(SystemExit) as cm:
+                WF.read_chain(p)                                                  # every reader refuses it
+            self.assertIn("unterminated", str(cm.exception))
+        with self.assertRaises(SystemExit) as cm:
+            WF.append_chain(bp, [{"x": 1}], kept[bp][1])                          # nothing is glued onto it
+        self.assertIn("unterminated", str(cm.exception))
+        self.assertEqual(open(bp, "rb").read(), clean[bp] + torn[bp])
+        for call in (lambda: WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1), lambda: WF.cmd_anchor(d)):
+            with self.assertRaises(SystemExit) as cm:
+                call()                                                            # the read and an anchor wait for a cycle
+            self.assertIn("unterminated", str(cm.exception))
+        st = WF.status(d)                                                         # status names the files, no bytes
+        self.assertEqual(st["repairs"]["pending"], ["bars/XAUUSD.15m.jsonl", "log.jsonl"])
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            WF._print_status(st)
+        self.assertIn("pending, dropped by the next cycle", buf.getvalue())
+        for text in (json.dumps(st), buf.getvalue()):
+            self.assertNotIn("123.456789", text)
+        res = WF.cycle_core(d, seal, "fp", "2026-07-02T00:00:00Z", init_root=d)
+        self.assertEqual([w[0] for w in res["writes"]], ["repair", "json"])
+        self.assertEqual(res["summary"]["repaired"], ["bars/XAUUSD.15m.jsonl", "log.jsonl"])
+        self.assertNotIn("123.456789", json.dumps(res["summary"]))
+        WF.commit(res["writes"])
+        for p in (bp, lp):
+            self.assertEqual(open(p, "rb").read(), clean[p])                      # exactly the torn bytes are gone
+        rep, _ = WF.read_chain(WF._rt(d, WF.REPAIRS))
+        self.assertEqual([(r["file"], r["offset"], r["kept_records"], r["kept_head"], r["dropped_bytes"],
+                           r["dropped_sha256"], r["complete_record"]) for r in rep],
+                         [("bars/XAUUSD.15m.jsonl", len(clean[bp]), *kept[bp], 37,
+                           hashlib.sha256(torn[bp]).hexdigest(), False),
+                          ("log.jsonl", len(clean[lp]), *kept[lp], len(torn[lp]),
+                           hashlib.sha256(torn[lp]).hexdigest(), True)])
+        self.assertEqual([base64.b64decode(r["dropped_b64"]) for r in rep], [torn[bp], torn[lp]])
+        self.assertTrue(all(r["seal"] == seal["sha"] and r["fingerprint"] == "fp" for r in rep))
+        out = WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1)         # never part of a chain: the read
+        self.assertEqual((out["sample"], out["repairs"]["records"], out["repairs"]["files"]),   # passes, and says so
+                         (7, 2, {"bars/XAUUSD.15m.jsonl": 1, "log.jsonl": 1}))
+        self.assertNotIn("dropped_b64", json.dumps(out["repairs"]))
+        self.assertEqual(WF.status(d)["repairs"]["pending"], [])
+        # A TERMINATED line is never dropped: torn bytes that got a newline, or a duplicated last line, refuse every
+        # step, and the file stays byte for byte as it is.
+        for bad in (torn[bp] + b"\n", clean[bp].splitlines(keepends=True)[-1]):
+            with open(bp, "ab") as fh:
+                fh.write(bad)
+            before = open(bp, "rb").read()
+            with self.assertRaises(SystemExit) as cm:
+                WF.cycle_core(d, seal, "fp", "2026-07-03T00:00:00Z", init_root=d)
+            self.assertRegex(str(cm.exception), "not a JSON record|breaks the hash chain")
+            self.assertEqual(open(bp, "rb").read(), before)
+            with open(bp, "wb") as fh:
+                fh.write(clean[bp])
+
+    def test_a_live_writer_is_never_cut_and_the_repair_log_heals_itself(self):
+        d, seal = canary_root()
+        bp, lp, clean, torn, _kept = self.tear(d)
+        rp = WF._rt(d, WF.REPAIRS)
+        if WF.fcntl is not None:
+            with open(bp, "ab") as writer:                                        # a writer still alive, mid-append
+                WF.fcntl.flock(writer.fileno(), WF.fcntl.LOCK_EX)
+                res = WF.cycle_core(d, seal, "fp", "2026-07-02T00:00:00Z", init_root=d)
+                with self.assertRaises(SystemExit) as cm:
+                    WF.commit(res["writes"])
+                self.assertIn("a writer still holds", str(cm.exception))
+                with self.assertRaises(SystemExit) as cm:
+                    WF.append_chain(bp, [{"x": 1}], "x")                         # nor is anything appended under it
+                self.assertIn("another writer holds", str(cm.exception))
+            self.assertEqual(open(bp, "rb").read(), clean[bp] + torn[bp])         # not cut, and nothing logged
+            self.assertFalse(os.path.exists(rp))
+        res = WF.cycle_core(d, seal, "fp", "2026-07-02T00:00:00Z", init_root=d)
+        with open(lp, "ab") as fh:
+            fh.write(b"\n")                                                       # the line was finished after the plan
+        with self.assertRaises(SystemExit) as cm:
+            WF.commit(res["writes"])
+        self.assertIn("changed while this cycle ran", str(cm.exception))
+        self.assertEqual(open(bp, "rb").read(), clean[bp] + torn[bp])
+        self.assertFalse(os.path.exists(rp))
+        with open(lp, "wb") as fh:
+            fh.write(clean[lp] + torn[lp])
+        with open(rp, "wb") as fh:                                                # a repair record that never completed
+            fh.write(b'{"complete_record":false,"dropped_b64":"eyJhdCI')
+        res = WF.cycle_core(d, seal, "fp", "2026-07-02T00:00:00Z", init_root=d)
+        WF.commit(res["writes"])
+        rep, _ = WF.read_chain(rp)
+        self.assertEqual([(r["file"], r["offset"]) for r in rep],
+                         [("bars/XAUUSD.15m.jsonl", len(clean[bp])), ("log.jsonl", len(clean[lp])), (WF.REPAIRS, 0)])
+        for p in (bp, lp):
+            self.assertEqual(open(p, "rb").read(), clean[p])
 
 
 # ------------------------------------------------------------------------------------------------ events (WY-F1 §2-§4)
@@ -661,6 +808,30 @@ class Read(unittest.TestCase):
             WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1, anchors=WF.committed_anchors(d))
         self.assertIn("does not sit on the XAUUSD chain", str(cm.exception))
 
+    def test_an_anchor_never_joins_a_torn_line_and_a_committed_non_record_refuses_by_its_commit(self):
+        d, _seal = canary_root()
+        git(d, "init", "-q")
+        p = os.path.join(d, WF.ANCHORS)
+        WF.cmd_anchor(d)
+        good = open(p, "rb").read()
+        self.assertTrue(good.endswith(b"\n") and len(WF.anchor_lines(good, "x")) == 1)
+        for bad, why in ((good + good[:40], "ends with an unterminated line"),     # a killed `anchor`: never glued onto
+                         (good + b'{"at":"x"}\n', "is not an anchor record")):     # a terminated non-record
+            with open(p, "wb") as fh:
+                fh.write(bad)
+            with self.assertRaises(SystemExit) as cm:
+                WF.cmd_anchor(d)
+            self.assertIn(why, str(cm.exception))
+            self.assertEqual(open(p, "rb").read(), bad)                            # nothing appended
+        with open(p, "wb") as fh:                                                  # what the old `anchor` wrote after
+            fh.write(good.rstrip(b"\n") + good)                                    # a lost newline: one glued line
+        git(d, "add", WF.ANCHORS)
+        git(d, "commit", "-q", "-m", "a glued anchor line")
+        sha = git(d, "rev-parse", "HEAD")
+        with self.assertRaises(SystemExit) as cm:                                  # git keeps it: every read refuses,
+            WF.committed_anchors(d)                                                # by its commit, never a crash
+        self.assertIn(f"line 1 (commit {sha[:12]}) is not an anchor record", str(cm.exception))
+
 
 # ------------------------------------------------------------------------------------------------ cycle (§4, §6)
 class Cycle(unittest.TestCase):
@@ -798,6 +969,46 @@ class Fingerprint(unittest.TestCase):
             WF.require_interpreter({"interpreter": dict(here, minor="3.0")})
         self.assertIn("pins 3.0", str(cm.exception))
 
+    def test_a_patch_upgrade_passes_the_worker_check_and_a_minor_change_refuses(self):
+        major, minor, micro = sys.version_info[:3]
+        fp = {"interpreter": {"command": f"/x/python{major}.{minor}", "version": f"{major}.{minor}.{micro}",
+                              "minor": f"{major}.{minor}"}}
+        with mock.patch.object(WF.sys, "version_info", (major, minor, micro + 1, "final", 0)):
+            WF.require_interpreter(fp)                                           # e.g. 3.14.5 -> 3.14.6: collects
+        with mock.patch.object(WF.sys, "version_info", (major, minor + 1, 0, "final", 0)), \
+                self.assertRaises(SystemExit) as cm:
+            WF.require_interpreter(fp)                                           # 3.14 -> 3.15: refuses
+        self.assertIn(f"runs Python {major}.{minor + 1}", str(cm.exception))
+        self.assertIn(f"pins {major}.{minor}", str(cm.exception))
+
+    def test_the_pin_names_a_stable_versioned_interpreter(self):
+        self.assertIsNone(WF.stable_interpreter("/opt/homebrew/opt/python@3.14/bin/python3.14", "3.14.5", "3.14"))
+        for bad, why in (("/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/bin/"
+                          "python3.14", "names the patch release 3.14.5"),      # deleted by brew's next patch upgrade
+                         ("/Users/u/.pyenv/versions/3.14.5/bin/python3.14", "names the patch release 3.14.5"),
+                         ("/opt/homebrew/Cellar/python@3.14/current/bin/python3.14", "Homebrew's Cellar"),
+                         ("/opt/homebrew/bin/python3", "is not named python3.14"),  # follows the default minor
+                         ("python3.14", "is not an absolute path")):
+            self.assertIn(why, WF.stable_interpreter(bad, "3.14.5", "3.14") or "", bad)
+        pin = WF.interpreter_pin(require_stable=False)
+        self.assertEqual((pin["command"], pin["version"], pin["minor"]),
+                         (sys.executable, WF.platform.python_version(), "%d.%d" % sys.version_info[:2]))
+        root = tempfile.mkdtemp(prefix="wyf1-pin-")          # a code root without a fingerprint: never skipped, also
+        canonical = os.path.join(root, WF.FINGERPRINT)       # after the seal commits the real one
+
+        def nope(*_a, **_k):
+            raise AssertionError("cmd_fingerprint traced the canary before it checked the interpreter")
+        major, minor, micro = sys.version_info[:3]
+        other = shim_python(tempfile.mkdtemp(prefix="wyf1-shim-"), f"{major}.{minor}.{micro + 1}")
+        for exe, why in ((f"/opt/homebrew/Cellar/python@{major}.{minor}/{major}.{minor}.{micro}/bin/"
+                          f"python{major}.{minor}", "names the patch release"),
+                         (other, f"runs Python {major}.{minor}.{micro + 1}, this process runs")):
+            with mock.patch.object(WF, "CODE_ROOT", root), mock.patch.object(WF.sys, "executable", exe), \
+                    mock.patch.object(WF, "Tracer", nope), self.assertRaises(SystemExit) as cm:
+                WF.cmd_fingerprint(canonical)                                    # the sealing run refuses first
+            self.assertIn(why, str(cm.exception))
+            self.assertFalse(os.path.exists(canonical))
+
     def test_the_fingerprint_needs_the_committed_bytes_on_disk(self):
         root = tempfile.mkdtemp()
         git(root, "init", "-q")
@@ -864,6 +1075,20 @@ class ExtractCheck(unittest.TestCase):
         with mock.patch.object(WF, "SNAPSHOT_ROOTS", roots), self.assertRaises(SystemExit) as cm:
             WF.extract_check(self.fp, self.clone, self.rev)
         self.assertIn(".mq5", str(cm.exception))                         # providers._validate (scripts/providers.py:63)
+
+    def test_a_patch_upgrade_keeps_collecting_and_a_minor_change_refuses_loudly(self):
+        """The pinned command, after a patch upgrade, runs every forward step to the sealed canary digest; after a minor
+        change it refuses. Shim interpreters present this Python as the next patch and the next minor release."""
+        major, minor, micro = sys.version_info[:3]
+        tmp = tempfile.mkdtemp(prefix="wyf1-shim-")
+        fp = json.loads(json.dumps(self.fp))
+        fp["interpreter"]["command"] = shim_python(os.path.join(tmp, "patch"), f"{major}.{minor}.{micro + 1}")
+        self.assertGreater(WF.extract_check(fp, self.clone, self.rev), 400)
+        fp["interpreter"]["command"] = shim_python(os.path.join(tmp, "minor"), f"{major}.{minor + 1}.0")
+        with self.assertRaises(SystemExit) as cm:
+            WF.extract_check(fp, self.clone, self.rev)
+        self.assertIn(f"this worker runs Python {major}.{minor + 1}", str(cm.exception))
+        self.assertIn(f"pins {major}.{minor}", str(cm.exception))
 
 
 class Launcher(unittest.TestCase):
@@ -1045,6 +1270,48 @@ class Launcher(unittest.TestCase):
         last = json.load(open(WF._rt(root, "last_cycle.json")))
         self.assertFalse(last["ok"])
         self.assertFalse(os.path.exists(WF._rt(root, "log.jsonl")))
+
+    def test_a_minor_python_change_fails_every_cycle_loudly(self):
+        """A sealed repository whose pinned command now runs the next minor Python: the worker refuses, the cycle is a
+        recorded FAILURE, the next spawn puts it in the cycle log, and status flags the interpreter."""
+        major, minor, micro = sys.version_info[:3]
+        root = tempfile.mkdtemp()
+        git(root, "init", "-q")
+        wf = os.path.join(root, WF.SCRIPT)
+        os.makedirs(os.path.dirname(wf))
+        shutil.copyfile(os.path.join(ROOT, WF.SCRIPT), wf)
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "-m", "code")
+        nxt = shim_python(tempfile.mkdtemp(prefix="wyf1-shim-"), f"{major}.{minor + 1}.0")
+        WF._write_json(os.path.join(root, WF.FINGERPRINT),
+                       {"exec": {WF.SCRIPT: WF._sha256(wf)}, "load": {}, "data": {}, "canary_sha256": "c",
+                        "interpreter": {"command": nxt, "version": f"{major}.{minor}.{micro}",
+                                        "minor": f"{major}.{minor}"}})
+        os.makedirs(os.path.join(root, os.path.dirname(WF.PREREG)), exist_ok=True)
+        with open(os.path.join(root, WF.PREREG), "w") as fh:
+            fh.write("sealed")
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "-m", "seal")
+        want = f"pins {major}.{minor}"
+        with self.assertRaises(SystemExit) as cm:
+            WF.cmd_cycle(data_root=root)
+        self.assertIn("worker failed", str(cm.exception))
+        self.assertIn(want, str(cm.exception))
+        last = json.load(open(WF._rt(root, "last_cycle.json")))
+        self.assertEqual((last["ok"], want in last["error"]), (False, True))
+
+        class P:
+            pid = 4242
+        with self.assertRaises(SystemExit) as cm:                         # the next spawn: an EXIT line in the cycle log
+            WF.cmd_spawn(root, popen=lambda cmd, **kw: P())
+        self.assertIn("the previous cycle FAILED", str(cm.exception))
+        self.assertIn(want, str(cm.exception))
+        st = WF.status(root)
+        self.assertEqual((st["interpreter"]["now"], st["interpreter"]["ok"]), (f"{major}.{minor + 1}.0", False))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            WF._print_status(st)
+        self.assertIn("NOT the pinned minor version", buf.getvalue())
 
     def test_a_seal_without_a_fingerprint_is_refused(self):
         root = self.repo()

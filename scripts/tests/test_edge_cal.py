@@ -142,14 +142,25 @@ class Rows(unittest.TestCase):
     def test_read_days_are_skipped_untouched_and_kept_out_of_the_null(self):
         ph = {d: None for d in C.pre_holidays(CAL, 2019, 2019)}
         s = series(set(ph))
-        drop = C.read_days(s, CAL)
+        g7 = {d: r for d, r in C.read_days(s, CAL).items() if r == "g7_turn_of_month"}
         rows, skipped = C.event_rows(s, CAL, ph, "pre_holiday", set(ph), None, end_day=datetime.date(2019, 12, 31),
-                                     drop=drop)
+                                     drop=g7)
         self.assertNotIn("2019-07-03", {r["date"] for r in rows})
         self.assertGreaterEqual(skipped["read_day:g7_turn_of_month"], 1)
         self.assertTrue(rows)
         for r in rows:
             self.assertAlmostEqual(r["excess"], 0.005, delta=0.0015)
+
+    def test_m1_read_days_leave_2019_without_a_weekday_null(self):
+        """M1's discovery read covers ~93 % of the NYSE days of 2018-01 -> 2021-08: with those days out of the null, a
+        (year, weekday) cell of 2019 is thinner than MIN_NULL_DAYS, so no 2019 event yields a row (history read only)."""
+        ph = {d: None for d in C.pre_holidays(CAL, 2019, 2019)}
+        s = series(set(ph))
+        rows, skipped = C.event_rows(s, CAL, ph, "pre_holiday", set(ph), None, end_day=datetime.date(2019, 12, 31),
+                                     drop=C.read_days(s, CAL))
+        self.assertEqual(rows, [])
+        self.assertGreaterEqual(skipped["read_day:g7_turn_of_month"] + skipped["read_day:m1_discovery"], 1)
+        self.assertGreaterEqual(skipped["thin_null"], 1)
 
     def test_forward_rows_and_null_start_at_the_seal(self):
         ph = {d: None for d in C.pre_holidays(CAL, 2019, 2019)}
@@ -160,6 +171,68 @@ class Rows(unittest.TestCase):
         self.assertTrue(rows)
         self.assertTrue(all(r["date"] >= "2019-06-01" for r in rows))
         self.assertGreaterEqual(skipped["outside_span"], 3)       # Jan / Feb / Apr / May 2019 pre-holidays
+
+    def test_the_null_is_weekday_matched(self):
+        """Review item 14: a Friday effect alone (drift on EVERY Friday, none for being pre-holiday) must not show as a
+        pre-holiday excess on the Friday pre-holidays. The all-weekday null (report-only) would credit it."""
+        fridays = {d for d in CAL.days if d.weekday() == 4 and d.year == 2019}
+        ph = {d: None for d in C.pre_holidays(CAL, 2019, 2019)}
+        s = series(fridays)
+        rows, _ = C.event_rows(s, CAL, ph, "pre_holiday", set(ph), None, end_day=datetime.date(2019, 12, 31))
+        fri = [r for r in rows if r["weekday"] == 4]
+        self.assertGreaterEqual(len(fri), 3)                      # MLK, Presidents', Memorial, Labor Day eves
+        for r in fri:
+            self.assertAlmostEqual(r["excess"], 0.0, delta=0.0015)
+            self.assertGreater(r["excess_all_days"], 0.0025)       # the all-weekday null: ~0.005 x 4/5
+        for r in rows:
+            if r["weekday"] != 4:
+                self.assertAlmostEqual(r["excess"], 0.0, delta=0.0015)
+
+    def test_a_thin_weekday_null_skips_the_event(self):
+        ph = {d: None for d in C.pre_holidays(CAL, 2019, 2019)}
+        s = series(set(ph))
+        seal = datetime.date(2019, 11, 15)                         # ~6 same-weekday days left in 2019
+        rows, skipped = C.event_rows(s, CAL, ph, "pre_holiday", set(ph), None, end_day=datetime.date(2019, 12, 31),
+                                     start_day=seal)
+        self.assertEqual(rows, [])
+        self.assertGreaterEqual(skipped["thin_null"], 2)           # 11-27 (Wed) and 12-24 (Tue)
+        self.assertNotIn("no_placebo", skipped)
+
+    def test_a_read_writes_only_its_one_output_name(self):
+        """Review item 18: a forward read to another path is refused before the seal is even checked."""
+        with tempfile.TemporaryDirectory() as tmp:
+            argv = sys.argv
+            sys.argv = ["edge_cal.py", "run", "--read", "forward", "--out", os.path.join(tmp, "x.json")]
+            try:
+                with self.assertRaises(SystemExit) as cm:
+                    C.main()
+            finally:
+                sys.argv = argv
+            self.assertIn("edge-cal-forward.json", str(cm.exception))
+
+    def test_the_forward_window_takes_no_typed_date(self):
+        """Review (2026-10-04, fix round): an earlier --seal-date let pre-seal days into a FRESH window, and an --end past
+        the data made the read 'due' on calendar dates whose events then dropped as no_window. Both flags are gone: the
+        start comes from the seal commit (prereg_guard.first_forward_day), the end from the data (`last_full_day`)."""
+        for flag in (["--seal-date", "2026-01-01"], ["--end", "2031-12-31"]):
+            with tempfile.TemporaryDirectory() as tmp:
+                argv = sys.argv
+                sys.argv = ["edge_cal.py", "run", "--read", "forward", "--out",
+                            os.path.join(tmp, "2031-12-31-edge-cal-forward.json")] + flag
+                try:
+                    with self.assertRaises(SystemExit) as cm:
+                        C.main()
+                finally:
+                    sys.argv = argv
+                self.assertEqual(cm.exception.code, 2)                  # argparse: unrecognized argument
+
+    def test_last_full_day_is_the_day_before_the_last_bars_server_day(self):
+        c = candles(datetime.date(2019, 7, 1), datetime.date(2019, 7, 3), set())
+        self.assertEqual(C.last_full_day(c, Z), datetime.date(2019, 7, 2))
+        cut = [x for x in c if x["time"] < "2019-07-03T12:00:00Z"]          # the export stops mid-session on 07-03
+        self.assertEqual(C.last_full_day(cut, Z), datetime.date(2019, 7, 2))
+        self.assertEqual(C.last_full_day(list(reversed(c)), Z), datetime.date(2019, 7, 2))
+        self.assertIsNone(C.last_full_day([], Z))
 
     def test_forward_due(self):
         seal = datetime.date(2026, 10, 10)
