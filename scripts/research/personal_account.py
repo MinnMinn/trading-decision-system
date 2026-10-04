@@ -247,12 +247,14 @@ def book_days(rows_by_ck, book):
     return by
 
 
-def haircut_shift(rows_by_ck, book, haircut):
-    """{component: haircut x its mean R} (as pass_policy.prepare: every component's mean R cut by that share)."""
+def haircut_shift(rows_by_ck, book, haircut, since=None):
+    """{component: haircut x its mean R} (as pass_policy.prepare: every component's mean R cut by that share). The mean is
+    taken over the SAME span the bootstrap samples (`since` on): with the full-history mean, "edge x 0" on the 2018+ days
+    was in fact a negative edge (G9 gold's 2018+ mean R is lower than its 2004+ mean)."""
     out = {}
     for c in BOOKS[book]:
         k = STOP_K_OVERRIDE.get((book, c), STOP_K[book])
-        out[c] = haircut * statistics.mean(t["R"] for t in rows_by_ck[(c, k)])
+        out[c] = haircut * statistics.mean(t["R"] for t in rows_by_ck[(c, k)] if since is None or t["day"] >= str(since))
     return out
 
 
@@ -295,7 +297,7 @@ def _init(cache, lo, hi):
     syms = sorted({t["symbol"] for v in rows.values() for t in v})
     specs, _ = specs_for(syms)
     _W.update(rows=rows, specs=specs, days={b: book_days(rows, b) for b in BOOKS},
-              shift={(b, e): haircut_shift(rows, b, 1.0 - e) for b in BOOKS for e in GRID["edge"]},
+              shift={(b, e): haircut_shift(rows, b, 1.0 - e, since=lo) for b in BOOKS for e in GRID["edge"]},
               weekdays=_weekdays(lo, hi))
 
 

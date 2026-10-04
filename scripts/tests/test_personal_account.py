@@ -112,5 +112,12 @@ class Guards(unittest.TestCase):
         self.assertAlmostEqual(m["terminal_multiple"], 1.0 + 10 * 0.01 + 0.01, places=6)
 
 
+class Haircut(unittest.TestCase):
+    def test_the_haircut_mean_is_taken_on_the_sampled_span(self):
+        rows = {("H7_XAUUSD_eod", 2.0): [dict(row(R=1.0), day="2010-01-04"), dict(row(R=0.2), day="2020-01-06")]}
+        self.assertAlmostEqual(PA.haircut_shift(rows, "H7_XAU", 1.0)["H7_XAUUSD_eod"], 0.6)
+        self.assertAlmostEqual(PA.haircut_shift(rows, "H7_XAU", 1.0, since="2018-02-26")["H7_XAUUSD_eod"], 0.2)
+
+
 if __name__ == "__main__":
     unittest.main()
