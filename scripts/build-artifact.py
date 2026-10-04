@@ -1086,59 +1086,95 @@ def ict_json(rows, tf):
 
 # A2: distribution's record fields are computed on MIRRORED prices (wyckoff_rules.py detect_distributions()),
 # so the SAME field names (sc/ar/spring/sos/...) sit on the OPPOSITE side of the range in real price terms --
-# knowledge/wyckoff/advance.md p101's own mirror schematic (Buying Climax/Upthrust/Sign-of-Weakness are
-# distribution's names for accumulation's Selling Climax/Spring/Sign-of-Strength). These two tables are this
-# project's chart-label choice for that mirroring (VISUALIZATION_ONLY -- the letters never reach a decision);
-# disclosed as a project convention, not a page citation, in docs/audits/2026-09-29-a2-chart-from-engine.md.
+# knowledge/wyckoff/advance.md p101's own mirror schematic. The vocabulary is the book's (WA glossary §1.3, p8,
+# and the distribution phases WA p101-111): BC for the climax, UTAD for the Phase C test (WA p106-107: "UTAD[C]
+# ngược lại Spring"), SOW, LPSY for the Phase D back-up (WA p110) and LPSY[C] for the no-UTAD Phase C (WA p106);
+# accumulation keeps SC / Spring / SOS / BU / LPS[C]. A Spring the engine typed a Shakeout (R6, record
+# shakeout=True; WA p80, p83; method.md §2 A6) is labelled "Shakeout" -- it is not a Spring and has no direct entry;
+# on the distribution side WA p107 gives one name, UTAD, for the mirror of both ("nó giống như một Spring/Shakeout"),
+# so the label reads "UTAD (Shakeout)". VISUALIZATION_ONLY -- the letters never reach a decision.
 _WY_EVENT_LABEL = {
-    "long": {"sc": "SC", "ar": "AR", "st": "ST", "choch": "CHoCH", "spring": "Spring", "reclaim": "Reclaim",
-             "test": "Test", "sos": "SOS", "sos_bar": "SOS", "bu": "BU"},
-    "short": {"sc": "BC", "ar": "AR", "st": "ST", "choch": "CHoCH", "spring": "UT", "reclaim": "Reclaim",
-              "test": "Test", "sos": "SOW", "sos_bar": "SOW", "bu": "BU"},
+    "long": {"sc": "SC", "ar": "AR", "st": "ST", "choch": "CHoCH", "spring": "Spring", "shakeout": "Shakeout",
+             "test": "Test", "lps_c": "LPS[C]", "sos_bar": "SOS", "bu": "BU"},
+    "short": {"sc": "BC", "ar": "AR", "st": "ST", "choch": "CHoCH", "spring": "UTAD", "shakeout": "UTAD (Shakeout)",
+              "test": "Test", "lps_c": "LPSY[C]", "sos_bar": "SOW", "bu": "LPSY"},
 }
 # Which side of the candle (high=top / low=bottom) an event's flag anchors on -- support-context events anchor
-# at the low, resistance/breakout-context events at the high; mirrored for distribution (A2 project choice).
-_WY_EVENT_TOP = {"long": {"ar", "sos", "sos_bar", "bu"}, "short": {"sc", "spring", "reclaim", "test"}}
+# at the low, resistance/breakout-context events at the high; mirrored for distribution. The CHoCH bar is the
+# third CHoBEV swing HIGH of an accumulation (wyckoff_rules R1), so it anchors on top there; on the distribution
+# side it is a swing low. The distribution ST retests the BC high (WA p103) and anchors on top.
+_WY_EVENT_TOP = {"long": {"ar", "choch", "sos_bar", "bu"}, "short": {"sc", "st", "spring", "test", "lps_c"}}
 _WY_TR_LABELS = {"long": ("AR", "SC"), "short": ("BC", "AR")}   # (high_label, low_label)
+# The detector side as the narrative's structure word (machine values; display via the structure.* keys)
+_WY_STRUCTURE_WORD = {"long": "tích lũy",   # structure.tích lũy
+                      "short": "phân phối"}  # structure.phân phối
+_WY_EMPTY = {"tr": None, "events": [], "phases": [], "side": None, "phase": None, "invalidated_at": None}
+
+
+def _wy_event_label(e, side, rows, kind, tick):
+    """One event flag's text. A '?' marks a label whose confirming close has not printed (check-narrative.py's
+    pullback proxy, WA p93/p161 notation); a Spring/UTAD carries its R7 volume type (T1/T2/T3, WMT p049 / p064 --
+    a different table per side), and on a tick-volume feed that type is marked "(tick)" (method.md §4.1, WMT
+    p131-133: tick count is not traded volume)."""
+    k = e["kind"]
+    key = "shakeout" if (k == "spring" and e.get("shakeout")) else k
+    name = _WY_EVENT_LABEL[side].get(key, k.upper())
+    if k == "spring" and not e.get("shakeout") and e.get("vol_type"):
+        name += f' T{e["vol_type"]}' + (" (tick)" if tick else "")
+    top = k in _WY_EVENT_TOP[side]
+    # the candidate marker closes the label ('SOS[D]?' convention; check-narrative.py _label_confirmed reads the end)
+    q = "?" if e.get("confirmed") is False else ""
+    return f'{name} {fmtn(rows[e["i"]]["high"] if top else rows[e["i"]]["low"], kind)}{q}', top
+
+
+def wy_ship(rows, tf, sym, kind, side, P=None):
+    """The shipped (chart/ladder) Wyckoff read of ONE side: the most recent trading_range by its own `available_at`,
+    from scripts/structures.py wyckoff_structures() with the chart's ENVELOPE_PARAMS (W8 on, VISUALIZATION_ONLY;
+    structures.py). Returns None when that side detected nothing. Every object carries the engine's point-in-time
+    `available_at` (structures._wy_availability): replay never shows a label, a phase end or an invalidation
+    before a prefix run would have emitted it."""
+    O = [r["open"] for r in rows]; H = [r["high"] for r in rows]; L = [r["low"] for r in rows]
+    C = [r["close"] for r in rows]; V = [r.get("volume", 0) for r in rows]
+    tick = I.is_tick_volume(sym)
+    env = structures.wyckoff_structures(O, H, L, C, V, rows, tf, P=structures.ENVELOPE_PARAMS if P is None else P,
+                                        volume_kind="tick" if tick else "traded", side=side)
+    if not env["structures"]:
+        return None
+    tr = max(env["structures"], key=lambda s: (s["available_at"], s["formed_at"]))
+    high_label, low_label = _WY_TR_LABELS[side]
+    events = []
+    for e in tr["events"]:
+        label, up = _wy_event_label(e, side, rows, kind, tick)
+        events.append(dict(time=e["formed_at"], label=label, up=up, kind=e["kind"], available_at=e["available_at"]))
+    phases = [{"from": p["from"], "to": p["to"], "label": p["label"], "status": p["status"],
+               "reasons": p["reasons"], "open_reasons": p["open_reasons"],
+               "available_at": p["available_at"], "state_available_at": p["state_available_at"]}
+              for p in tr["phases"]]
+    inv = tr.get("invalidated")
+    return {"tr": {"high": tr["tr_hi"], "low": tr["tr_lo"], "high_label": high_label, "low_label": low_label,
+                   "from": tr["formed_at"], "available_at": tr["available_at"],
+                   "to": tr["to"], "to_available_at": tr["to_available_at"], "end_reason": tr["end_reason"]},
+            "events": events, "phases": phases, "side": side,
+            "phase": phases[-1]["label"] if phases else None,
+            # ADR 0004 / chart.js wyckoffShapes: `time` is the breaking candle's own open time (idxOf), the
+            # availability is when a prefix run would first show it (engine, structures.py).
+            "invalidated_at": ({"time": inv["formed_at"], "available_at": inv["available_at"], "reason": inv["reason"]}
+                               if inv else None)}
 
 
 def wy_json_engine(rows, tf, sym, kind):
-    """The chart's Wyckoff overlay (A2 / ADR 0009): scripts/structures.py `wyckoff_structures()` on the SAME
-    `rows` this tier draws, in BOTH directions (accumulation and distribution -- the chart does not know in
-    advance which one is live), picking the MOST RECENT trading_range across both by its own `available_at` as
-    "the current read". "Most recent" is this project's choice for what a single-TR overlay shows when more
-    than one candidate exists; it is not itself a sourced page citation (docs/audits/2026-09-29-a2-chart-from-
-    engine.md). Replaces the narrative-authored wy_json(): the model's own TR/events/phase text stops being
-    drawn as chart analysis (A2) -- the narrative's prose blocks are untouched elsewhere on the page (CLAUDE.md
-    §17: original records are immutable), only this chart overlay changes source.
+    """The chart's Wyckoff overlay (A2 / ADR 0009): `wy_ship()` on the SAME `rows` this tier draws, in BOTH
+    directions (accumulation and distribution -- the chart does not know in advance which one is live), picking
+    the MOST RECENT trading_range across both by its own `available_at` as "the current read". "Most recent" is
+    this project's choice for what a single-TR overlay shows when more than one candidate exists; it is not itself
+    a sourced page citation (docs/audits/2026-09-29-a2-chart-from-engine.md). The narrative's prose blocks are
+    untouched elsewhere on the page (CLAUDE.md §17: original records are immutable), only this overlay's source.
 
-    Returns {"tr": None, "events": [], "phases": []} when nothing was detected -- chart.js's "structure not
-    established" state (A2) reads an absent/empty `tr` exactly this way."""
-    O = [r["open"] for r in rows]; H = [r["high"] for r in rows]; L = [r["low"] for r in rows]
-    C = [r["close"] for r in rows]; V = [r.get("volume", 0) for r in rows]
-    vkind = "tick" if I.is_tick_volume(sym) else "traded"
-    candidates = []
-    for side in ("long", "short"):
-        env = structures.wyckoff_structures(O, H, L, C, V, rows, tf, volume_kind=vkind, side=side)
-        candidates += [(side, tr) for tr in env["structures"]]
-    if not candidates:
-        return {"tr": None, "events": [], "phases": []}
-    side, tr = max(candidates, key=lambda st: (st[1]["available_at"], st[1]["formed_at"]))
-    high_label, low_label = _WY_TR_LABELS[side]
-    labels, top = _WY_EVENT_LABEL[side], _WY_EVENT_TOP[side]
-    events = [dict(time=e["formed_at"],
-                    label=f'{labels.get(e["kind"], e["kind"].upper())} {fmtn(rows[e["i"]]["high"] if e["kind"] in top else rows[e["i"]]["low"], kind)}',
-                    up=e["kind"] in top)
-              for e in tr.get("events", [])]
-    # I4: every shipped Wyckoff object carries the engine's own `available_at` so replay (chart.js) can filter by
-    # availability, never by formed time.
-    for ev, e in zip(events, tr.get("events", [])):
-        ev["available_at"] = e["available_at"]
-    phases = [{"from": p["from"], "to": p["to"], "label": p["label"], "status": p["status"],
-               "available_at": p["available_at"]} for p in tr.get("phases", [])]
-    return {"tr": {"high": tr["tr_hi"], "low": tr["tr_lo"], "high_label": high_label, "low_label": low_label,
-                    "from": tr["formed_at"], "available_at": tr["available_at"]},
-            "events": events, "phases": phases}
+    Returns `_WY_EMPTY` (tr None) when nothing was detected -- chart.js's "structure not established" state."""
+    reads = [w for w in (wy_ship(rows, tf, sym, kind, side) for side in ("long", "short")) if w]
+    if not reads:
+        return dict(_WY_EMPTY)
+    return max(reads, key=lambda w: (w["tr"]["available_at"], w["tr"]["from"]))
 
 
 def _parse_iso(s):
@@ -1171,7 +1207,7 @@ BIAS_CLS = {"long": "long", "short": "short", "neutral": "wait", "unknown": "wai
 BIAS_KEY = {"long": "bias.long", "short": "bias.short", "neutral": "bias.neutral", "unknown": "bias.unknown"}
 
 
-def ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name, dims):
+def ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name, dims, wy_engine=None):
     """Three rows, top-down: Bias -> Structure -> Entry. Each row answers ONE question per method (Wyckoff: structure +
     phase + TR; ICT: dealing-range position + last MSS) and ends in one conclusion chip. Wording for a missing rung is
     printed, never skipped (docs/architecture/timeframe-mapping.md). `dims` gates the method columns the same way
@@ -1181,6 +1217,11 @@ def ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name, dims):
 
     Like matrix(), this is a CSS grid: the cells are placed by grid-template-columns and are never duplicated per
     locale -- only their contents are.
+
+    `wy_engine` ({tier name: wy_json_engine() output, "entry": ...}; ADR 0009, chart fidelity finding 12): when
+    given, the Wyckoff column's structure / phase / TR come from the ENGINE read the chart below draws, so the page
+    shows ONE structure source -- the narrative's TR/phase no longer sits beside a different engine TR. None (unit
+    tests that predate it) keeps the narrative cell.
     """
     tfmin = lambda tf: TF_MIN.get(tf, 0)
     ratio = lambda hi, lo: (f"×{tfmin(hi) / tfmin(lo):g}" if tfmin(hi) and tfmin(lo) else "")
@@ -1204,6 +1245,22 @@ def ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name, dims):
                     f'{esc(tr.get("high_label", "AR"))} {fmtn(tr["high"], kind)}</div>')
         if w.get("updated"):
             out += f'<div class="ld-kv muted">{DUAL(lambda l: T("ladder.read_at", l, time=when(str(w["updated"])[:19] + "Z", l)))}</div>'
+        return out
+
+    def wy_engine_cell(w):
+        # The engine read (wy_json_engine): structure word from the detector side (detect_accumulations ->
+        # accumulation, detect_distributions -> distribution), the last phase band (with '?' when it is a
+        # hypothesis -- structures._wy_view status), and the engine's TR border labels.
+        if not w or not w.get("tr"):
+            return f'<b>{i18n.tx("structure.chưa xác lập")}</b>'
+        tr = w["tr"]
+        out = f'<b>{structure_badge(_WY_STRUCTURE_WORD.get(w.get("side"))) or i18n.tx("structure.chưa xác lập")}</b>'
+        last = (w.get("phases") or [None])[-1]
+        if last:
+            letter = esc(last["label"]) + ("?" if last.get("status") != "tested" else "")
+            out += " · " + DUAL(lambda l: T("l3.phase", l, phase=f'<b>{letter}</b>'))
+        out += (f'<div class="ld-kv">{esc(tr.get("low_label", "SC"))} {fmtn(tr["low"], kind)} – '
+                f'{esc(tr.get("high_label", "AR"))} {fmtn(tr["high"], kind)}</div>')
         return out
 
     def ict_cell(f):
@@ -1239,11 +1296,17 @@ def ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name, dims):
                      f'{basis_attr(c.get("basis"))}>{i18n.tx(BIAS_KEY.get(c["bias"], "bias.unknown"))}</span>')
         else:
             chipv = f'<span class="chip chip-wait">{i18n.tx("ladder.not_scanned")}</span>'
-        cells = {"wyckoff": wy_cell(c and c.get("wyckoff")), "ict": ict_cell(c)}
+        if wy_engine is None:
+            wcell = wy_cell(c and c.get("wyckoff"))
+        else:   # a tier with no candle rows was never read by the engine: say so, not "not established"
+            wcell = wy_engine_cell(wy_engine[name]) if name in wy_engine else muted("ladder.not_scanned")
+        cells = {"wyckoff": wcell, "ict": ict_cell(c)}
         sub = DUAL(lambda l: T("ladder.updated", l, time=hhmm(c.get("last_time"), l) if c else "—"))
         rows.append((name, head, sub, cells, chipv, name == gate_name))
     wy = (n3 or {}).get("wyckoff") or {}
-    entry_cells = {"wyckoff": wy_cell({**wy, "updated": (n3 or {}).get("_updated_iso")} if wy else None), "ict": ict_cell(l1 and l1.get("facts"))}
+    entry_cells = {"wyckoff": (wy_engine_cell(wy_engine.get("entry")) if wy_engine is not None
+                               else wy_cell({**wy, "updated": (n3 or {}).get("_updated_iso")} if wy else None)),
+                   "ict": ict_cell(l1 and l1.get("facts"))}
     entry_sub = DUAL(lambda l: T("ladder.updated", l, time=hhmm(l1["ts"], l) if l1 else "—"))
     rows.append(("entry", S["tf"], entry_sub, entry_cells, chip(cur_verdict, "chip-lg"), False))
     body = (f'<div class="ld-head ld-corner">{i18n.tx("ladder.head.tier")}</div>'
@@ -1710,7 +1773,8 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
                 f'<div class="sym-kv"><span>{DUAL(lambda l: T("sym.window_pos", l, tf=S["tf"], pct=pos_pct))}</span>'
                 f'<span>{DUAL(lambda l: T("sym.last_candle", l, time=f"<b>{when(rows[-1]["time"], l)}</b>"))}</span></div>'
                 f'<div class="sym-verdict"><span class="lbl">{DUAL(lambda l: T("sym.entry_tf", l, tf=S["tf"]))}</span>{chip(cur_verdict, "chip-lg")}</div></div>')
-        ladder_html = ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name, dims)
+        ladder_html = ladder(S, sym, kind, cur_verdict, l1, n3, tier_ctx, gate_name, dims,
+                             wy_engine={**tier_wy, "entry": wy_js})
         charts_html = ""
         for tname in ("bias", "structure"):
             t = S["tiers"].get(tname)

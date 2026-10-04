@@ -328,12 +328,20 @@ class WyckoffStructuresMatchDetect(unittest.TestCase):
         for tr in env["structures"]:
             self.assertEqual(tr["kind"], "trading_range")
             self.assertEqual(tr["formed_at"], self.window[tr["sc"]]["time"])
-            want_available = N.available_time(self.window[tr["choch"]], "4H").isoformat().replace("+00:00", "Z")
-            self.assertEqual(tr["available_at"], want_available)
+            # Chart fidelity finding 4: the range used to be stamped available at the CHoCH bar, but the record
+            # (and so the range) is only EMITTED once its Spring / LPS[C] path fires, and the CHoCH pivot itself
+            # needs `pivot` more bars. available_at is never earlier than either.
+            choch_conf = _iso(self.window[min(tr["choch"] + W.PARAMS["pivot"], len(self.window) - 1)], "4H")
+            emit = tr["spring"] if tr["path"] == "spring" else tr["sos_bar"]
+            self.assertGreaterEqual(tr["available_at"], choch_conf)
+            self.assertGreaterEqual(tr["available_at"], _iso(self.window[emit], "4H"))
             for ev in tr["events"]:
                 c = self.window[ev["i"]]
                 self.assertEqual(ev["formed_at"], c["time"])
-                self.assertEqual(ev["available_at"], N.available_time(c, "4H").isoformat().replace("+00:00", "Z"))
+                self.assertGreaterEqual(ev["available_at"], _iso(c, "4H"))
+                self.assertGreaterEqual(ev["available_at"], tr["available_at"])
+            self.assertNotIn("reclaim", [e["kind"] for e in tr["events"]], "finding 16: Reclaim is not a Wyckoff event")
+            self.assertNotIn("sos", [e["kind"] for e in tr["events"]], "finding 15: one SOS flag (sos_bar) only")
 
 
 class A1bInvalidatedAt(unittest.TestCase):
@@ -409,12 +417,21 @@ class A1bWyckoffPhases(unittest.TestCase):
             self.assertEqual(labels, list("ABCDE")[:len(labels)])
 
     def test_open_phase_is_hypothesis_and_closed_phase_is_tested(self):
+        """Finding 7 (method.md §2 A4; WA p150-159, p166-167): closed is necessary but not sufficient -- a phase is
+        'tested' only when the đối nhãn reads do not contradict and the structure is not sloped."""
         for tr in self.env["structures"]:
+            contra = (tr["sloped"] or tr["st_sign"] == "contradicts" or tr["phase_b_sign"] == "contradicts")
             for p in tr["phases"]:
                 if p["to"] is None:
                     self.assertEqual(p["status"], "hypothesis")
+                    self.assertIn("open", p["reasons"])
+                if contra:
+                    self.assertEqual(p["status"], "hypothesis", p)
+                if p["status"] == "tested":
+                    self.assertIsNotNone(p["to"])
+                    self.assertEqual(p["reasons"], [])
                 else:
-                    self.assertEqual(p["status"], "tested")
+                    self.assertTrue(p["reasons"], p)
 
     def test_phase_available_at_never_before_formed_at(self):
         for tr in self.env["structures"]:
@@ -424,14 +441,16 @@ class A1bWyckoffPhases(unittest.TestCase):
                 self.assertGreaterEqual(available, formed)
 
     def test_last_phase_status_matches_the_record_shape(self):
-        """A record with no `bu` has no Phase E band at all; a record with `bu` does, and it is always open."""
+        """Finding 10 (WA p85): Phase E exists only once price closes beyond the SOS leg AFTER the BU -- a record
+        with no `bu` has no Phase E band; when present it is never 'tested' (nothing closes it)."""
         for r, tr in zip(self.env["records"], self.env["structures"]):
             labels = [p["label"] for p in tr["phases"]]
-            if r.get("bu") and r["bu"].get("bar") is not None:
+            if not (r.get("bu") and r["bu"].get("bar") is not None):
+                self.assertNotIn("E", labels)
+            if "E" in labels:
                 self.assertEqual(labels[-1], "E")
                 self.assertEqual(tr["phases"][-1]["status"], "hypothesis")
-            else:
-                self.assertNotIn("E", labels)
+                self.assertGreater(tr["phases"][-1]["from"], self.window[r["bu"]["bar"]]["time"])
 
 
 def _history(sym, tf, n=600):
@@ -489,7 +508,11 @@ class A1bWyckoffPhaseAvailabilityAcrossSymbols(unittest.TestCase):
                     continue
                 ev = next(e for e in tr["events"] if e["kind"] == "sos_bar")
                 self.assertEqual(ev["formed_at"], candles[r["sos_bar"]]["time"])
-                self.assertEqual(ev["available_at"], _iso(candles[r["sos"]], tf), f"{sym} {tf} {side}")
+                self.assertEqual(ev["conf_bar"], r["sos"])
+                # Never before the follow-through close (I3). The point-in-time scan (finding 3/4) is stricter
+                # still: the detector's SOS search runs only to n - COMMIT, so a prefix run first emits the SOS
+                # one bar AFTER `sos` -- the exact bar, not a formula, is pinned by the prefix test below.
+                self.assertGreaterEqual(ev["available_at"], _iso(candles[r["sos"]], tf), f"{sym} {tf} {side}")
                 self.assertGreaterEqual(r["sos"], r["sos_bar"])
                 seen += 1
         self.assertGreater(seen, 0, "no SOS-confirmed range across any symbol")

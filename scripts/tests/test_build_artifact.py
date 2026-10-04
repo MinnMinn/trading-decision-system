@@ -112,7 +112,8 @@ class Page(unittest.TestCase):
         self.assertTrue(any(t["ict"]["structures"] for t in sym["tiers"]), "no tier carried an engine ICT object")
         for t in sym["tiers"]:
             self.assertEqual(t["levels"], [], f"{t['key']}: model-owned anchors must not be drawn as analysis")
-            self.assertEqual(sorted(t["wy"]), ["events", "phases", "tr"], t["key"])
+            # chart fidelity findings 5/12: + the engine's invalidation, the side (legend/ladder) and the last phase
+            self.assertEqual(sorted(t["wy"]), ["events", "invalidated_at", "phase", "phases", "side", "tr"], t["key"])
             self.assertEqual(sorted(t["ict"]), ["bias", "dealing_range", "structures"], t["key"])
             for o in t["ict"]["structures"]:
                 for k in ("kind", "formed_at", "available_at"):

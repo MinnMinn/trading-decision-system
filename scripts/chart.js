@@ -138,11 +138,21 @@ function ictFromStructures(structs, dealingRange, rows, opts){
 // with no `available_at` is dropped. The range itself is drawable only once its own `available_at` (the CHoCH)
 // has passed; before that the whole read is "not established at the cursor", so its events/phases go too.
 // No cutIso (the full, live view) returns the read unchanged.
+// Chart fidelity (findings 3/4/5/10): every engine availability is the bar a PREFIX re-run of the detector would
+// first emit the object in that state (scripts/structures.py _wy_availability). A phase whose end/status is not yet
+// known at the cursor (`state_available_at` later) is shown OPEN -- the state the prefix run had -- with its
+// `open_reasons`; the range's end (`to_available_at`) and the invalidation (`invalidated_at.available_at`) likewise
+// appear only once available.
 function wyckoffAt(wy, cutIso){
   wy = wy||{}; if(!cutIso) return wy;
   const ok = o => !!o && !!o.available_at && o.available_at<=cutIso;
-  if(!ok(wy.tr)) return Object.assign({}, wy, {tr:null, events:[], phases:[]});
-  return Object.assign({}, wy, {events:(wy.events||[]).filter(ok), phases:(wy.phases||[]).filter(ok)});
+  if(!ok(wy.tr)) return Object.assign({}, wy, {tr:null, events:[], phases:[], invalidated_at:null});
+  const known = t => !!t && t<=cutIso;
+  const tr = known(wy.tr.to_available_at) ? wy.tr : Object.assign({}, wy.tr, {to:null, end_reason:null});
+  const phases = (wy.phases||[]).filter(ok).map(p => (p.state_available_at && !known(p.state_available_at))
+    ? Object.assign({}, p, {to:null, status:'hypothesis', reasons:(p.open_reasons||['open'])}) : p);
+  return Object.assign({}, wy, {tr, events:(wy.events||[]).filter(ok), phases,
+    invalidated_at:(wy.invalidated_at && ok(wy.invalidated_at)) ? wy.invalidated_at : null});
 }
 
 // Wyckoff volume read: rolling mean of the previous P.lookback completed bars (project parameter).
@@ -234,6 +244,10 @@ const ictShapes = (rows, ict, cfg) => {
 // THIS CALL ACTUALLY RECEIVED -- in replay those are already sliced to the cursor (applyLane's `rowsV`), so
 // idxOf returns -1 (draw normally) until the reader's own cursor reaches the break: replay stays point-in-time
 // without any extra cursor plumbing here.
+// structures.py _wy_view reason codes -> their FULL catalog keys (literal values, so the i18n slice test sees them)
+const WY_REASON_KEY = {sloped:'chart.wyckoff.reason.sloped', st_lower_third:'chart.wyckoff.reason.st_lower_third',
+  b_tests_lower:'chart.wyckoff.reason.b_tests_lower', unconfirmed:'chart.wyckoff.reason.unconfirmed',
+  expired:'chart.wyckoff.reason.expired', open:'chart.wyckoff.reason.open'};
 const wyckoffShapes = (rows, wy, cfg) => {
   if(!rows.length) return [];   // S3: nothing to anchor a shape to
   const S=[], n=rows.length, compact=!!cfg.compact, fmt=cfg.fmt||(v=>String(v)); wy=wy||{};
@@ -243,11 +257,10 @@ const wyckoffShapes = (rows, wy, cfg) => {
   if(!wy.tr && !(wy.events||[]).length && !(wy.phases||[]).length){
     const li=n-1;
     S.push({kind:'mark',i:li,price:rows[li][CLOSE],glyph:'dot',color:'ink',r:3,ring:true});
-    if(!compact){
-      // right edge at the last close: the chart shows only the tail of the window, so a label anchored at a bar index
-      // (or at the window's high/low) can sit off-pane; the last close is always inside the visible autoscaled range.
-      S.push({kind:'label',i:null,price:rows[li][CLOSE],text:L('chart.wyckoff.not_established'),color:'muted',anchor:'end',dx:-12,dy:-16,bold:true});
-    }
+    // right edge at the last close: the chart shows only the tail of the window, so a label anchored at a bar index
+    // (or at the window's high/low) can sit off-pane; the last close is always inside the visible autoscaled range.
+    // Compact (HTF) tiers get the SHORT tag (method.md §2 A1: "not established" is a state to show, not a blank dot).
+    S.push({kind:'label',i:null,price:rows[li][CLOSE],text:L(compact?'chart.wyckoff.not_established_short':'chart.wyckoff.not_established'),color:'muted',anchor:'end',dx:-12,dy:-16,bold:!compact});
     return S;
   }
   const invAt=cfg.invalidatedAt||null, state=invalidationState(rows,invAt);
@@ -275,8 +288,16 @@ const wyckoffShapes = (rows, wy, cfg) => {
     // convenience), not a rendering nicety.
     const hypothesis = ph.status!=='tested';
     if(hypothesis) dispLbl = dispLbl?(dispLbl+'?'):null;
-    const dead = invalidated && a<=endIdx;
-    if(dead){ b=Math.min(b,endIdx+1); dispLbl = (dispLbl||'') + suffix; }
+    // Chart fidelity finding 7 (method.md §2 A4; WA p150-159 mislabelling tests, WA p166-167): the engine marks a
+    // phase tested only when the ST / Phase-B test reads do not contradict and the structure is not sloped -- the
+    // FIRST reason it gives is printed beside the '?' so a reader sees WHY ('open' needs no words: the '?' says it).
+    const why=(ph.reasons||[]).find(r=>r!=='open');
+    const dead = invalidated && a<=endIdx;   // a dead band says "invalidated" instead (ADR 0004) -- one reason, not two
+    if(hypothesis && why && dispLbl && !dead && WY_REASON_KEY[why]) dispLbl += ' '+L(WY_REASON_KEY[why]);
+    // Only the band the break falls in carries the dated suffix: narrow A/B bands side by side otherwise print the
+    // same "invalidated <date>" three times over each other (seen in the 2026-10-04 captures); every dead band is
+    // still faded and truncated, and the TR lines carry the suffix too.
+    if(dead){ const holds=b>endIdx; b=Math.min(b,endIdx+1); if(holds) dispLbl = (dispLbl||'') + suffix; }
     S.push({kind:'rect',i1:Math.max(0,a)-0.5,i2:Math.min(n,b)-0.5,p1:null,p2:null,
       fill: dead?'muted':'w', alpha: dead?0.035:(hypothesis?0.045:0.07),
       stroke: dead?'muted':'w', sw:1, dash:[2,4], strokeAlpha: dead?0.35:(hypothesis?0.45:0.6),
@@ -285,7 +306,10 @@ const wyckoffShapes = (rows, wy, cfg) => {
     // +0.5: idxOf(rows,invalidatedAt) is the BREAKING candle's own index (WA/scripts/ict-scan.py's first
     // completed close beyond the level) -- it is the last bar the structure was still valid over, so the line
     // must run THROUGH it, matching the phase band's `b=endIdx+1` (-> i2=b-0.5=endIdx+0.5) above.
-    const dead=invalidated && a<=endIdx, i2=dead?endIdx+0.5:null;
+    // Finding 10 (WA p85-86): the range ends where the engine says it does -- the D->E exit (first close beyond
+    // the SOS/SOW leg), the invalidation, or the stale-read expiry -- instead of running to the right edge forever.
+    const toIdx=wy.tr.to?idxOf(rows,wy.tr.to):-1;
+    const dead=invalidated && a<=endIdx, i2=dead?endIdx+0.5:(toIdx>=0?toIdx+0.5:null);
     [[wy.tr.high,wy.tr.high_label||'AR'],[wy.tr.low,wy.tr.low_label||'SC']].forEach(([v,lb])=>{ if(v==null)return;
       S.push({kind:'hseg',i1:a-0.4,i2,price:v,stroke:dead?'muted':'w',sw:dead?1:1.6,dash:[5,3],alpha:dead?0.4:1,
         label:lb+' '+fmt(v)+(dead?suffix:''),labelAt:'axis'}); }); }
@@ -585,11 +609,14 @@ function applyLane(h, lane, P){
   // neither as the plan-side invalidation line nor as the Wyckoff break mark. `invalidatedAt` stays a parameter of
   // the shape builders (they are pure and tested) and is fed only by an ENGINE-computed invalidation, which the
   // engine does not yet emit for a Wyckoff read (listed in docs/audits/2026-09-29-a2-chart-from-engine.md).
-  const invalidatedAt=null;
-  const compact=!!t.compact, cfgS={compact,fmt,invalidatedAt,narrativeUpdated:t.key==='entry'?d.updated:null};
-  candlesData(h);
+  // Chart fidelity finding 5 (ADR 0004): the ENGINE now emits the Wyckoff invalidation (structures.py
+  // `invalidated`: R10 abandon / a close beyond the Spring-UT extreme, WMT p243-249, p271), so it feeds the
+  // shape builders -- after the replay filter, so it only shows once a prefix run would have emitted it.
   // I4: replay filters the Wyckoff read by the engine's own availability (tr/events/phases), never by formed time.
   const wy=wyckoffAt(t.wy, h.cursor==null?null:availableTimeOf(h.rows,h.cursor,h.cfg.tfMin));
+  const invalidatedAt=(wy&&wy.invalidated_at&&wy.invalidated_at.time)||null;
+  const compact=!!t.compact, cfgS={compact,fmt,invalidatedAt,narrativeUpdated:t.key==='entry'?d.updated:null};
+  candlesData(h);
   let S=[]; if(t.window) S=S.concat(windowShape(rowsV,t.window.from));
   if(lane==='ict') S=S.concat(ictShapes(rowsV,h.view.ict,cfgS)); else S=S.concat(wyckoffShapes(rowsV,wy,cfgS));
   S=S.concat(levelShapes(rowsV,t.levels,lane,fmt,invalidatedAt));
@@ -608,7 +635,7 @@ function applyLane(h, lane, P){
     h.avg.setData(rowsV.map((c,i)=>vs.avg[i]==null?{time:unix(c[ISO])}:{time:unix(c[ISO]),value:vs.avg[i]}));
     // `labels`, not `L`: L is the message lookup, and a local L here would shadow it for the whole block.
     const labels=[]; if(!compact){ const spikes=rowsV.map((c,i)=>({i,r:vs.ratio[i]})).filter(o=>o.r!=null&&o.r>=P_.spike).sort((a,b)=>b.r-a.r), gapN=Math.ceil(n/40), labeled=[];
-      spikes.forEach(o=>{ if(labeled.some(j=>Math.abs(j-o.i)<gapN))return; labeled.push(o.i); labels.push({kind:'label',i:o.i,price:rowsV[o.i][VOL],text:o.r.toFixed(1)+'×',color:'w',anchor:'middle',dx:0,dy:-7}); });
+      spikes.forEach(o=>{ if(labeled.some(j=>Math.abs(j-o.i)<gapN))return; labeled.push(o.i); labels.push({kind:'label',i:o.i,price:rowsV[o.i][VOL],text:o.r.toFixed(1)+'×'+(d.tick?' (tick)':''),color:'w',anchor:'middle',dx:0,dy:-7}); });   // method.md §4.1 / WMT p131-133: a tick-count ratio is marked so it cannot read as traded volume
       labels.push({kind:'label',i:null,price:vs.avg.filter(v=>v!=null).slice(-1)[0]||0,text:L('chart.mean_n',{n:(P_.lookback||20)}),color:'faint',anchor:'end',dx:-4,dy:-7}); }
     h.annVol.set(labels); h.range.setData([]); h.annRange.set([]); h.note.set(''); }
   else if(showRange){ h.vol.setData([]); h.avg.setData([]); h.annVol.set([]);
@@ -643,12 +670,17 @@ function onClick(h, x, y){ const ts=h.chart.timeScale(), i=Math.round(ts.coordin
 // The legend is rebuilt on every lane, theme AND language change -- it already was on the first two, which is
 // why it needed no new machinery for the third. Swatch classes are markup, the words come from the catalog.
 function paneLabel(pane){ const l=pane&&pane.label; if(l==null) return ''; return (typeof l==='object')?(l[LANG]!=null?l[LANG]:l[P_DEFAULT]):l; }
+// Finding 17: the TR legend names the border events of the side the ENTRY tier's engine read is on (accumulation
+// SC / AR, distribution BC / AR -- the labels wy_ship() ships); both pairs when no range is drawn.
+function wyTrLabels(d){ const e=((d&&d.tiers)||[]).find(t=>t.key==='entry'), tr=e&&e.wy&&e.wy.tr;
+  if(!tr) return 'SC / AR · BC / AR';   // climax first, then the AR it bounced to
+  return e.wy.side==='short' ? (tr.high_label+' / '+tr.low_label) : (tr.low_label+' / '+tr.high_label); }
 function legendHtml(lane, d, P){
   const sw=(cls,txt)=>`<span><i class="sw ${cls}"></i>${txt}</span>`, plain=t=>`<span>${t}</span>`;
   if(lane==='wyckoff') return sw('up',L('legend.candle_up'))+sw('down',L('legend.candle_down'))
     +sw('vol',L('legend.volume')+(d.tick?' '+L('legend.tick_volume'):''))
     +sw('volhi',L('legend.volume_high',{high:P.high,lookback:P.lookback,spike:P.spike}))
-    +sw('tr',L('legend.tr'))+sw('ph',L('legend.phases'))+plain('● '+L('legend.wyckoff_events'))
+    +sw('tr',L('legend.tr',{labels:wyTrLabels(d)}))+sw('ph',L('legend.phases'))+plain('● '+L('legend.wyckoff_events'))
     +((d.plans&&d.plans.length)?sw('plan',L('legend.plans')):'');
   // A2 / ADR 0009: order blocks, CISD, prev-period levels (PDH/PDL/session H-L) and OTE are chart.js's own
   // (removed) detector's shapes -- the engine (scripts/structures.py) does not compute them, so their legend

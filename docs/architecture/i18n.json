@@ -990,6 +990,34 @@
       "en": "invalidated {date}",
       "vi": "hết hiệu lực {date}"
     },
+    "chart.wyckoff.not_established_short": {
+      "en": "Wyckoff: not established",
+      "vi": "Wyckoff: chưa xác lập"
+    },
+    "chart.wyckoff.reason.sloped": {
+      "en": "sloped",
+      "vi": "dốc"
+    },
+    "chart.wyckoff.reason.st_lower_third": {
+      "en": "ST in lower ⅓",
+      "vi": "ST ở ⅓ dưới"
+    },
+    "chart.wyckoff.reason.b_tests_lower": {
+      "en": "Phase-B tests low",
+      "vi": "kiểm tra pha B ở dưới"
+    },
+    "chart.wyckoff.reason.unconfirmed": {
+      "en": "unconfirmed",
+      "vi": "chưa xác nhận"
+    },
+    "chart.wyckoff.reason.expired": {
+      "en": "stale",
+      "vi": "hết hạn"
+    },
+    "chart.wyckoff.reason.open": {
+      "en": "open",
+      "vi": "đang mở"
+    },
     "chart.wyckoff.invalidated_note": {
       "en": "Analysis {updated} invalidated {date} — awaiting a new read",
       "vi": "Phân tích {updated} hết hiệu lực {date} — chờ phân tích lại"
@@ -1099,16 +1127,16 @@
       "vi": "KL ≥ {high}× TB {lookback} nến (≥ {spike}× ghi số)"
     },
     "legend.tr": {
-      "en": "trading range border (AR / SC)",
-      "vi": "biên vùng giao dịch (AR / SC)"
+      "en": "trading range border ({labels})",
+      "vi": "biên vùng giao dịch ({labels})"
     },
     "legend.phases": {
       "en": "phases A–E",
       "vi": "pha A–E"
     },
     "legend.wyckoff_events": {
-      "en": "Wyckoff events placed by the full analysis",
-      "vi": "sự kiện Wyckoff do phân tích đầy đủ đặt"
+      "en": "engine-detected Wyckoff events",
+      "vi": "sự kiện Wyckoff do engine phát hiện"
     },
     "legend.plans": {
       "en": "trade plans from trades/ (red box = risk, green = profit)",
