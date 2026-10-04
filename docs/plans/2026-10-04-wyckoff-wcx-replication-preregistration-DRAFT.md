@@ -23,8 +23,8 @@ is editing it, so sections are cited by number); EW = `scripts/research/edge_wyc
 
 ## Tóm tắt (VI)
 
-1. Ô W-C-long-15m (Spring/Shakeout long) của RT: +0.25R net, n 63, p 0.18, chưa kết luận (AU:20). WY-F1 forward chỉ
-   ~11 lệnh một năm.
+1. Ô W-C-long-15m (Spring/Shakeout long) của RT: +0.25R net, n 63, p 0.18, chưa kết luận (AU:20). WY-F1 forward với 7 mã
+   chỉ ~11 lệnh một năm.
 2. Ý tưởng WY-X1 (đọc lại đúng ô đó, không đổi gì, trên 5 mã FTMO chưa từng bị chấm cho ô này: XPTUSD, XPDUSD, US2000,
    UK100, JP225) **không đạt như kỳ vọng**: đếm (không đọc kết quả) chỉ được **58 lệnh** (44 trước 2024-03, 14 sau),
    không phải ~100.
@@ -35,16 +35,23 @@ is editing it, so sections are cited by number); EW = `scripts/research/edge_wyc
    1.4R). Nếu edge gộp thật bằng R1 (+0.35R): xác suất qua 0.34-0.47 (α một phía 0.10). Trượt thì gần như không nói lên
    điều gì (§7).
 5. Biến thể để tăng số lệnh / tỉ lệ thắng: **hồ sơ đã commit không ủng hộ biến thể nào** (§4). Chỉ có thể ghi forward.
-6. **Khuyến nghị: CHƯA chạy WY-X1** (§13 mục 1 B). Như bản nháp, không nhãn nào thay đổi gì: WF1, sổ lệnh và hai tài
-   khoản đều như cũ. RD §0 đòi bằng chứng mới mới được mở lại một lớp đã bị giới hạn ở forward (RT:323); yêu cầu của anh
-   là mục tiêu, không phải bằng chứng. Đọc xong thì 5 mã R2 mất vĩnh viễn vai trò bộ kiểm tra lặp lại cho Wyckoff. Nếu
-   anh vẫn muốn chạy: A (chỉ để biết) hoặc A' (có hệ quả: 3 chỉ số rẻ chỉ vào WF1 khi REPLICATED).
-7. Con đường thật để có nhiều lệnh hơn:
-   - WF1 thêm US2000, UK100, JP225 (~11 → ~14 lệnh/năm), đọc 2 lần (12 và 36 tháng, O'Brien-Fleming, tổng α 0.10).
-   - FX: server FTMO giữ lịch sử FX từ 2000 cho 20 cặp (SL). Đây là dữ liệu FRESH thật. Nếu nến 15m dày từ 2021-09 như các
-     chỉ số thì có ~180 lệnh; nếu dày từ 2012 như vàng thì ~500 (nếu FX ra tín hiệu như CFD). Chưa biết cho tới khi
-     export và đếm (WY-X2, đếm trước).
-     Forward với FX + CFD rẻ chỉ ~50 lệnh/năm (không phải ~100). Cần anh mở lại forex cho nghiên cứu (§13 mục 7).
+6. **Đã quyết (2026-10-04, lead, theo việc anh giao làm độc lập): KHÔNG chạy WY-X1 lúc này** (§13 mục 1 B). Lý do: chỉ
+   58 lệnh, xác suất qua 0.25-0.47, và chưa có bằng chứng mới để mở lại một lớp đã bị giới hạn ở forward (RT:323, RD §0);
+   yêu cầu của anh là mục tiêu, không phải bằng chứng. 5 mã R2 vẫn chưa bị đọc cho Wyckoff, giữ làm bộ kiểm tra lặp lại
+   cho sau này. Mục 2-5 không còn cần quyết. Không nhãn nào thay đổi gì: sổ lệnh và hai tài khoản đều như cũ.
+7. **Đã quyết cho WF1** (lead, §13 mục 6; ghi ở WF1 §14):
+   - WF1 thêm US2000, UK100, JP225 (~11 → ~14 lệnh/năm). Không thêm bạch kim / palladium (spread ~0.9R).
+   - Đọc 2 lần: 12 và 36 tháng sau khi niêm phong, alpha spending Lan-DeMets O'Brien-Fleming, tổng α một phía 0.10; ngưỡng
+     tính từ số lệnh thực tế, nên tốc độ ra lệnh không đều vẫn giữ đúng α. Lần 1 chỉ qua khi edge rất lớn (p < ~0.0044);
+     nếu không qua thì kết quả lần 1 bị niêm phong (không hiện ước lượng) tới lần 2. NOT PASSED chỉ có ở lần 2.
+   - Sức mạnh (2 lần đọc, ~14 lệnh/năm): 0.29-0.45 nếu edge thật +0.25R; 0.57-0.85 nếu +0.50R (WF1 §9).
+   - Ghi thêm, không kiểm định: MFE/MAE theo R, số nến tới MFE, cờ cổng HTF ICT, R:R kế hoạch, spread giờ vào lệnh.
+   - WF1 đo ô này trên engine CŨ, đúng bản R0/R1 đã chạy. Thay đổi `scripts/wyckoff_rules.py` sắp merge từ phiên khác
+     KHÔNG áp dụng cho WF1; muốn test engine mới thì phải đăng ký riêng (tên đề xuất WY-F2), không niêm phong lại WF1.
+   - Việc của anh trong MT5 trước khi niêm phong: export lại lịch sử 15m của 10 mã; gắn ExportOHLCV vào chart 15m JP225.cash
+     và AUS200.cash (thiếu thì 2 mã này bị STALLED, không thu được gì). Anh đã cho phép `brew pin python@3.14`.
+8. **FX: anh quyết giữ forex đóng, kể cả cho nghiên cứu** (§13 mục 7 B). Không export FX, không WY-X2. Các con số FX ở
+   §12.3 (lịch sử FX FRESH, ~50 lệnh/năm forward với FX + CFD rẻ) chỉ còn là ước tính trên giấy.
 
 ---
 
@@ -461,6 +468,16 @@ At RT §8's own 2.06R and alpha 0.10 (WX `pass_power` on the same 30 / 28 events
 - No variant changes this within the records (§4).
 
 ## 13. Open decisions (owner, before sealing)
+
+**Decision record (2026-10-04).** The owner delegated independent work to the lead (the coordinating session) on
+2026-10-04 and decided item 7 himself. The options below stay as they were offered.
+
+| item | decision | who | date |
+|---|---|---|---|
+| 1. Run WY-X1? | **(B) Not now.** RT:243 and RT:323 stand. The five symbols' 15m bars stay unread for W-C-long and stay a future replication set (§10). Why: 58 events (§3), power 0.25-0.47 at alpha 0.10 for a true gross +0.25R to +0.35R (§7), and no new evidence to reopen a class limited to forward data (RD:62-63). | lead | 2026-10-04 |
+| 2-5. Decision line, alpha, EU50 / HK50, N25 / SPN35 | Moot: WY-X1 does not run. If it is ever proposed again, they are decided then, before any read. | lead | 2026-10-04 |
+| 6. WY-F1 (§12.2) | Adopted as recommended, recorded in WF1 §14 items 1, 3 and 7: US2000, UK100 and JP225 join WF1 unconditionally (10 symbols; not XPTUSD or XPDUSD); two looks at 12 and 36 months, Lan-DeMets O'Brien-Fleming-type spending, one-sided alpha 0.10 in total, boundaries from the actual event counts; the log-only resolve fields. "Seal WF1 before any WY-X1 read" holds and is moot now. | lead | 2026-10-04 |
+| 7. FX | **(B) Keep it parked, also for research:** *"Giữ forex đóng"*. Nothing in §12.1's FX item is done (no export, no registry entry, no import, no WY-X2 count). §12.3's FX numbers stay estimates. | owner | 2026-10-04 |
 
 1. **Run WY-X1?**
    - (A) "Yes, informational (discovery grade): one historical read of the UNCHANGED cell on the five unread symbols,

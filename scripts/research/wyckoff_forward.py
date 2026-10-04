@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
 """WY-F1, the Wyckoff forward stage. It collects one cell of the sealed re-test, W-C-long-15m: the Phase-C Spring /
 Shakeout long (docs/plans/2026-10-04-wyckoff-retest-preregistration.md §3.2). That cell read INCONCLUSIVE, +0.25R, n 63,
-p 0.18 (docs/audits/2026-10-04-wyckoff-retest.md:20). Here it is collected on FTMO 15m bars that close AFTER the WY-F1
-seal, logged as each signal bar closes, and read ONCE.
+p 0.18 (docs/audits/2026-10-04-wyckoff-retest.md:20). Here it is collected on FTMO 15m bars of 10 symbols that close
+AFTER the WY-F1 seal, logged as each signal bar closes, and read at two pre-registered looks.
 Pre-registration: docs/plans/2026-10-04-wyckoff-forward-wc15-preregistration-DRAFT.md ("WY-F1 §n" below).
+
+What it measures (WY-F1 §1, §5): that cell on the Wyckoff engine AS THE SEALED RE-TEST'S R0 / R1 READ IT -- the files
+`r0_drift` pins (edge_wyckoff, wyckoff_rules, backtest-methods, ...), run from the sealed extract. A later change to that
+engine (for example to scripts/wyckoff_rules.py's semantics) never enters WY-F1 and does not apply to it: WY-F1's verdict
+is a statement about the old detector only. A forward test of a changed engine is a SEPARATE registration, never a
+re-seal of WY-F1.
 
     python3 scripts/research/wyckoff_forward.py spawn                                   # scripts/forward_cycle.py runs it
     python3 scripts/research/wyckoff_forward.py cycle [--only accumulate|scan|resolve]   # what `spawn` starts, detached
     python3 scripts/research/wyckoff_forward.py status [--json]                         # counts only, never an R
     python3 scripts/research/wyckoff_forward.py anchor                                  # chain heads -> anchors.jsonl
-    python3 scripts/research/wyckoff_forward.py read --out docs/experiments/wyckoff-forward-wc15/wyckoff-forward-read.json
+    python3 scripts/research/wyckoff_forward.py read --look 1 --out docs/experiments/wyckoff-forward-wc15/wyckoff-forward-look1.json
+    python3 scripts/research/wyckoff_forward.py read --look 2 --out docs/experiments/wyckoff-forward-wc15/wyckoff-forward-look2.json
     python3 scripts/research/wyckoff_forward.py fingerprint --out docs/experiments/wyckoff-forward-wc15/fingerprint.json
+
+`read --look 2` runs only after look 1's record is committed and did not pass (a look-1 PASS ends the study).
 
 How it stays point in time and tamper-evident without freezing the repository:
 - Pinned code (WY-F1 §5). `cycle` and `read` never run the working tree. They run this file from a read-only extract of
@@ -23,6 +32,8 @@ How it stays point in time and tamper-evident without freezing the repository:
 - Bars (§4). One append-only, hash-chained 15m store per symbol. It is fed by the bridge's 15m file and the FTMO history
   export. Closed bars only. Times are snapped to the 15-minute grid (the v1.02 bridge stamps them +-1 s). A source appends
   only when it holds the store's last bars at the same prices: a gap, a revised bar or a shifted clock appends nothing.
+  A missing or unusable live file is STALLED, never an empty market: nothing is appended from it, the symbol is listed
+  as stalled, and its store does not advance, so no look can count it complete (CLAUDE.md §20: MISSING is not EMPTY).
 - Torn writes (§4). A chain line ends with a newline. A worker killed during `commit` can leave an UNTERMINATED last
   line, which was never part of the chain: the read and `anchor` refuse it, nothing is appended after it, and the next
   cycle drops it -- only it, never a terminated line, never under a live writer's lock -- after logging the bytes in
@@ -31,13 +42,21 @@ How it stays point in time and tamper-evident without freezing the repository:
 - Events (§2, §4). edge_wyckoff.window_fire, unmodified, on each new window, with edge_wyckoff.detect_series'
   de-duplication on (side, SC, AR), keyed by bar time. An event is logged once its signal bar has closed after the seal,
   with its decision fields, the hash of its 300-bar window and the store's chain hash at the signal bar.
-- Resolve (§6): the event's own walk, once its exit is known. No command prints an outcome before the read.
-- Read (§7, §8): once, at >= N_EVENTS forward events or MONTHS months on data complete for every symbol (a symbol still
-  stalled GRACE_MONTHS later is dropped whole); refused before. It runs in a FRESH extract, checks the extract's
-  fingerprint against the seal commit's, and the anchors against git history. It replays every window and checks the
-  replay against the log. It runs the truncation probe and checks the bars against a later history export, both ways.
-  Then it measures with the sealed re-test's §5 (edge_wyckoff.score / summarise). PASS iff net excess > 0 and one-sided
-  p < P_PASS.
+- Resolve (§6): the event's own walk, once its exit is known. It also LOGS, never tests: MFE and MAE in R, bars to MFE,
+  the planned R:R, the entry-hour spread and the ICT HTF gate flag at the signal (backtest-methods.htf_bias_gate, as
+  the ablation's A3 arm applies it), all from bars the resolve already uses. They never reach `status` or a cycle
+  summary. No command prints an outcome before a look.
+- Read (§7, §8): two looks, at LOOK_MONTHS after the seal, on data complete for every symbol (a symbol still stalled
+  GRACE_MONTHS after a look's cutoff is dropped whole from that look); refused before. Lan-DeMets O'Brien-Fleming-type
+  alpha spending, one-sided ALPHA in total, the boundaries from the looks' ACTUAL event counts (`look1_boundary`,
+  `look2_boundary`). PASS iff net excess > 0 and the look's boundary is crossed; NOT PASSED only at look 2. A look 1
+  that does not cross writes a BLINDED record (no estimate, only the sha256 of its statistic) and look 2 recomputes and
+  verifies it. Each look runs in a FRESH extract, checks the extract's fingerprint against the seal commit's, and the
+  anchors against git history. It replays every window and checks the replay against the log. It runs the truncation
+  probe and checks the bars against a later history export, both ways. Then it measures with the sealed re-test's §5
+  (edge_wyckoff.score / summarise).
+- Never due (§7): if look 2 is still not due NEVER_DUE_MONTHS after the seal, WY-F1 closes with no verdict (the
+  coordinator records it; `status` shows the date).
 - Interpreter (§5): the fingerprint pins the Python it was made with, by a stable versioned path (python3.14 outside
   Homebrew's Cellar, no patch release in it); every worker runs under it. A patch upgrade keeps collecting; another
   minor version refuses every cycle, recorded as a failure. The read's canary refuses any numeric change.
@@ -58,6 +77,7 @@ import importlib.util
 import inspect
 import io
 import json
+import math
 import os
 import platform
 import re
@@ -90,7 +110,8 @@ R0 = "docs/experiments/wyckoff-retest-r0/edge-wyckoff-R0.json"                # 
 REC_DIR = "docs/experiments/wyckoff-forward-wc15"
 FINGERPRINT = REC_DIR + "/fingerprint.json"
 ANCHORS = REC_DIR + "/anchors.jsonl"
-READ_OUT = REC_DIR + "/wyckoff-forward-read.json"
+#: One record per look (WY-F1 §7). Look 1's is BLINDED unless it crosses (then it is the verdict); look 2's is final.
+LOOK_OUT = {1: REC_DIR + "/wyckoff-forward-look1.json", 2: REC_DIR + "/wyckoff-forward-look2.json"}
 RUNTIME = "data/live/forward/wyckoff-wc15"            # per machine, gitignored (.gitignore: data/live/forward/)
 #: Under RUNTIME: one hash-chained record per dropped UNTERMINATED last line (WY-F1 §4, `drop_torn`).
 REPAIRS = "repairs.jsonl"
@@ -101,10 +122,33 @@ HIST_DIR = "data/history/ftmo"
 CELL, TF, MINUTES, LEG, SIDE = "W-C-long-15m", "15m", 15, "W-C", "long"
 #: The sealed re-test's tradeable symbols (edge_wyckoff.TRADEABLE) that have a 15m dense start in its R0 record.
 #: FRA40 has none (R0 dense table), so R1 never read it at 15m and neither does WY-F1.
-SYMBOLS = ("XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "AUS200")
-#: The read rule (WY-F1 §7), fixed before any forward bar: once, at N_EVENTS forward events or MONTHS months after the
-#: seal, whichever comes first. PASS iff mean net excess > 0 and one-sided p < P_PASS.
-N_EVENTS, MONTHS, P_PASS = 100, 12, 0.10
+RT_SYMBOLS = ("XAUUSD", "XAGUSD", "US500", "US30", "USTEC", "DE40", "AUS200")
+#: Added 2026-10-04 (lead decision; WY-X1 draft §12.2 (a)): the three cheap research-only indices of the re-test's
+#: replication set (edge_wyckoff.REPLICATION) with an R0 15m dense start. Only their bars AFTER the seal are scored, so
+#: the re-test's R2 window (before 2024-03-01) stays unread. The platinum-group metals stay out (spread about 0.9R).
+ADDED_SYMBOLS = ("US2000", "UK100", "JP225")
+SYMBOLS = RT_SYMBOLS + ADDED_SYMBOLS
+#: The read rule (WY-F1 §7), fixed before any forward bar: two looks, LOOK_MONTHS after the seal (look 2 final);
+#: Lan-DeMets O'Brien-Fleming-type alpha spending, ALPHA one-sided in total. PASS iff net excess > 0 and the look's
+#: boundary is crossed; NOT PASSED only at look 2.
+LOOK_MONTHS = (12, 36)
+ALPHA = 0.10
+#: Look 1's information fraction is t1 = n1 / (n1 + N_REST_PLAN): its read events over those plus the events the
+#: planning rate PLAN_RATE (a year, WY-F1 §9) expects between the looks. Outcome-blind, fixed now. Look 2 is the final
+#: look (t = 1) and spends exactly what look 1 left, with the looks' correlation from their actual counts.
+PLAN_RATE = 14
+N_REST_PLAN = PLAN_RATE * (LOOK_MONTHS[1] - LOOK_MONTHS[0]) // 12
+#: §7: look 2 still not due this long after the seal -> WY-F1 closes with no verdict (the coordinator records it).
+NEVER_DUE_MONTHS = 48
+#: The resolve's LOG-ONLY fields (WY-F1 §6): never tested in WY-F1, never in `status` or a cycle summary.
+LOG_ONLY_KEYS = ("planned_rr", "spread_r_entry", "mfe_r", "mae_r", "bars_to_mfe", "htf_gate", "htf_gate_error")
+#: The ICT HTF gate as the ablation's A3 arm applies it (scripts/research/wyckoff_ablation.py ARMS["A3"]: the engine's
+#: scan with htf=True): backtest-methods.htf_bias_gate on the next rung (1H for 15m), with the bias methods its scan
+#: resolves for the seven re-test symbols (backtest-methods.resolve_methods: automation.market_of -> "cfd", and
+#: htf_context.engaged_methods_for_market("cfd") -> ("ict",) on 2026-10-04). Pinned here, so the forward path never
+#: reads the live automation config; a test checks the pin against that config while WY-F1 is unsealed. The three added
+#: symbols have no live market (automation.market_of gives None); they get the same pinned methods as the other seven.
+HTF_METHODS = ("ict",)
 WARMUP_DAYS = 90            # store bars before the seal: >= 60 dense-rule days + one 300-bar window + the dedup context
 SNAP_TOL_S = 60             # a source time more than this off the 15-minute grid refuses the source
 OVERLAP_BARS = 4            # a source appends only if it holds the store's last bars (up to this many) at the same prices
@@ -113,9 +157,9 @@ HIST_COVER_MIN, HIST_AGREE_MIN = 0.95, 0.99   # §8: the read's check of the for
 #: §8: the most of the export's bars inside the checked window that the store may lack (MISSING is not EMPTY, CLAUDE.md
 #: §20). Inside every sampled event's span (its window to the end of its longest walk) the two must be identical.
 HIST_MISSING_MAX = 0.01
-#: §7 fallback (owner decision 3, option A): once any symbol is complete through GRACE_MONTHS after the T cutoff, a
-#: symbol still not complete through the T cutoff is dropped WHOLE (every event of it, before any outcome is computed).
-#: None = no fallback (option B: the read stays not due; §7 closes the study 24 months after the seal).
+#: §7 fallback, per look (decision 2026-10-04, option A): once any symbol is complete through GRACE_MONTHS after a look's
+#: cutoff, a symbol still not complete through that cutoff is dropped WHOLE from that look (every event of it, before any
+#: outcome is computed). None = no fallback (the look stays not due; §7 closes the study NEVER_DUE_MONTHS after the seal).
 GRACE_MONTHS = 3
 #: The cycle worker's cap. `spawn` runs it detached from scripts/forward_cycle.py, so it no longer delays a tick; the cap
 #: stops a hung worker from holding the lock.
@@ -497,17 +541,24 @@ def same(a, b):
 def live_source(data_root, sym):
     """(closed bars, note) from the bridge's 15m file, in the broker's spelling (broker_symbols, e.g. DE40 ->
     GER40.cash). The file's FINAL bar is dropped: ExportOHLCV copies from shift 0, so it may still be forming.
-    [WY-F1 §4]"""
+    A missing, unreadable or unusable file, or one with no closed bar, gives (None, "...STALLED...") -- never an empty
+    bar list: the feed is MISSING, not an empty market (CLAUDE.md §20). Nothing is appended from it and the store does
+    not advance, so no look counts the symbol complete (`due`). [WY-F1 §4, §7]"""
     import broker_symbols as BS
     p = os.path.join(data_root, LIVE_DIR, f"ohlcv.{BS.to_broker(sym)}.{TF}.json")
     if not os.path.exists(p):
-        return [], f"{sym}: no live 15m file ({os.path.relpath(p, data_root)}); attach ExportOHLCV to it"
+        return None, (f"{sym}: STALLED, no live 15m file ({os.path.relpath(p, data_root)}); attach ExportOHLCV to "
+                      f"it")
     try:
         doc = _read_json(p)
     except ValueError:
-        return [], f"{sym}: live 15m file unreadable"
+        return None, f"{sym}: STALLED, live 15m file unreadable"
     bars, note = clean(doc.get("candles") or [], f"{sym} live")
-    return bars[:-1], note
+    if note:
+        return None, f"{sym}: STALLED, {note}"
+    if len(bars) < 2:
+        return None, f"{sym}: STALLED, the live 15m file holds no closed bar"
+    return bars[:-1], None
 
 
 def history_source(root, sym, since=None):
@@ -580,9 +631,11 @@ def plan_append(store, source, src, at):
 
 
 def accumulate_symbol(sym, store, data_root, init_root, seal, at):
-    """(bars to append, notes): an empty store starts from the sealed history (`init_root`, the extract); then the live
-    file appends, and the history export under `data_root` is read only when the live file does not connect (a hole
-    after downtime, or a shifted clock) -- then the live file is tried again. [WY-F1 §4]"""
+    """(bars to append, notes, stalled): an empty store starts from the sealed history (`init_root`, the extract);
+    then the live file appends, and the history export under `data_root` is read only when the live file does not
+    connect (a hole after downtime, or a shifted clock) -- then the live file is tried again. `stalled` is True when
+    the live file is missing or unusable (`live_source`): a history export may still bridge bars, but the feed is down.
+    [WY-F1 §4]"""
     notes, add, cur = [], [], list(store)
     if not cur:
         src, note = history_source(init_root, sym, since=_iso(_utc(seal["instant"])
@@ -590,11 +643,11 @@ def accumulate_symbol(sym, store, data_root, init_root, seal, at):
         cur = plan_init(src, seal["instant"], at)
         add += cur
         if not cur:
-            return [], [note or f"{sym}: no sealed history to start the store from"]
+            return [], [note or f"{sym}: no sealed history to start the store from"], True
     live, lnote = live_source(data_root, sym)
     new, why = plan_append(cur, live, "live", at)
     if new or (live and live[-1]["t"] <= cur[-1]["t"]):
-        return add + new, notes
+        return add + new, notes, False
     hist, hnote = history_source(data_root, sym, since=cur[max(0, len(cur) - OVERLAP_BARS)]["t"])
     hnew, hwhy = plan_append(cur, hist, "history", at)
     cur, add = cur + hnew, add + hnew
@@ -603,7 +656,7 @@ def accumulate_symbol(sym, store, data_root, init_root, seal, at):
     for msg in (lnote, why if not hnew else None, hnote if not hnew else None, hwhy, why2 if hnew else None):
         if msg:
             notes.append(msg if msg.startswith(sym) else f"{sym}: {msg}")
-    return add, notes
+    return add, notes, live is None
 
 
 def series_of(sym, bars, dense=None):
@@ -705,11 +758,85 @@ def scan_symbol(S, bars, heads, through, seal, ctx, logged):
     return out, S.T[-1]
 
 
+def htf_candles(S, k, minutes):
+    """The next-rung candles known at the CLOSE of store bar k, from the store's own bars 0..k (S.src): grouped by their
+    UTC bucket of `minutes` -- first open, max high, min low, last close, summed tick volume (None when a bar lacks
+    one). That is how MT5 builds its own 1H bar from the hour's ticks, and FTMO's server offset is whole hours, so the
+    UTC hour is the server hour. The bucket that bar k does not complete is left out. Nothing after bar k is read.
+    [WY-F1 §6]"""
+    step = minutes * 60
+    out, cur, key = [], None, None
+    for c in S.src[:k + 1]:
+        g = int(_utc(c["time"]).timestamp()) // step
+        if g != key:
+            if cur is not None:
+                out.append(cur)
+            key = g
+            cur = {"time": _iso(datetime.datetime.fromtimestamp(g * step, UTC)), "open": c["open"], "high": c["high"],
+                   "low": c["low"], "close": c["close"], "volume": c.get("volume")}
+        else:
+            cur.update(high=max(cur["high"], c["high"]), low=min(cur["low"], c["low"]), close=c["close"],
+                       volume=(cur["volume"] + c["volume"]) if cur["volume"] is not None
+                       and c.get("volume") is not None else None)
+    if cur is not None and S.avail[k].timestamp() >= (key + 1) * step:
+        out.append(cur)
+    return out
+
+
+def htf_gate(S, k):
+    """(flag, error) -- the ICT HTF gate at the signal, as the ablation's A3 arm applies it: backtest-methods
+    htf_bias_gate(sym, 15m, long, decision time = the signal bar's CLOSE, HTF_METHODS), under the engine's base OPTS
+    with htf on, its history load answered by `htf_candles` (the store's own bars up to the signal; no file is read).
+    flag: True agrees, False refused, None unable to judge (htf_bias_gate's own three values). LOG ONLY: an exception
+    is logged as (None, its repr), never raised, so this field cannot stop collection. [WY-F1 §6]"""
+    bt = ew().engine()
+    h = bt.HTF_OF.get(TF)
+    candles = htf_candles(S, k, bt._N.tf_seconds(h) // 60) if h else []
+    real_load, saved = bt.load, bt.OPTS
+
+    def load(sym, tf):
+        if sym == S.sym and tf == h:
+            return list(candles), None
+        raise SystemExit(f"refusing: the HTF gate asked for {sym} {tf}; WY-F1 serves only {S.sym} {h} from its store")
+    try:
+        bt.load, bt.OPTS = load, dict(bt._OPTS_BASE, htf=True)
+        return bt.htf_bias_gate(S.sym, TF, SIDE, _iso(S.avail[k]), HTF_METHODS), None
+    except Exception as exc:  # noqa: BLE001 -- a log-only field never stops collection; the error is logged instead
+        return None, repr(exc)[:300]
+    finally:
+        bt.load, bt.OPTS = real_load, saved
+
+
+def trade_path(S, e, x, entry, stop):
+    """MFE and MAE in R, and bars to MFE, of a long filled at the open of bar e and exited on bar x: the highs and lows
+    of bars e..x -- the walk's own bars -- over the planned risk entry - stop. bars_to_mfe counts from the entry bar (0)
+    to the first bar at the highest high. [WY-F1 §6]"""
+    risk = entry - stop
+    hs, ls = S.H[e:x + 1], S.L[e:x + 1]
+    top = max(hs)
+    return {"mfe_r": (top - entry) / risk, "mae_r": (entry - min(ls)) / risk, "bars_to_mfe": hs.index(top)}
+
+
+def entry_spread(S, e, entry, stop):
+    """The round-trip spread priced at the ENTRY hour, no night held, in R of the planned stop (median and p90):
+    real_costs.cost_r with the entry time as both ends, the sealed re-test's cost profile -- a cost known at the entry,
+    the WY-X1 draft's X0 convention. A refused price is logged as {"error": why}. [WY-F1 §6]"""
+    E = ew()
+    try:
+        return {st: E.RC.cost_r(entry, stop, S.T[e], S.T[e], S.sym, SIDE, E.COST_PROFILE, st)["spread_R"]
+                for st in ("median", "p90")}
+    except E.RC.CostRefused as exc:
+        return {"error": str(exc)[:200]}
+
+
 def resolve_record(S, rec, seal, fp_digest, now):
     """The event's own trade (sealed re-test §3.2), once it is known, or None: entry at the open of k+1; skipped when
     that open is at or beyond the stop or the target, or ATR20 is missing; else edge_wyckoff.walk_from under
     walk_opts (fx_gap_fill on, mgmt none). Recorded once the stop or the target is hit, or after H bars. Gross R only:
-    the placebo and the cost need the whole read window and are the read's. [WY-F1 §6]"""
+    the placebo and the cost need the whole read window and are the read's. Every record also carries the LOG-ONLY
+    fields (LOG_ONLY_KEYS, None where they do not apply): the ICT HTF gate flag at the signal (`htf_gate`) and, for a
+    walked trade, the planned R:R at the entry open, the entry-hour spread (`entry_spread`), MFE / MAE in R and bars to
+    MFE (`trade_path`) -- all from bars this resolve already reads. Never tested in WY-F1. [WY-F1 §6]"""
     E = ew()
     bt = E.engine()
     k = rec["store_index"]
@@ -722,19 +849,28 @@ def resolve_record(S, rec, seal, fp_digest, now):
     base = {"kind": "resolve", "study": STUDY, "id": rec["id"], "symbol": rec["symbol"], "entry_time": S.T[e],
             "entry": entry, "seal": seal["sha"], "fingerprint": fp_digest, "python": platform.python_version(),
             "resolved_at": now}
+
+    def done(**kw):
+        flag, err = htf_gate(S, k)
+        out = dict(base, **dict.fromkeys(LOG_ONLY_KEYS))
+        out.update(kw)
+        out.update(htf_gate=flag, htf_gate_error=err)
+        return out
     if not E.placeable(SIDE, entry, rec["stop"], rec["target"]):
-        return dict(base, placeable=False, skip="entry_beyond_stop_or_target")
+        return done(placeable=False, skip="entry_beyond_stop_or_target")
     if not (S.atr[k] or 0) > 0:
-        return dict(base, placeable=True, skip="no_atr")
+        return done(placeable=True, skip="no_atr")
     HZ = horizon()
     with E.walk_opts(bt):
         w = E.walk_from(bt, SIDE, entry, rec["stop"], rec["target"], S, e, HZ)
     if w is None:
-        return dict(base, placeable=True, skip="no_risk")
+        return done(placeable=True, skip="no_risk")
     if w["outcome"] not in ("win", "loss") and e + HZ > len(S):
         return None
-    return dict(base, placeable=True, skip=None, exit_time=S.T[w["exit"]], outcome=w["outcome"], R=w["R"],
-                bars_held=w["bars_held"])
+    return done(placeable=True, skip=None, exit_time=S.T[w["exit"]], outcome=w["outcome"], R=w["R"],
+                bars_held=w["bars_held"], planned_rr=(rec["target"] - entry) / (entry - rec["stop"]),
+                spread_r_entry=entry_spread(S, e, entry, rec["stop"]),
+                **trade_path(S, e, w["exit"], entry, rec["stop"]))
 
 
 # ------------------------------------------------------------------------------------------------ one cycle (in memory)
@@ -759,13 +895,15 @@ def cycle_core(data_root, seal, fp_digest, now, only=None, init_root=None, symbo
     cache = _read_json(cache_path, {}) or {}
     ctx = det_ctx() if only in (None, "scan") else None
     writes, new_log, notes = [], [], []
-    summary = {"study": STUDY, "seal": seal["sha"][:12], "added_bars": {}, "new_events": 0}
+    summary = {"study": STUDY, "seal": seal["sha"][:12], "added_bars": {}, "new_events": 0, "stalled": []}
     for sym in symbols:
         bpath = _rt(data_root, "bars", f"{sym}.{TF}.jsonl")
         bars, heads = chain(bpath)
         if only in (None, "accumulate"):
-            add, nts = accumulate_symbol(sym, bars, data_root, init_root, seal, now)
+            add, nts, stalled = accumulate_symbol(sym, bars, data_root, init_root, seal, now)
             notes += nts
+            if stalled:
+                summary["stalled"].append(sym)
             if add:
                 writes.append(("chain", bpath, add, heads[-1] if heads else GENESIS))
                 heads = heads + link_all(heads[-1] if heads else GENESIS, add)
@@ -802,6 +940,151 @@ def cycle_core(data_root, seal, fp_digest, now, only=None, init_root=None, symbo
     return {"writes": writes, "summary": summary}
 
 
+# ------------------------------------------------------------------------------------------------ two looks (WY-F1 §7)
+def norm_cdf(x):
+    """Phi(x), the standard normal CDF, in its erfc form (accurate in both tails). [WY-F1 §7]"""
+    return 0.5 * math.erfc(-x / math.sqrt(2.0))
+
+
+def norm_ppf(p):
+    """Phi^-1(p) for 0 < p < 1, by bisection on norm_cdf to double precision. [WY-F1 §7]"""
+    if not 0.0 < p < 1.0:
+        raise ValueError(f"norm_ppf needs 0 < p < 1, got {p!r}")
+    lo, hi = -40.0, 40.0
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        if norm_cdf(mid) < p:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+def _gauss_legendre(n):
+    """(nodes, weights) of n-point Gauss-Legendre on [-1, 1]: Newton's method on the Legendre recurrence, computed here
+    so no table of constants can be mistyped. [WY-F1 §7]"""
+    def legendre(x):
+        p0, p1 = 1.0, x
+        for j in range(2, n + 1):
+            p0, p1 = p1, ((2 * j - 1) * x * p1 - (j - 1) * p0) / j
+        return p1, n * (x * p1 - p0) / (x * x - 1.0)
+    xs, ws = [], []
+    for i in range(1, n + 1):
+        x = math.cos(math.pi * (i - 0.25) / (n + 0.5))
+        for _ in range(100):
+            p, dp = legendre(x)
+            x, step = x - p / dp, p / dp
+            if abs(step) < 1e-16:
+                break
+        _p, dp = legendre(x)
+        xs.append(x)
+        ws.append(2.0 / ((1.0 - x * x) * dp * dp))
+    return tuple(xs), tuple(ws)
+
+
+_GL20 = _gauss_legendre(20)
+
+
+def bvn_lower(a, b, r):
+    """P(Z1 <= a, Z2 <= b) for a standard bivariate normal with correlation r. [WY-F1 §7]
+    - |r| < 0.925: Phi(a) Phi(b) + 1/(2 pi) * integral over th from 0 to asin(r) of
+      exp(-(a^2 + b^2 - 2ab sin th) / (2 cos^2 th)), by 20-point Gauss-Legendre (the low-correlation branch of Drezner and
+      Wesolowsky 1990 / Genz 2004);
+    - |r| >= 0.925: integral over x up to a of phi(x) Phi((b - r x) / sqrt(1 - r^2)), composite 20-point Gauss-Legendre
+      on panels no wider than sqrt(1 - r^2) (so the step in Phi is resolved);
+    - r = 1 or -1 and infinite limits: closed forms."""
+    if a == -math.inf or b == -math.inf:
+        return 0.0
+    if a == math.inf:
+        return norm_cdf(b)
+    if b == math.inf:
+        return norm_cdf(a)
+    r = max(-1.0, min(1.0, r))
+    if r == 1.0:
+        return norm_cdf(min(a, b))
+    if r == -1.0:
+        return max(0.0, norm_cdf(a) + norm_cdf(b) - 1.0)
+    xs, ws = _GL20
+    if abs(r) < 0.925:
+        half = math.asin(r) / 2.0
+        hs, ab = (a * a + b * b) / 2.0, a * b
+        tot = 0.0
+        for x, w in zip(xs, ws):
+            sn = math.sin(half * (1.0 + x))
+            tot += w * math.exp((sn * ab - hs) / (1.0 - sn * sn))
+        return max(0.0, min(1.0, norm_cdf(a) * norm_cdf(b) + tot * half / (2.0 * math.pi)))
+    s = math.sqrt((1.0 - r) * (1.0 + r))
+    lo = -10.0
+    if a <= lo:
+        return 0.0
+    m = max(1, int(math.ceil((a - lo) / min(0.25, s))))
+    h = (a - lo) / m
+    tot = 0.0
+    for j in range(m):
+        x0 = lo + j * h
+        for x, w in zip(xs, ws):
+            u = x0 + h * (x + 1.0) / 2.0
+            tot += w * math.exp(-0.5 * u * u) * norm_cdf((b - r * u) / s)
+    return max(0.0, min(1.0, tot * h / 2.0 / math.sqrt(2.0 * math.pi)))
+
+
+def obf_spend(t, alpha=ALPHA):
+    """Lan-DeMets O'Brien-Fleming-type alpha spending at information fraction t, one-sided level `alpha`:
+    alpha(t) = 2 (1 - Phi(z_{1 - alpha/2} / sqrt(t))); 0 at t <= 0, alpha at t >= 1 (Lan and DeMets 1983, Biometrika
+    70:659-663). [WY-F1 §7]"""
+    if t <= 0:
+        return 0.0
+    if t >= 1:
+        return alpha
+    return 2.0 * norm_cdf(norm_ppf(alpha / 2.0) / math.sqrt(t))
+
+
+def look1_boundary(n1, n_rest=N_REST_PLAN, alpha=ALPHA):
+    """Look 1's boundary, from its ACTUAL read events n1 (outcome-blind): information fraction t1 = n1 / (n1 + n_rest),
+    alpha spent a1 = obf_spend(t1), z boundary z1 = Phi^-1(1 - a1) (None when a1 = 0: no pass is possible), nominal
+    one-sided p threshold a1. [WY-F1 §7]"""
+    t = n1 / (n1 + n_rest) if n1 > 0 else 0.0
+    a1 = obf_spend(t, alpha)
+    return {"look": 1, "n": n1, "n_rest_plan": n_rest, "t": t, "alpha_spent": a1,
+            "z": -norm_ppf(a1) if a1 > 0 else None, "p_threshold": a1}
+
+
+def look2_boundary(b1, n2, n12, alpha=ALPHA):
+    """Look 2's (final) boundary c2, from look 1's boundary `b1` and the ACTUAL counts: n2 events read at look 2, n12 of
+    them also read at look 1. Under the null the look statistics (Z1, Z2) are standard bivariate normal with correlation
+    rho = n12 / sqrt(n1 n2) (sqrt(n1 / n2) when look 1's sample lies inside look 2's), so c2 solves
+    P0(Z1 < z1, Z2 < c2) = 1 - alpha: the false-pass probability over both looks is exactly `alpha` for any event rate,
+    whatever look 1 spent. Nominal one-sided p threshold 1 - Phi(c2). [WY-F1 §7]"""
+    n1, a1, z1 = b1["n"], b1["alpha_spent"], b1["z"]
+    rho = min(1.0, max(0.0, n12 / math.sqrt(n1 * n2))) if n1 > 0 and n2 > 0 else 0.0
+    if z1 is None:
+        c2 = -norm_ppf(alpha)
+    else:
+        lo, hi = -12.0, 12.0
+        for _ in range(80):
+            mid = 0.5 * (lo + hi)
+            if bvn_lower(z1, mid, rho) < 1.0 - alpha:
+                lo = mid
+            else:
+                hi = mid
+        c2 = 0.5 * (lo + hi)
+    return {"look": 2, "n1": n1, "n2": n2, "n12": n12, "rho": rho, "alpha_spent": alpha - a1, "z": c2,
+            "p_threshold": norm_cdf(-c2)}
+
+
+def crossed(summary, boundary):
+    """The look's pass test: events read, mean net excess > 0 on the primary cost line, and its one-sided p (CR1 by ISO
+    week, Student-t with G - 1 df) below the boundary's nominal threshold. [WY-F1 §7]"""
+    return bool(summary.get("n")) and summary["net_excess"] > 0 and summary["p_one_sided"] < boundary["p_threshold"]
+
+
+def statistic_sha256(stat):
+    """The commitment to a look's statistic: sha256 of its scored rows and summary (canonical JSON). A blinded look 1
+    publishes only this; look 2 recomputes the look-1 statistic and must reproduce it. [WY-F1 §7]"""
+    body = json.loads(json.dumps({"rows": stat["rows"], "summary": stat["summary"]}, default=str))
+    return hashlib.sha256(_canon(body).encode()).hexdigest()
+
+
 # ------------------------------------------------------------------------------------------------ the read (WY-F1 §7-§8)
 def complete_through(S, HZ):
     """The close of the last bar that has HZ bars after it in the store: every event or placebo entry up to there has
@@ -812,36 +1095,36 @@ def complete_through(S, HZ):
     return S.avail[j] if j >= 0 else None
 
 
-def due(series, entry_closes, seal_instant, HZ, n_events=N_EVENTS, months=MONTHS, grace_months=GRACE_MONTHS):
-    """OUTCOME-BLIND: is the read due, and where is its window's end? `entry_closes` = the entry-bar closes of the
-    forward events that count (dense previous day, entry open strictly between stop and target, ATR20 known). Every
-    symbol must be complete through the cutoff (HZ bars after it). The N rule cuts at the n_events-th counted entry
-    close inside the common complete span; the T rule at seal + months. The earlier one wins. The fallback (T-drop):
-    when no rule is met but some symbol is complete through seal + months + grace_months, the cutoff is the T one and
-    every symbol not complete through it is dropped whole (`dropped`). It reads data times only, never a wall clock or
-    an outcome. Neither means not due. [WY-F1 §7]"""
-    seal_dt = _utc(seal_instant)
+def look_plan(seal_instant, months=LOOK_MONTHS, grace_months=GRACE_MONTHS):
+    """[(cutoff, grace end)] of each look: the seal instant + LOOK_MONTHS calendar months, and that + GRACE_MONTHS
+    (None without the fallback). Fixed by the seal alone. [WY-F1 §7]"""
+    s = _utc(seal_instant)
+    return [(add_months(s, m), add_months(s, m + grace_months) if grace_months is not None else None) for m in months]
+
+
+def due(series, seal_instant, HZ, look=1, plan=None):
+    """OUTCOME-BLIND: is look `look` due, and where does its window end? Its cutoff is fixed (`look_plan`). Every symbol
+    must be complete through it (HZ bars after it, so every walk is whole). The fallback (T-drop), per look: when not
+    every symbol is complete but some symbol is complete through the look's grace end, every symbol not complete
+    through the cutoff is dropped WHOLE from this look (`dropped`). Completeness is the store's own bars: a symbol
+    without a store, or whose store stopped advancing (a STALLED live file appends nothing), is never complete -- a
+    missing feed is never read as an empty market. It reads data times only, never a wall clock or an outcome.
+    [WY-F1 §7]"""
+    plan = plan or look_plan(seal_instant)
+    t_cut, g_cut = plan[look - 1]
     ends = {sym: complete_through(S, HZ) for sym, S in series.items()}
     common = min(ends.values()) if ends and all(v is not None for v in ends.values()) else None
-    t_cut = add_months(seal_dt, months)
-    counted = sorted(c for c in entry_closes if common is not None and c <= common)
-    n_cut = counted[n_events - 1] if len(counted) >= n_events else None
-    g_cut = add_months(seal_dt, months + grace_months) if grace_months is not None else None
-    out = {"common_complete_through": _iso(common) if common else None,
-           "complete_through": {s: (_iso(v) if v else None) for s, v in ends.items()},
-           "counted_events": len(counted), "n_events": n_events, "months": months, "t_cutoff": _iso(t_cut),
-           "n_cutoff": _iso(n_cut) if n_cut else None, "grace_months": grace_months,
-           "grace_cutoff": _iso(g_cut) if g_cut else None, "dropped": []}
-    if n_cut is not None and n_cut <= t_cut:
-        return dict(out, cutoff=_iso(n_cut), rule=f"N: counted forward event number {n_events}")
+    out = {"look": look, "t_cutoff": _iso(t_cut), "grace_cutoff": _iso(g_cut) if g_cut else None,
+           "common_complete_through": _iso(common) if common else None,
+           "complete_through": {s: (_iso(v) if v else None) for s, v in ends.items()}, "dropped": []}
     if common is not None and common >= t_cut:
-        return dict(out, cutoff=_iso(t_cut), rule=f"T: {months} months after the seal")
+        return dict(out, cutoff=_iso(t_cut), rule=f"T{look}: look {look}, cutoff {_iso(t_cut)}")
     reached = [v for v in ends.values() if v is not None]
     if g_cut is not None and reached and max(reached) >= g_cut:
         drop = sorted(s for s, v in ends.items() if v is None or v < t_cut)
         return dict(out, cutoff=_iso(t_cut), dropped=drop,
-                    rule=f"T-drop: {months} months after the seal; not complete through it {grace_months} months "
-                         f"later, dropped whole: {', '.join(drop)}")
+                    rule=f"T{look}-drop: look {look}, cutoff {_iso(t_cut)}; not complete through it at the grace end "
+                         f"{_iso(g_cut)}, dropped whole: {', '.join(drop)}")
     return dict(out, cutoff=None, rule=None)
 
 
@@ -1023,21 +1306,108 @@ def verify_anchors(anchors, log_heads, stores):
             or None, "log_records_anchored": max((a["log"]["n"] for a in anchors), default=0)}
 
 
-def read_core(data_root, seal, fp_digest, cost_r=None, n_events=N_EVENTS, months=MONTHS, symbols=SYMBOLS,
-              hist_root=None, price_ref=None, score_fn=None, anchors=(), grace_months=GRACE_MONTHS):
-    """The read's computation, without its guards (`worker_read` adds them and passes the committed `anchors`). In
-    order, refusing at the first failure: the chains and stamps; the anchors; the full replay of every window against
-    the log (outcome-blind); the due rule (outcome-blind -- an early read refuses here, before any walk or cost is
-    computed); the truncation probe; the history check; the price_ref check; only then the sealed §5 measurement
-    (edge_wyckoff.score: placebo, real cost, CR1 by week) and the consistency of the logged resolves. A symbol the
-    rule drops (T-drop) leaves the sample whole. A chain with an unterminated last line refuses (a `cycle` drops it
-    first); the drops logged in repairs.jsonl are reported. [WY-F1 §4, §7, §8]"""
+def _sample(replay, series, kept, seal_dt, cut_dt):
+    """One look's sample: the replayed events of the kept symbols that are `member`s of (seal, cutoff), in signal order.
+    [WY-F1 §7]"""
+    return sorted(((sym, ev, d) for sym, ev, d in replay.values()
+                   if sym in kept and member(series[sym], ev, seal_dt, cut_dt)),
+                  key=lambda x: (x[2]["signal_time"], x[2]["id"]))
+
+
+def measure(series, sample, cutoff, seal, pricer, score_fn):
+    """The sealed re-test's §5 on one look's sample (edge_wyckoff.score: the walk, the ATR-multiple placebo from the
+    window (seal, cutoff), real cost; summarise: CR1 by ISO week, Student-t). Rows carry the event id and its symbol
+    set ("rt": the re-test's seven, "added": the three added 2026-10-04). [WY-F1 §7]"""
     E = ew()
     bt = E.engine()
+    HZ = horizon()
+    rows, skipped = [], collections.Counter()
+    with E.walk_opts(bt):
+        for sym, ev, d in sample:
+            r, why = score_fn(bt, series[sym], ev, HZ, pricer, seal["instant"], cutoff)
+            if r is None:
+                skipped[why] += 1
+                continue
+            rows.append(dict(r, id=d["id"], set="added" if sym in ADDED_SYMBOLS else "rt"))
+    lines = E.FTMO_LINES
+    return {"rows": rows, "skipped": dict(skipped), "summary": E.summarise(rows, lines),
+            "groups": E.by(rows, "group", lines), "per_symbol": E.by(rows, "symbol", lines),
+            "by_type": E.by(rows, "type", lines), "by_set": E.by(rows, "set", lines)}
+
+
+def _resolve_mismatch(rows, resolves):
+    """The scored rows whose logged resolve (gross R, outcome, exit) differs, or is missing. [WY-F1 §8 item 5]"""
+    out = []
+    for r in rows:
+        rv = resolves.get(r["id"])
+        if rv is None or rv.get("skip") is not None or rv.get("R") != r["R"] or rv.get("outcome") != r["outcome"] \
+                or rv.get("exit_time") != r["exit_time"]:
+            out.append(r["id"])
+    return out
+
+
+RESOLVE_STAMPS = ("seal", "fingerprint", "python", "resolved_at")
+
+
+def log_only_check(series, replay, resolves, seal, fp_digest):
+    """REPORTED, never decisive (WY-F1 §6, §8): every logged resolve, recomputed by this sealed code from the stored bars,
+    must equal its record field for field (the stamps aside) -- the log-only fields included, so a later study that
+    pre-registers on them knows they are reproducible. A mismatch is reported (count and first id), not refused: those
+    fields never enter WY-F1's test, and the decisive ones are refused above (`_resolve_mismatch`). [WY-F1 §6]"""
+    def strip(x):
+        return {k: v for k, v in (x or {}).items() if k not in RESOLVE_STAMPS}
+    bad, n = [], 0
+    for i in sorted(resolves):
+        if i not in replay:
+            continue
+        sym, _ev, d = replay[i]
+        again = resolve_record(series[sym], d, seal, fp_digest, "")
+        n += 1
+        if again is None or strip(json.loads(json.dumps(again))) != strip(resolves[i]):
+            bad.append(i)
+    return {"checked": n, "mismatches": len(bad), "first": bad[0] if bad else None,
+            "note": "the logged resolves recomputed from the stored bars, log-only fields included; reported, not a "
+                    "WY-F1 check"}
+
+
+#: What a blinded look 1 keeps of its verdict (WY-F1 §7): the decision facts, never an estimate or a p.
+BLIND_VERDICT_KEYS = ("look", "label", "pass", "final", "crossed", "n", "t", "alpha_spent", "z_boundary", "p_threshold")
+
+
+def blind(res):
+    """Look 1 that did not cross: its record with NO outcome -- no statistic, no estimate, no p -- only what the look
+    was decided on (outcome-blind) and `statistic_sha256`, the commitment look 2 must reproduce. [WY-F1 §7]"""
+    out = {k: v for k, v in res.items() if k != "statistic"}
+    out["verdict"] = {k: res["verdict"][k] for k in BLIND_VERDICT_KEYS if k in res["verdict"]}
+    out["blinded"] = ("look 1 did not cross its boundary: its estimate stays sealed (statistic_sha256) until look 2 "
+                      "recomputes, verifies and discloses it")
+    return out
+
+
+def read_core(data_root, seal, fp_digest, look=1, plan=None, prior=None, cost_r=None, symbols=SYMBOLS,
+              hist_root=None, price_ref=None, score_fn=None, anchors=()):
+    """One look's computation, without its guards (`worker_read` adds them, the committed `anchors` and, for look 2,
+    look 1's committed record as `prior`). In order, refusing at the first failure: the chains and stamps; the anchors;
+    the full replay of every window against the log (outcome-blind); the look's due rule (outcome-blind -- an early
+    look refuses here, before any walk or cost is computed); the truncation probe; the history check; the price_ref
+    check; only then the sealed §5 measurement and the consistency of the logged resolves. A symbol the look drops
+    (T-drop) leaves its sample whole. Look 1: the boundary from its actual count (`look1_boundary`); PASS (final) if
+    crossed, else CONTINUE (`worker_read` writes it `blind`). Look 2: look 1's statistic is recomputed on look 1's
+    cutoff and symbols and must reproduce its committed sha256 (else INVALID: refused); the boundary from the actual
+    counts (`look2_boundary`); PASS or NOT PASSED. A chain with an unterminated last line refuses (a `cycle` drops it
+    first); the drops logged in repairs.jsonl are reported. [WY-F1 §4, §7, §8]"""
+    E = ew()
     HZ = horizon()
     ctx = det_ctx()
     cfg = ctx[0]
     seal_dt = _utc(seal["instant"])
+    if look not in (1, 2):
+        raise SystemExit(f"refusing: WY-F1 has looks 1 and 2, not {look!r} [WY-F1 §7]")
+    if look == 2 and not (prior and prior.get("look") == 1 and prior.get("statistic_sha256")
+                          and (prior.get("cutoff") or {}).get("cutoff") and prior.get("symbols_read") is not None
+                          and prior.get("boundary")):
+        raise SystemExit("refusing: look 2 needs look 1's record (its cutoff, symbols, boundary and statistic "
+                         "commitment) [WY-F1 §7]")
     log, log_heads = read_chain(_rt(data_root, "log.jsonl"))
     stray = [r.get("id") for r in log if r.get("seal") != seal["sha"] or r.get("fingerprint") != fp_digest]
     if stray:
@@ -1067,22 +1437,14 @@ def read_core(data_root, seal, fp_digest, cost_r=None, n_events=N_EVENTS, months
     if missing or extra or changed:
         raise SystemExit(f"refusing: the replay does not match the log (not logged {len(missing)}, not re-detected "
                          f"{len(extra)}, changed {len(changed)}; first {(missing + extra + changed)[0]}) [WY-F1 §8]")
-    closes = []
-    for _i, (sym, ev, d) in replay.items():
-        S, e = series[sym], ev["k"] + 1
-        if e < len(S) and S.prev_dense[ev["k"]] and E.placeable(SIDE, S.O[e], d["stop"], d["target"]) \
-                and (S.atr[ev["k"]] or 0) > 0:
-            closes.append(S.avail[e])
-    rule = due(series, closes, seal["instant"], HZ, n_events, months, grace_months)
+    rule = due(series, seal["instant"], HZ, look, plan)
     if rule["cutoff"] is None:
-        raise SystemExit(f"refusing: the read is not due -- {rule['counted_events']} of {n_events} counted forward "
-                         f"events by the common complete time {rule['common_complete_through']}, and the {months}-month "
-                         f"cutoff is {rule['t_cutoff']} [WY-F1 §7]")
+        raise SystemExit(f"refusing: look {look} is not due -- every symbol must be complete through its cutoff "
+                         f"{rule['t_cutoff']} (common complete time {rule['common_complete_through']}); a stalled symbol "
+                         f"is dropped only once another is complete through {rule['grace_cutoff']} [WY-F1 §7]")
     kept = [s for s in symbols if s not in rule["dropped"]]
     cut_dt = _utc(rule["cutoff"])
-    sample = sorted(((sym, ev, d) for sym, ev, d in replay.values()
-                     if sym in kept and member(series[sym], ev, seal_dt, cut_dt)),
-                    key=lambda x: (x[2]["signal_time"], x[2]["id"]))
+    sample = _sample(replay, series, kept, seal_dt, cut_dt)
     probes = {}
     for sym in kept:
         bars, heads = stores[sym]
@@ -1108,60 +1470,78 @@ def read_core(data_root, seal, fp_digest, cost_r=None, n_events=N_EVENTS, months
             raise SystemExit("refusing: real_costs.price_ref differs from the fingerprint's [WY-F1 §5]")
     pricer = E.Pricer("ftmo", cost_r=cost_r)
     score_fn = score_fn or E.score
-    rows, skipped, ids = [], collections.Counter(), []
-    with E.walk_opts(bt):
-        for sym, ev, d in sample:
-            r, why = score_fn(bt, series[sym], ev, HZ, pricer, seal["instant"], rule["cutoff"])
-            if r is None:
-                skipped[why] += 1
-                continue
-            rows.append(dict(r, id=d["id"]))
-            ids.append(d["id"])
-    mism = []
-    for r in rows:
-        rv = resolves.get(r["id"])
-        if rv is None or rv.get("skip") is not None or rv.get("R") != r["R"] or rv.get("outcome") != r["outcome"] \
-                or rv.get("exit_time") != r["exit_time"]:
-            mism.append(r["id"])
+    stat = measure(series, sample, rule["cutoff"], seal, pricer, score_fn)
+    mism = _resolve_mismatch(stat["rows"], resolves)
     if mism:
         raise SystemExit(f"refusing: {len(mism)} scored event(s) disagree with their logged resolve record, first "
                          f"{mism[0]} [WY-F1 §8]")
-    lines = E.FTMO_LINES
-    s = E.summarise(rows, lines)
-    n = s.get("n", 0)
-    verdict = {"pass": bool(n) and s["net_excess"] > 0 and s["p_one_sided"] < P_PASS, "p_threshold": P_PASS,
-               "net_excess": s.get("net_excess"), "p_one_sided": s.get("p_one_sided"), "upper_95": s.get("upper_95"),
-               "against_the_book": bool(n) and s["net_excess"] < 0 and s["p_two_sided"] < E.AGAINST_P,
-               "below_delta": bool(n) and s["upper_95"] is not None and s["upper_95"] < E.DELTA, "delta": E.DELTA}
-    verdict["label"] = "PASS" if verdict["pass"] else "NOT PASSED"
+    rows, s = stat["rows"], stat["summary"]
+    out = {}
+    if look == 1:
+        b = look1_boundary(s.get("n", 0))
+        x = crossed(s, b)
+        verdict = {"look": 1, "label": "PASS" if x else "CONTINUE", "pass": x, "final": x, "crossed": x, "n": b["n"],
+                   "t": b["t"], "alpha_spent": b["alpha_spent"], "z_boundary": b["z"], "p_threshold": b["p_threshold"],
+                   "alpha_total": ALPHA, "net_excess": s.get("net_excess"), "p_one_sided": s.get("p_one_sided"),
+                   "upper_95": s.get("upper_95")}
+    else:
+        cut1 = prior["cutoff"]["cutoff"]
+        stat1 = measure(series, _sample(replay, series, prior["symbols_read"], seal_dt, _utc(cut1)), cut1, seal,
+                        pricer, score_fn)
+        mism = _resolve_mismatch(stat1["rows"], resolves)
+        if mism:
+            raise SystemExit(f"refusing: {len(mism)} look-1 event(s) disagree with their logged resolve record, first "
+                             f"{mism[0]} [WY-F1 §8]")
+        if statistic_sha256(stat1) != prior["statistic_sha256"]:
+            raise SystemExit("refusing: look 1's statistic, recomputed on its cutoff and symbols, does not reproduce "
+                             "its committed sha256 -- INVALID [WY-F1 §7, §8]")
+        b1 = look1_boundary(stat1["summary"].get("n", 0))
+        if any(b1[k] != prior["boundary"].get(k) for k in ("n", "t", "alpha_spent", "p_threshold")):
+            raise SystemExit("refusing: look 1's boundary does not follow from its recomputed count [WY-F1 §7]")
+        ids1, ids2 = {r["id"] for r in stat1["rows"]}, {r["id"] for r in rows}
+        b = look2_boundary(b1, s.get("n", 0), len(ids1 & ids2))
+        x = crossed(s, b)
+        n = s.get("n", 0)
+        verdict = {"look": 2, "label": "PASS" if x else "NOT PASSED", "pass": x, "final": True, "crossed": x, "n": n,
+                   "alpha_spent": b["alpha_spent"], "alpha_spent_look1": b1["alpha_spent"], "alpha_total": ALPHA,
+                   "rho": b["rho"], "z_boundary": b["z"], "p_threshold": b["p_threshold"],
+                   "net_excess": s.get("net_excess"), "p_one_sided": s.get("p_one_sided"), "upper_95": s.get("upper_95"),
+                   "against_the_book": bool(n) and s["net_excess"] < 0 and s["p_two_sided"] < E.AGAINST_P,
+                   "below_delta": bool(n) and s["upper_95"] is not None and s["upper_95"] < E.DELTA, "delta": E.DELTA}
+        out["look1"] = {"cutoff": prior["cutoff"], "symbols_read": prior["symbols_read"], "boundary": b1,
+                        "crossed": crossed(stat1["summary"], b1), "statistic_sha256": prior["statistic_sha256"],
+                        "commitment": "reproduced: the recomputed look-1 statistic has the committed sha256",
+                        "statistic": stat1}
     lags = sorted((_utc(logged[r["id"]]["logged_at"]) - _utc(logged[r["id"]]["signal_close"])).total_seconds()
                   for r in rows)
     late = sorted(r["id"] for r in rows if (_utc(logged[r["id"]]["logged_at"])
                                             - _utc(logged[r["id"]]["signal_close"])).total_seconds() > LATE_LOG_S)
     hist_sourced = sum(1 for sym, ev, d in sample
-                       if any(b.get("src") != "live" for b in stores[sym][0][ev["k"] - cfg["window"] + 1:ev["k"] + 2]
-                              if b["t"] >= seal["instant"]))
-    return {"cutoff": rule, "sample": len(sample), "replay": {"events": len(replay), "logged": len(logged)},
-            "probe": dict(pr, per_symbol=probes), "history_check": hist, "symbols_read": kept,
-            "symbols_dropped": rule["dropped"],
-            "anchors": dict(anchored, note=None if anchored["verified"] else
-                            "no committed anchor: the log's timing (logged_at, the lag) is unanchored"),
-            "skipped": dict(skipped), "summary": s, "groups": E.by(rows, "group", lines),
-            "per_symbol": E.by(rows, "symbol", lines), "by_type": E.by(rows, "type", lines), "verdict": verdict,
-            "log_lag_seconds": {"median": lags[len(lags) // 2] if lags else None, "max": lags[-1] if lags else None},
-            "late_logged": {"threshold_seconds": LATE_LOG_S, "events": len(late), "ids": late},
-            "events_with_post_seal_history_bars": hist_sourced,
-            "stores": {sym: ({"bars": len(b), "head": h[-1], "first": b[0]["t"], "last": b[-1]["t"],
-                              "src": dict(collections.Counter(x.get("src") for x in b))} if b else {"bars": 0})
-                       for sym, (b, h) in stores.items()},
-            "log": {"records": len(log), "head": log_heads[-1] if log_heads else GENESIS},
-            "repairs": {"records": len(repairs), "files": dict(collections.Counter(r.get("file") for r in repairs)),
-                        "list": [{k: r.get(k) for k in ("file", "offset", "kept_records", "dropped_bytes",
-                                                        "dropped_sha256", "complete_record", "repaired_at", "seal",
-                                                        "fingerprint")} for r in repairs],
-                        "note": "each dropped an UNTERMINATED last line, a write that never completed and was never "
-                                "part of a chain (repairs.jsonl holds the bytes); disclosed, not a check"},
-            "rows": rows}
+                       if any(b_.get("src") != "live" for b_ in stores[sym][0][ev["k"] - cfg["window"] + 1:ev["k"] + 2]
+                              if b_["t"] >= seal["instant"]))
+    out.update({
+        "look": look, "cutoff": rule, "sample": len(sample), "replay": {"events": len(replay), "logged": len(logged)},
+        "probe": dict(pr, per_symbol=probes), "history_check": hist, "symbols_read": kept,
+        "symbols_dropped": rule["dropped"],
+        "anchors": dict(anchored, note=None if anchored["verified"] else
+                        "no committed anchor: the log's timing (logged_at, the lag) is unanchored"),
+        "skipped": stat["skipped"], "boundary": b, "verdict": verdict, "statistic": stat,
+        "statistic_sha256": statistic_sha256(stat),
+        "log_only_check": log_only_check(series, replay, resolves, seal, fp_digest),
+        "log_lag_seconds": {"median": lags[len(lags) // 2] if lags else None, "max": lags[-1] if lags else None},
+        "late_logged": {"threshold_seconds": LATE_LOG_S, "events": len(late), "ids": late},
+        "events_with_post_seal_history_bars": hist_sourced,
+        "stores": {sym: ({"bars": len(b_), "head": h[-1], "first": b_[0]["t"], "last": b_[-1]["t"],
+                          "src": dict(collections.Counter(x_.get("src") for x_ in b_))} if b_ else {"bars": 0})
+                   for sym, (b_, h) in stores.items()},
+        "log": {"records": len(log), "head": log_heads[-1] if log_heads else GENESIS},
+        "repairs": {"records": len(repairs), "files": dict(collections.Counter(r.get("file") for r in repairs)),
+                    "list": [{k: r.get(k) for k in ("file", "offset", "kept_records", "dropped_bytes",
+                                                    "dropped_sha256", "complete_record", "repaired_at", "seal",
+                                                    "fingerprint")} for r in repairs],
+                    "note": "each dropped an UNTERMINATED last line, a write that never completed and was never "
+                            "part of a chain (repairs.jsonl holds the bytes); disclosed, not a check"}})
+    return out
 
 
 def _price_ref(sym):
@@ -1526,6 +1906,17 @@ def canary_bars(i):
 
 
 CANARY_START, CANARY_SEAL_BAR, CANARY_HIST_END, CANARY_LIVE_FROM = "2026-06-01T00:00:00Z", 1250, 1500, 1400
+#: The canary's two look cutoffs: the CLOSE of these store bars (a synthetic plan inside the canary's ~18 days; the
+#: registered plan is `look_plan`, LOOK_MONTHS after the seal). Both need HZ stored bars after them, and the history
+#: export (to bar CANARY_HIST_END - 2) must reach HZ bars after each, for the read's history check.
+CANARY_LOOK_BARS = (1300, 1400)
+
+
+def canary_plan(seal=None):
+    """The canary's look plan, in `look_plan`'s shape: [(cutoff, grace end None)] at the close of CANARY_LOOK_BARS.
+    [WY-F1 §5]"""
+    t0 = _utc(CANARY_START)
+    return [(t0 + datetime.timedelta(minutes=MINUTES * (j + 1)), None) for j in CANARY_LOOK_BARS]
 
 
 def canary_data(tmp):
@@ -1550,20 +1941,26 @@ def canary_data(tmp):
 
 
 def canary(tmp, cost_r=None):
-    """Every forward step on synthetic bars, with the real detector, walk and cost: init, live append, scan, resolve,
-    then the read core with N = 1. Returns (sha256 of its records and rows, the read result). Deterministic: wall
-    clock fields are fixed, and the records' `python` stamp is left out, so a routine Python patch upgrade during the
-    12 months does not lock the read out -- a numeric change still would. [WY-F1 §5]"""
+    """Every forward step on synthetic bars, with the real detector, walk and cost: init, live append, scan, resolve
+    (the log-only fields included), then the read core at both looks of `canary_plan` -- look 2 with look 1's result as
+    its prior, so the commitment check and both boundaries run. Returns (sha256 of the records, rows, summaries and
+    boundaries, {look: read result}). Deterministic: wall clock fields are fixed, and the records' `python` stamp is
+    left out, so a routine Python patch upgrade does not lock a look out -- a numeric change still would. [WY-F1 §5]"""
     seal = canary_data(tmp)
     now = "2026-07-01T00:00:00Z"
     res = cycle_core(tmp, seal, "canary", now, init_root=tmp)
     commit(res["writes"])
-    out = read_core(tmp, seal, "canary", cost_r=cost_r, n_events=1)
+    plan = canary_plan(seal)
+    looks = {1: read_core(tmp, seal, "canary", look=1, plan=plan, cost_r=cost_r)}
+    looks[2] = read_core(tmp, seal, "canary", look=2, plan=plan, prior=looks[1], cost_r=cost_r)
     log, _ = read_chain(_rt(tmp, "log.jsonl"))
     keep = ("id", "R", "outcome", "exit_time", "excess", "placebo", "n_placebo", "cost", "net_excess")
     body = {"log": [{k: v for k, v in r.items() if k != "python"} for r in log],
-            "rows": [{k: r.get(k) for k in keep} for r in out["rows"]], "summary": out["summary"]}
-    return hashlib.sha256(_canon(json.loads(json.dumps(body, default=str))).encode()).hexdigest(), out
+            "looks": {str(n): {"rows": [{k: r.get(k) for k in keep} for r in out["statistic"]["rows"]],
+                               "summary": out["statistic"]["summary"], "boundary": out["boundary"],
+                               "label": out["verdict"]["label"], "statistic_sha256": out["statistic_sha256"]}
+                      for n, out in looks.items()}}
+    return hashlib.sha256(_canon(json.loads(json.dumps(body, default=str))).encode()).hexdigest(), looks
 
 
 # ------------------------------------------------------------------------------------------------ git, seal, extract
@@ -1741,30 +2138,66 @@ def worker_cycle(data_root, seal, only=None):
     return s
 
 
-def worker_read(data_root, seal, out):
-    """In a FRESH extract of the seal (`cmd_read`): the read, ONCE, under every guard -- the sealed pre-registration
+def committed_record(data_root, rel):
+    """A committed JSON record of the data root, read from git HEAD (never the working file, which must equal it):
+    None when HEAD has none. [WY-F1 §7]"""
+    rc, blob = _git(data_root, "show", f"HEAD:{rel}")
+    if rc != 0:
+        return None
+    path = os.path.join(data_root, rel)
+    rc, oid = _git(data_root, "rev-parse", "-q", "--verify", f"HEAD:{rel}")
+    if not os.path.isfile(path) or git_blob_id(path) != oid.decode().strip():
+        raise SystemExit(f"refusing: {rel} differs from its committed version [WY-F1 §7]")
+    return json.loads(blob)
+
+
+def require_prior(prior, seal, digest):
+    """Look 2 runs on look 1's COMMITTED record only (`committed_record`), made under this seal and this fingerprint,
+    and only when look 1 did not pass: a look-1 PASS is the verdict and ends WY-F1. [WY-F1 §7]"""
+    if not prior:
+        raise SystemExit(f"refusing: look 2 needs look 1's committed record {LOOK_OUT[1]} [WY-F1 §7]")
+    meta, v = prior.get("meta") or {}, prior.get("verdict") or {}
+    if prior.get("look") != 1 or meta.get("study") != STUDY:
+        raise SystemExit(f"refusing: {LOOK_OUT[1]} is not WY-F1's look-1 record [WY-F1 §7]")
+    if (meta.get("seal") or {}).get("sha") != seal["sha"] or meta.get("fingerprint_digest") != digest:
+        raise SystemExit(f"refusing: {LOOK_OUT[1]} was made under another seal or code fingerprint [WY-F1 §5, §7]")
+    if v.get("pass") or v.get("label") != "CONTINUE":
+        raise SystemExit(f"refusing: look 1 is {v.get('label')!r}, not CONTINUE: a look-1 PASS ends WY-F1, there is no "
+                         f"look 2 [WY-F1 §7]")
+    return prior
+
+
+def worker_read(data_root, seal, out, look=1):
+    """In a FRESH extract of the seal (`cmd_read`): one look, ONCE, under every guard -- the sealed pre-registration
     committed and clean in the data root, its adding commit the seal, one commit on the fingerprinted one; the
     fingerprint the seal commit's, every file verified, the pinned Python, the canary re-run to the same digest; the
-    hour frame; the canonical --out path with no git history; the anchors from git; the trace check -- then
-    `read_core`. [WY-F1 §5, §7, §8]"""
+    hour frame; the look's canonical --out path with no git history; for look 2, look 1's committed record
+    (`require_prior`); the anchors from git; the trace check -- then `read_core`. A look 1 that does not cross is written
+    BLINDED (`blind`): no estimate leaves the worker, on disk or on screen. [WY-F1 §5, §7, §8]"""
     tr = Tracer(CODE_ROOT).start()
     fp, digest = verify_fingerprint(CODE_ROOT)
     require_interpreter(fp)
     E = ew()
     tr.run_phase()
-    want = os.path.join(data_root, READ_OUT)
+    if look not in LOOK_OUT:
+        raise SystemExit(f"refusing: WY-F1 has looks {sorted(LOOK_OUT)}, not {look!r} [WY-F1 §7]")
+    rel = LOOK_OUT[look]
+    want = os.path.join(data_root, rel)
     if os.path.abspath(out) != want:
-        raise SystemExit(f"refusing: the read writes {READ_OUT} (got {out})")
-    if os.path.exists(want):
-        raise SystemExit(f"{READ_OUT} exists: WY-F1 is read ONCE [WY-F1 §7]")
-    rc, log = _git(data_root, "log", "--all", "--format=%H", "--", READ_OUT)
-    if rc != 0 or log.strip():
-        raise SystemExit(f"refusing: {READ_OUT} has git history (or git cannot say) -- the read was already run")
+        raise SystemExit(f"refusing: look {look} writes {rel} (got {out})")
+    for later in [n for n in LOOK_OUT if n >= look]:
+        p = LOOK_OUT[later]
+        if os.path.exists(os.path.join(data_root, p)):
+            raise SystemExit(f"{p} exists: each look is read ONCE [WY-F1 §7]")
+        rc, log = _git(data_root, "log", "--all", "--format=%H", "--", p)
+        if rc != 0 or log.strip():
+            raise SystemExit(f"refusing: {p} has git history (or git cannot say) -- that look was already run")
     rc, st = _git(data_root, "status", "--porcelain", "--", PREREG)
     if rc != 0 or st.strip():
         raise SystemExit(f"refusing: {PREREG} has uncommitted changes")
     _require_seal(data_root, seal, fp)
     require_committed_fingerprint(data_root, seal)
+    prior = require_prior(committed_record(data_root, LOOK_OUT[1]), seal, digest) if look == 2 else None
     prereg = prereg_record(data_root, seal)
     anchors = committed_anchors(data_root)
     E._require_hour_frame()
@@ -1774,7 +2207,8 @@ def worker_read(data_root, seal, out):
         raise SystemExit("refusing: the canary no longer reproduces its sealed digest (Python or a sealed input "
                          "changed) [WY-F1 §5]")
     with _lock(data_root):
-        res = read_core(data_root, seal, digest, price_ref=fp.get("price_ref"), anchors=anchors)
+        res = read_core(data_root, seal, digest, look=look, prior=prior, price_ref=fp.get("price_ref"),
+                        anchors=anchors)
         tr.stop()
         extra = check_touched(tr, fp)
         check_outside(tr, data_root)
@@ -1782,16 +2216,45 @@ def worker_read(data_root, seal, out):
                        "preregistration_sha256": prereg["sealed_sha256"], "preregistration_git": prereg,
                        "seal": seal, "fingerprint": FINGERPRINT, "fingerprint_digest": digest,
                        "python": platform.python_version(), "interpreter": sys.executable, "read_at": _now(),
-                       "n_events": N_EVENTS, "months": MONTHS, "grace_months": GRACE_MONTHS, "p_pass": P_PASS,
-                       "outside_exec": extra,
+                       "look": look, "look_months": list(LOOK_MONTHS), "alpha": ALPHA,
+                       "spending": "Lan-DeMets O'Brien-Fleming-type, alpha(t) = 2 (1 - Phi(z_{1-alpha/2} / sqrt(t)))",
+                       "plan_rate": PLAN_RATE, "n_rest_plan": N_REST_PLAN, "grace_months": GRACE_MONTHS,
+                       "never_due_months": NEVER_DUE_MONTHS, "outside_exec": extra,
                        "measurement": "sealed re-test §5: edge_wyckoff.score / summarise, FTMO cost lines"}
-        rows = res.pop("rows")
-        res["rows"] = {CELL: rows}
-        E._dump(res, want)
-    v = res["verdict"]
-    print(f"WY-F1 {CELL}: n {res['summary'].get('n', 0)} | {v['label']} (rule {res['cutoff']['rule']}, cutoff "
-          f"{res['cutoff']['cutoff']})\nwrote {want}")
-    return res
+        rec = look_record(res)
+        E._dump(rec, want)
+    print(look_line(res) + f"\nwrote {want}")
+    return rec
+
+
+def look_record(res):
+    """What a look writes (WY-F1 §7): a look 1 that did not cross, BLINDED (`blind`: no estimate, no p, no row); else
+    the whole result, its scored rows moved to `rows` ({"W-C-long-15m@look<n>": rows}, one row per line in the file;
+    look 2 adds look 1's, now disclosed). `statistic_sha256` was taken before the move, on the rows inside the
+    statistic, so look 2's check reads the same bytes either way. [WY-F1 §7]"""
+    look, v = res["look"], res["verdict"]
+    if look == 1 and not v["crossed"]:
+        return blind(res)
+    rec = dict(res)
+    rec["statistic"] = {k: x for k, x in res["statistic"].items() if k != "rows"}
+    rec["rows"] = {f"{CELL}@look{look}": res["statistic"]["rows"]}
+    if look == 2:
+        l1 = dict(res["look1"])
+        l1["statistic"] = {k: x for k, x in l1["statistic"].items() if k != "rows"}
+        rec["look1"] = l1
+        rec["rows"][f"{CELL}@look1"] = res["look1"]["statistic"]["rows"]
+    return rec
+
+
+def look_line(res):
+    """The console line of a look: the decision facts, and the estimate only when the look is not blinded.
+    [WY-F1 §7]"""
+    look, v, b = res["look"], res["verdict"], res["boundary"]
+    line = (f"WY-F1 {CELL} look {look}: {v['label']} (n {v['n']}, alpha spent {b['alpha_spent']:.5f}, nominal one-sided "
+            f"p threshold {b['p_threshold']:.5f}; cutoff {res['cutoff']['cutoff']}, {res['cutoff']['rule']})")
+    if look == 1 and not v["crossed"]:
+        return line + f"\n  BLINDED: no estimate is shown or written; statistic_sha256 {res['statistic_sha256']}"
+    return line + f"\n  net excess {v['net_excess']}, one-sided p {v['p_one_sided']}"
 
 
 def worker_canary(data_root):
@@ -1886,14 +2349,17 @@ def cmd_spawn(data_root=CODE_ROOT, popen=subprocess.Popen):
     return f"{STUDY}: spawned pid {child.pid}"
 
 
-def cmd_read(out, data_root=CODE_ROOT):
-    """The read, in a FRESH extract of the seal (rebuilt from git, never the cycles' cached one), in a fresh process
+def cmd_read(out, look, data_root=CODE_ROOT):
+    """One look, in a FRESH extract of the seal (rebuilt from git, never the cycles' cached one), in a fresh process
     under the pinned interpreter. [WY-F1 §5, §7]"""
     s = seal_info(data_root)
     if s is None:
         raise SystemExit(f"refusing: {STUDY} is not sealed; nothing can be read")
+    if look not in LOOK_OUT:
+        raise SystemExit(f"refusing: WY-F1 has looks {sorted(LOOK_OUT)}, not {look!r} [WY-F1 §7]")
     code = materialize(data_root, s["sha"], fresh=True)
-    return subprocess.run(_worker_cmd(code, "read", data_root, s, "--out", os.path.abspath(out))).returncode
+    return subprocess.run(_worker_cmd(code, "read", data_root, s, "--look", str(look),
+                                      "--out", os.path.abspath(out))).returncode
 
 
 class _Closes:
@@ -1907,13 +2373,15 @@ class _Closes:
 
 
 def status(data_root=CODE_ROOT):
-    """Counts only, and none that times an exit -- never an R, an outcome, a mean or a resolve count (WY-F1 §6: a
-    resolve a few bars after its entry is a stop or a target). Per symbol: the store, the live file, the complete-
-    through time, the events, those kept (dense previous day), entered, and past their longest walk (entry + H bars
-    stored), with `unresolved_past_walk` (0 when healthy). The read rule's state from `due` itself, counted from the
-    logged events and the stored entry open, as the read counts. The pinned interpreter, the committed anchors, the
-    last cycle, the repairs logged and pending (file names only: a torn line's bytes can hold an R), the working tree's
-    drift from the sealed executed files. [WY-F1 §4, §6, §7, §12]"""
+    """Counts only, and none that times an exit -- never an R, an outcome, a mean, a resolve count or a log-only field
+    (WY-F1 §6: a resolve a few bars after its entry is a stop or a target). Per symbol: the store, the live file (a
+    missing or unusable one is STALLED, never an empty market), the complete-through time, the events, those kept
+    (dense previous day), entered, and past their longest walk (entry + H bars stored), with `unresolved_past_walk` (0
+    when healthy). Each look's state from `due` itself; the counted events (entered, placeable at the entry open, dense
+    previous day, ATR20 known) by the common complete time, as the read counts; the never-due close; which look records
+    exist. The pinned interpreter, the committed anchors, the last cycle, the repairs logged and pending (file names
+    only: a torn line's bytes can hold an R), the working tree's drift from the sealed executed files.
+    [WY-F1 §4, §6, §7, §12]"""
     E = ew()
     s = seal_info(data_root)
     HZ = horizon()
@@ -1938,15 +2406,26 @@ def status(data_root=CODE_ROOT):
         live, note = live_source(data_root, sym)
         out["symbols"][sym] = {"bars": len(bars), "last": bars[-1]["t"] if bars else None,
                                "src": dict(collections.Counter(b.get("src") for b in bars)),
-                               "complete_through": _iso(ct) if ct else None,
+                               "complete_through": _iso(ct) if ct else None, "stalled": live is None,
                                "live_last_closed": live[-1]["t"] if live else None, "live_note": note,
                                "events": len(mine), "kept": sum(1 for r in mine if r["prev_dense"]),
                                "entered": len(entered), "past_walk": len(past),
                                "unresolved_past_walk": sum(1 for r in past if r["id"] not in rs),
                                "head": heads[-1] if heads else None}
+    out["stalled"] = [sym for sym, v in out["symbols"].items() if v["stalled"]]
     if s:
-        r = due(series, closes, s["instant"], HZ)
-        out["rule"] = dict(r, read_due=r["cutoff"] is not None)
+        plan = look_plan(s["instant"])
+        looks = {str(n): due(series, s["instant"], HZ, n, plan) for n in (1, 2)}
+        common = [complete_through(S, HZ) for S in series.values()]
+        common = min(common) if common and all(c is not None for c in common) else None
+        recs = {str(n): os.path.exists(os.path.join(data_root, p)) for n, p in LOOK_OUT.items()}
+        nxt = next((n for n in ("1", "2") if not recs[n]), None)
+        out["rule"] = {"looks": {n: dict(r, due=r["cutoff"] is not None) for n, r in looks.items()},
+                       "records": recs, "next_look": nxt,
+                       "read_due": nxt is not None and looks[nxt]["cutoff"] is not None,
+                       "counted_events": sum(1 for c in closes if common is not None and c <= common),
+                       "common_complete_through": _iso(common) if common else None,
+                       "never_due_close": _iso(add_months(_utc(s["instant"]), NEVER_DUE_MONTHS))}
     else:
         out["rule"] = {"read_due": False, "note": "not sealed"}
     out["last_cycle"] = _read_json(_rt(data_root, "last_cycle.json"))
@@ -1979,11 +2458,17 @@ def _print_status(st):
               f"{v['events']} (kept {v['kept']}, entered {v['entered']}, past walk {v['past_walk']}"
               + (f", UNRESOLVED past walk {v['unresolved_past_walk']}" if v["unresolved_past_walk"] else "") + ")"
               + (f" | {v['live_note']}" if v["live_note"] else ""))
+    if st.get("stalled"):
+        print(f"  STALLED (no usable live 15m file; nothing appended, never read as an empty market): "
+              f"{', '.join(st['stalled'])}")
     r = st["rule"]
     if s:
-        print(f"  read rule: {r['counted_events']} of {r['n_events']} counted events by {r['common_complete_through']}; "
-              f"{r['months']}-month cutoff {r['t_cutoff']} (fallback {r['grace_cutoff']}); due: {r['read_due']}"
-              + (f" -- {r['rule']}" if r["read_due"] else ""))
+        print(f"  counted events {r['counted_events']} by the common complete time {r['common_complete_through']}; "
+              f"never-due close {r['never_due_close']}")
+        for n, lk in r["looks"].items():
+            print(f"  look {n}: cutoff {lk['t_cutoff']} (stalled symbols dropped once another is complete through "
+                  f"{lk['grace_cutoff']}); due {lk['due']}" + (f" -- {lk['rule']}" if lk["due"] else "")
+                  + ("; record written" if r["records"].get(n) else ""))
     lc = st.get("last_cycle")
     if lc:
         print(f"  last cycle {lc['at']}: " + ("ok" if lc["ok"] else f"FAILED -- {lc.get('error', '')[:300]}"))
@@ -2080,7 +2565,7 @@ def cmd_fingerprint(out, require_clean=True, cost_r=None):
     ew()
     tr.run_phase()
     with tempfile.TemporaryDirectory() as tmp:
-        digest, res = canary(tmp, cost_r=cost_r)
+        digest, looks = canary(tmp, cost_r=cost_r)
     pref = {s: _price_ref(s) for s in SYMBOLS} if cost_r is None else None
     tr.stop()
     run, code, data = tr.touched()
@@ -2100,7 +2585,8 @@ def cmd_fingerprint(out, require_clean=True, cost_r=None):
           "python": platform.python_version(), "interpreter": pin,
           "exec": _hashes(CODE_ROOT, run), "load": _hashes(CODE_ROOT, code),
           "data": _hashes(CODE_ROOT, data), "price_ref": pref, "canary_sha256": digest,
-          "canary": {"events": res["replay"]["events"], "rows": res["summary"].get("n", 0)},
+          "canary": {"events": looks[1]["replay"]["events"],
+                     "rows": {str(n): x["statistic"]["summary"].get("n", 0) for n, x in looks.items()}},
           "r0_pinned": sorted(f for f in files if f not in (SCRIPT, R0) and not f.startswith(HIST_DIR + "/")),
           "snapshot_roots": list(SNAPSHOT_ROOTS)}
     fp["digest"] = fp_digest(fp)
@@ -2126,6 +2612,7 @@ def main(argv=None):
     st.add_argument("--json", action="store_true")
     sub.add_parser("anchor")
     r = sub.add_parser("read")
+    r.add_argument("--look", type=int, required=True, choices=sorted(LOOK_OUT))
     r.add_argument("--out", required=True)
     f = sub.add_parser("fingerprint")
     f.add_argument("--out", required=True)
@@ -2135,6 +2622,7 @@ def main(argv=None):
     w.add_argument("--seal-sha", required=True)
     w.add_argument("--seal-instant", required=True)
     w.add_argument("--only", choices=("accumulate", "scan", "resolve"))
+    w.add_argument("--look", type=int, choices=sorted(LOOK_OUT))
     w.add_argument("--out")
     a = ap.parse_args(argv)
     if a.cmd == "spawn":
@@ -2150,7 +2638,7 @@ def main(argv=None):
     elif a.cmd == "anchor":
         print(json.dumps(cmd_anchor()))
     elif a.cmd == "read":
-        return cmd_read(a.out)
+        return cmd_read(a.out, a.look)
     elif a.cmd == "fingerprint":
         cmd_fingerprint(a.out)
     else:
@@ -2161,7 +2649,7 @@ def main(argv=None):
             elif a.what == "canary":
                 worker_canary(a.data_root)
             else:
-                worker_read(a.data_root, seal, a.out)
+                worker_read(a.data_root, seal, a.out, a.look)
         except Busy as exc:
             print(exc, file=sys.stderr)
             return BUSY_RC

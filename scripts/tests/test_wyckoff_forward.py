@@ -11,7 +11,9 @@ import hashlib
 import importlib.util
 import io
 import json
+import math
 import os
+import random
 import shlex
 import shutil
 import subprocess
@@ -40,6 +42,12 @@ def fake_cost_r(entry, stop, t_in, t_out, sym, side, profile, stat="median"):
     """A deterministic cost_r stand-in (test_edge_wyckoff's): spread 0.02R (0.03R at p90) plus swap 0.01R."""
     s = 0.02 if stat == "median" else 0.03
     return {"total_R": s + 0.01, "swap_R": 0.01, "spread_R": s, "commission_R": 0.0}
+
+
+def read(d, seal, look=1, prior=None, **kw):
+    """read_core at one look of the canary's synthetic plan (WF.canary_plan), with the stand-in cost."""
+    kw.setdefault("cost_r", fake_cost_r)
+    return WF.read_core(d, seal, "fp", look=look, plan=WF.canary_plan(seal), prior=prior, **kw)
 
 
 def t_at(j, start=START, jitter=0):
@@ -169,10 +177,36 @@ def shim_python(where, version):
 
 # ------------------------------------------------------------------------------------------------ registration
 class Registration(unittest.TestCase):
-    def test_symbols_are_the_retest_tradeable_ones_with_a_15m_dense_start(self):
+    def test_symbols_are_the_retests_seven_and_the_three_cheap_replication_indices(self):
         dense = WF.r0_dense()
-        self.assertEqual(WF.SYMBOLS, tuple(s for s in E.TRADEABLE if (dense.get(f"{s}|15m") or {}).get("start")))
-        self.assertNotIn("FRA40", WF.SYMBOLS)
+        self.assertEqual(WF.RT_SYMBOLS, tuple(s for s in E.TRADEABLE if (dense.get(f"{s}|15m") or {}).get("start")))
+        self.assertNotIn("FRA40", WF.SYMBOLS)                                # no R0 15m dense start (§14)
+        replication = [s for g in E.REPLICATION.values() for s in g]
+        self.assertEqual(WF.ADDED_SYMBOLS, ("US2000", "UK100", "JP225"))     # lead decision 2026-10-04 (WY-X1 §12.2 a)
+        self.assertTrue(set(WF.ADDED_SYMBOLS) <= set(replication))
+        self.assertTrue(all((dense.get(f"{s}|15m") or {}).get("start") for s in WF.ADDED_SYMBOLS))
+        for metal in ("XPTUSD", "XPDUSD"):                                    # spread about 0.9R: out
+            self.assertNotIn(metal, WF.SYMBOLS)
+        self.assertEqual(WF.SYMBOLS, WF.RT_SYMBOLS + WF.ADDED_SYMBOLS)
+
+    def test_the_added_symbols_dense_starts_are_the_retests_rule_outcome_blind(self):
+        """US2000, UK100, JP225 start at R0's 15m dense start, which RT §4's rule (edge_wyckoff.dense_table /
+        dense_start, unmodified) gives again on the committed history: bar counts per server day only, no price.
+        R0 is fingerprinted, so its starts are pinned by its sha256 at the seal."""
+        pinned = {"US2000": "2018-01-01", "UK100": "2021-09-01", "JP225": "2021-09-01"}
+        dense = WF.r0_dense()
+        self.assertEqual({s: dense[f"{s}|15m"]["start"] for s in WF.ADDED_SYMBOLS}, pinned)
+        if sealed_here():
+            self.skipTest("WY-F1 is sealed: the extract's R0 is the pin; the working tree's history may be re-exported")
+
+        def counts_only(sym, tf):                                           # the loader, with every price removed
+            candles, prov = E.load_ftmo(sym, tf)
+            return [{"time": c["time"]} for c in candles], prov
+        got = E.dense_table([(s, "15m") for s in WF.ADDED_SYMBOLS], counts_only, "ftmo")
+        for s in WF.ADDED_SYMBOLS:
+            r0 = dense[f"{s}|15m"]
+            self.assertEqual({k: got[f"{s}|15m"][k] for k in ("start", "ref_median", "holes")},
+                             {k: r0[k] for k in ("start", "ref_median", "holes")}, s)
 
     def test_detection_and_horizon_are_the_sealed_retests_own(self):
         cfg, P, sob = WF.det_ctx()
@@ -182,8 +216,11 @@ class Registration(unittest.TestCase):
         self.assertEqual(WF.horizon(), 96)
 
     def test_the_read_rule_is_the_fixed_one(self):
-        self.assertEqual((WF.N_EVENTS, WF.MONTHS, WF.P_PASS), (100, 12, 0.10))
-        self.assertEqual((WF.N_EVENTS, WF.MONTHS, WF.P_PASS), (E.FORWARD_EVENTS, E.FORWARD_MONTHS, E.FORWARD_P))
+        self.assertEqual((WF.LOOK_MONTHS, WF.ALPHA, WF.PLAN_RATE, WF.N_REST_PLAN), ((12, 36), 0.10, 14, 28))
+        self.assertEqual((WF.GRACE_MONTHS, WF.NEVER_DUE_MONTHS), (3, 48))
+        self.assertEqual((WF.ALPHA, WF.LOOK_MONTHS[0]), (E.FORWARD_P, E.FORWARD_MONTHS))  # RT R4's alpha, in total
+        self.assertEqual(WF.LOOK_OUT, {1: WF.REC_DIR + "/wyckoff-forward-look1.json",
+                                       2: WF.REC_DIR + "/wyckoff-forward-look2.json"})
 
     def test_every_fingerprinted_input_is_what_the_sealed_retest_ran(self):
         if sealed_here():
@@ -248,7 +285,9 @@ class Bars(unittest.TestCase):
         self.assertIsNone(note)
         self.assertEqual([b["t"] for b in got], [b["t"] for b in bars[:-1]])
         self.assertTrue(all(b["t"].endswith(":00Z") for b in got))
-        self.assertIn("no live 15m file", WF.live_source(d, "AUS200")[1])
+        got, note = WF.live_source(d, "AUS200")
+        self.assertIsNone(got)                                             # MISSING, never an empty bar list
+        self.assertIn("STALLED, no live 15m file", note)
 
     def test_init_takes_the_sealed_history_from_ninety_days_before_the_seal(self):
         bars = mk_bars(TEW.rising(96 * 100))
@@ -280,8 +319,8 @@ class Bars(unittest.TestCase):
         store = bars[:100]
         write_history(d, "XAUUSD", bars[:300])                   # a re-export: its final bar 299 is dropped
         write_live(d, "XAUUSD", bars[250:])                      # the live file starts after the store's end
-        add, notes = WF.accumulate_symbol("XAUUSD", store, d, d, {"instant": t_at(50)}, "now")
-        self.assertEqual(notes, [])
+        add, notes, stalled = WF.accumulate_symbol("XAUUSD", store, d, d, {"instant": t_at(50)}, "now")
+        self.assertEqual((notes, stalled), ([], False))
         self.assertEqual([b["t"] for b in add], [b["t"] for b in bars[100:399]])
         self.assertEqual({b["src"] for b in add[:199]}, {"history"})
         self.assertEqual({b["src"] for b in add[199:]}, {"live"})
@@ -291,9 +330,45 @@ class Bars(unittest.TestCase):
         bars = mk_bars(TEW.rising(200))
         shifted = [dict(b, t=WF._iso(WF._utc(b["t"]) + datetime.timedelta(hours=1))) for b in bars[90:]]
         write_live(d, "XAUUSD", shifted, jitter=False)
-        add, notes = WF.accumulate_symbol("XAUUSD", bars[:100], d, d, {"instant": t_at(50)}, "now")
-        self.assertEqual(add, [])
+        add, notes, stalled = WF.accumulate_symbol("XAUUSD", bars[:100], d, d, {"instant": t_at(50)}, "now")
+        self.assertEqual((add, stalled), ([], False))                    # the feed is there; it does not connect
         self.assertTrue(any("disagrees" in n for n in notes))
+
+    def test_a_missing_or_unusable_live_file_is_stalled_never_an_empty_market(self):
+        """CLAUDE.md §20: MISSING is never EMPTY. A symbol whose live 15m file is missing (JP225 and AUS200 today), or
+        unusable, is STALLED: nothing is appended from it, the cycle and status list it, its store does not advance, so
+        no look counts it complete -- it is dropped whole only by the registered per-look fallback, by name."""
+        d = tempfile.mkdtemp()
+        bars = mk_bars(TEW.rising(200))
+        store = bars[:100]
+        add, notes, stalled = WF.accumulate_symbol("JP225", store, d, d, {"instant": t_at(50)}, "now")
+        self.assertEqual((add, stalled), ([], True))
+        self.assertTrue(any(n.startswith("JP225: STALLED, no live 15m file") for n in notes), notes)
+        for bad in ([], [dict(c, time="2026-06-01T00:07:00Z") for c in candles(bars[90:92])], candles(bars[150:151])):
+            WF._write_json(os.path.join(d, WF.LIVE_DIR, "ohlcv.JP225.cash.15m.json"),
+                           {"symbol": "JP225.cash", "timeframe": "15m", "candles": bad})     # empty / off-grid / forming
+            got, note = WF.live_source(d, "JP225")
+            self.assertIsNone(got)
+            self.assertIn("STALLED", note)
+            self.assertEqual(WF.accumulate_symbol("JP225", store, d, d, {"instant": t_at(50)}, "now")[0::2],
+                             ([], True))
+        write_history(d, "JP225", bars[:180])                    # a history re-export still bridges bars, and says
+        add, notes, stalled = WF.accumulate_symbol("JP225", store, d, d, {"instant": t_at(50)}, "now")
+        self.assertEqual(([b["t"] for b in add], stalled), ([b["t"] for b in bars[100:179]], True))   # the feed is down
+        # The cycle lists it and adds nothing for it; status says STALLED; its store is never complete.
+        root, seal = canary_root()
+        os.remove(os.path.join(root, WF.LIVE_DIR, "ohlcv.JP225.cash.15m.json"))
+        before = WF.read_chain(WF._rt(root, "bars", "JP225.15m.jsonl"))[0]
+        res = WF.cycle_core(root, seal, "fp", "2026-07-02T00:00:00Z", init_root=root)
+        self.assertEqual((res["summary"]["stalled"], res["summary"]["added_bars"]["JP225"]), (["JP225"], 0))
+        WF.commit(res["writes"])
+        self.assertEqual(WF.read_chain(WF._rt(root, "bars", "JP225.15m.jsonl"))[0], before)
+        st = WF.status(root)
+        self.assertEqual((st["stalled"], st["symbols"]["JP225"]["stalled"]), (["JP225"], True))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            WF._print_status(st)
+        self.assertIn("STALLED", buf.getvalue())
 
     def test_the_chain_refuses_an_edit_a_removal_and_a_concurrent_writer(self):
         d = tempfile.mkdtemp()
@@ -348,7 +423,7 @@ class TornWrites(unittest.TestCase):
             WF.append_chain(bp, [{"x": 1}], kept[bp][1])                          # nothing is glued onto it
         self.assertIn("unterminated", str(cm.exception))
         self.assertEqual(open(bp, "rb").read(), clean[bp] + torn[bp])
-        for call in (lambda: WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1), lambda: WF.cmd_anchor(d)):
+        for call in (lambda: read(d, seal), lambda: WF.cmd_anchor(d)):
             with self.assertRaises(SystemExit) as cm:
                 call()                                                            # the read and an anchor wait for a cycle
             self.assertIn("unterminated", str(cm.exception))
@@ -376,9 +451,9 @@ class TornWrites(unittest.TestCase):
                            hashlib.sha256(torn[lp]).hexdigest(), True)])
         self.assertEqual([base64.b64decode(r["dropped_b64"]) for r in rep], [torn[bp], torn[lp]])
         self.assertTrue(all(r["seal"] == seal["sha"] and r["fingerprint"] == "fp" for r in rep))
-        out = WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1)         # never part of a chain: the read
+        out = read(d, seal)                                                       # never part of a chain: the read
         self.assertEqual((out["sample"], out["repairs"]["records"], out["repairs"]["files"]),   # passes, and says so
-                         (7, 2, {"bars/XAUUSD.15m.jsonl": 1, "log.jsonl": 1}))
+                         (10, 2, {"bars/XAUUSD.15m.jsonl": 1, "log.jsonl": 1}))
         self.assertNotIn("dropped_b64", json.dumps(out["repairs"]))
         self.assertEqual(WF.status(d)["repairs"]["pending"], [])
         # A TERMINATED line is never dropped: torn bytes that got a newline, or a duplicated last line, refuse every
@@ -558,6 +633,82 @@ class Resolve(unittest.TestCase):
         r = self.resolve(k + 2, rec)
         self.assertEqual((r["placeable"], r["skip"]), (False, "entry_beyond_stop_or_target"))
         self.assertNotIn("R", r)
+        self.assertTrue(set(WF.LOG_ONLY_KEYS) <= set(r))                       # logged, None where they do not apply
+        self.assertEqual((r["mfe_r"], r["planned_rr"]), (None, None))
+
+    def test_the_log_only_fields_use_no_bar_beyond_the_walk_and_the_gate_none_after_the_signal(self):
+        """WY-F1 §6: MFE / MAE in R, bars to MFE, the planned R:R, the entry-hour spread and the HTF gate flag come from
+        bars the resolve already reads -- the walk's bars e..exit, and the store up to the signal bar k for the gate --
+        so a store cut right after the exit, or with every later bar changed, logs the same record."""
+        k, e = self.d["store_index"], self.d["store_index"] + 1
+        full = self.resolve(len(self.bars))
+        S = WF.series_of("XAUUSD", self.bars)
+        x = S.T.index(full["exit_time"])
+        entry, stop = S.O[e], self.d["stop"]
+        risk = entry - stop
+        self.assertEqual(full["planned_rr"], (self.d["target"] - entry) / risk)
+        self.assertEqual(full["mfe_r"], (max(S.H[e:x + 1]) - entry) / risk)
+        self.assertEqual(full["mae_r"], (entry - min(S.L[e:x + 1])) / risk)
+        self.assertEqual(full["bars_to_mfe"], S.H[e:x + 1].index(max(S.H[e:x + 1])))
+        self.assertEqual(set(full["spread_r_entry"]), {"median", "p90"})
+        self.assertIn(full["htf_gate"], (True, False, None))
+        self.assertEqual(self.resolve(x + 1), full)                                   # cut right after the exit
+        moved = self.bars[:x + 1] + [dict(b, o=b["o"] * 1.1, h=b["h"] * 1.2, l=b["l"] * 0.8, c=b["c"] * 0.9)
+                                     for b in self.bars[x + 1:]]
+        self.assertEqual(WF.resolve_record(WF.series_of("XAUUSD", moved), self.rec, self.seal, "fp", "now"), full)
+        after_k = self.bars[:k + 1] + [dict(b, h=b["h"] + 5.0, c=b["c"] + 1.0) for b in self.bars[k + 1:]]
+        self.assertEqual(WF.htf_gate(WF.series_of("XAUUSD", after_k), k), WF.htf_gate(S, k))
+        hours = WF.htf_candles(S, k, 60)
+        self.assertLessEqual(WF._utc(hours[-1]["time"]) + datetime.timedelta(hours=1), S.avail[k])
+
+    def test_the_htf_gate_is_the_engines_own_function_as_the_a3_arm_applies_it(self):
+        k = self.d["store_index"]
+        S = WF.series_of("XAUUSD", self.bars)
+        if not sealed_here():                       # the pin is what the engine's scan resolves for the seven symbols
+            self.assertEqual({BT._auto.market_of(s) for s in WF.RT_SYMBOLS}, {"cfd"})
+            self.assertEqual(BT.lr.htf.engaged_methods_for_market("cfd"), WF.HTF_METHODS)
+            self.assertIsNone(BT.OPTS["methods"])
+            self.assertEqual({BT.resolve_methods(s) for s in WF.RT_SYMBOLS}, {WF.HTF_METHODS})
+        seen = []
+        real_load, real_opts = BT.load, BT.OPTS
+
+        def gate(sym, tf, side, decision_time, methods, h=None):
+            seen.append((sym, tf, side, decision_time, methods, BT.OPTS["htf"], BT.load(sym, "1H")[0]))
+            return True
+        with mock.patch.object(BT, "htf_bias_gate", gate):
+            self.assertEqual(WF.htf_gate(S, k), (True, None))
+        (call,) = seen
+        self.assertEqual(call[:6], ("XAUUSD", "15m", "long", WF._iso(S.avail[k]), WF.HTF_METHODS, True))
+        self.assertEqual(call[6], WF.htf_candles(S, k, 60))                    # the store's own hours, up to bar k
+        self.assertIs(BT.load, real_load)
+        self.assertIs(BT.OPTS, real_opts)
+
+        def boom(*_a, **_k):
+            raise ValueError("synthetic")
+        with mock.patch.object(BT, "htf_bias_gate", boom):
+            flag, err = WF.htf_gate(S, k)                                         # logged, never raised
+        self.assertEqual((flag, "ValueError" in err), (None, True))
+        self.assertIs(BT.load, real_load)
+
+    def test_the_log_only_fields_never_reach_status_or_a_cycle_summary(self):
+        d, seal = canary_root()
+        log, _ = WF.read_chain(WF._rt(d, "log.jsonl"))
+        resolves = [r for r in log if r["kind"] == "resolve"]
+        self.assertEqual(len(resolves), 10)
+        self.assertTrue(all(set(WF.LOG_ONLY_KEYS) <= set(r) and r["mfe_r"] is not None for r in resolves))
+        values = {repr(r[k]) for r in resolves for k in ("mfe_r", "mae_r", "planned_rr")}
+        res = WF.cycle_core(d, seal, "fp", "2026-07-02T00:00:00Z", init_root=d)
+        with mock.patch.object(WF, "seal_info", lambda root=None: dict(seal, date="x")), \
+                mock.patch.object(WF, "committed_anchors", lambda root: []):
+            st = WF.status(d)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            WF._print_status(st)
+        for text in (json.dumps(res["summary"]), json.dumps(st), buf.getvalue()):
+            for key in WF.LOG_ONLY_KEYS + ("spread_r", "mfe", "mae"):
+                self.assertNotIn(key, text)
+            for v in values:
+                self.assertNotIn(v, text)
 
     def test_status_never_prints_an_outcome(self):
         d, _seal = canary_root()
@@ -590,9 +741,19 @@ class Resolve(unittest.TestCase):
         with mock.patch.object(WF, "seal_info", lambda root=None: dict(seal, date="x")), \
                 mock.patch.object(WF, "committed_anchors", lambda root: []):
             st2 = WF.status(d)                                       # the same with every resolve record gone
-        self.assertEqual(st["rule"]["counted_events"], 7)
-        self.assertEqual(st2["rule"]["counted_events"], 7)
+        self.assertEqual(st["rule"]["counted_events"], 10)
+        self.assertEqual(st2["rule"]["counted_events"], 10)
         self.assertEqual(st2["symbols"]["XAUUSD"]["unresolved_past_walk"], 1)
+        r = st["rule"]
+        plan = WF.look_plan(seal["instant"])
+        self.assertEqual([r["looks"][n]["t_cutoff"] for n in ("1", "2")], [WF._iso(c) for c, _g in plan])
+        self.assertEqual((r["next_look"], r["read_due"], r["records"]), ("1", False, {"1": False, "2": False}))
+        self.assertEqual(r["never_due_close"], WF._iso(WF.add_months(WF._utc(seal["instant"]), 48)))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            WF._print_status(st)
+        self.assertIn("never-due close", buf.getvalue())
+        self.assertIn("look 2: cutoff", buf.getvalue())
 
 
 # ------------------------------------------------------------------------------------------------ the read rule (§7)
@@ -614,67 +775,212 @@ class ReadRule(unittest.TestCase):
         self.assertEqual(WF._iso(WF.add_months(d, 12)), "2027-10-05T10:23:11Z")
         self.assertEqual(WF.add_months(WF._utc("2028-02-29T00:00:00Z"), 12).day, 28)
 
-    def test_the_n_rule_cuts_at_the_nth_counted_entry_inside_the_common_complete_span(self):
-        a, b = FakeS(5000), FakeS(5000)
-        closes = [a.avail[10 * j] for j in range(1, 121)]
-        r = WF.due({"A": a, "B": b}, closes, self.SEAL, 96, n_events=100)
-        self.assertEqual((r["cutoff"], r["rule"][:2]), (WF._iso(closes[99]), "N:"))
-        lag = FakeS(900)                                              # complete through bar 803 only
-        r = WF.due({"A": a, "B": lag}, closes, self.SEAL, 96, n_events=100)
-        self.assertIsNone(r["cutoff"])
-        self.assertEqual(r["counted_events"], 80)
+    @staticmethod
+    def through(day):
+        """A FakeS complete through `day` (UTC midnight): 96 bars after it are stored."""
+        days = (WF._utc(day + "T00:00:00Z") - WF._utc(ReadRule.SEAL)).days
+        return FakeS(96 * days + 96)
 
-    def test_the_t_rule_cuts_at_twelve_months_and_the_earlier_rule_wins(self):
-        year = 96 * 366 + 200
-        a = FakeS(year)
-        r = WF.due({"A": a}, [a.avail[100]] * 3, self.SEAL, 96, n_events=100)
-        self.assertEqual((r["cutoff"], r["rule"][:2]), ("2027-10-05T00:00:00Z", "T:"))
-        late = [a.avail[96 * 366 + 50]] * 100                         # the 100th event comes after the 12 months
-        self.assertEqual(WF.due({"A": a}, late, self.SEAL, 96)["rule"][:2], "T:")
-        self.assertIsNone(WF.due({"A": FakeS(96 * 300)}, [], self.SEAL, 96)["cutoff"])
+    def test_each_look_cuts_at_its_month_on_data_complete_for_every_symbol(self):
+        plan = WF.look_plan(self.SEAL)
+        self.assertEqual([(WF._iso(c), WF._iso(g)) for c, g in plan],
+                         [("2027-10-05T00:00:00Z", "2028-01-05T00:00:00Z"), ("2029-10-05T00:00:00Z", "2030-01-05T00:00:00Z")])
+        a = self.through("2027-10-05")
+        r = WF.due({"A": a, "B": a}, self.SEAL, 96, 1)
+        self.assertEqual((r["cutoff"], r["rule"][:3], r["dropped"]), ("2027-10-05T00:00:00Z", "T1:", []))
+        self.assertIsNone(WF.due({"A": a, "B": a}, self.SEAL, 96, 2)["cutoff"])        # look 2 waits for its month
+        short = self.through("2027-10-04")
+        self.assertIsNone(WF.due({"A": a, "B": short}, self.SEAL, 96, 1)["cutoff"])     # every symbol must be complete
+        b = self.through("2029-10-05")
+        r = WF.due({"A": b, "B": b}, self.SEAL, 96, 2)
+        self.assertEqual((r["cutoff"], r["rule"][:3]), ("2029-10-05T00:00:00Z", "T2:"))
 
-    def test_a_symbol_still_stalled_three_months_after_the_t_cutoff_is_dropped_whole(self):
-        year = 96 * 366 + 200
-        full, stalled = FakeS(96 * (366 + 92) + 200), FakeS(96 * 200)       # 15 months + / stalled after ~6 months
-        r = WF.due({"A": full, "B": stalled}, [], self.SEAL, 96, n_events=100)
-        self.assertEqual((r["cutoff"], r["dropped"], r["rule"][:7]), ("2027-10-05T00:00:00Z", ["B"], "T-drop:"))
+    def test_a_symbol_stalled_three_months_past_a_looks_cutoff_is_dropped_whole_from_that_look(self):
+        full, stalled = self.through("2028-01-05"), self.through("2027-04-01")
+        r = WF.due({"A": full, "B": stalled}, self.SEAL, 96, 1)
+        self.assertEqual((r["cutoff"], r["dropped"], r["rule"][:8]), ("2027-10-05T00:00:00Z", ["B"], "T1-drop:"))
         self.assertEqual(r["grace_cutoff"], "2028-01-05T00:00:00Z")
-        early = FakeS(year)                                                  # 12 months done, the grace not over
-        r = WF.due({"A": early, "B": stalled}, [], self.SEAL, 96, n_events=100)
-        self.assertEqual((r["cutoff"], r["dropped"]), (None, []))
-        r = WF.due({"A": full, "B": None}, [], self.SEAL, 96, n_events=100)  # B never had a store
-        self.assertEqual(r["dropped"], ["B"])
-        r = WF.due({"A": full, "B": stalled}, [], self.SEAL, 96, n_events=100, grace_months=None)
-        self.assertIsNone(r["cutoff"])                                       # option B: no fallback
-        r = WF.due({"A": full, "B": full}, [], self.SEAL, 96, n_events=100)
-        self.assertEqual((r["rule"][:2], r["dropped"]), ("T:", []))         # nothing stalled: the plain T rule
+        early = self.through("2028-01-04")                                       # 12 months done, the grace not over
+        self.assertEqual(WF.due({"A": early, "B": stalled}, self.SEAL, 96, 1)["cutoff"], None)
+        self.assertEqual(WF.due({"A": full, "B": None}, self.SEAL, 96, 1)["dropped"], ["B"])     # never had a store
+        no_grace = WF.look_plan(self.SEAL, grace_months=None)
+        self.assertIsNone(WF.due({"A": full, "B": stalled}, self.SEAL, 96, 1, no_grace)["cutoff"])
+        # Per look: B complete for look 1 and stalled before look 2 is read at look 1, dropped from look 2 only.
+        late, mid = self.through("2030-01-05"), self.through("2028-06-01")
+        self.assertEqual(WF.due({"A": late, "B": mid}, self.SEAL, 96, 1)["dropped"], [])
+        r = WF.due({"A": late, "B": mid}, self.SEAL, 96, 2)
+        self.assertEqual((r["cutoff"], r["dropped"], r["rule"][:8]), ("2029-10-05T00:00:00Z", ["B"], "T2-drop:"))
+        self.assertIsNone(WF.due({"A": self.through("2030-01-04"), "B": mid}, self.SEAL, 96, 2)["cutoff"])
 
-    def test_an_early_read_refuses_before_any_walk_or_cost_is_computed(self):
-        # The canary root's log already holds resolve records (gross R): what this proves is that the read computes
+    def test_an_early_look_refuses_before_any_walk_or_cost_is_computed(self):
+        # The canary root's log already holds resolve records (gross R): what this proves is that a look computes
         # no walk, no placebo and no cost before its rule is met -- not that no outcome exists anywhere (WY-F1 §6).
         d, seal = canary_root()
+        prior = read(d, seal)
 
         def boom(*a, **k):
-            raise AssertionError("an outcome was computed before the read rule was met")
-        with mock.patch.object(E, "walk_from", boom), mock.patch.object(E, "score", boom), \
-                mock.patch.object(E, "Pricer", boom):
-            with self.assertRaises(SystemExit) as cm:
-                WF.read_core(d, seal, "fp", cost_r=fake_cost_r)                # the registered 100 / 12 months
-        self.assertIn("not due", str(cm.exception))
+            raise AssertionError("an outcome was computed before the look was due")
+        for look, pr in ((1, None), (2, prior)):
+            with mock.patch.object(E, "walk_from", boom), mock.patch.object(E, "score", boom), \
+                    mock.patch.object(E, "Pricer", boom), self.assertRaises(SystemExit) as cm:
+                WF.read_core(d, seal, "fp", look=look, prior=pr, cost_r=fake_cost_r)   # the registered 12 / 36 months
+            self.assertIn(f"look {look} is not due", str(cm.exception))
+
+
+# ------------------------------------------------------------------------------------------------ two looks (§7)
+def _phi(x):
+    return 0.5 * math.erfc(-x / math.sqrt(2.0))
+
+
+def _phi_inv(p):
+    lo, hi = -12.0, 12.0
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        lo, hi = (mid, hi) if _phi(mid) < p else (lo, mid)
+    return 0.5 * (lo + hi)
+
+
+def bvn_simpson(a, b, r, steps=4000, lo=-12.0):
+    """An INDEPENDENT P(Z1 <= a, Z2 <= b) for the standard bivariate normal with correlation r: composite Simpson on
+    the conditional form, the integral from lo to a of phi(x) Phi((b - r x) / sqrt(1 - r^2)) dx -- not the code's
+    Gauss-Legendre / Drezner-Wesolowsky branches."""
+    s, h, tot = math.sqrt(1.0 - r * r), (a - lo) / steps, 0.0
+    for i in range(steps + 1):
+        x = lo + i * h
+        tot += (1 if i in (0, steps) else 4 if i % 2 else 2) * math.exp(-0.5 * x * x) * _phi((b - r * x) / s)
+    return tot * h / 3.0 / math.sqrt(2.0 * math.pi)
+
+
+def two_look_simpson(t1, alpha):
+    """(z1, z2) of a one-sided two-look Lan-DeMets O'Brien-Fleming-type design at information fraction t1, computed
+    independently of the code: the spending alpha(t) = 2 (1 - Phi(z_{1-alpha/2} / sqrt(t))) with this file's own Phi
+    and its inverse, and z2 from P0(Z1 < z1, Z2 < z2) = 1 - alpha by bisection on `bvn_simpson`."""
+    a1 = 2.0 * (1.0 - _phi(_phi_inv(1.0 - alpha / 2.0) / math.sqrt(t1)))
+    z1 = _phi_inv(1.0 - a1)
+    lo, hi = -8.0, 8.0
+    for _ in range(80):
+        mid = 0.5 * (lo + hi)
+        lo, hi = (mid, hi) if bvn_simpson(z1, mid, math.sqrt(t1)) < 1.0 - alpha else (lo, mid)
+    return z1, 0.5 * (lo + hi)
+
+
+def poisson(rnd, lam):
+    """A Poisson draw (Knuth), for the simulated event counts."""
+    limit, k, p = math.exp(-lam), 0, 1.0
+    while True:
+        p *= rnd.random()
+        if p <= limit:
+            return k
+        k += 1
+
+
+class TwoLooks(unittest.TestCase):
+    """WY-F1 §7: two looks, Lan-DeMets O'Brien-Fleming-type spending, one-sided alpha 0.10 in total, the boundaries
+    from the looks' ACTUAL event counts -- checked against an independent computation and by simulating the type-I
+    error under the null with event rates that are not steady."""
+
+    def test_the_spending_and_both_boundaries_match_an_independent_computation(self):
+        for a, b, r in ((2.62, 1.29, 0.577), (-0.5, 2.0, 0.2), (1.0, -1.0, -0.6), (3.0, 1.3, 0.95), (0.3, 0.1, 0.99)):
+            self.assertAlmostEqual(WF.bvn_lower(a, b, r), bvn_simpson(a, b, r), places=10)
+        self.assertEqual((WF.obf_spend(0.0), WF.obf_spend(1.0)), (0.0, WF.ALPHA))
+        for t in (0.1, 1 / 3, 0.5, 0.9):
+            self.assertAlmostEqual(WF.obf_spend(t), 2.0 * (1.0 - _phi(_phi_inv(1 - WF.ALPHA / 2) / math.sqrt(t))),
+                                   places=12)
+        # The registered design at the planning rate (14 a year): look 1 at 14 events is t = 1/3 -- one-sided p below
+        # 0.0044 (z 2.62) -- and look 2 at 42 events p below 0.0986 (z 1.29), as the WY-X1 draft's §12.2 (b) has them.
+        b1 = WF.look1_boundary(14)
+        self.assertEqual((b1["n"], b1["t"]), (14, 1 / 3))
+        b2 = WF.look2_boundary(b1, 42, 14)
+        z1, z2 = two_look_simpson(1 / 3, WF.ALPHA)
+        self.assertAlmostEqual(b1["z"], z1, places=7)
+        self.assertAlmostEqual(b2["z"], z2, places=6)
+        self.assertEqual((round(b1["p_threshold"], 4), round(b1["z"], 2)), (0.0044, 2.62))
+        self.assertEqual((round(b2["p_threshold"], 4), round(b2["z"], 2)), (0.0986, 1.29))
+        # The classic case, one-sided 0.025 at t = 0.5 and 1: the independent computation gives 2.963 and 1.969, the
+        # commonly tabulated two-look OBF-type boundaries; the code's functions give the same.
+        z1, z2 = two_look_simpson(0.5, 0.025)
+        self.assertEqual((round(z1, 3), round(z2, 3)), (2.963, 1.969))
+        c1 = WF.look1_boundary(10, n_rest=10, alpha=0.025)
+        self.assertAlmostEqual(c1["z"], z1, places=7)
+        self.assertAlmostEqual(WF.look2_boundary(c1, 20, 10, alpha=0.025)["z"], z2, places=6)
+        # The total false-pass probability is alpha for any counts, steady or not (Simpson, independent of the code).
+        for n1, n2 in ((14, 42), (3, 60), (40, 46), (1, 2), (25, 26)):     # P0(Z1 >= z1 or Z2 >= z2)
+            b1 = WF.look1_boundary(n1)
+            b2 = WF.look2_boundary(b1, n2, n1)
+            self.assertAlmostEqual(1.0 - bvn_simpson(b1["z"], b2["z"], b2["rho"]), WF.ALPHA, places=7)
+
+    def test_look_two_spends_what_look_one_left_and_an_empty_look_one_spends_nothing(self):
+        b1 = WF.look1_boundary(0)
+        self.assertEqual((b1["t"], b1["alpha_spent"], b1["z"], b1["p_threshold"]), (0.0, 0.0, None, 0.0))
+        b2 = WF.look2_boundary(b1, 30, 0)
+        self.assertAlmostEqual(b2["p_threshold"], WF.ALPHA, places=12)          # one look at the full alpha
+        b1 = WF.look1_boundary(20)
+        self.assertAlmostEqual(WF.look2_boundary(b1, 50, 20)["alpha_spent"] + b1["alpha_spent"], WF.ALPHA, places=15)
+        self.assertGreater(WF.look1_boundary(60)["alpha_spent"], WF.look1_boundary(14)["alpha_spent"])   # actual n1
+        self.assertLess(WF.look1_boundary(60)["t"], 1.0)
+        for s, want in (({"n": 0}, False), ({"n": 5, "net_excess": 0.4, "p_one_sided": 0.001}, True),
+                        ({"n": 5, "net_excess": -0.1, "p_one_sided": 0.001}, False),
+                        ({"n": 5, "net_excess": 0.4, "p_one_sided": 0.0044}, False)):
+            self.assertEqual(WF.crossed(s, {"p_threshold": 0.0044}), want, s)
+
+    def test_the_type_one_error_stays_at_alpha_under_a_non_steady_event_rate(self):
+        """Under the null, with event counts that do not arrive at the planning rate -- a slow first year (4, then 50
+        between the looks) and a fast one (30, then 6) -- the two-look rule, with its boundaries computed from the
+        actual counts, falsely passes 10 % of the time: exactly for the z statistic, and to simulation precision for
+        the registered Student-t p-value on normal per-event values."""
+        def run(lam1, lam_rest, reps, seed, t_stat=False):
+            rnd, cache, hits = random.Random(seed), {}, 0
+            for _ in range(reps):
+                n1 = poisson(rnd, lam1)
+                n2 = n1 + poisson(rnd, lam_rest)
+                b1 = WF.look1_boundary(n1)
+                if (n1, n2) not in cache:
+                    cache[(n1, n2)] = WF.look2_boundary(b1, n2, n1)
+                b2 = cache[(n1, n2)]
+                if t_stat:
+                    xs = [rnd.gauss(0.0, 1.0) for _ in range(n2)]
+
+                    def summary(v):
+                        if len(v) < 2:
+                            return {"n": len(v), "net_excess": 0.0, "p_one_sided": 1.0}
+                        m = sum(v) / len(v)
+                        sd = math.sqrt(sum((x - m) ** 2 for x in v) / (len(v) - 1))
+                        return {"n": len(v), "net_excess": m,
+                                "p_one_sided": E.EC.t_sf(m / (sd / math.sqrt(len(v))), len(v) - 1) if sd else 1.0}
+                    hits += WF.crossed(summary(xs[:n1]), b1) or WF.crossed(summary(xs), b2)
+                else:
+                    s1 = math.sqrt(n1) * rnd.gauss(0.0, 1.0)
+                    s2 = s1 + math.sqrt(n2 - n1) * rnd.gauss(0.0, 1.0)
+                    hits += (bool(n1) and b1["z"] is not None and s1 / math.sqrt(n1) >= b1["z"]) \
+                        or (bool(n2) and s2 / math.sqrt(n2) >= b2["z"])
+            return hits / reps
+        for lam1, lam_rest in ((4, 50), (30, 6)):
+            reps = 30000
+            rate = run(lam1, lam_rest, reps, 20261004)
+            self.assertLess(abs(rate - WF.ALPHA), 3.5 * math.sqrt(WF.ALPHA * (1 - WF.ALPHA) / reps), (lam1, rate))
+        rate = run(4, 50, 8000, 11, t_stat=True)
+        self.assertLess(abs(rate - WF.ALPHA), 0.012, rate)
 
 
 # ------------------------------------------------------------------------------------------------ the read (§7-§8)
 class Read(unittest.TestCase):
     def test_the_read_measures_with_the_sealed_section_5(self):
         d, seal = canary_root()
-        out = WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1)
-        self.assertEqual((out["sample"], out["summary"]["n"], out["probe"]["violations"]), (7, 7, 0))
-        self.assertTrue(out["cutoff"]["rule"].startswith("N:"))
-        for r in out["rows"]:
+        out = read(d, seal)
+        s = out["statistic"]["summary"]
+        self.assertEqual((out["sample"], s["n"], out["probe"]["violations"]), (10, 10, 0))
+        self.assertTrue(out["cutoff"]["rule"].startswith("T1:"))
+        for r in out["statistic"]["rows"]:
             self.assertAlmostEqual(r["net_excess"], r["excess"] - r["cost"]["median_swap"])
             self.assertEqual(r["tf"], "15m")
-        v = out["verdict"]
-        self.assertEqual(v["pass"], bool(out["summary"]["n"]) and v["net_excess"] > 0 and v["p_one_sided"] < 0.10)
+            self.assertEqual(r["set"], "added" if r["symbol"] in WF.ADDED_SYMBOLS else "rt")
+        self.assertEqual(s, E.summarise(out["statistic"]["rows"], E.FTMO_LINES))
+        self.assertEqual(set(out["statistic"]["by_set"]), {"rt", "added"})
+        v, b = out["verdict"], out["boundary"]
+        self.assertEqual(b, WF.look1_boundary(s["n"]))                       # from the ACTUAL count
+        self.assertEqual(v["pass"], bool(s["n"]) and v["net_excess"] > 0 and v["p_one_sided"] < b["p_threshold"])
+        self.assertEqual(v["label"], "PASS" if v["pass"] else "CONTINUE")      # never NOT PASSED at look 1
+        self.assertEqual(out["statistic_sha256"], WF.statistic_sha256(out["statistic"]))
         self.assertEqual(set(out["history_check"]), set(WF.SYMBOLS))
         for h in out["history_check"].values():
             self.assertEqual((h["coverage"], h["agreement"], h["missing"], h["spans_end"], h["spans_checked"],
@@ -683,19 +989,114 @@ class Read(unittest.TestCase):
         self.assertEqual((out["symbols_read"], out["symbols_dropped"]), (list(WF.SYMBOLS), []))
         self.assertIsNotNone(out["anchors"]["note"])                          # no committed anchor: disclosed
 
+    def test_a_look_one_that_does_not_cross_is_blinded_and_look_two_reproduces_its_commitment(self):
+        d, seal = canary_root()
+        one = read(d, seal)
+        self.assertEqual(one["verdict"]["label"], "CONTINUE")                # the canary's ten events share one week
+        rec = json.loads(json.dumps(WF.blind(dict(one, meta={"study": WF.STUDY, "seal": seal,
+                                                               "fingerprint_digest": "fp"})), default=str))
+        text = json.dumps(rec)
+        for leak in ("net_excess", "p_one_sided", "upper_95", "mean_R", "mean_excess", '"rows"', '"R"', "placebo",
+                     "outcome", "mfe_r"):
+            self.assertNotIn(leak, text)                                      # no estimate, no p, no trade
+        self.assertEqual(set(rec["verdict"]), set(WF.BLIND_VERDICT_KEYS))
+        self.assertEqual(rec["statistic_sha256"], one["statistic_sha256"])
+        self.assertEqual(WF.require_prior(rec, seal, "fp"), rec)
+        two = read(d, seal, look=2, prior=rec)
+        self.assertEqual(two["look1"]["statistic_sha256"], rec["statistic_sha256"])
+        self.assertEqual(WF.statistic_sha256(two["look1"]["statistic"]), rec["statistic_sha256"])   # disclosed now
+        n1, n2 = one["statistic"]["summary"]["n"], two["statistic"]["summary"]["n"]
+        self.assertEqual(two["boundary"], WF.look2_boundary(WF.look1_boundary(n1), n2, n1))
+        self.assertAlmostEqual(two["verdict"]["alpha_spent"] + two["verdict"]["alpha_spent_look1"], WF.ALPHA, places=12)
+        self.assertIn(two["verdict"]["label"], ("PASS", "NOT PASSED"))
+        self.assertTrue(two["verdict"]["final"])
+        for bad, why in ((dict(rec, statistic_sha256="0" * 64), "does not reproduce its committed sha256"),
+                         (dict(rec, boundary=dict(rec["boundary"], alpha_spent=0.05)), "does not follow from"),
+                         (dict(rec, boundary=None), "needs look 1's record")):
+            with self.assertRaises(SystemExit) as cm:
+                read(d, seal, look=2, prior=bad)
+            self.assertIn(why, str(cm.exception))
+
+    def test_the_look_files_round_trip_a_blinded_look_one_into_look_two_and_a_pass_ends_it(self):
+        """What `worker_read` writes (WF.look_record, edge_wyckoff._dump) and what look 2 reads back from the file."""
+        d, seal = canary_root()
+        meta = {"study": WF.STUDY, "seal": seal, "fingerprint_digest": "fp"}
+        tmp = tempfile.mkdtemp()
+        one = dict(read(d, seal), meta=meta)
+        p1 = os.path.join(tmp, "look1.json")
+        E._dump(WF.look_record(one), p1)
+        text1 = open(p1).read()
+        rec1 = json.loads(text1)
+        self.assertEqual((rec1["verdict"]["label"], "rows" in rec1, "statistic" in rec1), ("CONTINUE", False, False))
+        for leak in ("net_excess", "p_one_sided", "mean_R", '"R"'):
+            self.assertNotIn(leak, text1)
+        line = WF.look_line(one)
+        self.assertIn("BLINDED", line)
+        self.assertNotIn(repr(one["verdict"]["net_excess"]), line)
+        two = dict(read(d, seal, look=2, prior=WF.require_prior(rec1, seal, "fp")), meta=meta)
+        p2 = os.path.join(tmp, "look2.json")
+        E._dump(WF.look_record(two), p2)
+        rec2 = json.load(open(p2))
+        rows1 = rec2["rows"][f"{WF.CELL}@look1"]
+        self.assertEqual(set(rec2["rows"]), {f"{WF.CELL}@look1", f"{WF.CELL}@look2"})
+        self.assertNotIn("rows", rec2["statistic"])
+        self.assertNotIn("rows", rec2["look1"]["statistic"])
+        self.assertEqual(WF.statistic_sha256({"rows": rows1, "summary": rec2["look1"]["statistic"]["summary"]}),
+                         rec1["statistic_sha256"])                  # the disclosed look-1 rows are the committed ones
+        self.assertEqual(len(rec2["rows"][f"{WF.CELL}@look2"]), rec2["statistic"]["summary"]["n"])
+        self.assertIn("one-sided p", WF.look_line(two))
+        with mock.patch.object(WF, "crossed", lambda s, b: True):    # a look 1 that crosses: the verdict, written whole
+            won = dict(read(d, seal), meta=meta)
+        self.assertEqual((won["verdict"]["label"], won["verdict"]["final"]), ("PASS", True))
+        p3 = os.path.join(tmp, "pass.json")
+        E._dump(WF.look_record(won), p3)
+        rec3 = json.load(open(p3))
+        self.assertEqual(len(rec3["rows"][f"{WF.CELL}@look1"]), won["statistic"]["summary"]["n"])
+        self.assertIn("net_excess", rec3["verdict"])
+        with self.assertRaises(SystemExit) as cm:
+            WF.require_prior(rec3, seal, "fp")
+        self.assertIn("a look-1 PASS ends WY-F1", str(cm.exception))
+
+    def test_look_two_needs_look_ones_committed_continue_record_of_this_seal(self):
+        seal = {"sha": "s" * 40, "instant": "2026-10-05T00:00:00Z"}
+        ok = {"look": 1, "meta": {"study": WF.STUDY, "seal": seal, "fingerprint_digest": "fp"},
+              "verdict": {"label": "CONTINUE", "pass": False}}
+        self.assertIs(WF.require_prior(ok, seal, "fp"), ok)
+        for bad, why in ((None, "needs look 1's committed record"),
+                         (dict(ok, look=2), "is not WY-F1's look-1 record"),
+                         (dict(ok, meta=dict(ok["meta"], fingerprint_digest="other")), "another seal or code"),
+                         (dict(ok, meta=dict(ok["meta"], seal=dict(seal, sha="t" * 40))), "another seal or code"),
+                         (dict(ok, verdict={"label": "PASS", "pass": True}), "a look-1 PASS ends WY-F1")):
+            with self.assertRaises(SystemExit) as cm:
+                WF.require_prior(bad, seal, "fp")
+            self.assertIn(why, str(cm.exception))
+        root = tempfile.mkdtemp()                                             # the record comes from git HEAD
+        git(root, "init", "-q")
+        self.assertIsNone(WF.committed_record(root, WF.LOOK_OUT[1]))
+        p = os.path.join(root, WF.LOOK_OUT[1])
+        WF._write_json(p, ok)
+        self.assertIsNone(WF.committed_record(root, WF.LOOK_OUT[1]))             # on disk only: no record
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "-m", "look 1")
+        self.assertEqual(WF.committed_record(root, WF.LOOK_OUT[1]), ok)
+        WF._write_json(p, dict(ok, verdict={"label": "CONTINUE", "pass": False, "edited": True}))
+        with self.assertRaises(SystemExit) as cm:
+            WF.committed_record(root, WF.LOOK_OUT[1])
+        self.assertIn("differs from its committed version", str(cm.exception))
+
     def test_the_replay_must_match_the_log(self):
         d, seal = canary_root()
         log, heads = WF.read_chain(WF._rt(d, "log.jsonl"))
         ghost = dict(next(r for r in log if r["kind"] == "event"), id="XAUUSD|15m|ghost")
         WF.append_chain(WF._rt(d, "log.jsonl"), [ghost], heads[-1])
         with self.assertRaises(SystemExit) as cm:
-            WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1)
+            read(d, seal)
         self.assertIn("replay does not match", str(cm.exception))
 
     def test_a_record_under_another_fingerprint_or_seal_refuses(self):
         d, seal = canary_root()
         with self.assertRaises(SystemExit) as cm:
-            WF.read_core(d, seal, "another-fp", cost_r=fake_cost_r, n_events=1)
+            WF.read_core(d, seal, "another-fp", plan=WF.canary_plan(seal), cost_r=fake_cost_r)
         self.assertIn("another seal or code fingerprint", str(cm.exception))
 
     def test_bars_the_history_export_does_not_confirm_refuse(self):
@@ -706,7 +1107,7 @@ class Read(unittest.TestCase):
             c["close"] += 0.01
         WF._write_json(p, doc)
         with self.assertRaises(SystemExit) as cm:
-            WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1)
+            read(d, seal)
         self.assertIn("cannot be verified", str(cm.exception))
         self.assertIn("XAGUSD", str(cm.exception))
 
@@ -718,18 +1119,18 @@ class Read(unittest.TestCase):
             r, why = real(*a, **k)
             return (dict(r, R=r["R"] + 1e-6), why) if r else (r, why)
         with self.assertRaises(SystemExit) as cm:
-            WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1, score_fn=drift)
+            read(d, seal, score_fn=drift)
         self.assertIn("disagree with their logged resolve", str(cm.exception))
 
     def test_an_export_taken_too_early_refuses_even_when_its_coverage_passes(self):
         d, seal = canary_root()
-        wl = WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1)["history_check"]["XAGUSD"]["window_last"]
+        wl = read(d, seal)["history_check"]["XAGUSD"]["window_last"]
         p = os.path.join(d, WF.HIST_DIR, "ohlcv.XAGUSD.15m.json")
         doc = json.load(open(p))
         doc["candles"] = [c for c in doc["candles"] if c["time"] < wl]           # ends 2 bars before the window's end
         WF._write_json(p, doc)
         with self.assertRaises(SystemExit) as cm:
-            WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1)
+            read(d, seal)
         self.assertIn("XAGUSD", str(cm.exception))
         self.assertIn("taken too early", str(cm.exception))                       # coverage alone is 0.986 here
 
@@ -744,7 +1145,7 @@ class Read(unittest.TestCase):
                 c["close"] += 0.01
         WF._write_json(p, doc)
         with self.assertRaises(SystemExit) as cm:
-            WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1)
+            read(d, seal)
         self.assertIn("1 sampled event span(s) differ from the export, first XAGUSD", str(cm.exception))
 
     def test_bars_the_store_lacks_are_missing_not_empty(self):
@@ -773,11 +1174,11 @@ class Read(unittest.TestCase):
         def drop(*a, **k):
             return dict(real(*a, **k), dropped=["XAGUSD"], rule="T-drop: test")
         with mock.patch.object(WF, "due", drop):
-            out = WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1)
-        self.assertEqual((out["sample"], out["symbols_dropped"]), (6, ["XAGUSD"]))
+            out = read(d, seal)
+        self.assertEqual((out["sample"], out["symbols_dropped"]), (9, ["XAGUSD"]))
         self.assertNotIn("XAGUSD", out["history_check"])
         self.assertNotIn("XAGUSD", out["probe"]["per_symbol"])
-        self.assertFalse(any(r["symbol"] == "XAGUSD" for r in out["rows"]))
+        self.assertFalse(any(r["symbol"] == "XAGUSD" for r in out["statistic"]["rows"]))
 
     def test_anchors_come_from_git_history_and_must_sit_on_the_chains(self):
         d, seal = canary_root()
@@ -786,7 +1187,7 @@ class Read(unittest.TestCase):
         git(d, "add", WF.ANCHORS)
         git(d, "commit", "-q", "-m", "anchor")
         anchors = WF.committed_anchors(d)
-        out = WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1, anchors=anchors)
+        out = read(d, seal, anchors=anchors)
         self.assertEqual((out["anchors"]["verified"], out["anchors"]["note"]), (1, None))
         p = os.path.join(d, WF.ANCHORS)
         with open(p, "a") as fh:
@@ -805,7 +1206,7 @@ class Read(unittest.TestCase):
         git(d, "add", WF.ANCHORS)
         git(d, "commit", "-q", "-m", "a rewritten anchor")
         with self.assertRaises(SystemExit) as cm:
-            WF.read_core(d, seal, "fp", cost_r=fake_cost_r, n_events=1, anchors=WF.committed_anchors(d))
+            read(d, seal, anchors=WF.committed_anchors(d))
         self.assertIn("does not sit on the XAUUSD chain", str(cm.exception))
 
     def test_an_anchor_never_joins_a_torn_line_and_a_committed_non_record_refuses_by_its_commit(self):
@@ -838,7 +1239,7 @@ class Cycle(unittest.TestCase):
     def test_one_cycle_logs_each_event_and_its_resolve_and_a_second_adds_nothing(self):
         d, seal = canary_root()
         log, _ = WF.read_chain(WF._rt(d, "log.jsonl"))
-        self.assertEqual(sorted(r["kind"] for r in log), ["event"] * 7 + ["resolve"] * 7)
+        self.assertEqual(sorted(r["kind"] for r in log), ["event"] * 10 + ["resolve"] * 10)
         self.assertTrue(all(r["fingerprint"] == "fp" and r["seal"] == seal["sha"] for r in log))
         res = WF.cycle_core(d, seal, "fp", "2026-07-02T00:00:00Z", init_root=d)
         self.assertEqual([w[0] for w in res["writes"]], ["json"])            # only the scan cache
@@ -915,12 +1316,17 @@ class Fingerprint(unittest.TestCase):
         self.assertEqual(fp["interpreter"]["minor"], "%d.%d" % sys.version_info[:2])
         need = {WF.SCRIPT, WF.EW_PATH, "scripts/wyckoff_rules.py", "scripts/backtest-methods.py", "scripts/real_costs.py"}
         self.assertTrue(need <= set(fp["exec"]), set(fp["exec"]))
+        self.assertEqual(set(fp["exec"]), need | {                          # 13 of the sealed re-test's 52 files:
+            "scripts/research/edge_census.py", "scripts/history_store.py", "scripts/instruments.py",
+            "scripts/mt5_time.py", "scripts/normalized.py", "scripts/providers.py", "scripts/broker_symbols.py",
+            "scripts/live_rules.py"})                                       # the HTF gate's bias reader (WY-F1 §6)
+        self.assertNotIn("docs/architecture/automation-config.json", fp["data"])     # HTF_METHODS is pinned
         self.assertLess(len(fp["exec"]), len(E.CODE) // 3)                 # vs the sealed re-test's 52 files
         self.assertNotIn("docs/architecture/instruments.json", fp["exec"])
         self.assertIn(WF.R0, fp["data"])
         self.assertTrue(all(WF._wanted(p) for s in ("exec", "load", "data") for p in fp[s]))
         self.assertEqual(set(fp["price_ref"]), set(WF.SYMBOLS))
-        self.assertEqual(fp["canary"]["events"], len(WF.SYMBOLS))
+        self.assertEqual((fp["canary"]["events"], fp["canary"]["rows"]), (len(WF.SYMBOLS), {"1": 10, "2": 10}))
         self.assertEqual(fp["digest"], WF.fp_digest(fp))
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(WF.canary(tmp)[0], fp["canary_sha256"])          # deterministic
@@ -1228,7 +1634,7 @@ class Launcher(unittest.TestCase):
         self.assertIsNone(WF.seal_info(root))
         self.assertIn("not sealed", WF.cmd_cycle(data_root=root))
         with self.assertRaises(SystemExit):
-            WF.cmd_read(os.path.join(root, WF.READ_OUT), data_root=root)
+            WF.cmd_read(os.path.join(root, WF.LOOK_OUT[1]), 1, data_root=root)
 
     def test_the_seal_is_the_adding_commits_committer_date_and_the_extract_holds_the_snapshot_roots_only(self):
         root = self.repo()
