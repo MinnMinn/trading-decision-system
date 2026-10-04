@@ -705,12 +705,31 @@ class AnalyzeAndSetupCandidateEqualBase(unittest.TestCase):
                {"fx_b_ex": "ce", "fx_b_pd": "r13", "fx_b_buf": "0.1atr", "fx_b_exit": "-2.25|1.5H|floor"},
                {"fx_b_ex": "fill", "fx_b_buf": "0.25atr", "fx_braid_optional": True})
 
+    # Display-only fields the 2026-10-04 ICT chart-fidelity fix added to every MSS record (the pivots a break
+    # depends on and the bar its displacement is confirmed -- the chart's point-in-time availability). BASE predates
+    # them; no decision reads them (decision equivalence with them present: test_ict_display_lifecycle).
+    MSS_DISPLAY_KEYS = ("dep_pivots", "disp_conf_i")
+
+    @classmethod
+    def _strip_display(cls, a):
+        if not isinstance(a, dict):
+            return a
+        out = dict(a)
+        drop = lambda m: {k: v for k, v in m.items() if k not in cls.MSS_DISPLAY_KEYS} if isinstance(m, dict) else m
+        for k in ("last_mss", "last_displaced_mss"):
+            if k in out:
+                out[k] = drop(out[k])
+        for k in ("mss", "mss_all"):
+            if isinstance(out.get(k), list):
+                out[k] = [drop(m) for m in out[k]]
+        return out
+
     def _compare(self, c, recent, tf, n_windows_hint):
         import copy
         n_complete = 0
         for methods in (("wyckoff", "ict"), ("ict",), ("wyckoff",)):
             for o in self.OPTS:
-                a_new = self.new.analyze(c, recent, tf=tf, methods=methods, opts=dict(o))
+                a_new = self._strip_display(self.new.analyze(c, recent, tf=tf, methods=methods, opts=dict(o)))
                 a_old = self.old.analyze(c, recent, tf=tf, methods=methods, opts=dict(o))
                 self.assertEqual(a_new, a_old, (methods, o))
                 self.assertEqual(repr(a_new), repr(a_old), (methods, o))
