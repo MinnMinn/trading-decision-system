@@ -375,7 +375,11 @@ def dense_start(sday, dts, ref_year=DENSE_REF_YEAR):
     out["holes"] = len(hole_ends)
     last_hole = max(hole_ends) if hole_ends else None
     out["last_hole_end"] = last_hole.isoformat() if last_hole else None
+    # The series' FINAL calendar month is not evaluated: it is normally partial (the metals' FTMO exports end on 2026-10-02,
+    # so October held one and a half days and its median failed the share, which left XAU / XAG with no dense start at all;
+    # found in the first R0 run, outcome-blind, before sealing). The walk starts at the month before it.
     y, m = days[-1].year, days[-1].month
+    y, m = (y, m - 1) if m > 1 else (y - 1, 12)
     first = (days[0].year, days[0].month)
     start = None
     while (y, m) >= first:

@@ -1519,5 +1519,23 @@ class L1(unittest.TestCase):
         self.assertFalse([c for c in calls if c[0] == "simulate"])
 
 
+class DenseFinalMonth(unittest.TestCase):
+    def test_a_partial_final_month_does_not_erase_the_dense_start(self):
+        import datetime as _dt
+        UTC_ = _dt.timezone.utc
+        days, dts = [], []
+        d = _dt.date(2023, 1, 2)
+        while d <= _dt.date(2023, 3, 31):
+            if d.weekday() < 5:
+                for k in range(92):
+                    days.append(d)
+                    dts.append(_dt.datetime(d.year, d.month, d.day, tzinfo=UTC_) + _dt.timedelta(minutes=15 * k))
+            d += _dt.timedelta(days=1)
+        for k in range(17):                                  # 2023-04-03: a partial final month, 17 bars
+            days.append(_dt.date(2023, 4, 3))
+            dts.append(_dt.datetime(2023, 4, 3, tzinfo=UTC_) + _dt.timedelta(minutes=15 * k))
+        self.assertEqual(M.dense_start(days, dts)["start"], "2023-01-01")
+
+
 if __name__ == "__main__":
     unittest.main()
