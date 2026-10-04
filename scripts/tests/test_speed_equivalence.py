@@ -777,6 +777,8 @@ class GroupKeysSplitAndMerge(unittest.TestCase):
         if k in bt.WY_V_VALUES:
             cur = (12, 2) if k == "fx_w_tw" else base
             return [v for v in bt.WY_V_VALUES[k] if v != cur][0]
+        if k in bt.WY_ABLATION_VALUES:                                  # WY-P0 ablation keys (string-valued, "off" = v1)
+            return [v for v in bt.WY_ABLATION_VALUES[k] if v != base][0]
         if isinstance(base, bool):
             return not base
         raise AssertionError(f"no alternative value known for registered key {k!r}: extend GroupKeysSplitAndMerge._alt")
