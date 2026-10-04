@@ -90,6 +90,21 @@ already is):
                      for "reversal reaction". The code's "back above VAL within 2 bars of the reclaim" window
                      is UNSOURCED and is removed: the reclaim bar itself (`rec`, the same close-back-inside-the-
                      TR event R6 already defines) is tested against VAL instead of a separate fixed window.
+  fx_w8_choch_in_box W8 (WA p68-69, docs/audits/2026-10-04-wyckoff-chart-fidelity.md finding 1): the TR is "biên
+                     dưới là điểm giá bắt đầu sóng tăng đầu tiên và biên trên là điểm giá bắt đầu đảo chiều
+                     sau sóng tăng đó" -- drawn from the CHoCH, so the CHoCH that confirms it must lie INSIDE
+                     the SC->AR box. v1 accepts a third CHoBEV high many TR-heights above the AR, i.e. a trend
+                     leg drawn as if it were Phase B (WA p69's own "Không thay đổi đặc tính" branch). With the
+                     key set, a record whose CHoCH swing high exceeds tr_hi + `choch_box_tol_tr` x TR is
+                     rejected (bump "2c_choch_outside_box"), and the ran-away guard (`H[b] > ceiling + tr`) is
+                     tested BEFORE the LPS[C]/SOS test inside the Phase-B walk, so a bar that has already run
+                     a full TR past the ceiling cannot first be read as the SOS of a range it has left.
+                     `choch_box_tol_tr` (0.1) is a PROJECT PARAMETER -- the book prints no tolerance; "inside or
+                     at the box edge" needs one so a CHoCH a tick above the AR is not thrown away.
+                     The decision path (backtest-methods.py / live runner) does NOT set this key: flipping it
+                     changes WYCKOFF-BOOK trade counts (Trading-System-version significant, CLAUDE.md §47/§59)
+                     and is an owner decision. scripts/structures.py ENVELOPE_PARAMS sets it for the CHART
+                     only (VISUALIZATION_ONLY), and says so.
   (W7 -- Phase-D target from the higher-timeframe TR's AR/SOS, WA2-19 -- is a SEPARATE key,
   `fx_w7_htf_target`, read by backtest-methods.py `_fires_from`/`_htf_wyckoff_target`, not by this module: it
   needs a second, higher-timeframe candle series this module has no access to. See that module's docstring.)
@@ -138,6 +153,8 @@ PARAMS = dict(
     fx_w2_st_below_sc=False,
     fx_w3_mSOW_spring=False,
     fx_w5_vp_abandon=False,
+    fx_w8_choch_in_box=False,
+    choch_box_tol_tr=0.1,       # W8: CHoCH may sit at most this x TR above the AR border (project; WA p68-69 prints no tolerance)
     # V item W4a (module docstring "V ITEMS"): None = v1 Shakeout typing; an int = the lingering-closes threshold.
     fx_w4a_linger_closes=None,
 )
@@ -453,6 +470,10 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
         tr_lo, tr_hi = sc_low, ar[2]; tr = tr_hi - tr_lo
         if tr <= 0:
             continue
+        if P.get("fx_w8_choch_in_box") and H[choch_bar] > tr_hi + P["choch_box_tol_tr"] * tr:
+            # W8 (WA p68-69, module docstring): the CHoCH that licenses drawing the SC->AR box must lie inside it
+            # (or at its edge, within the project tolerance). A CHoCH far above the AR is a trend leg, not Phase B.
+            bump("2c_choch_outside_box"); continue
         # --- ST[A]: first swing low after AR holding above SC (R3) ---
         # Speed (byte-identical): the same "first L swing after AR" as `next(s for s in sw[j0:] if s[1] == "L")`, without
         # copying the tail of `sw` (O(swings) per candidate).
@@ -516,6 +537,10 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
                 if max(b_lows) - min(b_lows) > P["slope_max_tr"] * tr:
                     sloped = True
                 spring = b; break
+            if P.get("fx_w8_choch_in_box") and H[b] > ceiling + tr:
+                # W8 (module docstring): the ran-away guard runs BEFORE the LPS[C]/SOS test, so a bar that has
+                # already left the range by a full TR is never first read as that range's SOS.
+                bump("4_ran_away"); break
             # Phase C without Spring = LPS[C] (WA p81–83): the structure breaks out directly with an SOS.
             # WY-3: gated on `ceiling`, not the AR-only `tr_hi`. WY-2: guard the COMMIT look-ahead locally so
             # the outer loop can run to n-1.
@@ -639,3 +664,84 @@ def detect_distributions(O, H, L, C, V, P=PARAMS, volume_kind="traded", pivots=N
             r["bu"]["low"] = -r["bu"]["low"]
         # st_pct keeps its meaning: fraction of the TR travelled from the SC/BC border toward the AR
     return recs
+
+
+def _pullback_confirmed(H, C, i):
+    """The narrative contract's pullback-reclaim proxy (scripts/check-narrative.py pullback_confirmed, a PROJECT
+    simplification of WA p84-85 "được hấp thụ mạnh và đẩy giá lên lại"), in detection space: True once a LATER
+    close is above bar `i`'s high, None while `i` is the last bar, else False. Shared so an engine label and the
+    narrative checker cannot disagree about when an LPS/BU/Test may drop its '?' (WA p93/p161 notation)."""
+    if i is None:
+        return None
+    for j in range(i + 1, len(C)):
+        if C[j] > H[i]:
+            return True
+    return None if i >= len(C) - 1 else False
+
+
+def record_extras(r, O, H, L, C, P=PARAMS, side="long"):
+    """Chart-only reads derived from ONE detect_accumulations/detect_distributions record (A2 chart fidelity,
+    docs/audits/2026-10-04-wyckoff-chart-fidelity.md). Pure, additive, NOT read by any decision path: the record
+    itself is untouched, so wyckoff_records()/backtest/live outputs stay byte-identical. `O/H/L/C` are the REAL
+    prices the record was detected on (any prefix that contains the record's bars); for side="short" they are
+    mirrored here exactly as detect_distributions() mirrors them, so every rule below reads in accumulation terms.
+
+    Returns dict(
+      lps_c      -- LPS[C] bar on the "lps_c" path (WA p82: "Hành động này, thông thường sẽ từ LPS đi lên" --
+                    the SOS rally starts FROM the LPS): the lowest low between the last Phase-B swing high that is
+                    already confirmed at the SOS bar (pivot + k <= sos_bar) and the SOS bar; ST+1 when no such
+                    high. Uses only bars <= sos_bar.
+      sos_high   -- high of the SOS leg, max(H[sos_bar:bu)) (before the BU pullback).
+      e_start    -- Phase E start (WA p85: "Giá sẽ được giữ lại ở khu vực BU và sau đó tiếp tục bứt phá qua SOS
+                    để bước vào Phase E"; "Khi giá vượt qua SOS chúng ta kết luận xu hướng tăng đã chính thức hình
+                    thành"): the first close above sos_high AFTER the BU bar, searched within phase_d_window bars
+                    (the engine's own Phase-D wait, a project parameter). None until it happens.
+      inval_bar / inval_reason -- the engine's own invalidation of a Spring/UT read, using only what the books
+                    define: "abandon" (R10 / WMT p243-249 Step 4: crossed into the LVN without the reversal
+                    reaction -- decided at the bar R10's window closes: rec under fx_w5_vp_abandon, rec+2 in v1),
+                    or "close_beyond_spring_low" (WMT p271: the stop sits beyond the lowest low of the Spring / the
+                    highest high of the Upthrust, so a completed close beyond it is the pattern's failure). Scanned
+                    after the typing is decided (reclaim, or the end of the spring_max_bars_outside window when
+                    there is no reclaim) and before Phase E. The LPS[C] path has no Spring extreme, so no rule
+                    from the books applies there and nothing is invented: inval stays None.
+      confirm    -- {kind: True|False|None} pullback proxy (_pullback_confirmed) for test / bu / lps_c.
+    )"""
+    if side == "short":
+        O, H, L, C = [-x for x in O], [-x for x in L], [-x for x in H], [-x for x in C]
+        spring_low = -r["spring_low"] if r.get("spring_low") is not None else None
+    else:
+        spring_low = r.get("spring_low")
+    n = len(C); k = P["pivot"]; win = P["phase_d_window"]
+    out = dict(lps_c=None, sos_high=None, e_start=None, inval_bar=None, inval_reason=None, confirm={})
+    sb = r.get("sos_bar")
+    if r.get("path") == "lps_c" and sb is not None:
+        st = r["st"]
+        highs = [s for s in swings(H[:sb + 1], L[:sb + 1], k) if s[1] == "H" and st < s[0] < sb]
+        a = highs[-1][0] + 1 if highs else st + 1
+        if a < sb:
+            out["lps_c"] = min(range(a, sb), key=lambda j: (L[j], j))
+    bu = r.get("bu") or {}
+    bu_bar = bu.get("bar")
+    if sb is not None and bu_bar is not None and bu_bar > sb:
+        out["sos_high"] = max(H[sb:bu_bar])
+        for q in range(bu_bar + 1, min(bu_bar + 1 + win, n)):
+            if C[q] > out["sos_high"]:
+                out["e_start"] = q
+                break
+    if r.get("path") == "spring" and r.get("spring") is not None:
+        rec, sp = r.get("reclaim"), r["spring"]
+        cands = []
+        if r.get("abandon") and rec is not None:
+            cands.append((rec if P.get("fx_w5_vp_abandon") else min(rec + 2, n - 1), "abandon"))
+        anchor = rec if rec is not None else sp + P["spring_max_bars_outside"]
+        stop = out["e_start"] if out["e_start"] is not None else n
+        for q in range(anchor + 1, min(stop, n)):
+            if C[q] < spring_low:
+                cands.append((q, "close_beyond_spring_low"))
+                break
+        if cands:
+            out["inval_bar"], out["inval_reason"] = min(cands)
+    for kind, i in (("test", r.get("test")), ("bu", bu_bar), ("lps_c", out["lps_c"])):
+        if i is not None:
+            out["confirm"][kind] = _pullback_confirmed(H, C, i)
+    return out

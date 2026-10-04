@@ -25,7 +25,7 @@ output is shaped when structure is wanted, not that every hot-path call must mat
 
 Schema. Every structure object is a plain dict with at least:
     kind          -- one of: pivot_high, pivot_low, pool, sweep, closed_through, mss, fvg, dealing_range, bias
-                     (ICT); trading_range, sc, ar, st, choch, spring, reclaim, test, sos, bu (Wyckoff events)
+                     (ICT); trading_range, sc, ar, st, choch, spring, test, lps_c, sos_bar, bu (Wyckoff events)
     formed_at     -- ISO-8601 "...Z" open time of the bar where the structure formed (never the forming bar --
                      ict-scan.causal_window()/live_rules.window() already keep the still-forming bar out of the
                      window this module is handed)
@@ -103,6 +103,14 @@ decision call (`ict_analysis`/`wyckoff_records`), only by the enriched envelope 
     project-level labelling convention, not itself a sourced page citation for the A/B/C/D/E cut points beyond
     the event vocabulary already cited above -- disclosed as such in docs/audits/2026-09-29-a2-chart-from-
     engine.md.
+
+Chart fidelity (2026-10-04, docs/audits/2026-10-04-wyckoff-chart-fidelity.md) SUPERSEDES the Wyckoff timing and
+phase rules of the A1b paragraph above: every Wyckoff object's `available_at` is now the bar at which a PREFIX
+re-run of the detector first emits it in its shipped state (`_wy_availability`) -- the hand-written "CHoCH bar /
+SOS conf bar" stamps were each too early (the record only exists once its Spring/LPS[C] fires; the SOS search
+needs one bar past `sos`; a Spring's type needs its reclaim). Phase bounds, Phase E, expiry, status reasons and the
+invalidation are in `_wy_view`; the extra reads they need (LPS[C] bar, SOS-leg high, Phase E start, invalidation)
+come from wyckoff_rules.record_extras(), so detection still lives in wyckoff_rules.py (ADR 0009).
 
 The higher-timeframe Wyckoff trading-range detector A1b also names (WA2-19, needed by plan item W7) is NOT
 added here -- that is new DETECTION (a second trading range on a different timeframe), out of this module's
@@ -311,7 +319,18 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
 # ------------------------------------------------------------------------------------------------- Wyckoff
 
 
-_WY_EVENT_BARS = ("sc", "ar", "st", "choch", "spring", "reclaim", "test", "sos", "sos_bar")
+# The chart's detection parameters (VISUALIZATION_ONLY): W.PARAMS plus the W8 fidelity correction (CHoCH inside the
+# SC->AR box, WA p68-69; wyckoff_rules.py module docstring). The decision path never reads this dict -- it calls
+# wyckoff_records() with backtest-methods.py's own bridged copy, where fx_w8 stays False (v1) until the owner flips
+# it. The page builders (build-artifact.py wy_json_engine, build-pit-page.py through it) pass it explicitly, so the
+# chart does not draw a trend leg as Phase B (docs/audits/2026-10-04-wyckoff-chart-fidelity.md finding 1).
+ENVELOPE_PARAMS = dict(W.PARAMS, fx_w8_choch_in_box=True)
+
+# Drawable Wyckoff events (built in `_wy_view`): sc, ar, st, choch, spring, test, lps_c, sos_bar, bu. "reclaim"
+# (R6's close-back-inside bar) is a typing input, not a Wyckoff event name, and "sos" (the SOS confirmation bar)
+# duplicated the "sos_bar" flag -- both stay on the raw record, neither is shipped as an event (chart fidelity
+# findings 15/16); sos_bar carries `conf_bar` = sos instead. LPS[C] (lps_c) is the Phase C event of the no-Spring
+# path (WA p81-83, finding 9).
 
 
 def wyckoff_records(O, H, L, C, V, P=None, volume_kind="traded", side="long", pivots=None, pre=None):
@@ -330,113 +349,255 @@ def wyckoff_records(O, H, L, C, V, P=None, volume_kind="traded", side="long", pi
 
 
 def _wy_bar(v):
-    """A record field that is sometimes a plain bar index, sometimes a {"bar":...} dict (`bu`) -- one accessor,
-    so the phase-bounds table below reads every field the same way."""
+    """A record field that is sometimes a plain bar index, sometimes a {"bar":...} dict (`bu`) -- one accessor."""
     if v is None:
         return None
     return v.get("bar") if isinstance(v, dict) else v
 
 
-def _wy_phase_bounds(r):
-    """Phase boundaries (A1b), as (letter, start_bar, end_bar_or_None, start_conf_bar, end_conf_bar_or_None) -- the
-    last two are the bars that CONFIRM each boundary (equal to the boundary bar itself except the SOS, I3) -- book basis: knowledge/wyckoff/
-    advance.md's own WA event vocabulary, the SAME vocabulary wyckoff_rules.py already names its record fields
-    after (module docstring above): SC/AR/ST = Phase A stopping action (WA p68-72); ST..Spring/Test = Phase B
-    building the cause (WA p79-83, R4 "Phase B must exist before a Phase C call"); Spring/Test = Phase C (WA
-    p80-85); SOS/SOS_bar..BU = Phase D (WA p85-91); after BU = Phase E markup (WA p91). `end_bar=None` means
-    "open -- runs to the last bar this record confirms so far", which is what makes that phase `status:
-    "hypothesis"` below (WA p166: do not label a phase mechanically past what the record has actually shown).
+def _wy_view(r, O, H, L, C, P, side):
+    """Everything the envelope ships for ONE record, in BAR indices, computed only from `O/H/L/C` (which may be any
+    prefix containing the record): events, phases, the trading range's end and the invalidation. Pure -- the
+    point-in-time scan in `_wy_availability()` re-runs it on every prefix and compares states, so nothing here may
+    read past len(C) - 1.
 
-    The "lps_c" path (wyckoff_rules.py's W-BU majority path, spring=test=None, straight ST -> SOS/BU) has no
-    Phase C boundary at all -- correctly: no Spring/Test event to hang a C band from, so only A/B/D/(E) appear.
-    """
-    sc, ar, st, c_bar = r.get("sc"), r.get("ar"), r.get("st"), _wy_bar(r.get("spring"))
-    if c_bar is None:
-        c_bar = _wy_bar(r.get("test"))
-    # `sos_bar` (the breakout candle itself) STARTS Phase D, but the SOS is not KNOWABLE at that bar:
-    # wyckoff_rules.py requires `C[q+m] > ceiling for m in 1..COMMIT-1` after it (~L300, ~L370), so the SOS is
-    # confirmed only at `sos = sos_bar + COMMIT - 1`. Every boundary below therefore carries its own CONFIRMING
-    # bar (`conf`), which for the SOS boundary is `sos`, never `sos_bar` (I3, code-review fix round 1).
-    sos_bar, sos = r.get("sos_bar"), r.get("sos")
-    d_start = sos_bar if sos_bar is not None else sos
-    d_conf = sos if sos is not None else d_start
+    Phase boundaries (book basis WA p68-96, the record's own event vocabulary): A = SC..ST (stopping action);
+    B = ST..Phase-C event (building the cause); C = Spring/Shakeout/UT (spring path) or LPS[C] (no-Spring path,
+    WA p81-83 -- finding 9; it used to draw A->B->D with no C) .. SOS bar; D = SOS bar .. Phase E start; E starts at
+    the first close above the SOS leg's high AFTER the BU (WA p85; wyckoff_rules.record_extras) -- not at the BU
+    bar, which is a Phase-D event (finding 10).
+
+    Expiry (finding 10; PROJECT RULE, the book prints no duration): an open last phase is stale once the engine's
+    own search window for its closing event has passed with no event -- C: anchor (Test, else reclaim, else the end
+    of the Shakeout window) + phase_d_window + COMMIT - 1 (the last bar an SOS could still be confirmed); D:
+    SOS + phase_d_window without a BU, BU + phase_d_window without a Phase E start; E: start + phase_d_window. An
+    expired phase ends at that bar with reason "expired" and the trading range ends with it.
+
+    Status (finding 7; method.md §2 A4, WA p150-159 đối nhãn, WA p166-167 sloped): "tested" only when the phase is
+    closed by its next event AND the record's đối nhãn reads do not contradict (st_sign, phase_b_sign) AND the
+    structure is not sloped AND the phase's opening event is confirmed. Otherwise "hypothesis" with `reasons`
+    (sloped / st_lower_third / b_tests_lower / unconfirmed / expired / invalidated / open). An open last phase that
+    the engine invalidates before it expires ends at the invalidation bar (reason "invalidated")."""
+    n = len(C)
+    x = W.record_extras(r, O, H, L, C, P=P, side=side)
+    win = P["phase_d_window"]
+    conf = x["confirm"]
+    events = []
+
+    def ev(kind, i, **state):
+        if i is not None:
+            events.append(dict(kind=kind, i=i, **state))
+
+    for key in ("sc", "ar", "st", "choch"):
+        ev(key, r.get(key))
+    if r.get("path") == "spring":
+        ev("spring", r.get("spring"), shakeout=bool(r.get("shakeout")), vol_type=r.get("vol_type"))
+        ev("test", r.get("test"), confirmed=conf.get("test") is True)
+        c_bar = r.get("spring")
+    else:
+        ev("lps_c", x["lps_c"], confirmed=conf.get("lps_c") is True)
+        c_bar = x["lps_c"]
+    # The SOS breakout candle is only an SOS once its follow-through closes print (I3): conf_bar carries that bar.
+    ev("sos_bar", r.get("sos_bar"), conf_bar=r.get("sos"))
     bu_bar = _wy_bar(r.get("bu"))
+    ev("bu", bu_bar, confirmed=conf.get("bu") is True)
 
-    # (letter, start_bar, end_bar_or_None, start_conf_bar, end_conf_bar_or_None)
-    bounds = []
-    if sc is not None and st is not None:
-        bounds.append(("A", sc, st, sc, st))
-    if st is not None:
-        if c_bar is not None:
-            bounds.append(("B", st, c_bar, st, c_bar))
-        else:
-            bounds.append(("B", st, d_start, st, d_conf))
+    sc, st, d_start, e_start = r.get("sc"), r.get("st"), r.get("sos_bar"), x["e_start"]
+    bounds = [("A", sc, st)]
     if c_bar is not None:
-        bounds.append(("C", c_bar, d_start, c_bar, d_conf))
+        bounds += [("B", st, c_bar), ("C", c_bar, d_start)]
+    else:
+        bounds += [("B", st, d_start)]
     if d_start is not None:
-        bounds.append(("D", d_start, bu_bar, d_conf, bu_bar))
-    if bu_bar is not None:
-        bounds.append(("E", bu_bar, None, bu_bar, None))
-    return bounds
+        bounds.append(("D", d_start, e_start))
+    if e_start is not None:
+        bounds.append(("E", e_start, None))
 
-
-def _wy_phases(r, candles, tf, tr_available_at):
-    """Phase structure objects (A1b) for one trading_range record -- see `_wy_phase_bounds` for the boundary
-    rule. `available_at` is the bar that actually CONFIRMS the phase exists: the later of its start's and (when
-    closed by a later event) its end's CONFIRMING bar -- for the SOS boundary that is `sos`, not `sos_bar` (I3)
-    -- and never earlier than the parent trading range's own `available_at` (a phase of a range that is not yet
-    knowable cannot be knowable; CLAUDE.md §8). `to` stays the end event's own bar (where the phase is DRAWN to);
-    a phase can never be SHOWN as ending later than it is CONFIRMED because `available_at` >= that bar. Still-
-    open phases are `status: "hypothesis"` (chart.js P6.2 convention; WA p166 warns against labelling a phase
-    mechanically past what the record has actually shown)."""
-    out = []
-    for letter, start, end, s_conf, e_conf in _wy_phase_bounds(r):
-        from_at = _formed(candles, start)
-        conf_bar = max(s_conf, e_conf) if e_conf is not None else s_conf
-        available_at = max(_avail(candles, conf_bar, tf), tr_available_at)
-        if end is not None:
-            to_at, status = _formed(candles, end), "tested"
+    expired = None
+    last = bounds[-1]
+    if last[2] is None:
+        if last[0] == "C":
+            anchor = r.get("test") if r.get("test") is not None else r.get("reclaim")
+            if anchor is None:
+                anchor = r["spring"] + P["spring_max_bars_outside"]
+            exp = anchor + win + W.COMMIT - 1
+        elif last[0] == "D":
+            exp = (bu_bar if bu_bar is not None else r["sos"]) + win
+        elif last[0] == "E":
+            exp = e_start + win
         else:
-            to_at, status = None, "hypothesis"
-        out.append({"kind": "phase", "label": letter, "from": from_at, "to": to_at,
-                     "formed_at": from_at, "available_at": available_at, "status": status})
-    return out
+            exp = None
+        if exp is not None and exp <= n - 1:
+            expired = exp
+            bounds[-1] = (last[0], last[1], exp)
+    # An invalidated read stops where it was invalidated (ADR 0004): the phase running at the invalidation bar ends
+    # there (reason "invalidated", instead of running on to its next event or the stale-read expiry), and no phase
+    # or event AFTER it belongs to this read any more -- the plan was abandoned (WMT p243-249) / the Spring failed
+    # (WMT p271), so a later "Test"/"SOS" the detector still finds is not drawn as part of it.
+    invalidated_end = None
+    ib = x["inval_bar"]
+    if ib is not None:
+        kept = []
+        for letter, start, end in bounds:
+            if kept and start >= ib:
+                break
+            if end is None or end > ib:
+                kept.append((letter, start, ib))
+                invalidated_end, expired = ib, None
+                break
+            kept.append((letter, start, end))
+        if kept[-1][0] != last[0]:
+            expired = None      # the phase that expired is not part of the read any more
+        bounds = kept
+        events = [e for e in events if e["i"] < ib]   # a phase's `to` is exclusive: the breaking bar is not in it
+
+    contra = []
+    if r.get("sloped"):
+        contra.append("sloped")
+    if r.get("st_sign") == "contradicts":
+        contra.append("st_lower_third")
+    if r.get("phase_b_sign") == "contradicts":
+        contra.append("b_tests_lower")
+    phases = []
+    for idx, (letter, start, end) in enumerate(bounds):
+        reasons = list(contra)
+        if letter == "C" and r.get("path") == "lps_c" and conf.get("lps_c") is not True:
+            reasons.append("unconfirmed")
+        is_last = idx == len(bounds) - 1
+        if is_last and expired is not None:
+            reasons.append("expired")
+        elif is_last and invalidated_end is not None:
+            reasons.append("invalidated")
+        elif end is None:
+            reasons.append("open")
+        open_reasons = [q for q in reasons if q not in ("expired", "invalidated", "open")] + ["open"]
+        phases.append(dict(label=letter, start=start, end=end, status="hypothesis" if reasons else "tested",
+                           reasons=reasons, open_reasons=open_reasons))
+
+    inval = (x["inval_bar"], x["inval_reason"]) if x["inval_bar"] is not None else None
+    ends = []
+    if e_start is not None:
+        ends.append((e_start, "phase_e"))
+    if inval is not None:
+        ends.append((inval[0], "invalidated"))
+    if expired is not None:
+        ends.append((expired, "expired"))
+    tr_end = min(ends) if ends else None
+    return dict(events=events, phases=phases, tr=(r["tr_lo"], r["tr_hi"]), tr_end=tr_end, inval=inval)
 
 
-def wyckoff_structures(O, H, L, C, V, candles, tf, P=None, volume_kind="traded", side="long"):
+def _wy_state(d, drop=()):
+    return tuple(sorted((k, tuple(v) if isinstance(v, list) else v) for k, v in d.items() if k not in drop))
+
+
+def _wy_objects(view):
+    """{object id: state} -- the unit of point-in-time comparison. A phase is two objects: its identity (label,
+    start) and its full state (end, status, reasons), so replay can show a phase as open before its end is known."""
+    objs = {("tr",): view["tr"]}
+    if view["tr_end"] is not None:
+        objs[("tr_end",)] = view["tr_end"]
+    if view["inval"] is not None:
+        objs[("inval",)] = view["inval"]
+    for e in view["events"]:
+        objs[("ev", e["kind"], e["i"])] = _wy_state(e)
+    for p in view["phases"]:
+        objs[("ph", p["label"])] = (p["start"],)
+        objs[("ph_full", p["label"])] = _wy_state(p, drop=("open_reasons",))
+    return objs
+
+
+def _wy_key(r):
+    return (r["sc"], r["ar"], r["st"], r["choch"])
+
+
+def _wy_availability(recs, views, O, H, L, C, V, P, volume_kind, side):
+    """Point-in-time availability (findings 3/4; CLAUDE.md §8 availableTime <= decisionTime). For every object a
+    record ships, the earliest bar `k` such that re-running the SAME detector on candles[:k+1] -- and on every longer
+    prefix -- emits that object in the SAME state. Bar-exact by construction, so it covers every confirmation delay
+    the detector has, including the ones no hand-written formula caught: a record exists only once its Spring/LPS[C]
+    path fires (so its trading range and Phases A/B are NOT knowable at the CHoCH), a CHoCH pivot needs `pivot` more
+    bars, a Spring is a Spring (not a Shakeout) only once the reclaim / typing window decides it, an SOS only after
+    its follow-through closes, a '?' label only drops after its confirming close.
+
+    Scans prefixes downward from the full window and stops per record as soon as every one of its objects has
+    changed state (or the record itself disappears) -- cost is (n - earliest emission) detector calls per side."""
+    n = len(C)
+    PP = W.PARAMS if P is None else P
+    avail = []
+    pending = {}
+    for idx, (r, view) in enumerate(zip(recs, views)):
+        objs = _wy_objects(view)
+        avail.append({oid: n - 1 for oid in objs})
+        pending[_wy_key(r)] = (idx, objs, set(objs))
+    k = n - 2
+    while pending and k >= 0:
+        m = k + 1
+        Ok, Hk, Lk, Ck = O[:m], H[:m], L[:m], C[:m]
+        recs_k = {_wy_key(rr): rr for rr in wyckoff_records(Ok, Hk, Lk, Ck, V[:m], P=P, volume_kind=volume_kind, side=side)}
+        for key in list(pending):
+            idx, objs, live = pending[key]
+            rk = recs_k.get(key)
+            if rk is not None:
+                objs_k = _wy_objects(_wy_view(rk, Ok, Hk, Lk, Ck, PP, side))
+                for oid in list(live):
+                    if objs_k.get(oid) == objs[oid]:
+                        avail[idx][oid] = k
+                    else:
+                        live.discard(oid)
+            else:
+                live.clear()
+            if not live:
+                del pending[key]
+        k -= 1
+    return avail
+
+
+def wyckoff_structures(O, H, L, C, V, candles, tf, P=None, volume_kind="traded", side="long", pit=True):
     """The Wyckoff trading ranges and events `candles` implies, wrapped from `wyckoff_records()`.
 
     `candles` is the same OHLCV list O/H/L/C/V were built from (bar `i`'s time is `candles[i]["time"]`).
+    `P`: detection parameters (None = wyckoff_rules.PARAMS, the decision path's v1 defaults); the chart passes
+    ENVELOPE_PARAMS.
 
     Returns {"records": recs, "structures": [...]} where `recs` is EXACTLY what `wyckoff_records()` returned
-    (same objects, not copied) -- a caller that only wants the raw records (every existing reader of
-    `detect_accumulations()`/`detect_distributions()`) can keep using `env["records"]` unchanged, or call
-    `wyckoff_records()` directly and skip building this envelope (and the `candles` list) entirely. Each
-    trading_range structure also carries `phases` (A1b, see `_wy_phases`)."""
+    (same objects, not copied). Each trading_range structure carries `events`, `phases`, its end (`to`,
+    `to_available_at`, `end_reason`) and `invalidated` (`_wy_view`). Every object's `available_at` is the
+    point-in-time availability from `_wy_availability()`; a phase also carries `state_available_at` (when its end /
+    status became known -- before that, replay shows it open, with `open_reasons`). `pit=False` skips that scan and
+    stamps no availability (the prefix re-detection test uses it to read what a prefix run emits, cheaply)."""
+    PP = W.PARAMS if P is None else P
     recs = wyckoff_records(O, H, L, C, V, P=P, volume_kind=volume_kind, side=side)
+    views = [_wy_view(r, O, H, L, C, PP, side) for r in recs]
+    avail = (_wy_availability(recs, views, O, H, L, C, V, P, volume_kind, side) if pit
+             else [None] * len(recs))
     structs = []
-    for r in recs:
+    for r, view, av in zip(recs, views, avail):
+        def at(oid, av=av):
+            return _avail(candles, av[oid], tf) if av is not None else None
         events = []
-        for key in _WY_EVENT_BARS:
-            i = r.get(key)
-            if i is None:
-                continue
-            formed_at, available_at = _ts(candles, i, tf)
-            if key == "sos_bar" and r.get("sos") is not None:
-                # I3: the breakout candle is only KNOWABLE as an SOS at `sos = sos_bar + COMMIT - 1` (the follow-
-                # through closes wyckoff_rules.py requires); formed_at stays the breakout candle's own time.
-                available_at = _avail(candles, r["sos"], tf)
-            events.append({"kind": key, "i": i, "formed_at": formed_at, "available_at": available_at})
-        bu = r.get("bu")
-        if bu and bu.get("bar") is not None:
-            formed_at, available_at = _ts(candles, bu["bar"], tf)
-            events.append({"kind": "bu", "i": bu["bar"], "low": bu["low"], "formed_at": formed_at, "available_at": available_at})
-        # The range is drawable only once the CHoCH confirms it (WA p68: three CHoBEV = CHoCH; wyckoff_rules.py
-        # R1 docstring: "only then may a TR be drawn") -- available_at is the CHoCH bar's, not the SC bar's,
-        # even though the lower border (formed_at) was set earlier at SC.
-        tr_formed_at, _ = _ts(candles, r["sc"], tf)
-        _, tr_available_at = _ts(candles, r["choch"], tf)
-        phases = _wy_phases(r, candles, tf, tr_available_at)
+        for e in view["events"]:
+            d = dict(e, formed_at=_formed(candles, e["i"]), available_at=at(("ev", e["kind"], e["i"])))
+            if e["kind"] == "bu":
+                d["low"] = r["bu"]["low"]
+            events.append(d)
+        phases = []
+        for p in view["phases"]:
+            from_at = _formed(candles, p["start"])
+            phases.append({"kind": "phase", "label": p["label"], "from": from_at,
+                           "to": _formed(candles, p["end"]) if p["end"] is not None else None,
+                           "formed_at": from_at, "available_at": at(("ph", p["label"])),
+                           "state_available_at": at(("ph_full", p["label"])),
+                           "status": p["status"], "reasons": p["reasons"], "open_reasons": p["open_reasons"]})
+        end = view["tr_end"]
+        inval = view["inval"]
+        invalidated = (None if inval is None else
+                       {"i": inval[0], "reason": inval[1], "formed_at": _formed(candles, inval[0]),
+                        "available_at": at(("inval",))})
         structs.append(dict(r, kind="trading_range", events=events, phases=phases,
-                             formed_at=tr_formed_at, available_at=tr_available_at))
+                            formed_at=_formed(candles, r["sc"]), available_at=at(("tr",)),
+                            to=_formed(candles, end[0]) if end else None,
+                            to_available_at=at(("tr_end",)) if end else None,
+                            end_reason=end[1] if end else None,
+                            invalidated=invalidated,
+                            invalidated_at=invalidated["available_at"] if invalidated else None))
     return {"records": recs, "structures": structs}
