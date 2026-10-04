@@ -3,7 +3,9 @@
 stop-out, an exact floating floor, and ruin that ends the account (docs/plans/2026-10-04-personal-account-backtest-design.md,
 v2: conditions A1-A11). DESCRIPTIVE research; never routes an order.
 
-    python3 scripts/research/personal_account.py run --out docs/audits/<date>-personal-account.json
+    python3 scripts/research/personal_account.py run --out docs/audits/<date>-personal-account.json --cache <rows.pkl>
+        [--r 0.01 --b0 5000 100000 --mode skip floor_cap --cap 0.02 0.015]      (grid overrides; default GRID)
+    python3 scripts/research/personal_account.py check --against <earlier.json> --cache <rows.pkl> [--new <later.json>]
 
 Scope: INTRADAY rows from `book_sim.trades` (flat before the server rollover, so no swap and no weekend gap). Every money
 figure uses ONE reference price per symbol (the last stored daily close at the run, A3): R and the stop width in bp come from
@@ -14,6 +16,7 @@ import collections
 import concurrent.futures
 import dataclasses
 import datetime
+import hashlib
 import importlib.util
 import json
 import math
@@ -21,6 +24,7 @@ import os
 import pickle
 import random
 import statistics
+import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -29,7 +33,9 @@ SCRIPT = "scripts/research/personal_account.py"
 DESIGN = "docs/plans/2026-10-04-personal-account-backtest-design.md"
 BAR = datetime.timedelta(minutes=5)
 WEEKDAYS_PER_YEAR = 261
-SKIP_REASONS = ("min_lot", "netting", "portfolio_cap", "margin")
+SKIP_REASONS = ("min_lot", "min_lot_over_cap", "netting", "portfolio_cap", "margin")
+MODES = ("skip", "floor", "floor_cap")
+ABOVE_R_TOL = 1e-6                     # relative: a trade risks "above r" only beyond float rounding
 
 
 def _load(name, rel):
@@ -39,12 +45,31 @@ def _load(name, rel):
     return m
 
 
+def code_version():
+    """CLAUDE.md §46: the commit, the tracked files under scripts/ with uncommitted changes (empty = the run used the
+    committed code), and this script's own sha256 (identifies the code even when dirty). None fields when git cannot run."""
+    def git(*args):
+        try:
+            p = subprocess.run(["git", "-C", ROOT, *args], capture_output=True, text=True, timeout=60)
+            return p.stdout if p.returncode == 0 else None
+        except (OSError, subprocess.SubprocessError):
+            return None
+    head = git("rev-parse", "HEAD")
+    dirty = git("status", "--porcelain", "--untracked-files=no", "--", "scripts")
+    with open(os.path.join(ROOT, SCRIPT), "rb") as fh:
+        sha = hashlib.sha256(fh.read()).hexdigest()
+    return {"commit": head.strip() if head else None,
+            "dirty_tracked": [ln[3:] for ln in dirty.splitlines()] if dirty is not None else None, "script_sha256": sha}
+
+
 @dataclasses.dataclass(frozen=True)
 class Account:
     """A1-A11 inputs. Defaults are NAMED assumptions (design §1, §6), not owner facts."""
     b0: float = 5_000.0                # A1, USD (owner 2026-10-04: "5.000 USD")
     r: float = 0.01                    # A2, risk at the stop, fraction of the CURRENT balance
-    mode: str = "skip"                 # A3: "skip" = never above r (owner 2026-10-04); "floor" = volume_min whatever its risk (sensitivity)
+    mode: str = "skip"                 # A3: "skip" = never above r; "floor" = volume_min whatever its risk (sensitivity);
+                                       #     "floor_cap" = volume_min only if its risk <= min_lot_cap (owner 2026-10-04, design §7.4)
+    min_lot_cap: float = 0.02          # A3, floor_cap only: ceiling on the minimum lot's risk, fraction of the CURRENT balance
     leverage: float = 30.0             # A4 (ASSUMED until the owner's broker spec exists)
     margin_rate: float = 1.0           # A4 (ASSUMED)
     portfolio_cap: float = 0.05        # A5 = risk-config.json max_portfolio_risk_pct
@@ -55,10 +80,12 @@ class Account:
     pain: float = 0.50                 # A10: reported drawdown line
 
     def __post_init__(self):
-        if self.mode not in ("skip", "floor") or self.position_mode not in ("hedging", "netting"):
+        if self.mode not in MODES or self.position_mode not in ("hedging", "netting"):
             raise ValueError(f"bad mode {self.mode!r} / {self.position_mode!r}")
         if not 0 < self.r <= 0.05 or self.b0 <= 0 or self.leverage <= 0:
             raise ValueError("r must be in (0, 5 %], b0 and leverage positive")
+        if self.mode == "floor_cap" and not self.r <= self.min_lot_cap <= 0.05:
+            raise ValueError("floor_cap needs r <= min_lot_cap <= 5 %")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -78,6 +105,8 @@ def lots_for(acct, spec, balance, stop_bp):
     if lots + 1e-12 < spec.vmin:
         if acct.mode == "skip":
             return 0.0, "min_lot"
+        if acct.mode == "floor_cap" and spec.vmin * risk_per_lot > acct.min_lot_cap * balance * (1 + 1e-9):
+            return 0.0, "min_lot_over_cap"
         lots = spec.vmin
     return round(lots, 8), None
 
@@ -92,12 +121,14 @@ def replay(days, acct, specs, edge_shift=None, keep_curve=False):
     """One account over `days` = [(day_key, [rows])] in path order. rows: dicts with c, symbol, entry, exit (aware
     datetimes, same server day), R, cost_R, stop_bp, adv_path_R. edge_shift: {component: R subtracted} (the haircut).
     Returns the path's metrics. BLOWN is absorbing: nothing trades after it (A9). STALLED is measured after the fact: the
-    path ENDS with >= stall_k consecutive signals too small for the minimum lot, i.e. the account never traded again
-    (a temporary run of wide stops that later narrows is not STALLED; the money is still there either way)."""
+    path ENDS with >= stall_k consecutive signals too small for the minimum lot (`min_lot`, or `min_lot_over_cap` in mode
+    floor_cap), i.e. the account never traded again (a temporary run of wide stops that later narrows is not STALLED; the
+    money is still there either way). `taken_above_r` counts trades whose risk at the stop exceeded r x the balance (only
+    the minimum lot in floor / floor_cap); `risk_taken_mean` is the mean risk actually taken, as a fraction of the balance."""
     shift = edge_shift or {}
     bal, peak, max_dd = acct.b0, acct.b0, 0.0
     skips = collections.Counter()
-    taken, post_ruin, consec_skip = 0, 0, 0
+    taken, post_ruin, consec_skip, above_r = 0, 0, 0, 0
     eff_risk = []
     blown = stalled = None
     streak_start, max_streak = None, 0
@@ -152,6 +183,7 @@ def replay(days, acct, specs, edge_shift=None, keep_curve=False):
                 open_.append(dict(t, lots=lots, money=money, margin=margin))
                 taken += 1
                 eff_risk.append(money / (acct.r * bal))
+                above_r += money > acct.r * bal * (1 + ABOVE_R_TOL)
             if open_:
                 floor_now = bal + sum(o["money"] * (_adv_at(o, tick) - o["cost_R"]) for o in open_)
                 max_dd = max(max_dd, 1.0 - floor_now / peak)
@@ -180,7 +212,8 @@ def replay(days, acct, specs, edge_shift=None, keep_curve=False):
            "longest_under_water_days": longest_under, "blown": blown, "stalled": stalled, "taken": taken,
            "longest_min_lot_skip_streak": max_streak,
            "post_ruin": post_ruin, "skips": dict(skips),
-           "effective_risk_mean": statistics.mean(eff_risk) if eff_risk else None}
+           "effective_risk_mean": statistics.mean(eff_risk) if eff_risk else None,
+           "taken_above_r": above_r, "risk_taken_mean": statistics.mean(eff_risk) * acct.r if eff_risk else None}
     if keep_curve:
         out["curve"] = curve
     return out
@@ -259,7 +292,8 @@ def haircut_shift(rows_by_ck, book, haircut, since=None):
 
 
 # ---------------------------------------------------------------------------------------------------------------- runs
-GRID = {"r": (0.005, 0.01), "b0": (5_000.0, 100_000.0), "mode": ("skip", "floor"), "edge": (1.0, 0.5, 0.0)}
+#: "cap" is read only when "floor_cap" is in "mode" (one mode label per cap: "floor_cap@0.02"); the CLI overrides any key
+GRID = {"r": (0.005, 0.01), "b0": (5_000.0, 100_000.0), "mode": ("skip", "floor"), "cap": (0.02,), "edge": (1.0, 0.5, 0.0)}
 PATHS, HORIZON_DAYS, SEED = 1000, 5 * WEEKDAYS_PER_YEAR, 20261004
 POST_DISCOVERY_FROM = datetime.date(2018, 2, 26)        # the latest discovery/confirmation split of the components (XAG)
 SURVIVE_BLOWN, SURVIVE_PAIN, BEATS_SHARE = 0.01, 0.05, 0.80
@@ -280,24 +314,51 @@ def common_span(rows_by_ck):
     return max(firsts), min(lasts)
 
 
-def cells():
+def check_grid(grid):
+    """ValueError before any work if `run` would fail late: the ranking reads edge x 0.5 (design §4) after the bootstrap,
+    and every floor_cap account needs r <= cap <= 5 %."""
+    if 0.5 not in grid["edge"]:
+        raise ValueError(f"edge grid {tuple(grid['edge'])} lacks 0.5: the ranking (design §4) reads edge x 0.5")
+    if set(grid["mode"]) - set(MODES):
+        raise ValueError(f"unknown mode in {tuple(grid['mode'])}")
+    if "floor_cap" in grid["mode"]:
+        for r in grid["r"]:
+            for cap in grid["cap"]:
+                Account(r=r, mode="floor_cap", min_lot_cap=cap)
+    return grid
+
+
+def mode_labels(grid=None):
+    """The grid's sizing modes as labels; floor_cap expands to one label per cap ("floor_cap@0.02")."""
+    grid = grid or GRID
+    return [lab for m in grid["mode"] for lab in ([f"floor_cap@{c}" for c in grid["cap"]] if m == "floor_cap" else [m])]
+
+
+def account_for(b0, r, label):
+    mode, _, cap = label.partition("@")
+    return Account(b0=b0, r=r, mode=mode, **({"min_lot_cap": float(cap)} if cap else {}))
+
+
+def cells(grid=None):
+    grid = grid or GRID
     for book in BOOKS:
-        for r in GRID["r"]:
-            for b0 in GRID["b0"]:
-                for mode in GRID["mode"]:
-                    for edge in GRID["edge"]:
+        for r in grid["r"]:
+            for b0 in grid["b0"]:
+                for mode in mode_labels(grid):
+                    for edge in grid["edge"]:
                         yield (book, r, b0, mode, edge)
 
 
 _W = {}
 
 
-def _init(cache, lo, hi):
+def _init(cache, lo, hi, grid=None):
+    grid = grid or GRID
     rows = build_rows(cache)
     syms = sorted({t["symbol"] for v in rows.values() for t in v})
     specs, _ = specs_for(syms)
-    _W.update(rows=rows, specs=specs, days={b: book_days(rows, b) for b in BOOKS},
-              shift={(b, e): haircut_shift(rows, b, 1.0 - e, since=lo) for b in BOOKS for e in GRID["edge"]},
+    _W.update(rows=rows, specs=specs, days={b: book_days(rows, b) for b in BOOKS}, grid=grid,
+              shift={(b, e): haircut_shift(rows, b, 1.0 - e, since=lo) for b in BOOKS for e in grid["edge"]},
               weekdays=_weekdays(lo, hi))
 
 
@@ -306,21 +367,22 @@ def _paths(seeds):
     out = collections.defaultdict(list)
     for sd in seeds:
         src = VS.sample_days(_W["weekdays"], random.Random(sd), HORIZON_DAYS)
-        for cell in cells():
+        for cell in cells(_W["grid"]):
             book, r, b0, mode, edge = cell
             by = _W["days"][book]
             sp = {s: _W["specs"][s] for s in {t["symbol"] for v in by.values() for t in v}}
             days = [(i, by.get(d, [])) for i, d in enumerate(src)]
-            m = replay(days, Account(b0=b0, r=r, mode=mode), sp, _W["shift"][(book, edge)])
-            out[cell].append((m["blown"] is not None, m["stalled"] is not None, m["max_dd"], m["terminal_multiple"], m["cagr"]))
+            m = replay(days, account_for(b0, r, mode), sp, _W["shift"][(book, edge)])
+            out[cell].append((m["blown"] is not None, m["stalled"] is not None, m["max_dd"], m["terminal_multiple"], m["cagr"],
+                              m["taken"], m["risk_taken_mean"], m["taken_above_r"]))
     return dict(out)
 
 
-def bootstrap(cache, lo, hi, paths=PATHS, jobs=10):
+def bootstrap(cache, lo, hi, paths=PATHS, jobs=10, grid=None):
     seeds = [SEED + i for i in range(paths)]
     chunks = [seeds[i::jobs] for i in range(jobs)]
     acc = collections.defaultdict(list)
-    with concurrent.futures.ProcessPoolExecutor(max_workers=jobs, initializer=_init, initargs=(cache, lo, hi)) as ex:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=jobs, initializer=_init, initargs=(cache, lo, hi, grid)) as ex:
         for part in ex.map(_paths, chunks):
             for cell, v in part.items():
                 acc[cell].extend(v)
@@ -332,20 +394,25 @@ def bootstrap(cache, lo, hi, paths=PATHS, jobs=10):
 
 
 def summarise_cell(v, pain=0.5):
+    """v: per path (blown, stalled, max_dd, terminal, cagr, taken, risk_taken_mean, taken_above_r). The two trade shares
+    are pooled over every trade of every path."""
     q = lambda xs, p: sorted(xs)[min(len(xs) - 1, int(p * len(xs)))]
     term = [x[3] for x in v]
+    n = sum(x[5] for x in v)
     return {"p_blown": statistics.mean(x[0] for x in v), "p_stalled": statistics.mean(x[1] for x in v),
             "p_dd_ge_25": statistics.mean(x[2] >= 0.25 for x in v), "p_dd_ge_pain": statistics.mean(x[2] >= pain for x in v),
             "terminal_p5": q(term, 0.05), "terminal_p50": q(term, 0.5), "terminal_p95": q(term, 0.95),
-            "median_cagr": statistics.median(x[4] for x in v), "p95_max_dd": q([x[2] for x in v], 0.95)}
+            "median_cagr": statistics.median(x[4] for x in v), "p95_max_dd": q([x[2] for x in v], 0.95),
+            "trades_taken": n, "taken_above_r_share": sum(x[7] for x in v) / n if n else None,
+            "risk_taken_mean": sum(x[5] * x[6] for x in v if x[5]) / n if n else None}
 
 
-def rank_within_label(boot, b0, mode):
+def rank_within_label(boot, b0, mode, grid=None):
     """Design §4: survivors at edge x 0.5, best r per setup, then paired growth comparisons within each label."""
     best = {}
     for book in BOOKS:
         ok = []
-        for r in GRID["r"]:
+        for r in (grid or GRID)["r"]:
             s = summarise_cell(boot[(book, r, b0, mode, 0.5)])
             if s["p_blown"] <= SURVIVE_BLOWN and s["p_dd_ge_pain"] <= SURVIVE_PAIN:
                 ok.append((s["median_cagr"], r))
@@ -369,27 +436,31 @@ def rank_within_label(boot, b0, mode):
     return out
 
 
-def run(out_path, cache, paths=PATHS, jobs=10):
+def run(out_path, cache, paths=PATHS, jobs=10, grid=None):
+    grid = check_grid(grid or GRID)
+    code = code_version()
     rows = build_rows(cache)
     lo, hi = common_span(rows)
     syms = sorted({t["symbol"] for v in rows.values() for t in v})
     specs, prov = specs_for(syms)
-    res = {"meta": {"script": SCRIPT, "design": DESIGN, "status": "DESCRIPTIVE (labels in design §2)", "common_span": [str(lo), str(hi)],
+    res = {"meta": {"script": SCRIPT, "design": DESIGN, "status": "DESCRIPTIVE (labels in design §2)", "code": code,
+                    "common_span": [str(lo), str(hi)],
                     "bootstrap": {"paths": paths, "horizon_weekdays": HORIZON_DAYS, "from": str(POST_DISCOVERY_FROM), "to": str(hi),
                                   "block": "vol_schedule.BOOT_BLOCK", "seed": SEED},
-                    "account_defaults": dataclasses.asdict(Account()), "grid": GRID, "specs": prov, "labels": LABEL,
+                    "account_defaults": dataclasses.asdict(Account()), "grid": grid, "mode_labels": mode_labels(grid),
+                    "specs": prov, "labels": LABEL,
                     "stop_k": STOP_K, "stop_k_override": {f"{a}|{b}": v for (a, b), v in STOP_K_OVERRIDE.items()},
-                    "cells": len(list(cells()))},
+                    "cells": len(list(cells(grid)))},
            "historical": {}, "bootstrap": {}, "ranking": {}, "min_lot": {}}
     for book in BOOKS:
         by = book_days(rows, book)
         sp = {s: specs[s] for s in {t["symbol"] for v in by.values() for t in v}}
         for span_name, a in (("common_span", lo), ("post_discovery", POST_DISCOVERY_FROM)):
             days = [(d, by.get(d, [])) for d in _weekdays(a, hi)]
-            for r in GRID["r"]:
-                for b0 in GRID["b0"]:
-                    for mode in GRID["mode"]:
-                        m = replay(days, Account(b0=b0, r=r, mode=mode), sp)
+            for r in grid["r"]:
+                for b0 in grid["b0"]:
+                    for mode in mode_labels(grid):
+                        m = replay(days, account_for(b0, r, mode), sp)
                         m["blown"], m["stalled"] = (str(m["blown"]) if m["blown"] else None), (str(m["stalled"]) if m["stalled"] else None)
                         res["historical"][f"{book}|{span_name}|r={r}|b0={int(b0)}|{mode}"] = m
         # B* per component at the median stop since 2024 (design §0)
@@ -400,16 +471,68 @@ def run(out_path, cache, paths=PATHS, jobs=10):
             one = statistics.median(recent) / 1e4 * s.pref * s.contract * s.vmin
             res["min_lot"][f"{c}|stop_k={k}"] = {"median_stop_bp_since_2024": statistics.median(recent),
                                                  "min_lot_loss_usd": one, "b_star_r1pct": one / 0.01, "b_star_r05pct": one / 0.005}
-    boot, _ = bootstrap(cache, POST_DISCOVERY_FROM, hi, paths, jobs)
+    boot, _ = bootstrap(cache, POST_DISCOVERY_FROM, hi, paths, jobs, grid)
     for cell, v in boot.items():
         res["bootstrap"]["|".join(map(str, cell))] = summarise_cell(v)
-    for b0 in GRID["b0"]:
-        for mode in GRID["mode"]:
-            res["ranking"][f"b0={int(b0)}|{mode}"] = rank_within_label(boot, b0, mode)
+    for b0 in grid["b0"]:
+        for mode in mode_labels(grid):
+            res["ranking"][f"b0={int(b0)}|{mode}"] = rank_within_label(boot, b0, mode, grid)
     with open(out_path, "w") as fh:
         json.dump(res, fh, indent=1, default=str)
     print(json.dumps(res["ranking"], indent=1)[:3000])
     print(f"wrote {out_path}")
+
+
+def compare_results(old, new):
+    """(compared, differing) over the bootstrap and historical keys two result files share. Each entry is compared on the
+    OLD entry's fields only (a newer run may add keys, never change them). Exact equality: same code, same numbers."""
+    n, bad = 0, []
+    for part in ("bootstrap", "historical"):
+        for key, want in old.get(part, {}).items():
+            got = new.get(part, {}).get(key)
+            if got is None:
+                continue
+            n += 1
+            if any(f not in got or got[f] != v for f, v in want.items()):          # a dropped field differs too
+                bad.append(f"{part}|{key}")
+    return n, bad
+
+
+def replay_historical(old, cache):
+    """Replays every historical entry of an earlier result file with the CURRENT code: (compared, differing). Refuses when
+    the data snapshot differs (common span or specs), since the numbers could then not match for another reason."""
+    rows = build_rows(cache)
+    lo, hi = common_span(rows)
+    specs, prov = specs_for(sorted({t["symbol"] for v in rows.values() for t in v}))
+    if [str(lo), str(hi)] != old["meta"]["common_span"] or json.loads(json.dumps(prov, default=str)) != old["meta"]["specs"]:
+        raise ValueError("different data snapshot (common span or specs): not comparable")
+    n, bad = 0, []
+    for key, want in old["historical"].items():
+        book, span, r, b0, mode = key.split("|")
+        by = book_days(rows, book)
+        sp = {s: specs[s] for s in {t["symbol"] for v in by.values() for t in v}}
+        days = [(d, by.get(d, [])) for d in _weekdays(lo if span == "common_span" else POST_DISCOVERY_FROM, hi)]
+        m = replay(days, account_for(float(b0[len("b0="):]), float(r[len("r="):]), mode), sp)
+        m["blown"], m["stalled"] = (str(m["blown"]) if m["blown"] else None), (str(m["stalled"]) if m["stalled"] else None)
+        n += 1
+        if json.loads(json.dumps({f: m.get(f) for f in want}, default=str)) != want:
+            bad.append(f"historical|{key}")
+    return n, bad
+
+
+def check(against, cache, new=None):
+    """The reproducibility check of docs/audits/2026-10-04-personal-account.md §5: (1) the current code replays every
+    historical entry of `against` exactly; (2) with `new`, every entry both files share is equal. Exit 1 on any difference."""
+    old = json.load(open(against))
+    n, bad = replay_historical(old, cache)
+    print(f"replay of {against} historical entries with the current code: compared {n}, differing {len(bad)}")
+    if new:
+        n2, bad2 = compare_results(old, json.load(open(new)))
+        print(f"{new} vs {against}, shared entries: compared {n2}, differing {len(bad2)}")
+        bad += bad2
+    for b in bad[:20]:
+        print("DIFF", b)
+    return 1 if bad else 0
 
 
 def main():
@@ -420,8 +543,22 @@ def main():
     r.add_argument("--cache", required=True, help="pickle of the book_sim rows (built once)")
     r.add_argument("--paths", type=int, default=PATHS)
     r.add_argument("--jobs", type=int, default=10)
+    for key, typ, choices in (("r", float, None), ("b0", float, None), ("mode", str, MODES), ("cap", float, None),
+                              ("edge", float, None)):
+        r.add_argument(f"--{key}", type=typ, nargs="+", choices=choices, help=f"grid override (default {GRID[key]})")
+    c = sub.add_parser("check", help="replay an earlier result's historical entries; optionally compare two result files")
+    c.add_argument("--against", required=True, help="an earlier result JSON")
+    c.add_argument("--cache", required=True)
+    c.add_argument("--new", help="a later result JSON: its entries shared with --against must be equal")
     a = ap.parse_args()
-    run(a.out, a.cache, a.paths, a.jobs)
+    if a.cmd == "check":
+        sys.exit(check(a.against, a.cache, a.new))
+    grid = {k: tuple(getattr(a, k)) if getattr(a, k) else v for k, v in GRID.items()}
+    try:
+        check_grid(grid)
+    except ValueError as e:
+        ap.error(str(e))
+    run(a.out, a.cache, a.paths, a.jobs, grid)
 
 
 if __name__ == "__main__":

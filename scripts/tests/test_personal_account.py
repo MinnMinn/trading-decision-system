@@ -46,6 +46,103 @@ class Sizing(unittest.TestCase):
         self.assertEqual(m["taken"], 2)
 
 
+class FloorCap(unittest.TestCase):
+    """Mode floor_cap (owner 2026-10-04): size at r; below the minimum lot, trade it only if its risk <= min_lot_cap."""
+    ACCT = dict(r=0.01, mode="floor_cap", min_lot_cap=0.02)
+
+    def test_min_lot_traded_up_to_the_cap_inclusive_else_skipped(self):
+        acct = PA.Account(b0=5_000, **self.ACCT)                            # one min lot at 100 bp = $40
+        self.assertEqual(PA.lots_for(acct, GOLD, 2_500, 100.0), (0.01, None))   # $40 <= 2 % of 2,500 = $50
+        self.assertEqual(PA.lots_for(acct, GOLD, 2_000, 100.0), (0.01, None))   # $40 = 2 % of 2,000: inclusive
+        self.assertEqual(PA.lots_for(acct, GOLD, 1_999, 100.0), (0.0, "min_lot_over_cap"))
+        self.assertEqual(PA.lots_for(acct, GOLD, 1_500, 100.0), (0.0, "min_lot_over_cap"))
+
+    def test_above_the_min_lot_it_sizes_exactly_like_skip(self):
+        for bal, stop in ((10_000, 100.0), (100_000, 37.0), (7_777, 140.0)):
+            self.assertEqual(PA.lots_for(PA.Account(**self.ACCT), GOLD, bal, stop),
+                             PA.lots_for(PA.Account(r=0.01), GOLD, bal, stop))
+
+    def test_cap_must_lie_between_r_and_five_percent(self):
+        with self.assertRaises(ValueError):
+            PA.Account(r=0.01, mode="floor_cap", min_lot_cap=0.005)
+        with self.assertRaises(ValueError):
+            PA.Account(r=0.01, mode="floor_cap", min_lot_cap=0.06)
+        PA.Account(r=0.03)                                                   # the default cap binds floor_cap only
+
+    def test_replay_counts_trades_above_r_and_the_risk_actually_taken(self):
+        acct = PA.Account(b0=3_000, **self.ACCT)
+        wide = row(day=1, stop_bp=100.0, R=0.0)                             # $40 min lot > $30 (1 %), <= $60 (2 %)
+        wider = row(day=2, stop_bp=200.0, R=0.0)                            # $80 > $60: skipped
+        m = PA.replay(days([wide], [wider]), acct, {"XAU": GOLD})
+        self.assertEqual((m["taken"], m["taken_above_r"], m["skips"]), (1, 1, {"min_lot_over_cap": 1}))
+        self.assertAlmostEqual(m["risk_taken_mean"], 40 / 3_000)
+        self.assertAlmostEqual(m["effective_risk_mean"], 40 / 30)
+
+    def test_stalled_counts_min_lot_over_cap_skips(self):
+        acct = PA.Account(b0=1_000, stall_k=3, **self.ACCT)                 # $40 min lot > 2 % of 1,000 = $20
+        m = PA.replay(days(*[[row(day=d)] for d in range(1, 6)]), acct, {"XAU": GOLD})
+        self.assertEqual((m["stalled"], m["skips"], m["taken"]), (0, {"min_lot_over_cap": 5}, 0))
+
+    def test_cap_equal_to_r_trades_like_skip_and_a_wide_cap_like_floor(self):
+        seq = days([row(day=1, stop_bp=100.0, R=1.0)], [row(day=2, stop_bp=60.0, R=-1.0)], [row(day=3, stop_bp=180.0, R=2.0)])
+        for b0 in (2_500, 4_000, 9_000):
+            fc_r = PA.replay(seq, PA.Account(b0=b0, r=0.01, mode="floor_cap", min_lot_cap=0.01), {"XAU": GOLD})
+            sk = PA.replay(seq, PA.Account(b0=b0, r=0.01), {"XAU": GOLD})
+            fc_w = PA.replay(seq, PA.Account(b0=b0, r=0.01, mode="floor_cap", min_lot_cap=0.05), {"XAU": GOLD})
+            fl = PA.replay(seq, PA.Account(b0=b0, r=0.01, mode="floor"), {"XAU": GOLD})
+            self.assertEqual((fc_r["terminal_multiple"], fc_r["taken"]), (sk["terminal_multiple"], sk["taken"]))
+            self.assertEqual(sum(fc_r["skips"].values()), sk["skips"].get("min_lot", 0))
+            self.assertEqual((fc_w["terminal_multiple"], fc_w["taken"]), (fl["terminal_multiple"], fl["taken"]))
+
+    def test_skip_and_floor_never_count_above_r_except_floor_on_the_min_lot(self):
+        seq = days([row(day=1, stop_bp=100.0)])
+        self.assertEqual(PA.replay(seq, PA.Account(b0=10_000), {"XAU": GOLD})["taken_above_r"], 0)    # 0.02 lot = $80 <= $100
+        self.assertEqual(PA.replay(seq, PA.Account(b0=3_000, mode="floor"), {"XAU": GOLD})["taken_above_r"], 1)
+
+
+class Grid(unittest.TestCase):
+    def test_mode_labels_expand_floor_cap_per_cap_and_parse_back(self):
+        grid = {"mode": ("skip", "floor_cap"), "cap": (0.02, 0.015)}
+        self.assertEqual(PA.mode_labels(grid), ["skip", "floor_cap@0.02", "floor_cap@0.015"])
+        a = PA.account_for(5_000.0, 0.01, "floor_cap@0.015")
+        self.assertEqual((a.b0, a.r, a.mode, a.min_lot_cap), (5_000.0, 0.01, "floor_cap", 0.015))
+        self.assertEqual(PA.account_for(5_000.0, 0.01, "floor"), PA.Account(b0=5_000.0, r=0.01, mode="floor"))
+
+    def test_default_grid_cells_are_unchanged(self):
+        self.assertEqual(PA.mode_labels(PA.GRID), ["skip", "floor"])
+        self.assertEqual(len(list(PA.cells())), 144)
+
+    def test_summary_pools_trades_above_r_and_risk_taken_over_paths(self):
+        # (blown, stalled, max_dd, terminal, cagr, taken, risk_taken_mean, taken_above_r)
+        v = [(False, False, 0.1, 1.2, 0.04, 10, 0.010, 0), (False, False, 0.3, 0.9, -0.02, 30, 0.014, 15)]
+        s = PA.summarise_cell(v)
+        self.assertAlmostEqual(s["taken_above_r_share"], 15 / 40)
+        self.assertAlmostEqual(s["risk_taken_mean"], (10 * 0.010 + 30 * 0.014) / 40)
+        self.assertAlmostEqual(s["p_dd_ge_25"], 0.5)
+
+    def test_a_grid_the_run_would_fail_on_late_is_refused_up_front(self):
+        self.assertIs(PA.check_grid(PA.GRID), PA.GRID)
+        with self.assertRaisesRegex(ValueError, "0.5"):           # the ranking reads edge x 0.5 after the bootstrap
+            PA.check_grid(dict(PA.GRID, edge=(1.0, 0.0)))
+        with self.assertRaises(ValueError):                       # cap below r
+            PA.check_grid(dict(PA.GRID, mode=("skip", "floor_cap"), r=(0.01,), cap=(0.005,)))
+        with self.assertRaises(ValueError):
+            PA.check_grid(dict(PA.GRID, mode=("skip", "half")))
+        PA.check_grid(dict(PA.GRID, mode=("floor_cap",), r=(0.01,), cap=(0.02, 0.015)))
+
+    def test_compare_results_reads_shared_entries_on_the_old_fields_only(self):
+        old = {"bootstrap": {"a": {"x": 1.0}, "gone": {"x": 2.0}}, "historical": {"h": {"m": 3.0, "s": None}}}
+        same = {"bootstrap": {"a": {"x": 1.0, "added": 9}}, "historical": {"h": {"m": 3.0, "s": None}, "new": {"m": 0}}}
+        self.assertEqual(PA.compare_results(old, same), (2, []))
+        moved = {"bootstrap": {"a": {"x": 1.0000001}}, "historical": {"h": {"m": 3.0}}}
+        self.assertEqual(PA.compare_results(old, moved), (2, ["bootstrap|a", "historical|h"]))
+
+    def test_code_version_names_the_commit_and_the_script_hash(self):
+        v = PA.code_version()
+        self.assertEqual(set(v), {"commit", "dirty_tracked", "script_sha256"})
+        self.assertEqual(len(v["script_sha256"]), 64)
+
+
 class Floor(unittest.TestCase):
     def test_drawdown_uses_the_floating_floor(self):
         m = PA.replay(days([row(adv=[0.0, -0.9, -0.5, 0.3], R=0.3)]), PA.Account(b0=100_000), {"XAU": GOLD})

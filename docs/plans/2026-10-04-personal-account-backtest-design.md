@@ -38,14 +38,14 @@ Consequences:
 | # | condition | rule |
 |---|---|---|
 | A1 | Balance | B0 in USD (owner input). No deposits or withdrawals. Primary ranking at a B0 where min-lot rounding loses under 10 % of r for every setup (100k); the owner's B0 is the "what you get" row. |
-| A2 | Sizing | sizing_basis = CURRENT balance (compounding); risk r at the stop, r <= `risk-config.json` max_risk_pct (1 %). Optional throttle: none, or halving after N consecutive losses. Live use would need a book version with current-balance sizing in fvg_demo (§47). |
-| A3 | Lots at one reference price | P_ref = the last close at the run date (in the config snapshot). Stop in price = stop_bp / 1e4 x P_ref. lots = floor(r x balance / (stop_price x contract) / volume_step) x volume_step, capped at volume_max. Below volume_min: **mode `skip`** (default, never above r) or **mode `floor`** (trade volume_min whatever its risk: the account CAN be lost). Report per setup the effective risk taken / r and B*(r). Historical-price sizing is a reported sensitivity only. |
+| A2 | Sizing | sizing_basis = CURRENT balance (compounding); risk r at the stop, r <= `risk-config.json` max_risk_pct (1 %); in mode `floor_cap` only the minimum lot may exceed r, up to the cap (A3, §7.4). Optional throttle: none, or halving after N consecutive losses. Live use would need a book version with current-balance sizing in fvg_demo (§47). |
+| A3 | Lots at one reference price | P_ref = the last close at the run date (in the config snapshot). Stop in price = stop_bp / 1e4 x P_ref. lots = floor(r x balance / (stop_price x contract) / volume_step) x volume_step, capped at volume_max. Below volume_min: **mode `skip`** (never above r), **mode `floor_cap`** (the owner's rule since §7.4: trade volume_min only if its risk at the stop <= `min_lot_cap` x the CURRENT balance, default 2 %; else skip as `min_lot_over_cap`, which also counts toward STALLED, A9), or **mode `floor`** (trade volume_min whatever its risk: the account CAN be lost; sensitivity). Report per setup the effective risk taken / r, the share of trades above r, and B*(r). Historical-price sizing is a reported sensitivity only. |
 | A4 | Margin | margin_i = lots x contract x P_ref x rate_i / leverage. The trade is skipped if used margin + margin_i > the equity floor. MT5 checks free margin against equity. Rates and leverage are not in the spec export: named ASSUMED constants (leverage 1:30, rate 1) until the owner's broker spec is exported. Reported as a guard (how often it bound). |
 | A5 | Portfolio cap | Open risk at the stops <= `risk-config.json` max_portfolio_risk_pct (5 %); a trade over it is skipped. |
 | A6 | Exact floating floor | `book_sim.trades` emits each trade's per-bar adverse R on the 5m grid (`adv_path`). floor(t) = balance + sum over open trades of money-per-R x adverse R at t. Drawdown = 1 - floor / peak balance. |
 | A7 | Stop-out | If floor / used margin <= S (named, 50 %) at a bar, every open trade closes at that bar's adverse price. |
 | A8 | Costs | Spread as in the trade row (FTMO-Demo relspread, server-hour frame). Commission per lot per round turn on a grid {0, c_named}; the break-even commission is reported. A ranking that flips across the grid is marked commission-dependent (tight stops pay more commission in R). No swap: the rows are intraday. |
-| A9 | Ruin (absorbing) | **BLOWN** = equity <= 0, or free margin < one volume_min position's margin on every symbol of the book. Nothing trades after it, and later signals are counted as `post_ruin`. **STALLED** (reported separately, measured after the fact, NOT absorbing) = the path ENDS with >= 20 consecutive signals all skipped as "below min lot": the account never traded again. (An absorbing version froze accounts during temporary runs of wide stops -- first smoke run: v3 on 10k "stalled" in 2013 at a 9 % drawdown -- so it was dropped.) |
+| A9 | Ruin (absorbing) | **BLOWN** = equity <= 0, or free margin < one volume_min position's margin on every symbol of the book. Nothing trades after it, and later signals are counted as `post_ruin`. **STALLED** (reported separately, measured after the fact, NOT absorbing) = the path ENDS with >= 20 consecutive signals all skipped as "below min lot" (or `min_lot_over_cap` in mode `floor_cap`, A3): the account never traded again. (An absorbing version froze accounts during temporary runs of wide stops -- first smoke run: v3 on 10k "stalled" in 2013 at a 9 % drawdown -- so it was dropped.) |
 | A10 | No prop rules | No daily loss, no target, no minimum days, no consistency rule. The owner's pain line (default 50 % drawdown, from `crypto-personal-v1`) is a reported probability, not a stop. |
 | A11 | Position mode and order | HEDGING (default: H7 and G9 on the same symbol both open, as fvg_demo) or NETTING (a second same-symbol signal is skipped). An exit is realised before an entry only if exit_time < entry_time (strict). Same-time entries are sized on the same balance, in a fixed component order. |
 
@@ -96,8 +96,10 @@ against each runner-up.
 
 1. `book_sim.trades` gains extra keys only: `entry_px`, `side`, `stop_k` and `adv_path`. No existing key changes.
 2. `scripts/research/personal_account.py` holds the replay (A1-A11) and the paired bootstrap. Hand-built tests cover:
-   compounding, rounding, the skip and floor modes, the margin skip, the portfolio cap, the exact floor, stop-out, BLOWN /
-   STALLED absorbing, `post_ruin` counting, strict tie order, and hedging vs netting.
+   compounding, rounding, the skip, floor and floor_cap modes (the cap inclusive; floor_cap at cap = r trades as skip, at a
+   wide cap as floor), the margin skip, the portfolio cap, the exact floor, stop-out, BLOWN /
+   STALLED absorbing, `post_ruin` counting, strict tie order, and hedging vs netting. Also the grid guard (a run needs
+   edge x 0.5, which the ranking reads) and the entry comparison behind `check` (the reproducibility check, §46).
 3. First read (DESCRIPTIVE, labels as in §2):
    - setups: H7 XAU, G9 XAU, G9 XAG; v3, v4, v4 + silver;
    - r: {0.5, 1} %;
@@ -120,3 +122,16 @@ against each runner-up.
    is really gone.** STALLED (the account can no longer place a minimum lot within r) is reported separately and is not ruin.
    Mode `floor` stays a reported sensitivity only.
 3. Broker: not given. FTMO-Demo specs remain the stated proxy.
+4. **"Cho phép vào lot nhỏ nhất dù vượt 1%, có giới hạn trên (ví dụ: 2% với tài khoản có số vốn 5000$)"** (2026-10-04,
+   after the first read). This replaces "never above 1 %" in item 2 for the minimum lot ONLY: mode `floor_cap` (A3).
+   - Sizing stays r = 1 % of the current balance. Only a trade whose 1 % is below volume_min is changed: it trades
+     volume_min if that risks <= the cap (2 %, the owner's example) of the current balance; otherwise it is skipped.
+   - BLOWN and STALLED keep their meaning (item 2). STALLED now means: the minimum lot no longer fits under the cap.
+   - Mode `skip` stays the reference row (the earlier rule); mode `floor` stays a sensitivity.
+   - The cap value is a named parameter (`Account.min_lot_cap`). 2 % was given as an example; 1.5 % is reported as a
+     sensitivity. Read: docs/audits/2026-10-04-personal-account.md §5. 2 % is the owner's number, not a backtest
+     optimum; no further cap values are read on these days (§5 there counts the variants read).
+   - The cap is on the CURRENT balance, like r. The words also allow a fixed 2 % of the starting 5,000 USD (100 USD),
+     which is looser after a drawdown. That reading was not run; it is an open owner decision.
+   - The rule was chosen AFTER the first read showed mode `floor` recovering the edge (CLAUDE.md §44: the same days are exposed).
+     Its read is DESCRIPTIVE, a sizing choice on known data, not a validation of an edge.
