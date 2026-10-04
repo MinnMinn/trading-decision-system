@@ -388,7 +388,10 @@ def backtest_config_snapshot(bt, *, timeframes, methods, configs=None, fee_pct=N
                                      # Batch 2(a) Wyckoff V items (plan §3 V grid): read on the scan path
                                      # (backtest-methods._fires_from / _wy_params / scan); baseline = v1.
                                      "fx_w_stop", "fx_w4a_linger_closes", "fx_w6_window", "fx_w_spt",
-                                     "fx_w_touch", "fx_w_tw")
+                                     "fx_w_touch", "fx_w_tw",
+                                     # Wyckoff re-test ablation keys (docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md
+                                     # §7, §10 item 2): default "off" = v1
+                                     "fx_w_shakeout", "fx_w7_contain")
                                     + ("fx_a2b_stale_htf_block",)
                                     + tuple(getattr(bt, "FX_ICT_KEYS", ()))
                                     # Batch 2(a) ICT V items (bt.FX_ICT_V_KEYS): recorded as their declared value; an opts dict that

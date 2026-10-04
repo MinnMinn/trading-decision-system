@@ -187,7 +187,9 @@ This checks whether the Wyckoff range adds anything beyond a plain sweep and rec
 **Event.** A control event fires at bar r when all of these hold:
 - some s ∈ [r−12, r] has L[s] below ℓ = min L[s−N, s);
 - r is the first bar that closes above ℓ;
-- no W-C-long event of the same symbol and timeframe has its break bar within ±N bars;
+- no W-C-long event of the same symbol and timeframe that is ALREADY SIGNALLED at bar r has its break bar within N bars
+  before r (point in time: a control is never chosen with later bars). The literal "±N bars" variant, which also excludes
+  on W-C-long breaks after r, is reported beside it as a diagnostic only (`gc_contrast` vs the deciding `gc_contrast_known`);
 - at most one control event per N bars.
 
 **Trade.**
@@ -203,8 +205,8 @@ This checks whether the Wyckoff range adds anything beyond a plain sweep and rec
 
 - **W-C-short.** The UT/UTAD entered at the reclaim. The book hedges this trade (WA2-24 at WA:1095), and the engine's shorts were −0.052R.
 - **Subsets of W-C-long.** The SPRING and SHAKEOUT subsets separately, plus the Shakeout entered at its reclaim.
-- **Shakeout through a lower timeframe.** The entry through a lower-timeframe Spring (WA2-18).
-- **σ-unit time exit.** The same events with a time exit at h = H, in σ units, as in the house census, for comparison with E1/E3.
+- ~~Shakeout through a lower timeframe~~ and ~~σ-unit time exit~~: struck before sealing. The books do not define the
+  first precisely enough to implement without inventing rules, and the census σ unit drops almost every multi-day hold.
 - **1D.** Too few events: about 18 springs on the 8 tradeable symbols.
 - **Variants.** The flatten-before-rollover variant, a placebo matched on the sign of the 20-day trend, and per-symbol tables.
 
@@ -240,10 +242,10 @@ This checks whether the Wyckoff range adds anything beyond a plain sweep and rec
 | **R1 PRIMARY** | 8 tradeable symbols, dense days, all bars before 2024-03-01 | This is the first measurement of placebo excess for these definitions. The window is not pristine: the engine and E1/E3 have already read it (ledger period `cfd-development-pre-2024-03`). No 60/40 split: the direction is fixed by the book, so a discovery half would choose nothing and would halve power. |
 | **R2 PARTIAL REPLICATION** | The 7 replication symbols, before 2024-03-01 | Read only for R1 survivors, so these symbols stay unread for Wyckoff otherwise. They share macro days with R1, and the fund search read XPT/XPD (ledger). Pass needs both: <br>• pooled net excess > 0; <br>• at least 3 of the evaluable clusters (each with ≥ 10 events, and at least 2 evaluable) show the book's sign. |
 | **R3 EXPOSED** | 8 tradeable symbols, 2024-03-01 → end of data (metals 2026-10-01, indices 2026-09-28) | Read only for survivors, and it can only veto: <br>• The prop search read 2024-03 → 2025-03 (`oos_exposed` in the ledger). <br>• The stability files scored WYCKOFF-BOOK from 2025-03 on (`data/history/stability/cfd-*.json`). <br>A survivor is vetoed if net excess ≤ 0. FRA40 rows after 2024-12 are flagged for the session cut. |
-| **R4 FORWARD** | FTMO bars exported after sealing, through the edge-followup export path (`docs/plans/2026-10-02-edge-followup-preregistration.md:41-50`) | The only path that can confirm. It is read once per surviving cell, at ≥ 100 forward events or 12 months, whichever comes first. Pass: net > 0 and one-sided p < 0.10. |
+| **R4 FORWARD** | FTMO bars exported after sealing; the window starts at the seal commit's committer date, never chosen by the analyst, through the edge-followup export path (`docs/plans/2026-10-02-edge-followup-preregistration.md:41-50`) | The only path that can confirm. It is read once per surviving cell, at ≥ 100 forward events or 12 months, whichever comes first. Pass: net > 0 and one-sided p < 0.10. |
 | **V** | Binance window above | One read, family V (§6.3). These spans were read by the H7x and C1 studies but never for Wyckoff. The improve-crypto Wyckoff records start at 2022-09-05 (`docs/experiments/2026-09-24-improve-crypto-*-WYCKOFF-BOOK.json`). |
-| **L1** | §7.3 | One read on exposed data, veto only. |
-| **ABL** | §7.1-7.2, R1 window only | One read, descriptive. |
+| **L1** | §7.3 | One read on exposed data, veto only. Needs the committed R0 record (`--counts`). |
+| **ABL** | §7.1-7.2, R1 window only | One read, descriptive. Takes its dense starts from the committed R0 record (`--counts`). |
 
 ---
 
@@ -459,6 +461,9 @@ V reports EDGE-CANDIDATE (then forward on new Binance bars), AGAINST THE BOOK, o
 2. **`scripts/backtest-methods.py`: add `fx_w_shakeout` {off, test} at B:1403 and `fx_w7_contain` {off, on} at B:1052/B:1078.**
    - Both default to off, and the default output must stay byte-identical.
    - Both are ablation-only (§7). The family-W harness does not use `bt.scan`.
+   - The fx-key registries name them too (the cross-file contract `scripts/tests/test_fx_registry_complete.py`):
+     `scripts/snapshot.py` (scan-relevant fx keys), `scripts/stability-report.py` (`config_opts` defaults and
+     `_SCAN_RELEVANT_KEYS`). Defaults off.
 3. **New `scripts/research/edge_wyckoff.py`** with the commands `counts` (R0), `run --read {R1,R2,R3,V,L1}`, `forward` and `report`.
    - Guards copied from `edge_h7x`:
      - `_require_committed` (:678): the pre-registration and the code must be committed at the sealed SHA;
