@@ -1,0 +1,1132 @@
+{
+ "meta": {
+  "script": "scripts/research/wyckoff_ablation.py",
+  "script_sha256": "34824aeb99a3963ef54cfecba0b9f66a1e40c6e8816e3a351fa2c60dcc3b9cf5",
+  "code_sha256": {
+   "scripts/research/edge_wyckoff.py": "8bdeeccf9bb4bf1f403e64dfb90907bfbce0482de015c20f30c92a21539f8c14",
+   "scripts/tests/test_edge_wyckoff.py": "681bf5e0de09e6945cfac13131bea1dcf53d185aa1fc2d3fb81a316f3da5d448",
+   "scripts/research/wyckoff_ablation.py": "34824aeb99a3963ef54cfecba0b9f66a1e40c6e8816e3a351fa2c60dcc3b9cf5",
+   "scripts/tests/test_wyckoff_ablation.py": "d672ddb0f75edf99c0a59e7c715325620d353c6b320cd9315e7757a935875835",
+   "scripts/tests/test_wyckoff_price_only.py": "6e4700ee38195b909d32c390286cc6299ae45121917f374a292c2295ba202d2b",
+   "scripts/backtest-methods.py": "cf7d5fd55651e417dd196161657f1d00779f3d5145246d4865dc50d6b52fcca9",
+   "scripts/research/reprice_real_costs.py": "52407d1b72802b5a3c3b460bb435fc6be4c6d17beca66ff7baad8f9689220c73",
+   "scripts/wyckoff_rules.py": "bc9dc00536c4e1a86a3e14d77773917b92b5855c20edeb1ec5201e7af13d2c40",
+   "scripts/structures.py": "c14e153c27bfffa0de1b18c2a573abfed921e378d523d5f2b7d46dcd2fd1ffd9",
+   "scripts/real_costs.py": "572ec698d4931efb58cab12e8b0e6f20720da07baccad6c130ef239f8fd26e1c",
+   "scripts/research/edge_census.py": "e052dab288df80f613d9f4156ddacc10d892d4ed1ad62468b4f1d7d953e71afc",
+   "scripts/research/edge_h7x.py": "b503b94509c41a25af3bd859449c26bbd2c8713aa1d8038183bf66123502786d",
+   "scripts/research/edge_f3.py": "242dcde369eaf188892df3f42a9c72ee34fb47f0a11219e1c945a6060c8f8e12",
+   "scripts/research/edge_f4.py": "e5f6ec8ad60f943196b86c0a2dc0d42f8c4805af43380c1fe03ed84149bba25b",
+   "scripts/research/book_sim.py": "19e52f4781f7c83e50578a3b7bc4f08835871bf7342566fd3c0c1ff1277498d2",
+   "scripts/research/fvg_book_sim.py": "30e1a7158204cb1c653ccad23828bc556499915595c236b3f586e774290fc56b",
+   "scripts/pit.py": "63e72161714481bfa55cbe425e71bea4a9a6ceea62718e92991fda28deb9e88f",
+   "scripts/normalized.py": "f76dd8e29513c4237425fcc0c4589c2881cd4538865bbbab27827e46790ca231",
+   "scripts/history_store.py": "e0b6bebe9eb81c65b077bfa4c5064aaaa081ac290dd6f0fbdf7bcf147bd20de0",
+   "scripts/instruments.py": "4dceb0425b3bd32b9e98848f565f0fcbe624ee6cf9ab30d7d5e88c0d4badf188",
+   "scripts/mt5_time.py": "2cfac8616eac158575ebb1350f763d72fdfdca076066fb4a05375859cc0f620a",
+   "scripts/live_rules.py": "ff9727fee35fb512672c53736d0bd077b076591527dc5880f8762d8661123bc8",
+   "scripts/ict-scan.py": "1209180c176d9109a7026ac6e22d7aa2718818b2556a3d2b611edde6e460ea90",
+   "scripts/htf_context.py": "c1f7b994b43cb29bdcfc01dedf979362cb5d40e22f7034d2d4c765539edde05f",
+   "scripts/automation.py": "1fba7e3eeef2eb633ae4569a56e9cc1a5560606e3cb488355498e2c24fc2688d",
+   "scripts/trading_env.py": "4c9a02a2cf559d1559f06dd4beb7f4f8c1702219d68ee4f3078a293ce061a92e",
+   "scripts/methods.py": "dc76537b6d7c79930c8473ebcf4e13d402a859b2dedeee8976f9014fa703ba69",
+   "scripts/account_profile.py": "2061c4654afe4535904dc15a22f4c30204fbcda01f71b95990ad1059ed0c79f8",
+   "scripts/event_risk.py": "28c509331637cf6d6815da3b4dca892f7d97edbc031bfbc27feb1a79e4346524",
+   "scripts/i18n.py": "9654c7a6c9d561ab028366f4a304098f88c92e4cdad7c6b40d1644d73c8186f0",
+   "scripts/performance.py": "d79d78bde35028abab176dbd3e3a23298fd1bb63e98eb86bbc3bd8ac2181883b",
+   "scripts/providers.py": "3afed187584f597bd81fbe66da058cd9dc2f4666bfdce973fcbb635aff8adfc3",
+   "scripts/quality.py": "a2f6af3b3b32f2b558c051b899d6a7124b1956babc2b4f083f110c26e7401eb5",
+   "scripts/repo_paths.py": "6bc8c64cdedd56582f96015a0e7579985794ea3906a7d6ebaa69b14aa72d4e61",
+   "scripts/research_validity.py": "e06d5fd02ed54f83f49f2742dfa9233f5d02d68666c4e01d72c0240a4d34d110",
+   "scripts/risk_model.py": "7b4131a53d7f768ae87580eda21fcdb6115fc8d363b9ca98cd6c7bebb5589a9e",
+   "scripts/sessions.py": "607c2c6eb547e9bf0950435e77c05c26eb06e1df022fce433e5267f8f719ecd2",
+   "scripts/snapshot.py": "e4b2474d924164cc73df127a03007e4bfc9e444a89ff33a37a9b6055049f4200",
+   "scripts/trader_constraints.py": "2109a79a0bf49679f65aec159bf0f8f2842cec06a664da9f4872f72c964dab4b",
+   "scripts/trading_system.py": "9ec6aea8f9920a7f56dec56f423fb99f27f46eb51320efaf3a5a29d2dd33f9d1",
+   "docs/architecture/analysis-params.json": "5cde25c1b9c3c35f154cdc5fbdf83d1a27c767589cbda721d0a28ab2d19958e3",
+   "docs/architecture/instruments.json": "f5de740394fc3312d73a8bf53aa69f729283bb38452d01f571ae52a915d84b5d",
+   "docs/architecture/providers.json": "af1ff6e203743c8402438256eb0f1e9c2802271ac2863155823cd9f5bf02cef8",
+   "docs/architecture/account-profiles.json": "551f9a3111eaeb1741e396e0f5459f3b657c1c84ae194e30a195189da946df6e",
+   "docs/architecture/i18n.json": "8b48e9fcdb4ec646a947d276a0595ad424c728c48372dde55eeaa50e8831e254",
+   "docs/architecture/methods.json": "30aaa27db94d92f70e327d5ffd00c1dd6f46e5809f1109052e287fc18ac84ae0",
+   "docs/architecture/performance-metrics.json": "f9a06c17a24d75692d6ea910ba39cc12d9dd50b7ffd4777fba548990f28bb103",
+   "docs/architecture/research-validity.json": "b06264c8113c64c0844954a18f58746dd9dbe5b61c700d180e54f5e486723ae9",
+   "docs/architecture/risk-config.json": "0a4621240df31e19948f047b79055654b660247ae6d35ac90d77842662659598",
+   "docs/architecture/sessions.json": "8e2bbdabbaa67da822a7baad91681ba5f62936f32851363731af85b365e71e13",
+   "docs/architecture/trader-constraints.json": "07ea109e1639b3699e10c340150ebab4aa0387fc814f6951936c1babace9d39b",
+   "docs/architecture/trading-systems.json": "90d8be1858b49402e1196f425a94fc298910f58b0f3735aeb31802a7cc4f5acc"
+  },
+  "kind": "read",
+  "read": "ABL",
+  "arm": "LEGACY-as-scored",
+  "preregistration": "docs/plans/2026-10-04-wyckoff-retest-preregistration.md",
+  "preregistration_sha256": "c0bba1d4b4e64596e7ff21d680970c474a1ef42f052773336e5b85ef4d21a008",
+  "preregistration_draft": "docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md",
+  "git_head": "c2ef260da396d5d0a24c5fc556f9688f5ae9970a",
+  "symbols": [
+   "XAUUSD",
+   "XAGUSD",
+   "US500",
+   "US30",
+   "USTEC",
+   "DE40",
+   "FRA40",
+   "AUS200"
+  ],
+  "timeframes": [
+   "15m",
+   "1H",
+   "4H"
+  ],
+  "legs": [
+   "spring",
+   "phase_d"
+  ],
+  "dev_cutoff": "2024-03-01T00:00:00Z",
+  "history_root": "data/history/ftmo",
+  "method": "WYCKOFF-BOOK",
+  "arms": {
+   "LEGACY-as-scored": {
+    "scan": {
+     "htf": true
+    },
+    "signals": "legacy_sim",
+    "floor": "legacy_sim",
+    "volume": "raw",
+    "change": "reference: the engine as it was judged (simulate, flat fee, floor, absolute R)",
+    "walk": {},
+    "fill": "signal_close",
+    "score": "absolute"
+   },
+   "LEGACY-rescored": {
+    "scan": {
+     "htf": true
+    },
+    "signals": "legacy_sim",
+    "floor": "legacy_sim",
+    "volume": "raw",
+    "change": "reference: LEGACY-as-scored's admitted trades, scored with \u00a75",
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "fill": "next_open",
+    "score": "placebo"
+   },
+   "ENGINE-BOOK": {
+    "change": "reference: the book-faithful engine",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A1": {
+    "change": "skip Shakeouts",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "off",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A2": {
+    "change": "2.5R floor in the harness, cost known at entry",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": "entry_cost",
+    "volume": "raw"
+   },
+   "A3": {
+    "change": "ICT HTF gate",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": true,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A4": {
+    "change": "Phase-D target ceiling + 1 x TR",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": false,
+     "fx_w7_contain": "off",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A5": {
+    "change": "600-bar window",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true,
+     "fx_w6_window": 600
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A6": {
+    "change": "fx_w_stop=spring_low",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true,
+     "fx_w_stop": "spring_low"
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A7": {
+    "change": "tick volume normalised by hour",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "hour_norm"
+   },
+   "A8": {
+    "change": "fx_w_spt=ceiling",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true,
+     "fx_w_spt": "ceiling"
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A9": {
+    "change": "fill at the signal close",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true
+    },
+    "walk": {
+     "fx_gap_fill": true
+    },
+    "signals": "scan",
+    "fill": "signal_close",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   },
+   "A10": {
+    "change": "flat_before_rollover",
+    "scan": {
+     "fx_w1_tr_low_st": true,
+     "fx_w2_st_below_sc": true,
+     "fx_w3_mSOW_spring": true,
+     "fx_w5_vp_abandon": true,
+     "fx_w_shakeout": "test",
+     "htf": false,
+     "fx_w7_htf_target": true,
+     "fx_w7_contain": "on",
+     "fx_gap_fill": true,
+     "flat_before_rollover": true,
+     "rollover_provider": "mt5_bridge_ftmo"
+    },
+    "walk": {
+     "fx_gap_fill": true,
+     "flat_before_rollover": true,
+     "rollover_provider": "mt5_bridge_ftmo"
+    },
+    "signals": "scan",
+    "fill": "next_open",
+    "score": "placebo",
+    "floor": null,
+    "volume": "raw"
+   }
+  },
+  "parameters": {
+   "n_placebo": 200,
+   "placebo_draw": "without replacement; every candidate when fewer",
+   "placebo_seed": "sha256('WY-P0|sym|tf|signal_time')[:16]",
+   "placebo_slot": "server-clock minute of the day of the event's ENTRY bar k+1",
+   "atr_n": 20,
+   "dense": "R0's pinned dense start per series (edge_wyckoff counts); dense days by edge_wyckoff.dense_days from it; the detection window must lie on or after the start",
+   "dense_share": 0.8,
+   "dense_lookback_days": 60,
+   "a7_days": 20,
+   "cluster": "ISO week of the signal bar (UTC)",
+   "bootstrap_resamples": 2000,
+   "bootstrap_ci": [
+    0.05,
+    0.95
+   ],
+   "floor": "backtest-methods MIN_RR (analysis-params ict.min_rr)"
+  },
+  "costs": {
+   "profile": "ftmo_demo_2026_09_relspread",
+   "hour_frame": "server_table",
+   "lines": [
+    "median_swap",
+    "median_noswap",
+    "p90_swap",
+    "p90_noswap"
+   ],
+   "legacy_fee_per_side": 0.0005,
+   "commission": "0/UNKNOWN (real_costs.commission_r)",
+   "times": "entry = the fill instant (next open / signal close); exit = the exit bar's open label, the engine's own exit_time convention"
+  },
+  "disclosures": {
+   "descriptive_only": "no gate, no BH family, nothing selected (\u00a77.1)",
+   "legacy_admission": "LEGACY arms' signals are bt.simulate's admitted trades per (symbol, timeframe): the flat-fee floor AND its one-position-per-symbol rule, which reads earlier trades' exit times; `count` reports the floor alone",
+   "w7_contain_no_target": "fx_w7_contain keeps the engine's W7 rule 'no HTF record, no Phase-D trade'; the family-W time exit (\u00a73.3) is not an engine rule",
+   "shakeout_short": "fx_w_shakeout=test applies to both sides (a lingering Upthrust is entered at its test)",
+   "a7_neutral": "A7 bars without an earlier same-hour reference get volume 1.0 (counted per series)",
+   "engine_test_volume": "the engine's Test still needs tick volume (W:594) and its Shakeouts reclaim within sob, so A1 covers only that subset (\u00a77.2 Limitation)",
+   "dense_from_r0": "the dense table is R0's (family W's), never recomputed on the cut series; signals whose detection window reaches before the dense start are dropped (counted); the HTF series bt.scan reads for the W7 target / HTF gate are not cut at the dense start",
+   "code_fingerprint": "code_sha256 = edge_wyckoff.code_sha256() over edge_wyckoff.CODE, equal in all 13 arms and to R0's"
+  },
+  "guarded": true,
+  "sealed": {
+   "path": "docs/plans/2026-10-04-wyckoff-retest-preregistration.md",
+   "sha256": "c0bba1d4b4e64596e7ff21d680970c474a1ef42f052773336e5b85ef4d21a008",
+   "seal_date": "2026-10-04"
+  },
+  "min_rr": 2.5,
+  "horizon_bars": {
+   "15m": 96,
+   "1H": 72,
+   "4H": 30
+  },
+  "counts": {
+   "path": "docs/experiments/wyckoff-retest-r0/edge-wyckoff-R0.json",
+   "sha256": "09e215902f012f14210577684f34e0c3fac50a6a0df76d55076992fa726655f9"
+  },
+  "committed_sha256": {
+   "docs/plans/2026-10-04-wyckoff-retest-preregistration.md": "c0bba1d4b4e64596e7ff21d680970c474a1ef42f052773336e5b85ef4d21a008",
+   "docs/architecture/research-ledger.json": "dcd7ff09b782f44ca5130d7e52e6b961e4a48c96224d626db3f36e4abe95f3a6",
+   "scripts/research/edge_wyckoff.py": "8bdeeccf9bb4bf1f403e64dfb90907bfbce0482de015c20f30c92a21539f8c14",
+   "scripts/tests/test_edge_wyckoff.py": "681bf5e0de09e6945cfac13131bea1dcf53d185aa1fc2d3fb81a316f3da5d448",
+   "scripts/research/wyckoff_ablation.py": "34824aeb99a3963ef54cfecba0b9f66a1e40c6e8816e3a351fa2c60dcc3b9cf5",
+   "scripts/tests/test_wyckoff_ablation.py": "d672ddb0f75edf99c0a59e7c715325620d353c6b320cd9315e7757a935875835",
+   "scripts/tests/test_wyckoff_price_only.py": "6e4700ee38195b909d32c390286cc6299ae45121917f374a292c2295ba202d2b",
+   "scripts/backtest-methods.py": "cf7d5fd55651e417dd196161657f1d00779f3d5145246d4865dc50d6b52fcca9",
+   "scripts/research/reprice_real_costs.py": "52407d1b72802b5a3c3b460bb435fc6be4c6d17beca66ff7baad8f9689220c73",
+   "scripts/wyckoff_rules.py": "bc9dc00536c4e1a86a3e14d77773917b92b5855c20edeb1ec5201e7af13d2c40",
+   "scripts/structures.py": "c14e153c27bfffa0de1b18c2a573abfed921e378d523d5f2b7d46dcd2fd1ffd9",
+   "scripts/real_costs.py": "572ec698d4931efb58cab12e8b0e6f20720da07baccad6c130ef239f8fd26e1c",
+   "scripts/research/edge_census.py": "e052dab288df80f613d9f4156ddacc10d892d4ed1ad62468b4f1d7d953e71afc",
+   "scripts/research/edge_h7x.py": "b503b94509c41a25af3bd859449c26bbd2c8713aa1d8038183bf66123502786d",
+   "scripts/research/edge_f3.py": "242dcde369eaf188892df3f42a9c72ee34fb47f0a11219e1c945a6060c8f8e12",
+   "scripts/research/edge_f4.py": "e5f6ec8ad60f943196b86c0a2dc0d42f8c4805af43380c1fe03ed84149bba25b",
+   "scripts/research/book_sim.py": "19e52f4781f7c83e50578a3b7bc4f08835871bf7342566fd3c0c1ff1277498d2",
+   "scripts/research/fvg_book_sim.py": "30e1a7158204cb1c653ccad23828bc556499915595c236b3f586e774290fc56b",
+   "scripts/pit.py": "63e72161714481bfa55cbe425e71bea4a9a6ceea62718e92991fda28deb9e88f",
+   "scripts/normalized.py": "f76dd8e29513c4237425fcc0c4589c2881cd4538865bbbab27827e46790ca231",
+   "scripts/history_store.py": "e0b6bebe9eb81c65b077bfa4c5064aaaa081ac290dd6f0fbdf7bcf147bd20de0",
+   "scripts/instruments.py": "4dceb0425b3bd32b9e98848f565f0fcbe624ee6cf9ab30d7d5e88c0d4badf188",
+   "scripts/mt5_time.py": "2cfac8616eac158575ebb1350f763d72fdfdca076066fb4a05375859cc0f620a",
+   "scripts/live_rules.py": "ff9727fee35fb512672c53736d0bd077b076591527dc5880f8762d8661123bc8",
+   "scripts/ict-scan.py": "1209180c176d9109a7026ac6e22d7aa2718818b2556a3d2b611edde6e460ea90",
+   "scripts/htf_context.py": "c1f7b994b43cb29bdcfc01dedf979362cb5d40e22f7034d2d4c765539edde05f",
+   "scripts/automation.py": "1fba7e3eeef2eb633ae4569a56e9cc1a5560606e3cb488355498e2c24fc2688d",
+   "scripts/trading_env.py": "4c9a02a2cf559d1559f06dd4beb7f4f8c1702219d68ee4f3078a293ce061a92e",
+   "scripts/methods.py": "dc76537b6d7c79930c8473ebcf4e13d402a859b2dedeee8976f9014fa703ba69",
+   "scripts/account_profile.py": "2061c4654afe4535904dc15a22f4c30204fbcda01f71b95990ad1059ed0c79f8",
+   "scripts/event_risk.py": "28c509331637cf6d6815da3b4dca892f7d97edbc031bfbc27feb1a79e4346524",
+   "scripts/i18n.py": "9654c7a6c9d561ab028366f4a304098f88c92e4cdad7c6b40d1644d73c8186f0",
+   "scripts/performance.py": "d79d78bde35028abab176dbd3e3a23298fd1bb63e98eb86bbc3bd8ac2181883b",
+   "scripts/providers.py": "3afed187584f597bd81fbe66da058cd9dc2f4666bfdce973fcbb635aff8adfc3",
+   "scripts/quality.py": "a2f6af3b3b32f2b558c051b899d6a7124b1956babc2b4f083f110c26e7401eb5",
+   "scripts/repo_paths.py": "6bc8c64cdedd56582f96015a0e7579985794ea3906a7d6ebaa69b14aa72d4e61",
+   "scripts/research_validity.py": "e06d5fd02ed54f83f49f2742dfa9233f5d02d68666c4e01d72c0240a4d34d110",
+   "scripts/risk_model.py": "7b4131a53d7f768ae87580eda21fcdb6115fc8d363b9ca98cd6c7bebb5589a9e",
+   "scripts/sessions.py": "607c2c6eb547e9bf0950435e77c05c26eb06e1df022fce433e5267f8f719ecd2",
+   "scripts/snapshot.py": "e4b2474d924164cc73df127a03007e4bfc9e444a89ff33a37a9b6055049f4200",
+   "scripts/trader_constraints.py": "2109a79a0bf49679f65aec159bf0f8f2842cec06a664da9f4872f72c964dab4b",
+   "scripts/trading_system.py": "9ec6aea8f9920a7f56dec56f423fb99f27f46eb51320efaf3a5a29d2dd33f9d1",
+   "docs/architecture/analysis-params.json": "5cde25c1b9c3c35f154cdc5fbdf83d1a27c767589cbda721d0a28ab2d19958e3",
+   "docs/architecture/instruments.json": "f5de740394fc3312d73a8bf53aa69f729283bb38452d01f571ae52a915d84b5d",
+   "docs/architecture/providers.json": "af1ff6e203743c8402438256eb0f1e9c2802271ac2863155823cd9f5bf02cef8",
+   "docs/architecture/account-profiles.json": "551f9a3111eaeb1741e396e0f5459f3b657c1c84ae194e30a195189da946df6e",
+   "docs/architecture/i18n.json": "8b48e9fcdb4ec646a947d276a0595ad424c728c48372dde55eeaa50e8831e254",
+   "docs/architecture/methods.json": "30aaa27db94d92f70e327d5ffd00c1dd6f46e5809f1109052e287fc18ac84ae0",
+   "docs/architecture/performance-metrics.json": "f9a06c17a24d75692d6ea910ba39cc12d9dd50b7ffd4777fba548990f28bb103",
+   "docs/architecture/research-validity.json": "b06264c8113c64c0844954a18f58746dd9dbe5b61c700d180e54f5e486723ae9",
+   "docs/architecture/risk-config.json": "0a4621240df31e19948f047b79055654b660247ae6d35ac90d77842662659598",
+   "docs/architecture/sessions.json": "8e2bbdabbaa67da822a7baad91681ba5f62936f32851363731af85b365e71e13",
+   "docs/architecture/trader-constraints.json": "07ea109e1639b3699e10c340150ebab4aa0387fc814f6951936c1babace9d39b",
+   "docs/architecture/trading-systems.json": "90d8be1858b49402e1196f425a94fc298910f58b0f3735aeb31802a7cc4f5acc"
+  },
+  "loaded_code": [
+   "scripts/account_profile.py",
+   "scripts/automation.py",
+   "scripts/event_risk.py",
+   "scripts/history_store.py",
+   "scripts/i18n.py",
+   "scripts/instruments.py",
+   "scripts/methods.py",
+   "scripts/mt5_time.py",
+   "scripts/normalized.py",
+   "scripts/performance.py",
+   "scripts/pit.py",
+   "scripts/providers.py",
+   "scripts/quality.py",
+   "scripts/real_costs.py",
+   "scripts/repo_paths.py",
+   "scripts/research/wyckoff_ablation.py",
+   "scripts/research_validity.py",
+   "scripts/risk_model.py",
+   "scripts/sessions.py",
+   "scripts/snapshot.py",
+   "scripts/structures.py",
+   "scripts/trader_constraints.py",
+   "scripts/trading_env.py",
+   "scripts/trading_system.py",
+   "scripts/wyckoff_rules.py"
+  ]
+ },
+ "data": {
+  "XAUUSD|15m": {
+   "source": "data/history/ftmo/ohlcv.XAUUSD.15m",
+   "bars": 453893,
+   "first": "2004-06-11T04:15:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2012-04-01",
+    "source": "R0",
+    "dense_days": 3052,
+    "first_dense_bar": "2012-04-01T22:00:00Z"
+   }
+  },
+  "XAGUSD|15m": {
+   "source": "data/history/ftmo/ohlcv.XAGUSD.15m",
+   "bars": 357694,
+   "first": "2008-11-07T21:00:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2012-04-01",
+    "source": "R0",
+    "dense_days": 3053,
+    "first_dense_bar": "2012-04-01T22:00:00Z"
+   }
+  },
+  "US500|15m": {
+   "source": "data/history/ftmo/ohlcv.US500.15m",
+   "bars": 62776,
+   "first": "2017-12-28T22:00:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2021-09-01",
+    "source": "R0",
+    "dense_days": 645,
+    "first_dense_bar": "2021-08-31T22:00:00Z"
+   }
+  },
+  "US30|15m": {
+   "source": "data/history/ftmo/ohlcv.US30.15m",
+   "bars": 116405,
+   "first": "2019-02-08T12:15:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2019-10-01",
+    "source": "R0",
+    "dense_days": 1137,
+    "first_dense_bar": "2019-09-30T22:00:00Z"
+   }
+  },
+  "USTEC|15m": {
+   "source": "data/history/ftmo/ohlcv.USTEC.15m",
+   "bars": 62766,
+   "first": "2017-12-28T22:00:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2021-09-01",
+    "source": "R0",
+    "dense_days": 645,
+    "first_dense_bar": "2021-08-31T22:00:00Z"
+   }
+  },
+  "DE40|15m": {
+   "source": "data/history/ftmo/ohlcv.DE40.15m",
+   "bars": 55219,
+   "first": "2017-12-27T23:00:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2022-01-01",
+    "source": "R0",
+    "dense_days": 555,
+    "first_dense_bar": "2022-01-03T00:00:00Z"
+   }
+  },
+  "FRA40|15m": {
+   "why": "no R0 dense start"
+  },
+  "AUS200|15m": {
+   "source": "data/history/ftmo/ohlcv.AUS200.15m",
+   "bars": 110963,
+   "first": "2019-02-08T12:15:00Z",
+   "last": "2024-02-29T23:45:00Z",
+   "dense": {
+    "start": "2019-10-01",
+    "source": "R0",
+    "dense_days": 1102,
+    "first_dense_bar": "2019-09-30T23:45:00Z"
+   }
+  },
+  "XAUUSD|1H": {
+   "source": "data/history/ftmo/ohlcv.XAUUSD.1H",
+   "bars": 116789,
+   "first": "2004-06-11T04:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2004-06-01",
+    "source": "R0",
+    "dense_days": 4984,
+    "first_dense_bar": "2004-06-11T04:00:00Z"
+   }
+  },
+  "XAGUSD|1H": {
+   "source": "data/history/ftmo/ohlcv.XAGUSD.1H",
+   "bars": 91835,
+   "first": "2008-11-07T21:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2008-11-01",
+    "source": "R0",
+    "dense_days": 3913,
+    "first_dense_bar": "2008-11-07T21:00:00Z"
+   }
+  },
+  "US500|1H": {
+   "source": "data/history/ftmo/ohlcv.US500.1H",
+   "bars": 19167,
+   "first": "2017-12-28T22:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2021-02-01",
+    "source": "R0",
+    "dense_days": 796,
+    "first_dense_bar": "2021-01-31T22:00:00Z"
+   }
+  },
+  "US30|1H": {
+   "source": "data/history/ftmo/ohlcv.US30.1H",
+   "bars": 29169,
+   "first": "2019-02-08T12:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2019-10-01",
+    "source": "R0",
+    "dense_days": 1137,
+    "first_dense_bar": "2019-09-30T22:00:00Z"
+   }
+  },
+  "USTEC|1H": {
+   "source": "data/history/ftmo/ohlcv.USTEC.1H",
+   "bars": 19167,
+   "first": "2017-12-28T22:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2021-02-01",
+    "source": "R0",
+    "dense_days": 796,
+    "first_dense_bar": "2021-01-31T22:00:00Z"
+   }
+  },
+  "DE40|1H": {
+   "source": "data/history/ftmo/ohlcv.DE40.1H",
+   "bars": 17102,
+   "first": "2017-12-27T23:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2021-06-01",
+    "source": "R0",
+    "dense_days": 707,
+    "first_dense_bar": "2021-05-31T22:00:00Z"
+   }
+  },
+  "FRA40|1H": {
+   "why": "no R0 dense start"
+  },
+  "AUS200|1H": {
+   "source": "data/history/ftmo/ohlcv.AUS200.1H",
+   "bars": 28530,
+   "first": "2019-02-08T12:00:00Z",
+   "last": "2024-02-29T23:00:00Z",
+   "dense": {
+    "start": "2019-10-01",
+    "source": "R0",
+    "dense_days": 1103,
+    "first_dense_bar": "2019-09-30T23:00:00Z"
+   }
+  },
+  "XAUUSD|4H": {
+   "source": "data/history/ftmo/ohlcv.XAUUSD.4H",
+   "bars": 30194,
+   "first": "2004-06-11T01:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2004-06-01",
+    "source": "R0",
+    "dense_days": 5027,
+    "first_dense_bar": "2004-06-11T01:00:00Z"
+   }
+  },
+  "XAGUSD|4H": {
+   "source": "data/history/ftmo/ohlcv.XAGUSD.4H",
+   "bars": 23592,
+   "first": "2008-11-07T18:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2008-11-01",
+    "source": "R0",
+    "dense_days": 3938,
+    "first_dense_bar": "2008-11-07T18:00:00Z"
+   }
+  },
+  "US500|4H": {
+   "source": "data/history/ftmo/ohlcv.US500.4H",
+   "bars": 5593,
+   "first": "2017-12-28T22:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2021-02-01",
+    "source": "R0",
+    "dense_days": 798,
+    "first_dense_bar": "2021-01-31T22:00:00Z"
+   }
+  },
+  "US30|4H": {
+   "source": "data/history/ftmo/ohlcv.US30.4H",
+   "bars": 7684,
+   "first": "2019-02-08T10:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2019-10-01",
+    "source": "R0",
+    "dense_days": 1142,
+    "first_dense_bar": "2019-09-30T21:00:00Z"
+   }
+  },
+  "USTEC|4H": {
+   "source": "data/history/ftmo/ohlcv.USTEC.4H",
+   "bars": 5594,
+   "first": "2017-12-28T22:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2021-02-01",
+    "source": "R0",
+    "dense_days": 798,
+    "first_dense_bar": "2021-01-31T22:00:00Z"
+   }
+  },
+  "DE40|4H": {
+   "source": "data/history/ftmo/ohlcv.DE40.4H",
+   "bars": 5024,
+   "first": "2017-12-27T22:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2021-06-01",
+    "source": "R0",
+    "dense_days": 707,
+    "first_dense_bar": "2021-05-31T21:00:00Z"
+   }
+  },
+  "FRA40|4H": {
+   "why": "no R0 dense start"
+  },
+  "AUS200|4H": {
+   "source": "data/history/ftmo/ohlcv.AUS200.4H",
+   "bars": 7556,
+   "first": "2019-02-08T10:00:00Z",
+   "last": "2024-02-29T18:00:00Z",
+   "dense": {
+    "start": "2019-10-01",
+    "source": "R0",
+    "dense_days": 1109,
+    "first_dense_bar": "2019-09-30T21:00:00Z"
+   }
+  }
+ },
+ "legacy_simulate": {
+  "XAUUSD|15m": {
+   "scanned": 137,
+   "admitted": 26,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "XAGUSD|15m": {
+   "scanned": 114,
+   "admitted": 25,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "US500|15m": {
+   "scanned": 27,
+   "admitted": 10,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "US30|15m": {
+   "scanned": 52,
+   "admitted": 16,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "USTEC|15m": {
+   "scanned": 32,
+   "admitted": 10,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "DE40|15m": {
+   "scanned": 27,
+   "admitted": 8,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "AUS200|15m": {
+   "scanned": 44,
+   "admitted": 10,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "XAUUSD|1H": {
+   "scanned": 43,
+   "admitted": 19,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "XAGUSD|1H": {
+   "scanned": 20,
+   "admitted": 4,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "US500|1H": {
+   "scanned": 6,
+   "admitted": 3,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "US30|1H": {
+   "scanned": 17,
+   "admitted": 4,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "USTEC|1H": {
+   "scanned": 12,
+   "admitted": 3,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "DE40|1H": {
+   "scanned": 12,
+   "admitted": 3,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "AUS200|1H": {
+   "scanned": 19,
+   "admitted": 6,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "XAUUSD|4H": {
+   "scanned": 24,
+   "admitted": 12,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "XAGUSD|4H": {
+   "scanned": 14,
+   "admitted": 2,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "US500|4H": {
+   "scanned": 2,
+   "admitted": 1,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "US30|4H": {
+   "scanned": 2,
+   "admitted": 1,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "USTEC|4H": {
+   "scanned": 3,
+   "admitted": 1,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "DE40|4H": {
+   "scanned": 5,
+   "admitted": 1,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  },
+  "AUS200|4H": {
+   "scanned": 7,
+   "admitted": 5,
+   "ruin": null,
+   "failed_by": null,
+   "min_rr": 2.5
+  }
+ },
+ "skipped": {
+  "XAUUSD|15m": {
+   "phase_d|window_before_dense_start": 16,
+   "phase_d|prev_day_not_dense": 1
+  },
+  "XAGUSD|15m": {
+   "spring|window_before_dense_start": 3,
+   "phase_d|window_before_dense_start": 9
+  },
+  "US500|15m": {
+   "phase_d|window_before_dense_start": 1
+  },
+  "US30|15m": {
+   "phase_d|window_before_dense_start": 1
+  },
+  "USTEC|15m": {
+   "phase_d|window_before_dense_start": 1
+  },
+  "DE40|15m": {
+   "phase_d|window_before_dense_start": 3
+  },
+  "AUS200|15m": {},
+  "XAUUSD|1H": {},
+  "XAGUSD|1H": {},
+  "US500|1H": {},
+  "US30|1H": {
+   "phase_d|window_before_dense_start": 1
+  },
+  "USTEC|1H": {},
+  "DE40|1H": {},
+  "AUS200|1H": {},
+  "XAUUSD|4H": {},
+  "XAGUSD|4H": {},
+  "US500|4H": {},
+  "US30|4H": {},
+  "USTEC|4H": {},
+  "DE40|4H": {},
+  "AUS200|4H": {}
+ },
+ "cells": {
+  "spring|15m": {
+   "n": 11,
+   "weeks": 11,
+   "mean_gross_R": -0.3086654565881765,
+   "mean_net_abs_R": -0.997909090909091
+  },
+  "spring|1H": {
+   "n": 4,
+   "weeks": 4,
+   "mean_gross_R": 0.06741345540808574,
+   "mean_net_abs_R": -0.24025000000000002
+  },
+  "spring|4H": {
+   "n": 2,
+   "weeks": 2,
+   "mean_gross_R": -1.0,
+   "mean_net_abs_R": -1.2605
+  },
+  "phase_d|15m": {
+   "n": 59,
+   "weeks": 51,
+   "mean_gross_R": 0.2114295389995061,
+   "mean_net_abs_R": -0.24501694915254235
+  },
+  "phase_d|1H": {
+   "n": 37,
+   "weeks": 37,
+   "mean_gross_R": 0.2232547171345308,
+   "mean_net_abs_R": -0.01813513513513516
+  },
+  "phase_d|4H": {
+   "n": 21,
+   "weeks": 20,
+   "mean_gross_R": 0.017718689675205655,
+   "mean_net_abs_R": -0.15114285714285713
+  }
+ },
+ "a7_neutral_bars": {},
+ "rows": [
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAUUSD-long-book-2014-08-13T12:00:00Z","signal_time":"2014-08-13T12:00:00Z","week":"2014-W33","stop":1304.057645,"target":1311.3,"entry":1305.01,"entry_time":"2014-08-13T12:00:00Z","exit_time":"2014-08-13T12:30:00Z","R_planned":6.604679977530059,"R":6.604679977530059,"outcome":"win","bars_held":2,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":5.234},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAUUSD-long-book-2015-01-27T00:15:00Z","signal_time":"2015-01-27T00:15:00Z","week":"2015-W05","stop":1273.3530050000002,"target":1287.39,"entry":1275.76,"entry_time":"2015-01-27T00:15:00Z","exit_time":"2015-01-27T00:30:00Z","R_planned":4.83175079300163,"R":-1.0,"outcome":"loss","bars_held":1,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.53},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2017-04-03T22:00:00Z-D","signal_time":"2017-04-03T23:45:00Z","week":"2017-W14","stop":1253.622875,"target":1267.0899999999997,"entry":1255.55,"entry_time":"2017-04-03T23:45:00Z","exit_time":"2017-04-04T21:00:00Z","R_planned":5.988194849841157,"R":-1.0,"outcome":"loss","bars_held":85,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.652},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"spring","event":"XAUUSD-long-book-2020-11-08T22:00:00Z-D","signal_time":"2020-11-09T08:15:00Z","week":"2020-W46","stop":1952.4832700000002,"target":1985.3799999999999,"entry":1960.58,"entry_time":"2020-11-09T08:15:00Z","exit_time":"2020-11-09T11:30:00Z","R_planned":3.0629649253464932,"R":-1.0,"outcome":"loss","bars_held":13,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.242},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"spring","side":"short","path":"spring","event":"XAUUSD-short-book-2021-07-14T10:00:00Z","signal_time":"2021-07-14T10:00:00Z","week":"2021-W28","stop":1818.4287599999998,"target":1798.6,"entry":1814.44,"entry_time":"2021-07-14T10:00:00Z","exit_time":"2021-07-14T12:00:00Z","R_planned":3.971158956668544,"R":-1.0,"outcome":"loss","bars_held":8,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.455},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2021-12-02T05:45:00Z-D","signal_time":"2021-12-02T07:15:00Z","week":"2021-W48","stop":1779.779445,"target":1758.7500000000002,"entry":1776.32,"entry_time":"2021-12-02T07:15:00Z","exit_time":"2021-12-02T12:30:00Z","R_planned":5.07884935300313,"R":-1.0,"outcome":"loss","bars_held":21,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.513},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2023-01-31T06:15:00Z-D","signal_time":"2023-01-31T07:30:00Z","week":"2023-W05","stop":1916.87796,"target":1898.3600000000001,"entry":1913.26,"entry_time":"2023-01-31T07:30:00Z","exit_time":"2023-01-31T13:30:00Z","R_planned":4.118342933586801,"R":-1.0,"outcome":"loss","bars_held":24,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.529},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2023-05-08T02:30:00Z-D","signal_time":"2023-05-08T03:30:00Z","week":"2023-W19","stop":2018.3703100000002,"target":2038.0800000000002,"entry":2022.54,"entry_time":"2023-05-08T03:30:00Z","exit_time":"2023-05-08T13:30:00Z","R_planned":3.7268957644336247,"R":-1.0,"outcome":"loss","bars_held":40,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.485},
+  {"symbol":"XAUUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2023-09-21T11:30:00Z-D","signal_time":"2023-09-21T12:00:00Z","week":"2023-W38","stop":1923.2311349999998,"target":1904.28,"entry":1918.54,"entry_time":"2023-09-21T12:00:00Z","exit_time":"2023-09-21T14:30:00Z","R_planned":3.0397760883028493,"R":-1.0,"outcome":"loss","bars_held":10,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.409},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAGUSD-long-book-2018-02-27T15:15:00Z","signal_time":"2018-02-27T15:15:00Z","week":"2018-W09","stop":16.449771,"target":16.621,"entry":16.482,"entry_time":"2018-02-27T15:15:00Z","exit_time":"2018-02-27T15:30:00Z","R_planned":4.3128859102049475,"R":-1.0,"outcome":"loss","bars_held":1,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.511},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAGUSD-long-book-2019-05-20T08:45:00Z","signal_time":"2019-05-20T08:45:00Z","week":"2019-W21","stop":14.360816000000002,"target":14.558,"entry":14.38,"entry_time":"2019-05-20T08:45:00Z","exit_time":"2019-05-20T21:00:00Z","R_planned":9.278565471226358,"R":-1.0,"outcome":"loss","bars_held":49,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.75},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAGUSD-long-book-2019-10-08T00:00:00Z","signal_time":"2019-10-08T00:00:00Z","week":"2019-W41","stop":17.335328,"target":17.513,"entry":17.373,"entry_time":"2019-10-08T00:00:00Z","exit_time":"2019-10-08T00:45:00Z","R_planned":3.7162879592269684,"R":-1.0,"outcome":"loss","bars_held":3,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.461},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAGUSD-short-book-2021-05-12T19:15:00Z-D","signal_time":"2021-05-12T20:15:00Z","week":"2021-W19","stop":27.0905385,"target":26.537,"entry":26.985,"entry_time":"2021-05-12T20:15:00Z","exit_time":"2021-05-12T22:00:00Z","R_planned":4.244896412209704,"R":-1.0,"outcome":"loss","bars_held":3,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.256},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAGUSD-short-book-2021-09-17T14:00:00Z-D","signal_time":"2021-09-17T16:00:00Z","week":"2021-W37","stop":22.573281,"target":22.086000000000002,"entry":22.468,"entry_time":"2021-09-17T16:00:00Z","exit_time":"2021-09-20T02:15:00Z","R_planned":3.628384988744336,"R":3.628384988744336,"outcome":"win","bars_held":37,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":3.415},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2022-03-22T03:30:00Z-D","signal_time":"2022-03-22T05:15:00Z","week":"2022-W12","stop":25.2623625,"target":25.618,"entry":25.344,"entry_time":"2022-03-22T05:15:00Z","exit_time":"2022-03-22T07:30:00Z","R_planned":3.3563007196446186,"R":-1.0,"outcome":"loss","bars_held":9,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.31},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAGUSD-short-book-2022-03-22T13:45:00Z-D","signal_time":"2022-03-22T16:45:00Z","week":"2022-W12","stop":24.8414145,"target":24.539,"entry":24.772,"entry_time":"2022-03-22T16:45:00Z","exit_time":"2022-03-22T17:30:00Z","R_planned":3.356647386352923,"R":-1.0,"outcome":"loss","bars_held":3,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.357},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAGUSD-long-book-2022-10-07T12:30:00Z","signal_time":"2022-10-07T12:30:00Z","week":"2022-W40","stop":20.322833499999998,"target":20.576,"entry":20.366,"entry_time":"2022-10-07T12:30:00Z","exit_time":"2022-10-07T12:45:00Z","R_planned":4.864883648199246,"R":-1.0,"outcome":"loss","bars_held":1,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.472},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2023-01-24T06:45:00Z-D","signal_time":"2023-01-24T07:15:00Z","week":"2023-W04","stop":23.50824,"target":24.330000000000002,"entry":23.623,"entry_time":"2023-01-24T07:15:00Z","exit_time":"2023-01-24T13:30:00Z","R_planned":6.160683164865791,"R":-1.0,"outcome":"loss","bars_held":25,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.206},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2023-03-06T03:30:00Z-D","signal_time":"2023-03-06T07:00:00Z","week":"2023-W10","stop":21.185402000000003,"target":21.517,"entry":21.269,"entry_time":"2023-03-06T07:00:00Z","exit_time":"2023-03-06T08:30:00Z","R_planned":2.9665781478027715,"R":-1.0,"outcome":"loss","bars_held":6,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.254},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2023-03-30T05:45:00Z-D","signal_time":"2023-03-30T06:30:00Z","week":"2023-W13","stop":23.438275,"target":23.814999999999998,"entry":23.52,"entry_time":"2023-03-30T06:30:00Z","exit_time":"2023-03-30T12:00:00Z","R_planned":3.6096665646987187,"R":3.6096665646987187,"outcome":"win","bars_held":22,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":3.322},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2023-05-04T01:30:00Z-D","signal_time":"2023-05-04T02:00:00Z","week":"2023-W18","stop":25.8080895,"target":26.076999999999998,"entry":25.86,"entry_time":"2023-05-04T02:00:00Z","exit_time":"2023-05-04T02:30:00Z","R_planned":4.180271813987657,"R":-1.0,"outcome":"loss","bars_held":2,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.498},
+  {"symbol":"XAGUSD","tf":"15m","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAGUSD-short-book-2023-10-02T09:30:00Z-D","signal_time":"2023-10-02T12:15:00Z","week":"2023-W40","stop":21.862925999999998,"target":20.224,"entry":21.642,"entry_time":"2023-10-02T12:15:00Z","exit_time":"2023-10-03T13:15:00Z","R_planned":6.41843875324773,"R":2.892371201216712,"outcome":"timeout","bars_held":96,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":2.794},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2022-01-13T17:30:00Z-D","signal_time":"2022-01-13T18:30:00Z","week":"2022-W02","stop":4707.802725,"target":4663.299999999999,"entry":4696.7,"entry_time":"2022-01-13T18:30:00Z","exit_time":"2022-01-13T19:00:00Z","R_planned":3.0082704921540735,"R":-1.0,"outcome":"loss","bars_held":2,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.423},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2022-03-15T07:15:00Z-D","signal_time":"2022-03-15T08:15:00Z","week":"2022-W11","stop":4181.319614999999,"target":4078.33,"entry":4154.48,"entry_time":"2022-03-15T08:15:00Z","exit_time":"2022-03-15T10:45:00Z","R_planned":2.8372240063801217,"R":-1.0,"outcome":"loss","bars_held":10,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.155},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2022-04-22T13:45:00Z-D","signal_time":"2022-04-22T14:30:00Z","week":"2022-W16","stop":4376.016914999999,"target":4239.08,"entry":4342.08,"entry_time":"2022-04-22T14:30:00Z","exit_time":"2022-04-25T01:45:00Z","R_planned":3.0350431086621183,"R":3.0350431086621183,"outcome":"win","bars_held":41,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":2.907},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US500-long-book-2022-05-26T11:15:00Z-D","signal_time":"2022-05-26T12:30:00Z","week":"2022-W21","stop":3986.88556,"target":4064.08,"entry":4003.63,"entry_time":"2022-05-26T12:30:00Z","exit_time":"2022-05-26T16:30:00Z","R_planned":3.610153579337382,"R":3.610153579337382,"outcome":"win","bars_held":16,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":3.371},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2022-11-02T13:45:00Z-D","signal_time":"2022-11-02T16:15:00Z","week":"2022-W44","stop":3842.68038,"target":3768.0,"entry":3827.01,"entry_time":"2022-11-02T16:15:00Z","exit_time":"2022-11-02T17:30:00Z","R_planned":3.7657031929029063,"R":-1.0,"outcome":"loss","bars_held":5,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.244},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2023-01-25T10:00:00Z-D","signal_time":"2023-01-25T11:30:00Z","week":"2023-W04","stop":3992.1950999999995,"target":3949.0899999999997,"entry":3986.6,"entry_time":"2023-01-25T11:30:00Z","exit_time":"2023-01-25T15:30:00Z","R_planned":6.70408035602639,"R":6.70408035602639,"outcome":"win","bars_held":16,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":5.992},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2023-03-02T01:45:00Z-D","signal_time":"2023-03-02T05:15:00Z","week":"2023-W09","stop":3942.6703499999994,"target":3900.29,"entry":3932.5,"entry_time":"2023-03-02T05:15:00Z","exit_time":"2023-03-02T15:00:00Z","R_planned":3.1670493149205172,"R":-1.0,"outcome":"loss","bars_held":39,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.387},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2023-04-19T08:15:00Z-D","signal_time":"2023-04-19T09:00:00Z","week":"2023-W16","stop":4141.1695500000005,"target":4106.22,"entry":4132.4,"entry_time":"2023-04-19T09:00:00Z","exit_time":"2023-04-19T14:00:00Z","R_planned":2.985329920006924,"R":-1.0,"outcome":"loss","bars_held":20,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.471},
+  {"symbol":"US500","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US500-long-book-2024-01-10T15:45:00Z-D","signal_time":"2024-01-10T18:15:00Z","week":"2024-W02","stop":4758.629495,"target":4802.599999999999,"entry":4769.71,"entry_time":"2024-01-10T18:15:00Z","exit_time":"2024-01-11T15:00:00Z","R_planned":2.9682762653867947,"R":-1.0,"outcome":"loss","bars_held":79,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.43},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2019-10-07T15:45:00Z-D","signal_time":"2019-10-07T17:30:00Z","week":"2019-W41","stop":26505.990375,"target":27035.800000000003,"entry":26637.5,"entry_time":"2019-10-07T17:30:00Z","exit_time":"2019-10-07T18:45:00Z","R_planned":3.0286756577703464,"R":-1.0,"outcome":"loss","bars_held":5,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.203},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2020-05-05T05:00:00Z-D","signal_time":"2020-05-05T06:00:00Z","week":"2020-W19","stop":23870.758650000003,"target":24188.7,"entry":23942.7,"entry_time":"2020-05-05T06:00:00Z","exit_time":"2020-05-05T08:45:00Z","R_planned":3.4194520953527996,"R":-1.0,"outcome":"loss","bars_held":11,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.333},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2020-06-02T08:30:00Z-D","signal_time":"2020-06-02T09:30:00Z","week":"2020-W23","stop":25576.555325,"target":26008.35,"entry":25679.35,"entry_time":"2020-06-02T09:30:00Z","exit_time":"2020-06-02T13:00:00Z","R_planned":3.20055489255653,"R":-1.0,"outcome":"loss","bars_held":14,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.25},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2020-08-24T06:15:00Z-D","signal_time":"2020-08-24T06:45:00Z","week":"2020-W35","stop":28013.336325,"target":28313.05,"entry":28036.35,"entry_time":"2020-08-24T06:45:00Z","exit_time":"2020-08-24T23:45:00Z","R_planned":12.023286154863177,"R":12.023286154863177,"outcome":"win","bars_held":64,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":10.805},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US30-short-book-2020-09-10T18:30:00Z-D","signal_time":"2020-09-11T03:00:00Z","week":"2020-W37","stop":27728.207174999996,"target":27408.5,"entry":27680.35,"entry_time":"2020-09-11T03:00:00Z","exit_time":"2020-09-11T04:15:00Z","R_planned":5.680443945970766,"R":-1.0,"outcome":"loss","bars_held":5,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.578},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2021-01-26T11:45:00Z-D","signal_time":"2021-01-26T14:00:00Z","week":"2021-W04","stop":30991.79635,"target":31377.9,"entry":31052.3,"entry_time":"2021-01-26T14:00:00Z","exit_time":"2021-01-26T15:00:00Z","R_planned":5.381493513201417,"R":-1.0,"outcome":"loss","bars_held":4,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.513},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2021-03-26T14:15:00Z-D","signal_time":"2021-03-26T18:45:00Z","week":"2021-W12","stop":32661.561050000004,"target":33276.850000000006,"entry":32821.9,"entry_time":"2021-03-26T18:45:00Z","exit_time":"2021-03-29T19:45:00Z","R_planned":2.837426589110202,"R":2.2202964407588137,"outcome":"timeout","bars_held":96,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":2.016},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US30-short-book-2021-08-15T22:15:00Z-D","signal_time":"2021-08-15T22:45:00Z","week":"2021-W32","stop":35474.02815,"target":35343.45,"entry":35449.3,"entry_time":"2021-08-15T22:45:00Z","exit_time":"2021-08-16T06:00:00Z","R_planned":4.280546664430038,"R":4.280546664430038,"outcome":"win","bars_held":29,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":2.847},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2021-11-25T03:30:00Z-D","signal_time":"2021-11-25T05:15:00Z","week":"2021-W47","stop":35899.34135,"target":36101.9,"entry":35940.2,"entry_time":"2021-11-25T05:15:00Z","exit_time":"2021-11-25T08:30:00Z","R_planned":3.9575463212814292,"R":-1.0,"outcome":"loss","bars_held":13,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.88},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2022-06-21T03:15:00Z-D","signal_time":"2022-06-21T04:45:00Z","week":"2022-W25","stop":30297.14385,"target":30666.3,"entry":30332.3,"entry_time":"2022-06-21T04:45:00Z","exit_time":"2022-06-21T05:30:00Z","R_planned":9.500471468008032,"R":-1.0,"outcome":"loss","bars_held":3,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.863},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US30-short-book-2022-11-09T18:15:00Z-D","signal_time":"2022-11-09T18:45:00Z","week":"2022-W45","stop":32779.5816,"target":32260.500000000007,"entry":32666.9,"entry_time":"2022-11-09T18:45:00Z","exit_time":"2022-11-10T13:30:00Z","R_planned":3.606622554170403,"R":-1.0,"outcome":"loss","bars_held":71,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.29},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"spring","side":"long","path":"spring","event":"US30-long-book-2023-06-14T13:30:00Z","signal_time":"2023-06-14T13:30:00Z","week":"2023-W24","stop":33993.69465,"target":34309.6,"entry":34060.2,"entry_time":"2023-06-14T13:30:00Z","exit_time":"2023-06-14T18:00:00Z","R_planned":3.750074242147489,"R":-1.0,"outcome":"loss","bars_held":18,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.512},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US30-short-book-2023-06-19T13:45:00Z-D","signal_time":"2023-06-19T14:30:00Z","week":"2023-W25","stop":34218.80084999999,"target":34014.2,"entry":34190.6,"entry_time":"2023-06-19T14:30:00Z","exit_time":"2023-06-19T16:45:00Z","R_planned":6.2551306077667945,"R":-1.0,"outcome":"loss","bars_held":9,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-2.212},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2023-08-09T09:30:00Z-D","signal_time":"2023-08-09T11:45:00Z","week":"2023-W32","stop":35309.5364,"target":35724.4,"entry":35382.1,"entry_time":"2023-08-09T11:45:00Z","exit_time":"2023-08-09T13:00:00Z","R_planned":4.717241151210755,"R":-1.0,"outcome":"loss","bars_held":5,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.488},
+  {"symbol":"US30","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2024-02-15T07:15:00Z-D","signal_time":"2024-02-15T08:00:00Z","week":"2024-W07","stop":38440.770000000004,"target":38705.899999999994,"entry":38494.0,"entry_time":"2024-02-15T08:00:00Z","exit_time":"2024-02-15T14:15:00Z","R_planned":3.9808378733798686,"R":-1.0,"outcome":"loss","bars_held":25,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.723},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"USTEC-long-book-2021-11-05T09:45:00Z-D","signal_time":"2021-11-05T12:45:00Z","week":"2021-W44","stop":16334.478675,"target":16564.399999999998,"entry":16393.0,"entry_time":"2021-11-05T12:45:00Z","exit_time":"2021-11-05T17:15:00Z","R_planned":2.92884687761254,"R":-1.0,"outcome":"loss","bars_held":18,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.28},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"USTEC-short-book-2022-03-14T15:45:00Z-D","signal_time":"2022-03-14T16:45:00Z","week":"2022-W11","stop":13198.7961,"target":12761.95,"entry":13081.45,"entry_time":"2022-03-14T16:45:00Z","exit_time":"2022-03-15T13:30:00Z","R_planned":2.7227151136680567,"R":-1.0,"outcome":"loss","bars_held":79,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.111},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"USTEC-short-book-2022-12-20T03:15:00Z-D","signal_time":"2022-12-20T04:00:00Z","week":"2022-W51","stop":11025.7101,"target":10812.5,"entry":10974.1,"entry_time":"2022-12-20T04:00:00Z","exit_time":"2022-12-20T08:45:00Z","R_planned":3.1311700616739895,"R":-1.0,"outcome":"loss","bars_held":19,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.213},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"USTEC-long-book-2023-01-09T04:45:00Z-D","signal_time":"2023-01-09T09:30:00Z","week":"2023-W02","stop":11037.77835,"target":11304.500000000002,"entry":11104.5,"entry_time":"2023-01-09T09:30:00Z","exit_time":"2023-01-09T16:15:00Z","R_planned":2.9975277889561083,"R":2.9975277889561083,"outcome":"win","bars_held":27,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":2.831},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"USTEC-long-book-2023-02-02T17:15:00Z-D","signal_time":"2023-02-03T00:00:00Z","week":"2023-W05","stop":12558.81745,"target":13055.0,"entry":12624.1,"entry_time":"2023-02-03T00:00:00Z","exit_time":"2023-02-03T07:30:00Z","R_planned":6.600538735083116,"R":-1.0,"outcome":"loss","bars_held":30,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.193},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"USTEC-long-book-2023-03-21T11:30:00Z-D","signal_time":"2023-03-21T13:00:00Z","week":"2023-W12","stop":12615.0893,"target":12762.199999999999,"entry":12645.4,"entry_time":"2023-03-21T13:00:00Z","exit_time":"2023-03-21T14:15:00Z","R_planned":3.8534246982088596,"R":-1.0,"outcome":"loss","bars_held":5,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.417},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"USTEC-short-book-2023-06-07T19:45:00Z-D","signal_time":"2023-06-07T23:15:00Z","week":"2023-W23","stop":14319.25605,"target":14164.7,"entry":14293.9,"entry_time":"2023-06-07T23:15:00Z","exit_time":"2023-06-08T09:30:00Z","R_planned":5.09543087349951,"R":-1.0,"outcome":"loss","bars_held":41,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.564},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"USTEC-short-book-2023-06-20T05:30:00Z-D","signal_time":"2023-06-20T06:00:00Z","week":"2023-W25","stop":15052.62255,"target":14900.4,"entry":15038.4,"entry_time":"2023-06-20T06:00:00Z","exit_time":"2023-06-20T06:15:00Z","R_planned":9.702901378444514,"R":-1.0,"outcome":"loss","bars_held":1,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-2.057},
+  {"symbol":"USTEC","tf":"15m","group":"indices","leg":"spring","side":"short","path":"spring","event":"USTEC-short-book-2023-07-27T06:00:00Z","signal_time":"2023-07-27T06:00:00Z","week":"2023-W30","stop":15632.212199999998,"target":15500.3,"entry":15609.8,"entry_time":"2023-07-27T06:00:00Z","exit_time":"2023-07-27T07:15:00Z","R_planned":4.885731878173746,"R":-1.0,"outcome":"loss","bars_held":5,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.696},
+  {"symbol":"DE40","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"DE40-short-book-2022-01-21T12:15:00Z-D","signal_time":"2022-01-21T12:45:00Z","week":"2022-W03","stop":15627.459824999998,"target":15361.130000000001,"entry":15571.85,"entry_time":"2022-01-21T12:45:00Z","exit_time":"2022-01-24T10:15:00Z","R_planned":3.7892584628706882,"R":3.7892584628706882,"outcome":"win","bars_held":82,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":3.509},
+  {"symbol":"DE40","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"DE40-long-book-2022-02-24T19:45:00Z-D","signal_time":"2022-02-24T20:30:00Z","week":"2022-W08","stop":14219.536675000001,"target":14660.599999999999,"entry":14330.7,"entry_time":"2022-02-24T20:30:00Z","exit_time":"2022-02-24T23:00:00Z","R_planned":2.9677054010394093,"R":-1.0,"outcome":"loss","bars_held":6,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.129},
+  {"symbol":"DE40","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"DE40-short-book-2023-03-15T10:30:00Z-D","signal_time":"2023-03-15T12:45:00Z","week":"2023-W11","stop":14877.785174999999,"target":14294.6,"entry":14769.55,"entry_time":"2023-03-15T12:45:00Z","exit_time":"2023-03-15T18:15:00Z","R_planned":4.388129829327664,"R":-1.0,"outcome":"loss","bars_held":22,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.136},
+  {"symbol":"DE40","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"DE40-short-book-2023-06-19T13:45:00Z-D","signal_time":"2023-06-19T14:30:00Z","week":"2023-W25","stop":16218.755324999998,"target":16144.249999999998,"entry":16205.65,"entry_time":"2023-06-19T14:30:00Z","exit_time":"2023-06-19T16:15:00Z","R_planned":4.685118453758902,"R":-1.0,"outcome":"loss","bars_held":7,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-2.237},
+  {"symbol":"DE40","tf":"15m","group":"indices","leg":"spring","side":"long","path":"spring","event":"DE40-long-book-2023-12-18T14:30:00Z","signal_time":"2023-12-18T14:30:00Z","week":"2023-W51","stop":16648.4716,"target":16787.05,"entry":16668.75,"entry_time":"2023-12-18T14:30:00Z","exit_time":"2023-12-18T14:45:00Z","R_planned":5.833793593183078,"R":-1.0,"outcome":"loss","bars_held":1,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.822},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2019-12-12T03:15:00Z-D","signal_time":"2019-12-12T05:00:00Z","week":"2019-W50","stop":6714.85575,"target":6665.9,"entry":6704.45,"entry_time":"2019-12-12T05:00:00Z","exit_time":"2019-12-12T08:45:00Z","R_planned":3.70468250726767,"R":-1.0,"outcome":"loss","bars_held":13,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.644},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2020-01-03T11:00:00Z-D","signal_time":"2020-01-03T12:45:00Z","week":"2020-W01","stop":6712.49457,"target":6642.28,"entry":6695.34,"entry_time":"2020-01-03T12:45:00Z","exit_time":"2020-01-03T13:15:00Z","R_planned":3.0930533379735747,"R":-1.0,"outcome":"loss","bars_held":2,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.39},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2020-03-18T12:00:00Z-D","signal_time":"2020-03-18T13:15:00Z","week":"2020-W12","stop":4840.99929,"target":4534.58,"entry":4769.58,"entry_time":"2020-03-18T13:15:00Z","exit_time":"2020-03-18T13:30:00Z","R_planned":3.290427558156915,"R":-1.0,"outcome":"loss","bars_held":1,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.067},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"spring","side":"long","path":"spring","event":"AUS200-long-book-2020-07-07T09:00:00Z","signal_time":"2020-07-07T09:00:00Z","week":"2020-W28","stop":6018.4892500000005,"target":6048.1,"entry":6024.5,"entry_time":"2020-07-07T09:00:00Z","exit_time":"2020-07-07T09:15:00Z","R_planned":3.9262987148030577,"R":-1.0,"outcome":"loss","bars_held":1,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-2.002},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2020-07-30T13:00:00Z-D","signal_time":"2020-07-30T13:30:00Z","week":"2020-W31","stop":6010.50375,"target":5895.33,"entry":5989.5,"entry_time":"2020-07-30T13:30:00Z","exit_time":"2020-07-30T16:00:00Z","R_planned":4.483485091947901,"R":-1.0,"outcome":"loss","bars_held":10,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.285},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2020-08-25T14:45:00Z-D","signal_time":"2020-08-25T15:15:00Z","week":"2020-W35","stop":6121.35915,"target":6078.3,"entry":6111.3,"entry_time":"2020-08-25T15:15:00Z","exit_time":"2020-08-25T19:15:00Z","R_planned":3.280595278925143,"R":-1.0,"outcome":"loss","bars_held":16,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.608},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2020-12-04T10:30:00Z-D","signal_time":"2020-12-04T11:00:00Z","week":"2020-W49","stop":6648.17425,"target":6688.5,"entry":6657.0,"entry_time":"2020-12-04T11:00:00Z","exit_time":"2020-12-06T23:00:00Z","R_planned":3.5691017760530386,"R":3.5691017760530386,"outcome":"win","bars_held":45,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":2.815},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2022-02-17T16:15:00Z-D","signal_time":"2022-02-17T17:45:00Z","week":"2022-W07","stop":7264.130249999999,"target":7188.5,"entry":7253.5,"entry_time":"2022-02-17T17:45:00Z","exit_time":"2022-02-18T13:30:00Z","R_planned":6.114625714353339,"R":6.114625714353339,"outcome":"win","bars_held":75,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":5.432},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2023-08-23T01:45:00Z-D","signal_time":"2023-08-23T03:30:00Z","week":"2023-W34","stop":7160.9177500000005,"target":7212.5,"entry":7171.5,"entry_time":"2023-08-23T03:30:00Z","exit_time":"2023-08-23T05:15:00Z","R_planned":3.874412341420967,"R":-1.0,"outcome":"loss","bars_held":7,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.678},
+  {"symbol":"AUS200","tf":"15m","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2023-08-23T20:45:00Z-D","signal_time":"2023-08-23T23:45:00Z","week":"2023-W34","stop":7158.918750000001,"target":7244.5,"entry":7179.5,"entry_time":"2023-08-23T23:45:00Z","exit_time":"2023-08-24T09:30:00Z","R_planned":3.158214394169562,"R":-1.0,"outcome":"loss","bars_held":39,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.349},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2005-05-02T14:00:00Z-D","signal_time":"2005-05-03T02:00:00Z","week":"2005-W18","stop":429.91484999999994,"target":423.8,"entry":428.3,"entry_time":"2005-05-03T02:00:00Z","exit_time":"2005-05-05T06:00:00Z","R_planned":2.786636529708757,"R":-1.0,"outcome":"loss","bars_held":50,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.265},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2005-10-19T15:00:00Z-D","signal_time":"2005-10-20T01:00:00Z","week":"2005-W42","stop":465.0324,"target":455.0,"entry":462.8,"entry_time":"2005-10-20T01:00:00Z","exit_time":"2005-10-21T15:00:00Z","R_planned":3.49399749148901,"R":-1.0,"outcome":"loss","bars_held":37,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.207},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2007-03-20T11:00:00Z-D","signal_time":"2007-03-21T07:00:00Z","week":"2007-W12","stop":656.2717,"target":670.9000000000001,"entry":660.0,"entry_time":"2007-03-21T07:00:00Z","exit_time":"2007-03-23T13:00:00Z","R_planned":2.9235844754982483,"R":-1.0,"outcome":"loss","bars_held":52,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.177},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2007-11-14T16:00:00Z-D","signal_time":"2007-11-14T20:00:00Z","week":"2007-W46","stop":809.9948,"target":827.0999999999999,"entry":811.4,"entry_time":"2007-11-14T20:00:00Z","exit_time":"2007-11-15T08:00:00Z","R_planned":11.172786791916309,"R":-1.0,"outcome":"loss","bars_held":11,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.577},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2007-11-23T02:00:00Z-D","signal_time":"2007-11-23T06:00:00Z","week":"2007-W47","stop":806.09675,"target":839.8,"entry":813.8,"entry_time":"2007-11-23T06:00:00Z","exit_time":"2007-11-28T02:00:00Z","R_planned":3.3751987797358645,"R":-1.0,"outcome":"loss","bars_held":64,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.106},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2008-01-08T08:00:00Z-D","signal_time":"2008-01-08T11:00:00Z","week":"2008-W02","stop":870.5645000000001,"target":901.5,"entry":874.5,"entry_time":"2008-01-08T11:00:00Z","exit_time":"2008-01-10T11:00:00Z","R_planned":6.860627620378721,"R":-1.0,"outcome":"loss","bars_held":46,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.222},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2008-10-21T12:00:00Z-D","signal_time":"2008-10-22T08:00:00Z","week":"2008-W43","stop":780.39,"target":667.9,"entry":756.3,"entry_time":"2008-10-22T08:00:00Z","exit_time":"2008-10-27T12:00:00Z","R_planned":3.6695724366957188,"R":1.124948111249476,"outcome":"timeout","bars_held":72,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":1.094},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2010-08-31T13:00:00Z-D","signal_time":"2010-08-31T16:00:00Z","week":"2010-W35","stop":1244.85726,"target":1268.52,"entry":1249.32,"entry_time":"2010-08-31T16:00:00Z","exit_time":"2010-09-01T13:00:00Z","R_planned":4.302289624759745,"R":-1.0,"outcome":"loss","bars_held":19,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.28},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2012-01-10T13:00:00Z-D","signal_time":"2012-01-11T07:00:00Z","week":"2012-W02","stop":1628.8251800000003,"target":1682.42,"entry":1642.83,"entry_time":"2012-01-11T07:00:00Z","exit_time":"2012-01-13T15:00:00Z","R_planned":2.8268838871189437,"R":-1.0,"outcome":"loss","bars_held":54,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.117},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2012-04-02T15:00:00Z-D","signal_time":"2012-04-02T23:00:00Z","week":"2012-W14","stop":1674.732215,"target":1692.94,"entry":1678.7,"entry_time":"2012-04-02T23:00:00Z","exit_time":"2012-04-03T11:00:00Z","R_planned":3.5889041366908323,"R":-1.0,"outcome":"loss","bars_held":12,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.423},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"spring","side":"short","path":"spring","event":"XAUUSD-short-book-2013-05-03T10:00:00Z","signal_time":"2013-05-03T10:00:00Z","week":"2013-W18","stop":1488.8240399999997,"target":1459.09,"entry":1481.86,"entry_time":"2013-05-03T10:00:00Z","exit_time":"2013-05-03T12:00:00Z","R_planned":3.269653821632343,"R":3.269653821632343,"outcome":"win","bars_held":2,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":3.057},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2017-12-26T07:00:00Z-D","signal_time":"2017-12-26T13:00:00Z","week":"2017-W52","stop":1276.2815400000002,"target":1296.8100000000002,"entry":1281.19,"entry_time":"2017-12-26T13:00:00Z","exit_time":"2017-12-28T22:00:00Z","R_planned":3.1822608312995335,"R":3.1822608312995335,"outcome":"win","bars_held":57,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":2.921},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2021-08-12T08:00:00Z-D","signal_time":"2021-08-13T12:00:00Z","week":"2021-W32","stop":1740.70921,"target":1824.02,"entry":1762.8,"entry_time":"2021-08-13T12:00:00Z","exit_time":"2021-08-18T15:00:00Z","R_planned":2.771290660044304,"R":0.9528857953925588,"outcome":"timeout","bars_held":72,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":0.873},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2022-05-23T13:00:00Z-D","signal_time":"2022-05-24T04:00:00Z","week":"2022-W21","stop":1846.1164800000001,"target":1891.9899999999998,"entry":1855.85,"entry_time":"2022-05-24T04:00:00Z","exit_time":"2022-05-25T15:00:00Z","R_planned":3.7129424915139357,"R":-1.0,"outcome":"loss","bars_held":34,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.191},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2022-08-15T13:00:00Z-D","signal_time":"2022-08-15T18:00:00Z","week":"2022-W33","stop":1785.022065,"target":1758.97,"entry":1778.68,"entry_time":"2022-08-15T18:00:00Z","exit_time":"2022-08-18T15:00:00Z","R_planned":3.107820560022625,"R":3.107820560022625,"outcome":"win","bars_held":66,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":2.827},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2022-12-15T10:00:00Z-D","signal_time":"2022-12-18T23:00:00Z","week":"2022-W50","stop":1795.1871449999999,"target":1776.11,"entry":1791.05,"entry_time":"2022-12-18T23:00:00Z","exit_time":"2022-12-19T02:00:00Z","R_planned":3.611185974869227,"R":-1.0,"outcome":"loss","bars_held":3,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.433},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2023-02-01T21:00:00Z-D","signal_time":"2023-02-02T07:00:00Z","week":"2023-W05","stop":1949.8046100000001,"target":1978.41,"entry":1955.5,"entry_time":"2023-02-02T07:00:00Z","exit_time":"2023-02-02T13:00:00Z","R_planned":4.022551572412186,"R":-1.0,"outcome":"loss","bars_held":6,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.343},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2023-08-02T15:00:00Z-D","signal_time":"2023-08-02T18:00:00Z","week":"2023-W31","stop":1940.08956,"target":1901.6299999999999,"entry":1936.5,"entry_time":"2023-08-02T18:00:00Z","exit_time":"2023-08-04T12:00:00Z","R_planned":9.71428253044974,"R":-1.0,"outcome":"loss","bars_held":40,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.539},
+  {"symbol":"XAUUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2023-10-12T14:00:00Z-D","signal_time":"2023-10-13T00:00:00Z","week":"2023-W41","stop":1866.92607,"target":1909.3700000000001,"entry":1872.5,"entry_time":"2023-10-13T00:00:00Z","exit_time":"2023-10-13T12:00:00Z","R_planned":6.614722466912932,"R":6.614722466912932,"outcome":"win","bars_held":12,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":6.279},
+  {"symbol":"XAGUSD","tf":"1H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2011-08-31T16:00:00Z-D","signal_time":"2011-09-01T14:00:00Z","week":"2011-W35","stop":41.149415000000005,"target":44.04,"entry":41.65,"entry_time":"2011-09-01T14:00:00Z","exit_time":"2011-09-06T19:00:00Z","R_planned":4.774413935695296,"R":0.839018348532231,"outcome":"timeout","bars_held":72,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":0.756},
+  {"symbol":"XAGUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAGUSD-short-book-2011-12-12T10:00:00Z-D","signal_time":"2011-12-12T13:00:00Z","week":"2011-W50","stop":31.445714999999996,"target":30.030000000000005,"entry":31.12,"entry_time":"2011-12-12T13:00:00Z","exit_time":"2011-12-13T11:00:00Z","R_planned":3.3464838892897535,"R":-1.0,"outcome":"loss","bars_held":21,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.096},
+  {"symbol":"XAGUSD","tf":"1H","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAGUSD-long-book-2021-05-21T14:00:00Z","signal_time":"2021-05-21T14:00:00Z","week":"2021-W20","stop":27.3193335,"target":28.234,"entry":27.449,"entry_time":"2021-05-21T14:00:00Z","exit_time":"2021-05-21T16:00:00Z","R_planned":6.0539923573165355,"R":-1.0,"outcome":"loss","bars_held":2,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.212},
+  {"symbol":"XAGUSD","tf":"1H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAGUSD-short-book-2021-07-16T16:00:00Z-D","signal_time":"2021-07-16T20:00:00Z","week":"2021-W28","stop":25.7838855,"target":24.983999999999998,"entry":25.637,"entry_time":"2021-07-16T20:00:00Z","exit_time":"2021-07-20T14:00:00Z","R_planned":4.445639630868964,"R":4.445639630868964,"outcome":"win","bars_held":40,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":4.271},
+  {"symbol":"US500","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US500-long-book-2021-10-07T14:00:00Z-D","signal_time":"2021-10-07T23:00:00Z","week":"2021-W40","stop":4395.801,"target":4499.5,"entry":4411.65,"entry_time":"2021-10-07T23:00:00Z","exit_time":"2021-10-08T08:00:00Z","R_planned":5.542936462868605,"R":-1.0,"outcome":"loss","bars_held":9,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.278},
+  {"symbol":"US500","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US500-short-book-2023-02-17T09:00:00Z-D","signal_time":"2023-02-20T00:00:00Z","week":"2023-W08","stop":4083.750855,"target":4006.1,"entry":4068.7,"entry_time":"2023-02-20T00:00:00Z","exit_time":"2023-02-21T18:00:00Z","R_planned":4.159232149934345,"R":4.159232149934345,"outcome":"win","bars_held":37,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":3.889},
+  {"symbol":"US500","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US500-long-book-2023-03-16T16:00:00Z-D","signal_time":"2023-03-16T19:00:00Z","week":"2023-W11","stop":3935.73115,"target":4035.41,"entry":3960.7,"entry_time":"2023-03-16T19:00:00Z","exit_time":"2023-03-17T12:00:00Z","R_planned":2.9921281917269233,"R":-1.0,"outcome":"loss","bars_held":16,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.159},
+  {"symbol":"US30","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"US30-short-book-2020-05-01T16:00:00Z-D","signal_time":"2020-05-01T19:00:00Z","week":"2020-W18","stop":23821.1046,"target":23099.2,"entry":23731.2,"entry_time":"2020-05-01T19:00:00Z","exit_time":"2020-05-05T00:00:00Z","R_planned":7.029673676319275,"R":-1.0,"outcome":"loss","bars_held":27,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.264},
+  {"symbol":"US30","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2020-10-08T07:00:00Z-D","signal_time":"2020-10-08T16:00:00Z","week":"2020-W41","stop":28247.918975,"target":28956.65,"entry":28393.5,"entry_time":"2020-10-08T16:00:00Z","exit_time":"2020-10-12T17:00:00Z","R_planned":3.868292588268309,"R":3.868292588268309,"outcome":"win","bars_held":47,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":3.673},
+  {"symbol":"US30","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2021-10-20T14:00:00Z-D","signal_time":"2021-10-20T16:00:00Z","week":"2021-W42","stop":35536.672775,"target":36247.25000000001,"entry":35639.45,"entry_time":"2021-10-20T16:00:00Z","exit_time":"2021-10-20T23:00:00Z","R_planned":5.913761536177125,"R":-1.0,"outcome":"loss","bars_held":6,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.347},
+  {"symbol":"USTEC","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"USTEC-short-book-2022-06-30T07:00:00Z-D","signal_time":"2022-06-30T09:00:00Z","week":"2022-W26","stop":11549.071649999998,"target":11284.7,"entry":11485.0,"entry_time":"2022-06-30T09:00:00Z","exit_time":"2022-06-30T12:00:00Z","R_planned":3.1261876352490594,"R":-1.0,"outcome":"loss","bars_held":3,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.179},
+  {"symbol":"USTEC","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"USTEC-long-book-2023-03-31T14:00:00Z-D","signal_time":"2023-03-31T16:00:00Z","week":"2023-W13","stop":13041.675900000002,"target":13369.399999999998,"entry":13105.1,"entry_time":"2023-03-31T16:00:00Z","exit_time":"2023-04-03T15:00:00Z","R_planned":4.167185659709863,"R":-1.0,"outcome":"loss","bars_held":22,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.207},
+  {"symbol":"USTEC","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"USTEC-short-book-2023-09-26T14:00:00Z-D","signal_time":"2023-09-26T18:00:00Z","week":"2023-W39","stop":14627.9103,"target":14269.1,"entry":14546.0,"entry_time":"2023-09-26T18:00:00Z","exit_time":"2023-09-27T07:00:00Z","R_planned":3.380527235280559,"R":-1.0,"outcome":"loss","bars_held":12,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.178},
+  {"symbol":"DE40","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"DE40-long-book-2021-06-29T10:00:00Z-D","signal_time":"2021-06-29T13:00:00Z","week":"2021-W26","stop":15667.412375000002,"target":16059.5,"entry":15747.25,"entry_time":"2021-06-29T13:00:00Z","exit_time":"2021-06-30T06:00:00Z","R_planned":3.911063236162231,"R":-1.0,"outcome":"loss","bars_held":16,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.197},
+  {"symbol":"DE40","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"DE40-long-book-2021-11-02T09:00:00Z-D","signal_time":"2021-11-02T12:00:00Z","week":"2021-W44","stop":15854.218925000001,"target":16136.750000000002,"entry":15912.95,"entry_time":"2021-11-02T12:00:00Z","exit_time":"2021-11-05T15:00:00Z","R_planned":3.8105891983077487,"R":2.276477997380426,"outcome":"timeout","bars_held":72,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":2.006},
+  {"symbol":"DE40","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"DE40-short-book-2022-09-16T08:00:00Z-D","signal_time":"2022-09-16T12:00:00Z","week":"2022-W37","stop":12801.377489999999,"target":12306.47,"entry":12719.08,"entry_time":"2022-09-16T12:00:00Z","exit_time":"2022-09-16T14:00:00Z","R_planned":5.013640148685039,"R":-1.0,"outcome":"loss","bars_held":2,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.155},
+  {"symbol":"AUS200","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2020-05-22T03:00:00Z-D","signal_time":"2020-05-22T05:00:00Z","week":"2020-W21","stop":5521.3593,"target":5427.1,"entry":5498.1,"entry_time":"2020-05-22T05:00:00Z","exit_time":"2020-05-22T10:00:00Z","R_planned":3.0525424238906966,"R":-1.0,"outcome":"loss","bars_held":5,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.236},
+  {"symbol":"AUS200","tf":"1H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2020-10-21T09:00:00Z-D","signal_time":"2020-10-21T11:00:00Z","week":"2020-W43","stop":6158.077499999999,"target":6082.79,"entry":6142.5,"entry_time":"2020-10-21T11:00:00Z","exit_time":"2020-10-21T13:00:00Z","R_planned":3.833092601508732,"R":-1.0,"outcome":"loss","bars_held":2,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.394},
+  {"symbol":"AUS200","tf":"1H","group":"indices","leg":"spring","side":"short","path":"spring","event":"AUS200-short-book-2021-07-22T07:00:00Z","signal_time":"2021-07-22T07:00:00Z","week":"2021-W29","stop":7394.2953,"target":7308.9,"entry":7378.7,"entry_time":"2021-07-22T07:00:00Z","exit_time":"2021-07-23T07:00:00Z","R_planned":4.475707424672843,"R":-1.0,"outcome":"loss","bars_held":22,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.473},
+  {"symbol":"AUS200","tf":"1H","group":"indices","leg":"spring","side":"long","path":"spring","event":"AUS200-long-book-2022-01-18T18:00:00Z","signal_time":"2022-01-18T21:00:00Z","week":"2022-W03","stop":7315.84025,"target":7430.0,"entry":7337.9,"entry_time":"2022-01-18T21:00:00Z","exit_time":"2022-01-19T04:00:00Z","R_planned":4.175024648964866,"R":-1.0,"outcome":"loss","bars_held":6,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.333},
+  {"symbol":"AUS200","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2022-05-30T01:00:00Z-D","signal_time":"2022-05-31T15:00:00Z","week":"2022-W22","stop":7169.11365,"target":7384.2,"entry":7210.7,"entry_time":"2022-05-31T15:00:00Z","exit_time":"2022-06-01T15:00:00Z","R_planned":4.172042028213626,"R":-1.0,"outcome":"loss","bars_held":23,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.173},
+  {"symbol":"AUS200","tf":"1H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2022-07-27T15:00:00Z-D","signal_time":"2022-07-27T18:00:00Z","week":"2022-W30","stop":6841.677450000001,"target":6998.400000000001,"entry":6875.1,"entry_time":"2022-07-27T18:00:00Z","exit_time":"2022-07-29T13:00:00Z","R_planned":3.6891260541162385,"R":3.6891260541162385,"outcome":"win","bars_held":41,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":3.483},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2006-09-05T13:00:00Z-D","signal_time":"2006-09-07T05:00:00Z","week":"2006-W36","stop":631.3841500000001,"target":652.2,"entry":633.7,"entry_time":"2006-09-07T05:00:00Z","exit_time":"2006-09-07T09:00:00Z","R_planned":7.988427575188531,"R":-1.0,"outcome":"loss","bars_held":1,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.274},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"spring","side":"long","path":"spring","event":"XAUUSD-long-book-2006-12-15T14:00:00Z","signal_time":"2006-12-15T14:00:00Z","week":"2006-W50","stop":613.79295,"target":626.7,"entry":615.2,"entry_time":"2006-12-15T14:00:00Z","exit_time":"2006-12-18T10:00:00Z","R_planned":8.173128175970849,"R":-1.0,"outcome":"loss","bars_held":5,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.437},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2007-08-31T13:00:00Z-D","signal_time":"2007-09-04T01:00:00Z","week":"2007-W36","stop":670.6645000000001,"target":691.0999999999999,"entry":673.6,"entry_time":"2007-09-04T01:00:00Z","exit_time":"2007-09-06T13:00:00Z","R_planned":5.961505706012701,"R":5.961505706012701,"outcome":"win","bars_held":15,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":5.732},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2008-02-20T22:00:00Z-D","signal_time":"2008-02-21T06:00:00Z","week":"2008-W08","stop":937.03125,"target":981.3000000000001,"entry":946.1,"entry_time":"2008-02-21T06:00:00Z","exit_time":"2008-02-22T14:00:00Z","R_planned":3.881461061337004,"R":-1.0,"outcome":"loss","bars_held":8,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.104},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2009-05-20T13:00:00Z-D","signal_time":"2009-05-21T01:00:00Z","week":"2009-W21","stop":935.3820750000001,"target":964.4300000000001,"entry":941.98,"entry_time":"2009-05-21T01:00:00Z","exit_time":"2009-05-28T01:00:00Z","R_planned":3.4025849035871616,"R":0.8184391304842119,"outcome":"timeout","bars_held":30,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":0.676},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2009-10-13T17:00:00Z-D","signal_time":"2009-10-14T01:00:00Z","week":"2009-W42","stop":1061.498985,"target":1085.9299999999998,"entry":1068.11,"entry_time":"2009-10-14T01:00:00Z","exit_time":"2009-10-14T09:00:00Z","R_planned":2.6955013715745713,"R":-1.0,"outcome":"loss","bars_held":2,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.162},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2011-01-20T14:00:00Z-D","signal_time":"2011-01-21T10:00:00Z","week":"2011-W03","stop":1353.2362799999999,"target":1293.29,"entry":1341.99,"entry_time":"2011-01-21T10:00:00Z","exit_time":"2011-01-28T10:00:00Z","R_planned":4.330320781627412,"R":2.156268561693319,"outcome":"timeout","bars_held":30,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":2.037},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2014-05-27T17:00:00Z-D","signal_time":"2014-05-28T17:00:00Z","week":"2014-W22","stop":1267.73355,"target":1221.97,"entry":1258.23,"entry_time":"2014-05-28T17:00:00Z","exit_time":"2014-06-04T17:00:00Z","R_planned":3.815416344418702,"R":1.546790409899479,"outcome":"timeout","bars_held":30,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":1.414},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2016-07-06T01:00:00Z-D","signal_time":"2016-07-06T21:00:00Z","week":"2016-W27","stop":1349.914705,"target":1466.28,"entry":1367.75,"entry_time":"2016-07-06T21:00:00Z","exit_time":"2016-07-07T21:00:00Z","R_planned":5.52443904067746,"R":-1.0,"outcome":"loss","bars_held":6,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.077},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"short","path":"lps_c","event":"XAUUSD-short-book-2017-10-02T01:00:00Z-D","signal_time":"2017-10-03T01:00:00Z","week":"2017-W40","stop":1277.77857,"target":1239.34,"entry":1269.12,"entry_time":"2017-10-03T01:00:00Z","exit_time":"2017-10-03T21:00:00Z","R_planned":3.43936700863997,"R":-1.0,"outcome":"loss","bars_held":5,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.147},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2018-10-12T01:00:00Z-D","signal_time":"2018-10-12T09:00:00Z","week":"2018-W41","stop":1215.1921,"target":1239.0800000000002,"entry":1218.91,"entry_time":"2018-10-12T09:00:00Z","exit_time":"2018-10-19T09:00:00Z","R_planned":5.425105570348727,"R":2.4798945641356087,"outcome":"timeout","bars_held":30,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":2.152},
+  {"symbol":"XAUUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAUUSD-long-book-2020-04-13T01:00:00Z-D","signal_time":"2020-04-13T09:00:00Z","week":"2020-W16","stop":1680.69923,"target":1776.81,"entry":1690.58,"entry_time":"2020-04-13T09:00:00Z","exit_time":"2020-04-16T21:00:00Z","R_planned":8.727052648730833,"R":-1.0,"outcome":"loss","bars_held":21,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.171},
+  {"symbol":"XAGUSD","tf":"4H","group":"metals","leg":"spring","side":"short","path":"spring","event":"XAGUSD-short-book-2012-11-08T22:00:00Z","signal_time":"2012-11-08T22:00:00Z","week":"2012-W45","stop":32.786385,"target":30.32,"entry":32.402,"entry_time":"2012-11-08T22:00:00Z","exit_time":"2012-11-12T22:00:00Z","R_planned":5.416444450225662,"R":-1.0,"outcome":"loss","bars_held":12,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.084},
+  {"symbol":"XAGUSD","tf":"4H","group":"metals","leg":"phase_d","side":"long","path":"lps_c","event":"XAGUSD-long-book-2022-11-08T18:00:00Z-D","signal_time":"2022-11-09T14:00:00Z","week":"2022-W45","stop":21.100444500000002,"target":22.244,"entry":21.323,"entry_time":"2022-11-09T14:00:00Z","exit_time":"2022-11-09T18:00:00Z","R_planned":4.138293594182149,"R":-1.0,"outcome":"loss","bars_held":1,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.096},
+  {"symbol":"US500","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US500-long-book-2021-07-23T17:00:00Z-D","signal_time":"2021-07-26T13:00:00Z","week":"2021-W30","stop":4382.30775,"target":4515.700000000001,"entry":4415.25,"entry_time":"2021-07-26T13:00:00Z","exit_time":"2021-07-27T13:00:00Z","R_planned":3.04927562628541,"R":-1.0,"outcome":"loss","bars_held":6,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.134},
+  {"symbol":"US30","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"US30-long-book-2021-04-11T21:00:00Z-D","signal_time":"2021-04-12T13:00:00Z","week":"2021-W15","stop":33659.46185000001,"target":34650.35,"entry":33752.45,"entry_time":"2021-04-12T13:00:00Z","exit_time":"2021-04-13T09:00:00Z","R_planned":9.656069079770882,"R":-1.0,"outcome":"loss","bars_held":5,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.363},
+  {"symbol":"USTEC","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"USTEC-long-book-2022-08-04T17:00:00Z-D","signal_time":"2022-08-05T13:00:00Z","week":"2022-W31","stop":13058.737365,"target":13707.54,"entry":13179.37,"entry_time":"2022-08-05T13:00:00Z","exit_time":"2022-08-09T09:00:00Z","R_planned":4.378334270821493,"R":-1.0,"outcome":"loss","bars_held":11,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.109},
+  {"symbol":"DE40","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"DE40-long-book-2022-10-25T17:00:00Z-D","signal_time":"2022-10-26T13:00:00Z","week":"2022-W43","stop":12965.81385,"target":13709.45,"entry":13162.5,"entry_time":"2022-10-26T13:00:00Z","exit_time":"2022-11-02T13:00:00Z","R_planned":2.78082620459042,"R":0.5551992349232571,"outcome":"timeout","bars_held":30,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":0.488},
+  {"symbol":"AUS200","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2020-07-02T09:00:00Z-D","signal_time":"2020-07-07T01:00:00Z","week":"2020-W28","stop":6019.08895,"target":6357.5,"entry":6088.5,"entry_time":"2020-07-07T01:00:00Z","exit_time":"2020-07-07T09:00:00Z","R_planned":3.8754636329518304,"R":-1.0,"outcome":"loss","bars_held":2,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.088},
+  {"symbol":"AUS200","tf":"4H","group":"indices","leg":"phase_d","side":"short","path":"lps_c","event":"AUS200-short-book-2021-09-09T05:00:00Z-D","signal_time":"2021-09-10T13:00:00Z","week":"2021-W36","stop":7430.21325,"target":7198.3,"entry":7396.5,"entry_time":"2021-09-10T13:00:00Z","exit_time":"2021-09-13T01:00:00Z","R_planned":5.878994164015663,"R":-1.0,"outcome":"loss","bars_held":3,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.219},
+  {"symbol":"AUS200","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2022-10-25T17:00:00Z-D","signal_time":"2022-10-26T13:00:00Z","week":"2022-W43","stop":6785.8054,"target":7073.400000000001,"entry":6848.8,"entry_time":"2022-10-26T13:00:00Z","exit_time":"2022-10-27T17:00:00Z","R_planned":3.565384969505329,"R":-1.0,"outcome":"loss","bars_held":7,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.109},
+  {"symbol":"AUS200","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2023-01-19T22:00:00Z-D","signal_time":"2023-01-20T14:00:00Z","week":"2023-W03","stop":7425.2855,"target":7642.6,"entry":7461.0,"entry_time":"2023-01-20T14:00:00Z","exit_time":"2023-01-29T22:00:00Z","R_planned":5.084769491383056,"R":0.8539948760307428,"outcome":"timeout","bars_held":30,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":0.645},
+  {"symbol":"AUS200","tf":"4H","group":"indices","leg":"phase_d","side":"long","path":"lps_c","event":"AUS200-long-book-2023-06-20T17:00:00Z-D","signal_time":"2023-06-21T13:00:00Z","week":"2023-W25","stop":7291.1526,"target":7501.299999999999,"entry":7318.8,"entry_time":"2023-06-21T13:00:00Z","exit_time":"2023-06-21T21:00:00Z","R_planned":6.6009823708558555,"R":-1.0,"outcome":"loss","bars_held":2,"placebo":null,"n_placebo":0,"excess":null,"cost":null,"net_excess":null,"net_abs":-1.265}
+ ]
+}

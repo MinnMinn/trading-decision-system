@@ -592,3 +592,33 @@ class RolloverOptionSeparatesScanCacheEntries(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CostHourFrame(unittest.TestCase):
+    """Erratum 2026-10-04: the spread table's bucket h holds SERVER hour (h + export offset) mod 24 in every DST regime."""
+    P = "ftmo_demo_2026_09_relspread"
+
+    def test_summer_bucket_is_the_utc_hour_and_winter_is_one_earlier(self):
+        self.assertEqual(RC.export_offset_hours(self.P, "XAUUSD"), 3)
+        self.assertEqual(RC.table_hour(self.P, "XAUUSD", "2024-07-10T14:00:00Z"), 14)    # server UTC+3
+        self.assertEqual(RC.table_hour(self.P, "XAUUSD", "2024-01-10T14:00:00Z"), 13)    # server UTC+2
+
+    def test_the_daily_break_is_one_bucket_all_year(self):
+        # server 00:00 (17:00 New York) is bucket 21 in both regimes
+        self.assertEqual(RC.table_hour(self.P, "US500", "2024-07-09T21:00:00Z"), 21)
+        self.assertEqual(RC.table_hour(self.P, "US500", "2024-01-09T22:00:00Z"), 21)
+
+    def test_an_offset_one_second_short_of_the_hour_is_that_hour(self):
+        self.assertEqual(RC.export_offset_hours(self.P, "XPTUSD"), 3)                   # spec says 10799 s
+
+    def test_the_legacy_frame_reproduces_pre_erratum_records(self):
+        old = RC.HOUR_FRAME
+        try:
+            RC.HOUR_FRAME = "utc_legacy"
+            self.assertEqual(RC.table_hour(self.P, "XAUUSD", "2024-01-10T14:00:00Z"), 14)
+        finally:
+            RC.HOUR_FRAME = old
+
+    def test_cost_r_names_its_frame(self):
+        out = RC.cost_r(2000.0, 1990.0, "2024-07-10T14:00:00Z", "2024-07-10T15:00:00Z", "XAUUSD", "long", self.P)
+        self.assertEqual(out["hour_frame"], "server_table")

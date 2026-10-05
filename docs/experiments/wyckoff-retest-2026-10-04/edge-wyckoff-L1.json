@@ -1,0 +1,597 @@
+{
+ "meta": {
+  "script": "scripts/research/edge_wyckoff.py",
+  "script_sha256": "8bdeeccf9bb4bf1f403e64dfb90907bfbce0482de015c20f30c92a21539f8c14",
+  "code_sha256": {
+   "scripts/research/edge_wyckoff.py": "8bdeeccf9bb4bf1f403e64dfb90907bfbce0482de015c20f30c92a21539f8c14",
+   "scripts/tests/test_edge_wyckoff.py": "681bf5e0de09e6945cfac13131bea1dcf53d185aa1fc2d3fb81a316f3da5d448",
+   "scripts/research/wyckoff_ablation.py": "34824aeb99a3963ef54cfecba0b9f66a1e40c6e8816e3a351fa2c60dcc3b9cf5",
+   "scripts/tests/test_wyckoff_ablation.py": "d672ddb0f75edf99c0a59e7c715325620d353c6b320cd9315e7757a935875835",
+   "scripts/tests/test_wyckoff_price_only.py": "6e4700ee38195b909d32c390286cc6299ae45121917f374a292c2295ba202d2b",
+   "scripts/backtest-methods.py": "cf7d5fd55651e417dd196161657f1d00779f3d5145246d4865dc50d6b52fcca9",
+   "scripts/research/reprice_real_costs.py": "52407d1b72802b5a3c3b460bb435fc6be4c6d17beca66ff7baad8f9689220c73",
+   "scripts/wyckoff_rules.py": "bc9dc00536c4e1a86a3e14d77773917b92b5855c20edeb1ec5201e7af13d2c40",
+   "scripts/structures.py": "c14e153c27bfffa0de1b18c2a573abfed921e378d523d5f2b7d46dcd2fd1ffd9",
+   "scripts/real_costs.py": "572ec698d4931efb58cab12e8b0e6f20720da07baccad6c130ef239f8fd26e1c",
+   "scripts/research/edge_census.py": "e052dab288df80f613d9f4156ddacc10d892d4ed1ad62468b4f1d7d953e71afc",
+   "scripts/research/edge_h7x.py": "b503b94509c41a25af3bd859449c26bbd2c8713aa1d8038183bf66123502786d",
+   "scripts/research/edge_f3.py": "242dcde369eaf188892df3f42a9c72ee34fb47f0a11219e1c945a6060c8f8e12",
+   "scripts/research/edge_f4.py": "e5f6ec8ad60f943196b86c0a2dc0d42f8c4805af43380c1fe03ed84149bba25b",
+   "scripts/research/book_sim.py": "19e52f4781f7c83e50578a3b7bc4f08835871bf7342566fd3c0c1ff1277498d2",
+   "scripts/research/fvg_book_sim.py": "30e1a7158204cb1c653ccad23828bc556499915595c236b3f586e774290fc56b",
+   "scripts/pit.py": "63e72161714481bfa55cbe425e71bea4a9a6ceea62718e92991fda28deb9e88f",
+   "scripts/normalized.py": "f76dd8e29513c4237425fcc0c4589c2881cd4538865bbbab27827e46790ca231",
+   "scripts/history_store.py": "e0b6bebe9eb81c65b077bfa4c5064aaaa081ac290dd6f0fbdf7bcf147bd20de0",
+   "scripts/instruments.py": "4dceb0425b3bd32b9e98848f565f0fcbe624ee6cf9ab30d7d5e88c0d4badf188",
+   "scripts/mt5_time.py": "2cfac8616eac158575ebb1350f763d72fdfdca076066fb4a05375859cc0f620a",
+   "scripts/live_rules.py": "ff9727fee35fb512672c53736d0bd077b076591527dc5880f8762d8661123bc8",
+   "scripts/ict-scan.py": "1209180c176d9109a7026ac6e22d7aa2718818b2556a3d2b611edde6e460ea90",
+   "scripts/htf_context.py": "c1f7b994b43cb29bdcfc01dedf979362cb5d40e22f7034d2d4c765539edde05f",
+   "scripts/automation.py": "1fba7e3eeef2eb633ae4569a56e9cc1a5560606e3cb488355498e2c24fc2688d",
+   "scripts/trading_env.py": "4c9a02a2cf559d1559f06dd4beb7f4f8c1702219d68ee4f3078a293ce061a92e",
+   "scripts/methods.py": "dc76537b6d7c79930c8473ebcf4e13d402a859b2dedeee8976f9014fa703ba69",
+   "scripts/account_profile.py": "2061c4654afe4535904dc15a22f4c30204fbcda01f71b95990ad1059ed0c79f8",
+   "scripts/event_risk.py": "28c509331637cf6d6815da3b4dca892f7d97edbc031bfbc27feb1a79e4346524",
+   "scripts/i18n.py": "9654c7a6c9d561ab028366f4a304098f88c92e4cdad7c6b40d1644d73c8186f0",
+   "scripts/performance.py": "d79d78bde35028abab176dbd3e3a23298fd1bb63e98eb86bbc3bd8ac2181883b",
+   "scripts/providers.py": "3afed187584f597bd81fbe66da058cd9dc2f4666bfdce973fcbb635aff8adfc3",
+   "scripts/quality.py": "a2f6af3b3b32f2b558c051b899d6a7124b1956babc2b4f083f110c26e7401eb5",
+   "scripts/repo_paths.py": "6bc8c64cdedd56582f96015a0e7579985794ea3906a7d6ebaa69b14aa72d4e61",
+   "scripts/research_validity.py": "e06d5fd02ed54f83f49f2742dfa9233f5d02d68666c4e01d72c0240a4d34d110",
+   "scripts/risk_model.py": "7b4131a53d7f768ae87580eda21fcdb6115fc8d363b9ca98cd6c7bebb5589a9e",
+   "scripts/sessions.py": "607c2c6eb547e9bf0950435e77c05c26eb06e1df022fce433e5267f8f719ecd2",
+   "scripts/snapshot.py": "e4b2474d924164cc73df127a03007e4bfc9e444a89ff33a37a9b6055049f4200",
+   "scripts/trader_constraints.py": "2109a79a0bf49679f65aec159bf0f8f2842cec06a664da9f4872f72c964dab4b",
+   "scripts/trading_system.py": "9ec6aea8f9920a7f56dec56f423fb99f27f46eb51320efaf3a5a29d2dd33f9d1",
+   "docs/architecture/analysis-params.json": "5cde25c1b9c3c35f154cdc5fbdf83d1a27c767589cbda721d0a28ab2d19958e3",
+   "docs/architecture/instruments.json": "f5de740394fc3312d73a8bf53aa69f729283bb38452d01f571ae52a915d84b5d",
+   "docs/architecture/providers.json": "af1ff6e203743c8402438256eb0f1e9c2802271ac2863155823cd9f5bf02cef8",
+   "docs/architecture/account-profiles.json": "551f9a3111eaeb1741e396e0f5459f3b657c1c84ae194e30a195189da946df6e",
+   "docs/architecture/i18n.json": "8b48e9fcdb4ec646a947d276a0595ad424c728c48372dde55eeaa50e8831e254",
+   "docs/architecture/methods.json": "30aaa27db94d92f70e327d5ffd00c1dd6f46e5809f1109052e287fc18ac84ae0",
+   "docs/architecture/performance-metrics.json": "f9a06c17a24d75692d6ea910ba39cc12d9dd50b7ffd4777fba548990f28bb103",
+   "docs/architecture/research-validity.json": "b06264c8113c64c0844954a18f58746dd9dbe5b61c700d180e54f5e486723ae9",
+   "docs/architecture/risk-config.json": "0a4621240df31e19948f047b79055654b660247ae6d35ac90d77842662659598",
+   "docs/architecture/sessions.json": "8e2bbdabbaa67da822a7baad91681ba5f62936f32851363731af85b365e71e13",
+   "docs/architecture/trader-constraints.json": "07ea109e1639b3699e10c340150ebab4aa0387fc814f6951936c1babace9d39b",
+   "docs/architecture/trading-systems.json": "90d8be1858b49402e1196f425a94fc298910f58b0f3735aeb31802a7cc4f5acc"
+  },
+  "kind": "read",
+  "read": "L1",
+  "perturb": null,
+  "preregistration": "docs/plans/2026-10-04-wyckoff-retest-preregistration.md",
+  "preregistration_sha256": "c0bba1d4b4e64596e7ff21d680970c474a1ef42f052773336e5b85ef4d21a008",
+  "preregistration_draft": "docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md",
+  "draft_sha256": "3ddbd94f64f2b322f107a6aa9315bc30715a2cd2dd9583526d90f9a0da2570b5",
+  "git_head": "a1bd7afb69d9e8ff6ba60cd3cf4e91394012e986",
+  "symbols": {
+   "tradeable": [
+    "XAUUSD",
+    "XAGUSD",
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ],
+   "groups": {
+    "metals": [
+     "XAUUSD",
+     "XAGUSD"
+    ],
+    "indices": [
+     "US500",
+     "US30",
+     "USTEC",
+     "DE40",
+     "FRA40",
+     "AUS200"
+    ]
+   },
+   "replication": {
+    "metals": [
+     "XPTUSD",
+     "XPDUSD"
+    ],
+    "US": [
+     "US2000"
+    ],
+    "EU": [
+     "EU50",
+     "UK100"
+    ],
+    "Asia": [
+     "JP225",
+     "HK50"
+    ]
+   },
+   "excluded": {
+    "N25": "about 260 bars a month and a 376-day hole from 2022-08-05",
+    "SPN35": "half-session coverage"
+   },
+   "v": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "l1": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ],
+   "l1_descriptive": [
+    "DE40",
+    "US500",
+    "XAUUSD"
+   ]
+  },
+  "timeframes": {
+   "W": [
+    "15m",
+    "1H",
+    "4H"
+   ],
+   "W_descriptive": [
+    "1D"
+   ],
+   "V": [
+    "15m",
+    "1H"
+   ]
+  },
+  "cells": {
+   "W": [
+    "W-C-long-15m",
+    "W-C-long-1H",
+    "W-C-long-4H",
+    "W-D-15m",
+    "W-D-1H",
+    "W-D-4H",
+    "W-CTX",
+    "W-CAMP"
+   ],
+   "V": [
+    "V1",
+    "V2",
+    "V3",
+    "V4"
+   ],
+   "closing": [
+    "W-C-long-15m",
+    "W-C-long-1H",
+    "W-CAMP"
+   ],
+   "gc_contrast": {
+    "W-C-long-15m": "G-C-15m",
+    "W-C-long-1H": "G-C-1H",
+    "W-C-long-4H": "G-C-4H",
+    "W-CTX": "G-C"
+   },
+   "gc_contrast_known": {
+    "W-C-long-15m": "G-C-known-15m",
+    "W-C-long-1H": "G-C-known-1H",
+    "W-C-long-4H": "G-C-known-4H",
+    "W-CTX": "G-C-known"
+   }
+  },
+  "parameters": {
+   "det_po": {
+    "window": 300,
+    "pivot": 3,
+    "reclaim": 12,
+    "test_bars": 12,
+    "cap_mult": 1,
+    "price_only": true,
+    "fx_w123": false,
+    "volume": "raw"
+   },
+   "perturbations": {
+    "P1": {
+     "fx_w123": true,
+     "change": "fx_w1/w2/w3 on (the owner-adopted fixes)"
+    },
+    "P2": {
+     "price_only": false,
+     "volume": "hour_norm",
+     "change": "tick-volume clauses on, tick volume / its trailing 20-day median at the same server hour"
+    },
+    "P3": {
+     "window": 600,
+     "change": "600-bar window"
+    },
+    "P4": {
+     "pivot": 4,
+     "change": "pivot 4"
+    },
+    "P5": {
+     "reclaim": 24,
+     "change": "Shakeout reclaim window 24"
+    },
+    "P6": {
+     "cap_mult": 2,
+     "change": "time cap 2 x H"
+    }
+   },
+   "engine": {
+    "H": {
+     "15m": 96,
+     "1H": 72,
+     "4H": 30
+    },
+    "sob": {
+     "15m": 6,
+     "1H": 4,
+     "4H": 3
+    },
+    "stop_buffer": 0.0005,
+    "wyckoff_window": 300,
+    "htf_of": {
+     "15m": "1H",
+     "1H": "4H",
+     "4H": "1D"
+    }
+   },
+   "cause_min": 1,
+   "test_zone": 0.3333333333333333,
+   "gc_reclaim": 12,
+   "v4": {
+    "lookback": 20,
+    "mom": 21,
+    "vol_x": 2.0,
+    "spacing": 20
+   },
+   "n_placebo": 200,
+   "atr_n": 20,
+   "placebo_seed": "sha256('WY-P0|sym|tf|signal_time')[:16]",
+   "placebo_slot": "server-clock minute of the day of the event's ENTRY bar",
+   "dense": {
+    "share": 0.8,
+    "ref_year": 2023,
+    "lookback_days": 60,
+    "hole_days": 7
+   },
+   "hour_norm_days": 20,
+   "trend_days": 20,
+   "count_gate": 30,
+   "fdr_q": 0.1,
+   "delta": 0.2,
+   "breadth_min": 20,
+   "perturb_need": 5,
+   "against_p": 0.05,
+   "r2": {
+    "cluster_min": 10,
+    "evaluable_min": 2,
+    "agree": 3
+   },
+   "l1_p": 0.1,
+   "forward": {
+    "p": 0.1,
+    "events": 100,
+    "months": 12
+   },
+   "bootstrap_resamples": 2000,
+   "cluster": "ISO week of the signal bar (UTC)",
+   "windows": {
+    "R1": [
+     null,
+     "2024-03-01T00:00:00Z"
+    ],
+    "R2": [
+     null,
+     "2024-03-01T00:00:00Z"
+    ],
+    "R3": [
+     "2024-03-01T00:00:00Z",
+     null
+    ],
+    "V": [
+     "2017-08-17T00:00:00Z",
+     "2022-08-01T00:00:00Z"
+    ]
+   },
+   "fra40_session_cut": "2024-12-01T00:00:00Z"
+  },
+  "costs": {
+   "profile": "ftmo_demo_2026_09_relspread",
+   "hour_frame": "server_table",
+   "lines": [
+    "median_swap",
+    "median_noswap",
+    "p90_swap",
+    "p90_noswap"
+   ],
+   "commission": "0/UNKNOWN (real_costs.commission_r)",
+   "binance_round_trip": 0.0012000000000000001,
+   "binance_stress": 0.0014,
+   "binance_lines": [
+    "base",
+    "stress"
+   ],
+   "funding": "realized (amendment [H7x-A1]): a perp-era trade (entry >= 2020-01-01T00:00Z) pays side x rate_tau, a fraction of ENTRY notional (longs pay a positive rate), for every settlement tau in data/history/binance_um/funding.{SYM}.json.gz with entry_time <= tau < exit_time, at whatever interval the file gives; owner sizing charges the settlements before its stop fill; spot era (< 2020-01-01): none"
+  },
+  "disclosures": {
+   "price_only": "DET-PO drops the volume legs of CHoBEV, SOS and BU (WA:274-277): price patterns, not the book's effort reading (\u00a73.1, \u00a711 item 3)",
+   "dense_start": "every series (decision and higher timeframe) starts at its R0 dense start",
+   "read_membership": "an event belongs to a read by its ENTRY bar: open >= lo and close <= hi",
+   "cost_times": "cost_r at the entry bar's and exit bar's time labels (the engine's convention)",
+   "gc_exclusion": "G-C's +-N exclusion (\u00a73.6 as written) reads every W-C-long event of the series, including breaks AFTER the control's decision bar r -- a sample definition that conditions on later bars and can drop losing controls; G-C-known (diagnostic, gc_contrast_known, never the attribution's) excludes only on W-C-long events signalled by r. The owner confirms which \u00a73.6 means before sealing",
+   "attribution": "no G-C delta (no rows on either side) -> attribution UNDETERMINED, never Wyckoff by default",
+   "htf_gates": "the \u00a73.1 cause and horizontal gates apply to the higher-timeframe records too (DET-PO)",
+   "camp_cap": "W-CAMP exits on time H bars after the last filled tranche whether or not it has a target",
+   "camp_placebo": "placebo campaigns use the event's FILLED tranche offsets",
+   "v_harness": "family V uses the same harness (gates, de-dup, \u00a73.2 builders); only the volume reading differs (price_only off, traded volume)",
+   "descriptive_built": "R1 only, never gated: the Phase-B raised-ceiling target on W-C-long (|ceiling-target), the flatten-before-rollover walk on W-C-long and W-D (|flatten), the trend-matched placebo on the single-entry W cells (|trend-placebo: the drawn placebo bars whose 20-day trend sign at p-1 equals the event's at k), and 1D (desc:*-1D, no HTF: W-D / W-CAMP exit on time)",
+   "descriptive_not_built": "\u00a73.7 lower-timeframe Shakeout entry (WA2-18) and sigma-unit time exit: \u00a73.7 gives no point-in-time definition this script can implement without inventing one (the census' sigma unit drops any hold that crosses a server day, i.e. nearly every hold of H bars); to be defined or struck before sealing",
+   "code_fingerprint": "code_sha256 covers CODE; the ledger is outside it (other studies append to it)"
+  },
+  "guarded": true,
+  "sealed": {
+   "path": "docs/plans/2026-10-04-wyckoff-retest-preregistration.md",
+   "sha256": "c0bba1d4b4e64596e7ff21d680970c474a1ef42f052773336e5b85ef4d21a008",
+   "seal_date": "2026-10-04",
+   "seal_instant": "2026-10-04T04:29:29Z"
+  },
+  "committed_sha256": {
+   "docs/plans/2026-10-04-wyckoff-retest-preregistration.md": "c0bba1d4b4e64596e7ff21d680970c474a1ef42f052773336e5b85ef4d21a008",
+   "docs/architecture/research-ledger.json": "dcd7ff09b782f44ca5130d7e52e6b961e4a48c96224d626db3f36e4abe95f3a6",
+   "scripts/research/edge_wyckoff.py": "8bdeeccf9bb4bf1f403e64dfb90907bfbce0482de015c20f30c92a21539f8c14",
+   "scripts/tests/test_edge_wyckoff.py": "681bf5e0de09e6945cfac13131bea1dcf53d185aa1fc2d3fb81a316f3da5d448",
+   "scripts/research/wyckoff_ablation.py": "34824aeb99a3963ef54cfecba0b9f66a1e40c6e8816e3a351fa2c60dcc3b9cf5",
+   "scripts/tests/test_wyckoff_ablation.py": "d672ddb0f75edf99c0a59e7c715325620d353c6b320cd9315e7757a935875835",
+   "scripts/tests/test_wyckoff_price_only.py": "6e4700ee38195b909d32c390286cc6299ae45121917f374a292c2295ba202d2b",
+   "scripts/backtest-methods.py": "cf7d5fd55651e417dd196161657f1d00779f3d5145246d4865dc50d6b52fcca9",
+   "scripts/research/reprice_real_costs.py": "52407d1b72802b5a3c3b460bb435fc6be4c6d17beca66ff7baad8f9689220c73",
+   "scripts/wyckoff_rules.py": "bc9dc00536c4e1a86a3e14d77773917b92b5855c20edeb1ec5201e7af13d2c40",
+   "scripts/structures.py": "c14e153c27bfffa0de1b18c2a573abfed921e378d523d5f2b7d46dcd2fd1ffd9",
+   "scripts/real_costs.py": "572ec698d4931efb58cab12e8b0e6f20720da07baccad6c130ef239f8fd26e1c",
+   "scripts/research/edge_census.py": "e052dab288df80f613d9f4156ddacc10d892d4ed1ad62468b4f1d7d953e71afc",
+   "scripts/research/edge_h7x.py": "b503b94509c41a25af3bd859449c26bbd2c8713aa1d8038183bf66123502786d",
+   "scripts/research/edge_f3.py": "242dcde369eaf188892df3f42a9c72ee34fb47f0a11219e1c945a6060c8f8e12",
+   "scripts/research/edge_f4.py": "e5f6ec8ad60f943196b86c0a2dc0d42f8c4805af43380c1fe03ed84149bba25b",
+   "scripts/research/book_sim.py": "19e52f4781f7c83e50578a3b7bc4f08835871bf7342566fd3c0c1ff1277498d2",
+   "scripts/research/fvg_book_sim.py": "30e1a7158204cb1c653ccad23828bc556499915595c236b3f586e774290fc56b",
+   "scripts/pit.py": "63e72161714481bfa55cbe425e71bea4a9a6ceea62718e92991fda28deb9e88f",
+   "scripts/normalized.py": "f76dd8e29513c4237425fcc0c4589c2881cd4538865bbbab27827e46790ca231",
+   "scripts/history_store.py": "e0b6bebe9eb81c65b077bfa4c5064aaaa081ac290dd6f0fbdf7bcf147bd20de0",
+   "scripts/instruments.py": "4dceb0425b3bd32b9e98848f565f0fcbe624ee6cf9ab30d7d5e88c0d4badf188",
+   "scripts/mt5_time.py": "2cfac8616eac158575ebb1350f763d72fdfdca076066fb4a05375859cc0f620a",
+   "scripts/live_rules.py": "ff9727fee35fb512672c53736d0bd077b076591527dc5880f8762d8661123bc8",
+   "scripts/ict-scan.py": "1209180c176d9109a7026ac6e22d7aa2718818b2556a3d2b611edde6e460ea90",
+   "scripts/htf_context.py": "c1f7b994b43cb29bdcfc01dedf979362cb5d40e22f7034d2d4c765539edde05f",
+   "scripts/automation.py": "1fba7e3eeef2eb633ae4569a56e9cc1a5560606e3cb488355498e2c24fc2688d",
+   "scripts/trading_env.py": "4c9a02a2cf559d1559f06dd4beb7f4f8c1702219d68ee4f3078a293ce061a92e",
+   "scripts/methods.py": "dc76537b6d7c79930c8473ebcf4e13d402a859b2dedeee8976f9014fa703ba69",
+   "scripts/account_profile.py": "2061c4654afe4535904dc15a22f4c30204fbcda01f71b95990ad1059ed0c79f8",
+   "scripts/event_risk.py": "28c509331637cf6d6815da3b4dca892f7d97edbc031bfbc27feb1a79e4346524",
+   "scripts/i18n.py": "9654c7a6c9d561ab028366f4a304098f88c92e4cdad7c6b40d1644d73c8186f0",
+   "scripts/performance.py": "d79d78bde35028abab176dbd3e3a23298fd1bb63e98eb86bbc3bd8ac2181883b",
+   "scripts/providers.py": "3afed187584f597bd81fbe66da058cd9dc2f4666bfdce973fcbb635aff8adfc3",
+   "scripts/quality.py": "a2f6af3b3b32f2b558c051b899d6a7124b1956babc2b4f083f110c26e7401eb5",
+   "scripts/repo_paths.py": "6bc8c64cdedd56582f96015a0e7579985794ea3906a7d6ebaa69b14aa72d4e61",
+   "scripts/research_validity.py": "e06d5fd02ed54f83f49f2742dfa9233f5d02d68666c4e01d72c0240a4d34d110",
+   "scripts/risk_model.py": "7b4131a53d7f768ae87580eda21fcdb6115fc8d363b9ca98cd6c7bebb5589a9e",
+   "scripts/sessions.py": "607c2c6eb547e9bf0950435e77c05c26eb06e1df022fce433e5267f8f719ecd2",
+   "scripts/snapshot.py": "e4b2474d924164cc73df127a03007e4bfc9e444a89ff33a37a9b6055049f4200",
+   "scripts/trader_constraints.py": "2109a79a0bf49679f65aec159bf0f8f2842cec06a664da9f4872f72c964dab4b",
+   "scripts/trading_system.py": "9ec6aea8f9920a7f56dec56f423fb99f27f46eb51320efaf3a5a29d2dd33f9d1",
+   "docs/architecture/analysis-params.json": "5cde25c1b9c3c35f154cdc5fbdf83d1a27c767589cbda721d0a28ab2d19958e3",
+   "docs/architecture/instruments.json": "f5de740394fc3312d73a8bf53aa69f729283bb38452d01f571ae52a915d84b5d",
+   "docs/architecture/providers.json": "af1ff6e203743c8402438256eb0f1e9c2802271ac2863155823cd9f5bf02cef8",
+   "docs/architecture/account-profiles.json": "551f9a3111eaeb1741e396e0f5459f3b657c1c84ae194e30a195189da946df6e",
+   "docs/architecture/i18n.json": "8b48e9fcdb4ec646a947d276a0595ad424c728c48372dde55eeaa50e8831e254",
+   "docs/architecture/methods.json": "30aaa27db94d92f70e327d5ffd00c1dd6f46e5809f1109052e287fc18ac84ae0",
+   "docs/architecture/performance-metrics.json": "f9a06c17a24d75692d6ea910ba39cc12d9dd50b7ffd4777fba548990f28bb103",
+   "docs/architecture/research-validity.json": "b06264c8113c64c0844954a18f58746dd9dbe5b61c700d180e54f5e486723ae9",
+   "docs/architecture/risk-config.json": "0a4621240df31e19948f047b79055654b660247ae6d35ac90d77842662659598",
+   "docs/architecture/sessions.json": "8e2bbdabbaa67da822a7baad91681ba5f62936f32851363731af85b365e71e13",
+   "docs/architecture/trader-constraints.json": "07ea109e1639b3699e10c340150ebab4aa0387fc814f6951936c1babace9d39b",
+   "docs/architecture/trading-systems.json": "90d8be1858b49402e1196f425a94fc298910f58b0f3735aeb31802a7cc4f5acc"
+  },
+  "loaded_code": [
+   "scripts/account_profile.py",
+   "scripts/automation.py",
+   "scripts/event_risk.py",
+   "scripts/history_store.py",
+   "scripts/i18n.py",
+   "scripts/instruments.py",
+   "scripts/methods.py",
+   "scripts/mt5_time.py",
+   "scripts/normalized.py",
+   "scripts/performance.py",
+   "scripts/pit.py",
+   "scripts/providers.py",
+   "scripts/quality.py",
+   "scripts/real_costs.py",
+   "scripts/repo_paths.py",
+   "scripts/research/edge_wyckoff.py",
+   "scripts/research_validity.py",
+   "scripts/risk_model.py",
+   "scripts/sessions.py",
+   "scripts/snapshot.py",
+   "scripts/structures.py",
+   "scripts/trader_constraints.py",
+   "scripts/trading_env.py",
+   "scripts/trading_system.py",
+   "scripts/wyckoff_rules.py"
+  ],
+  "counts": {
+   "path": "docs/experiments/wyckoff-retest-r0/edge-wyckoff-R0.json",
+   "sha256": "09e215902f012f14210577684f34e0c3fac50a6a0df76d55076992fa726655f9"
+  }
+ },
+ "data": {},
+ "skipped": {},
+ "tests": {
+  "L1": {
+   "n": 107,
+   "days": 98,
+   "mean_gross_R": -0.12806560368933523,
+   "mean_net_R": -0.2224485981308411,
+   "se_cr1_date": 0.1627491459881024,
+   "df": 97,
+   "t": -1.3668188350868704,
+   "p_one_sided": 0.9125791570405084,
+   "pass": false,
+   "exposed": true,
+   "pooled_over": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ],
+   "label": "FAIL: the DE40/US500 lead is closed"
+  }
+ },
+ "descriptive": {
+  "DE40": {
+   "n": 20,
+   "days": 20,
+   "mean_gross_R": -0.06575983173888807,
+   "mean_net_R": -0.1507,
+   "se_cr1_date": 0.3761631162142296,
+   "df": 19,
+   "t": -0.40062407371746267,
+   "p_one_sided": 0.6534169773228344,
+   "pass": false
+  },
+  "US500": {
+   "n": 17,
+   "days": 17,
+   "mean_gross_R": 0.3918601684755817,
+   "mean_net_R": 0.26623529411764707,
+   "se_cr1_date": 0.5197065598051446,
+   "df": 16,
+   "t": 0.5122800339819986,
+   "p_one_sided": 0.30772682834061715,
+   "pass": false
+  },
+  "XAUUSD": {
+   "n": 25,
+   "days": 25,
+   "mean_gross_R": -0.6969968706535207,
+   "mean_net_R": -0.72616,
+   "se_cr1_date": 0.21011060325457162,
+   "df": 24,
+   "t": -3.456084503837148,
+   "p_one_sided": 0.9989732613610225,
+   "pass": false
+  }
+ },
+ "rows": {
+ "L1": [
+  {"symbol":"US500","date":"2024-03-25","entry_time":"2024-03-25T07:00:00Z","exit_time":"2024-03-25T08:00:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.178},
+  {"symbol":"US500","date":"2024-07-05","entry_time":"2024-07-05T12:30:00Z","exit_time":"2024-07-08T13:30:00Z","side":"long","leg":"phase_d","R":3.184134485806065,"net_R":2.416},
+  {"symbol":"US500","date":"2024-08-30","entry_time":"2024-08-30T19:45:00Z","exit_time":"2024-09-02T22:00:00Z","side":"short","leg":"spring","R":-1.0,"net_R":-0.992},
+  {"symbol":"US500","date":"2024-10-25","entry_time":"2024-10-25T14:15:00Z","exit_time":"2024-10-25T15:15:00Z","side":"short","leg":"spring","R":2.5792744893002535,"net_R":2.51},
+  {"symbol":"US500","date":"2025-01-21","entry_time":"2025-01-21T21:45:00Z","exit_time":"2025-01-22T09:00:00Z","side":"long","leg":"phase_d","R":4.371191124711842,"net_R":3.923},
+  {"symbol":"US500","date":"2025-01-28","entry_time":"2025-01-28T10:00:00Z","exit_time":"2025-01-28T12:00:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.034},
+  {"symbol":"US500","date":"2025-02-06","entry_time":"2025-02-06T00:00:00Z","exit_time":"2025-02-06T19:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.03},
+  {"symbol":"US500","date":"2025-04-02","entry_time":"2025-04-02T19:15:00Z","exit_time":"2025-04-02T20:15:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.015},
+  {"symbol":"US500","date":"2025-04-21","entry_time":"2025-04-21T06:30:00Z","exit_time":"2025-04-21T13:45:00Z","side":"short","leg":"phase_d","R":2.838092414546293,"net_R":2.8},
+  {"symbol":"US500","date":"2025-05-23","entry_time":"2025-05-23T19:15:00Z","exit_time":"2025-05-25T22:00:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.0},
+  {"symbol":"US500","date":"2025-07-09","entry_time":"2025-07-09T13:45:00Z","exit_time":"2025-07-10T14:45:00Z","side":"short","leg":"spring","R":-0.5285733865758964,"net_R":-0.581},
+  {"symbol":"US500","date":"2025-10-02","entry_time":"2025-10-02T07:00:00Z","exit_time":"2025-10-02T14:00:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.058},
+  {"symbol":"US500","date":"2025-11-11","entry_time":"2025-11-11T06:15:00Z","exit_time":"2025-11-11T08:15:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.048},
+  {"symbol":"US500","date":"2026-02-02","entry_time":"2026-02-02T02:30:00Z","exit_time":"2026-02-02T02:45:00Z","side":"long","leg":"spring","R":-1.0,"net_R":-1.049},
+  {"symbol":"US500","date":"2026-02-25","entry_time":"2026-02-25T14:00:00Z","exit_time":"2026-02-26T15:00:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.168},
+  {"symbol":"US500","date":"2026-05-14","entry_time":"2026-05-14T14:45:00Z","exit_time":"2026-05-15T01:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.118},
+  {"symbol":"US500","date":"2026-08-17","entry_time":"2026-08-17T22:15:00Z","exit_time":"2026-08-18T06:00:00Z","side":"short","leg":"phase_d","R":5.217503736296331,"net_R":5.148},
+  {"symbol":"US30","date":"2024-03-07","entry_time":"2024-03-07T14:30:00Z","exit_time":"2024-03-07T15:45:00Z","side":"short","leg":"spring","R":-1.0,"net_R":-1.027},
+  {"symbol":"US30","date":"2024-06-17","entry_time":"2024-06-17T15:15:00Z","exit_time":"2024-06-17T16:15:00Z","side":"short","leg":"spring","R":-1.0,"net_R":-1.038},
+  {"symbol":"US30","date":"2024-11-15","entry_time":"2024-11-15T11:45:00Z","exit_time":"2024-11-15T12:45:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.038},
+  {"symbol":"US30","date":"2024-12-26","entry_time":"2024-12-26T20:30:00Z","exit_time":"2024-12-27T08:00:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.122},
+  {"symbol":"US30","date":"2025-04-24","entry_time":"2025-04-24T06:30:00Z","exit_time":"2025-04-24T10:45:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.018},
+  {"symbol":"US30","date":"2025-06-13","entry_time":"2025-06-13T19:30:00Z","exit_time":"2025-06-15T23:30:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-0.99},
+  {"symbol":"US30","date":"2025-09-04","entry_time":"2025-09-04T15:00:00Z","exit_time":"2025-09-05T05:30:00Z","side":"long","leg":"phase_d","R":4.231030079330905,"net_R":4.02},
+  {"symbol":"US30","date":"2026-03-02","entry_time":"2026-03-02T03:00:00Z","exit_time":"2026-03-02T07:45:00Z","side":"short","leg":"phase_d","R":3.1177176474313937,"net_R":3.103},
+  {"symbol":"US30","date":"2026-05-07","entry_time":"2026-05-07T12:15:00Z","exit_time":"2026-05-07T13:45:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.011},
+  {"symbol":"US30","date":"2026-06-26","entry_time":"2026-06-26T09:15:00Z","exit_time":"2026-06-26T15:30:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.008},
+  {"symbol":"US30","date":"2026-07-17","entry_time":"2026-07-17T01:00:00Z","exit_time":"2026-07-17T13:00:00Z","side":"short","leg":"phase_d","R":2.7581529876114006,"net_R":2.739},
+  {"symbol":"USTEC","date":"2024-03-20","entry_time":"2024-03-20T13:15:00Z","exit_time":"2024-03-20T13:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.033},
+  {"symbol":"USTEC","date":"2024-03-27","entry_time":"2024-03-27T14:00:00Z","exit_time":"2024-03-28T15:00:00Z","side":"long","leg":"spring","R":1.9447776861362809,"net_R":1.767},
+  {"symbol":"USTEC","date":"2024-08-02","entry_time":"2024-08-02T13:45:00Z","exit_time":"2024-08-05T05:00:00Z","side":"short","leg":"phase_d","R":3.8303891902950236,"net_R":3.828},
+  {"symbol":"USTEC","date":"2024-10-07","entry_time":"2024-10-07T22:45:00Z","exit_time":"2024-10-08T09:00:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.02},
+  {"symbol":"USTEC","date":"2024-10-23","entry_time":"2024-10-23T15:00:00Z","exit_time":"2024-10-23T15:15:00Z","side":"long","leg":"spring","R":-1.0,"net_R":-1.031},
+  {"symbol":"USTEC","date":"2025-01-16","entry_time":"2025-01-16T10:45:00Z","exit_time":"2025-01-16T12:45:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.026},
+  {"symbol":"USTEC","date":"2025-01-31","entry_time":"2025-01-31T09:15:00Z","exit_time":"2025-01-31T18:45:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.021},
+  {"symbol":"USTEC","date":"2025-02-06","entry_time":"2025-02-06T07:00:00Z","exit_time":"2025-02-06T07:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.064},
+  {"symbol":"USTEC","date":"2025-02-13","entry_time":"2025-02-13T03:15:00Z","exit_time":"2025-02-13T07:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.038},
+  {"symbol":"USTEC","date":"2025-03-03","entry_time":"2025-03-03T14:00:00Z","exit_time":"2025-03-03T14:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.028},
+  {"symbol":"USTEC","date":"2025-04-21","entry_time":"2025-04-21T04:45:00Z","exit_time":"2025-04-21T06:00:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.044},
+  {"symbol":"USTEC","date":"2025-05-08","entry_time":"2025-05-08T03:45:00Z","exit_time":"2025-05-08T06:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.048},
+  {"symbol":"USTEC","date":"2025-05-08","entry_time":"2025-05-08T16:45:00Z","exit_time":"2025-05-08T17:45:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.011},
+  {"symbol":"USTEC","date":"2025-05-28","entry_time":"2025-05-28T13:00:00Z","exit_time":"2025-05-28T13:45:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.039},
+  {"symbol":"USTEC","date":"2025-07-03","entry_time":"2025-07-03T07:00:00Z","exit_time":"2025-07-03T10:00:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.039},
+  {"symbol":"USTEC","date":"2025-10-15","entry_time":"2025-10-15T12:30:00Z","exit_time":"2025-10-15T13:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.021},
+  {"symbol":"USTEC","date":"2025-12-10","entry_time":"2025-12-10T15:45:00Z","exit_time":"2025-12-10T16:00:00Z","side":"long","leg":"spring","R":-1.0,"net_R":-1.03},
+  {"symbol":"USTEC","date":"2026-03-31","entry_time":"2026-03-31T14:00:00Z","exit_time":"2026-03-31T16:30:00Z","side":"short","leg":"spring","R":-1.0,"net_R":-1.013},
+  {"symbol":"USTEC","date":"2026-05-14","entry_time":"2026-05-14T16:00:00Z","exit_time":"2026-05-14T16:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.019},
+  {"symbol":"USTEC","date":"2026-08-07","entry_time":"2026-08-07T13:30:00Z","exit_time":"2026-08-07T13:45:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.012},
+  {"symbol":"USTEC","date":"2026-08-24","entry_time":"2026-08-24T07:45:00Z","exit_time":"2026-08-24T08:45:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.022},
+  {"symbol":"USTEC","date":"2026-09-28","entry_time":"2026-09-28T07:00:00Z","exit_time":"2026-09-28T12:00:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.027},
+  {"symbol":"DE40","date":"2024-03-19","entry_time":"2024-03-19T00:00:00Z","exit_time":"2024-03-19T07:00:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.14},
+  {"symbol":"DE40","date":"2024-03-22","entry_time":"2024-03-22T12:45:00Z","exit_time":"2024-03-22T13:15:00Z","side":"short","leg":"spring","R":-1.0,"net_R":-1.066},
+  {"symbol":"DE40","date":"2024-05-31","entry_time":"2024-05-31T12:30:00Z","exit_time":"2024-05-31T14:15:00Z","side":"short","leg":"spring","R":2.991091091975348,"net_R":2.953},
+  {"symbol":"DE40","date":"2024-07-10","entry_time":"2024-07-10T23:15:00Z","exit_time":"2024-07-11T00:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.254},
+  {"symbol":"DE40","date":"2024-07-17","entry_time":"2024-07-17T00:30:00Z","exit_time":"2024-07-17T03:45:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.216},
+  {"symbol":"DE40","date":"2024-09-03","entry_time":"2024-09-03T07:00:00Z","exit_time":"2024-09-03T09:45:00Z","side":"short","leg":"spring","R":2.6823993061664115,"net_R":2.659},
+  {"symbol":"DE40","date":"2024-11-04","entry_time":"2024-11-04T18:00:00Z","exit_time":"2024-11-05T05:15:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.136},
+  {"symbol":"DE40","date":"2025-05-20","entry_time":"2025-05-20T13:00:00Z","exit_time":"2025-05-20T22:00:00Z","side":"short","leg":"spring","R":2.9361033143982405,"net_R":2.793},
+  {"symbol":"DE40","date":"2025-07-03","entry_time":"2025-07-03T06:00:00Z","exit_time":"2025-07-03T06:15:00Z","side":"short","leg":"spring","R":-1.0,"net_R":-1.05},
+  {"symbol":"DE40","date":"2025-08-12","entry_time":"2025-08-12T10:00:00Z","exit_time":"2025-08-12T12:30:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.018},
+  {"symbol":"DE40","date":"2025-08-22","entry_time":"2025-08-22T09:45:00Z","exit_time":"2025-08-22T11:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.024},
+  {"symbol":"DE40","date":"2025-10-31","entry_time":"2025-10-31T08:15:00Z","exit_time":"2025-10-31T08:45:00Z","side":"long","leg":"spring","R":-1.0,"net_R":-1.037},
+  {"symbol":"DE40","date":"2025-12-01","entry_time":"2025-12-01T04:45:00Z","exit_time":"2025-12-01T05:00:00Z","side":"long","leg":"spring","R":-1.0,"net_R":-1.285},
+  {"symbol":"DE40","date":"2026-02-03","entry_time":"2026-02-03T07:15:00Z","exit_time":"2026-02-03T11:00:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.009},
+  {"symbol":"DE40","date":"2026-02-06","entry_time":"2026-02-06T15:45:00Z","exit_time":"2026-02-06T16:00:00Z","side":"short","leg":"spring","R":-1.0,"net_R":-1.038},
+  {"symbol":"DE40","date":"2026-02-17","entry_time":"2026-02-17T07:00:00Z","exit_time":"2026-02-17T07:45:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.03},
+  {"symbol":"DE40","date":"2026-03-11","entry_time":"2026-03-11T23:00:00Z","exit_time":"2026-03-12T02:15:00Z","side":"short","leg":"phase_d","R":3.0931611887977146,"net_R":2.981},
+  {"symbol":"DE40","date":"2026-04-09","entry_time":"2026-04-09T08:45:00Z","exit_time":"2026-04-09T15:45:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.01},
+  {"symbol":"DE40","date":"2026-08-07","entry_time":"2026-08-07T12:45:00Z","exit_time":"2026-08-10T14:45:00Z","side":"short","leg":"spring","R":1.982048463884524,"net_R":1.95},
+  {"symbol":"DE40","date":"2026-09-16","entry_time":"2026-09-16T15:45:00Z","exit_time":"2026-09-16T16:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.037},
+  {"symbol":"FRA40","date":"2024-08-19","entry_time":"2024-08-19T12:00:00Z","exit_time":"2024-08-20T13:00:00Z","side":"long","leg":"phase_d","R":0.7780896011723775,"net_R":0.593},
+  {"symbol":"FRA40","date":"2024-09-19","entry_time":"2024-09-19T16:15:00Z","exit_time":"2024-09-19T20:00:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.413},
+  {"symbol":"FRA40","date":"2024-09-26","entry_time":"2024-09-26T06:00:00Z","exit_time":"2024-09-26T06:30:00Z","side":"short","leg":"spring","R":-1.0,"net_R":-1.12},
+  {"symbol":"FRA40","date":"2025-02-05","entry_time":"2025-02-05T08:00:00Z","exit_time":"2025-02-05T15:00:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.045},
+  {"symbol":"FRA40","date":"2025-03-10","entry_time":"2025-03-10T18:00:00Z","exit_time":"2025-03-10T18:45:00Z","side":"long","leg":"spring","R":-1.0,"net_R":-1.071},
+  {"symbol":"FRA40","date":"2025-03-21","entry_time":"2025-03-21T09:15:00Z","exit_time":"2025-03-21T10:45:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.032},
+  {"symbol":"FRA40","date":"2025-09-03","entry_time":"2025-09-03T07:15:00Z","exit_time":"2025-09-03T08:15:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.029},
+  {"symbol":"FRA40","date":"2025-09-05","entry_time":"2025-09-05T17:00:00Z","exit_time":"2025-09-08T06:00:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.072},
+  {"symbol":"FRA40","date":"2025-11-07","entry_time":"2025-11-07T14:30:00Z","exit_time":"2025-11-07T14:45:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.081},
+  {"symbol":"FRA40","date":"2026-06-05","entry_time":"2026-06-05T10:30:00Z","exit_time":"2026-06-05T13:15:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.035},
+  {"symbol":"FRA40","date":"2026-09-07","entry_time":"2026-09-07T15:30:00Z","exit_time":"2026-09-07T15:45:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.123},
+  {"symbol":"AUS200","date":"2024-03-13","entry_time":"2024-03-13T15:00:00Z","exit_time":"2024-03-13T23:00:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.313},
+  {"symbol":"AUS200","date":"2024-03-18","entry_time":"2024-03-18T12:00:00Z","exit_time":"2024-03-18T13:30:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.153},
+  {"symbol":"AUS200","date":"2024-06-27","entry_time":"2024-06-27T16:30:00Z","exit_time":"2024-06-28T02:00:00Z","side":"long","leg":"phase_d","R":3.0904009459314588,"net_R":2.862},
+  {"symbol":"AUS200","date":"2024-06-30","entry_time":"2024-06-30T23:30:00Z","exit_time":"2024-07-01T07:15:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.11},
+  {"symbol":"AUS200","date":"2024-09-03","entry_time":"2024-09-03T09:45:00Z","exit_time":"2024-09-03T13:15:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.092},
+  {"symbol":"AUS200","date":"2024-09-18","entry_time":"2024-09-18T15:45:00Z","exit_time":"2024-09-18T16:45:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.075},
+  {"symbol":"AUS200","date":"2024-11-12","entry_time":"2024-11-12T10:30:00Z","exit_time":"2024-11-12T14:30:00Z","side":"long","leg":"spring","R":2.96723138025257,"net_R":2.849},
+  {"symbol":"AUS200","date":"2024-11-18","entry_time":"2024-11-18T15:45:00Z","exit_time":"2024-11-18T16:30:00Z","side":"short","leg":"spring","R":-1.0,"net_R":-1.168},
+  {"symbol":"AUS200","date":"2024-12-04","entry_time":"2024-12-04T01:30:00Z","exit_time":"2024-12-05T02:30:00Z","side":"long","leg":"spring","R":5.242330750950574,"net_R":4.939},
+  {"symbol":"AUS200","date":"2024-12-09","entry_time":"2024-12-09T09:15:00Z","exit_time":"2024-12-09T21:00:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.091},
+  {"symbol":"AUS200","date":"2025-02-19","entry_time":"2025-02-19T01:30:00Z","exit_time":"2025-02-19T10:15:00Z","side":"short","leg":"phase_d","R":2.5806910507016387,"net_R":2.526},
+  {"symbol":"AUS200","date":"2025-03-04","entry_time":"2025-03-04T03:00:00Z","exit_time":"2025-03-04T03:15:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.112},
+  {"symbol":"AUS200","date":"2025-04-16","entry_time":"2025-04-16T08:15:00Z","exit_time":"2025-04-16T15:15:00Z","side":"short","leg":"spring","R":-1.0,"net_R":-1.056},
+  {"symbol":"AUS200","date":"2025-09-03","entry_time":"2025-09-03T01:45:00Z","exit_time":"2025-09-03T02:00:00Z","side":"long","leg":"spring","R":-1.0,"net_R":-1.085},
+  {"symbol":"AUS200","date":"2025-11-12","entry_time":"2025-11-12T08:00:00Z","exit_time":"2025-11-12T14:30:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.128},
+  {"symbol":"AUS200","date":"2025-12-01","entry_time":"2025-12-01T03:15:00Z","exit_time":"2025-12-01T04:30:00Z","side":"long","leg":"spring","R":-1.0,"net_R":-1.088},
+  {"symbol":"AUS200","date":"2025-12-03","entry_time":"2025-12-03T01:00:00Z","exit_time":"2025-12-04T03:30:00Z","side":"short","leg":"spring","R":0.6890848952590662,"net_R":0.617},
+  {"symbol":"AUS200","date":"2025-12-15","entry_time":"2025-12-15T09:45:00Z","exit_time":"2025-12-15T14:15:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.097},
+  {"symbol":"AUS200","date":"2026-04-29","entry_time":"2026-04-29T09:45:00Z","exit_time":"2026-04-29T11:45:00Z","side":"short","leg":"phase_d","R":-1.0,"net_R":-1.054},
+  {"symbol":"AUS200","date":"2026-06-25","entry_time":"2026-06-25T23:45:00Z","exit_time":"2026-06-26T01:00:00Z","side":"long","leg":"spring","R":-1.0,"net_R":-1.076},
+  {"symbol":"AUS200","date":"2026-06-29","entry_time":"2026-06-29T13:30:00Z","exit_time":"2026-06-29T14:00:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.035},
+  {"symbol":"AUS200","date":"2026-07-14","entry_time":"2026-07-14T00:15:00Z","exit_time":"2026-07-14T00:30:00Z","side":"long","leg":"spring","R":-1.0,"net_R":-1.129},
+  {"symbol":"AUS200","date":"2026-07-16","entry_time":"2026-07-16T10:30:00Z","exit_time":"2026-07-16T11:15:00Z","side":"long","leg":"spring","R":-1.0,"net_R":-1.115},
+  {"symbol":"AUS200","date":"2026-07-22","entry_time":"2026-07-22T01:45:00Z","exit_time":"2026-07-22T06:15:00Z","side":"long","leg":"phase_d","R":-1.0,"net_R":-1.129},
+  {"symbol":"AUS200","date":"2026-08-19","entry_time":"2026-08-19T00:00:00Z","exit_time":"2026-08-19T23:45:00Z","side":"long","leg":"spring","R":2.865414097601402,"net_R":2.731},
+  {"symbol":"AUS200","date":"2026-09-25","entry_time":"2026-09-25T14:00:00Z","exit_time":"2026-09-28T17:00:00Z","side":"long","leg":"spring","R":3.8552438632599135,"net_R":3.077}
+ ]
+ }
+}

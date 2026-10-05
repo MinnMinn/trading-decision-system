@@ -106,6 +106,23 @@ writes PARAMS -- and each default reproduces v1 exactly:
   test_window, min_phase_b_swings (W-TW, project parameters, PARAMS above): the V item `fx_w_tw` of
                      backtest-methods.py overrides both in the per-call copy: test window {12, 8, 20} x
                      Phase-B swings {2, 3}.
+
+PRICE-ONLY READ (docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md §3.1 and §10 item 1, the re-test's
+detector DET-PO). `price_only` is a PER-CALL key like the ones above, default False = v1, byte-identical (the live path,
+check-narrative.py and backtest-methods.py never set it). When True, the six volume clauses that decide WHETHER a
+structure or event is detected count as satisfied, so every structural field of a record is a function of O/H/L/C only:
+  R1   CHoBEV effort         the up-swing's summed volume > the mean of the prior reactions' (the spread leg stays)
+  R11  LPS[C] SOS effort     V >= the `lookback`-bar average on the breakout bar
+  R11  LPS[C] BU pullback    V < the breakout bar's volume
+  R8   Test after the Spring V < the Spring bar's volume
+  R11  SOS effort            V >= the `lookback`-bar average on the breakout bar
+  R11  BU pullback           V < the breakout bar's volume
+  Volume is still read for the record fields in VOLUME_FIELDS (R7 type and ratios, R10 profile and abandon). Nothing
+  in this module gates on them, and the pre-registration's price-only family reads none of them ("still computed,
+  but nothing in this family reads them", §3.1). So with the key on, a record is unchanged under any permutation or
+  rescaling of V outside VOLUME_FIELDS (scripts/tests/test_wyckoff_price_only.py). Dropping the effort legs departs
+  from the book (WA p68, knowledge/wyckoff/advance.md:274 "nỗ lực tăng"; WMT p131-133 asks for real volume): every
+  price-only result must say so. On a tick-volume feed (R0) this is the only reading that does not lean on tick counts.
 """
 import bisect, json, os
 
@@ -140,7 +157,12 @@ PARAMS = dict(
     fx_w5_vp_abandon=False,
     # V item W4a (module docstring "V ITEMS"): None = v1 Shakeout typing; an int = the lingering-closes threshold.
     fx_w4a_linger_closes=None,
+    # Module docstring "PRICE-ONLY READ": True = the six volume gates count as satisfied (DET-PO). False = v1.
+    price_only=False,
 )
+
+# Record keys that still read V when `price_only` is on (R7, R10). Recorded only; nothing in this module gates on them.
+VOLUME_FIELDS = ("vol_ratio", "vol_type", "rec_ratio", "vpoc", "vah", "val", "lvn", "abandon")
 
 
 def swings(H, L, k, pivots=None):
@@ -386,6 +408,7 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
         sw, cands = pre
     sw_bars = [s[0] for s in sw]    # swing bars are non-decreasing: bisect targets for the "first swing after bar X" reads below
     lb = P["lookback"]
+    po = P.get("price_only")        # module docstring "PRICE-ONLY READ": `po or <volume clause>` at the six gates below
     spread = _LazySpread(H, L)      # bar ranges: built on first use (most windows never reach a use)
     used_until = -1
     for si in cands:
@@ -440,7 +463,7 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
             # reading of that case is "expect new lows or a prolonged consolidation with many further STs", not
             # "this was never an accumulation". The CHoBEV search below is otherwise unchanged.
             sp = hi_s[2] - lo_s[2]; vol = sum(V[lo_s[0]:hi_s[0] + 1])
-            if sp > ref_spread and vol > ref_vol:
+            if sp > ref_spread and (po or vol > ref_vol):     # price_only: the spread leg alone
                 chobev.append(hi_s[0])
             if ar is None:
                 ar = hi_s                      # AR = first swing high after SC (WA p73)
@@ -520,7 +543,7 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
             # WY-3: gated on `ceiling`, not the AR-only `tr_hi`. WY-2: guard the COMMIT look-ahead locally so
             # the outer loop can run to n-1.
             if (b_swings >= P["min_phase_b_swings"] and C[b] > ceiling and spread[b] >= avg(spread, b, lb)
-                    and V[b] >= avg(V, b, lb) and b + COMMIT - 1 < n and all(C[b + m] > ceiling for m in range(1, COMMIT))):
+                    and (po or V[b] >= avg(V, b, lb)) and b + COMMIT - 1 < n and all(C[b + m] > ceiling for m in range(1, COMMIT))):
                 lpsc_sos_bar = b; lpsc_sos = b + COMMIT - 1; break
             # WY-3 follow-up (docs/audits/2026-09-24-system-audit.md, fix critique: "Check whether [the ran-away
             # guard] should use the Phase-B ceiling too, or UA-heavy structures will be discarded differently"):
@@ -541,7 +564,7 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
             # passed the V>=avg effort test), not the follow-through/confirmation bar (lpsc_sos).
             bu = None; pull = None
             for q in range(lpsc_sos + 1, min(lpsc_sos + 1 + P["phase_d_window"], n)):
-                if L[q] <= ceiling + 0.1 * tr and L[q] >= tr_lo + 0.5 * tr and V[q] < V[lpsc_sos_bar]:
+                if L[q] <= ceiling + 0.1 * tr and L[q] >= tr_lo + 0.5 * tr and (po or V[q] < V[lpsc_sos_bar]):
                     pull = q
                 if pull is not None and q > pull and C[q] > O[q] and C[q] > ceiling:
                     # WY-4: stop under the WHOLE pullback (from the breakout, not just the last qualifying
@@ -591,7 +614,7 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
             for q in range(rec + 1, min(rec + 1 + P["test_window"], n)):
                 if L[q] < spring_low:
                     break
-                if L[q] <= tr_lo + P["test_zone_tr"] * tr and V[q] < V[spring] and C[q] >= L[q] + 0.5 * (H[q] - L[q]):
+                if L[q] <= tr_lo + P["test_zone_tr"] * tr and (po or V[q] < V[spring]) and C[q] >= L[q] + 0.5 * (H[q] - L[q]):
                     test = q; break
         # --- Phase D: SOS then BU/LPS (R11) --- WY-3: gated on `ceiling` (the Phase-B extreme), not the
         # AR-only `tr_hi`, so a close between AR and the running Phase-B UA high stays inside the range.
@@ -601,13 +624,13 @@ def detect_accumulations(O, H, L, C, V, P=PARAMS, volume_kind="traded", side="lo
             for q in range(anchor + 1, min(anchor + 1 + P["phase_d_window"], n - COMMIT)):
                 if L[q] < spring_low:
                     break
-                if C[q] > ceiling and spread[q] >= avg(spread, q, lb) and V[q] >= avg(V, q, lb) and all(C[q + m] > ceiling for m in range(1, COMMIT)):
+                if C[q] > ceiling and spread[q] >= avg(spread, q, lb) and (po or V[q] >= avg(V, q, lb)) and all(C[q + m] > ceiling for m in range(1, COMMIT)):
                     sos_bar = q; sos = q + COMMIT - 1; break
             if sos is not None:
                 # WY-5: compare against the breakout bar's volume (sos_bar), not the follow-through bar's (sos).
                 pull = None
                 for q in range(sos + 1, min(sos + 1 + P["phase_d_window"], n)):
-                    if L[q] <= ceiling + 0.1 * tr and L[q] >= tr_lo + 0.5 * tr and V[q] < V[sos_bar]:
+                    if L[q] <= ceiling + 0.1 * tr and L[q] >= tr_lo + 0.5 * tr and (po or V[q] < V[sos_bar]):
                         pull = q
                     if pull is not None and q > pull and C[q] > O[q] and C[q] > ceiling:
                         # WY-4: stop under the whole pullback since the breakout, not just the last qualifying bar.

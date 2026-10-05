@@ -95,6 +95,8 @@ def config_opts(cfg, ict_target):
                 # (= v1) of each key, stated for the same "complete overlay" reason. W-MGMT is `mgmt` above.
                 fx_w_stop="current", fx_w4a_linger_closes=None, fx_w6_window=300, fx_w_spt="AR", fx_w_touch="off",
                 fx_w_tw=(12, 2),
+                # Wyckoff re-test ablation keys (docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md §7): v1 = off.
+                fx_w_shakeout="off", fx_w7_contain="off",
                 # A2b decision side (plan §2): v1 default, stated so the overlay stays complete.
                 fx_a2b_stale_htf_block=False,
                 # Batch 2(a) ICT V items (docs/plans/2026-09-28-methodology-improvement-plan.md §3): each key's
@@ -151,6 +153,9 @@ _SCAN_RELEVANT_KEYS = ("mgmt", "htf", "sides", "st_gate", "phase_b_gate", "slope
                        # fx_w_stop / fx_w_spt / fx_w_touch change `_fires_from`'s stop / target / gate. All six
                        # change scan()'s trades and MUST separate cache entries.
                        "fx_w_stop", "fx_w4a_linger_closes", "fx_w6_window", "fx_w_spt", "fx_w_touch", "fx_w_tw",
+                       # Wyckoff re-test ablation keys: each changes scan()'s Wyckoff trades (Shakeout at its Test /
+                       # the contained HTF target), so they MUST separate cache entries.
+                       "fx_w_shakeout", "fx_w7_contain",
                        # A2b decision side: htf_bias_gate refuses a stale HTF tier, so scans with it on/off differ.
                        "fx_a2b_stale_htf_block",
                        # Batch 2(a) ICT V items: fx_b_ex/pd/pool/buf/exit(target)/lb/b6/b3/b7 all change which ICT

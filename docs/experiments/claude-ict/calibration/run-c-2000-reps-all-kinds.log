@@ -1,0 +1,7 @@
+XAUUSD  market orders  1700 fill 1.00 replicates 2000: P(p<0.05) primary 0.0425 mirror 0.047
+XAUUSD  limit  orders  1700 fill 0.67 replicates 2000: P(p<0.05) primary 0.0835 mirror 0.0635
+XAUUSD  stop   orders  1700 fill 0.67 replicates 2000: P(p<0.05) primary 0.029 mirror 0.046
+US500   market orders  2550 fill 1.00 replicates 2000: P(p<0.05) primary 0.052 mirror 0.044
+US500   limit  orders  2550 fill 0.65 replicates 2000: P(p<0.05) primary 0.0765 mirror 0.041
+US500   stop   orders  2550 fill 0.66 replicates 2000: P(p<0.05) primary 0.0175 mirror 0.048
+python3 scripts/research/claude_ict_eval.py calibrate --reps 2000  111.34s user 0.40s system 99% cpu 1:52.45 total

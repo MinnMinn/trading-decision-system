@@ -64,7 +64,7 @@ def trades_for(sym, h, stop_rule):
                 exit_px = (min(stop, o) if side > 0 else max(stop, o)) if j > e else stop
                 how, j_exit = "stop", j
                 break
-        cost = costs.round_trip(s.dt[e].hour, s.dt[j_exit].hour) * px
+        cost = costs.round_trip_at(s.dt[e], s.dt[j_exit]) * px
         R = (side * (exit_px - px) - cost) / dist
         out.append({"symbol": sym, "entry_time": s.T[e], "exit_time": s.T[j_exit], "server_day": str(s.sday[j_exit]),
                     "R": R, "exit": how, "stop_bp": dist / px * 1e4})

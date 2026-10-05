@@ -1,0 +1,366 @@
+{
+  "pit_cutoff": "2024-03-01T00:00:00Z",
+  "history_root": "data/history/ftmo",
+  "profile": "ftmo_demo_2026_09",
+  "latest_trade_exit_time_seen": "2024-01-30T21:00:00Z",
+  "rows": [
+    {
+      "symbol": "XAUUSD",
+      "method": "ICT",
+      "baseline": {
+        "n": 67,
+        "gross_R": 9.197822205711473,
+        "net_R": -14.914000000000001,
+        "spread_R": 0.0,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 24.111822205711476,
+        "refused": 0,
+        "last_exit_time": "2023-10-26T08:45:00Z"
+      },
+      "real_no_flat": {
+        "n": 82,
+        "gross_R": 6.09285078537679,
+        "net_R": -3.7060000000000004,
+        "spread_R": 5.9930382067793975,
+        "swap_R": 3.8028779493994795,
+        "commission_R": 0.0,
+        "cost_R_total": 9.79885078537679,
+        "refused": 0,
+        "last_exit_time": "2023-10-26T08:45:00Z",
+        "legacy_frame": {
+          "n": 82,
+          "gross_R": 6.09285078537679,
+          "net_R": -3.7010000000000005,
+          "spread_R": 5.990610027263015,
+          "swap_R": 3.8028779493994795,
+          "commission_R": 0.0,
+          "cost_R_total": 9.79385078537679,
+          "refused": 0,
+          "last_exit_time": "2023-10-26T08:45:00Z"
+        }
+      },
+      "real_flat": {
+        "n": 87,
+        "gross_R": 5.197547235109004,
+        "net_R": -1.3040000000000005,
+        "spread_R": 6.499226279001594,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 6.501547235109005,
+        "refused": 0,
+        "last_exit_time": "2023-10-26T08:45:00Z",
+        "legacy_frame": {
+          "n": 87,
+          "gross_R": 5.197547235109004,
+          "net_R": -1.2730000000000004,
+          "spread_R": 6.470512473215444,
+          "swap_R": 0.0,
+          "commission_R": 0.0,
+          "cost_R_total": 6.470547235109005,
+          "refused": 0,
+          "last_exit_time": "2023-10-26T08:45:00Z"
+        }
+      }
+    },
+    {
+      "symbol": "XAUUSD",
+      "method": "WYCKOFF-BOOK",
+      "baseline": {
+        "n": 90,
+        "gross_R": -15.750133006011941,
+        "net_R": -62.282000000000004,
+        "spread_R": 0.0,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 46.53186699398806,
+        "refused": 0,
+        "last_exit_time": "2023-09-21T14:30:00Z"
+      },
+      "real_no_flat": {
+        "n": 114,
+        "gross_R": -19.885669335253404,
+        "net_R": -35.647,
+        "spread_R": 9.36488959318378,
+        "swap_R": 6.394313883815841,
+        "commission_R": 0.0,
+        "cost_R_total": 15.761330664746595,
+        "refused": 0,
+        "last_exit_time": "2023-09-26T12:30:00Z",
+        "legacy_frame": {
+          "n": 114,
+          "gross_R": -19.885669335253404,
+          "net_R": -35.631,
+          "spread_R": 9.352022898502149,
+          "swap_R": 6.394313883815841,
+          "commission_R": 0.0,
+          "cost_R_total": 15.745330664746596,
+          "refused": 0,
+          "last_exit_time": "2023-09-26T12:30:00Z"
+        }
+      },
+      "real_flat": {
+        "n": 118,
+        "gross_R": -1.4086422364796614,
+        "net_R": -11.052,
+        "spread_R": 9.642527873351561,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 9.643357763520338,
+        "refused": 0,
+        "last_exit_time": "2023-09-26T12:30:00Z",
+        "legacy_frame": {
+          "n": 118,
+          "gross_R": -1.4086422364796614,
+          "net_R": -11.027999999999999,
+          "spread_R": 9.62063225951843,
+          "swap_R": 0.0,
+          "commission_R": 0.0,
+          "cost_R_total": 9.619357763520338,
+          "refused": 0,
+          "last_exit_time": "2023-09-26T12:30:00Z"
+        }
+      }
+    },
+    {
+      "symbol": "US500",
+      "method": "ICT",
+      "baseline": {
+        "n": 18,
+        "gross_R": 1.5294131465786176,
+        "net_R": -3.2750000000000004,
+        "spread_R": 0.0,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 4.804413146578618,
+        "refused": 0,
+        "last_exit_time": "2024-01-30T21:00:00Z"
+      },
+      "real_no_flat": {
+        "n": 21,
+        "gross_R": 2.921649498718061,
+        "net_R": 1.9720000000000004,
+        "spread_R": 0.6505019096482352,
+        "swap_R": 0.2994331878611354,
+        "commission_R": 0.0,
+        "cost_R_total": 0.9496494987180606,
+        "refused": 0,
+        "last_exit_time": "2024-01-30T21:00:00Z",
+        "legacy_frame": {
+          "n": 21,
+          "gross_R": 2.921649498718061,
+          "net_R": 1.9920000000000002,
+          "spread_R": 0.630186601791864,
+          "swap_R": 0.2994331878611354,
+          "commission_R": 0.0,
+          "cost_R_total": 0.9296494987180608,
+          "refused": 0,
+          "last_exit_time": "2024-01-30T21:00:00Z"
+        }
+      },
+      "real_flat": {
+        "n": 23,
+        "gross_R": -1.773671589538079,
+        "net_R": -2.4389999999999996,
+        "spread_R": 0.6665926264774401,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 0.6653284104619206,
+        "refused": 0,
+        "last_exit_time": "2024-01-30T21:00:00Z",
+        "legacy_frame": {
+          "n": 23,
+          "gross_R": -1.773671589538079,
+          "net_R": -2.4229999999999996,
+          "spread_R": 0.6504105709799086,
+          "swap_R": 0.0,
+          "commission_R": 0.0,
+          "cost_R_total": 0.6493284104619206,
+          "refused": 0,
+          "last_exit_time": "2024-01-30T21:00:00Z"
+        }
+      }
+    },
+    {
+      "symbol": "US500",
+      "method": "WYCKOFF-BOOK",
+      "baseline": {
+        "n": 22,
+        "gross_R": 11.947108175292316,
+        "net_R": 1.047,
+        "spread_R": 0.0,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 10.900108175292315,
+        "refused": 0,
+        "last_exit_time": "2024-01-11T15:00:00Z"
+      },
+      "real_no_flat": {
+        "n": 26,
+        "gross_R": 7.947108175292315,
+        "net_R": 5.997000000000001,
+        "spread_R": 1.5365852769905401,
+        "swap_R": 0.41252533017910475,
+        "commission_R": 0.0,
+        "cost_R_total": 1.9501081752923142,
+        "refused": 0,
+        "last_exit_time": "2024-01-11T15:00:00Z",
+        "legacy_frame": {
+          "n": 26,
+          "gross_R": 7.947108175292315,
+          "net_R": 6.088,
+          "spread_R": 1.4464971618084677,
+          "swap_R": 0.41252533017910475,
+          "commission_R": 0.0,
+          "cost_R_total": 1.8591081752923149,
+          "refused": 0,
+          "last_exit_time": "2024-01-11T15:00:00Z"
+        }
+      },
+      "real_flat": {
+        "n": 26,
+        "gross_R": 9.16826264204319,
+        "net_R": 7.621,
+        "spread_R": 1.5473284159356784,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 1.54726264204319,
+        "refused": 0,
+        "last_exit_time": "2024-01-10T21:45:00Z",
+        "legacy_frame": {
+          "n": 26,
+          "gross_R": 9.16826264204319,
+          "net_R": 7.72,
+          "spread_R": 1.4494197025023516,
+          "swap_R": 0.0,
+          "commission_R": 0.0,
+          "cost_R_total": 1.4482626420431908,
+          "refused": 0,
+          "last_exit_time": "2024-01-10T21:45:00Z"
+        }
+      }
+    },
+    {
+      "symbol": "DE40",
+      "method": "ICT",
+      "baseline": {
+        "n": 10,
+        "gross_R": -0.07166260999802843,
+        "net_R": -3.379,
+        "spread_R": 0.0,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 3.3073373900019716,
+        "refused": 0,
+        "last_exit_time": "2024-01-26T09:45:00Z"
+      },
+      "real_no_flat": {
+        "n": 10,
+        "gross_R": -0.07166260999802843,
+        "net_R": -0.3729999999999998,
+        "spread_R": 0.2934145766661037,
+        "swap_R": 0.006623004773701776,
+        "commission_R": 0.0,
+        "cost_R_total": 0.30133739000197135,
+        "refused": 0,
+        "last_exit_time": "2024-01-26T09:45:00Z",
+        "legacy_frame": {
+          "n": 10,
+          "gross_R": -0.07166260999802843,
+          "net_R": -0.35699999999999976,
+          "spread_R": 0.2772157502569699,
+          "swap_R": 0.006623004773701776,
+          "commission_R": 0.0,
+          "cost_R_total": 0.28533739000197134,
+          "refused": 0,
+          "last_exit_time": "2024-01-26T09:45:00Z"
+        }
+      },
+      "real_flat": {
+        "n": 10,
+        "gross_R": -3.874014326087806,
+        "net_R": -4.249,
+        "spread_R": 0.37444674717499127,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 0.37498567391219373,
+        "refused": 0,
+        "last_exit_time": "2024-01-26T09:45:00Z",
+        "legacy_frame": {
+          "n": 10,
+          "gross_R": -3.874014326087806,
+          "net_R": -4.18,
+          "spread_R": 0.30536823795460766,
+          "swap_R": 0.0,
+          "commission_R": 0.0,
+          "cost_R_total": 0.3059856739121938,
+          "refused": 0,
+          "last_exit_time": "2024-01-26T09:45:00Z"
+        }
+      }
+    },
+    {
+      "symbol": "DE40",
+      "method": "WYCKOFF-BOOK",
+      "baseline": {
+        "n": 23,
+        "gross_R": 26.793337064105728,
+        "net_R": 15.174999999999999,
+        "spread_R": 0.0,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 11.618337064105729,
+        "refused": 0,
+        "last_exit_time": "2024-01-16T08:00:00Z"
+      },
+      "real_no_flat": {
+        "n": 24,
+        "gross_R": 25.793337064105728,
+        "net_R": 23.546999999999997,
+        "spread_R": 1.4317147421789198,
+        "swap_R": 0.814999767926756,
+        "commission_R": 0.0,
+        "cost_R_total": 2.246337064105731,
+        "refused": 0,
+        "last_exit_time": "2024-01-16T08:00:00Z",
+        "legacy_frame": {
+          "n": 24,
+          "gross_R": 25.793337064105728,
+          "net_R": 23.572,
+          "spread_R": 1.4066485575661778,
+          "swap_R": 0.814999767926756,
+          "commission_R": 0.0,
+          "cost_R_total": 2.221337064105729,
+          "refused": 0,
+          "last_exit_time": "2024-01-16T08:00:00Z"
+        }
+      },
+      "real_flat": {
+        "n": 25,
+        "gross_R": 27.933945124420898,
+        "net_R": 26.311,
+        "spread_R": 1.6217474316089966,
+        "swap_R": 0.0,
+        "commission_R": 0.0,
+        "cost_R_total": 1.622945124420898,
+        "refused": 0,
+        "last_exit_time": "2024-01-16T08:00:00Z",
+        "legacy_frame": {
+          "n": 25,
+          "gross_R": 27.933945124420898,
+          "net_R": 26.471,
+          "spread_R": 1.4636012632712547,
+          "swap_R": 0.0,
+          "commission_R": 0.0,
+          "cost_R_total": 1.462945124420898,
+          "refused": 0,
+          "last_exit_time": "2024-01-16T08:00:00Z"
+        }
+      }
+    }
+  ],
+  "hour_frames": {
+    "main": "server_table",
+    "legacy_frame": "utc_legacy"
+  }
+}

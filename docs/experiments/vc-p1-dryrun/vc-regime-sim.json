@@ -1,0 +1,473 @@
+{
+ "what": "VC-P1 \u00a74, \u00a77: what a regime-level effect in R_bar does to T1a's error rate and power, on the REAL window-B layout.",
+ "code_sha256": {
+  "scripts/research/edge_vc.py": "e92accf5fb1a68341a13ed68cf48b25c70a04eda876cee5909a8ba4346f84f24"
+ },
+ "layout": {
+  "trades": 762,
+  "years": [
+   2005,
+   2006,
+   2007,
+   2008
+  ],
+  "vr_runs": 8,
+  "by_component": {
+   "H7_XAUUSD_eod": 302,
+   "G9_XAUUSD_eod": 460
+  }
+ },
+ "sd_R": 0.75,
+ "nb_ref": 144,
+ "delta_R_bar": 0.2,
+ "reps": 2000,
+ "cells": [
+  {
+   "block_level": "none",
+   "tau": 0.0,
+   "effect": "null",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.026,
+    "T1a_run": 0.035,
+    "T1b_day": 0.025
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.072,
+    "T1a_day_0.025_and_run_0.05": 0.021
+   },
+   "T1a_null_sd_of_diff_over_mean_se": 1.0
+  },
+  {
+   "block_level": "none",
+   "tau": 0.0,
+   "effect": "T1a",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.88,
+    "T1a_run": 0.746,
+    "T1b_day": 0.049
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.884,
+    "T1a_day_0.025_and_run_0.05": 0.821
+   },
+   "full_rule": {
+    "by_day": 0.87,
+    "option_C": 0.813
+   },
+   "effect_R_bar": {
+    "H7_XAUUSD_eod": 0.2,
+    "G9_XAUUSD_eod": 0.2
+   }
+  },
+  {
+   "block_level": "none",
+   "tau": 0.0,
+   "effect": "T1b",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.048,
+    "T1a_run": 0.065,
+    "T1b_day": 0.921
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.118,
+    "T1a_day_0.025_and_run_0.05": 0.037
+   }
+  },
+  {
+   "block_level": "year",
+   "tau": 0.05,
+   "effect": "null",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.052,
+    "T1a_run": 0.043,
+    "T1b_day": 0.028
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.087,
+    "T1a_day_0.025_and_run_0.05": 0.039
+   },
+   "T1a_null_sd_of_diff_over_mean_se": 1.19
+  },
+  {
+   "block_level": "year",
+   "tau": 0.05,
+   "effect": "T1a",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.842,
+    "T1a_run": 0.68,
+    "T1b_day": 0.043
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.826,
+    "T1a_day_0.025_and_run_0.05": 0.774
+   },
+   "full_rule": {
+    "by_day": 0.832,
+    "option_C": 0.765
+   },
+   "effect_R_bar": {
+    "H7_XAUUSD_eod": 0.2,
+    "G9_XAUUSD_eod": 0.2
+   }
+  },
+  {
+   "block_level": "year",
+   "tau": 0.05,
+   "effect": "T1b",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.087,
+    "T1a_run": 0.075,
+    "T1b_day": 0.927
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.145,
+    "T1a_day_0.025_and_run_0.05": 0.062
+   }
+  },
+  {
+   "block_level": "year",
+   "tau": 0.1,
+   "effect": "null",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.1,
+    "T1a_run": 0.058,
+    "T1b_day": 0.021
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.105,
+    "T1a_day_0.025_and_run_0.05": 0.065
+   },
+   "T1a_null_sd_of_diff_over_mean_se": 1.63
+  },
+  {
+   "block_level": "year",
+   "tau": 0.1,
+   "effect": "T1a",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.768,
+    "T1a_run": 0.55,
+    "T1b_day": 0.043
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.703,
+    "T1a_day_0.025_and_run_0.05": 0.67
+   },
+   "full_rule": {
+    "by_day": 0.759,
+    "option_C": 0.663
+   },
+   "effect_R_bar": {
+    "H7_XAUUSD_eod": 0.2,
+    "G9_XAUUSD_eod": 0.2
+   }
+  },
+  {
+   "block_level": "year",
+   "tau": 0.1,
+   "effect": "T1b",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.152,
+    "T1a_run": 0.089,
+    "T1b_day": 0.919
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.157,
+    "T1a_day_0.025_and_run_0.05": 0.105
+   }
+  },
+  {
+   "block_level": "year",
+   "tau": 0.2,
+   "effect": "null",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.254,
+    "T1a_run": 0.077,
+    "T1b_day": 0.029
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.146,
+    "T1a_day_0.025_and_run_0.05": 0.136
+   },
+   "T1a_null_sd_of_diff_over_mean_se": 2.79
+  },
+  {
+   "block_level": "year",
+   "tau": 0.2,
+   "effect": "T1a",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.656,
+    "T1a_run": 0.391,
+    "T1b_day": 0.054
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.527,
+    "T1a_day_0.025_and_run_0.05": 0.51
+   },
+   "full_rule": {
+    "by_day": 0.651,
+    "option_C": 0.508
+   },
+   "effect_R_bar": {
+    "H7_XAUUSD_eod": 0.2,
+    "G9_XAUUSD_eod": 0.2
+   }
+  },
+  {
+   "block_level": "year",
+   "tau": 0.2,
+   "effect": "T1b",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.288,
+    "T1a_run": 0.111,
+    "T1b_day": 0.911
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.176,
+    "T1a_day_0.025_and_run_0.05": 0.16
+   }
+  },
+  {
+   "block_level": "run",
+   "tau": 0.05,
+   "effect": "null",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.057,
+    "T1a_run": 0.037,
+    "T1b_day": 0.025
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.077,
+    "T1a_day_0.025_and_run_0.05": 0.036
+   },
+   "T1a_null_sd_of_diff_over_mean_se": 1.24
+  },
+  {
+   "block_level": "run",
+   "tau": 0.05,
+   "effect": "T1a",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.846,
+    "T1a_run": 0.624,
+    "T1b_day": 0.053
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.783,
+    "T1a_day_0.025_and_run_0.05": 0.745
+   },
+   "full_rule": {
+    "by_day": 0.837,
+    "option_C": 0.739
+   },
+   "effect_R_bar": {
+    "H7_XAUUSD_eod": 0.2,
+    "G9_XAUUSD_eod": 0.2
+   }
+  },
+  {
+   "block_level": "run",
+   "tau": 0.05,
+   "effect": "T1b",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.091,
+    "T1a_run": 0.067,
+    "T1b_day": 0.917
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.122,
+    "T1a_day_0.025_and_run_0.05": 0.062
+   }
+  },
+  {
+   "block_level": "run",
+   "tau": 0.1,
+   "effect": "null",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.118,
+    "T1a_run": 0.035,
+    "T1b_day": 0.024
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.077,
+    "T1a_day_0.025_and_run_0.05": 0.059
+   },
+   "T1a_null_sd_of_diff_over_mean_se": 1.75
+  },
+  {
+   "block_level": "run",
+   "tau": 0.1,
+   "effect": "T1a",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.762,
+    "T1a_run": 0.385,
+    "T1b_day": 0.044
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.566,
+    "T1a_day_0.025_and_run_0.05": 0.551
+   },
+   "full_rule": {
+    "by_day": 0.754,
+    "option_C": 0.548
+   },
+   "effect_R_bar": {
+    "H7_XAUUSD_eod": 0.2,
+    "G9_XAUUSD_eod": 0.2
+   }
+  },
+  {
+   "block_level": "run",
+   "tau": 0.1,
+   "effect": "T1b",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.182,
+    "T1a_run": 0.066,
+    "T1b_day": 0.927
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.121,
+    "T1a_day_0.025_and_run_0.05": 0.099
+   }
+  },
+  {
+   "block_level": "run",
+   "tau": 0.2,
+   "effect": "null",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.258,
+    "T1a_run": 0.053,
+    "T1b_day": 0.026
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.105,
+    "T1a_day_0.025_and_run_0.05": 0.102
+   },
+   "T1a_null_sd_of_diff_over_mean_se": 2.97
+  },
+  {
+   "block_level": "run",
+   "tau": 0.2,
+   "effect": "T1a",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.646,
+    "T1a_run": 0.202,
+    "T1b_day": 0.058
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.323,
+    "T1a_day_0.025_and_run_0.05": 0.322
+   },
+   "full_rule": {
+    "by_day": 0.637,
+    "option_C": 0.322
+   },
+   "effect_R_bar": {
+    "H7_XAUUSD_eod": 0.2,
+    "G9_XAUUSD_eod": 0.2
+   }
+  },
+  {
+   "block_level": "run",
+   "tau": 0.2,
+   "effect": "T1b",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.268,
+    "T1a_run": 0.05,
+    "T1b_day": 0.899
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.097,
+    "T1a_day_0.025_and_run_0.05": 0.091
+   }
+  },
+  {
+   "block_level": "none",
+   "tau": 0.0,
+   "effect": "equal_0.10",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.359,
+    "T1a_run": 0.306,
+    "T1b_day": 0.035
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.467,
+    "T1a_day_0.025_and_run_0.05": 0.307
+   },
+   "full_rule": {
+    "by_day": 0.351,
+    "option_C": 0.3
+   },
+   "effect_R_bar": {
+    "H7_XAUUSD_eod": 0.1,
+    "G9_XAUUSD_eod": 0.1
+   }
+  },
+  {
+   "block_level": "none",
+   "tau": 0.0,
+   "effect": "shape_2018_G9_0.21_H7_0.04",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.554,
+    "T1a_run": 0.45,
+    "T1b_day": 0.023
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.632,
+    "T1a_day_0.025_and_run_0.05": 0.486
+   },
+   "full_rule": {
+    "by_day": 0.457,
+    "option_C": 0.407
+   },
+   "effect_R_bar": {
+    "H7_XAUUSD_eod": 0.04,
+    "G9_XAUUSD_eod": 0.21
+   }
+  },
+  {
+   "block_level": "none",
+   "tau": 0.0,
+   "effect": "G9_only_0.21",
+   "reps": 2000,
+   "rejection_at_0.025": {
+    "T1a_day": 0.474,
+    "T1a_run": 0.406,
+    "T1b_day": 0.021
+   },
+   "option_C": {
+    "T1a_run_at_0.05": 0.583,
+    "T1a_day_0.025_and_run_0.05": 0.425
+   },
+   "full_rule": {
+    "by_day": 0.347,
+    "option_C": 0.317
+   },
+   "effect_R_bar": {
+    "H7_XAUUSD_eod": 0.0,
+    "G9_XAUUSD_eod": 0.21
+   }
+  }
+ ]
+}

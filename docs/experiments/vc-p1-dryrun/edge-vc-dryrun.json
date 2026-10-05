@@ -1,0 +1,1653 @@
+{
+ "meta": {
+  "script": "scripts/research/edge_vc.py",
+  "preregistration": "docs/plans/2026-10-04-vc-volatility-condition-preregistration.md",
+  "tag": "[VC-P1]",
+  "read": "dry-run",
+  "git_head": "6887d5f2b860f1f7af844749c18f57e4fd4a1a59",
+  "k": 1.4,
+  "k_report": 2.0,
+  "regime_days": 250,
+  "min_hist": 125,
+  "nb_ref": 144,
+  "definition": "point in time (VC-P1 \u00a71-\u00a72): sigma_every_day series, last-bar signals dropped, nb on the clock, fvg_forward.resolve_row walk; whole-history dense threshold (edge_census.py:104-107); report-only sensitivities: research mode, causal density, without the paper log's refusals",
+  "t1a_statistic": "R_bar, cell means weighted by nb_weight (VC-P1 \u00a74 switch, gap rule 0.1)",
+  "t1b_statistic": "R_bar, cell means weighted by nb_planned (nb_weight)",
+  "holdout": "B",
+  "holdout_end": "2008-12-10",
+  "report_window": "A",
+  "report_end": "2018-01-01",
+  "written_utc": "2026-10-05T06:40:09.050854+00:00",
+  "code_sha256": {
+   "scripts/research/edge_vc.py": "e92accf5fb1a68341a13ed68cf48b25c70a04eda876cee5909a8ba4346f84f24",
+   "scripts/tests/test_edge_vc.py": "7687ab545d7bfb4da902664549d068ff612fc79ea140759948b3fbd319242917",
+   "scripts/tests/test_pit_trend.py": "a6c11cda9045ee68b0c2d897e5eb6d29874a2df8b1a2db744a717077bf9bd4eb",
+   "scripts/tests/test_prereg_guard.py": "fea0797cda6ac44f3a0b3448c6681bee5bbed778681dc3b4f431b60bf6652c67",
+   "scripts/research/pit_trend.py": "4ce6c1b3068a90b22a930f307e34aa62f3ff74e25b8cc8141d870509fa4973d5",
+   "scripts/research/prereg_guard.py": "d0f9cc57b0fa18e2c10be79a408d7b7b546013dd467fb1af2edd416605c4e830",
+   "scripts/research/edge_census.py": "e052dab288df80f613d9f4156ddacc10d892d4ed1ad62468b4f1d7d953e71afc",
+   "scripts/research/edge_f3.py": "242dcde369eaf188892df3f42a9c72ee34fb47f0a11219e1c945a6060c8f8e12",
+   "scripts/research/edge_f4.py": "e5f6ec8ad60f943196b86c0a2dc0d42f8c4805af43380c1fe03ed84149bba25b",
+   "scripts/research/book_sim.py": "19e52f4781f7c83e50578a3b7bc4f08835871bf7342566fd3c0c1ff1277498d2",
+   "scripts/research/fvg_book_sim.py": "30e1a7158204cb1c653ccad23828bc556499915595c236b3f586e774290fc56b",
+   "scripts/research/fvg_forward.py": "009773a2d57571ac3d11cb2724ab7054f4bcb39d642925217c00e9b658ffcf2c",
+   "scripts/real_costs.py": "572ec698d4931efb58cab12e8b0e6f20720da07baccad6c130ef239f8fd26e1c",
+   "scripts/history_store.py": "e0b6bebe9eb81c65b077bfa4c5064aaaa081ac290dd6f0fbdf7bcf147bd20de0",
+   "scripts/mt5_time.py": "2cfac8616eac158575ebb1350f763d72fdfdca076066fb4a05375859cc0f620a",
+   "scripts/providers.py": "3afed187584f597bd81fbe66da058cd9dc2f4666bfdce973fcbb635aff8adfc3",
+   "scripts/instruments.py": "4dceb0425b3bd32b9e98848f565f0fcbe624ee6cf9ab30d7d5e88c0d4badf188",
+   "scripts/broker_symbols.py": "b5733acd7349c96d2a8544d6c1b160c699f2f34e3a8bfb10c61360b5d3f4ca96"
+  },
+  "code_uncommitted": [
+   "scripts/research/edge_vc.py",
+   "scripts/tests/test_edge_vc.py"
+  ],
+  "dataset": {
+   "XAUUSD|5m": "aab48876789b946e2b1a2176b0fe09c85be1505004285c1a54880b6ac2b55180",
+   "XAGUSD|5m": "120866d22e351b68f1fe468b7d13d44f8bb1ce0e7f772307e47fffcd9bc5fb52"
+  }
+ },
+ "counts": {
+  "H7_XAUUSD_eod": {
+   "median_entry_slot": 637.5,
+   "first_vr_day": "2005-12-13",
+   "decisive": {
+    "no_vr": 52,
+    "low": 78,
+    "low_long_hold": 26,
+    "low_short_hold": 52,
+    "high": 224,
+    "high_short_hold": 99,
+    "high_long_hold": 125,
+    "last_bar_signal": 0,
+    "no_sigma": 0,
+    "window": "B",
+    "end": "2008-12-10",
+    "research_mode": {
+     "events": 315,
+     "no_research_sigma": 0,
+     "only_point_in_time": 39,
+     "only_research": 0
+    },
+    "nb_clock_vs_stored": {
+     "all": {
+      "n": 302,
+      "nb_clock": 49562,
+      "nb_stored": 45122,
+      "short_gt12": 112,
+      "with_holes": 241,
+      "holes_bars": 2202,
+      "early_end_gt2": 197,
+      "early_end_bars": 2238
+     },
+     "high": {
+      "n": 224,
+      "nb_clock": 38345,
+      "nb_stored": 35114,
+      "short_gt12": 71,
+      "with_holes": 167,
+      "holes_bars": 1615,
+      "early_end_gt2": 140,
+      "early_end_bars": 1616
+     },
+     "low": {
+      "n": 78,
+      "nb_clock": 11217,
+      "nb_stored": 10008,
+      "short_gt12": 41,
+      "with_holes": 74,
+      "holes_bars": 587,
+      "early_end_gt2": 57,
+      "early_end_bars": 622
+     },
+     "long_hold": {
+      "n": 151,
+      "nb_clock": 34131,
+      "nb_stored": 31571,
+      "short_gt12": 65,
+      "with_holes": 120,
+      "holes_bars": 1458,
+      "early_end_gt2": 99,
+      "early_end_bars": 1102
+     },
+     "short_hold": {
+      "n": 151,
+      "nb_clock": 15431,
+      "nb_stored": 13551,
+      "short_gt12": 47,
+      "with_holes": 121,
+      "holes_bars": 744,
+      "early_end_gt2": 98,
+      "early_end_bars": 1136
+     }
+    },
+    "refusable": {
+     "hole": 43,
+     "stale_vol": 32,
+     "high": 61,
+     "low": 14,
+     "long_hold": 36,
+     "short_hold": 39
+    },
+    "planned_bars": {
+     "q10": 79,
+     "q25": 106,
+     "q50": 161,
+     "q75": 244,
+     "q90": 271,
+     "n": 302,
+     "under_24": 3
+    },
+    "cells": {
+     "side=-1|high": {
+      "n": 87,
+      "bars": 14440,
+      "days": 87,
+      "n2_days": 87,
+      "rootnb2_days": 14440
+     },
+     "side=-1|long_hold": {
+      "n": 52,
+      "bars": 11589,
+      "days": 52,
+      "n2_days": 52,
+      "rootnb2_days": 11589
+     },
+     "side=-1|low": {
+      "n": 23,
+      "bars": 3332,
+      "days": 23,
+      "n2_days": 23,
+      "rootnb2_days": 3332
+     },
+     "side=-1|short_hold": {
+      "n": 58,
+      "bars": 6183,
+      "days": 58,
+      "n2_days": 58,
+      "rootnb2_days": 6183
+     },
+     "side=1|high": {
+      "n": 137,
+      "bars": 23905,
+      "days": 137,
+      "n2_days": 137,
+      "rootnb2_days": 23905
+     },
+     "side=1|long_hold": {
+      "n": 99,
+      "bars": 22542,
+      "days": 99,
+      "n2_days": 99,
+      "rootnb2_days": 22542
+     },
+     "side=1|low": {
+      "n": 55,
+      "bars": 7885,
+      "days": 55,
+      "n2_days": 55,
+      "rootnb2_days": 7885
+     },
+     "side=1|short_hold": {
+      "n": 93,
+      "bars": 9248,
+      "days": 93,
+      "n2_days": 93,
+      "rootnb2_days": 9248
+     }
+    },
+    "power_inputs": {
+     "mean_bars": {
+      "high": 171.18303571428572,
+      "low": 143.80769230769232,
+      "long_hold": 226.03311258278146,
+      "short_hold": 102.19205298013244
+     },
+     "vr_halves_bars_gap": 0.19036077255186637,
+     "se_per_sd": {
+      "T1a": 0.13917251367196118,
+      "T1b": 0.12007731991988076,
+      "T1a_raw_R": 0.14182172083106603,
+      "T1b_raw_R": 0.11971408314622717
+     },
+     "se_per_sd_same_day": {
+      "T1a": 0.13917251367196118,
+      "T1b": 0.12007731991988076,
+      "T1a_raw_R": 0.14182172083106603,
+      "T1b_raw_R": 0.11971408314622717
+     }
+    }
+   },
+   "report_only": {
+    "no_vr": 52,
+    "low": 735,
+    "low_long_hold": 490,
+    "low_short_hold": 245,
+    "high": 581,
+    "high_short_hold": 198,
+    "high_long_hold": 383,
+    "last_bar_signal": 0,
+    "no_sigma": 0,
+    "window": "A",
+    "end": "2018-01-01",
+    "research_mode": {
+     "events": 1318,
+     "no_research_sigma": 0,
+     "only_point_in_time": 50,
+     "only_research": 0
+    },
+    "nb_clock_vs_stored": {
+     "all": {
+      "n": 1316,
+      "nb_clock": 259125,
+      "nb_stored": 249194,
+      "short_gt12": 167,
+      "with_holes": 379,
+      "holes_bars": 3227,
+      "early_end_gt2": 444,
+      "early_end_bars": 6704
+     },
+     "high": {
+      "n": 581,
+      "nb_clock": 111939,
+      "nb_stored": 106693,
+      "short_gt12": 90,
+      "with_holes": 210,
+      "holes_bars": 2101,
+      "early_end_gt2": 206,
+      "early_end_bars": 3145
+     },
+     "low": {
+      "n": 735,
+      "nb_clock": 147186,
+      "nb_stored": 142501,
+      "short_gt12": 77,
+      "with_holes": 169,
+      "holes_bars": 1126,
+      "early_end_gt2": 238,
+      "early_end_bars": 3559
+     },
+     "long_hold": {
+      "n": 873,
+      "nb_clock": 213904,
+      "nb_stored": 207752,
+      "short_gt12": 104,
+      "with_holes": 204,
+      "holes_bars": 2122,
+      "early_end_gt2": 247,
+      "early_end_bars": 4030
+     },
+     "short_hold": {
+      "n": 443,
+      "nb_clock": 45221,
+      "nb_stored": 41442,
+      "short_gt12": 63,
+      "with_holes": 175,
+      "holes_bars": 1105,
+      "early_end_gt2": 197,
+      "early_end_bars": 2674
+     }
+    },
+    "refusable": {
+     "hole": 177,
+     "stale_vol": 48,
+     "high": 117,
+     "low": 108,
+     "long_hold": 130,
+     "short_hold": 95
+    },
+    "planned_bars": {
+     "q10": 85,
+     "q25": 125,
+     "q50": 215,
+     "q75": 274,
+     "q90": 275,
+     "n": 1316,
+     "under_24": 10
+    },
+    "cells": {
+     "side=-1|high": {
+      "n": 247,
+      "bars": 48046,
+      "days": 247,
+      "n2_days": 247,
+      "rootnb2_days": 48046
+     },
+     "side=-1|long_hold": {
+      "n": 367,
+      "bars": 91134,
+      "days": 367,
+      "n2_days": 367,
+      "rootnb2_days": 91134
+     },
+     "side=-1|low": {
+      "n": 297,
+      "bars": 61368,
+      "days": 297,
+      "n2_days": 297,
+      "rootnb2_days": 61368
+     },
+     "side=-1|short_hold": {
+      "n": 177,
+      "bars": 18280,
+      "days": 177,
+      "n2_days": 177,
+      "rootnb2_days": 18280
+     },
+     "side=1|high": {
+      "n": 334,
+      "bars": 63893,
+      "days": 334,
+      "n2_days": 334,
+      "rootnb2_days": 63893
+     },
+     "side=1|long_hold": {
+      "n": 506,
+      "bars": 122770,
+      "days": 506,
+      "n2_days": 506,
+      "rootnb2_days": 122770
+     },
+     "side=1|low": {
+      "n": 438,
+      "bars": 85818,
+      "days": 438,
+      "n2_days": 438,
+      "rootnb2_days": 85818
+     },
+     "side=1|short_hold": {
+      "n": 266,
+      "bars": 26941,
+      "days": 266,
+      "n2_days": 266,
+      "rootnb2_days": 26941
+     }
+    },
+    "power_inputs": {
+     "mean_bars": {
+      "high": 192.66609294320136,
+      "low": 200.25306122448978,
+      "long_hold": 245.02176403207332,
+      "short_hold": 102.07900677200902
+     },
+     "vr_halves_bars_gap": 0.03937884536603483,
+     "se_per_sd": {
+      "T1a": 0.04815434879673369,
+      "T1b": 0.06319709392175957,
+      "T1a_raw_R": 0.0563309492238364,
+      "T1b_raw_R": 0.059393173504351714
+     },
+     "se_per_sd_same_day": {
+      "T1a": 0.04815434879673369,
+      "T1b": 0.06319709392175957,
+      "T1a_raw_R": 0.0563309492238364,
+      "T1b_raw_R": 0.059393173504351714
+     }
+    }
+   }
+  },
+  "G9_XAUUSD_eod": {
+   "median_entry_slot": 875.0,
+   "first_vr_day": "2005-12-13",
+   "decisive": {
+    "no_vr": 84,
+    "low": 139,
+    "low_short_hold": 69,
+    "low_long_hold": 70,
+    "high": 321,
+    "high_long_hold": 157,
+    "high_short_hold": 164,
+    "last_bar_signal": 0,
+    "no_sigma": 16,
+    "window": "B",
+    "end": "2008-12-10",
+    "research_mode": {
+     "events": 485,
+     "no_research_sigma": 75,
+     "only_point_in_time": 59,
+     "only_research": 0
+    },
+    "nb_clock_vs_stored": {
+     "all": {
+      "n": 460,
+      "nb_clock": 58047,
+      "nb_stored": 52381,
+      "short_gt12": 148,
+      "with_holes": 378,
+      "holes_bars": 2730,
+      "early_end_gt2": 278,
+      "early_end_bars": 2936
+     },
+     "high": {
+      "n": 321,
+      "nb_clock": 41036,
+      "nb_stored": 37192,
+      "short_gt12": 85,
+      "with_holes": 246,
+      "holes_bars": 1782,
+      "early_end_gt2": 187,
+      "early_end_bars": 2062
+     },
+     "low": {
+      "n": 139,
+      "nb_clock": 17011,
+      "nb_stored": 15189,
+      "short_gt12": 63,
+      "with_holes": 132,
+      "holes_bars": 948,
+      "early_end_gt2": 91,
+      "early_end_bars": 874
+     },
+     "long_hold": {
+      "n": 227,
+      "nb_clock": 37747,
+      "nb_stored": 34835,
+      "short_gt12": 81,
+      "with_holes": 189,
+      "holes_bars": 1543,
+      "early_end_gt2": 134,
+      "early_end_bars": 1369
+     },
+     "short_hold": {
+      "n": 233,
+      "nb_clock": 20300,
+      "nb_stored": 17546,
+      "short_gt12": 67,
+      "with_holes": 189,
+      "holes_bars": 1187,
+      "early_end_gt2": 144,
+      "early_end_bars": 1567
+     }
+    },
+    "refusable": {
+     "hole": 65,
+     "stale_vol": 48,
+     "high": 85,
+     "low": 28,
+     "long_hold": 53,
+     "short_hold": 60
+    },
+    "planned_bars": {
+     "q10": 70,
+     "q25": 95,
+     "q50": 113,
+     "q75": 160,
+     "q90": 197,
+     "n": 460,
+     "under_24": 3
+    },
+    "cells": {
+     "side=-1|high": {
+      "n": 172,
+      "bars": 21795,
+      "days": 172,
+      "n2_days": 172,
+      "rootnb2_days": 21795
+     },
+     "side=-1|long_hold": {
+      "n": 119,
+      "bars": 19556,
+      "days": 119,
+      "n2_days": 119,
+      "rootnb2_days": 19556
+     },
+     "side=-1|low": {
+      "n": 70,
+      "bars": 8351,
+      "days": 70,
+      "n2_days": 70,
+      "rootnb2_days": 8351
+     },
+     "side=-1|short_hold": {
+      "n": 123,
+      "bars": 10590,
+      "days": 123,
+      "n2_days": 123,
+      "rootnb2_days": 10590
+     },
+     "side=1|high": {
+      "n": 149,
+      "bars": 19241,
+      "days": 149,
+      "n2_days": 149,
+      "rootnb2_days": 19241
+     },
+     "side=1|long_hold": {
+      "n": 108,
+      "bars": 18191,
+      "days": 108,
+      "n2_days": 108,
+      "rootnb2_days": 18191
+     },
+     "side=1|low": {
+      "n": 69,
+      "bars": 8660,
+      "days": 69,
+      "n2_days": 69,
+      "rootnb2_days": 8660
+     },
+     "side=1|short_hold": {
+      "n": 110,
+      "bars": 9710,
+      "days": 110,
+      "n2_days": 110,
+      "rootnb2_days": 9710
+     }
+    },
+    "power_inputs": {
+     "mean_bars": {
+      "high": 127.8380062305296,
+      "low": 122.38129496402878,
+      "long_hold": 166.2863436123348,
+      "short_hold": 87.12446351931331
+     },
+     "vr_halves_bars_gap": 0.0445877882572226,
+     "se_per_sd": {
+      "T1a": 0.1095018925400695,
+      "T1b": 0.10453142737057933,
+      "T1a_raw_R": 0.10161671958054927,
+      "T1b_raw_R": 0.0933857738035071
+     },
+     "se_per_sd_same_day": {
+      "T1a": 0.1095018925400695,
+      "T1b": 0.10453142737057933,
+      "T1a_raw_R": 0.10161671958054927,
+      "T1b_raw_R": 0.0933857738035071
+     }
+    }
+   },
+   "report_only": {
+    "no_vr": 84,
+    "low": 1069,
+    "low_short_hold": 334,
+    "low_long_hold": 735,
+    "high": 893,
+    "high_long_hold": 575,
+    "high_short_hold": 318,
+    "last_bar_signal": 0,
+    "no_sigma": 16,
+    "window": "A",
+    "end": "2018-01-01",
+    "research_mode": {
+     "events": 1974,
+     "no_research_sigma": 88,
+     "only_point_in_time": 72,
+     "only_research": 0
+    },
+    "nb_clock_vs_stored": {
+     "all": {
+      "n": 1962,
+      "nb_clock": 337342,
+      "nb_stored": 324521,
+      "short_gt12": 223,
+      "with_holes": 577,
+      "holes_bars": 3760,
+      "early_end_gt2": 633,
+      "early_end_bars": 9061
+     },
+     "high": {
+      "n": 893,
+      "nb_clock": 148195,
+      "nb_stored": 141741,
+      "short_gt12": 111,
+      "with_holes": 307,
+      "holes_bars": 2101,
+      "early_end_gt2": 298,
+      "early_end_bars": 4353
+     },
+     "low": {
+      "n": 1069,
+      "nb_clock": 189147,
+      "nb_stored": 182780,
+      "short_gt12": 112,
+      "with_holes": 270,
+      "holes_bars": 1659,
+      "early_end_gt2": 335,
+      "early_end_bars": 4708
+     },
+     "long_hold": {
+      "n": 1310,
+      "nb_clock": 282954,
+      "nb_stored": 275054,
+      "short_gt12": 143,
+      "with_holes": 322,
+      "holes_bars": 2334,
+      "early_end_gt2": 354,
+      "early_end_bars": 5566
+     },
+     "short_hold": {
+      "n": 652,
+      "nb_clock": 54388,
+      "nb_stored": 49467,
+      "short_gt12": 80,
+      "with_holes": 255,
+      "holes_bars": 1426,
+      "early_end_gt2": 279,
+      "early_end_bars": 3495
+     }
+    },
+    "refusable": {
+     "hole": 261,
+     "stale_vol": 69,
+     "high": 168,
+     "low": 162,
+     "long_hold": 201,
+     "short_hold": 129
+    },
+    "planned_bars": {
+     "q10": 76,
+     "q25": 102,
+     "q50": 160,
+     "q75": 275,
+     "q90": 275,
+     "n": 1962,
+     "under_24": 11
+    },
+    "cells": {
+     "side=-1|high": {
+      "n": 467,
+      "bars": 76916,
+      "days": 467,
+      "n2_days": 467,
+      "rootnb2_days": 76916
+     },
+     "side=-1|long_hold": {
+      "n": 668,
+      "bars": 145177,
+      "days": 668,
+      "n2_days": 668,
+      "rootnb2_days": 145177
+     },
+     "side=-1|low": {
+      "n": 533,
+      "bars": 95568,
+      "days": 533,
+      "n2_days": 533,
+      "rootnb2_days": 95568
+     },
+     "side=-1|short_hold": {
+      "n": 332,
+      "bars": 27307,
+      "days": 332,
+      "n2_days": 332,
+      "rootnb2_days": 27307
+     },
+     "side=1|high": {
+      "n": 426,
+      "bars": 71279,
+      "days": 426,
+      "n2_days": 426,
+      "rootnb2_days": 71279
+     },
+     "side=1|long_hold": {
+      "n": 642,
+      "bars": 137777,
+      "days": 642,
+      "n2_days": 642,
+      "rootnb2_days": 137777
+     },
+     "side=1|low": {
+      "n": 536,
+      "bars": 93579,
+      "days": 536,
+      "n2_days": 536,
+      "rootnb2_days": 93579
+     },
+     "side=1|short_hold": {
+      "n": 320,
+      "bars": 27081,
+      "days": 320,
+      "n2_days": 320,
+      "rootnb2_days": 27081
+     }
+    },
+    "power_inputs": {
+     "mean_bars": {
+      "high": 165.9518477043673,
+      "low": 176.93826005612723,
+      "long_hold": 215.99541984732824,
+      "short_hold": 83.41717791411043
+     },
+     "vr_halves_bars_gap": 0.06620241054098729,
+     "se_per_sd": {
+      "T1a": 0.041647298526145425,
+      "T1b": 0.05618677371758872,
+      "T1a_raw_R": 0.04536129879416179,
+      "T1b_raw_R": 0.04793664198593006
+     },
+     "se_per_sd_same_day": {
+      "T1a": 0.041647298526145425,
+      "T1b": 0.05618677371758872,
+      "T1a_raw_R": 0.04536129879416179,
+      "T1b_raw_R": 0.04793664198593006
+     }
+    }
+   }
+  },
+  "G9_XAGUSD_eod": {
+   "median_entry_slot": null,
+   "first_vr_day": "2009-06-22",
+   "decisive": {
+    "last_bar_signal": 0,
+    "no_sigma": 11,
+    "window": "B",
+    "end": "2008-12-10",
+    "research_mode": {
+     "events": 0,
+     "no_research_sigma": 11,
+     "only_point_in_time": 0,
+     "only_research": 0
+    },
+    "nb_clock_vs_stored": {
+     "all": {
+      "n": 0,
+      "nb_clock": 0,
+      "nb_stored": 0,
+      "short_gt12": 0,
+      "with_holes": 0,
+      "holes_bars": 0,
+      "early_end_gt2": 0,
+      "early_end_bars": 0
+     },
+     "high": {
+      "n": 0,
+      "nb_clock": 0,
+      "nb_stored": 0,
+      "short_gt12": 0,
+      "with_holes": 0,
+      "holes_bars": 0,
+      "early_end_gt2": 0,
+      "early_end_bars": 0
+     },
+     "low": {
+      "n": 0,
+      "nb_clock": 0,
+      "nb_stored": 0,
+      "short_gt12": 0,
+      "with_holes": 0,
+      "holes_bars": 0,
+      "early_end_gt2": 0,
+      "early_end_bars": 0
+     },
+     "long_hold": {
+      "n": 0,
+      "nb_clock": 0,
+      "nb_stored": 0,
+      "short_gt12": 0,
+      "with_holes": 0,
+      "holes_bars": 0,
+      "early_end_gt2": 0,
+      "early_end_bars": 0
+     },
+     "short_hold": {
+      "n": 0,
+      "nb_clock": 0,
+      "nb_stored": 0,
+      "short_gt12": 0,
+      "with_holes": 0,
+      "holes_bars": 0,
+      "early_end_gt2": 0,
+      "early_end_bars": 0
+     }
+    },
+    "refusable": {
+     "hole": 0,
+     "stale_vol": 0,
+     "high": 0,
+     "low": 0,
+     "long_hold": 0,
+     "short_hold": 0
+    },
+    "planned_bars": {
+     "n": 0
+    },
+    "cells": {},
+    "power_inputs": {
+     "mean_bars": {
+      "high": null,
+      "low": null,
+      "long_hold": null,
+      "short_hold": null
+     },
+     "vr_halves_bars_gap": null,
+     "se_per_sd": {
+      "T1a": null,
+      "T1b": null,
+      "T1a_raw_R": null,
+      "T1b_raw_R": null
+     },
+     "se_per_sd_same_day": {
+      "T1a": null,
+      "T1b": null,
+      "T1a_raw_R": null,
+      "T1b_raw_R": null
+     }
+    }
+   },
+   "report_only": {
+    "no_vr": 88,
+    "low": 844,
+    "high": 560,
+    "last_bar_signal": 1,
+    "no_sigma": 11,
+    "window": "A",
+    "end": "2018-01-01",
+    "research_mode": {
+     "events": 1479,
+     "no_research_sigma": 24,
+     "only_point_in_time": 13,
+     "only_research": 0
+    },
+    "nb_clock_vs_stored": {
+     "all": {
+      "n": 1404,
+      "nb_clock": 255821,
+      "nb_stored": 248791,
+      "short_gt12": 155,
+      "with_holes": 263,
+      "holes_bars": 1223,
+      "early_end_gt2": 343,
+      "early_end_bars": 5807
+     },
+     "high": {
+      "n": 560,
+      "nb_clock": 97639,
+      "nb_stored": 95132,
+      "short_gt12": 38,
+      "with_holes": 54,
+      "holes_bars": 282,
+      "early_end_gt2": 114,
+      "early_end_bars": 2225
+     },
+     "low": {
+      "n": 844,
+      "nb_clock": 158182,
+      "nb_stored": 153659,
+      "short_gt12": 117,
+      "with_holes": 209,
+      "holes_bars": 941,
+      "early_end_gt2": 229,
+      "early_end_bars": 3582
+     },
+     "long_hold": {
+      "n": 0,
+      "nb_clock": 0,
+      "nb_stored": 0,
+      "short_gt12": 0,
+      "with_holes": 0,
+      "holes_bars": 0,
+      "early_end_gt2": 0,
+      "early_end_bars": 0
+     },
+     "short_hold": {
+      "n": 0,
+      "nb_clock": 0,
+      "nb_stored": 0,
+      "short_gt12": 0,
+      "with_holes": 0,
+      "holes_bars": 0,
+      "early_end_gt2": 0,
+      "early_end_bars": 0
+     }
+    },
+    "refusable": {
+     "hole": 122,
+     "stale_vol": 20,
+     "high": 68,
+     "low": 74,
+     "long_hold": 0,
+     "short_hold": 0
+    },
+    "planned_bars": {
+     "q10": 76,
+     "q25": 103,
+     "q50": 175,
+     "q75": 275,
+     "q90": 275,
+     "n": 1404,
+     "under_24": 17
+    },
+    "cells": {
+     "side=-1|high": {
+      "n": 262,
+      "bars": 46850,
+      "days": 262,
+      "n2_days": 262,
+      "rootnb2_days": 46850
+     },
+     "side=-1|low": {
+      "n": 435,
+      "bars": 81911,
+      "days": 435,
+      "n2_days": 435,
+      "rootnb2_days": 81911
+     },
+     "side=1|high": {
+      "n": 298,
+      "bars": 50789,
+      "days": 298,
+      "n2_days": 298,
+      "rootnb2_days": 50789
+     },
+     "side=1|low": {
+      "n": 409,
+      "bars": 76271,
+      "days": 409,
+      "n2_days": 409,
+      "rootnb2_days": 76271
+     }
+    },
+    "power_inputs": {
+     "mean_bars": {
+      "high": 174.35535714285714,
+      "low": 187.41943127962085,
+      "long_hold": null,
+      "short_hold": null
+     },
+     "vr_halves_bars_gap": 0.07492786198739926,
+     "se_per_sd": {
+      "T1a": 0.04887460775578548,
+      "T1b": null,
+      "T1a_raw_R": 0.054580987854953016,
+      "T1b_raw_R": null
+     },
+     "se_per_sd_same_day": {
+      "T1a": 0.04887460775578548,
+      "T1b": null,
+      "T1a_raw_R": 0.054580987854953016,
+      "T1b_raw_R": null
+     }
+    }
+   }
+  },
+  "xau_pooled": {
+   "decisive": {
+    "mean_bars": {
+     "high": 145.6532110091743,
+     "low": 130.08294930875576,
+     "long_hold": 190.15343915343917,
+     "short_hold": 93.04947916666667
+    },
+    "vr_halves_bars_gap": 0.11969486995149581,
+    "se_per_sd": {
+     "T1a": 0.08417348240138207,
+     "T1b": 0.07800595558543788,
+     "T1a_raw_R": 0.08089300287815786,
+     "T1b_raw_R": 0.0726805361558507
+    },
+    "se_per_sd_same_day": {
+     "T1a": 0.10141575893383284,
+     "T1b": 0.09058301498270457,
+     "T1a_raw_R": 0.09817149995289064,
+     "T1b_raw_R": 0.0842622473856049
+    },
+    "window": "B",
+    "end": "2008-12-10",
+    "cells": {
+     "side=-1|high": {
+      "n": 259,
+      "bars": 36235,
+      "days": 196,
+      "n2_days": 385,
+      "rootnb2_days": 54281
+     },
+     "side=-1|long_hold": {
+      "n": 171,
+      "bars": 31145,
+      "days": 147,
+      "n2_days": 219,
+      "rootnb2_days": 40503
+     },
+     "side=-1|low": {
+      "n": 93,
+      "bars": 11683,
+      "days": 78,
+      "n2_days": 123,
+      "rootnb2_days": 15126
+     },
+     "side=-1|short_hold": {
+      "n": 181,
+      "bars": 16773,
+      "days": 152,
+      "n2_days": 239,
+      "rootnb2_days": 22128
+     },
+     "side=1|high": {
+      "n": 286,
+      "bars": 43146,
+      "days": 206,
+      "n2_days": 446,
+      "rootnb2_days": 66341
+     },
+     "side=1|long_hold": {
+      "n": 207,
+      "bars": 40733,
+      "days": 168,
+      "n2_days": 285,
+      "rootnb2_days": 56499
+     },
+     "side=1|low": {
+      "n": 124,
+      "bars": 16545,
+      "days": 85,
+      "n2_days": 202,
+      "rootnb2_days": 26799
+     },
+     "side=1|short_hold": {
+      "n": 203,
+      "bars": 18958,
+      "days": 161,
+      "n2_days": 287,
+      "rootnb2_days": 26403
+     }
+    },
+    "planned_bars": {
+     "q10": 73,
+     "q25": 97,
+     "q50": 122,
+     "q75": 179,
+     "q90": 254,
+     "n": 762,
+     "under_24": 6
+    },
+    "nb_clock_vs_stored": {
+     "all": {
+      "n": 762,
+      "nb_clock": 107609,
+      "nb_stored": 97503,
+      "short_gt12": 260,
+      "with_holes": 619,
+      "holes_bars": 4932,
+      "early_end_gt2": 475,
+      "early_end_bars": 5174
+     },
+     "high": {
+      "n": 545,
+      "nb_clock": 79381,
+      "nb_stored": 72306,
+      "short_gt12": 156,
+      "with_holes": 413,
+      "holes_bars": 3397,
+      "early_end_gt2": 327,
+      "early_end_bars": 3678
+     },
+     "low": {
+      "n": 217,
+      "nb_clock": 28228,
+      "nb_stored": 25197,
+      "short_gt12": 104,
+      "with_holes": 206,
+      "holes_bars": 1535,
+      "early_end_gt2": 148,
+      "early_end_bars": 1496
+     },
+     "long_hold": {
+      "n": 378,
+      "nb_clock": 71878,
+      "nb_stored": 66406,
+      "short_gt12": 146,
+      "with_holes": 309,
+      "holes_bars": 3001,
+      "early_end_gt2": 233,
+      "early_end_bars": 2471
+     },
+     "short_hold": {
+      "n": 384,
+      "nb_clock": 35731,
+      "nb_stored": 31097,
+      "short_gt12": 114,
+      "with_holes": 310,
+      "holes_bars": 1931,
+      "early_end_gt2": 242,
+      "early_end_bars": 2703
+     }
+    },
+    "regime_blocks": {
+     "days_with_vr": 764,
+     "runs": {
+      "high": 4,
+      "low": 4
+     },
+     "run_days_median": {
+      "high": 150.5,
+      "low": 47.0
+     },
+     "run_days_max": 216,
+     "trades_by_year": {
+      "2005": {
+       "high": 0,
+       "low": 9
+      },
+      "2006": {
+       "high": 186,
+       "low": 29
+      },
+      "2007": {
+       "high": 85,
+       "low": 175
+      },
+      "2008": {
+       "high": 274,
+       "low": 4
+      }
+     },
+     "run_days": {
+      "high": [
+       10,
+       131,
+       170,
+       216
+      ],
+      "low": [
+       4,
+       12,
+       82,
+       139
+      ]
+     },
+     "blocks": [
+      {
+       "half": "low",
+       "first_day": "2005-12-13",
+       "days": 12,
+       "trades": 9
+      },
+      {
+       "half": "high",
+       "first_day": "2005-12-30",
+       "days": 216,
+       "trades": 186
+      },
+      {
+       "half": "low",
+       "first_day": "2006-11-07",
+       "days": 82,
+       "trades": 74
+      },
+      {
+       "half": "high",
+       "first_day": "2007-03-07",
+       "days": 10,
+       "trades": 10
+      },
+      {
+       "half": "low",
+       "first_day": "2007-03-21",
+       "days": 139,
+       "trades": 130
+      },
+      {
+       "half": "high",
+       "first_day": "2007-10-03",
+       "days": 170,
+       "trades": 200
+      },
+      {
+       "half": "low",
+       "first_day": "2008-06-02",
+       "days": 4,
+       "trades": 4
+      },
+      {
+       "half": "high",
+       "first_day": "2008-06-06",
+       "days": 131,
+       "trades": 149
+      }
+     ]
+    },
+    "rule_power": {
+     "sd_R": 0.75,
+     "reps": 20000,
+     "seed": 7,
+     "effects_R_bar": {
+      "equal_0.20": {
+       "H7_XAUUSD_eod": 0.2,
+       "G9_XAUUSD_eod": 0.2
+      },
+      "equal_0.10": {
+       "H7_XAUUSD_eod": 0.1,
+       "G9_XAUUSD_eod": 0.1
+      },
+      "shape_2018_G9_0.21_H7_0.04": {
+       "H7_XAUUSD_eod": 0.04,
+       "G9_XAUUSD_eod": 0.21
+      },
+      "G9_only_0.21": {
+       "H7_XAUUSD_eod": 0.0,
+       "G9_XAUUSD_eod": 0.21
+      }
+     },
+     "T1a": {
+      "equal_0.20": {
+       "independent": {
+        "pooled_alone": 0.878,
+        "holm": 0.879,
+        "full_rule": 0.868
+       },
+       "same_day": {
+        "pooled_alone": 0.734,
+        "holm": 0.736,
+        "full_rule": 0.735
+       }
+      },
+      "equal_0.10": {
+       "independent": {
+        "pooled_alone": 0.341,
+        "holm": 0.344,
+        "full_rule": 0.333
+       },
+       "same_day": {
+        "pooled_alone": 0.251,
+        "holm": 0.254,
+        "full_rule": 0.253
+       }
+      },
+      "shape_2018_G9_0.21_H7_0.04": {
+       "independent": {
+        "pooled_alone": 0.569,
+        "holm": 0.573,
+        "full_rule": 0.466
+       },
+       "same_day": {
+        "pooled_alone": 0.426,
+        "holm": 0.429,
+        "full_rule": 0.4
+       }
+      },
+      "G9_only_0.21": {
+       "independent": {
+        "pooled_alone": 0.46,
+        "holm": 0.463,
+        "full_rule": 0.333
+       },
+       "same_day": {
+        "pooled_alone": 0.34,
+        "holm": 0.343,
+        "full_rule": 0.3
+       }
+      }
+     },
+     "T1b": {
+      "equal_0.20": {
+       "independent": {
+        "pooled_alone": 0.925,
+        "holm": 0.925,
+        "full_rule": 0.92
+       },
+       "same_day": {
+        "pooled_alone": 0.835,
+        "holm": 0.836,
+        "full_rule": 0.836
+       }
+      },
+      "equal_0.10": {
+       "independent": {
+        "pooled_alone": 0.396,
+        "holm": 0.399,
+        "full_rule": 0.39
+       },
+       "same_day": {
+        "pooled_alone": 0.308,
+        "holm": 0.311,
+        "full_rule": 0.311
+       }
+      },
+      "shape_2018_G9_0.21_H7_0.04": {
+       "independent": {
+        "pooled_alone": 0.622,
+        "holm": 0.625,
+        "full_rule": 0.517
+       },
+       "same_day": {
+        "pooled_alone": 0.495,
+        "holm": 0.498,
+        "full_rule": 0.46
+       }
+      },
+      "G9_only_0.21": {
+       "independent": {
+        "pooled_alone": 0.502,
+        "holm": 0.505,
+        "full_rule": 0.365
+       },
+       "same_day": {
+        "pooled_alone": 0.399,
+        "holm": 0.402,
+        "full_rule": 0.34
+       }
+      }
+     }
+    }
+   },
+   "report_only": {
+    "mean_bars": {
+     "high": 176.48168249660787,
+     "low": 186.43736141906874,
+     "long_hold": 227.6032982134677,
+     "short_hold": 90.96712328767123
+    },
+    "vr_halves_bars_gap": 0.05641196741566774,
+    "se_per_sd": {
+     "T1a": 0.03137642506877339,
+     "T1b": 0.0417924210336099,
+     "T1a_raw_R": 0.03517052395137446,
+     "T1b_raw_R": 0.0371092471566386
+    },
+    "se_per_sd_same_day": {
+     "T1a": 0.03840093714052353,
+     "T1b": 0.04799214943358684,
+     "T1a_raw_R": 0.04297949525176127,
+     "T1b_raw_R": 0.04304000878906629
+    },
+    "window": "A",
+    "end": "2018-01-01",
+    "cells": {
+     "side=-1|high": {
+      "n": 714,
+      "bars": 124962,
+      "days": 547,
+      "n2_days": 1048,
+      "rootnb2_days": 185667
+     },
+     "side=-1|long_hold": {
+      "n": 1035,
+      "bars": 236311,
+      "days": 826,
+      "n2_days": 1453,
+      "rootnb2_days": 339544
+     },
+     "side=-1|low": {
+      "n": 830,
+      "bars": 156936,
+      "days": 644,
+      "n2_days": 1202,
+      "rootnb2_days": 231837
+     },
+     "side=-1|short_hold": {
+      "n": 509,
+      "bars": 45587,
+      "days": 442,
+      "n2_days": 643,
+      "rootnb2_days": 57071
+     },
+     "side=1|high": {
+      "n": 760,
+      "bars": 135172,
+      "days": 567,
+      "n2_days": 1146,
+      "rootnb2_days": 201370
+     },
+     "side=1|long_hold": {
+      "n": 1148,
+      "bars": 260547,
+      "days": 896,
+      "n2_days": 1652,
+      "rootnb2_days": 377402
+     },
+     "side=1|low": {
+      "n": 974,
+      "bars": 179397,
+      "days": 700,
+      "n2_days": 1522,
+      "rootnb2_days": 277995
+     },
+     "side=1|short_hold": {
+      "n": 586,
+      "bars": 54022,
+      "days": 481,
+      "n2_days": 796,
+      "rootnb2_days": 72601
+     }
+    },
+    "planned_bars": {
+     "q10": 79,
+     "q25": 108,
+     "q50": 176,
+     "q75": 275,
+     "q90": 275,
+     "n": 3278,
+     "under_24": 21
+    },
+    "nb_clock_vs_stored": {
+     "all": {
+      "n": 3278,
+      "nb_clock": 596467,
+      "nb_stored": 573715,
+      "short_gt12": 390,
+      "with_holes": 956,
+      "holes_bars": 6987,
+      "early_end_gt2": 1077,
+      "early_end_bars": 15765
+     },
+     "high": {
+      "n": 1474,
+      "nb_clock": 260134,
+      "nb_stored": 248434,
+      "short_gt12": 201,
+      "with_holes": 517,
+      "holes_bars": 4202,
+      "early_end_gt2": 504,
+      "early_end_bars": 7498
+     },
+     "low": {
+      "n": 1804,
+      "nb_clock": 336333,
+      "nb_stored": 325281,
+      "short_gt12": 189,
+      "with_holes": 439,
+      "holes_bars": 2785,
+      "early_end_gt2": 573,
+      "early_end_bars": 8267
+     },
+     "long_hold": {
+      "n": 2183,
+      "nb_clock": 496858,
+      "nb_stored": 482806,
+      "short_gt12": 247,
+      "with_holes": 526,
+      "holes_bars": 4456,
+      "early_end_gt2": 601,
+      "early_end_bars": 9596
+     },
+     "short_hold": {
+      "n": 1095,
+      "nb_clock": 99609,
+      "nb_stored": 90909,
+      "short_gt12": 143,
+      "with_holes": 430,
+      "holes_bars": 2531,
+      "early_end_gt2": 476,
+      "early_end_bars": 6169
+     }
+    },
+    "regime_blocks": {
+     "days_with_vr": 3101,
+     "runs": {
+      "high": 47,
+      "low": 48
+     },
+     "run_days_median": {
+      "high": 10,
+      "low": 11.0
+     },
+     "run_days_max": 216,
+     "trades_by_year": {
+      "2005": {
+       "high": 0,
+       "low": 9
+      },
+      "2006": {
+       "high": 186,
+       "low": 29
+      },
+      "2007": {
+       "high": 85,
+       "low": 175
+      },
+      "2008": {
+       "high": 290,
+       "low": 4
+      },
+      "2009": {
+       "high": 54,
+       "low": 230
+      },
+      "2010": {
+       "high": 100,
+       "low": 180
+      },
+      "2011": {
+       "high": 155,
+       "low": 137
+      },
+      "2012": {
+       "high": 77,
+       "low": 186
+      },
+      "2013": {
+       "high": 179,
+       "low": 88
+      },
+      "2014": {
+       "high": 37,
+       "low": 232
+      },
+      "2015": {
+       "high": 148,
+       "low": 125
+      },
+      "2016": {
+       "high": 144,
+       "low": 134
+      },
+      "2017": {
+       "high": 19,
+       "low": 275
+      }
+     }
+    }
+   }
+  },
+  "causal_density": {
+   "H7_XAUUSD_eod": {
+    "first_vr_day": "2005-03-21",
+    "decisive": {
+     "events": 487,
+     "high": 279,
+     "low": 153,
+     "no_vr": 55,
+     "no_sigma": 0
+    },
+    "report_only": {
+     "events": 1509,
+     "high": 637,
+     "low": 817,
+     "no_vr": 55,
+     "no_sigma": 0
+    }
+   },
+   "G9_XAUUSD_eod": {
+    "first_vr_day": "2005-03-21",
+    "decisive": {
+     "events": 708,
+     "high": 394,
+     "low": 227,
+     "no_vr": 87,
+     "no_sigma": 14
+    },
+    "report_only": {
+     "events": 2220,
+     "high": 969,
+     "low": 1164,
+     "no_vr": 87,
+     "no_sigma": 14
+    }
+   },
+   "XAUUSD_dense_days": {
+    "decisive": {
+     "days": 1143,
+     "whole_history_rule": 812,
+     "causal_rule": 1043
+    },
+    "report_only": {
+     "days": 3480,
+     "whole_history_rule": 3072,
+     "causal_rule": 3316
+    },
+    "by_year": {
+     "2004": {
+      "days": 140,
+      "whole_history_rule": 55,
+      "causal_rule": 94
+     },
+     "2005": {
+      "days": 252,
+      "whole_history_rule": 99,
+      "causal_rule": 221
+     },
+     "2006": {
+      "days": 251,
+      "whole_history_rule": 176,
+      "causal_rule": 236
+     },
+     "2007": {
+      "days": 257,
+      "whole_history_rule": 241,
+      "causal_rule": 251
+     },
+     "2008": {
+      "days": 258,
+      "whole_history_rule": 253,
+      "causal_rule": 255
+     },
+     "2009": {
+      "days": 257,
+      "whole_history_rule": 253,
+      "causal_rule": 255
+     },
+     "2010": {
+      "days": 256,
+      "whole_history_rule": 243,
+      "causal_rule": 243
+     },
+     "2011": {
+      "days": 256,
+      "whole_history_rule": 239,
+      "causal_rule": 240
+     },
+     "2012": {
+      "days": 258,
+      "whole_history_rule": 241,
+      "causal_rule": 241
+     },
+     "2013": {
+      "days": 263,
+      "whole_history_rule": 255,
+      "causal_rule": 257
+     },
+     "2014": {
+      "days": 258,
+      "whole_history_rule": 253,
+      "causal_rule": 255
+     },
+     "2015": {
+      "days": 259,
+      "whole_history_rule": 251,
+      "causal_rule": 255
+     },
+     "2016": {
+      "days": 258,
+      "whole_history_rule": 257,
+      "causal_rule": 257
+     },
+     "2017": {
+      "days": 257,
+      "whole_history_rule": 256,
+      "causal_rule": 256
+     }
+    }
+   }
+  }
+ }
+}

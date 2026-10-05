@@ -286,9 +286,48 @@ def _mql5_dow(date):
     return (date.weekday() + 1) % 7
 
 
-def spread_price(profile_name, canonical_symbol, hour_utc, stat="median"):
-    """(price, note) -- the spread at `hour_utc` (0..23, the bar's OWN UTC hour), from the symbol's
-    `recorded_spread_m15.by_utc_hour`, in PRICE units (points * point). `stat` is "median" (default) or "p90"
+#: The hour frame of `recorded_spread_m15.by_utc_hour`. ExportSymbolSpec.mq5 buckets every recorded M15 bar by
+#: `TimeToStruct(server_time - offset)`, offset = the server-GMT offset AT EXPORT (`_server_utc_offset_sec_now`), so table
+#: bucket h holds SERVER hour (h + offset) mod 24 in every DST regime -- it is NOT the bar's UTC hour (in US standard time
+#: the two differ by one hour). "server_table" (erratum 2026-10-04, docs/audits/2026-10-04-cost-hour-erratum.md) prices a
+#: leg at its server hour minus that offset; "utc_legacy" reproduces every record priced before the erratum (the leg's own
+#: UTC hour). Records carry the frame they were priced in (`cost_r` -> `hour_frame`).
+HOUR_FRAMES = ("server_table", "utc_legacy")
+HOUR_FRAME = "server_table"
+
+
+@functools.lru_cache(maxsize=256)
+def export_offset_hours(profile_name, canonical_symbol):
+    """The spec's server-GMT offset at export, in whole hours. The export stamps it from the terminal clock, so a value
+    within 60 s of a whole hour (10799 s) is that hour; anything else refuses (never guessed)."""
+    off = spec(profile_name, canonical_symbol).get("_server_utc_offset_sec_now")
+    if not isinstance(off, int) or isinstance(off, bool):
+        raise CostRefused(f"{canonical_symbol!r} under {profile_name!r}: the spec has no integer "
+                          f"_server_utc_offset_sec_now ({off!r}), so its spread table's hour frame is unknown")
+    h = round(off / 3600)
+    if abs(off - 3600 * h) > 60:
+        raise CostRefused(f"{canonical_symbol!r} under {profile_name!r}: _server_utc_offset_sec_now {off} is not "
+                          f"within 60 s of a whole hour; refusing to guess the spread table's hour frame")
+    return h
+
+
+def table_hour(profile_name, canonical_symbol, when):
+    """The spread-table bucket (0..23) a leg at instant `when` (ISO "...Z" or an aware datetime) is priced at:
+    (server hour - export offset) mod 24 under HOUR_FRAME "server_table"; the leg's UTC hour under "utc_legacy"."""
+    t = _parse_z(when) if isinstance(when, str) else when
+    if t.tzinfo is None:
+        raise CostRefused(f"table_hour needs an aware instant, got {when!r}")
+    if HOUR_FRAME == "utc_legacy":
+        return t.astimezone(datetime.timezone.utc).hour
+    if HOUR_FRAME != "server_table":
+        raise CostRefused(f"HOUR_FRAME {HOUR_FRAME!r} is not one of {HOUR_FRAMES}")
+    _, zone = server_zone(_profile(profile_name)["provider"])
+    return (t.astimezone(zone).hour - export_offset_hours(profile_name, canonical_symbol)) % 24
+
+
+def spread_price(profile_name, canonical_symbol, bucket, stat="median"):
+    """(price, note) -- the spread in table bucket `bucket` (0..23; get it from an instant with `table_hour`), from the
+    symbol's `recorded_spread_m15.by_utc_hour`, in PRICE units (points * point). `stat` is "median" (default) or "p90"
     (the disclosed stress option). Falls back to the symbol's overall `{stat}_points` -- still a measured
     figure, just a coarser one -- when the hour has no recorded bars (n=0, e.g. the broker's daily break);
     `note` says which happened so a caller/report can disclose the degraded granularity rather than treat
@@ -297,13 +336,13 @@ def spread_price(profile_name, canonical_symbol, hour_utc, stat="median"):
     point = d["point"]
     rec = d.get("recorded_spread_m15") or {}
     by_hour = {row["h"]: row for row in (rec.get("by_utc_hour") or ())}
-    row = by_hour.get(hour_utc)
+    row = by_hour.get(bucket)
     if row is not None and row.get("n", 0) > 0 and row.get(stat, -1) not in (None, -1):
         return row[stat] * point, "hour"
     overall = rec.get(f"{stat}_points")
     if overall is None or overall < 0:
         raise CostRefused(f"{canonical_symbol!r} under {profile_name!r}: no recorded spread ({stat}) for "
-                          f"UTC hour {hour_utc} and no overall {stat}_points fallback either -- "
+                          f"table bucket {bucket} and no overall {stat}_points fallback either -- "
                           f"recorded_spread_m15 is missing or empty in {spec_path(profile_name, canonical_symbol)}.")
     return overall * point, "overall_fallback"
 
@@ -441,8 +480,8 @@ def cost_r(entry, stop, entry_time_iso, exit_time_iso, canonical_symbol, side, p
     dist = abs(entry - stop) / entry
     if dist <= 0:
         raise CostRefused("stop distance is zero: entry and stop are the same price.")
-    entry_hour = _parse_z(entry_time_iso).hour
-    exit_hour = _parse_z(exit_time_iso).hour
+    entry_hour = table_hour(profile_name, canonical_symbol, entry_time_iso)
+    exit_hour = table_hour(profile_name, canonical_symbol, exit_time_iso)
     spread_entry, entry_note = spread_price(profile_name, canonical_symbol, entry_hour, spread_stat)
     spread_exit, exit_note = spread_price(profile_name, canonical_symbol, exit_hour, spread_stat)
     spread_cost_price = spread_entry / 2 + spread_exit / 2
@@ -455,7 +494,7 @@ def cost_r(entry, stop, entry_time_iso, exit_time_iso, canonical_symbol, side, p
     swap_R = -(swap_signed / entry) / dist
     out = {"spread_R": spread_R, "swap_R": swap_R, "commission_R": commission_R,
            "total_R": spread_R + swap_R + commission_R,
-           "nights_held": nights, "spread_stat": spread_stat,
+           "nights_held": nights, "spread_stat": spread_stat, "hour_frame": HOUR_FRAME,
            "spread_entry_note": entry_note, "spread_exit_note": exit_note,
            "swap_note": swap_note, "commission_state": commission_state,
            "profile": profile_name, "symbol": canonical_symbol}

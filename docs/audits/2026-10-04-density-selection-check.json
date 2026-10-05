@@ -1,0 +1,81 @@
+{
+ "meta": {
+  "script": "scripts/research/density_selection_check.py",
+  "status": "DESCRIPTIVE",
+  "end": "9999-12-31T00:00:00Z"
+ },
+ "components": {
+  "H7_XAUUSD_eod stop_k=2.0": {
+   "n_research": 2430,
+   "n_point_in_time": 2485,
+   "only_point_in_time": 55,
+   "only_research": 0,
+   "mean_R_research": 0.04670277316520764,
+   "mean_R_point_in_time": 0.04717525044755841,
+   "mean_R_only_point_in_time": 0.0680501558314197,
+   "max_abs_R_change_on_common_trades": 0.0,
+   "worst_R_research": -1.1015387786671773,
+   "worst_R_point_in_time": -1.1015387786671773
+  },
+  "H7_XAUUSD_eod stop_k=1.4": {
+   "n_research": 2430,
+   "n_point_in_time": 2485,
+   "only_point_in_time": 55,
+   "only_research": 0,
+   "mean_R_research": 0.07611964870173292,
+   "mean_R_point_in_time": 0.07731638703481651,
+   "mean_R_only_point_in_time": 0.13019046247832836,
+   "max_abs_R_change_on_common_trades": 0.0,
+   "worst_R_research": -1.2277503823729827,
+   "worst_R_point_in_time": -1.2277503823729827
+  },
+  "G9_XAUUSD_eod stop_k=2.0": {
+   "n_research": 3549,
+   "n_point_in_time": 3627,
+   "only_point_in_time": 78,
+   "only_research": 0,
+   "mean_R_research": 0.09156470896364419,
+   "mean_R_point_in_time": 0.09006014555394977,
+   "mean_R_only_point_in_time": 0.02160251041285378,
+   "max_abs_R_change_on_common_trades": 0.0,
+   "worst_R_research": -1.17763123268566,
+   "worst_R_point_in_time": -1.17763123268566
+  },
+  "G9_XAUUSD_eod stop_k=1.4": {
+   "n_research": 3549,
+   "n_point_in_time": 3627,
+   "only_point_in_time": 78,
+   "only_research": 0,
+   "mean_R_research": 0.13188869969520098,
+   "mean_R_point_in_time": 0.12977233317740167,
+   "mean_R_only_point_in_time": 0.033477656617532575,
+   "max_abs_R_change_on_common_trades": 0.0,
+   "worst_R_research": -1.3858349417696882,
+   "worst_R_point_in_time": -1.3858349417696882
+  },
+  "G9_XAGUSD_eod stop_k=2.0": {
+   "n_research": 3019,
+   "n_point_in_time": 3040,
+   "only_point_in_time": 21,
+   "only_research": 0,
+   "mean_R_research": 0.06224621786452177,
+   "mean_R_point_in_time": 0.062202976781645075,
+   "mean_R_only_point_in_time": 0.055986556343323245,
+   "max_abs_R_change_on_common_trades": 0.0,
+   "worst_R_research": -1.319886140793933,
+   "worst_R_point_in_time": -1.319886140793933
+  },
+  "G9_XAGUSD_eod stop_k=1.4": {
+   "n_research": 3019,
+   "n_point_in_time": 3040,
+   "only_point_in_time": 21,
+   "only_research": 0,
+   "mean_R_research": 0.08945261456801602,
+   "mean_R_point_in_time": 0.08914061852042987,
+   "mean_R_only_point_in_time": 0.044287472441258385,
+   "max_abs_R_change_on_common_trades": 0.0,
+   "worst_R_research": -1.8855516297056187,
+   "worst_R_point_in_time": -1.8855516297056187
+  }
+ }
+}

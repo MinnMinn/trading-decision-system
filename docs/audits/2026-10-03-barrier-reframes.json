@@ -1,0 +1,2859 @@
+{
+ "meta": {
+  "script": "scripts/research/barrier_reframes.py",
+  "seed": 20261003,
+  "paths": 3000,
+  "T_weekdays": 87,
+  "reads_market_data": false
+ },
+ "grid": [
+  {
+   "sharpe": 0.0,
+   "vol": 0.04,
+   "policy": "const",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.0003333333333333333,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.04,
+   "policy": "dd3",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.0003333333333333333,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.04,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.0,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.06,
+   "policy": "const",
+   "funded_T": 0.0,
+   "fail_first": 0.004666666666666667,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1.0033333333333334,
+   "funded_4T": 0.037,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.06,
+   "policy": "dd3",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.021666666666666667,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.06,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.005333333333333333,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1.0046666666666666,
+   "funded_4T": 0.013,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.08,
+   "policy": "const",
+   "funded_T": 0.001,
+   "fail_first": 0.027666666666666666,
+   "funded_T_retry": 0.001,
+   "mean_fees_T_retry": 1.0256666666666667,
+   "funded_4T": 0.097,
+   "median_days_if_funded_T": 81
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.08,
+   "policy": "dd3",
+   "funded_T": 0.0013333333333333333,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0013333333333333333,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.08633333333333333,
+   "median_days_if_funded_T": 81.5
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.08,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.035,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1.0326666666666666,
+   "funded_4T": 0.06,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.1,
+   "policy": "const",
+   "funded_T": 0.006333333333333333,
+   "fail_first": 0.08433333333333333,
+   "funded_T_retry": 0.006333333333333333,
+   "mean_fees_T_retry": 1.0823333333333334,
+   "funded_4T": 0.16366666666666665,
+   "median_days_if_funded_T": 76
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.1,
+   "policy": "dd3",
+   "funded_T": 0.007,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.007,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.13366666666666666,
+   "median_days_if_funded_T": 79
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.1,
+   "policy": "taper",
+   "funded_T": 0.002,
+   "fail_first": 0.096,
+   "funded_T_retry": 0.002,
+   "mean_fees_T_retry": 1.0923333333333334,
+   "funded_4T": 0.15133333333333332,
+   "median_days_if_funded_T": 77.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.12,
+   "policy": "const",
+   "funded_T": 0.025,
+   "fail_first": 0.15466666666666667,
+   "funded_T_retry": 0.025666666666666667,
+   "mean_fees_T_retry": 1.1516666666666666,
+   "funded_4T": 0.24666666666666667,
+   "median_days_if_funded_T": 71
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.12,
+   "policy": "dd3",
+   "funded_T": 0.021333333333333333,
+   "fail_first": 0.0006666666666666666,
+   "funded_T_retry": 0.021333333333333333,
+   "mean_fees_T_retry": 1.0006666666666666,
+   "funded_4T": 0.19366666666666665,
+   "median_days_if_funded_T": 74.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.12,
+   "policy": "taper",
+   "funded_T": 0.014,
+   "fail_first": 0.16133333333333333,
+   "funded_T_retry": 0.014,
+   "mean_fees_T_retry": 1.161,
+   "funded_4T": 0.22766666666666666,
+   "median_days_if_funded_T": 75.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.15,
+   "policy": "const",
+   "funded_T": 0.07333333333333333,
+   "fail_first": 0.2653333333333333,
+   "funded_T_retry": 0.07466666666666667,
+   "mean_fees_T_retry": 1.2753333333333334,
+   "funded_4T": 0.2896666666666667,
+   "median_days_if_funded_T": 65.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.15,
+   "policy": "dd3",
+   "funded_T": 0.060333333333333336,
+   "fail_first": 0.010666666666666666,
+   "funded_T_retry": 0.060333333333333336,
+   "mean_fees_T_retry": 1.0093333333333334,
+   "funded_4T": 0.22833333333333333,
+   "median_days_if_funded_T": 66
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.15,
+   "policy": "taper",
+   "funded_T": 0.043333333333333335,
+   "fail_first": 0.272,
+   "funded_T_retry": 0.044,
+   "mean_fees_T_retry": 1.2873333333333334,
+   "funded_4T": 0.30366666666666664,
+   "median_days_if_funded_T": 72.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.18,
+   "policy": "const",
+   "funded_T": 0.11933333333333333,
+   "fail_first": 0.36466666666666664,
+   "funded_T_retry": 0.12933333333333333,
+   "mean_fees_T_retry": 1.4203333333333332,
+   "funded_4T": 0.302,
+   "median_days_if_funded_T": 60.5
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.18,
+   "policy": "dd3",
+   "funded_T": 0.106,
+   "fail_first": 0.04766666666666667,
+   "funded_T_retry": 0.10633333333333334,
+   "mean_fees_T_retry": 1.045,
+   "funded_4T": 0.24066666666666667,
+   "median_days_if_funded_T": 58.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.18,
+   "policy": "taper",
+   "funded_T": 0.10966666666666666,
+   "fail_first": 0.38,
+   "funded_T_retry": 0.118,
+   "mean_fees_T_retry": 1.435,
+   "funded_4T": 0.30766666666666664,
+   "median_days_if_funded_T": 66
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.22,
+   "policy": "const",
+   "funded_T": 0.18666666666666668,
+   "fail_first": 0.5306666666666666,
+   "funded_T_retry": 0.23033333333333333,
+   "mean_fees_T_retry": 1.707,
+   "funded_4T": 0.302,
+   "median_days_if_funded_T": 51.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.22,
+   "policy": "dd3",
+   "funded_T": 0.15333333333333332,
+   "fail_first": 0.14,
+   "funded_T_retry": 0.15866666666666668,
+   "mean_fees_T_retry": 1.1366666666666667,
+   "funded_4T": 0.2803333333333333,
+   "median_days_if_funded_T": 48.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.22,
+   "policy": "taper",
+   "funded_T": 0.18533333333333332,
+   "fail_first": 0.5113333333333333,
+   "funded_T_retry": 0.217,
+   "mean_fees_T_retry": 1.6753333333333333,
+   "funded_4T": 0.3283333333333333,
+   "median_days_if_funded_T": 58.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.26,
+   "policy": "const",
+   "funded_T": 0.22433333333333333,
+   "fail_first": 0.6313333333333333,
+   "funded_T_retry": 0.32766666666666666,
+   "mean_fees_T_retry": 1.984,
+   "funded_4T": 0.27366666666666667,
+   "median_days_if_funded_T": 44
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.26,
+   "policy": "dd3",
+   "funded_T": 0.16866666666666666,
+   "fail_first": 0.30233333333333334,
+   "funded_T_retry": 0.19333333333333333,
+   "mean_fees_T_retry": 1.3206666666666667,
+   "funded_4T": 0.2793333333333333,
+   "median_days_if_funded_T": 42.5
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.26,
+   "policy": "taper",
+   "funded_T": 0.23966666666666667,
+   "fail_first": 0.6346666666666667,
+   "funded_T_retry": 0.33666666666666667,
+   "mean_fees_T_retry": 1.9923333333333333,
+   "funded_4T": 0.30666666666666664,
+   "median_days_if_funded_T": 51
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.3,
+   "policy": "const",
+   "funded_T": 0.21066666666666667,
+   "fail_first": 0.7336666666666667,
+   "funded_T_retry": 0.3973333333333333,
+   "mean_fees_T_retry": 2.4636666666666667,
+   "funded_4T": 0.24766666666666667,
+   "median_days_if_funded_T": 36.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.3,
+   "policy": "dd3",
+   "funded_T": 0.18266666666666667,
+   "fail_first": 0.47833333333333333,
+   "funded_T_retry": 0.24233333333333335,
+   "mean_fees_T_retry": 1.6046666666666667,
+   "funded_4T": 0.24466666666666667,
+   "median_days_if_funded_T": 37.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.3,
+   "policy": "taper",
+   "funded_T": 0.23433333333333334,
+   "fail_first": 0.7203333333333334,
+   "funded_T_retry": 0.43366666666666664,
+   "mean_fees_T_retry": 2.4346666666666668,
+   "funded_4T": 0.267,
+   "median_days_if_funded_T": 38
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.35,
+   "policy": "const",
+   "funded_T": 0.182,
+   "fail_first": 0.812,
+   "funded_T_retry": 0.49033333333333334,
+   "mean_fees_T_retry": 3.3463333333333334,
+   "funded_4T": 0.20466666666666666,
+   "median_days_if_funded_T": 27.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.35,
+   "policy": "dd3",
+   "funded_T": 0.16933333333333334,
+   "fail_first": 0.6986666666666667,
+   "funded_T_retry": 0.31466666666666665,
+   "mean_fees_T_retry": 2.234,
+   "funded_4T": 0.174,
+   "median_days_if_funded_T": 26.0
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.35,
+   "policy": "taper",
+   "funded_T": 0.218,
+   "fail_first": 0.7756666666666666,
+   "funded_T_retry": 0.5413333333333333,
+   "mean_fees_T_retry": 3.139,
+   "funded_4T": 0.23333333333333334,
+   "median_days_if_funded_T": 29.5
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.4,
+   "policy": "const",
+   "funded_T": 0.14,
+   "fail_first": 0.8596666666666667,
+   "funded_T_retry": 0.5743333333333334,
+   "mean_fees_T_retry": 4.453333333333333,
+   "funded_4T": 0.13666666666666666,
+   "median_days_if_funded_T": 20.5
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.4,
+   "policy": "dd3",
+   "funded_T": 0.14766666666666667,
+   "fail_first": 0.811,
+   "funded_T_retry": 0.387,
+   "mean_fees_T_retry": 3.1666666666666665,
+   "funded_4T": 0.152,
+   "median_days_if_funded_T": 22
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.4,
+   "policy": "taper",
+   "funded_T": 0.18766666666666668,
+   "fail_first": 0.8123333333333334,
+   "funded_T_retry": 0.6333333333333333,
+   "mean_fees_T_retry": 3.999,
+   "funded_4T": 0.18533333333333332,
+   "median_days_if_funded_T": 23
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.04,
+   "policy": "const",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.012,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.04,
+   "policy": "dd3",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.009666666666666667,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.04,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.002,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.06,
+   "policy": "const",
+   "funded_T": 0.0,
+   "fail_first": 0.0013333333333333333,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1.001,
+   "funded_4T": 0.129,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.06,
+   "policy": "dd3",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.122,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.06,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.001,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1.001,
+   "funded_4T": 0.06766666666666667,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.08,
+   "policy": "const",
+   "funded_T": 0.0016666666666666668,
+   "fail_first": 0.013666666666666667,
+   "funded_T_retry": 0.0016666666666666668,
+   "mean_fees_T_retry": 1.0126666666666666,
+   "funded_4T": 0.28933333333333333,
+   "median_days_if_funded_T": 75
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.08,
+   "policy": "dd3",
+   "funded_T": 0.0036666666666666666,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0036666666666666666,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.25333333333333335,
+   "median_days_if_funded_T": 80
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.08,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.012333333333333333,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1.0116666666666667,
+   "funded_4T": 0.22933333333333333,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.1,
+   "policy": "const",
+   "funded_T": 0.020666666666666667,
+   "fail_first": 0.046,
+   "funded_T_retry": 0.020666666666666667,
+   "mean_fees_T_retry": 1.045,
+   "funded_4T": 0.42433333333333334,
+   "median_days_if_funded_T": 78.5
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.1,
+   "policy": "dd3",
+   "funded_T": 0.015666666666666666,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.015666666666666666,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.3466666666666667,
+   "median_days_if_funded_T": 74
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.1,
+   "policy": "taper",
+   "funded_T": 0.004,
+   "fail_first": 0.04533333333333334,
+   "funded_T_retry": 0.004,
+   "mean_fees_T_retry": 1.044,
+   "funded_4T": 0.394,
+   "median_days_if_funded_T": 73.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.12,
+   "policy": "const",
+   "funded_T": 0.05533333333333333,
+   "fail_first": 0.08666666666666667,
+   "funded_T_retry": 0.056,
+   "mean_fees_T_retry": 1.0856666666666666,
+   "funded_4T": 0.48733333333333334,
+   "median_days_if_funded_T": 71.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.12,
+   "policy": "dd3",
+   "funded_T": 0.057666666666666665,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.057666666666666665,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.4236666666666667,
+   "median_days_if_funded_T": 70
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.12,
+   "policy": "taper",
+   "funded_T": 0.028666666666666667,
+   "fail_first": 0.08166666666666667,
+   "funded_T_retry": 0.028666666666666667,
+   "mean_fees_T_retry": 1.082,
+   "funded_4T": 0.508,
+   "median_days_if_funded_T": 75.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.15,
+   "policy": "const",
+   "funded_T": 0.13666666666666666,
+   "fail_first": 0.16133333333333333,
+   "funded_T_retry": 0.13833333333333334,
+   "mean_fees_T_retry": 1.1643333333333334,
+   "funded_4T": 0.5263333333333333,
+   "median_days_if_funded_T": 64.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.15,
+   "policy": "dd3",
+   "funded_T": 0.11833333333333333,
+   "fail_first": 0.005333333333333333,
+   "funded_T_retry": 0.11833333333333333,
+   "mean_fees_T_retry": 1.0053333333333334,
+   "funded_4T": 0.4646666666666667,
+   "median_days_if_funded_T": 63
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.15,
+   "policy": "taper",
+   "funded_T": 0.088,
+   "fail_first": 0.18866666666666668,
+   "funded_T_retry": 0.091,
+   "mean_fees_T_retry": 1.196,
+   "funded_4T": 0.5456666666666666,
+   "median_days_if_funded_T": 71.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.18,
+   "policy": "const",
+   "funded_T": 0.20966666666666667,
+   "fail_first": 0.2723333333333333,
+   "funded_T_retry": 0.224,
+   "mean_fees_T_retry": 1.2946666666666666,
+   "funded_4T": 0.49466666666666664,
+   "median_days_if_funded_T": 60
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.18,
+   "policy": "dd3",
+   "funded_T": 0.18066666666666667,
+   "fail_first": 0.013,
+   "funded_T_retry": 0.18066666666666667,
+   "mean_fees_T_retry": 1.0126666666666666,
+   "funded_4T": 0.5083333333333333,
+   "median_days_if_funded_T": 59.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.18,
+   "policy": "taper",
+   "funded_T": 0.181,
+   "fail_first": 0.27466666666666667,
+   "funded_T_retry": 0.19466666666666665,
+   "mean_fees_T_retry": 1.2983333333333333,
+   "funded_4T": 0.5276666666666666,
+   "median_days_if_funded_T": 63
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.22,
+   "policy": "const",
+   "funded_T": 0.2866666666666667,
+   "fail_first": 0.4,
+   "funded_T_retry": 0.3426666666666667,
+   "mean_fees_T_retry": 1.4836666666666667,
+   "funded_4T": 0.45566666666666666,
+   "median_days_if_funded_T": 54.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.22,
+   "policy": "dd3",
+   "funded_T": 0.249,
+   "fail_first": 0.07266666666666667,
+   "funded_T_retry": 0.254,
+   "mean_fees_T_retry": 1.0693333333333332,
+   "funded_4T": 0.48633333333333334,
+   "median_days_if_funded_T": 50
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.22,
+   "policy": "taper",
+   "funded_T": 0.2793333333333333,
+   "fail_first": 0.39066666666666666,
+   "funded_T_retry": 0.32666666666666666,
+   "mean_fees_T_retry": 1.4676666666666667,
+   "funded_4T": 0.482,
+   "median_days_if_funded_T": 54.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.26,
+   "policy": "const",
+   "funded_T": 0.33766666666666667,
+   "fail_first": 0.512,
+   "funded_T_retry": 0.4686666666666667,
+   "mean_fees_T_retry": 1.7373333333333334,
+   "funded_4T": 0.421,
+   "median_days_if_funded_T": 45
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.26,
+   "policy": "dd3",
+   "funded_T": 0.29033333333333333,
+   "fail_first": 0.20866666666666667,
+   "funded_T_retry": 0.30833333333333335,
+   "mean_fees_T_retry": 1.22,
+   "funded_4T": 0.4663333333333333,
+   "median_days_if_funded_T": 44
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.26,
+   "policy": "taper",
+   "funded_T": 0.36233333333333334,
+   "fail_first": 0.49133333333333334,
+   "funded_T_retry": 0.482,
+   "mean_fees_T_retry": 1.685,
+   "funded_4T": 0.428,
+   "median_days_if_funded_T": 45
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.3,
+   "policy": "const",
+   "funded_T": 0.3393333333333333,
+   "fail_first": 0.6103333333333333,
+   "funded_T_retry": 0.5486666666666666,
+   "mean_fees_T_retry": 2.091666666666667,
+   "funded_4T": 0.3433333333333333,
+   "median_days_if_funded_T": 35.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.3,
+   "policy": "dd3",
+   "funded_T": 0.2623333333333333,
+   "fail_first": 0.388,
+   "funded_T_retry": 0.3333333333333333,
+   "mean_fees_T_retry": 1.4706666666666666,
+   "funded_4T": 0.385,
+   "median_days_if_funded_T": 37
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.3,
+   "policy": "taper",
+   "funded_T": 0.33866666666666667,
+   "fail_first": 0.6153333333333333,
+   "funded_T_retry": 0.56,
+   "mean_fees_T_retry": 2.0953333333333335,
+   "funded_4T": 0.37066666666666664,
+   "median_days_if_funded_T": 38.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.35,
+   "policy": "const",
+   "funded_T": 0.25866666666666666,
+   "fail_first": 0.736,
+   "funded_T_retry": 0.617,
+   "mean_fees_T_retry": 2.893666666666667,
+   "funded_4T": 0.26033333333333336,
+   "median_days_if_funded_T": 27.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.35,
+   "policy": "dd3",
+   "funded_T": 0.24566666666666667,
+   "fail_first": 0.6053333333333333,
+   "funded_T_retry": 0.419,
+   "mean_fees_T_retry": 1.9926666666666666,
+   "funded_4T": 0.28733333333333333,
+   "median_days_if_funded_T": 28
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.35,
+   "policy": "taper",
+   "funded_T": 0.29933333333333334,
+   "fail_first": 0.694,
+   "funded_T_retry": 0.6573333333333333,
+   "mean_fees_T_retry": 2.6736666666666666,
+   "funded_4T": 0.275,
+   "median_days_if_funded_T": 28.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.4,
+   "policy": "const",
+   "funded_T": 0.194,
+   "fail_first": 0.8056666666666666,
+   "funded_T_retry": 0.676,
+   "mean_fees_T_retry": 3.806,
+   "funded_4T": 0.21566666666666667,
+   "median_days_if_funded_T": 20.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.4,
+   "policy": "dd3",
+   "funded_T": 0.20266666666666666,
+   "fail_first": 0.7523333333333333,
+   "funded_T_retry": 0.488,
+   "mean_fees_T_retry": 2.81,
+   "funded_4T": 0.21166666666666667,
+   "median_days_if_funded_T": 20.0
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.4,
+   "policy": "taper",
+   "funded_T": 0.24133333333333334,
+   "fail_first": 0.758,
+   "funded_T_retry": 0.7216666666666667,
+   "mean_fees_T_retry": 3.489,
+   "funded_4T": 0.22666666666666666,
+   "median_days_if_funded_T": 22.0
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.04,
+   "policy": "const",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.03133333333333333,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.04,
+   "policy": "dd3",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.031,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.04,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.004,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.06,
+   "policy": "const",
+   "funded_T": 0.0,
+   "fail_first": 0.001,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1.001,
+   "funded_4T": 0.22433333333333333,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.06,
+   "policy": "dd3",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.20466666666666666,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.06,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.0006666666666666666,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1.0003333333333333,
+   "funded_4T": 0.123,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.08,
+   "policy": "const",
+   "funded_T": 0.0033333333333333335,
+   "fail_first": 0.006666666666666667,
+   "funded_T_retry": 0.0033333333333333335,
+   "mean_fees_T_retry": 1.0066666666666666,
+   "funded_4T": 0.42233333333333334,
+   "median_days_if_funded_T": 71.5
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.08,
+   "policy": "dd3",
+   "funded_T": 0.003,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.003,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.393,
+   "median_days_if_funded_T": 78
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.08,
+   "policy": "taper",
+   "funded_T": 0.0006666666666666666,
+   "fail_first": 0.008666666666666666,
+   "funded_T_retry": 0.0006666666666666666,
+   "mean_fees_T_retry": 1.0073333333333334,
+   "funded_4T": 0.3456666666666667,
+   "median_days_if_funded_T": 86.5
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.1,
+   "policy": "const",
+   "funded_T": 0.029666666666666668,
+   "fail_first": 0.031,
+   "funded_T_retry": 0.029666666666666668,
+   "mean_fees_T_retry": 1.0296666666666667,
+   "funded_4T": 0.571,
+   "median_days_if_funded_T": 74
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.1,
+   "policy": "dd3",
+   "funded_T": 0.027333333333333334,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.027333333333333334,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.497,
+   "median_days_if_funded_T": 71.5
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.1,
+   "policy": "taper",
+   "funded_T": 0.011,
+   "fail_first": 0.027,
+   "funded_T_retry": 0.011,
+   "mean_fees_T_retry": 1.026,
+   "funded_4T": 0.535,
+   "median_days_if_funded_T": 78
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.12,
+   "policy": "const",
+   "funded_T": 0.07566666666666666,
+   "fail_first": 0.06566666666666666,
+   "funded_T_retry": 0.076,
+   "mean_fees_T_retry": 1.064,
+   "funded_4T": 0.612,
+   "median_days_if_funded_T": 69
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.12,
+   "policy": "dd3",
+   "funded_T": 0.07766666666666666,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.07766666666666666,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.5586666666666666,
+   "median_days_if_funded_T": 68
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.12,
+   "policy": "taper",
+   "funded_T": 0.05,
+   "fail_first": 0.071,
+   "funded_T_retry": 0.050333333333333334,
+   "mean_fees_T_retry": 1.0703333333333334,
+   "funded_4T": 0.6113333333333333,
+   "median_days_if_funded_T": 75.0
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.15,
+   "policy": "const",
+   "funded_T": 0.16566666666666666,
+   "fail_first": 0.13133333333333333,
+   "funded_T_retry": 0.17033333333333334,
+   "mean_fees_T_retry": 1.1353333333333333,
+   "funded_4T": 0.6376666666666667,
+   "median_days_if_funded_T": 68
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.15,
+   "policy": "dd3",
+   "funded_T": 0.15633333333333332,
+   "fail_first": 0.003,
+   "funded_T_retry": 0.15633333333333332,
+   "mean_fees_T_retry": 1.0026666666666666,
+   "funded_4T": 0.5743333333333334,
+   "median_days_if_funded_T": 64
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.15,
+   "policy": "taper",
+   "funded_T": 0.12266666666666666,
+   "fail_first": 0.14466666666666667,
+   "funded_T_retry": 0.12333333333333334,
+   "mean_fees_T_retry": 1.1493333333333333,
+   "funded_4T": 0.6433333333333333,
+   "median_days_if_funded_T": 70.5
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.18,
+   "policy": "const",
+   "funded_T": 0.27266666666666667,
+   "fail_first": 0.217,
+   "funded_T_retry": 0.2843333333333333,
+   "mean_fees_T_retry": 1.2306666666666666,
+   "funded_4T": 0.5906666666666667,
+   "median_days_if_funded_T": 60.0
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.18,
+   "policy": "dd3",
+   "funded_T": 0.22966666666666666,
+   "fail_first": 0.015666666666666666,
+   "funded_T_retry": 0.22966666666666666,
+   "mean_fees_T_retry": 1.0146666666666666,
+   "funded_4T": 0.607,
+   "median_days_if_funded_T": 56
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.18,
+   "policy": "taper",
+   "funded_T": 0.23466666666666666,
+   "fail_first": 0.22,
+   "funded_T_retry": 0.25033333333333335,
+   "mean_fees_T_retry": 1.2333333333333334,
+   "funded_4T": 0.5963333333333334,
+   "median_days_if_funded_T": 62.0
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.22,
+   "policy": "const",
+   "funded_T": 0.357,
+   "fail_first": 0.34933333333333333,
+   "funded_T_retry": 0.4126666666666667,
+   "mean_fees_T_retry": 1.419,
+   "funded_4T": 0.5466666666666666,
+   "median_days_if_funded_T": 51
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.22,
+   "policy": "dd3",
+   "funded_T": 0.312,
+   "fail_first": 0.048666666666666664,
+   "funded_T_retry": 0.31566666666666665,
+   "mean_fees_T_retry": 1.0473333333333332,
+   "funded_4T": 0.6016666666666667,
+   "median_days_if_funded_T": 49.0
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.22,
+   "policy": "taper",
+   "funded_T": 0.35433333333333333,
+   "fail_first": 0.3363333333333333,
+   "funded_T_retry": 0.397,
+   "mean_fees_T_retry": 1.4046666666666667,
+   "funded_4T": 0.571,
+   "median_days_if_funded_T": 54
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.26,
+   "policy": "const",
+   "funded_T": 0.37333333333333335,
+   "fail_first": 0.489,
+   "funded_T_retry": 0.5066666666666667,
+   "mean_fees_T_retry": 1.6706666666666667,
+   "funded_4T": 0.4686666666666667,
+   "median_days_if_funded_T": 45.0
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.26,
+   "policy": "dd3",
+   "funded_T": 0.339,
+   "fail_first": 0.15866666666666668,
+   "funded_T_retry": 0.35833333333333334,
+   "mean_fees_T_retry": 1.1663333333333334,
+   "funded_4T": 0.5573333333333333,
+   "median_days_if_funded_T": 45
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.26,
+   "policy": "taper",
+   "funded_T": 0.412,
+   "fail_first": 0.43866666666666665,
+   "funded_T_retry": 0.532,
+   "mean_fees_T_retry": 1.5816666666666668,
+   "funded_4T": 0.492,
+   "median_days_if_funded_T": 48.0
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.3,
+   "policy": "const",
+   "funded_T": 0.375,
+   "fail_first": 0.5823333333333334,
+   "funded_T_retry": 0.6133333333333333,
+   "mean_fees_T_retry": 2.0113333333333334,
+   "funded_4T": 0.391,
+   "median_days_if_funded_T": 35
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.3,
+   "policy": "dd3",
+   "funded_T": 0.3403333333333333,
+   "fail_first": 0.3406666666666667,
+   "funded_T_retry": 0.41333333333333333,
+   "mean_fees_T_retry": 1.4066666666666667,
+   "funded_4T": 0.4553333333333333,
+   "median_days_if_funded_T": 36
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.3,
+   "policy": "taper",
+   "funded_T": 0.4026666666666667,
+   "fail_first": 0.554,
+   "funded_T_retry": 0.619,
+   "mean_fees_T_retry": 1.936,
+   "funded_4T": 0.42633333333333334,
+   "median_days_if_funded_T": 37.0
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.35,
+   "policy": "const",
+   "funded_T": 0.29333333333333333,
+   "fail_first": 0.7,
+   "funded_T_retry": 0.6783333333333333,
+   "mean_fees_T_retry": 2.663,
+   "funded_4T": 0.303,
+   "median_days_if_funded_T": 27.0
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.35,
+   "policy": "dd3",
+   "funded_T": 0.31266666666666665,
+   "fail_first": 0.5466666666666666,
+   "funded_T_retry": 0.49,
+   "mean_fees_T_retry": 1.8963333333333334,
+   "funded_4T": 0.3333333333333333,
+   "median_days_if_funded_T": 29.0
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.35,
+   "policy": "taper",
+   "funded_T": 0.32,
+   "fail_first": 0.6763333333333333,
+   "funded_T_retry": 0.7046666666666667,
+   "mean_fees_T_retry": 2.5496666666666665,
+   "funded_4T": 0.3303333333333333,
+   "median_days_if_funded_T": 28.0
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.4,
+   "policy": "const",
+   "funded_T": 0.237,
+   "fail_first": 0.763,
+   "funded_T_retry": 0.7213333333333334,
+   "mean_fees_T_retry": 3.523,
+   "funded_4T": 0.22866666666666666,
+   "median_days_if_funded_T": 20
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.4,
+   "policy": "dd3",
+   "funded_T": 0.22566666666666665,
+   "fail_first": 0.731,
+   "funded_T_retry": 0.5376666666666666,
+   "mean_fees_T_retry": 2.7316666666666665,
+   "funded_4T": 0.236,
+   "median_days_if_funded_T": 22
+  },
+  {
+   "sharpe": 1.0,
+   "vol": 0.4,
+   "policy": "taper",
+   "funded_T": 0.2613333333333333,
+   "fail_first": 0.7383333333333333,
+   "funded_T_retry": 0.7633333333333333,
+   "mean_fees_T_retry": 3.2343333333333333,
+   "funded_4T": 0.2773333333333333,
+   "median_days_if_funded_T": 22.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.04,
+   "policy": "const",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.06933333333333333,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.04,
+   "policy": "dd3",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.06933333333333333,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.04,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.018,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.06,
+   "policy": "const",
+   "funded_T": 0.0003333333333333333,
+   "fail_first": 0.0003333333333333333,
+   "funded_T_retry": 0.0003333333333333333,
+   "mean_fees_T_retry": 1.0003333333333333,
+   "funded_4T": 0.3463333333333333,
+   "median_days_if_funded_T": 85
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.06,
+   "policy": "dd3",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.34833333333333333,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.06,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.0003333333333333333,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1.0003333333333333,
+   "funded_4T": 0.233,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.08,
+   "policy": "const",
+   "funded_T": 0.009,
+   "fail_first": 0.004,
+   "funded_T_retry": 0.009,
+   "mean_fees_T_retry": 1.0036666666666667,
+   "funded_4T": 0.5763333333333334,
+   "median_days_if_funded_T": 78
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.08,
+   "policy": "dd3",
+   "funded_T": 0.010666666666666666,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.010666666666666666,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.5673333333333334,
+   "median_days_if_funded_T": 80.5
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.08,
+   "policy": "taper",
+   "funded_T": 0.0006666666666666666,
+   "fail_first": 0.006666666666666667,
+   "funded_T_retry": 0.0006666666666666666,
+   "mean_fees_T_retry": 1.0066666666666666,
+   "funded_4T": 0.5326666666666666,
+   "median_days_if_funded_T": 81.5
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.1,
+   "policy": "const",
+   "funded_T": 0.04933333333333333,
+   "fail_first": 0.017333333333333333,
+   "funded_T_retry": 0.04933333333333333,
+   "mean_fees_T_retry": 1.017,
+   "funded_4T": 0.7186666666666667,
+   "median_days_if_funded_T": 73.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.1,
+   "policy": "dd3",
+   "funded_T": 0.04633333333333333,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.04633333333333333,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.6453333333333333,
+   "median_days_if_funded_T": 73
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.1,
+   "policy": "taper",
+   "funded_T": 0.012666666666666666,
+   "fail_first": 0.017666666666666667,
+   "funded_T_retry": 0.012666666666666666,
+   "mean_fees_T_retry": 1.0173333333333334,
+   "funded_4T": 0.691,
+   "median_days_if_funded_T": 79.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.12,
+   "policy": "const",
+   "funded_T": 0.11066666666666666,
+   "fail_first": 0.042333333333333334,
+   "funded_T_retry": 0.11066666666666666,
+   "mean_fees_T_retry": 1.041,
+   "funded_4T": 0.772,
+   "median_days_if_funded_T": 70.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.12,
+   "policy": "dd3",
+   "funded_T": 0.098,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.098,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.6966666666666667,
+   "median_days_if_funded_T": 69.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.12,
+   "policy": "taper",
+   "funded_T": 0.063,
+   "fail_first": 0.048,
+   "funded_T_retry": 0.063,
+   "mean_fees_T_retry": 1.046,
+   "funded_4T": 0.74,
+   "median_days_if_funded_T": 73
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.15,
+   "policy": "const",
+   "funded_T": 0.24366666666666667,
+   "fail_first": 0.10533333333333333,
+   "funded_T_retry": 0.24733333333333332,
+   "mean_fees_T_retry": 1.105,
+   "funded_4T": 0.751,
+   "median_days_if_funded_T": 65
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.15,
+   "policy": "dd3",
+   "funded_T": 0.206,
+   "fail_first": 0.0023333333333333335,
+   "funded_T_retry": 0.206,
+   "mean_fees_T_retry": 1.0023333333333333,
+   "funded_4T": 0.7386666666666667,
+   "median_days_if_funded_T": 65.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.15,
+   "policy": "taper",
+   "funded_T": 0.17566666666666667,
+   "fail_first": 0.098,
+   "funded_T_retry": 0.17733333333333334,
+   "mean_fees_T_retry": 1.0956666666666666,
+   "funded_4T": 0.7523333333333333,
+   "median_days_if_funded_T": 67
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.18,
+   "policy": "const",
+   "funded_T": 0.3283333333333333,
+   "fail_first": 0.17966666666666667,
+   "funded_T_retry": 0.3446666666666667,
+   "mean_fees_T_retry": 1.187,
+   "funded_4T": 0.705,
+   "median_days_if_funded_T": 60
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.18,
+   "policy": "dd3",
+   "funded_T": 0.299,
+   "fail_first": 0.007,
+   "funded_T_retry": 0.29933333333333334,
+   "mean_fees_T_retry": 1.0063333333333333,
+   "funded_4T": 0.7346666666666667,
+   "median_days_if_funded_T": 57
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.18,
+   "policy": "taper",
+   "funded_T": 0.30366666666666664,
+   "fail_first": 0.168,
+   "funded_T_retry": 0.311,
+   "mean_fees_T_retry": 1.177,
+   "funded_4T": 0.7003333333333334,
+   "median_days_if_funded_T": 62
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.22,
+   "policy": "const",
+   "funded_T": 0.433,
+   "fail_first": 0.279,
+   "funded_T_retry": 0.486,
+   "mean_fees_T_retry": 1.317,
+   "funded_4T": 0.6406666666666667,
+   "median_days_if_funded_T": 50
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.22,
+   "policy": "dd3",
+   "funded_T": 0.37933333333333336,
+   "fail_first": 0.037,
+   "funded_T_retry": 0.381,
+   "mean_fees_T_retry": 1.0366666666666666,
+   "funded_4T": 0.7143333333333334,
+   "median_days_if_funded_T": 49.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.22,
+   "policy": "taper",
+   "funded_T": 0.42633333333333334,
+   "fail_first": 0.27166666666666667,
+   "funded_T_retry": 0.47433333333333333,
+   "mean_fees_T_retry": 1.3026666666666666,
+   "funded_4T": 0.638,
+   "median_days_if_funded_T": 55
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.26,
+   "policy": "const",
+   "funded_T": 0.4573333333333333,
+   "fail_first": 0.41433333333333333,
+   "funded_T_retry": 0.5923333333333334,
+   "mean_fees_T_retry": 1.545,
+   "funded_4T": 0.5463333333333333,
+   "median_days_if_funded_T": 44.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.26,
+   "policy": "dd3",
+   "funded_T": 0.4053333333333333,
+   "fail_first": 0.13433333333333333,
+   "funded_T_retry": 0.42933333333333334,
+   "mean_fees_T_retry": 1.1406666666666667,
+   "funded_4T": 0.647,
+   "median_days_if_funded_T": 44.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.26,
+   "policy": "taper",
+   "funded_T": 0.4746666666666667,
+   "fail_first": 0.3933333333333333,
+   "funded_T_retry": 0.6063333333333333,
+   "mean_fees_T_retry": 1.5093333333333334,
+   "funded_4T": 0.5876666666666667,
+   "median_days_if_funded_T": 46.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.3,
+   "policy": "const",
+   "funded_T": 0.43,
+   "fail_first": 0.5306666666666666,
+   "funded_T_retry": 0.6743333333333333,
+   "mean_fees_T_retry": 1.851,
+   "funded_4T": 0.46166666666666667,
+   "median_days_if_funded_T": 34.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.3,
+   "policy": "dd3",
+   "funded_T": 0.38666666666666666,
+   "fail_first": 0.2996666666666667,
+   "funded_T_retry": 0.4676666666666667,
+   "mean_fees_T_retry": 1.3543333333333334,
+   "funded_4T": 0.5166666666666667,
+   "median_days_if_funded_T": 37.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.3,
+   "policy": "taper",
+   "funded_T": 0.4543333333333333,
+   "fail_first": 0.5073333333333333,
+   "funded_T_retry": 0.6926666666666667,
+   "mean_fees_T_retry": 1.814,
+   "funded_4T": 0.4886666666666667,
+   "median_days_if_funded_T": 36
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.35,
+   "policy": "const",
+   "funded_T": 0.33566666666666667,
+   "fail_first": 0.6586666666666666,
+   "funded_T_retry": 0.7313333333333333,
+   "mean_fees_T_retry": 2.492,
+   "funded_4T": 0.352,
+   "median_days_if_funded_T": 27
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.35,
+   "policy": "dd3",
+   "funded_T": 0.354,
+   "fail_first": 0.5183333333333333,
+   "funded_T_retry": 0.5406666666666666,
+   "mean_fees_T_retry": 1.8423333333333334,
+   "funded_4T": 0.37966666666666665,
+   "median_days_if_funded_T": 29.0
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.35,
+   "policy": "taper",
+   "funded_T": 0.373,
+   "fail_first": 0.622,
+   "funded_T_retry": 0.7606666666666667,
+   "mean_fees_T_retry": 2.333,
+   "funded_4T": 0.383,
+   "median_days_if_funded_T": 28
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.4,
+   "policy": "const",
+   "funded_T": 0.2623333333333333,
+   "fail_first": 0.7373333333333333,
+   "funded_T_retry": 0.7796666666666666,
+   "mean_fees_T_retry": 3.2703333333333333,
+   "funded_4T": 0.25033333333333335,
+   "median_days_if_funded_T": 20
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.4,
+   "policy": "dd3",
+   "funded_T": 0.27666666666666667,
+   "fail_first": 0.6836666666666666,
+   "funded_T_retry": 0.6016666666666667,
+   "mean_fees_T_retry": 2.58,
+   "funded_4T": 0.277,
+   "median_days_if_funded_T": 22.5
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.4,
+   "policy": "taper",
+   "funded_T": 0.30233333333333334,
+   "fail_first": 0.6976666666666667,
+   "funded_T_retry": 0.814,
+   "mean_fees_T_retry": 2.9776666666666665,
+   "funded_4T": 0.30533333333333335,
+   "median_days_if_funded_T": 20
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.04,
+   "policy": "const",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.16666666666666666,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.04,
+   "policy": "dd3",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.16066666666666668,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.04,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.049666666666666665,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.06,
+   "policy": "const",
+   "funded_T": 0.0003333333333333333,
+   "fail_first": 0.0003333333333333333,
+   "funded_T_retry": 0.0003333333333333333,
+   "mean_fees_T_retry": 1.0003333333333333,
+   "funded_4T": 0.5456666666666666,
+   "median_days_if_funded_T": 81
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.06,
+   "policy": "dd3",
+   "funded_T": 0.0003333333333333333,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0003333333333333333,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.528,
+   "median_days_if_funded_T": 87
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.06,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.0003333333333333333,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1.0003333333333333,
+   "funded_4T": 0.41333333333333333,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.08,
+   "policy": "const",
+   "funded_T": 0.021333333333333333,
+   "fail_first": 0.0033333333333333335,
+   "funded_T_retry": 0.021333333333333333,
+   "mean_fees_T_retry": 1.0026666666666666,
+   "funded_4T": 0.759,
+   "median_days_if_funded_T": 75.5
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.08,
+   "policy": "dd3",
+   "funded_T": 0.018333333333333333,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.018333333333333333,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.7193333333333334,
+   "median_days_if_funded_T": 78
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.08,
+   "policy": "taper",
+   "funded_T": 0.0036666666666666666,
+   "fail_first": 0.0026666666666666666,
+   "funded_T_retry": 0.0036666666666666666,
+   "mean_fees_T_retry": 1.0026666666666666,
+   "funded_4T": 0.71,
+   "median_days_if_funded_T": 72
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.1,
+   "policy": "const",
+   "funded_T": 0.078,
+   "fail_first": 0.010333333333333333,
+   "funded_T_retry": 0.078,
+   "mean_fees_T_retry": 1.0103333333333333,
+   "funded_4T": 0.8516666666666667,
+   "median_days_if_funded_T": 75.0
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.1,
+   "policy": "dd3",
+   "funded_T": 0.06633333333333333,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.06633333333333333,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.8113333333333334,
+   "median_days_if_funded_T": 74
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.1,
+   "policy": "taper",
+   "funded_T": 0.025666666666666667,
+   "fail_first": 0.011,
+   "funded_T_retry": 0.025666666666666667,
+   "mean_fees_T_retry": 1.011,
+   "funded_4T": 0.8293333333333334,
+   "median_days_if_funded_T": 78
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.12,
+   "policy": "const",
+   "funded_T": 0.16433333333333333,
+   "fail_first": 0.027666666666666666,
+   "funded_T_retry": 0.165,
+   "mean_fees_T_retry": 1.0273333333333334,
+   "funded_4T": 0.8726666666666667,
+   "median_days_if_funded_T": 70
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.12,
+   "policy": "dd3",
+   "funded_T": 0.154,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.154,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.8363333333333334,
+   "median_days_if_funded_T": 67.5
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.12,
+   "policy": "taper",
+   "funded_T": 0.09666666666666666,
+   "fail_first": 0.02666666666666667,
+   "funded_T_retry": 0.09666666666666666,
+   "mean_fees_T_retry": 1.0263333333333333,
+   "funded_4T": 0.869,
+   "median_days_if_funded_T": 73.0
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.15,
+   "policy": "const",
+   "funded_T": 0.297,
+   "fail_first": 0.07166666666666667,
+   "funded_T_retry": 0.3006666666666667,
+   "mean_fees_T_retry": 1.0706666666666667,
+   "funded_4T": 0.844,
+   "median_days_if_funded_T": 63
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.15,
+   "policy": "dd3",
+   "funded_T": 0.28633333333333333,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.28633333333333333,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.864,
+   "median_days_if_funded_T": 63
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.15,
+   "policy": "taper",
+   "funded_T": 0.23833333333333334,
+   "fail_first": 0.07233333333333333,
+   "funded_T_retry": 0.23966666666666667,
+   "mean_fees_T_retry": 1.0716666666666668,
+   "funded_4T": 0.8523333333333334,
+   "median_days_if_funded_T": 68
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.18,
+   "policy": "const",
+   "funded_T": 0.4266666666666667,
+   "fail_first": 0.12666666666666668,
+   "funded_T_retry": 0.44333333333333336,
+   "mean_fees_T_retry": 1.1336666666666666,
+   "funded_4T": 0.7953333333333333,
+   "median_days_if_funded_T": 57.0
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.18,
+   "policy": "dd3",
+   "funded_T": 0.3903333333333333,
+   "fail_first": 0.004333333333333333,
+   "funded_T_retry": 0.3903333333333333,
+   "mean_fees_T_retry": 1.0036666666666667,
+   "funded_4T": 0.859,
+   "median_days_if_funded_T": 56
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.18,
+   "policy": "taper",
+   "funded_T": 0.37633333333333335,
+   "fail_first": 0.12733333333333333,
+   "funded_T_retry": 0.3893333333333333,
+   "mean_fees_T_retry": 1.132,
+   "funded_4T": 0.7973333333333333,
+   "median_days_if_funded_T": 60
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.22,
+   "policy": "const",
+   "funded_T": 0.5133333333333333,
+   "fail_first": 0.232,
+   "funded_T_retry": 0.5766666666666667,
+   "mean_fees_T_retry": 1.253,
+   "funded_4T": 0.72,
+   "median_days_if_funded_T": 50.0
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.22,
+   "policy": "dd3",
+   "funded_T": 0.4643333333333333,
+   "fail_first": 0.028,
+   "funded_T_retry": 0.468,
+   "mean_fees_T_retry": 1.0273333333333334,
+   "funded_4T": 0.8333333333333334,
+   "median_days_if_funded_T": 49
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.22,
+   "policy": "taper",
+   "funded_T": 0.5253333333333333,
+   "fail_first": 0.224,
+   "funded_T_retry": 0.5773333333333334,
+   "mean_fees_T_retry": 1.2543333333333333,
+   "funded_4T": 0.728,
+   "median_days_if_funded_T": 53.0
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.26,
+   "policy": "const",
+   "funded_T": 0.5353333333333333,
+   "fail_first": 0.347,
+   "funded_T_retry": 0.6656666666666666,
+   "mean_fees_T_retry": 1.4443333333333332,
+   "funded_4T": 0.6303333333333333,
+   "median_days_if_funded_T": 42.0
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.26,
+   "policy": "dd3",
+   "funded_T": 0.48933333333333334,
+   "fail_first": 0.10166666666666667,
+   "funded_T_retry": 0.5146666666666667,
+   "mean_fees_T_retry": 1.1076666666666666,
+   "funded_4T": 0.7686666666666667,
+   "median_days_if_funded_T": 42.0
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.26,
+   "policy": "taper",
+   "funded_T": 0.5526666666666666,
+   "fail_first": 0.335,
+   "funded_T_retry": 0.6826666666666666,
+   "mean_fees_T_retry": 1.4196666666666666,
+   "funded_4T": 0.6456666666666667,
+   "median_days_if_funded_T": 44.0
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.3,
+   "policy": "const",
+   "funded_T": 0.5126666666666667,
+   "fail_first": 0.452,
+   "funded_T_retry": 0.74,
+   "mean_fees_T_retry": 1.7066666666666668,
+   "funded_4T": 0.5326666666666666,
+   "median_days_if_funded_T": 34.0
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.3,
+   "policy": "dd3",
+   "funded_T": 0.46366666666666667,
+   "fail_first": 0.24666666666666667,
+   "funded_T_retry": 0.553,
+   "mean_fees_T_retry": 1.2956666666666667,
+   "funded_4T": 0.6286666666666667,
+   "median_days_if_funded_T": 35
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.3,
+   "policy": "taper",
+   "funded_T": 0.5136666666666667,
+   "fail_first": 0.44566666666666666,
+   "funded_T_retry": 0.756,
+   "mean_fees_T_retry": 1.6753333333333333,
+   "funded_4T": 0.5673333333333334,
+   "median_days_if_funded_T": 36
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.35,
+   "policy": "const",
+   "funded_T": 0.4003333333333333,
+   "fail_first": 0.597,
+   "funded_T_retry": 0.8103333333333333,
+   "mean_fees_T_retry": 2.2256666666666667,
+   "funded_4T": 0.4033333333333333,
+   "median_days_if_funded_T": 26
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.35,
+   "policy": "dd3",
+   "funded_T": 0.397,
+   "fail_first": 0.47633333333333333,
+   "funded_T_retry": 0.619,
+   "mean_fees_T_retry": 1.74,
+   "funded_4T": 0.44866666666666666,
+   "median_days_if_funded_T": 29
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.35,
+   "policy": "taper",
+   "funded_T": 0.432,
+   "fail_first": 0.5636666666666666,
+   "funded_T_retry": 0.826,
+   "mean_fees_T_retry": 2.122,
+   "funded_4T": 0.44733333333333336,
+   "median_days_if_funded_T": 28.0
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.4,
+   "policy": "const",
+   "funded_T": 0.3016666666666667,
+   "fail_first": 0.6976666666666667,
+   "funded_T_retry": 0.818,
+   "mean_fees_T_retry": 2.9896666666666665,
+   "funded_4T": 0.286,
+   "median_days_if_funded_T": 20
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.4,
+   "policy": "dd3",
+   "funded_T": 0.32566666666666666,
+   "fail_first": 0.6313333333333333,
+   "funded_T_retry": 0.6653333333333333,
+   "mean_fees_T_retry": 2.3676666666666666,
+   "funded_4T": 0.3426666666666667,
+   "median_days_if_funded_T": 22
+  },
+  {
+   "sharpe": 1.8,
+   "vol": 0.4,
+   "policy": "taper",
+   "funded_T": 0.35,
+   "fail_first": 0.6496666666666666,
+   "funded_T_retry": 0.847,
+   "mean_fees_T_retry": 2.7243333333333335,
+   "funded_4T": 0.3446666666666667,
+   "median_days_if_funded_T": 21.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.04,
+   "policy": "const",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.297,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.04,
+   "policy": "dd3",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.29633333333333334,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.04,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.11066666666666666,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.06,
+   "policy": "const",
+   "funded_T": 0.002,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.002,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.7363333333333333,
+   "median_days_if_funded_T": 83.5
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.06,
+   "policy": "dd3",
+   "funded_T": 0.0016666666666666668,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0016666666666666668,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.7183333333333334,
+   "median_days_if_funded_T": 85
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.06,
+   "policy": "taper",
+   "funded_T": 0.0,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.0,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.588,
+   "median_days_if_funded_T": null
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.08,
+   "policy": "const",
+   "funded_T": 0.03666666666666667,
+   "fail_first": 0.0006666666666666666,
+   "funded_T_retry": 0.03666666666666667,
+   "mean_fees_T_retry": 1.0006666666666666,
+   "funded_4T": 0.8833333333333333,
+   "median_days_if_funded_T": 78.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.08,
+   "policy": "dd3",
+   "funded_T": 0.027,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.027,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.8593333333333333,
+   "median_days_if_funded_T": 78
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.08,
+   "policy": "taper",
+   "funded_T": 0.004666666666666667,
+   "fail_first": 0.0003333333333333333,
+   "funded_T_retry": 0.004666666666666667,
+   "mean_fees_T_retry": 1.0003333333333333,
+   "funded_4T": 0.8406666666666667,
+   "median_days_if_funded_T": 84.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.1,
+   "policy": "const",
+   "funded_T": 0.111,
+   "fail_first": 0.005,
+   "funded_T_retry": 0.111,
+   "mean_fees_T_retry": 1.005,
+   "funded_4T": 0.9256666666666666,
+   "median_days_if_funded_T": 74
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.1,
+   "policy": "dd3",
+   "funded_T": 0.10666666666666667,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.10666666666666667,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.9116666666666666,
+   "median_days_if_funded_T": 74.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.1,
+   "policy": "taper",
+   "funded_T": 0.050333333333333334,
+   "fail_first": 0.006,
+   "funded_T_retry": 0.050333333333333334,
+   "mean_fees_T_retry": 1.0056666666666667,
+   "funded_4T": 0.919,
+   "median_days_if_funded_T": 78
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.12,
+   "policy": "const",
+   "funded_T": 0.23966666666666667,
+   "fail_first": 0.02033333333333333,
+   "funded_T_retry": 0.23966666666666667,
+   "mean_fees_T_retry": 1.02,
+   "funded_4T": 0.9343333333333333,
+   "median_days_if_funded_T": 69
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.12,
+   "policy": "dd3",
+   "funded_T": 0.21433333333333332,
+   "fail_first": 0.0,
+   "funded_T_retry": 0.21433333333333332,
+   "mean_fees_T_retry": 1,
+   "funded_4T": 0.916,
+   "median_days_if_funded_T": 68
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.12,
+   "policy": "taper",
+   "funded_T": 0.14233333333333334,
+   "fail_first": 0.017666666666666667,
+   "funded_T_retry": 0.14233333333333334,
+   "mean_fees_T_retry": 1.017,
+   "funded_4T": 0.9383333333333334,
+   "median_days_if_funded_T": 74
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.15,
+   "policy": "const",
+   "funded_T": 0.383,
+   "fail_first": 0.051333333333333335,
+   "funded_T_retry": 0.387,
+   "mean_fees_T_retry": 1.052,
+   "funded_4T": 0.8976666666666666,
+   "median_days_if_funded_T": 62
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.15,
+   "policy": "dd3",
+   "funded_T": 0.37,
+   "fail_first": 0.0003333333333333333,
+   "funded_T_retry": 0.37,
+   "mean_fees_T_retry": 1.0003333333333333,
+   "funded_4T": 0.9306666666666666,
+   "median_days_if_funded_T": 62.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.15,
+   "policy": "taper",
+   "funded_T": 0.3253333333333333,
+   "fail_first": 0.049,
+   "funded_T_retry": 0.327,
+   "mean_fees_T_retry": 1.0486666666666666,
+   "funded_4T": 0.9066666666666666,
+   "median_days_if_funded_T": 66.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.18,
+   "policy": "const",
+   "funded_T": 0.5243333333333333,
+   "fail_first": 0.087,
+   "funded_T_retry": 0.5403333333333333,
+   "mean_fees_T_retry": 1.0876666666666666,
+   "funded_4T": 0.8583333333333333,
+   "median_days_if_funded_T": 57
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.18,
+   "policy": "dd3",
+   "funded_T": 0.47733333333333333,
+   "fail_first": 0.004,
+   "funded_T_retry": 0.47733333333333333,
+   "mean_fees_T_retry": 1.0033333333333334,
+   "funded_4T": 0.9246666666666666,
+   "median_days_if_funded_T": 55.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.18,
+   "policy": "taper",
+   "funded_T": 0.483,
+   "fail_first": 0.10366666666666667,
+   "funded_T_retry": 0.49866666666666665,
+   "mean_fees_T_retry": 1.1063333333333334,
+   "funded_4T": 0.8636666666666667,
+   "median_days_if_funded_T": 59
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.22,
+   "policy": "const",
+   "funded_T": 0.6083333333333333,
+   "fail_first": 0.17333333333333334,
+   "funded_T_retry": 0.6643333333333333,
+   "mean_fees_T_retry": 1.19,
+   "funded_4T": 0.7773333333333333,
+   "median_days_if_funded_T": 49
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.22,
+   "policy": "dd3",
+   "funded_T": 0.5406666666666666,
+   "fail_first": 0.015666666666666666,
+   "funded_T_retry": 0.543,
+   "mean_fees_T_retry": 1.0156666666666667,
+   "funded_4T": 0.9193333333333333,
+   "median_days_if_funded_T": 48.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.22,
+   "policy": "taper",
+   "funded_T": 0.6076666666666667,
+   "fail_first": 0.16733333333333333,
+   "funded_T_retry": 0.651,
+   "mean_fees_T_retry": 1.182,
+   "funded_4T": 0.8003333333333333,
+   "median_days_if_funded_T": 51
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.26,
+   "policy": "const",
+   "funded_T": 0.6266666666666667,
+   "fail_first": 0.2833333333333333,
+   "funded_T_retry": 0.7436666666666667,
+   "mean_fees_T_retry": 1.3473333333333333,
+   "funded_4T": 0.6893333333333334,
+   "median_days_if_funded_T": 42.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.26,
+   "policy": "dd3",
+   "funded_T": 0.5696666666666667,
+   "fail_first": 0.082,
+   "funded_T_retry": 0.601,
+   "mean_fees_T_retry": 1.085,
+   "funded_4T": 0.8436666666666667,
+   "median_days_if_funded_T": 41
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.26,
+   "policy": "taper",
+   "funded_T": 0.6426666666666667,
+   "fail_first": 0.261,
+   "funded_T_retry": 0.7516666666666667,
+   "mean_fees_T_retry": 1.3193333333333332,
+   "funded_4T": 0.721,
+   "median_days_if_funded_T": 42.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.3,
+   "policy": "const",
+   "funded_T": 0.5553333333333333,
+   "fail_first": 0.4093333333333333,
+   "funded_T_retry": 0.798,
+   "mean_fees_T_retry": 1.5793333333333333,
+   "funded_4T": 0.5886666666666667,
+   "median_days_if_funded_T": 34.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.3,
+   "policy": "dd3",
+   "funded_T": 0.5443333333333333,
+   "fail_first": 0.22066666666666668,
+   "funded_T_retry": 0.6363333333333333,
+   "mean_fees_T_retry": 1.2603333333333333,
+   "funded_4T": 0.6956666666666667,
+   "median_days_if_funded_T": 35
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.3,
+   "policy": "taper",
+   "funded_T": 0.5723333333333334,
+   "fail_first": 0.3983333333333333,
+   "funded_T_retry": 0.8116666666666666,
+   "mean_fees_T_retry": 1.5643333333333334,
+   "funded_4T": 0.6386666666666667,
+   "median_days_if_funded_T": 35
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.35,
+   "policy": "const",
+   "funded_T": 0.43733333333333335,
+   "fail_first": 0.5593333333333333,
+   "funded_T_retry": 0.849,
+   "mean_fees_T_retry": 2.074333333333333,
+   "funded_4T": 0.4523333333333333,
+   "median_days_if_funded_T": 25.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.35,
+   "policy": "dd3",
+   "funded_T": 0.467,
+   "fail_first": 0.428,
+   "funded_T_retry": 0.6896666666666667,
+   "mean_fees_T_retry": 1.632,
+   "funded_4T": 0.508,
+   "median_days_if_funded_T": 28
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.35,
+   "policy": "taper",
+   "funded_T": 0.48633333333333334,
+   "fail_first": 0.5106666666666667,
+   "funded_T_retry": 0.8693333333333333,
+   "mean_fees_T_retry": 1.9413333333333334,
+   "funded_4T": 0.48333333333333334,
+   "median_days_if_funded_T": 26
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.4,
+   "policy": "const",
+   "funded_T": 0.33066666666666666,
+   "fail_first": 0.669,
+   "funded_T_retry": 0.8703333333333333,
+   "mean_fees_T_retry": 2.7103333333333333,
+   "funded_4T": 0.3303333333333333,
+   "median_days_if_funded_T": 20.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.4,
+   "policy": "dd3",
+   "funded_T": 0.3546666666666667,
+   "fail_first": 0.606,
+   "funded_T_retry": 0.7206666666666667,
+   "mean_fees_T_retry": 2.228666666666667,
+   "funded_4T": 0.386,
+   "median_days_if_funded_T": 22.0
+  },
+  {
+   "sharpe": 2.2,
+   "vol": 0.4,
+   "policy": "taper",
+   "funded_T": 0.38466666666666666,
+   "fail_first": 0.6146666666666667,
+   "funded_T_retry": 0.9006666666666666,
+   "mean_fees_T_retry": 2.465,
+   "funded_4T": 0.382,
+   "median_days_if_funded_T": 20.0
+  }
+ ],
+ "best_vol": {
+  "0.0|const": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.22433333333333333,
+   "fail_first": 0.6313333333333333,
+   "argmax_vol_fail<=0.10": 0.1,
+   "funded_T_fail<=0.10": 0.006333333333333333
+  },
+  "0.0|dd3": {
+   "argmax_vol": 0.3,
+   "funded_T": 0.18266666666666667,
+   "fail_first": 0.47833333333333333,
+   "argmax_vol_fail<=0.10": 0.18,
+   "funded_T_fail<=0.10": 0.106
+  },
+  "0.0|taper": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.23966666666666667,
+   "fail_first": 0.6346666666666667,
+   "argmax_vol_fail<=0.10": 0.1,
+   "funded_T_fail<=0.10": 0.002
+  },
+  "0.68|const": {
+   "argmax_vol": 0.3,
+   "funded_T": 0.3393333333333333,
+   "fail_first": 0.6103333333333333,
+   "argmax_vol_fail<=0.10": 0.12,
+   "funded_T_fail<=0.10": 0.05533333333333333
+  },
+  "0.68|dd3": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.29033333333333333,
+   "fail_first": 0.20866666666666667,
+   "argmax_vol_fail<=0.10": 0.22,
+   "funded_T_fail<=0.10": 0.249
+  },
+  "0.68|taper": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.36233333333333334,
+   "fail_first": 0.49133333333333334,
+   "argmax_vol_fail<=0.10": 0.12,
+   "funded_T_fail<=0.10": 0.028666666666666667
+  },
+  "1.0|const": {
+   "argmax_vol": 0.3,
+   "funded_T": 0.375,
+   "fail_first": 0.5823333333333334,
+   "argmax_vol_fail<=0.10": 0.12,
+   "funded_T_fail<=0.10": 0.07566666666666666
+  },
+  "1.0|dd3": {
+   "argmax_vol": 0.3,
+   "funded_T": 0.3403333333333333,
+   "fail_first": 0.3406666666666667,
+   "argmax_vol_fail<=0.10": 0.22,
+   "funded_T_fail<=0.10": 0.312
+  },
+  "1.0|taper": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.412,
+   "fail_first": 0.43866666666666665,
+   "argmax_vol_fail<=0.10": 0.12,
+   "funded_T_fail<=0.10": 0.05
+  },
+  "1.37|const": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.4573333333333333,
+   "fail_first": 0.41433333333333333,
+   "argmax_vol_fail<=0.10": 0.12,
+   "funded_T_fail<=0.10": 0.11066666666666666
+  },
+  "1.37|dd3": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.4053333333333333,
+   "fail_first": 0.13433333333333333,
+   "argmax_vol_fail<=0.10": 0.22,
+   "funded_T_fail<=0.10": 0.37933333333333336
+  },
+  "1.37|taper": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.4746666666666667,
+   "fail_first": 0.3933333333333333,
+   "argmax_vol_fail<=0.10": 0.15,
+   "funded_T_fail<=0.10": 0.17566666666666667
+  },
+  "1.8|const": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.5353333333333333,
+   "fail_first": 0.347,
+   "argmax_vol_fail<=0.10": 0.15,
+   "funded_T_fail<=0.10": 0.297
+  },
+  "1.8|dd3": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.48933333333333334,
+   "fail_first": 0.10166666666666667,
+   "argmax_vol_fail<=0.10": 0.22,
+   "funded_T_fail<=0.10": 0.4643333333333333
+  },
+  "1.8|taper": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.5526666666666666,
+   "fail_first": 0.335,
+   "argmax_vol_fail<=0.10": 0.15,
+   "funded_T_fail<=0.10": 0.23833333333333334
+  },
+  "2.2|const": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.6266666666666667,
+   "fail_first": 0.2833333333333333,
+   "argmax_vol_fail<=0.10": 0.18,
+   "funded_T_fail<=0.10": 0.5243333333333333
+  },
+  "2.2|dd3": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.5696666666666667,
+   "fail_first": 0.082,
+   "argmax_vol_fail<=0.10": 0.26,
+   "funded_T_fail<=0.10": 0.5696666666666667
+  },
+  "2.2|taper": {
+   "argmax_vol": 0.26,
+   "funded_T": 0.6426666666666667,
+   "fail_first": 0.261,
+   "argmax_vol_fail<=0.10": 0.15,
+   "funded_T_fail<=0.10": 0.3253333333333333
+  }
+ },
+ "two_accounts": [
+  {
+   "sharpe": 1.0,
+   "vol_each": 0.12,
+   "rho": 0.0,
+   "two_accounts_at_least_one": 0.14066666666666666,
+   "two_accounts_both": 0.006666666666666667,
+   "two_accounts_mean_funded": 0.14733333333333334,
+   "one_account_both_streams": {
+    "sharpe": 1.4142135623730951,
+    "vol": 0.16970562748477142,
+    "funded_T": 0.31066666666666665,
+    "fail_first": 0.13866666666666666
+   }
+  },
+  {
+   "sharpe": 1.0,
+   "vol_each": 0.12,
+   "rho": 0.5,
+   "two_accounts_at_least_one": 0.12933333333333333,
+   "two_accounts_both": 0.023666666666666666,
+   "two_accounts_mean_funded": 0.153,
+   "one_account_both_streams": {
+    "sharpe": 1.1547005383792515,
+    "vol": 0.20784609690826525,
+    "funded_T": 0.36466666666666664,
+    "fail_first": 0.27366666666666667
+   }
+  },
+  {
+   "sharpe": 1.0,
+   "vol_each": 0.12,
+   "rho": 0.9,
+   "two_accounts_at_least_one": 0.108,
+   "two_accounts_both": 0.058333333333333334,
+   "two_accounts_mean_funded": 0.16633333333333333,
+   "one_account_both_streams": {
+    "sharpe": 1.025978352085154,
+    "vol": 0.23392306427541512,
+    "funded_T": 0.382,
+    "fail_first": 0.389
+   }
+  },
+  {
+   "sharpe": 1.0,
+   "vol_each": 0.18,
+   "rho": 0.0,
+   "two_accounts_at_least_one": 0.4583333333333333,
+   "two_accounts_both": 0.06633333333333333,
+   "two_accounts_mean_funded": 0.5246666666666666,
+   "one_account_both_streams": {
+    "sharpe": 1.4142135623730951,
+    "vol": 0.2545584412271571,
+    "funded_T": 0.4726666666666667,
+    "fail_first": 0.393
+   }
+  },
+  {
+   "sharpe": 1.0,
+   "vol_each": 0.18,
+   "rho": 0.5,
+   "two_accounts_at_least_one": 0.403,
+   "two_accounts_both": 0.12066666666666667,
+   "two_accounts_mean_funded": 0.5236666666666666,
+   "one_account_both_streams": {
+    "sharpe": 1.1547005383792515,
+    "vol": 0.31176914536239786,
+    "funded_T": 0.362,
+    "fail_first": 0.609
+   }
+  },
+  {
+   "sharpe": 1.0,
+   "vol_each": 0.18,
+   "rho": 0.9,
+   "two_accounts_at_least_one": 0.332,
+   "two_accounts_both": 0.19833333333333333,
+   "two_accounts_mean_funded": 0.5303333333333333,
+   "one_account_both_streams": {
+    "sharpe": 1.025978352085154,
+    "vol": 0.35088459641312264,
+    "funded_T": 0.29433333333333334,
+    "fail_first": 0.698
+   }
+  },
+  {
+   "sharpe": 1.37,
+   "vol_each": 0.12,
+   "rho": 0.0,
+   "two_accounts_at_least_one": 0.209,
+   "two_accounts_both": 0.012666666666666666,
+   "two_accounts_mean_funded": 0.22166666666666668,
+   "one_account_both_streams": {
+    "sharpe": 1.9374725804511406,
+    "vol": 0.16970562748477142,
+    "funded_T": 0.42633333333333334,
+    "fail_first": 0.10666666666666667
+   }
+  },
+  {
+   "sharpe": 1.37,
+   "vol_each": 0.12,
+   "rho": 0.5,
+   "two_accounts_at_least_one": 0.19466666666666665,
+   "two_accounts_both": 0.038,
+   "two_accounts_mean_funded": 0.23266666666666666,
+   "one_account_both_streams": {
+    "sharpe": 1.5819397375795747,
+    "vol": 0.20784609690826525,
+    "funded_T": 0.4493333333333333,
+    "fail_first": 0.23066666666666666
+   }
+  },
+  {
+   "sharpe": 1.37,
+   "vol_each": 0.12,
+   "rho": 0.9,
+   "two_accounts_at_least_one": 0.151,
+   "two_accounts_both": 0.08366666666666667,
+   "two_accounts_mean_funded": 0.23466666666666666,
+   "one_account_both_streams": {
+    "sharpe": 1.4055903423566611,
+    "vol": 0.23392306427541512,
+    "funded_T": 0.4686666666666667,
+    "fail_first": 0.3233333333333333
+   }
+  },
+  {
+   "sharpe": 1.37,
+   "vol_each": 0.18,
+   "rho": 0.0,
+   "two_accounts_at_least_one": 0.5746666666666667,
+   "two_accounts_both": 0.11966666666666667,
+   "two_accounts_mean_funded": 0.6943333333333334,
+   "one_account_both_streams": {
+    "sharpe": 1.9374725804511406,
+    "vol": 0.2545584412271571,
+    "funded_T": 0.581,
+    "fail_first": 0.294
+   }
+  },
+  {
+   "sharpe": 1.37,
+   "vol_each": 0.18,
+   "rho": 0.5,
+   "two_accounts_at_least_one": 0.4666666666666667,
+   "two_accounts_both": 0.16966666666666666,
+   "two_accounts_mean_funded": 0.6363333333333333,
+   "one_account_both_streams": {
+    "sharpe": 1.5819397375795747,
+    "vol": 0.31176914536239786,
+    "funded_T": 0.42866666666666664,
+    "fail_first": 0.5476666666666666
+   }
+  },
+  {
+   "sharpe": 1.37,
+   "vol_each": 0.18,
+   "rho": 0.9,
+   "two_accounts_at_least_one": 0.4046666666666667,
+   "two_accounts_both": 0.26033333333333336,
+   "two_accounts_mean_funded": 0.665,
+   "one_account_both_streams": {
+    "sharpe": 1.4055903423566611,
+    "vol": 0.35088459641312264,
+    "funded_T": 0.35433333333333333,
+    "fail_first": 0.641
+   }
+  }
+ ],
+ "funded_value_12m": [
+  {
+   "sharpe": 0.0,
+   "vol": 0.12,
+   "policy": "const",
+   "mean_payout_pct": 5.9184307817193265,
+   "survives_12m": 0.35633333333333334
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.12,
+   "policy": "dd3",
+   "mean_payout_pct": 4.761364689521517,
+   "survives_12m": 0.9013333333333333
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.18,
+   "policy": "const",
+   "mean_payout_pct": 7.158700544497709,
+   "survives_12m": 0.11933333333333333
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.18,
+   "policy": "dd3",
+   "mean_payout_pct": 6.433281295236141,
+   "survives_12m": 0.5956666666666667
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.26,
+   "policy": "const",
+   "mean_payout_pct": 7.084062498395656,
+   "survives_12m": 0.012666666666666666
+  },
+  {
+   "sharpe": 0.0,
+   "vol": 0.26,
+   "policy": "dd3",
+   "mean_payout_pct": 6.5930116273555175,
+   "survives_12m": 0.181
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.12,
+   "policy": "const",
+   "mean_payout_pct": 9.439297931112721,
+   "survives_12m": 0.5696666666666667
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.12,
+   "policy": "dd3",
+   "mean_payout_pct": 8.010162242233767,
+   "survives_12m": 0.9706666666666667
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.18,
+   "policy": "const",
+   "mean_payout_pct": 11.998454885294683,
+   "survives_12m": 0.248
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.18,
+   "policy": "dd3",
+   "mean_payout_pct": 10.386275338667465,
+   "survives_12m": 0.781
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.26,
+   "policy": "const",
+   "mean_payout_pct": 11.416004678370061,
+   "survives_12m": 0.045
+  },
+  {
+   "sharpe": 0.68,
+   "vol": 0.26,
+   "policy": "dd3",
+   "mean_payout_pct": 11.362261409283855,
+   "survives_12m": 0.3406666666666667
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.12,
+   "policy": "const",
+   "mean_payout_pct": 14.410038655411386,
+   "survives_12m": 0.754
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.12,
+   "policy": "dd3",
+   "mean_payout_pct": 12.81997174134874,
+   "survives_12m": 0.994
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.18,
+   "policy": "const",
+   "mean_payout_pct": 18.751699913492125,
+   "survives_12m": 0.4036666666666667
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.18,
+   "policy": "dd3",
+   "mean_payout_pct": 17.124416635051656,
+   "survives_12m": 0.912
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.26,
+   "policy": "const",
+   "mean_payout_pct": 17.726689199985373,
+   "survives_12m": 0.09466666666666666
+  },
+  {
+   "sharpe": 1.37,
+   "vol": 0.26,
+   "policy": "dd3",
+   "mean_payout_pct": 19.42474682457816,
+   "survives_12m": 0.5013333333333333
+  }
+ ],
+ "forward_power": {
+  "H7_XAUUSD_eod": {
+   "mean_R": 0.0458,
+   "sd_R": 0.5709,
+   "trades_per_year": 131.5,
+   "power_n100_alpha0.10": 0.316,
+   "power_n100_holm4_alpha0.025": 0.123,
+   "power_n250_alpha0.10": 0.495,
+   "power_n250_holm4_alpha0.025": 0.245,
+   "n_for_80pct_power_alpha0.10": 700,
+   "years_for_80pct_power": 5.3
+  },
+  "E5_XAUUSD_24": {
+   "mean_R": 0.0108,
+   "sd_R": 0.4251,
+   "trades_per_year": 515.7,
+   "power_n100_alpha0.10": 0.152,
+   "power_n100_holm4_alpha0.025": 0.044,
+   "power_n250_alpha0.10": 0.189,
+   "power_n250_holm4_alpha0.025": 0.06,
+   "n_for_80pct_power_alpha0.10": 6984,
+   "years_for_80pct_power": 13.5
+  },
+  "E5_US500_48": {
+   "mean_R": 0.0085,
+   "sd_R": 0.2917,
+   "trades_per_year": 513.5,
+   "power_n100_alpha0.10": 0.161,
+   "power_n100_holm4_alpha0.025": 0.048,
+   "power_n250_alpha0.10": 0.206,
+   "power_n250_holm4_alpha0.025": 0.067,
+   "n_for_80pct_power_alpha0.10": 5309,
+   "years_for_80pct_power": 10.3
+  },
+  "G9_XAUUSD_eod": {
+   "mean_R": 0.0264,
+   "sd_R": 0.5938,
+   "trades_per_year": 185.1,
+   "power_n100_alpha0.10": 0.201,
+   "power_n100_holm4_alpha0.025": 0.065,
+   "power_n250_alpha0.10": 0.281,
+   "power_n250_holm4_alpha0.025": 0.104,
+   "n_for_80pct_power_alpha0.10": 2281,
+   "years_for_80pct_power": 12.3
+  }
+ }
+}

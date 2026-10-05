@@ -1,0 +1,454 @@
+{
+ "meta": {
+  "script": "scripts/research/edge_wyckoff.py",
+  "script_sha256": "8bdeeccf9bb4bf1f403e64dfb90907bfbce0482de015c20f30c92a21539f8c14",
+  "code_sha256": {
+   "scripts/research/edge_wyckoff.py": "8bdeeccf9bb4bf1f403e64dfb90907bfbce0482de015c20f30c92a21539f8c14",
+   "scripts/tests/test_edge_wyckoff.py": "681bf5e0de09e6945cfac13131bea1dcf53d185aa1fc2d3fb81a316f3da5d448",
+   "scripts/research/wyckoff_ablation.py": "34824aeb99a3963ef54cfecba0b9f66a1e40c6e8816e3a351fa2c60dcc3b9cf5",
+   "scripts/tests/test_wyckoff_ablation.py": "d672ddb0f75edf99c0a59e7c715325620d353c6b320cd9315e7757a935875835",
+   "scripts/tests/test_wyckoff_price_only.py": "6e4700ee38195b909d32c390286cc6299ae45121917f374a292c2295ba202d2b",
+   "scripts/backtest-methods.py": "cf7d5fd55651e417dd196161657f1d00779f3d5145246d4865dc50d6b52fcca9",
+   "scripts/research/reprice_real_costs.py": "52407d1b72802b5a3c3b460bb435fc6be4c6d17beca66ff7baad8f9689220c73",
+   "scripts/wyckoff_rules.py": "bc9dc00536c4e1a86a3e14d77773917b92b5855c20edeb1ec5201e7af13d2c40",
+   "scripts/structures.py": "c14e153c27bfffa0de1b18c2a573abfed921e378d523d5f2b7d46dcd2fd1ffd9",
+   "scripts/real_costs.py": "572ec698d4931efb58cab12e8b0e6f20720da07baccad6c130ef239f8fd26e1c",
+   "scripts/research/edge_census.py": "e052dab288df80f613d9f4156ddacc10d892d4ed1ad62468b4f1d7d953e71afc",
+   "scripts/research/edge_h7x.py": "b503b94509c41a25af3bd859449c26bbd2c8713aa1d8038183bf66123502786d",
+   "scripts/research/edge_f3.py": "242dcde369eaf188892df3f42a9c72ee34fb47f0a11219e1c945a6060c8f8e12",
+   "scripts/research/edge_f4.py": "e5f6ec8ad60f943196b86c0a2dc0d42f8c4805af43380c1fe03ed84149bba25b",
+   "scripts/research/book_sim.py": "19e52f4781f7c83e50578a3b7bc4f08835871bf7342566fd3c0c1ff1277498d2",
+   "scripts/research/fvg_book_sim.py": "30e1a7158204cb1c653ccad23828bc556499915595c236b3f586e774290fc56b",
+   "scripts/pit.py": "63e72161714481bfa55cbe425e71bea4a9a6ceea62718e92991fda28deb9e88f",
+   "scripts/normalized.py": "f76dd8e29513c4237425fcc0c4589c2881cd4538865bbbab27827e46790ca231",
+   "scripts/history_store.py": "e0b6bebe9eb81c65b077bfa4c5064aaaa081ac290dd6f0fbdf7bcf147bd20de0",
+   "scripts/instruments.py": "4dceb0425b3bd32b9e98848f565f0fcbe624ee6cf9ab30d7d5e88c0d4badf188",
+   "scripts/mt5_time.py": "2cfac8616eac158575ebb1350f763d72fdfdca076066fb4a05375859cc0f620a",
+   "scripts/live_rules.py": "ff9727fee35fb512672c53736d0bd077b076591527dc5880f8762d8661123bc8",
+   "scripts/ict-scan.py": "1209180c176d9109a7026ac6e22d7aa2718818b2556a3d2b611edde6e460ea90",
+   "scripts/htf_context.py": "c1f7b994b43cb29bdcfc01dedf979362cb5d40e22f7034d2d4c765539edde05f",
+   "scripts/automation.py": "1fba7e3eeef2eb633ae4569a56e9cc1a5560606e3cb488355498e2c24fc2688d",
+   "scripts/trading_env.py": "4c9a02a2cf559d1559f06dd4beb7f4f8c1702219d68ee4f3078a293ce061a92e",
+   "scripts/methods.py": "dc76537b6d7c79930c8473ebcf4e13d402a859b2dedeee8976f9014fa703ba69",
+   "scripts/account_profile.py": "2061c4654afe4535904dc15a22f4c30204fbcda01f71b95990ad1059ed0c79f8",
+   "scripts/event_risk.py": "28c509331637cf6d6815da3b4dca892f7d97edbc031bfbc27feb1a79e4346524",
+   "scripts/i18n.py": "9654c7a6c9d561ab028366f4a304098f88c92e4cdad7c6b40d1644d73c8186f0",
+   "scripts/performance.py": "d79d78bde35028abab176dbd3e3a23298fd1bb63e98eb86bbc3bd8ac2181883b",
+   "scripts/providers.py": "3afed187584f597bd81fbe66da058cd9dc2f4666bfdce973fcbb635aff8adfc3",
+   "scripts/quality.py": "a2f6af3b3b32f2b558c051b899d6a7124b1956babc2b4f083f110c26e7401eb5",
+   "scripts/repo_paths.py": "6bc8c64cdedd56582f96015a0e7579985794ea3906a7d6ebaa69b14aa72d4e61",
+   "scripts/research_validity.py": "e06d5fd02ed54f83f49f2742dfa9233f5d02d68666c4e01d72c0240a4d34d110",
+   "scripts/risk_model.py": "7b4131a53d7f768ae87580eda21fcdb6115fc8d363b9ca98cd6c7bebb5589a9e",
+   "scripts/sessions.py": "607c2c6eb547e9bf0950435e77c05c26eb06e1df022fce433e5267f8f719ecd2",
+   "scripts/snapshot.py": "e4b2474d924164cc73df127a03007e4bfc9e444a89ff33a37a9b6055049f4200",
+   "scripts/trader_constraints.py": "2109a79a0bf49679f65aec159bf0f8f2842cec06a664da9f4872f72c964dab4b",
+   "scripts/trading_system.py": "9ec6aea8f9920a7f56dec56f423fb99f27f46eb51320efaf3a5a29d2dd33f9d1",
+   "docs/architecture/analysis-params.json": "5cde25c1b9c3c35f154cdc5fbdf83d1a27c767589cbda721d0a28ab2d19958e3",
+   "docs/architecture/instruments.json": "f5de740394fc3312d73a8bf53aa69f729283bb38452d01f571ae52a915d84b5d",
+   "docs/architecture/providers.json": "af1ff6e203743c8402438256eb0f1e9c2802271ac2863155823cd9f5bf02cef8",
+   "docs/architecture/account-profiles.json": "551f9a3111eaeb1741e396e0f5459f3b657c1c84ae194e30a195189da946df6e",
+   "docs/architecture/i18n.json": "8b48e9fcdb4ec646a947d276a0595ad424c728c48372dde55eeaa50e8831e254",
+   "docs/architecture/methods.json": "30aaa27db94d92f70e327d5ffd00c1dd6f46e5809f1109052e287fc18ac84ae0",
+   "docs/architecture/performance-metrics.json": "f9a06c17a24d75692d6ea910ba39cc12d9dd50b7ffd4777fba548990f28bb103",
+   "docs/architecture/research-validity.json": "b06264c8113c64c0844954a18f58746dd9dbe5b61c700d180e54f5e486723ae9",
+   "docs/architecture/risk-config.json": "0a4621240df31e19948f047b79055654b660247ae6d35ac90d77842662659598",
+   "docs/architecture/sessions.json": "8e2bbdabbaa67da822a7baad91681ba5f62936f32851363731af85b365e71e13",
+   "docs/architecture/trader-constraints.json": "07ea109e1639b3699e10c340150ebab4aa0387fc814f6951936c1babace9d39b",
+   "docs/architecture/trading-systems.json": "90d8be1858b49402e1196f425a94fc298910f58b0f3735aeb31802a7cc4f5acc"
+  },
+  "kind": "report",
+  "read": null,
+  "perturb": null,
+  "preregistration": "docs/plans/2026-10-04-wyckoff-retest-preregistration.md",
+  "preregistration_sha256": "c0bba1d4b4e64596e7ff21d680970c474a1ef42f052773336e5b85ef4d21a008",
+  "preregistration_draft": "docs/plans/2026-10-04-wyckoff-retest-preregistration-DRAFT.md",
+  "draft_sha256": "3ddbd94f64f2b322f107a6aa9315bc30715a2cd2dd9583526d90f9a0da2570b5",
+  "git_head": "2a8ede7fee1b94340a40e28b7070e5a81d270726",
+  "symbols": {
+   "tradeable": [
+    "XAUUSD",
+    "XAGUSD",
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ],
+   "groups": {
+    "metals": [
+     "XAUUSD",
+     "XAGUSD"
+    ],
+    "indices": [
+     "US500",
+     "US30",
+     "USTEC",
+     "DE40",
+     "FRA40",
+     "AUS200"
+    ]
+   },
+   "replication": {
+    "metals": [
+     "XPTUSD",
+     "XPDUSD"
+    ],
+    "US": [
+     "US2000"
+    ],
+    "EU": [
+     "EU50",
+     "UK100"
+    ],
+    "Asia": [
+     "JP225",
+     "HK50"
+    ]
+   },
+   "excluded": {
+    "N25": "about 260 bars a month and a 376-day hole from 2022-08-05",
+    "SPN35": "half-session coverage"
+   },
+   "v": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+   ],
+   "l1": [
+    "US500",
+    "US30",
+    "USTEC",
+    "DE40",
+    "FRA40",
+    "AUS200"
+   ],
+   "l1_descriptive": [
+    "DE40",
+    "US500",
+    "XAUUSD"
+   ]
+  },
+  "timeframes": {
+   "W": [
+    "15m",
+    "1H",
+    "4H"
+   ],
+   "W_descriptive": [
+    "1D"
+   ],
+   "V": [
+    "15m",
+    "1H"
+   ]
+  },
+  "cells": {
+   "W": [
+    "W-C-long-15m",
+    "W-C-long-1H",
+    "W-C-long-4H",
+    "W-D-15m",
+    "W-D-1H",
+    "W-D-4H",
+    "W-CTX",
+    "W-CAMP"
+   ],
+   "V": [
+    "V1",
+    "V2",
+    "V3",
+    "V4"
+   ],
+   "closing": [
+    "W-C-long-15m",
+    "W-C-long-1H",
+    "W-CAMP"
+   ],
+   "gc_contrast": {
+    "W-C-long-15m": "G-C-15m",
+    "W-C-long-1H": "G-C-1H",
+    "W-C-long-4H": "G-C-4H",
+    "W-CTX": "G-C"
+   },
+   "gc_contrast_known": {
+    "W-C-long-15m": "G-C-known-15m",
+    "W-C-long-1H": "G-C-known-1H",
+    "W-C-long-4H": "G-C-known-4H",
+    "W-CTX": "G-C-known"
+   }
+  },
+  "parameters": {
+   "det_po": {
+    "window": 300,
+    "pivot": 3,
+    "reclaim": 12,
+    "test_bars": 12,
+    "cap_mult": 1,
+    "price_only": true,
+    "fx_w123": false,
+    "volume": "raw"
+   },
+   "perturbations": {
+    "P1": {
+     "fx_w123": true,
+     "change": "fx_w1/w2/w3 on (the owner-adopted fixes)"
+    },
+    "P2": {
+     "price_only": false,
+     "volume": "hour_norm",
+     "change": "tick-volume clauses on, tick volume / its trailing 20-day median at the same server hour"
+    },
+    "P3": {
+     "window": 600,
+     "change": "600-bar window"
+    },
+    "P4": {
+     "pivot": 4,
+     "change": "pivot 4"
+    },
+    "P5": {
+     "reclaim": 24,
+     "change": "Shakeout reclaim window 24"
+    },
+    "P6": {
+     "cap_mult": 2,
+     "change": "time cap 2 x H"
+    }
+   },
+   "engine": {
+    "H": {
+     "15m": 96,
+     "1H": 72,
+     "4H": 30
+    },
+    "sob": {
+     "15m": 6,
+     "1H": 4,
+     "4H": 3
+    },
+    "stop_buffer": 0.0005,
+    "wyckoff_window": 300,
+    "htf_of": {
+     "15m": "1H",
+     "1H": "4H",
+     "4H": "1D"
+    }
+   },
+   "cause_min": 1,
+   "test_zone": 0.3333333333333333,
+   "gc_reclaim": 12,
+   "v4": {
+    "lookback": 20,
+    "mom": 21,
+    "vol_x": 2.0,
+    "spacing": 20
+   },
+   "n_placebo": 200,
+   "atr_n": 20,
+   "placebo_seed": "sha256('WY-P0|sym|tf|signal_time')[:16]",
+   "placebo_slot": "server-clock minute of the day of the event's ENTRY bar",
+   "dense": {
+    "share": 0.8,
+    "ref_year": 2023,
+    "lookback_days": 60,
+    "hole_days": 7
+   },
+   "hour_norm_days": 20,
+   "trend_days": 20,
+   "count_gate": 30,
+   "fdr_q": 0.1,
+   "delta": 0.2,
+   "breadth_min": 20,
+   "perturb_need": 5,
+   "against_p": 0.05,
+   "r2": {
+    "cluster_min": 10,
+    "evaluable_min": 2,
+    "agree": 3
+   },
+   "l1_p": 0.1,
+   "forward": {
+    "p": 0.1,
+    "events": 100,
+    "months": 12
+   },
+   "bootstrap_resamples": 2000,
+   "cluster": "ISO week of the signal bar (UTC)",
+   "windows": {
+    "R1": [
+     null,
+     "2024-03-01T00:00:00Z"
+    ],
+    "R2": [
+     null,
+     "2024-03-01T00:00:00Z"
+    ],
+    "R3": [
+     "2024-03-01T00:00:00Z",
+     null
+    ],
+    "V": [
+     "2017-08-17T00:00:00Z",
+     "2022-08-01T00:00:00Z"
+    ]
+   },
+   "fra40_session_cut": "2024-12-01T00:00:00Z"
+  },
+  "costs": {
+   "profile": "ftmo_demo_2026_09_relspread",
+   "hour_frame": "server_table",
+   "lines": [
+    "median_swap",
+    "median_noswap",
+    "p90_swap",
+    "p90_noswap"
+   ],
+   "commission": "0/UNKNOWN (real_costs.commission_r)",
+   "binance_round_trip": 0.0012000000000000001,
+   "binance_stress": 0.0014,
+   "binance_lines": [
+    "base",
+    "stress"
+   ],
+   "funding": "realized (amendment [H7x-A1]): a perp-era trade (entry >= 2020-01-01T00:00Z) pays side x rate_tau, a fraction of ENTRY notional (longs pay a positive rate), for every settlement tau in data/history/binance_um/funding.{SYM}.json.gz with entry_time <= tau < exit_time, at whatever interval the file gives; owner sizing charges the settlements before its stop fill; spot era (< 2020-01-01): none"
+  },
+  "disclosures": {
+   "price_only": "DET-PO drops the volume legs of CHoBEV, SOS and BU (WA:274-277): price patterns, not the book's effort reading (\u00a73.1, \u00a711 item 3)",
+   "dense_start": "every series (decision and higher timeframe) starts at its R0 dense start",
+   "read_membership": "an event belongs to a read by its ENTRY bar: open >= lo and close <= hi",
+   "cost_times": "cost_r at the entry bar's and exit bar's time labels (the engine's convention)",
+   "gc_exclusion": "G-C's +-N exclusion (\u00a73.6 as written) reads every W-C-long event of the series, including breaks AFTER the control's decision bar r -- a sample definition that conditions on later bars and can drop losing controls; G-C-known (diagnostic, gc_contrast_known, never the attribution's) excludes only on W-C-long events signalled by r. The owner confirms which \u00a73.6 means before sealing",
+   "attribution": "no G-C delta (no rows on either side) -> attribution UNDETERMINED, never Wyckoff by default",
+   "htf_gates": "the \u00a73.1 cause and horizontal gates apply to the higher-timeframe records too (DET-PO)",
+   "camp_cap": "W-CAMP exits on time H bars after the last filled tranche whether or not it has a target",
+   "camp_placebo": "placebo campaigns use the event's FILLED tranche offsets",
+   "v_harness": "family V uses the same harness (gates, de-dup, \u00a73.2 builders); only the volume reading differs (price_only off, traded volume)",
+   "descriptive_built": "R1 only, never gated: the Phase-B raised-ceiling target on W-C-long (|ceiling-target), the flatten-before-rollover walk on W-C-long and W-D (|flatten), the trend-matched placebo on the single-entry W cells (|trend-placebo: the drawn placebo bars whose 20-day trend sign at p-1 equals the event's at k), and 1D (desc:*-1D, no HTF: W-D / W-CAMP exit on time)",
+   "descriptive_not_built": "\u00a73.7 lower-timeframe Shakeout entry (WA2-18) and sigma-unit time exit: \u00a73.7 gives no point-in-time definition this script can implement without inventing one (the census' sigma unit drops any hold that crosses a server day, i.e. nearly every hold of H bars); to be defined or struck before sealing",
+   "code_fingerprint": "code_sha256 covers CODE; the ledger is outside it (other studies append to it)"
+  },
+  "guarded": true,
+  "sealed": {
+   "path": "docs/plans/2026-10-04-wyckoff-retest-preregistration.md",
+   "sha256": "c0bba1d4b4e64596e7ff21d680970c474a1ef42f052773336e5b85ef4d21a008",
+   "seal_date": "2026-10-04",
+   "seal_instant": "2026-10-04T04:29:29Z"
+  },
+  "reads": [
+   "L1",
+   "R1",
+   "V"
+  ]
+ },
+ "W": {
+  "W-C-long-15m": {
+   "r1": {
+    "bh_rejected": false,
+    "bh_m": 4,
+    "cost_lines_positive": true,
+    "breadth_meetable": true,
+    "breadth": true,
+    "gates_1_3": false,
+    "against_the_book": false,
+    "upper_95": 0.7193977136366064,
+    "below_delta": false,
+    "delta": 0.2
+   },
+   "label": "INCONCLUSIVE"
+  },
+  "W-C-long-1H": {
+   "label": "DESCRIPTIVE",
+   "why": "fewer than COUNT_GATE R1 events (R0)"
+  },
+  "W-C-long-4H": {
+   "label": "DESCRIPTIVE",
+   "why": "fewer than COUNT_GATE R1 events (R0)"
+  },
+  "W-D-15m": {
+   "r1": {
+    "bh_rejected": false,
+    "bh_m": 4,
+    "cost_lines_positive": false,
+    "breadth_meetable": true,
+    "breadth": false,
+    "gates_1_3": false,
+    "against_the_book": false,
+    "upper_95": 0.004508758160640947,
+    "below_delta": true,
+    "delta": 0.2
+   },
+   "label": "NO MECHANICAL EDGE"
+  },
+  "W-D-1H": {
+   "r1": {
+    "bh_rejected": false,
+    "bh_m": 4,
+    "cost_lines_positive": true,
+    "breadth_meetable": true,
+    "breadth": false,
+    "gates_1_3": false,
+    "against_the_book": false,
+    "upper_95": 0.18805168086097324,
+    "below_delta": true,
+    "delta": 0.2
+   },
+   "label": "NO MECHANICAL EDGE"
+  },
+  "W-D-4H": {
+   "label": "DESCRIPTIVE",
+   "why": "fewer than COUNT_GATE R1 events (R0)"
+  },
+  "W-CTX": {
+   "label": "DESCRIPTIVE",
+   "why": "fewer than COUNT_GATE R1 events (R0)"
+  },
+  "W-CAMP": {
+   "r1": {
+    "bh_rejected": false,
+    "bh_m": 4,
+    "cost_lines_positive": false,
+    "breadth_meetable": true,
+    "breadth": false,
+    "gates_1_3": false,
+    "against_the_book": true,
+    "upper_95": -0.30872802307973424,
+    "below_delta": true,
+    "delta": 0.2
+   },
+   "label": "AGAINST THE BOOK"
+  }
+ },
+ "V": {
+  "V1": {
+   "label": "DESCRIPTIVE"
+  },
+  "V2": {
+   "bh_rejected": false,
+   "bh_m": 2,
+   "label": "AGAINST THE BOOK"
+  },
+  "V3": {
+   "label": "DESCRIPTIVE"
+  },
+  "V4": {
+   "bh_rejected": false,
+   "bh_m": 2,
+   "label": "AGAINST THE BOOK"
+  }
+ },
+ "L1": {
+  "n": 107,
+  "mean_net_R": -0.2224485981308411,
+  "p_one_sided": 0.9125791570405084,
+  "pass": false,
+  "label": "FAIL: the DE40/US500 lead is closed"
+ },
+ "R4": {},
+ "closing": {
+  "closed_price_mechanical_on_cfds": false,
+  "gc_read_out": true,
+  "closed_overall": false,
+  "why_not_overall": "family V cannot reach a closing bound at its power (\u00a76.3, \u00a78)"
+ }
+}
