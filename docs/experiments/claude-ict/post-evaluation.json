@@ -1,0 +1,107 @@
+{
+ "arm_M_shortened_series": {
+  "US500": {
+   "days": [
+    "2026-09-28",
+    "2026-09-29",
+    "2026-09-30",
+    "2026-10-01",
+    "2026-10-02"
+   ],
+   "decision_points_after_end": 13,
+   "series_end_utc": "2026-09-28T17:00:00Z"
+  },
+  "XAUUSD": {
+   "days": [
+    "2026-10-01",
+    "2026-10-02"
+   ],
+   "decision_points_after_end": 4,
+   "series_end_utc": "2026-10-01T02:00:00Z"
+  }
+ },
+ "control_asymmetry_by_kind": {
+  "US500|all": {
+   "filled": 88,
+   "mean_R_C": -0.10370241284927528,
+   "mean_R_C_minus_R_opp": -0.07618816789769975,
+   "mean_R_opp": -0.027514244951575523
+  },
+  "US500|limit": {
+   "filled": 86,
+   "mean_R_C": -0.10962992562558396,
+   "mean_R_C_minus_R_opp": -0.07431355340725061,
+   "mean_R_opp": -0.035316372218333336
+  },
+  "US500|stop": {
+   "filled": 2,
+   "mean_R_C": 0.15118063653199765,
+   "mean_R_C_minus_R_opp": -0.15679659098701282,
+   "mean_R_opp": 0.30797722751901035
+  },
+  "XAUUSD|all": {
+   "filled": 70,
+   "mean_R_C": 0.01230284480625827,
+   "mean_R_C_minus_R_opp": 0.14831357094151512,
+   "mean_R_opp": -0.1360107261352569
+  },
+  "XAUUSD|limit": {
+   "filled": 67,
+   "mean_R_C": 0.057018238318309586,
+   "mean_R_C_minus_R_opp": 0.2436190128025243,
+   "mean_R_opp": -0.18660077448421472
+  },
+  "XAUUSD|stop": {
+   "filled": 3,
+   "mean_R_C": -0.9863409436295545,
+   "mean_R_C_minus_R_opp": -1.9801746306210226,
+   "mean_R_opp": 0.9938336869914681
+  },
+  "all|all": {
+   "filled": 158,
+   "mean_R_C": -0.052307678444924975,
+   "mean_R_C_minus_R_opp": 0.023274627790560005,
+   "mean_R_opp": -0.07558230623548498
+  },
+  "all|limit": {
+   "filled": 153,
+   "mean_R_C": -0.03665327866976129,
+   "mean_R_C_minus_R_opp": 0.06491181872382729,
+   "mean_R_opp": -0.10156509739358859
+  },
+  "all|stop": {
+   "filled": 5,
+   "mean_R_C": -0.5313323115649337,
+   "mean_R_C_minus_R_opp": -1.2508234147674187,
+   "mean_R_opp": 0.719491103202485
+  }
+ },
+ "filled_by_order_kind": {
+  "limit": 153,
+  "stop": 5
+ },
+ "made_after": "evaluation.json (run once); descriptive only, no verdict effect (amendment 2)",
+ "mirror_p": 0.10394802598700649,
+ "mostly_stop_orders": false,
+ "primary_p": 0.41829085457271364,
+ "spread_as_run": {
+  "filled": 158,
+  "mean_net_R": -0.052307678444924975
+ },
+ "spread_doubled": {
+  "by_instrument": {
+   "US500": {
+    "filled": 88,
+    "mean_net_R": -0.16281306920845504
+   },
+   "XAUUSD": {
+    "filled": 70,
+    "mean_net_R": 0.011707792026100207
+   }
+  },
+  "filled": 158,
+  "mean_net_R": -0.0854937003070698,
+  "orders": 264
+ },
+ "verdict": "FAIL"
+}
