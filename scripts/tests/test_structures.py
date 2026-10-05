@@ -40,6 +40,11 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import normalized as N  # noqa: E402
 import wyckoff_rules as W  # noqa: E402
 
+# The Wyckoff fixtures below (AUS200 4H slices) were chosen under v1 detection; W8 (CHoCH inside the SC-AR box, ON by
+# default since owner 2026-10-05) drops their only distribution record. Byte-identity and envelope shape are properties
+# of the wrapper, not of W8, so these tests run both sides with the SAME explicit W8-off PARAMS.
+V1_W8_OFF = dict(W.PARAMS, fx_w8_choch_in_box=False)
+
 
 def _load(name, mod):
     spec = importlib.util.spec_from_file_location(mod, os.path.join(ROOT, "scripts", name))
@@ -232,7 +237,12 @@ class AvailableTimeInvariant(unittest.TestCase):
                 continue
             c = window[s["i"]]
             self.assertEqual(s["formed_at"], c["time"])
-            self.assertEqual(s["available_at"], N.available_time(c, "4H").isoformat().replace("+00:00", "Z"))
+            # ICT chart-fidelity audit 2026-10-04, item 2: an MSS is available only once its dependent pivots
+            # (each + PIV) and its displacement-confirming bar have closed -- not at its own bar alone.
+            conf = s["i"] if s["kind"] != "mss" else max(
+                [s["i"], s["disp_conf_i"]] + [q + structures.PIV for q in s["dep_pivots"]])
+            self.assertEqual(s["available_at"],
+                             N.available_time(window[conf], "4H").isoformat().replace("+00:00", "Z"))
             checked += 1
         self.assertGreater(checked, 0)
 
@@ -299,8 +309,8 @@ class WyckoffStructuresMatchDetect(unittest.TestCase):
 
     def test_wyckoff_records_equals_a_direct_detect_distributions_call(self):
         """The hot-path pass-through must be byte-identical to a direct call."""
-        got = structures.wyckoff_records(self.O, self.H, self.L, self.C, self.V, volume_kind="traded", side="short")
-        direct = W.detect_distributions(self.O, self.H, self.L, self.C, self.V, volume_kind="traded")
+        got = structures.wyckoff_records(self.O, self.H, self.L, self.C, self.V, P=V1_W8_OFF, volume_kind="traded", side="short")
+        direct = W.detect_distributions(self.O, self.H, self.L, self.C, self.V, P=V1_W8_OFF, volume_kind="traded")
         self.assertEqual(got, direct)
         self.assertGreaterEqual(len(direct), 1, "fixture must exercise at least one Wyckoff structure")
 
@@ -308,14 +318,14 @@ class WyckoffStructuresMatchDetect(unittest.TestCase):
         """This 600-bar AUS200 4H slice produces >=1 distribution record (verified interactively) but zero
         accumulation records, so the distribution side is what pins byte-identity here."""
         env = structures.wyckoff_structures(self.O, self.H, self.L, self.C, self.V, self.window, "4H",
-                                             volume_kind="traded", side="short")
-        direct = W.detect_distributions(self.O, self.H, self.L, self.C, self.V, volume_kind="traded")
+                                             P=V1_W8_OFF, volume_kind="traded", side="short")
+        direct = W.detect_distributions(self.O, self.H, self.L, self.C, self.V, P=V1_W8_OFF, volume_kind="traded")
         self.assertEqual(env["records"], direct)
         self.assertGreaterEqual(len(direct), 1, "fixture must exercise at least one Wyckoff structure")
 
     def test_records_is_the_same_list_wyckoff_rules_returned(self):
         env = structures.wyckoff_structures(self.O, self.H, self.L, self.C, self.V, self.window, "4H",
-                                             volume_kind="traded", side="short")
+                                             P=V1_W8_OFF, volume_kind="traded", side="short")
         self.assertIsInstance(env["records"], list)
         for r in env["records"]:
             self.assertIn("tr_lo", r)
@@ -323,17 +333,25 @@ class WyckoffStructuresMatchDetect(unittest.TestCase):
 
     def test_trading_range_events_are_timestamped_from_candles(self):
         env = structures.wyckoff_structures(self.O, self.H, self.L, self.C, self.V, self.window, "4H",
-                                             volume_kind="traded", side="short")
+                                             P=V1_W8_OFF, volume_kind="traded", side="short")
         self.assertGreater(len(env["structures"]), 0)
         for tr in env["structures"]:
             self.assertEqual(tr["kind"], "trading_range")
             self.assertEqual(tr["formed_at"], self.window[tr["sc"]]["time"])
-            want_available = N.available_time(self.window[tr["choch"]], "4H").isoformat().replace("+00:00", "Z")
-            self.assertEqual(tr["available_at"], want_available)
+            # Chart fidelity finding 4: the range used to be stamped available at the CHoCH bar, but the record
+            # (and so the range) is only EMITTED once its Spring / LPS[C] path fires, and the CHoCH pivot itself
+            # needs `pivot` more bars. available_at is never earlier than either.
+            choch_conf = _iso(self.window[min(tr["choch"] + W.PARAMS["pivot"], len(self.window) - 1)], "4H")
+            emit = tr["spring"] if tr["path"] == "spring" else tr["sos_bar"]
+            self.assertGreaterEqual(tr["available_at"], choch_conf)
+            self.assertGreaterEqual(tr["available_at"], _iso(self.window[emit], "4H"))
             for ev in tr["events"]:
                 c = self.window[ev["i"]]
                 self.assertEqual(ev["formed_at"], c["time"])
-                self.assertEqual(ev["available_at"], N.available_time(c, "4H").isoformat().replace("+00:00", "Z"))
+                self.assertGreaterEqual(ev["available_at"], _iso(c, "4H"))
+                self.assertGreaterEqual(ev["available_at"], tr["available_at"])
+            self.assertNotIn("reclaim", [e["kind"] for e in tr["events"]], "finding 16: Reclaim is not a Wyckoff event")
+            self.assertNotIn("sos", [e["kind"] for e in tr["events"]], "finding 15: one SOS flag (sos_bar) only")
 
 
 class A1bInvalidatedAt(unittest.TestCase):
@@ -346,34 +364,54 @@ class A1bInvalidatedAt(unittest.TestCase):
         self.env = structures.ict_structures(self.window, 4, "4H", methods=("ict",))
 
     def test_pool_invalidated_at_only_when_closed_through(self):
+        """closed_through -> invalidated at closed_at; SWEPT -> invalidated only at the first LATER body close
+        beyond the level (ICT chart-fidelity audit 2026-10-04 item 3; core-a.md R6/R25, mentorship-2024 §15);
+        intact -> open."""
         a = self.env["analysis"]
         pools = [s for s in self.env["structures"] if s["kind"] == "pool"]
         self.assertEqual(len(pools), len(a["pools"]))
-        saw_invalidated = saw_live = 0
+        C = [c["close"] for c in self.window]
+        saw_invalidated = saw_live = saw_broken = 0
         for wrapped, raw in zip(pools, a["pools"]):
             if raw["state"] == "closed_through":
                 self.assertIsNotNone(wrapped["invalidated_at"])
                 self.assertEqual(wrapped["invalidated_at"], _iso(self.window[raw["closed_at"]], "4H"))
                 saw_invalidated += 1
+            elif raw["swept"] >= 0:
+                beyond = [j for j in range(raw["swept"] + 1, len(C))
+                          if (C[j] > raw["level"] if raw["kind"] == "BSL" else C[j] < raw["level"])]
+                self.assertEqual(wrapped["broken_i"], beyond[0] if beyond else None)
+                if beyond:
+                    self.assertEqual(wrapped["invalidated_at"],
+                                     max(_iso(self.window[beyond[0]], "4H"), wrapped["available_at"]))
+                    saw_broken += 1
+                else:
+                    self.assertIsNone(wrapped["invalidated_at"])
+                    saw_live += 1
             else:
                 self.assertIsNone(wrapped["invalidated_at"], f"a {raw['state']!r} pool must not carry invalidated_at")
                 saw_live += 1
         self.assertGreater(saw_invalidated, 0, "fixture must exercise at least one closed_through pool")
         self.assertGreater(saw_live, 0, "fixture must exercise at least one intact/swept pool")
 
-    def test_fvg_invalidated_at_only_when_mitigated(self):
+    def test_fvg_invalidated_at_only_when_inverted(self):
+        """The first touch is NOT an FVG's end (core-a.md §2.23 R19): invalidated_at is the inversion -- a body
+        close through CE, then through the far edge (§2.26 R23). touched_at is the old first-touch bar."""
         a = self.env["analysis"]
         fvgs = [s for s in self.env["structures"] if s["kind"] == "fvg"]
         self.assertEqual(len(fvgs), len(a["fvgs_all"]))
-        saw_mitigated = 0
+        saw_touched = 0
         for wrapped, raw in zip(fvgs, a["fvgs_all"]):
             if raw["mitigated"]:
-                self.assertIsNotNone(wrapped["invalidated_at"])
-                self.assertEqual(wrapped["invalidated_at"], _iso(self.window[raw["end"]], "4H"))
-                saw_mitigated += 1
+                self.assertEqual(wrapped["touched_at"], _iso(self.window[raw["end"]], "4H"))
+                saw_touched += 1
             else:
-                self.assertIsNone(wrapped["invalidated_at"])
-        self.assertGreater(saw_mitigated, 0, "fixture must exercise at least one mitigated FVG")
+                self.assertIsNone(wrapped["touched_at"])
+            self.assertEqual(wrapped["invalidated_at"], wrapped["inversion_at"])
+            if wrapped["inversion_i"] is not None:
+                self.assertIsNotNone(wrapped["ce_fail_i"])
+                self.assertLess(wrapped["ce_fail_i"], wrapped["inversion_i"])
+        self.assertGreater(saw_touched, 0, "fixture must exercise at least one touched FVG")
 
     def test_invalidated_at_never_before_the_structures_own_available_at(self):
         for s in self.env["structures"]:
@@ -393,7 +431,7 @@ class A1bWyckoffPhases(unittest.TestCase):
         O = [x["open"] for x in self.window]; H = [x["high"] for x in self.window]
         L = [x["low"] for x in self.window]; C = [x["close"] for x in self.window]
         V = [x.get("volume", 0) for x in self.window]
-        self.env = structures.wyckoff_structures(O, H, L, C, V, self.window, "4H", volume_kind="traded", side="short")
+        self.env = structures.wyckoff_structures(O, H, L, C, V, self.window, "4H", P=V1_W8_OFF, volume_kind="traded", side="short")
 
     def test_every_trading_range_carries_at_least_phase_a_and_b(self):
         self.assertGreater(len(self.env["structures"]), 0)
@@ -409,12 +447,21 @@ class A1bWyckoffPhases(unittest.TestCase):
             self.assertEqual(labels, list("ABCDE")[:len(labels)])
 
     def test_open_phase_is_hypothesis_and_closed_phase_is_tested(self):
+        """Finding 7 (method.md §2 A4; WA p150-159, p166-167): closed is necessary but not sufficient -- a phase is
+        'tested' only when the đối nhãn reads do not contradict and the structure is not sloped."""
         for tr in self.env["structures"]:
+            contra = (tr["sloped"] or tr["st_sign"] == "contradicts" or tr["phase_b_sign"] == "contradicts")
             for p in tr["phases"]:
                 if p["to"] is None:
                     self.assertEqual(p["status"], "hypothesis")
+                    self.assertIn("open", p["reasons"])
+                if contra:
+                    self.assertEqual(p["status"], "hypothesis", p)
+                if p["status"] == "tested":
+                    self.assertIsNotNone(p["to"])
+                    self.assertEqual(p["reasons"], [])
                 else:
-                    self.assertEqual(p["status"], "tested")
+                    self.assertTrue(p["reasons"], p)
 
     def test_phase_available_at_never_before_formed_at(self):
         for tr in self.env["structures"]:
@@ -424,14 +471,16 @@ class A1bWyckoffPhases(unittest.TestCase):
                 self.assertGreaterEqual(available, formed)
 
     def test_last_phase_status_matches_the_record_shape(self):
-        """A record with no `bu` has no Phase E band at all; a record with `bu` does, and it is always open."""
+        """Finding 10 (WA p85): Phase E exists only once price closes beyond the SOS leg AFTER the BU -- a record
+        with no `bu` has no Phase E band; when present it is never 'tested' (nothing closes it)."""
         for r, tr in zip(self.env["records"], self.env["structures"]):
             labels = [p["label"] for p in tr["phases"]]
-            if r.get("bu") and r["bu"].get("bar") is not None:
+            if not (r.get("bu") and r["bu"].get("bar") is not None):
+                self.assertNotIn("E", labels)
+            if "E" in labels:
                 self.assertEqual(labels[-1], "E")
                 self.assertEqual(tr["phases"][-1]["status"], "hypothesis")
-            else:
-                self.assertNotIn("E", labels)
+                self.assertGreater(tr["phases"][-1]["from"], self.window[r["bu"]["bar"]]["time"])
 
 
 def _history(sym, tf, n=600):
@@ -489,7 +538,11 @@ class A1bWyckoffPhaseAvailabilityAcrossSymbols(unittest.TestCase):
                     continue
                 ev = next(e for e in tr["events"] if e["kind"] == "sos_bar")
                 self.assertEqual(ev["formed_at"], candles[r["sos_bar"]]["time"])
-                self.assertEqual(ev["available_at"], _iso(candles[r["sos"]], tf), f"{sym} {tf} {side}")
+                self.assertEqual(ev["conf_bar"], r["sos"])
+                # Never before the follow-through close (I3). The point-in-time scan (finding 3/4) is stricter
+                # still: the detector's SOS search runs only to n - COMMIT, so a prefix run first emits the SOS
+                # one bar AFTER `sos` -- the exact bar, not a formula, is pinned by the prefix test below.
+                self.assertGreaterEqual(ev["available_at"], _iso(candles[r["sos"]], tf), f"{sym} {tf} {side}")
                 self.assertGreaterEqual(r["sos"], r["sos_bar"])
                 seen += 1
         self.assertGreater(seen, 0, "no SOS-confirmed range across any symbol")

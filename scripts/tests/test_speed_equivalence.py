@@ -111,6 +111,12 @@ class BaseSnapshot:
                                    cwd=ROOT, stdout=subprocess.PIPE)
             subprocess.check_call(["tar", "-x", "-C", d], stdin=tar.stdout)
             tar.wait()
+            # The session model is CONFIGURATION, not the code under test: both sides must read the same windows, or a
+            # session change (sessions.json v3, owner 2026-10-05: London 02:00-05:00 New York) shows up as an "engine
+            # difference" on every overlay that reads sessions (fx_b_pool, fx_b7).
+            # Same for analysis-params.json (ICT pivot width 3 -> 1, owner 2026-10-05): a parameter both engines read.
+            for cfg in ("sessions.json", "analysis-params.json"):
+                shutil.copy(os.path.join(ROOT, "docs", "architecture", cfg), os.path.join(d, "docs", "architecture", cfg))
             os.symlink(os.path.join(ROOT, "data"), os.path.join(d, "data"))
             with open(os.path.join(d, "ref.py"), "w") as fh:
                 fh.write(REF_SCRIPT)
@@ -140,6 +146,11 @@ def _fixed():
     return {"flat_before_rollover": True, "rollover_provider": RC.PROFILES["ftmo_demo_2026_09"]["provider"]}
 
 
+def _W8_OFF(W):
+    """wyckoff_rules.PARAMS with W8 off: the BASE/frozen detectors predate W8 (ON by default since owner 2026-10-05)."""
+    return dict(W.PARAMS, fx_w8_choch_in_box=False)
+
+
 def ict_overlays():
     fx = _fixed()
     vs = [dict(), dict(fx_b_ex="ce"), dict(fx_b_pd="r13"), dict(fx_b_pool="on"), dict(fx_b_buf="0.1atr"),
@@ -151,7 +162,8 @@ def ict_overlays():
 
 
 def wy_overlays():
-    fx = _fixed()
+    # W8 off on the new side: BASE predates W8 (default ON since owner 2026-10-05), and this is a speed-equivalence check.
+    fx = dict(_fixed(), fx_w8_choch_in_box=False)
     vs = [dict(), dict(fx_w_stop="spring_low"), dict(fx_w4a_linger_closes=2), dict(fx_w6_window=600),
           dict(fx_w_spt="ceiling"), dict(fx_w_touch="on"), dict(fx_w_tw=(8, 2)), dict(fx_w_spt="VAH"),
           dict(fx_w1_tr_low_st=True), dict(fx_w3_mSOW_spring=True), dict(fx_w7_htf_target=True), dict(htf=True),
@@ -250,9 +262,11 @@ class WyckoffDifferential(_DiffMixin, unittest.TestCase):
 
 
 class IctPoolKeyChangesTrades(_DiffSetup, unittest.TestCase):
-    """fx_b_pool='on' really changes the trades on this slice (XAGUSD 15m, 20,000 bars), so a group key that dropped it
-    would hand the pool-on overlay the pool-off analysis and fail here."""
-    SYM, TF, METHOD, BARS = "XAGUSD", "15m", "ICT", 20000
+    """fx_b_pool='on' really changes the trades on this slice (XAGUSD 15m, 30,000 bars), so a group key that dropped it
+    would hand the pool-on overlay the pool-off analysis and fail here. 20,000 bars until sessions.json v3
+    (2026-10-05): under the v3 London window the pool no longer changed a trade on that shorter slice (measured: 9/9,
+    6/6, 3/3 equal on XAGUSD 12k / US500 20k / XAUUSD 20k; XAGUSD 30k: 16 vs 17 trades)."""
+    SYM, TF, METHOD, BARS = "XAGUSD", "15m", "ICT", 30000
     overlays = staticmethod(lambda: [dict(_fixed()), dict(_fixed(), fx_b_pool="on"),
                                      dict(_fixed(), fx_b_pool="on", fx_b_ex="ce")])
 
@@ -493,7 +507,13 @@ class AnalyzeKeyRegistry(unittest.TestCase):
                     outs = [self.ict.analyze(w, recent, tf="5m", methods=methods, opts={k: alt}) for w in windows]
                     if outs != base_out:
                         changed.add(k)
-            self.assertEqual(changed, set(self.ict.ANALYZE_OPT_KEYS),
+            # No unlisted key may change analyze() (that is what would break sharing). Every listed key must change
+            # it somewhere -- except fx_b1_pivot1, a no-op since pivot_bars is 1 by default (owner 2026-10-05), and
+            # fx_b_pool, which changes nothing on this slice under sessions v3 and is pinned by IctPoolKeyChangesTrades.
+            self.assertLessEqual(changed, set(self.ict.ANALYZE_OPT_KEYS),
+                                 "an fx_ key outside ict-scan.ANALYZE_OPT_KEYS changes analyze()'s output")
+            exempt = {"fx_b_pool"} | ({"fx_b1_pivot1"} if self.ict.PIV == 1 else set())
+            self.assertEqual(changed | exempt, set(self.ict.ANALYZE_OPT_KEYS) | exempt,
                              "the fx_ keys that change analyze()'s output must be exactly ict-scan.ANALYZE_OPT_KEYS")
             # and the engine hands analyze() a superset overlay: extra keys must be inert
             noisy = {k: alternatives[k][0] for k in fx_keys if alternatives[k] and k not in self.ict.ANALYZE_OPT_KEYS}
@@ -644,11 +664,11 @@ class PivotPrecomputeEqualsBase(unittest.TestCase):
             idx = W.pivot_index(H, L, k)
             for kind in ("traded", "tick"):
                 ref_a = B.detect_accumulations(O, H, L, C, V, volume_kind=kind)
-                self.assertEqual(W.detect_accumulations(O, H, L, C, V, volume_kind=kind), ref_a)
-                self.assertEqual(W.detect_accumulations(O, H, L, C, V, volume_kind=kind, pivots=W.window_pivots(idx, 0, m, k)), ref_a)
+                self.assertEqual(W.detect_accumulations(O, H, L, C, V, P=_W8_OFF(W), volume_kind=kind), ref_a)
+                self.assertEqual(W.detect_accumulations(O, H, L, C, V, P=_W8_OFF(W), volume_kind=kind, pivots=W.window_pivots(idx, 0, m, k)), ref_a)
                 ref_d = B.detect_distributions(O, H, L, C, V, volume_kind=kind)
-                self.assertEqual(W.detect_distributions(O, H, L, C, V, volume_kind=kind), ref_d)
-                self.assertEqual(W.detect_distributions(O, H, L, C, V, volume_kind=kind, pivots=W.window_pivots(idx, 0, m, k, swap=True)), ref_d)
+                self.assertEqual(W.detect_distributions(O, H, L, C, V, P=_W8_OFF(W), volume_kind=kind), ref_d)
+                self.assertEqual(W.detect_distributions(O, H, L, C, V, P=_W8_OFF(W), volume_kind=kind, pivots=W.window_pivots(idx, 0, m, k, swap=True)), ref_d)
                 n_rec += len(ref_a) + len(ref_d)
         self.assertGreater(n_rec, 30, "random walks produced no structure: vacuous")
 
@@ -669,13 +689,13 @@ class PivotPrecomputeEqualsBase(unittest.TestCase):
             for side in ("long", "short"):
                 if side == "long":
                     ref = B.detect_accumulations(O[s], H[s], L[s], C[s], V[s], volume_kind="tick")
-                    got = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], volume_kind="tick")
-                    hook = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], volume_kind="tick",
+                    got = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], P=_W8_OFF(W), volume_kind="tick")
+                    hook = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], P=_W8_OFF(W), volume_kind="tick",
                                                   pivots=W.window_pivots(idx, a, 300, k))
                 else:
                     ref = B.detect_distributions(O[s], H[s], L[s], C[s], V[s], volume_kind="tick")
-                    got = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], volume_kind="tick")
-                    hook = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], volume_kind="tick",
+                    got = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], P=_W8_OFF(W), volume_kind="tick")
+                    hook = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], P=_W8_OFF(W), volume_kind="tick",
                                                   pivots=W.window_pivots(idx, a, 300, k, swap=True))
                 self.assertEqual(got, ref)
                 self.assertEqual(hook, ref)
@@ -705,12 +725,31 @@ class AnalyzeAndSetupCandidateEqualBase(unittest.TestCase):
                {"fx_b_ex": "ce", "fx_b_pd": "r13", "fx_b_buf": "0.1atr", "fx_b_exit": "-2.25|1.5H|floor"},
                {"fx_b_ex": "fill", "fx_b_buf": "0.25atr", "fx_braid_optional": True})
 
+    # Display-only fields the 2026-10-04 ICT chart-fidelity fix added to every MSS record (the pivots a break
+    # depends on and the bar its displacement is confirmed -- the chart's point-in-time availability). BASE predates
+    # them; no decision reads them (decision equivalence with them present: test_ict_display_lifecycle).
+    MSS_DISPLAY_KEYS = ("dep_pivots", "disp_conf_i")
+
+    @classmethod
+    def _strip_display(cls, a):
+        if not isinstance(a, dict):
+            return a
+        out = dict(a)
+        drop = lambda m: {k: v for k, v in m.items() if k not in cls.MSS_DISPLAY_KEYS} if isinstance(m, dict) else m
+        for k in ("last_mss", "last_displaced_mss"):
+            if k in out:
+                out[k] = drop(out[k])
+        for k in ("mss", "mss_all"):
+            if isinstance(out.get(k), list):
+                out[k] = [drop(m) for m in out[k]]
+        return out
+
     def _compare(self, c, recent, tf, n_windows_hint):
         import copy
         n_complete = 0
         for methods in (("wyckoff", "ict"), ("ict",), ("wyckoff",)):
             for o in self.OPTS:
-                a_new = self.new.analyze(c, recent, tf=tf, methods=methods, opts=dict(o))
+                a_new = self._strip_display(self.new.analyze(c, recent, tf=tf, methods=methods, opts=dict(o)))
                 a_old = self.old.analyze(c, recent, tf=tf, methods=methods, opts=dict(o))
                 self.assertEqual(a_new, a_old, (methods, o))
                 self.assertEqual(repr(a_new), repr(a_old), (methods, o))
@@ -901,13 +940,13 @@ class PivotHookDetectionParity(unittest.TestCase):
                     s = slice(a, a + m)
                     for side in ("long", "short"):
                         if side == "long":
-                            ref = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], volume_kind="tick")
-                            got = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], volume_kind="tick", pivots=W.window_pivots(idx, a, m, k))
-                            leak = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], volume_kind="tick", pivots=self._leaky(idx, a, m, k))
+                            ref = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], P=_W8_OFF(W), volume_kind="tick")
+                            got = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], P=_W8_OFF(W), volume_kind="tick", pivots=W.window_pivots(idx, a, m, k))
+                            leak = W.detect_accumulations(O[s], H[s], L[s], C[s], V[s], P=_W8_OFF(W), volume_kind="tick", pivots=self._leaky(idx, a, m, k))
                         else:
-                            ref = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], volume_kind="tick")
-                            got = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], volume_kind="tick", pivots=W.window_pivots(idx, a, m, k, swap=True))
-                            leak = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], volume_kind="tick", pivots=self._leaky(idx, a, m, k, True))
+                            ref = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], P=_W8_OFF(W), volume_kind="tick")
+                            got = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], P=_W8_OFF(W), volume_kind="tick", pivots=W.window_pivots(idx, a, m, k, swap=True))
+                            leak = W.detect_distributions(O[s], H[s], L[s], C[s], V[s], P=_W8_OFF(W), volume_kind="tick", pivots=self._leaky(idx, a, m, k, True))
                         self.assertEqual(got, ref, (style, _trial, a, m, side))
                         windows += 1
                         records += len(ref)

@@ -69,6 +69,9 @@ class DetectEquivalence(unittest.TestCase):
                 for nd in (0, 1, 2, 3):
                     for pv in (1, 2, 3):
                         Pn, Po = copy.deepcopy(NEW.PARAMS), copy.deepcopy(old.PARAMS)
+                        # The frozen copy predates W8 (default ON since owner 2026-10-05): compare with W8 off so this
+                        # stays a speed-refactor equivalence; W8 itself is pinned by test_wyckoff_chart_fidelity.
+                        Pn["fx_w8_choch_in_box"] = False
                         for P in (Pn, Po):
                             P["downtrend_swings"] = nd; P["pivot"] = pv
                         if rnd.random() < .5:

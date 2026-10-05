@@ -137,6 +137,10 @@ OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see
             # for each key's source and reading.
             fx_w1_tr_low_st=False, fx_w2_st_below_sc=False, fx_w3_mSOW_spring=False, fx_w5_vp_abandon=False,
             fx_w7_htf_target=False,
+            # W8 (owner 2026-10-05 "Bật W8 và backtest lại"; WA p68-69, docs/audits/2026-10-04-wyckoff-chart-fidelity.md
+            # finding 1): the confirming CHoCH must lie inside the SC->AR box, and the ran-away guard runs before the
+            # LPS[C]/SOS test. A DETECTION key like W1-W5 (bridged into the per-call PARAMS copy); default False = v1.
+            fx_w8_choch_in_box=True,   # owner 2026-10-05 ("bật cho cả setup hiện tại của Wyckoff"); False = v1
             # Batch 2(a) Wyckoff V items (plan §3 V grid; docs/architecture/v-grid-wyckoff.json). Each key holds ONE
             # value of its declared set, default = the baseline = v1 (WY_V_VALUES below is the declared sets); the
             # live runner never sets any of them. W-MGMT is the existing `mgmt` knob, not a new key; W4b is not
@@ -172,7 +176,8 @@ OPTS = dict(min_rr=None,   # set to MIN_RR right after _ICT is read below -- see
 # independent, so this bridging happens at its CALLERS, not inside it). fx_w7_htf_target is deliberately NOT
 # here: it never touches detection, only `_fires_from`'s Phase-D target/placeability, so it needs no cache-key
 # widening of `_WY_CANDIDATES`.
-_FX_WYCKOFF_DETECTION_KEYS = ("fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon")
+_FX_WYCKOFF_DETECTION_KEYS = ("fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon",
+                              "fx_w8_choch_in_box")
 
 
 #: Batch 2(a) Wyckoff V items: the DECLARED value sets (plan §3, baseline first), the single in-code copy;

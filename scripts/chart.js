@@ -24,12 +24,15 @@ const OPEN=0, HIGH=1, LOW=2, CLOSE=3, VOL=4, ISO=5;
 // 2026-09-12 (docs/audits/2026-09-12-ict-pdf-recheck.md). Numeric thresholds are PROJECT PARAMETERS from
 // analysis-params.json project_defined.ict (the decks define concepts, not numbers). Candle times are UTC ISO strings;
 // sessions convert to the exchange-local zone per date (docs/architecture/session-model.md §1) so they follow DST.
-const SESSIONS = [{key:'london',name:'LDN',tz:'Europe/London',a:8,b:11},{key:'ny_am',name:'NY AM',tz:'America/New_York',a:8.5,b:11},{key:'ny_pm',name:'NY PM',tz:'America/New_York',a:13.5,b:16},{key:'asia',name:'ASIA',tz:'America/New_York',a:20,b:24}];
+const SESSIONS = [{key:'london',name:'LDN',tz:'America/New_York',a:2,b:5},{key:'ny_am',name:'NY AM',tz:'America/New_York',a:8.5,b:11},{key:'ny_pm',name:'NY PM',tz:'America/New_York',a:13.5,b:16},{key:'asia',name:'ASIA',tz:'America/New_York',a:20,b:24}];
 // Keyed by instruments.json display.asset_class (I.display(sym)['asset_class']), which defaults to the market.
 // (A `forex` key existed here 2026-09-17..2026-09-27, full weight on london/ny_am -- the London and NY
 // killzones are FX concepts to begin with, docs/architecture/session-model.md cites forexop for exactly this.
 // Removed with the `forex` market itself -- see docs/architecture/instruments.json history.)
-const KZ_WEIGHT = {crypto:{london:'reduced',ny_am:'reduced',ny_pm:'none',asia:'none'}, metals:{london:'full',ny_am:'full',ny_pm:'full',asia:'none'}, default:{london:'none',ny_am:'none',ny_pm:'none',asia:'none'}};
+const KZ_WEIGHT = {crypto:{london:'reduced',ny_am:'reduced',ny_pm:'none',asia:'none'}, metals:{london:'full',ny_am:'full',ny_pm:'full',asia:'none'}, indices:{london:'full',ny_am:'full',ny_pm:'full',asia:'none'}, default:{london:'none',ny_am:'none',ny_pm:'none',asia:'none'}};
+// Pool label keys by the engine's pool `type` ([BSL/high, SSL/low]); only the two types ict_json() can actually
+// emit (core-a.md §2.7). Session/PDH-PDL pools exist only behind fx_b_pool, which the chart never sets.
+const POOL_LABEL = {equal:['chart.pool.equal_highs','chart.pool.equal_lows'], old:['chart.pool.old_high','chart.pool.old_low']};
 // A candle row is [open, high, low, close, volume, isoUTC] -- the shape scripts/build-artifact.py rows_js()
 // emits. Times are ALWAYS derived from the ISO at index 5: it is locale-free and timezone-free, which is what
 // lets the page render the same candle as 14:30 UTC or 21:30 VNT without shipping two copies of anything.
@@ -59,6 +62,11 @@ function fmtTime(unixSec, withDate){ const t=tzNow();
   const d=new Date((unixSec + t.offset_minutes*60)*1000);
   const iso=d.toISOString();
   return (withDate? iso.slice(5,16).replace('T',' ') : iso.slice(11,16))+' '+t.name; }
+// An axis tick: the date at the DISPLAY zone's midnight, else the time. Decided from the shifted clock, not from
+// the library's TickMarkType, which marks UTC day boundaries (07:00 in Vietnam time would read as a date).
+function fmtTick(unixSec){ const t=tzNow();
+  const iso=new Date((unixSec + t.offset_minutes*60)*1000).toISOString();
+  return iso.slice(11,16)==='00:00' ? iso.slice(5,10) : iso.slice(11,16); }
 
 // Killzone shading (PROJECT-DEFINED, session-model.md §2-4): which session windows this tier's bars fall in,
 // and their scoring weight for this market (sessions.weight_class registry, KZ_WEIGHT above). This is a pure
@@ -116,19 +124,31 @@ function ictFromStructures(structs, dealingRange, rows, opts){
   let dr = dealingRange||{}; if(cut && !(dr.available_at && dr.available_at<=cut)) dr = {};
   const bySweep = {};   // "pool_kind|level" -> earliest sweep bar index, for the pool's own 'x' mark
   structs.filter(s=>s.kind==='sweep').forEach(s=>{ const k=s.pool_kind+'|'+s.level; if(!(k in bySweep)) bySweep[k]=s.i; });
+  // A pool's `invalidated_at` (structures.py) is a closed_through bar, or -- for a SWEPT pool -- the first later
+  // body close beyond the level (`broken_at`; core-a.md R6/R25, mentorship-2024.md §15). Until then a swept
+  // pool is still a level: it stays open, drawn muted and labelled "swept" by ictShapes.
   const pools = structs.filter(s=>s.kind==='pool').map(p=>{
     const idx = done(p.invalidated_at) ? idxOfAvail(rows,p.invalidated_at,tfMin) : -1;
     const sweptI = bySweep[p.pool_kind+'|'+p.level];
     return {kind:p.pool_kind, type:p.type, level:p.level, from:p.from, to: idx>=0?idx+0.5:null, swept: sweptI!=null?sweptI:-1};
   });
   const last=rows.length-1;
+  // FVG lifecycle (structures.py; ICT chart-fidelity audit 2026-10-04 item 4): touched / CE-failed / inverted are
+  // STATES, each shown only once its own availability time has passed at the cursor. The box lives until the
+  // inversion (body close through CE, then through the far edge -- core-a.md §2.26 R23); a touch is the IOFED
+  // entry (§2.23 R19), not the end. `mitigated` is kept as an alias of `touched` for older readers.
+  const at = iso => done(iso) ? idxOfAvail(rows,iso,tfMin) : -1;
   const fvgs = structs.filter(s=>s.kind==='fvg').map(f=>{
-    const mitigated = !!f.mitigated && (!cut || done(f.invalidated_at));
-    return {type:f.type,i:f.i,lo:f.lo,hi:f.hi,size:f.size,ce:f.ce,end:mitigated?f.end:Math.min(f.end,last),mitigated};
+    const touchI=at(f.touched_at), ceFailI=at(f.ce_fail_at), invI=at(f.inversion_at);
+    return {type:f.type,i:f.i,lo:f.lo,hi:f.hi,size:f.size,ce:f.ce,end:invI>=0?invI:last,
+            touched:touchI>=0, touchI, ceFail:ceFailI>=0, ceFailI, inverted:invI>=0, invI, mitigated:touchI>=0};
   });
   const mss = structs.filter(s=>s.kind==='mss').map(m=>({type:m.type,i:m.i,level:m.level,disp:m.disp}));
   const hasDR = dr.hi!=null && dr.lo!=null, lastC=rows.length?rows[last][CLOSE]:0, span=(hasDR?(dr.hi-dr.lo):0)||1;
-  return {lo:hasDR?dr.lo:null, hi:hasDR?dr.hi:null, eq:hasDR?dr.eq:null, pct:hasDR?(lastC-dr.lo)/span:null, drSource:hasDR?dr.source:null,
+  // drFrom: the bar from which BOTH dealing-range edges existed (structures.py `from_i`, items 5-6) -- shading,
+  // EQ and the range-% pane start there, never at the window's left edge.
+  const drFrom = hasDR ? Math.max(0, Math.min(last, dr.from_i!=null ? dr.from_i : last)) : null;
+  return {lo:hasDR?dr.lo:null, hi:hasDR?dr.hi:null, eq:hasDR?dr.eq:null, pct:hasDR?(lastC-dr.lo)/span:null, drSource:hasDR?dr.source:null, drFrom,
           fvgs, pools, mss, obs:[], cisd:[], levels:[], sess:[], ote:null, std:null};
 }
 
@@ -138,11 +158,21 @@ function ictFromStructures(structs, dealingRange, rows, opts){
 // with no `available_at` is dropped. The range itself is drawable only once its own `available_at` (the CHoCH)
 // has passed; before that the whole read is "not established at the cursor", so its events/phases go too.
 // No cutIso (the full, live view) returns the read unchanged.
+// Chart fidelity (findings 3/4/5/10): every engine availability is the bar a PREFIX re-run of the detector would
+// first emit the object in that state (scripts/structures.py _wy_availability). A phase whose end/status is not yet
+// known at the cursor (`state_available_at` later) is shown OPEN -- the state the prefix run had -- with its
+// `open_reasons`; the range's end (`to_available_at`) and the invalidation (`invalidated_at.available_at`) likewise
+// appear only once available.
 function wyckoffAt(wy, cutIso){
   wy = wy||{}; if(!cutIso) return wy;
   const ok = o => !!o && !!o.available_at && o.available_at<=cutIso;
-  if(!ok(wy.tr)) return Object.assign({}, wy, {tr:null, events:[], phases:[]});
-  return Object.assign({}, wy, {events:(wy.events||[]).filter(ok), phases:(wy.phases||[]).filter(ok)});
+  if(!ok(wy.tr)) return Object.assign({}, wy, {tr:null, events:[], phases:[], invalidated_at:null});
+  const known = t => !!t && t<=cutIso;
+  const tr = known(wy.tr.to_available_at) ? wy.tr : Object.assign({}, wy.tr, {to:null, end_reason:null});
+  const phases = (wy.phases||[]).filter(ok).map(p => (p.state_available_at && !known(p.state_available_at))
+    ? Object.assign({}, p, {to:null, status:'hypothesis', reasons:(p.open_reasons||['open'])}) : p);
+  return Object.assign({}, wy, {tr, events:(wy.events||[]).filter(ok), phases,
+    invalidated_at:(wy.invalidated_at && ok(wy.invalidated_at)) ? wy.invalidated_at : null});
 }
 
 // Wyckoff volume read: rolling mean of the previous P.lookback completed bars (project parameter).
@@ -157,10 +187,14 @@ function volStats(rows, P){
 // latest bar, knowledge/ict/core-a.md §2.18-2.19). Normalising every bar's close within those bounds is arithmetic on an already
 // -computed range, not a new judgement; EQ (0.5 of the range, R13) sits at 50. No volume input -- the ICT
 // corpus has none (knowledge/integrated/method.md §4.1).
+// POINT-IN-TIME (ICT chart-fidelity audit 2026-10-04, item 5): normalising EVERY past close against the LAST bar's
+// range was look-ahead -- most of those closes were printed before that range existed. The series is plotted only
+// from `ict.drFrom` (the bar from which both edges of the current range existed, structures.py `from_i`) onward;
+// earlier bars get whitespace points, so the line simply starts there. No drFrom = only the current value.
 function rangePctSeries(rows, ict){
   if(ict.lo==null||ict.hi==null) return [];   // no dealing range available at this cursor: nothing to normalise against
-  const lo=ict.lo, hi=ict.hi, span=(hi-lo)||1;
-  return rows.map(r=>({time:unix(r[ISO]), value:Math.max(0,Math.min(100,(r[CLOSE]-lo)/span*100))}));
+  const lo=ict.lo, hi=ict.hi, span=(hi-lo)||1, from=ict.drFrom!=null?ict.drFrom:rows.length-1;
+  return rows.map((r,i)=>i<from?{time:unix(r[ISO])}:{time:unix(r[ISO]), value:Math.max(0,Math.min(100,(r[CLOSE]-lo)/span*100))});
 }
 // EQ marker for the range_pct pane's own axis: a short value, like the price pane's own EQ tag ('EQ '+fmt(ict.eq)
 // in ictShapes below) -- never the pane registry's full descriptive label (methods.json pane.label, a whole
@@ -208,22 +242,52 @@ const ictShapes = (rows, ict, cfg) => {
     return S;
   }
   const hasDR = ict.hi!=null && ict.lo!=null && ict.eq!=null;   // absent at a replay cursor before the engine's range is available (I1)
-  if(hasDR){ S.push({kind:'rect',i1:null,i2:null,p1:ict.hi,p2:ict.eq,fill:'down',alpha:0.04});
-    S.push({kind:'rect',i1:null,i2:null,p1:ict.eq,p2:ict.lo,fill:'up',alpha:0.04}); }
-  ict.fvgs.forEach(f=>{ const col=f.type==='bull'?'up':'down'; S.push({kind:'rect',i1:f.i-0.5,i2:f.end+0.5,p1:f.hi,p2:f.lo,fill:col,alpha:f.mitigated?0.14:0.28,stroke:col,sw:0.6});
-    if(!f.mitigated) S.push({kind:'hseg',i1:f.i-0.5,i2:f.end+0.5,price:f.ce,stroke:col,sw:0.8,dash:[2,2],alpha:0.8}); });
-  if(hasDR){ S.push({kind:'hseg',i1:null,i2:null,price:ict.eq,stroke:'i',sw:1.4,dash:[6,4],label:'EQ '+fmt(ict.eq),labelAt:'axis'});
+  // Items 5-6 (ICT chart-fidelity audit 2026-10-04): premium/discount shading and EQ start at the bar from which
+  // both range edges existed (ict.drFrom), not at the window's left edge -- the range did not exist before it.
+  const drI1 = hasDR ? (ict.drFrom!=null?ict.drFrom:li)-0.5 : null;
+  if(hasDR){ S.push({kind:'rect',i1:drI1,i2:null,p1:ict.hi,p2:ict.eq,fill:'down',alpha:0.04});
+    S.push({kind:'rect',i1:drI1,i2:null,p1:ict.eq,p2:ict.lo,fill:'up',alpha:0.04}); }
+  // FVG lifecycle (item 4; knowledge/ict/core-a.md): the box and its dashed CE line live until the gap INVERTS
+  // (body close through CE, then through the far edge, §2.26 R23). A touch of the near edge is the IOFED entry
+  // (§2.23 R19) -- a small dot on that edge, box kept; the CE body close is the failing warning -- an × on the CE.
+  // An inverted gap acts from the other side (§2.25 "SIBI used as support / BISI used as resistance", §2.27): drawn
+  // from the inversion bar onward in the OPPOSITE colour, dashed outline, labelled IFVG.
+  ict.fvgs.forEach(f=>{ const col=f.type==='bull'?'up':'down', i2=f.end+0.5;
+    S.push({kind:'rect',i1:f.i-0.5,i2,p1:f.hi,p2:f.lo,fill:col,alpha:f.touched?0.14:0.28,stroke:col,sw:0.6});
+    S.push({kind:'hseg',i1:f.i-0.5,i2,price:f.ce,stroke:col,sw:0.8,dash:[2,2],alpha:0.8});
+    if(f.touched&&f.touchI>=0) S.push({kind:'mark',i:f.touchI,price:f.type==='bull'?f.hi:f.lo,glyph:'dot',color:col,r:2});
+    if(f.ceFail&&f.ceFailI>=0) S.push({kind:'mark',i:f.ceFailI,price:f.ce,glyph:'x',color:col,r:3});
+    if(f.inverted&&f.invI>=0){ const icol=f.type==='bull'?'down':'up';
+      S.push({kind:'rect',i1:f.invI+0.5,i2:li+0.5,p1:f.hi,p2:f.lo,fill:icol,alpha:0.05,stroke:icol,sw:0.8,dash:[4,3],strokeAlpha:0.8,
+              label:compact?null:'IFVG',labelColor:icol,labelPos:'tl'}); } });
+  if(hasDR){ S.push({kind:'hseg',i1:drI1,i2:null,price:ict.eq,stroke:'i',sw:1.4,dash:[6,4],label:'EQ '+fmt(ict.eq),labelAt:'axis'});
   S.push({kind:'label',i:null,price:ict.hi,text:'premium'+(ict.drSource==='window'?' ('+L('chart.dr.window')+')':ict.drSource==='mixed'?' ('+L('chart.dr.mixed')+')':' (BSL↔SSL)'),color:'faint',anchor:'end',dx:-4,dy:7});
   S.push({kind:'label',i:null,price:ict.lo,text:'discount',color:'faint',anchor:'end',dx:-4,dy:-6}); }
   // A2: `p.to` is null (open -- draws to the right edge) unless the engine's own invalidated_at (A1b, a
   // closed_through pool) resolved to a bar in THIS view -- an invalidated pool ends there, never edge to edge.
-  ict.pools.forEach(p=>{ const isHigh=p.kind==='BSL'||p.kind==='ERL-high'||p.kind==='OLD-H', col=isHigh?'down':'up', old=p.kind.startsWith('OLD');
-    S.push({kind:'hseg',i1:p.from,i2:p.to,price:p.level,stroke:col,sw:old?0.9:1.2,dash:[2,3]});
-    if(!compact) S.push({kind:'label',i:p.from,price:p.level,text:p.kind==='ERL-high'?'ERL (BSL)':p.kind==='ERL-low'?'ERL (SSL)':p.kind==='OLD-H'?'old high (BSL)':p.kind==='OLD-L'?'old low (SSL)':p.kind,color:col,anchor:'start',dx:0,dy:isHigh?-6:7});
-    if(p.swept>=0) S.push({kind:'mark',i:p.swept,price:p.level,glyph:'x',color:col,r:4}); });
-  ict.mss.forEach(m=>{ const col=m.type==='bull'?'up':'down', c=rows[m.i][CLOSE]; S.push({kind:'vseg',i:m.i,p1:m.level,p2:c,stroke:col,sw:m.disp?2:1,dash:m.disp?null:[3,2]});
-    if(!compact) S.push({kind:'label',i:m.i,price:c,text:(m.disp?'MSS':L('chart.mss.no_displacement'))+(m.type==='bull'?'↑':'↓'),color:col,anchor:'middle',dx:0,dy:m.type==='bull'?-9:11,bold:true}); });
-  if(!compact) ict.fvgs.filter(f=>!f.mitigated).sort((a,b)=>b.size-a.size).slice(0,2).forEach(f=>{ S.push({kind:'label',i:f.i+1,price:(f.hi+f.lo)/2,text:'FVG',color:f.type==='bull'?'up':'down',anchor:'start',dx:0,dy:0}); });
+  // Pools (item 3, item 10). Label from the engine's own pool `type` -- the deck's two liquidity types (core-a.md
+  // §2.7: "Relatively Equal Highs/Lows", "Old Highs & Lows"), BSL above / SSL below (§2.6); an unknown type falls
+  // back to the bare side. A SWEPT pool (wick through, body closed back) is still a level (mentorship-2024.md §15)
+  // -- drawn MUTED and labelled "swept" until a later body close beyond it ends the line (`p.to`, R6/R25).
+  ict.pools.forEach(p=>{ const isHigh=p.kind==='BSL', col=isHigh?'down':'up', swept=p.swept>=0;
+    S.push({kind:'hseg',i1:p.from,i2:p.to,price:p.level,stroke:swept?'muted':col,sw:p.type==='old'?0.9:1.2,dash:[2,3],alpha:swept?0.75:1});
+    if(!compact){ const key=POOL_LABEL[p.type]&&POOL_LABEL[p.type][isHigh?0:1];
+      S.push({kind:'label',i:p.from,price:p.level,text:(key?L(key):p.kind)+(swept?' · '+L('chart.pool.swept'):''),color:swept?'muted':col,anchor:'start',dx:0,dy:isHigh?-6:7}); }
+    if(swept) S.push({kind:'mark',i:p.swept,price:p.level,glyph:'x',color:col,r:4}); });
+  // MSS vs liquidity grab (item 7; core-a.md §2.17, R11): only a DISPLACED close beyond the swing is an MSS (solid,
+  // method colour, arrow). A close past the swing WITHOUT displacement is, in the deck's words, a liquidity grab
+  // ("lack of displacement ... a liquidity grab occurs", a failure to continue) -- its own neutral style: thin
+  // dotted muted segment, no arrow, its own legend entry. It is never drawn as a trend change.
+  // The engine keeps scanning after a grab for a later displaced close through the SAME swing (ict-scan.py), so
+  // consecutive bars can each be a grab of one level: every segment is drawn, the label only on the first.
+  const grabLabelled = new Set();
+  ict.mss.forEach(m=>{ const c=rows[m.i][CLOSE];
+    if(m.disp){ const col=m.type==='bull'?'up':'down'; S.push({kind:'vseg',i:m.i,p1:m.level,p2:c,stroke:col,sw:2,dash:null});
+      if(!compact) S.push({kind:'label',i:m.i,price:c,text:'MSS'+(m.type==='bull'?'↑':'↓'),color:col,anchor:'middle',dx:0,dy:m.type==='bull'?-9:11,bold:true}); }
+    else { S.push({kind:'vseg',i:m.i,p1:m.level,p2:c,stroke:'muted',sw:1,dash:[1,2]});
+      const gk=m.type+'|'+m.level;
+      if(!compact&&!grabLabelled.has(gk)){ grabLabelled.add(gk); S.push({kind:'label',i:m.i,price:c,text:L('chart.grab.no_displacement'),color:'muted',anchor:'middle',dx:0,dy:m.type==='bull'?-9:11}); } } });
+  if(!compact) ict.fvgs.filter(f=>!f.inverted).sort((a,b)=>b.size-a.size).slice(0,2).forEach(f=>{ S.push({kind:'label',i:f.i+1,price:(f.hi+f.lo)/2,text:'FVG',color:f.type==='bull'?'up':'down',anchor:'start',dx:0,dy:0}); });
   S.push({kind:'mark',i:li,price:rows[li][CLOSE],glyph:'dot',color:'ink',r:3,ring:true}); if(ict.pct!=null) S.push({kind:'label',i:li,price:rows[li][CLOSE],text:L('chart.now_pct',{pct:(ict.pct*100).toFixed(0)}),color:'ink',anchor:'end',dx:-6,dy:-10,bold:true});
   return S;
 };
@@ -234,6 +298,10 @@ const ictShapes = (rows, ict, cfg) => {
 // THIS CALL ACTUALLY RECEIVED -- in replay those are already sliced to the cursor (applyLane's `rowsV`), so
 // idxOf returns -1 (draw normally) until the reader's own cursor reaches the break: replay stays point-in-time
 // without any extra cursor plumbing here.
+// structures.py _wy_view reason codes -> their FULL catalog keys (literal values, so the i18n slice test sees them)
+const WY_REASON_KEY = {sloped:'chart.wyckoff.reason.sloped', st_lower_third:'chart.wyckoff.reason.st_lower_third',
+  b_tests_lower:'chart.wyckoff.reason.b_tests_lower', unconfirmed:'chart.wyckoff.reason.unconfirmed',
+  expired:'chart.wyckoff.reason.expired', open:'chart.wyckoff.reason.open'};
 const wyckoffShapes = (rows, wy, cfg) => {
   if(!rows.length) return [];   // S3: nothing to anchor a shape to
   const S=[], n=rows.length, compact=!!cfg.compact, fmt=cfg.fmt||(v=>String(v)); wy=wy||{};
@@ -243,11 +311,10 @@ const wyckoffShapes = (rows, wy, cfg) => {
   if(!wy.tr && !(wy.events||[]).length && !(wy.phases||[]).length){
     const li=n-1;
     S.push({kind:'mark',i:li,price:rows[li][CLOSE],glyph:'dot',color:'ink',r:3,ring:true});
-    if(!compact){
-      // right edge at the last close: the chart shows only the tail of the window, so a label anchored at a bar index
-      // (or at the window's high/low) can sit off-pane; the last close is always inside the visible autoscaled range.
-      S.push({kind:'label',i:null,price:rows[li][CLOSE],text:L('chart.wyckoff.not_established'),color:'muted',anchor:'end',dx:-12,dy:-16,bold:true});
-    }
+    // right edge at the last close: the chart shows only the tail of the window, so a label anchored at a bar index
+    // (or at the window's high/low) can sit off-pane; the last close is always inside the visible autoscaled range.
+    // Compact (HTF) tiers get the SHORT tag (method.md §2 A1: "not established" is a state to show, not a blank dot).
+    S.push({kind:'label',i:null,price:rows[li][CLOSE],text:L(compact?'chart.wyckoff.not_established_short':'chart.wyckoff.not_established'),color:'muted',anchor:'end',dx:-12,dy:-16,bold:!compact});
     return S;
   }
   const invAt=cfg.invalidatedAt||null, state=invalidationState(rows,invAt);
@@ -275,8 +342,16 @@ const wyckoffShapes = (rows, wy, cfg) => {
     // convenience), not a rendering nicety.
     const hypothesis = ph.status!=='tested';
     if(hypothesis) dispLbl = dispLbl?(dispLbl+'?'):null;
-    const dead = invalidated && a<=endIdx;
-    if(dead){ b=Math.min(b,endIdx+1); dispLbl = (dispLbl||'') + suffix; }
+    // Chart fidelity finding 7 (method.md §2 A4; WA p150-159 mislabelling tests, WA p166-167): the engine marks a
+    // phase tested only when the ST / Phase-B test reads do not contradict and the structure is not sloped -- the
+    // FIRST reason it gives is printed beside the '?' so a reader sees WHY ('open' needs no words: the '?' says it).
+    const why=(ph.reasons||[]).find(r=>r!=='open');
+    const dead = invalidated && a<=endIdx;   // a dead band says "invalidated" instead (ADR 0004) -- one reason, not two
+    if(hypothesis && why && dispLbl && !dead && WY_REASON_KEY[why]) dispLbl += ' '+L(WY_REASON_KEY[why]);
+    // Only the band the break falls in carries the dated suffix: narrow A/B bands side by side otherwise print the
+    // same "invalidated <date>" three times over each other (seen in the 2026-10-04 captures); every dead band is
+    // still faded and truncated, and the TR lines carry the suffix too.
+    if(dead){ const holds=b>endIdx; b=Math.min(b,endIdx+1); if(holds) dispLbl = (dispLbl||'') + suffix; }
     S.push({kind:'rect',i1:Math.max(0,a)-0.5,i2:Math.min(n,b)-0.5,p1:null,p2:null,
       fill: dead?'muted':'w', alpha: dead?0.035:(hypothesis?0.045:0.07),
       stroke: dead?'muted':'w', sw:1, dash:[2,4], strokeAlpha: dead?0.35:(hypothesis?0.45:0.6),
@@ -285,13 +360,20 @@ const wyckoffShapes = (rows, wy, cfg) => {
     // +0.5: idxOf(rows,invalidatedAt) is the BREAKING candle's own index (WA/scripts/ict-scan.py's first
     // completed close beyond the level) -- it is the last bar the structure was still valid over, so the line
     // must run THROUGH it, matching the phase band's `b=endIdx+1` (-> i2=b-0.5=endIdx+0.5) above.
-    const dead=invalidated && a<=endIdx, i2=dead?endIdx+0.5:null;
+    // Finding 10 (WA p85-86): the range ends where the engine says it does -- the D->E exit (first close beyond
+    // the SOS/SOW leg), the invalidation, or the stale-read expiry -- instead of running to the right edge forever.
+    const toIdx=wy.tr.to?idxOf(rows,wy.tr.to):-1;
+    const dead=invalidated && a<=endIdx, i2=dead?endIdx+0.5:(toIdx>=0?toIdx+0.5:null);
     [[wy.tr.high,wy.tr.high_label||'AR'],[wy.tr.low,wy.tr.low_label||'SC']].forEach(([v,lb])=>{ if(v==null)return;
       S.push({kind:'hseg',i1:a-0.4,i2,price:v,stroke:dead?'muted':'w',sw:dead?1:1.6,dash:[5,3],alpha:dead?0.4:1,
-        label:lb+' '+fmt(v)+(dead?suffix:''),labelAt:'axis'}); }); }
+        label:lb+' '+fmt(v),note:dead?suffix.replace(/^ · /,''):null,labelAt:'axis'}); }); }
   (wy.events||[]).map(f=>({f,i:idxOf(rows,f.time)})).filter(o=>o.i>=0).sort((a,b)=>a.i-b.i).forEach(({f,i})=>{ const c=rows[i];
     const faded=invalidated && i<=endIdx;
-    S.push({kind:'flag',i,price:f.up?c[HIGH]:c[LOW],text:compact?String(f.label||'').split(' · ')[0]:String(f.label||''),up:!!f.up,color:faded?'muted':'w'}); });
+    // W8 as a flag (structures.choch_outside_box, ADR 0009): the decision path reads this structure, so it is drawn,
+    // and a CHoCH beyond the SC-AR box (WA p68-69) says so on its own flag instead of being hidden.
+    const off=f.kind==='choch' && wy.tr && wy.tr.choch_outside_box;
+    const text=String(f.label||'')+(off?' · '+L('chart.wyckoff.choch_outside_box'):'');
+    S.push({kind:'flag',i,price:f.up?c[HIGH]:c[LOW],text:compact?text.split(' · ')[0]:text,up:!!f.up,color:faded?'muted':(off?'warn':'w')}); });
   if(invalidated){ const c=rows[endIdx];   // P7.2 item 3: mark the breaking candle itself
     S.push({kind:'mark',i:endIdx,price:c[CLOSE],glyph:'x',color:'warn',r:4});
     if(!compact) S.push({kind:'label',i:endIdx,price:c[CLOSE],text:L('chart.wyckoff.invalidation_mark',{close:fmt(c[CLOSE])}),color:'warn',anchor:'start',dx:4,dy:10,bold:true}); }
@@ -319,7 +401,7 @@ const levelShapes = (rows, levels, lane, fmt, invalidatedAt) => {
     .map(lv=>{
       const a=Math.max(0,spanOf(rows,lv.time)-0.5), endIdx=wyState==='in'?idxOf(rows,invalidatedAt):-1, dead=endIdx>=0;
       return {kind:'hseg',i1:a,i2:dead?endIdx+0.5:null,price:lv.price,stroke:dead?'muted':(lv.method==='neutral'?'muted':lane==='ict'?'i':'w'),sw:dead?0.9:1.2,
-        dash:[6,4],alpha:dead?0.4:1,label:(lv.short||'')+' '+fmt(lv.price)+(dead?(' · '+L('chart.wyckoff.invalidated_suffix',{date:dateShort(invalidatedAt)})):''),labelAt:'axis'};
+        dash:[6,4],alpha:dead?0.4:1,label:(lv.short||'')+' '+fmt(lv.price),note:dead?L('chart.wyckoff.invalidated_suffix',{date:dateShort(invalidatedAt)}):null,labelAt:'axis'};
     });
 };
 
@@ -402,7 +484,28 @@ const rulerShapes = (entry, stop, i1, i2, fmt) => {
   return S;
 };
 
-const api = {killzoneSpans, ictFromStructures, idxOfAvail, wyckoffAt, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, invalidationState, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, expectationShapes, rulerShapes, unix, dateShort};
+// One price-axis tag per price (pure; Annotations.set renders it, node tests read it).
+function axisGroups(shapes){
+  const byPrice=new Map();   // one axis tag per price: "AR 77,425" from the TR and "AR" from the anchors become one tag, Spring + invalidation likewise
+  shapes.filter(s=>s.kind==='hseg'&&s.labelAt==='axis'&&s.label).forEach(s=>{ const k=Math.round(s.price*1e6); const g=byPrice.get(k); if(g){ const base=t=>t.replace(/\s[\d.,]+$/,''); if(!g.parts.some(t=>base(t)===base(s.label))) g.parts.push(base(s.label)); if(s.note&&!g.notes.includes(s.note)) g.notes.push(s.note); } else byPrice.set(k,{price:s.price,stroke:s.stroke,parts:[s.label],notes:s.note?[s.note]:[]}); });
+  // A shape's `note` ("invalidated 09-15 21:00") is kept OUT of `label`: priceText reads the label's trailing
+  // number, and a note ending in a clock time made the axis tag read "00" (2026-10-04 render review).
+  // The axis tag carries the PRICE only. The words ("SOS", "Wyckoff: after entry · target_1 · POTENTIAL") are
+  // drawn inside the plot at the right edge instead (see _draw). Before this the whole sentence sat on the
+  // price axis, lightweight-charts widened the axis to the longest sentence, and the three tiers of one
+  // instrument ended up with three different plot widths -- the entry tier, which carries the most labels,
+  // lost a third of its width to an axis (user comment on the CFD Scalping page, 2026-09-18).
+  const priceText=g=>{ for(const t of g.parts){ const m=t.match(/([\d][\d.,]*)\s*$/); if(m) return m[1]; } return String(g.price); };
+  const wordsOf=g=>{
+    // Strip the price off each part, drop pure numbers, then drop any part already CONTAINED in another.
+    // The containment pass is what stopped the duplicated axis words reported 2026-09-19:
+    // a level label that ends in a bracket keeps its own price, so the plain "AR"/"ST" tag from the
+    // trading-range shape no longer deduped against it and both were drawn (user report 2026-09-19).
+    const parts=[...new Set(g.parts.map(t=>t.replace(/\s[\d][\d.,]*\s*$/,'').trim()).filter(t=>t&&!/^[\d.,]+$/.test(t)))];
+    return parts.filter((t,i)=>!parts.some((u,j)=>j!==i&&u.length>t.length&&u.includes(t))).join(' · ');
+  };
+  return [...byPrice.values()].map(g=>Object.assign(g,{priceText:priceText(g),words:[wordsOf(g),...g.notes].filter(Boolean).join(' · ')})); }
+const api = {killzoneSpans, legendHtml, ictFromStructures, idxOfAvail, wyckoffAt, volStats, rangePctSeries, rangePctEqShape, idxOf, spanOf, invalidationState, ictShapes, wyckoffShapes, windowShape, levelShapes, planShapes, expectationShapes, rulerShapes, unix, dateShort, axisGroups};
 if(!root || typeof document==='undefined') return api;   // node: pure API only
 
 // =============================================================================================== browser: rendering
@@ -424,23 +527,7 @@ class Annotations {
   attached({chart,series,requestUpdate}){ this._chart=chart; this._series=series; this._req=requestUpdate; }
   detached(){ this._chart=null; this._series=null; this._req=null; }
   set(shapes){ this.shapes=shapes||[]; const C=this.C, self=this;
-    const byPrice=new Map();   // one axis tag per price: "AR 77,425" from the TR and "AR" from the anchors become one tag, Spring + invalidation likewise
-    this.shapes.filter(s=>s.kind==='hseg'&&s.labelAt==='axis'&&s.label).forEach(s=>{ const k=Math.round(s.price*1e6); const g=byPrice.get(k); if(g){ const base=t=>t.replace(/\s[\d.,]+$/,''); if(!g.parts.some(t=>base(t)===base(s.label))) g.parts.push(base(s.label)); } else byPrice.set(k,{price:s.price,stroke:s.stroke,parts:[s.label]}); });
-    // The axis tag carries the PRICE only. The words ("SOS", "Wyckoff: after entry · target_1 · POTENTIAL") are
-    // drawn inside the plot at the right edge instead (see _draw). Before this the whole sentence sat on the
-    // price axis, lightweight-charts widened the axis to the longest sentence, and the three tiers of one
-    // instrument ended up with three different plot widths -- the entry tier, which carries the most labels,
-    // lost a third of its width to an axis (user comment on the CFD Scalping page, 2026-09-18).
-    const priceText=g=>{ for(const t of g.parts){ const m=t.match(/([\d][\d.,]*)\s*$/); if(m) return m[1]; } return String(g.price); };
-    const wordsOf=g=>{
-      // Strip the price off each part, drop pure numbers, then drop any part already CONTAINED in another.
-      // The containment pass is what stopped the duplicated axis words reported 2026-09-19:
-      // a level label that ends in a bracket keeps its own price, so the plain "AR"/"ST" tag from the
-      // trading-range shape no longer deduped against it and both were drawn (user report 2026-09-19).
-      const parts=[...new Set(g.parts.map(t=>t.replace(/\s[\d][\d.,]*\s*$/,'').trim()).filter(t=>t&&!/^[\d.,]+$/.test(t)))];
-      return parts.filter((t,i)=>!parts.some((u,j)=>j!==i&&u.length>t.length&&u.includes(t))).join(' · ');
-    };
-    this._axisGroups=[...byPrice.values()].map(g=>Object.assign(g,{priceText:priceText(g),words:wordsOf(g)}));
+    this._axisGroups=axisGroups(this.shapes);
     this._axis=this._axisGroups.map(g=>({ coordinate:()=>{ const y=self._series?self._series.priceToCoordinate(g.price):null; return y==null?-1e6:y; }, text:()=>g.priceText, textColor:()=>'#FFFFFF', backColor:()=>C[g.stroke]||C.ink, visible:()=>!!self._series&&self._series.priceToCoordinate(g.price)!=null, tickVisible:()=>true }));
     if(this._req) this._req(); }
   setColors(C){ this.C=C; if(this._req) this._req(); }
@@ -470,15 +557,25 @@ class Annotations {
         ctx.globalAlpha=s.alpha==null?1:s.alpha;
         if(s.kind==='hseg'){ const x1=x1of(s), x2=x2of(s), y=Y(s.price); if(x1==null||x2==null||y==null) continue;
           ctx.strokeStyle=C[s.stroke]||s.stroke; ctx.lineWidth=s.sw||1; ctx.setLineDash(s.dash||[]); ctx.beginPath(); ctx.moveTo(x1,y); ctx.lineTo(x2,y); ctx.stroke(); ctx.setLineDash([]);
-          if(s.label&&s.labelAt&&s.labelAt!=='axis'&&x1>=-1&&x1<W){ ctx.font=font(false,9.5); ctx.fillStyle=C[s.labelColor||s.stroke]||C.ink; ctx.textBaseline='middle'; if(s.labelAt==='end'){ ctx.textAlign='right'; ctx.fillText(s.label,x2-3,y-6); } else { ctx.textAlign='left'; ctx.fillText(s.label,x1+2,s.labelAt==='start-below'?y+7:y-7); } } }
+          // In-plot line labels (pools, swept levels) are de-collided like flags (2026-10-04 render review: stacked
+          // equal-highs/lows labels overprinted into unreadable text). Try the home row, then one and two rows away;
+          // a label that still clashes is not drawn -- its line stays, and the legend/crosshair still name it.
+          if(s.label&&s.labelAt&&s.labelAt!=='axis'&&x1>=-1&&x1<W){ ctx.font=font(false,9.5); ctx.fillStyle=C[s.labelColor||s.stroke]||C.ink; ctx.textBaseline='middle';
+            const tw=ctx.measureText(s.label).width, end=s.labelAt==='end', lx=end?x2-3-tw:x1+2, y0=end?y-6:(s.labelAt==='start-below'?y+7:y-7);
+            const ly=[0,-11,11,-22,22].map(d=>y0+d).find(yy=>!placed.some(p=>p.x2!=null&&Math.abs(p.y-yy)<10&&lx<p.x2&&lx+tw>p.x1));
+            if(ly!=null){ placed.push({x:lx,y:ly,x1:lx,x2:lx+tw}); ctx.textAlign='left'; ctx.fillText(s.label,lx,ly); } } }
         else if(s.kind==='vseg'){ const x=X(s.i), y1=Y(s.p1), y2=Y(s.p2); if(x==null||y1==null||y2==null) continue; ctx.strokeStyle=C[s.stroke]||s.stroke; ctx.lineWidth=s.sw||1; ctx.setLineDash(s.dash||[]); ctx.beginPath(); ctx.moveTo(x,y1); ctx.lineTo(x,y2); ctx.stroke(); ctx.setLineDash([]); }
-        else if(s.kind==='label'){ const x=s.i==null?W:X(s.i), y=Y(s.price); if(x==null||y==null||x<-2||x>W+2||y<-2||y>Hh+2) continue; ctx.font=font(s.bold,s.bold?10:9.5); ctx.fillStyle=C[s.color]||s.color||C.ink; ctx.textAlign=s.anchor==='middle'?'center':s.anchor==='end'?'right':'left'; ctx.textBaseline='middle'; ctx.fillText(s.text,x+(s.dx||0),y+(s.dy||0)); }
+        else if(s.kind==='label'){ const x=s.i==null?W:X(s.i), y=Y(s.price); if(x==null||y==null||x<-2||x>W+2||y<-2||y>Hh+2) continue; ctx.font=font(s.bold,s.bold?10:9.5); ctx.fillStyle=C[s.color]||s.color||C.ink; ctx.textAlign='left'; ctx.textBaseline='middle';
+          // Same de-collision as line labels above (pool / grab labels stacked into unreadable text, 2026-10-04).
+          const tw=ctx.measureText(s.text).width, lx=x+(s.dx||0)-(s.anchor==='middle'?tw/2:s.anchor==='end'?tw:0), y0=y+(s.dy||0);
+          const ly=[0,-11,11,-22,22].map(d=>y0+d).find(yy=>!placed.some(p=>p.x2!=null&&Math.abs(p.y-yy)<10&&lx<p.x2&&lx+tw>p.x1));
+          if(ly!=null){ placed.push({x:lx,y:ly,x1:lx,x2:lx+tw}); ctx.fillText(s.text,lx,ly); } }
         else if(s.kind==='mark'){ const x=X(s.i), y=Y(s.price); if(x==null||y==null) continue; const col=C[s.color]||s.color, r=s.r||3; ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=1.8;
           if(s.glyph==='x'){ ctx.beginPath(); ctx.moveTo(x-r,y-r); ctx.lineTo(x+r,y+r); ctx.moveTo(x+r,y-r); ctx.lineTo(x-r,y+r); ctx.stroke(); }
           else if(s.glyph==='check'){ ctx.beginPath(); ctx.moveTo(x-r,y); ctx.lineTo(x-r/4,y+r*0.75); ctx.lineTo(x+r,y-r*0.75); ctx.stroke(); }
           else { ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); if(s.ring){ ctx.strokeStyle=C.surface2; ctx.lineWidth=1.5; ctx.stroke(); } } }
         else if(s.kind==='flag'){ const x=X(s.i), ay=Y(s.price); if(x==null||ay==null) continue; const col=C[s.color]||s.color; ctx.font=font(true,10); const w=ctx.measureText(s.text).width;
-          let lvl=0, fy; for(;;){ fy=ay+(s.up?-10-lvl*12:15+lvl*12); const clash=placed.some(p=>p.flag&&p.up===s.up&&Math.abs(p.y-fy)<11&&(x-w/2)<p.x2&&(x+w/2)>p.x1); if(!clash||lvl>=4) break; lvl++; }
+          let lvl=0, fy; for(;;){ fy=ay+(s.up?-10-lvl*12:15+lvl*12); const clash=placed.some(p=>p.x2!=null&&(!p.flag||p.up===s.up)&&Math.abs(p.y-fy)<11&&(x-w/2)<p.x2&&(x+w/2)>p.x1); if(!clash||lvl>=4) break; lvl++; }
           placed.push({flag:true,up:s.up,y:fy,x1:x-w/2,x2:x+w/2,x:x,y:fy});
           ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,ay,3,0,Math.PI*2); ctx.fill(); ctx.strokeStyle=C.surface2; ctx.lineWidth=1.5; ctx.stroke();
           if(lvl>0){ ctx.strokeStyle=col; ctx.lineWidth=0.8; ctx.globalAlpha=0.7; ctx.beginPath(); ctx.moveTo(x,ay); ctx.lineTo(x,fy+(s.up?3:-9)); ctx.stroke(); ctx.globalAlpha=1; }
@@ -510,9 +607,11 @@ function chartOptions(C, fmt){ return {
   // tickMarkFormatter was UNSET until 2026-09-17, so the library formatted axis labels from a Date in the
   // BROWSER's timezone while the crosshair below hard-appended 'Z'. The two already disagreed for any viewer
   // outside UTC; offering a timezone control would have made that contradiction visible on the same chart.
-  // Both now come from one place, and both name their zone.
+  // Both now come from one place. The crosshair label names its zone; an axis tick is short (the date at a day
+  // boundary, else the time) because a full 'MM-DD HH:MM ZONE' per tick overprinted its neighbours (2026-10-04
+  // render review) -- the zone is named once in the block header and on the crosshair.
   timeScale:{borderColor:C.lineStrong, timeVisible:true, secondsVisible:false, rightOffset:4, barSpacing:6, minBarSpacing:1.2, fixLeftEdge:false, fixRightEdge:false, lockVisibleTimeRangeOnResize:true,
-    tickMarkFormatter:t=>fmtTime(t,true)},
+    tickMarkFormatter:t=>fmtTick(t)},
   // Numerals stay en-US in every language, deliberately: a price shown 1.234,56 on the chart while the ladder
   // beside it says 1,234.56 would be two renderings of one number on one screen. Only words and zones follow
   // the language. See docs/architecture/i18n.json `_locales_note`.
@@ -554,7 +653,7 @@ function makeChart(block, d, t, P, C){
     if(!h.view){ tip.style.display='none'; return; } const c=rows[i], up=c[CLOSE]>=c[OPEN], vs=h.view.vs, ict=h.view.ict, ratio=vs.ratio[i];
     let s=`<div class="t">${fmtTime(unix(c[ISO]),true)}</div><div>O ${fmt(c[OPEN])} · H ${fmt(c[HIGH])} · L ${fmt(c[LOW])}</div><div class="${up?'u':'d'}">C ${fmt(c[CLOSE])} (${((c[CLOSE]-c[OPEN])/c[OPEN]*100).toFixed(2)}%)</div>`;
     if(h.lane==='wyckoff') s+=`<div>${L('chart.vol')} ${c[VOL].toLocaleString(numLocale(),{maximumFractionDigits:2})}${ratio!=null?` · ${ratio.toFixed(2)}× ${L('chart.mean')}`:''}</div>`;
-    if(h.lane==='ict'&&ict&&ict.lo!=null&&i<ict.n) s+=`<div class="t">${L('chart.dealing_range_pct',{pct:((c[CLOSE]-ict.lo)/((ict.hi-ict.lo)||1)*100).toFixed(0)})}</div>`;
+    if(h.lane==='ict'&&ict&&ict.lo!=null&&i<ict.n&&i>=(ict.drFrom!=null?ict.drFrom:ict.n-1)) s+=`<div class="t">${L('chart.dealing_range_pct',{pct:((c[CLOSE]-ict.lo)/((ict.hi-ict.lo)||1)*100).toFixed(0)})}</div>`;
     if(h.cursor!=null) s+=`<div class="t">${L('chart.replay.count',{i:i+1,n:h.cursor+1})}</div>`;
     tip.innerHTML=s; tip.style.display='block'; const r=el.getBoundingClientRect(), x=p.point.x, y=p.point.y; tip.style.left=(el.offsetLeft+(x>r.width*0.65?x-tip.offsetWidth-14:x+14))+'px'; tip.style.top=(el.offsetTop+y+12)+'px'; });
   el.addEventListener('mouseleave',()=>{ tip.style.display='none'; });
@@ -585,11 +684,14 @@ function applyLane(h, lane, P){
   // neither as the plan-side invalidation line nor as the Wyckoff break mark. `invalidatedAt` stays a parameter of
   // the shape builders (they are pure and tested) and is fed only by an ENGINE-computed invalidation, which the
   // engine does not yet emit for a Wyckoff read (listed in docs/audits/2026-09-29-a2-chart-from-engine.md).
-  const invalidatedAt=null;
-  const compact=!!t.compact, cfgS={compact,fmt,invalidatedAt,narrativeUpdated:t.key==='entry'?d.updated:null};
-  candlesData(h);
+  // Chart fidelity finding 5 (ADR 0004): the ENGINE now emits the Wyckoff invalidation (structures.py
+  // `invalidated`: R10 abandon / a close beyond the Spring-UT extreme, WMT p243-249, p271), so it feeds the
+  // shape builders -- after the replay filter, so it only shows once a prefix run would have emitted it.
   // I4: replay filters the Wyckoff read by the engine's own availability (tr/events/phases), never by formed time.
   const wy=wyckoffAt(t.wy, h.cursor==null?null:availableTimeOf(h.rows,h.cursor,h.cfg.tfMin));
+  const invalidatedAt=(wy&&wy.invalidated_at&&wy.invalidated_at.time)||null;
+  const compact=!!t.compact, cfgS={compact,fmt,invalidatedAt,narrativeUpdated:t.key==='entry'?d.updated:null};
+  candlesData(h);
   let S=[]; if(t.window) S=S.concat(windowShape(rowsV,t.window.from));
   if(lane==='ict') S=S.concat(ictShapes(rowsV,h.view.ict,cfgS)); else S=S.concat(wyckoffShapes(rowsV,wy,cfgS));
   S=S.concat(levelShapes(rowsV,t.levels,lane,fmt,invalidatedAt));
@@ -608,7 +710,7 @@ function applyLane(h, lane, P){
     h.avg.setData(rowsV.map((c,i)=>vs.avg[i]==null?{time:unix(c[ISO])}:{time:unix(c[ISO]),value:vs.avg[i]}));
     // `labels`, not `L`: L is the message lookup, and a local L here would shadow it for the whole block.
     const labels=[]; if(!compact){ const spikes=rowsV.map((c,i)=>({i,r:vs.ratio[i]})).filter(o=>o.r!=null&&o.r>=P_.spike).sort((a,b)=>b.r-a.r), gapN=Math.ceil(n/40), labeled=[];
-      spikes.forEach(o=>{ if(labeled.some(j=>Math.abs(j-o.i)<gapN))return; labeled.push(o.i); labels.push({kind:'label',i:o.i,price:rowsV[o.i][VOL],text:o.r.toFixed(1)+'×',color:'w',anchor:'middle',dx:0,dy:-7}); });
+      spikes.forEach(o=>{ if(labeled.some(j=>Math.abs(j-o.i)<gapN))return; labeled.push(o.i); labels.push({kind:'label',i:o.i,price:rowsV[o.i][VOL],text:o.r.toFixed(1)+'×'+(d.tick?' (tick)':''),color:'w',anchor:'middle',dx:0,dy:-7}); });   // method.md §4.1 / WMT p131-133: a tick-count ratio is marked so it cannot read as traded volume
       labels.push({kind:'label',i:null,price:vs.avg.filter(v=>v!=null).slice(-1)[0]||0,text:L('chart.mean_n',{n:(P_.lookback||20)}),color:'faint',anchor:'end',dx:-4,dy:-7}); }
     h.annVol.set(labels); h.range.setData([]); h.annRange.set([]); h.note.set(''); }
   else if(showRange){ h.vol.setData([]); h.avg.setData([]); h.annVol.set([]);
@@ -643,20 +745,29 @@ function onClick(h, x, y){ const ts=h.chart.timeScale(), i=Math.round(ts.coordin
 // The legend is rebuilt on every lane, theme AND language change -- it already was on the first two, which is
 // why it needed no new machinery for the third. Swatch classes are markup, the words come from the catalog.
 function paneLabel(pane){ const l=pane&&pane.label; if(l==null) return ''; return (typeof l==='object')?(l[LANG]!=null?l[LANG]:l[P_DEFAULT]):l; }
+// Item 9: the killzone legend reads what is actually drawn -- `d.kz` (build-artifact.py: some tier of this symbol
+// has killzone shading enabled) AND a non-'none' weight for this asset class (the same KZ_WEIGHT killzoneSpans uses).
+function kzDrawn(d){ return !!d.kz && ['london','ny_am','ny_pm'].some(k=>((KZ_WEIGHT[d.market||'crypto']||KZ_WEIGHT.default)[k])!=='none'); }
+// Finding 17: the TR legend names the border events of the side the ENTRY tier's engine read is on (accumulation
+// SC / AR, distribution BC / AR -- the labels wy_ship() ships); both pairs when no range is drawn.
+function wyTrLabels(d){ const e=((d&&d.tiers)||[]).find(t=>t.key==='entry'), tr=e&&e.wy&&e.wy.tr;
+  if(!tr) return 'SC / AR · BC / AR';   // climax first, then the AR it bounced to
+  return e.wy.side==='short' ? (tr.high_label+' / '+tr.low_label) : (tr.low_label+' / '+tr.high_label); }
 function legendHtml(lane, d, P){
   const sw=(cls,txt)=>`<span><i class="sw ${cls}"></i>${txt}</span>`, plain=t=>`<span>${t}</span>`;
   if(lane==='wyckoff') return sw('up',L('legend.candle_up'))+sw('down',L('legend.candle_down'))
     +sw('vol',L('legend.volume')+(d.tick?' '+L('legend.tick_volume'):''))
     +sw('volhi',L('legend.volume_high',{high:P.high,lookback:P.lookback,spike:P.spike}))
-    +sw('tr',L('legend.tr'))+sw('ph',L('legend.phases'))+plain('● '+L('legend.wyckoff_events'))
+    +sw('tr',L('legend.tr',{labels:wyTrLabels(d)}))+sw('ph',L('legend.phases'))+plain('● '+L('legend.wyckoff_events'))
     +((d.plans&&d.plans.length)?sw('plan',L('legend.plans')):'');
   // A2 / ADR 0009: order blocks, CISD, prev-period levels (PDH/PDL/session H-L) and OTE are chart.js's own
   // (removed) detector's shapes -- the engine (scripts/structures.py) does not compute them, so their legend
   // entries are gone too rather than promising a shape that will never draw.
   return sw('fvgb',L('legend.fvg_up'))+sw('fvgs',L('legend.fvg_down'))
     +sw('liq',L('legend.liquidity'))+sw('eq',L('legend.eq'))
-    +(d.kz?sw('kz',L('legend.killzone')):plain(L('legend.killzone_off')))
-    +plain(L('legend.mss'))+plain(L('legend.pane_range'))
+    +sw('fvgt',L('legend.fvg_lifecycle'))+sw('ifvg',L('legend.ifvg'))+sw('swept',L('legend.pool_swept'))
+    +(kzDrawn(d)?sw('kz',L('legend.killzone')):plain(L('legend.killzone_off')))
+    +plain(L('legend.mss'))+sw('grab',L('legend.grab'))+plain(L('legend.pane_range'))
     +`<span class="muted">${L('legend.thresholds')}</span>`;
 }
 

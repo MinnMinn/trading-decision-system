@@ -146,7 +146,9 @@ class WY3RanAwayGuardUsesPhaseBCeiling(unittest.TestCase):
     def test_post_fix_the_structure_survives_to_its_genuine_sos(self):
         W = load("wyckoff_rules.py")
         O, H, L, C, V = self.fixture()
-        recs = W.detect_accumulations(O, H, L, C, V)
+        # WY-3 is a property of the Phase-B ceiling, pinned on v1 detection (the fixture's CHoCH sits above the SC-AR
+        # box, which W8 -- ON by default since owner 2026-10-05 -- rejects before the walk this test is about).
+        recs = W.detect_accumulations(O, H, L, C, V, P=dict(W.PARAMS, fx_w8_choch_in_box=False))
         self.assertEqual(len(recs), 1, "post-fix: the second push (150) stays under ceiling(125)+tr=155.1, so "
                                         "the loop continues to the genuine SOS breakout above 200")
         r = recs[0]

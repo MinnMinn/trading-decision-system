@@ -1,3 +1,6 @@
+# FROZEN copy of scripts/ict-scan.py from commit 09fc901, used ONLY as the reference for
+# scripts/tests/test_ict_display_lifecycle.py (decision-output equivalence). Do not edit. Only change vs the
+# source: ROOT points at the repo root.
 #!/usr/bin/env python3
 """Deterministic Wyckoff/ICT event scanner + preliminary read + FACTS (no LLM).
 
@@ -31,7 +34,7 @@ MSS carries a displacement flag (knowledge/ict/core-a.md §2.16); a setup candid
 """
 import argparse, bisect, json, os, sys, datetime
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import instruments as I  # noqa: E402
 import normalized as N  # noqa: E402 -- ICT-2: the one availability rule (CLAUDE.md §8), shared with strategy-runner.drop_forming
@@ -91,10 +94,8 @@ MIN_RR = trading_env.min_rr()
 #   fx_b6      B6     PROJECT rule: cancel the pending limit when the target trades before the fill (core-b.md §3.1
 #                     R3 is the invalidation idea, not an order-cancel rule)
 #   fx_b3      B3     bias timeframe: the entry TF (v1) or the TFA p5 higher-TF pairing (models.md §2.8)
-#   fx_b7      B7     indices only: entries inside a session-registry window only (docs/architecture/sessions.json; since
-#                     v3, 2026-10-05, its london window IS core-a.md R1's 02:00-05:00 New York; instant = fill bar OPEN)
-#                     B-POOL and B7 read the registry, so sessions v3 changes their results vs v2 (the fund-search
-#                     declaration pins docs/architecture/ and refuses to run until re-declared)
+#   fx_b7      B7     indices only: entries inside a session-registry window only (docs/architecture/sessions.json v2,
+#                     NOT core-a.md R1's literal 02:00-05:00 EST windows; instant = fill bar OPEN, a proxy)
 # B4 ("HTF level engaged before the LTF MSS") is NOT here: the sources never define an HTF level nor "engaged",
 # so no key is registered (docs/architecture/v-grid-ict.json states it as implemented=false).
 # `V_ICT` is what the ENGINE accepts (check_v_opts). docs/architecture/v-grid-ict.json is what the fund-search GRID
@@ -425,34 +426,15 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
         r = k
         while r >= 0 and ((C[r] < O[r]) if down else (C[r] > O[r])): r -= 1
         return r + 1 if r + 1 <= k else None
-    # MSS dependency record (point-in-time only; ICT chart-fidelity audit 2026-10-04, item 2). An MSS
-    # at bar j is not knowable at j alone: the state machine below reads pivots -- `lastH`/`lastL` (the reference
-    # swing and the leg anchor) and the pivot that last CHANGED `bias` plus the one it was compared against -- and
-    # a PIV-bar pivot is only confirmed PIV bars after its own bar. `dep_pivots` lists those pivot indices;
-    # `disp_conf_i` is the bar that confirms `disp` when it rests only on an FVG inside the leg (an FVG at bar f
-    # needs bar f+1's range, core-a.md §2.21). scripts/structures.py turns both into the MSS's available_at.
-    # Additive keys only: which MSS are detected, `bias`, and every field setup_candidate()/htf_context read are
-    # unchanged (scripts/tests/test_ict_display_lifecycle.py compares against a frozen copy of this file).
-    def _disp_conf(j, disp, lo_r, hi_r, bull):
-        if not disp or any(is_disp(q) for q in range(lo_r, hi_r + 1)):
-            return j
-        want = "bull" if bull else "bear"
-        return max(j, min(f["i"] for f in fvgs if f["type"] == want and lo_r <= f["i"] <= hi_r) + 1)
-    def _deps(*idx):
-        return sorted({q for q in idx if q is not None})
     mss = []
     piv = sorted([(i, "H") for i in sh] + [(i, "L") for i in sl])
-    lastH = lastL = None; bias = 0; bias_by = ()
+    lastH = lastL = None; bias = 0
     for k, (pi, pt) in enumerate(piv):
         if pt == "H":
-            if lastH is not None and H[pi] > H[lastH]:
-                if bias != 1: bias_by = (pi, lastH)   # dependency record only (see above)
-                bias = 1
+            if lastH is not None and H[pi] > H[lastH]: bias = 1
             lastH = pi
         else:
-            if lastL is not None and L[pi] < L[lastL]:
-                if bias != -1: bias_by = (pi, lastL)  # dependency record only (see above)
-                bias = -1
+            if lastL is not None and L[pi] < L[lastL]: bias = -1
             lastL = pi
         nxt = piv[k + 1][0] if k + 1 < len(piv) else n
         for j in range(pi + 1, nxt):
@@ -466,8 +448,7 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
                 # pivots_low/mss_all (see this function's return statement).
                 mss.append({"type": "bull", "i": j, "level": H[lastH], "disp": disp, "ext": L[e], "ext_time": T[e], "ext_i": e, "origin": H[oi], "cisd": cisd,
                             "leg_lo": leg_lo, "leg_hi": leg_hi,
-                            "vol_mult": round(V[j] / avgv, 2) if avgv else None,
-                            "dep_pivots": _deps(lastH, lastL, *bias_by), "disp_conf_i": _disp_conf(j, disp, leg_lo, leg_hi, True)})
+                            "vol_mult": round(V[j] / avgv, 2) if avgv else None})
                 if not disp:
                     continue   # ICT-4/ICT-5: a grab, not an MSS -- keep scanning (bias stays -1) for a LATER displaced close through the SAME swing
                 bias = 0; break
@@ -478,8 +459,7 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
                 disp, leg_lo, leg_hi = leg_disp(e, j, False)
                 mss.append({"type": "bear", "i": j, "level": L[lastL], "disp": disp, "ext": H[e], "ext_time": T[e], "ext_i": e, "origin": L[oi], "cisd": cisd,
                             "leg_lo": leg_lo, "leg_hi": leg_hi,
-                            "vol_mult": round(V[j] / avgv, 2) if avgv else None,
-                            "dep_pivots": _deps(lastH, lastL, *bias_by), "disp_conf_i": _disp_conf(j, disp, leg_lo, leg_hi, False)})
+                            "vol_mult": round(V[j] / avgv, 2) if avgv else None})
                 if not disp:
                     continue   # ICT-4/ICT-5: a grab, not an MSS -- keep scanning (bias stays 1) for a LATER displaced close through the SAME swing
                 bias = 0; break
@@ -562,54 +542,6 @@ def analyze(c, recent, tf=None, methods=("wyckoff", "ict"), opts=None):
         # changed, so this cannot alter a single trade (A1's byte-identity requirement).
         "pivots_high": sh, "pivots_low": sl, "mss_all": mss,
     }
-
-
-def display_lifecycle(c, a):
-    """DISPLAY-ONLY lifecycle facts for `analyze(c, ...)`'s pools and FVGs (ICT chart-fidelity audit 2026-10-04,
-    items 3-4). The decision path never calls this: `analyze()` keeps its v1 scans byte-identical (it stops a pool
-    scan at the first sweep and an FVG scan at the first touch, which is all setup_candidate()/the dealing range
-    read), and scripts/structures.py `ict_structures()` -- the chart's cold path -- calls this to draw each object
-    for as long as the knowledge says it lives. Pure, causal (every scan walks FORWARD from the bar after the state
-    it extends), returns new dicts keyed by position in `a["pools"]` / `a["fvgs_all"]`; `a` is not mutated.
-
-      pools  {k: {"broken_i": j | None}} for a SWEPT pool: the first bar AFTER the sweep whose BODY closes beyond
-             the level. A swept level does not stop being a level (mentorship-2024.md §15: "PDH/PDL remain valid
-             after being run"); a sweep is a wick-and-hold (core-a.md §2.17 "failure to displace"), and the line
-             ends only when a later body close takes it -- R6 (traded through with body closes = draw reached) and
-             R25 (a grab is invalidated by a later body close beyond the same level).
-      fvgs   {k: {"touch_i", "ce_fail_i", "inversion_i"}}. touch_i = analyze()'s own first-touch bar (`end` when
-             `mitigated`): touching the near edge is an ENTRY model (core-a.md §2.23, R19 IOFED), not the end of
-             the gap. ce_fail_i = the first body close through the 0.5 CE; inversion_i = the first body close
-             through the FAR edge after that -- "a subsequent close through the far edge completes the failure
-             and inverts the gap" (§2.26, R23; §2.25/§2.27 the inverted gap then acts from the other side). Same
-             walk as analyze()'s fx_b2b_ce_fail branch (and its own values when that key was set), computed here so
-             the v1 decision default stays exactly as it is."""
-    n = len(c)
-    C = [x["close"] for x in c]
-    pools = {}
-    for k, p in enumerate(a.get("pools", [])):
-        if p.get("swept", -1) < 0:
-            continue
-        lvl, broken = p["level"], None
-        for j in range(p["swept"] + 1, n):
-            if (p["kind"] == "BSL" and C[j] > lvl) or (p["kind"] == "SSL" and C[j] < lvl):
-                broken = j; break
-        pools[k] = {"broken_i": broken}
-    fvgs = {}
-    for k, f in enumerate(a.get("fvgs_all", [])):
-        if "ce_failed_at" in f:
-            ce_fail, inv = f["ce_failed_at"], f["inverted_at"]
-        else:
-            ce_fail = inv = None
-            bull = f["type"] == "bull"
-            for j in range(f["i"] + 2, n):
-                if ce_fail is None:
-                    if (bull and C[j] < f["ce"]) or (not bull and C[j] > f["ce"]):
-                        ce_fail = j
-                elif (bull and C[j] < f["lo"]) or (not bull and C[j] > f["hi"]):
-                    inv = j; break
-        fvgs[k] = {"touch_i": f["end"] if f.get("mitigated") else None, "ce_fail_i": ce_fail, "inversion_i": inv}
-    return {"pools": pools, "fvgs": fvgs}
 
 
 def anchor_facts(c, spec):

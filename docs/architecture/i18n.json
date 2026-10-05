@@ -986,9 +986,41 @@
       "en": "invalidated",
       "vi": "vô hiệu"
     },
+    "chart.wyckoff.choch_outside_box": {
+      "en": "outside SC–AR box (WA p68–69)",
+      "vi": "ngoài hộp SC–AR (WA tr.68–69)"
+    },
     "chart.wyckoff.invalidated_suffix": {
       "en": "invalidated {date}",
       "vi": "hết hiệu lực {date}"
+    },
+    "chart.wyckoff.not_established_short": {
+      "en": "Wyckoff: not established",
+      "vi": "Wyckoff: chưa xác lập"
+    },
+    "chart.wyckoff.reason.sloped": {
+      "en": "sloped",
+      "vi": "dốc"
+    },
+    "chart.wyckoff.reason.st_lower_third": {
+      "en": "ST in lower ⅓",
+      "vi": "ST ở ⅓ dưới"
+    },
+    "chart.wyckoff.reason.b_tests_lower": {
+      "en": "Phase-B tests low",
+      "vi": "kiểm tra pha B ở dưới"
+    },
+    "chart.wyckoff.reason.unconfirmed": {
+      "en": "unconfirmed",
+      "vi": "chưa xác nhận"
+    },
+    "chart.wyckoff.reason.expired": {
+      "en": "stale",
+      "vi": "hết hạn"
+    },
+    "chart.wyckoff.reason.open": {
+      "en": "open",
+      "vi": "đang mở"
     },
     "chart.wyckoff.invalidated_note": {
       "en": "Analysis {updated} invalidated {date} — awaiting a new read",
@@ -1037,10 +1069,6 @@
     "chart.dr.mixed": {
       "en": "1 edge = window",
       "vi": "1 biên = cửa sổ"
-    },
-    "chart.mss.no_displacement": {
-      "en": "closed past the swing, displacement missing",
-      "vi": "đóng qua swing, thiếu displacement"
     },
     "chart.pane.no_live": {
       "en": "no live source, not drawn (SYSTEM-DESIGN §12)",
@@ -1099,16 +1127,16 @@
       "vi": "KL ≥ {high}× TB {lookback} nến (≥ {spike}× ghi số)"
     },
     "legend.tr": {
-      "en": "trading range border (AR / SC)",
-      "vi": "biên vùng giao dịch (AR / SC)"
+      "en": "trading range border ({labels})",
+      "vi": "biên vùng giao dịch ({labels})"
     },
     "legend.phases": {
       "en": "phases A–E",
       "vi": "pha A–E"
     },
     "legend.wyckoff_events": {
-      "en": "Wyckoff events placed by the full analysis",
-      "vi": "sự kiện Wyckoff do phân tích đầy đủ đặt"
+      "en": "engine-detected Wyckoff events",
+      "vi": "sự kiện Wyckoff do engine phát hiện"
     },
     "legend.plans": {
       "en": "trade plans from trades/ (red box = risk, green = profit)",
@@ -1119,32 +1147,72 @@
       "vi": "FVG tăng"
     },
     "legend.fvg_down": {
-      "en": "FVG down (dotted = CE 0.5)",
-      "vi": "FVG giảm (nét chấm = CE 0.5)"
+      "en": "FVG down (dashed line = CE 0.5)",
+      "vi": "FVG giảm (nét đứt = CE 0.5)"
     },
     "legend.liquidity": {
-      "en": "BSL / SSL / old high-low / ERL (× = swept, body did not close through)",
-      "vi": "BSL / SSL / old high-low / ERL (× = quét, thân không đóng qua)"
+      "en": "BSL above / SSL below: relatively equal highs-lows or old high-low (core-a §2.7)",
+      "vi": "BSL trên / SSL dưới: đỉnh-đáy tương đối bằng nhau hoặc đỉnh-đáy cũ (core-a §2.7)"
     },
     "legend.eq": {
-      "en": "EQ of the nearest BSL↔SSL dealing range · premium above / discount below",
-      "vi": "EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới"
+      "en": "EQ of the nearest BSL↔SSL dealing range · premium above / discount below (drawn from the bar both edges existed)",
+      "vi": "EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới (vẽ từ nến cả hai biên đã tồn tại)"
     },
     "legend.killzone": {
-      "en": "killzone LDN / NY AM / NY PM per session-model (½ = reduced weight)",
-      "vi": "killzone LDN / NY AM / NY PM theo session-model (½ = trọng số giảm)"
+      "en": "time windows: LDN = London killzone 02:00–05:00 New York (deck) · NY AM / NY PM per session-model (½ = reduced weight)",
+      "vi": "khung giờ: LDN = killzone London 02:00–05:00 giờ New York (tài liệu) · NY AM / NY PM theo session-model (½ = trọng số giảm)"
     },
     "legend.killzone_off": {
-      "en": "killzone: not drawn on this timeframe",
-      "vi": "killzone: không vẽ ở khung này"
+      "en": "session / killzone windows: not drawn for this timeframe or market",
+      "vi": "cửa sổ phiên / killzone: không vẽ cho khung hoặc thị trường này"
     },
     "legend.mss": {
-      "en": "MSS↑/↓ solid = displacement present; dashed = closed past the swing but displacement missing",
-      "vi": "MSS↑/↓ nét đậm = có displacement; nét đứt = đóng qua swing nhưng thiếu displacement"
+      "en": "MSS↑/↓ = body close beyond the swing WITH displacement (core-a §2.17)",
+      "vi": "MSS↑/↓ = thân đóng qua swing CÓ displacement (core-a §2.17)"
     },
     "legend.pane_range": {
-      "en": "lower pane: the close's % position in the current dealing range (0% = lower edge, 100% = upper edge), EQ = 50%",
-      "vi": "pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên), EQ = 50%"
+      "en": "lower pane: the close's % position in the current dealing range (0% = lower edge, 100% = upper edge, EQ = 50%), plotted only from the bar where both edges of that range existed",
+      "vi": "pane dưới: vị trí % của giá đóng trong dealing range hiện tại (0% = biên dưới, 100% = biên trên, EQ = 50%), chỉ vẽ từ nến mà cả hai biên của range đã tồn tại"
+    },
+    "legend.fvg_lifecycle": {
+      "en": "FVG lifecycle: dot = near edge touched (entry, box stays) · × = body close through CE (failing) · box ends at the close through the far edge (core-a §2.23, §2.26)",
+      "vi": "vòng đời FVG: chấm = chạm biên gần (điểm vào, hộp giữ nguyên) · × = thân đóng qua CE (đang thất bại) · hộp kết thúc khi đóng qua biên xa (core-a §2.23, §2.26)"
+    },
+    "legend.ifvg": {
+      "en": "IFVG = inverted FVG, acting from the other side after the far-edge close (core-a §2.25)",
+      "vi": "IFVG = FVG đảo chiều, tác dụng từ phía bên kia sau khi đóng qua biên xa (core-a §2.25)"
+    },
+    "legend.pool_swept": {
+      "en": "swept pool (× = wick through, body closed back): still a level, muted, until a later body close beyond it ends the line",
+      "vi": "pool đã quét (× = râu xuyên qua, thân đóng lại): vẫn là mức giá, vẽ mờ, đến khi một thân nến sau đóng qua thì kết thúc"
+    },
+    "legend.grab": {
+      "en": "close past the swing WITHOUT displacement = liquidity grab, not an MSS (core-a §2.17, R11)",
+      "vi": "đóng qua swing KHÔNG có displacement = liquidity grab, không phải MSS (core-a §2.17, R11)"
+    },
+    "chart.pool.equal_highs": {
+      "en": "rel. equal highs (BSL)",
+      "vi": "đỉnh tương đối bằng (BSL)"
+    },
+    "chart.pool.equal_lows": {
+      "en": "rel. equal lows (SSL)",
+      "vi": "đáy tương đối bằng (SSL)"
+    },
+    "chart.pool.old_high": {
+      "en": "old high (BSL)",
+      "vi": "đỉnh cũ (BSL)"
+    },
+    "chart.pool.old_low": {
+      "en": "old low (SSL)",
+      "vi": "đáy cũ (SSL)"
+    },
+    "chart.pool.swept": {
+      "en": "swept",
+      "vi": "đã quét"
+    },
+    "chart.grab.no_displacement": {
+      "en": "grab · no displacement",
+      "vi": "grab · thiếu displacement"
     },
     "legend.thresholds": {
       "en": "the numeric thresholds are project parameters (analysis-params.json → project_defined.ict)",

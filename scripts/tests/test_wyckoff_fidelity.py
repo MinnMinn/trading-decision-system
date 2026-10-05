@@ -456,16 +456,18 @@ class W7HtfTargetIsBuiltButNotAdopted(unittest.TestCase):
         """Two calls differing in ONE detection key must re-detect (own cache entry) and detect under that key."""
         self._patch_load(self._htf_candles(self._htf_bars()))
         calls = self._spy_records([dict(sos=None, tr_hi=110.0, tr_lo=80.0)])
+        # Each key's baseline is its OPTS default (False for W1-W5; True for W8 since owner 2026-10-05); the test flips it.
+        base = {k: self.bt.OPTS[k] for k in self.bt._FX_WYCKOFF_DETECTION_KEYS}
         for k in self.bt._FX_WYCKOFF_DETECTION_KEYS:
             with self.subTest(key=k):
-                self._ask()                                            # all keys False (or already cached)
+                self._ask()                                            # every key at its baseline (or already cached)
                 n0 = len(calls)
-                with mock.patch.dict(self.bt.OPTS, {k: True}):
+                with mock.patch.dict(self.bt.OPTS, {k: not base[k]}):
                     self._ask()
                     self._ask()                                        # the second is a hit on the widened entry
                 self.assertEqual(len(calls), n0 + 1, k)
-                self.assertIs(calls[-1][k], True)
-                self.assertTrue(all(calls[-1][o] is False for o in self.bt._FX_WYCKOFF_DETECTION_KEYS if o != k))
+                self.assertIs(calls[-1][k], not base[k])
+                self.assertTrue(all(calls[-1][o] is base[o] for o in self.bt._FX_WYCKOFF_DETECTION_KEYS if o != k))
 
     def test_cache_is_keyed_on_history_identity(self):
         bars = self._htf_bars()
@@ -549,24 +551,26 @@ class DetectionKeysSeparateTheScanCache(unittest.TestCase):
         detection key must run detection twice, each under its own key value; a repeat of either is a cache hit."""
         bt = _load("bt_fx_cachekey", "backtest-methods.py")
         self.assertEqual(bt._FX_WYCKOFF_DETECTION_KEYS,
-                         ("fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon"))
+                         ("fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon",
+                          "fx_w8_choch_in_box"))
         self._scan_fixture(bt)
         calls = self._spy(bt)
+        base = {k: bt.OPTS[k] for k in bt._FX_WYCKOFF_DETECTION_KEYS}   # W8 baseline True since 2026-10-05
         for k in bt._FX_WYCKOFF_DETECTION_KEYS:
             with self.subTest(key=k):
                 bt._WY_CANDIDATES.clear()
                 bt.scan("XAUUSD", "15m", only=("WYCKOFF-BOOK",))
                 n_off = len(calls)
                 self.assertGreater(n_off, 0)
-                with mock.patch.dict(bt.OPTS, {k: True}):
+                with mock.patch.dict(bt.OPTS, {k: not base[k]}):
                     bt.scan("XAUUSD", "15m", only=("WYCKOFF-BOOK",))
                     n_on = len(calls)
                     bt.scan("XAUUSD", "15m", only=("WYCKOFF-BOOK",))
                 bt.scan("XAUUSD", "15m", only=("WYCKOFF-BOOK",))
                 self.assertGreater(n_on, n_off, k)                # the key change re-detected
                 self.assertEqual(len(calls), n_on, k)             # and both repeats were cache hits
-                self.assertIs(calls[-1][k], True)
-                self.assertIs(calls[0][k], False)
+                self.assertIs(calls[-1][k], not base[k])
+                self.assertIs(calls[0][k], base[k])
 
     def test_wyckoff_fires_passes_the_opts_to_the_detector_without_touching_params(self):
         """wyckoff_fires is the live runner's entry: with OPTS at v1 the detector sees every fx key False EVEN IF

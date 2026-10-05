@@ -106,3 +106,7 @@ Root: `C:\Users\nguye\AppData\Local\Temp\claude\C--Trading-trading-decision-syst
 - Crypto Wyckoff "not established": `scalping\entry-btc.wyckoff.png`, `scalping\entry-sol.wyckoff.png`
 - CFD ICT: `cfd-scalping\entry-xau.ict.png`, `cfd-scalping\entry-aus200.ict.png`, `cfd-day\entry-xau.ict.png`, `cfd-swing\entry-xau.ict.png`
 - CFD Wyckoff: `cfd-scalping\entry-xau.wyckoff.png`, `cfd-day\entry-xau.wyckoff.png`, `cfd-swing\entry-xau.wyckoff.png`
+
+## Correction (2026-10-04)
+
+The "Removed from the chart" table above says CISD is "not computed by the engine". That is wrong: `scripts/ict-scan.py` `analyze()` does compute it -- every MSS record carries a `cisd` field (`level` = open of the first candle of the final opposing-colour run into the extreme, `time`, `confirmed`; knowledge/ict/core-b.md §2.3), on both the bull and the bear branch of the MSS state machine. What is true is that the chart does not DRAW it: `scripts/structures.py` copies the field verbatim onto each `mss` object and `scripts/chart.js` ignores it. Note for any future drawing of it: `cisd.confirmed` is found by a forward scan to the end of the window, so it would need its own availability time before it could be shown point-in-time. Recorded by the ICT chart-fidelity audit fix of 2026-10-04; the text above is left as written.

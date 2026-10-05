@@ -683,8 +683,9 @@ class AccountLimitsOnTheOrderPath(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("sr", os.path.join(ROOT, "scripts", "strategy-runner.py"))
         cls.sr = importlib.util.module_from_spec(spec); spec.loader.exec_module(cls.sr)
 
-    def _tick(self, state):
-        """One DRY tick (no network, no orders) returning the `signal` log rows."""
+    def _tick(self, state, tick_time=None):
+        """One DRY tick (no network, no orders) returning the `signal` log rows. `tick_time` (the decision time)
+        defaults to the wall clock."""
         import json
         import tempfile
         sr = self.sr
@@ -728,7 +729,7 @@ class AccountLimitsOnTheOrderPath(unittest.TestCase):
         sr.log = lambda kind, **kw: logs.append((kind, kw))
         old_load, sr.ER.load = sr.ER.load, FC.fresh_load    # the §36 step-3 precheck reads the calendar itself
         try:
-            sr.tick(live=False, tick_time=sr.now(), ignore_gate=True)
+            sr.tick(live=False, tick_time=tick_time or sr.now(), ignore_gate=True)
         finally:
             sr.ER.load = old_load
             for k, v in old.items():
@@ -770,8 +771,10 @@ class AccountLimitsOnTheOrderPath(unittest.TestCase):
 
     def test_a_session_restriction_blocks_on_the_order_path(self):
         """A4 -- decision-order.json step 4 used to be tr.skip()'d unconditionally; a declared
-        session_restrictions rule now actually gates. The harness's signal time (2026-09-18T00:00:00Z) is the
-        'asia' session; a profile allowing only 'london' must refuse it at step 4, before account_constraints."""
+        session_restrictions rule now actually gates. The decision time is pinned inside the 'asia' session
+        (2026-09-18T00:15Z = 20:15 New York); a profile allowing only 'london' must refuse it at step 4, before
+        account_constraints. It used to be the wall clock, which passed only while the clock was outside london
+        (failed 2026-10-05 07:31Z, inside the v3 london window 02:00-05:00 New York)."""
         sr = self.sr
         prof = dict(AP.for_venue("futures"))
         prof["rules"] = dict(prof["rules"],
@@ -779,7 +782,8 @@ class AccountLimitsOnTheOrderPath(unittest.TestCase):
         old = sr._PROFILES["futures"]
         sr._PROFILES["futures"] = prof
         try:
-            rows = self._tick(self._state())
+            import datetime
+            rows = self._tick(self._state(), tick_time=datetime.datetime(2026, 9, 18, 0, 15, tzinfo=datetime.timezone.utc))
         finally:
             sr._PROFILES["futures"] = old
         self.assertTrue(rows)

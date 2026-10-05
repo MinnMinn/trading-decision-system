@@ -132,7 +132,7 @@ class Structures(Fixture):
         m = self.mod
         rows = m.pit_rows("XAUUSD", "15m", T_ISO, root=self.root)
         b = load("build-artifact.py")
-        env = b.structures.ict_structures(rows, 4, "15m", methods=("ict",))
+        env = b.structures.ict_structures(rows, 4, "15m", methods=("ict",), opts=b.CHART_ICT_OPTS)   # the chart reading (1-bar swings)
         direct = {"structures": env["structures"], "dealing_range": env["dealing_range"], "bias": env["bias"]}
         _, data = m.entry_data(rows, "XAUUSD", "15m", "ICT")
         self.assertEqual(json.dumps(data["tiers"][0]["ict"], sort_keys=True), json.dumps(direct, sort_keys=True))
