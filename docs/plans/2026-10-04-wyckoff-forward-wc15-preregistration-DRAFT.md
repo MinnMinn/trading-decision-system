@@ -100,17 +100,54 @@ WX = the WY-X1 draft `docs/plans/2026-10-04-wyckoff-wcx-replication-preregistrat
   (`integrations/mt5/ExportOHLCV.mq5:91`), so the file's last bar may still be forming. It is dropped.
 - Times are snapped to the 15-minute grid, +-60 s (the v1.02 bridge stamps `...:00:01Z`). A source with one unreadable or
   off-grid bar, or two bars on one label, is not used at all.
-- A source appends only when it holds the store's last 4 bars at identical prices. A gap, a revised bar or a shifted
-  clock (the bridge after a DST change) appends nothing, and a note says why.
+- A source appends only when it holds the store's last bar and the times of its last 4 bars, and is ALIGNED (WF
+  `plan_append`): of the store's last 96 bars that it holds, it agrees on all of them, or, where some differ, on at
+  least 4 and on at least as many as differ. A bar it shows at another price is a **revision** (below). A hole, a gap in
+  the overlap, a shifted clock (the bridge after a DST change: nearly every bar differs) or another series appends
+  nothing, and a note says why.
+- **Revisions** (lead decision 2026-10-04, §14 item 11; review item 2). The broker can revise a bar after the store took
+  it. The first design needed the store's last 4 bars at identical prices, so one revised bar refused every later
+  source, live file and history export alike (a revised bar never leaves a 4-bar overlap), nothing was ever appended
+  again, and the symbol was dropped whole from every later look. Now:
+  - the store keeps the bar AS FIRST STORED. Every decision, every window hash and every resolve uses it (point in
+    time, CLAUDE.md §8);
+  - the new bars are appended, and a chained `revision` record goes to the log: the symbol, the bar time, the source, the
+    bar as stored and as shown (`store`, `source`), the fields that differ, when it was seen (WF `revision_record`). One
+    record per distinct revised price, not one per cycle;
+  - every look lists the revision records (count, per symbol, whether the bar lies in a sampled event's span, §8), flags
+    each store-versus-export difference that one explains, and `status` shows their number. A blinded look 1 lists them
+    too;
+  - frequency: 0 differences in 537 overlapping live and history 15m bars (review, 2026-10-04), so this is a safety net
+    for a rare event, not a routine one;
+  - one edge, disclosed: a worker killed between the bars' append and the log's append loses that cycle's revision
+    record (never an event: the scan cache is written last, so the next cycle re-detects it). The look still lists every
+    difference between store and export, then without the flag that a record explains it (§8).
+  Tests: `test_a_revised_bar_never_wedges_a_store`, `test_a_revised_bar_is_logged_once_per_price_the_store_keeps_it_and_resolves_stay_point_in_time`
+  (the entry bar of a logged event is revised; the resolve the log holds is the one the first-stored bar gives, and the
+  revised bar would give another), `test_the_old_wedge_a_revised_bar_among_the_last_four_does_not_stop_the_store`,
+  `test_every_look_reports_the_revision_records`.
 - The live file holds about 300 bars (about 3 trading days). After a longer outage, a re-exported FTMO history
-  (ExportHistory.mq5 + `scripts/import-mt5-history.py`) bridges the hole. Then the live file continues.
+  (ExportHistory.mq5 + `scripts/import-mt5-history.py`) bridges the hole. Whenever the live file brings no new bar (a
+  hole, a shifted clock, a stale or stopped feed, a missing file), the cycle reads the history export and appends the
+  bars it holds after the store's end, under the same alignment rule. Then the live file continues.
 - Every bar records its source (`live` / `history`) and the time it was appended.
 - **A missing or unusable live file is STALLED, never an empty market** (CLAUDE.md §20: MISSING is not EMPTY; WF
   `live_source`, `accumulate_symbol`). Missing, unreadable, with one bad bar, or with no closed bar: the file gives no bar
-  list at all, so nothing is appended from it. The cycle summary (`stalled`) and `status` list the symbol, and its store
-  does not advance. So no look counts it complete (§7); a look drops it only by the registered fallback, by name. A
-  history re-export can still bridge bars; the symbol stays listed as stalled while its feed is down. Today JP225 and
-  AUS200 have no live 15m file (§12 step 4). Test: `test_a_missing_or_unusable_live_file_is_stalled_never_an_empty_market`.
+  list at all, so nothing is appended from it. The cycle summary (`stalled`) and `status` list the symbol. A history
+  export can still fill its store; the symbol stays listed while its feed is down. A stalled store that no export fills
+  does not advance, so no look counts it complete (§7). Today JP225 and AUS200 have no live 15m file (§12 step 4). At a
+  look the export of all 10 symbols fills such a store and the symbol is READ, its events late-logged and disclosed
+  (§7, §8); only the registered fallback drops one. Tests: `test_a_missing_or_unusable_live_file_is_stalled_never_an_empty_market`,
+  `test_a_stalled_symbol_is_filled_by_the_looks_export_and_read_with_its_events_late`.
+- **NOT ADVANCING** (lead decision 2026-10-04, §14 item 13; review item 4). STALLED covers a missing or unusable file.
+  Two more states are visible in the cycle summary and in `status`, with the reason and the store's last bar (WF
+  `accumulate_symbol`, `status`):
+  - the live file exists and holds bars after the store's last one, but no source gave the store a bar: `plan_append`'s
+    reason (a hole, a gap, a shifted clock, too few agreeing bars). This is the four indices after the seal (§12 step 3);
+  - the live file is stale: its newest closed bar closed more than 72 hours (`STALE_LIVE_HOURS`) before the cycle (the
+    EA may have stopped; a weekend is about 49 hours, a long holiday can show).
+  The bars an empty store starts from are not an advance. A flag is a note, never a refusal.
+  Tests: `NotAdvancing` (a hole, a stale file, a store that advanced from the export), `test_a_shifted_live_clock_appends_nothing_and_says_why`.
 
 **Events** (WF `fire`, `decision`, `scan_symbol`):
 - Each cycle scans only the windows it has not scanned, plus window - 1 earlier windows for the de-duplication context.
@@ -180,16 +217,28 @@ studies will edit `instruments.json`, `real_costs.py` and more. Another session 
   not exist.
 - **The narrow fingerprint.** `docs/experiments/wyckoff-forward-wc15/fingerprint.json`, committed in the seal commit. It is
   what the forward path actually runs, traced on a synthetic canary through every step (store init, live append, scan,
-  resolve with the log-only fields, both looks' read core):
-  - `exec`, 13 files whose functions run: WF, EW, `scripts/wyckoff_rules.py`, `scripts/backtest-methods.py`,
+  resolve with the log-only fields and the HTF gate, both looks' read core with the export check):
+  - `exec`, 17 files whose functions run: WF, EW, `scripts/wyckoff_rules.py`, `scripts/backtest-methods.py`,
     `scripts/real_costs.py`, `scripts/research/edge_census.py`, `scripts/history_store.py`, `scripts/instruments.py`,
-    `scripts/mt5_time.py`, `scripts/normalized.py`, `scripts/providers.py`, `scripts/broker_symbols.py`, and
-    `scripts/live_rules.py` (the HTF gate's bias reader, §6);
-  - `load`, 23 modules imported only (EW's import chain);
+    `scripts/mt5_time.py`, `scripts/normalized.py`, `scripts/providers.py`, `scripts/broker_symbols.py`, and the HTF
+    gate's five: `scripts/live_rules.py` (the bias reader), `scripts/ict-scan.py`, `scripts/structures.py`,
+    `scripts/htf_context.py`, `scripts/i18n.py` (§6);
+  - `load`, 19 modules imported only (EW's import chain);
   - `data`, the configs and cost tables opened, R0, and the 127 sealed 15m history files of the 10 symbols;
-  - real_costs' `price_ref` per symbol, and the canary's digest.
-  - 13 executed files against the re-test's 52 frozen ones. The HTF gate's methods are pinned in WF (`HTF_METHODS`, §6),
-    so the forward path never reads the live automation config.
+  - real_costs' `price_ref` per symbol, the canary's digest (an exact and a derived part, below) and the time-zone pin
+    (below).
+  - 17 executed files against the re-test's 52 frozen ones; 15 of the 17 are in the frozen list, the other two are WF
+    and `scripts/broker_symbols.py` (a blob of R0's `git_head`). The HTF gate's methods are pinned in WF
+    (`HTF_METHODS`, §6), so the forward path never reads the live automation config.
+  - **The canary runs the HTF gate on a real window** (lead decision 2026-10-04, §14 item 14; review item 5). The first
+    canary had 323 1H bars at its signals; the gate's live window is 480 (`scripts/live_rules.py:83`,
+    `automation.SCAN_WINDOW["1H"]`), so every canary gate read "unknown" and the gate's four files were only imported,
+    never executed. The statement "exec, 13 files ... every step" was false: a real store with 90 days of warm-up runs
+    them on every resolve, and neither the canary digest nor `extract_check` covered the gate. The canary's prefix is now
+    2000 bars: 523 1H bars at each signal, the bias path runs (a real "short" bias, `htf_gate` False, never None), the
+    four files are `exec`, and the canary digest and `extract_check` cover the gate. A traced probe of 240 gate calls
+    over six synthetic regimes (trend, range, sine, spikes) opened no file outside the fingerprint. Tests:
+    `CanaryGate`, `test_the_fingerprint_is_the_narrow_executed_set_and_inside_the_extract`.
 - **Every cycle and look** (WF `worker_cycle`, `worker_read`):
   1. verify every fingerprinted file in the extract (refuse on any difference);
   2. require the extract's `fingerprint.json` to be, byte for byte, the seal commit's (`git cat-file`, WF
@@ -202,6 +251,48 @@ studies will edit `instruments.json`, `real_costs.py` and more. Another session 
   6. refuse to write when it executed, loaded or opened a file the fingerprint does not name (WF `check_touched`), or
      opened a file of the live tree outside its inputs and outputs, or imported a module from it (WF `check_outside`).
   Every record carries the fingerprint digest. A look refuses records made under another digest or seal.
+  Every worker also requires the sealed time-zone instants (below).
+- **Numbers: no look depends on a last-ulp value of the OS library** (lead decision 2026-10-04, §14 item 10; review
+  blocker 1). Python's `math` module takes `erfc`, `exp`, `log`, `lgamma`, `sin` and `asin` from the operating system's C
+  library (on this Mac `/usr/lib/libSystem`). `brew pin python@3.14` pins Python, not macOS. The first design hashed
+  p-values and boundaries bit for bit (the canary digest, the look-1 commitment) and compared look 1's boundary with
+  `!=`; one macOS update that moved any of them by one ulp would have made every look refuse for three years, and
+  nothing could be fixed after the seal. Now:
+  - **Exact:** every scored row (R, placebo, excess, cost), every count and label, the log, the stores. The detector,
+    the walk, the placebo draw and the cost use only `+ - * /`, comparisons and `sqrt`, which IEEE 754 rounds exactly on
+    every platform. They are hashed as they are.
+  - **Rounded:** every DERIVED float that enters a hash, a commitment or a comparison -- the summary's p-values, bounds,
+    means and standard errors, the boundaries (`t`, alpha, `z`, rho) -- is rounded to 10 significant digits (WF `sig10`,
+    `SIG_DIGITS`): Python's own correctly rounded formatting (`'%.9e'`), no OS function, the same on every platform. 10
+    digits is 1e-10 relative: far above a few ulps (1e-16), far below any difference that matters.
+  - **Ties:** a derived float within 1e-12 relative of a rounding midpoint (about 1 in 130) verifies under either
+    rounding (WF `tie_variants`, `TIE_REL`; at most 12 such floats in one body, so at most 4,096 digests). So a drift of
+    up to about 4,500 ulps can never change what verifies.
+  - **Compared with a tolerance:** look 2 recomputes look 1's boundary from its recomputed count and compares it with
+    the committed one by `math.isclose(rel_tol=1e-9)` (WF `boundary_matches`); look 2's own boundary is computed from
+    look 1's COMMITTED floats. The pass test compares the rounded p with the rounded threshold (WF `crossed`).
+  - **The canary** hashes its exact part (the log's records, each look's rows, label and sample) as it is, and its
+    derived part (each look's summary and boundary, and a fixed 24-row statistic over 12 weeks that runs the Student-t
+    tail, which the canary's own ten same-week events cannot) rounded. A look accepts the sealed digest when the
+    recomputed one is among the tie variants (WF `canary_verifies`). The look-1 commitment (`statistic_sha256`) is built
+    the same way (WF `statistic_sha256`, `statistic_verifies`).
+  - **What stays OS-dependent, disclosed (§11):** the derived floats themselves differ by ulps between systems, so a look
+    record's p-values can differ in the 16th digit from the same look run elsewhere. The verdict does not, except for a
+    p within 1e-10 relative of its threshold (a probability of about 1e-10). A library change that moves a value by more
+    than 1e-9 relative (another algorithm) still refuses every look through the canary; the pin cannot prevent that.
+  Tests, class `Numbers`: one ulp on a derived float never changes what a commitment verifies (3,000 random values, both
+  directions); a float on a rounding midpoint verifies under either rounding; a changed ROW value (one ulp) never
+  verifies and a real change of a derived float does not either; the Student-t p one ulp off still verifies; the
+  boundary within `isclose`; a look 2 over a look 1 made under an ulp-different `norm_cdf` runs, and over one whose row
+  moved by an ulp it refuses; the canary digest survives an ulp and refuses a 0.1 % change.
+- **Time zone: pinned by behaviour** (lead decision 2026-10-04, §14 item 17; review note 8). Server days (`prev_dense`, a
+  decision field), placebo slots and cost hours use America/New_York's DST rules (`ZoneInfo`, from the OS time-zone
+  database; the extract holds no `tzdata` package and the tracer ignores files outside it). The fingerprint records
+  America/New_York's 12 DST transition instants of 2025-2030 and the 12 of the FTMO server zone built on them (EET-sized
+  steps at the same instants), as computed at the seal (WF `tz_pin`; the fingerprint's `tz`, part of its digest). Every
+  cycle and look recomputes them and refuses on any difference (WF `require_tz`). The pin is the behaviour, not the file
+  bytes: a database update that changes no instant in those years changes nothing. The study ends by 2030 at the latest
+  (never-due close, seal + 48 months). Tests: `TimeZonePin`, `test_a_fingerprint_whose_time_zone_pin_differs_cannot_run`.
 - **Each look runs in a FRESH extract**, rebuilt from git at `code/<sha>.read/` (WF `cmd_read`, `materialize(fresh=True)`),
   never in the cycles' cached one.
 - **Before sealing** (WF `cmd_fingerprint`):
@@ -209,9 +300,9 @@ studies will edit `instruments.json`, `real_costs.py` and more. Another session 
     catches a `core.autocrlf` checkout (`docs/plans/2026-09-20-windows-migration.md` §5);
   - **the measurement must be R1's** (WF `r0_drift`). Every fingerprinted file that R0's `meta.code_sha256` names must
     have that hash. Every other one (the FTMO cost tables, `scripts/broker_symbols.py`, `scripts/method_purity.py`)
-    must be the blob of R0's `meta.git_head`. Exempt: WF, the R0 record and the 15m history (re-exported in §12 step 3).
-    Otherwise "RT §5, unchanged" (§7) would be false. Re-checked on 2026-10-04 with the 10 symbols and the HTF gate:
-    `r0_drift` is empty;
+    must be the blob of R0's `meta.git_head`. Exempt: WF, the R0 record and the 15m history (a later export replaces it,
+    §12 step 3). Otherwise "RT §5, unchanged" (§7) would be false. Re-checked on 2026-10-04 with the 10 symbols and the
+    HTF gate on the lengthened canary (17 executed files): `r0_drift` is empty;
   - the extract is built from HEAD and the canary runs in it alone, in a fresh process. Its digest must equal the working
     tree's (WF `extract_check`). This check found a real defect in the first version of this code: the extract lacked
     the `.mq5` adapter files, so every cycle would have failed after the seal. A committed test repeats it on a
@@ -244,6 +335,9 @@ studies will edit `instruments.json`, `real_costs.py` and more. Another session 
   - The launcher: `spawn`, `cycle`'s seal lookup and `status` run from the working tree. They decide nothing. The worker
     in the extract checks everything.
   - The bridge. Its bars are data, hashed into the chain and checked against a later history export (§8).
+  - The operating system's math library and time-zone database. They are held by rounding and by behaviour (above), not
+    by bytes. A change of either beyond those bounds refuses the cycles and looks loudly; it never changes a result
+    silently.
 
 ## 6. Resolve, log-only fields, and no interim look
 
@@ -279,8 +373,12 @@ studies will edit `instruments.json`, `real_costs.py` and more. Another session 
 - What protects the looks is that a peek cannot change them: the cutoffs are outcome-blind and fixed now (§7), and the
   sample, the placebo, the cost and the boundaries are mechanical. A peek could only tempt the owner to stop or change
   the study. That is not allowed after the seal (§14).
-- **Look 1 is blinded unless it passes** (§7): its record shows no estimate, so the months between the looks are not
-  read with look 1's mean in view.
+- **Look 1 is blinded unless it passes** (§7): its record shows no estimate and nothing from which the number of
+  resolved trades could be derived (lead decision 2026-10-04, §14 item 16; review note 7: the first record kept the log's
+  record count, and records minus events is the resolve count that `status` hides on purpose). `blind` now keeps an
+  allowlist (WF `BLIND_KEEP`): the log's head hash only, no anchored log length, no repair list, no log-only
+  recomputation. Test `test_a_blinded_look_one_gives_no_resolve_count_and_no_estimate`. So the months between the looks
+  are not read with look 1's mean in view.
 - The tools do not show outcomes in passing (tests `test_status_never_prints_an_outcome`,
   `test_status_counts_the_rule_from_the_entry_open_as_the_read_does`):
   - `status` prints counts only. It shows no resolve count: a resolve a few bars after its entry is a stop or a target.
@@ -302,8 +400,10 @@ studies will edit `instruments.json`, `real_costs.py` and more. Another session 
 - the information unit is the **event**: the events a look scores. The planning rate is 14 events a year (§9), so 28
   events are planned between the looks (`PLAN_RATE`, `N_REST_PLAN`);
 - the decision statistic and its test: RT §5, unchanged (below);
-- the per-look fallback for a stalled symbol (3 months, `GRACE_MONTHS`) and the never-due close (seal + 48 months,
-  `NEVER_DUE_MONTHS`).
+- the look's export of ALL 10 symbols (below), the per-look fallback for a symbol that is still incomplete (3 months,
+  `GRACE_MONTHS`, only when at least 5 of the 10 are complete, `DROP_MIN_COMPLETE`), and the never-due close (seal + 48
+  months, `NEVER_DUE_MONTHS`; procedural);
+- the rounding of derived floats (10 significant digits, §5).
 
 **How each look's boundary is computed** -- from the ACTUAL event counts, all outcome-blind:
 - **Look 1** (WF `look1_boundary`). n1 = the events look 1 scores (its rows; a skip -- entry beyond stop or target, no
@@ -312,8 +412,9 @@ studies will edit `instruments.json`, `real_costs.py` and more. Another session 
 - **Look 2** (WF `look2_boundary`). n2 = the events look 2 scores; n12 = those also scored at look 1 (n1, unless a
   symbol read at look 1 is dropped at look 2). rho = n12 / sqrt(n1 n2). z2 solves P0(Z1 < z1, Z2 < z2) = 1 - alpha, where (Z1, Z2) is
   standard bivariate normal with correlation rho (WF `bvn_lower`). Look 2 spends alpha - alpha1.
-- So the false-pass probability over both looks is exactly 0.10 for any n1 and n2: a slow or fast first year moves
-  alpha1, and look 2 takes the rest at the correlation the counts actually give.
+- For normal z statistics the false-pass probability over both looks is exactly 0.10 for any n1 and n2: a slow or fast
+  first year moves alpha1, and look 2 takes the rest at the correlation the counts actually give. **The registered
+  statistic is not a normal z statistic, so its level is not exactly 0.10** (below; corrected 2026-10-04, §14 item 15).
 - At the planning counts (14, 42): look 1 passes at a nominal one-sided p < 0.0044 (z 2.62), look 2 at p < 0.0986
   (z 1.29), as WX §12.2 (b) has them. Other counts: (8, 32) 0.0005 / 0.0999; (20, 53) 0.0108 / 0.0962; (4, 46)
   < 0.00001 / 0.1000; (30, 42) 0.0222 / 0.0975.
@@ -324,13 +425,43 @@ studies will edit `instruments.json`, `real_costs.py` and more. Another session 
   - `test_the_type_one_error_stays_at_alpha_under_a_non_steady_event_rate`: under the null, with Poisson counts that do
     not arrive at the planning rate -- a slow first year (4 events, then 50) and a fast one (30, then 6) -- the rule
     falsely passes 0.103 and 0.101 of 30,000 runs each (z statistics; within 3.5 standard errors of 0.10), and 0.1005 of
-    8,000 runs with the registered Student-t p-value on normal per-event values.
-  - Before sealing, larger runs gave 0.1001-0.1008 for the Student-t p on normal values (60,000 runs each, three rate
-    paths). On skewed R-like values (-1 or +4, mean 0) the one-sided t-test is conservative there (0.066-0.075).
-- **Approximation, disclosed.** The boundaries are exact for normal z statistics whose information is proportional to the
-  event count. A look applies them as nominal one-sided p thresholds to RT §5's p (CR1 by ISO week, Student-t), and the
-  two looks draw their placebos from different windows, so the looks' correlation is approximate. The simulations above
-  measure what that costs.
+    8,000 runs with the registered Student-t p-value on INDEPENDENT NORMAL per-event values. That is the normal model,
+    nothing more. The boundaries are right for the model they assume: the review also matched them to 1e-15 for five
+    other count pairs.
+- **Approximation, disclosed -- the registered statistic does NOT hold the level** (lead decision 2026-10-04, §14 item
+  15; review item 6; the earlier text said "0.100-0.101 on normal values, conservative on skewed R values" and "exactly
+  0.10 for any n1 and n2"). The boundaries are exact for normal z statistics whose information is proportional to the
+  event count and whose events are independent. A look applies them as nominal one-sided p thresholds to RT §5's p
+  (CR1 by ISO week, Student-t with G - 1 df). That statistic, kept as RT §5 has it, is not a normal z. The two looks draw
+  their placebos from different windows, so the looks' correlation is approximate too. The review simulated the null with
+  the production statistic, boundaries and pass test: 20,000 runs per case, 14 events a year, values with mean 0, look 2
+  re-scoring look 1's events with a placebo mean that differs by N(0, 0.05^2); the fix round reproduced the table to four
+  digits on 2026-10-05, with the corrected code (a reduced run is `TypeOneError`).
+
+  | null | false pass over both looks | at look 1 (nominal 0.0044) |
+  |---|---|---|
+  | independent normal values | 0.1025 | 0.0049 |
+  | same-week bursts (40 % of the events in bursts of 2-4, as the US indices fire together; within a burst a value is shared with probability 0.6), normal | 0.111 | 0.008 |
+  | the same with 60 % in bursts, shared with probability 0.9 | 0.117 | 0.010 |
+  | heavy tails (t with 3 df), bursts | 0.113 | 0.006 |
+  | left-skewed R (win 0.5 with probability 2/3, lose 1 with 1/3), independent | 0.122 | 0.012 |
+  | left-skewed R, bursts | 0.136 | 0.019 |
+  | slow first year (4 events, then 25 a year), bursts, normal | 0.107 | 0.0002 |
+  | fast first year (30 events, then 3 a year), bursts, normal | 0.108 | 0.026 |
+  | right-skewed R (R:R 1-5), bursts | 0.074 | 0.002 |
+  | mixed R:R 0.5-4, bursts | 0.077 | 0.002 |
+
+  One read at 36 months at alpha 0.10 gives 0.097 (independent normal), 0.105 (bursts), 0.112 (left-skewed,
+  independent) and 0.081 (mixed R:R, bursts): the second look adds about 0.006-0.010 to the statistic's own error.
+  - **What this means.** With same-week correlation (US500, US30, USTEC and DE40 share events), heavy tails and left
+    skew, the false-pass rate is 0.11-0.14, not 0.10, and at look 1 up to 0.019 against a nominal 0.0044 (1 in 53, not 1
+    in 230). With right-skewed R it is lower (0.074-0.077). The R of this trade is skewed by construction: it targets
+    `tr_hi` from a stop under the spring, and its direction depends on the planned R:R, which the log records
+    (`planned_rr`, log-only). So the level of the registered rule is about 0.07-0.14 depending on the shape of R, and
+    0.10 is its level only for independent, symmetric values.
+  - **The rule is kept as registered.** RT §5's statistic is not changed (decision 2026-10-04: keep it); the inflation is
+    disclosed here and in §10, §11. A PASS therefore carries a false-pass probability that may be up to about 0.14, not
+    0.10; a NOT PASSED is, if anything, more conservative than stated for right-skewed R.
 
 **Decision** (WF `crossed`, `read_core`):
 - At each look: **PASS iff the mean net excess on the primary cost line is > 0 and its one-sided p is below the look's
@@ -345,29 +476,53 @@ studies will edit `instruments.json`, `real_costs.py` and more. Another session 
 - **Look 2** runs only on look 1's COMMITTED record (git HEAD, equal to the file on disk), made under this seal and this
   fingerprint, and only after a CONTINUE (WF `committed_record`, `require_prior`; test
   `test_look_two_needs_look_ones_committed_continue_record_of_this_seal`). It recomputes the look-1 statistic on look 1's
-  cutoff and symbols and refuses (INVALID) unless it reproduces the committed sha256 and boundary. Then it discloses it.
+  cutoff and symbols and refuses (INVALID) unless it reproduces the committed sha256 (rows exactly, derived floats to 10
+  significant digits, §5) and boundary (`math.isclose`, 1e-9), and unless that statistic does not cross the committed
+  boundary (look 1 said CONTINUE). Look 2's boundary is computed from look 1's COMMITTED floats. Then it discloses
+  look 1.
 - **Look 2:** PASS or **NOT PASSED**. NOT PASSED exists only at look 2.
 
-**Cutoffs** (WF `due`, `read_core`):
+**Cutoffs and the export** (WF `due`, `export_problems`, `read_core`; lead decisions 2026-10-04, §14 items 12 and 20):
 - Each look's cutoff is fixed by the seal alone: seal + 12 months (look 1), seal + 36 months (look 2). Every symbol must
-  have 96 bars after the cutoff, so every walk is complete. A stalled symbol delays the look.
-- **Fallback for a stalled symbol, per look (option A, §14 item 4).** If not every symbol is complete through a look's
-  cutoff, but some symbol is complete through that cutoff + 3 months, every symbol not complete through the cutoff is
-  **dropped whole from that look**: all its events leave that look's sample before any walk or cost is computed. A
-  symbol dropped at look 1 can be back at look 2. The rule reads data times only, never a wall clock or an outcome. Each
-  look lists the dropped symbols.
+  have 96 bars after the cutoff, so every walk is complete.
+- **Every look needs a FTMO 15m history export of ALL 10 symbols**: taken (`_exported_at_utc`) at or after the close of
+  the last bar a read symbol's window needs (its cutoff bar + 96 bars), imported (`scripts/import-mt5-history.py`), and
+  taken INTO the stores by one `cycle`. A look refuses while an export is missing, too early, unusable, or would still
+  extend a store (WF `export_problems`). So no symbol is left out by not exporting it, and no symbol is read or dropped
+  on the strength of an export it did not get. A symbol the broker no longer offers blocks the look; that ends in the
+  never-due close below.
+- **A symbol complete through the cutoff after that export is READ**, whether its live file was alive or not. JP225 and
+  AUS200 (no live file today) are filled from the export, and every event of theirs is logged LATE (up to about 12
+  months) and disclosed: the late-logged count and ids, the lag's median and maximum, the events whose window holds
+  history-sourced bars (§8). Their detection is mechanical and replayed, so they stay in the sample. Whether a stalled
+  symbol is read is decided by the data the broker has, not by anyone's choice. Tests:
+  `test_a_stalled_symbol_is_filled_by_the_looks_export_and_read_with_its_events_late`,
+  `test_every_look_needs_an_export_of_all_ten_symbols_taken_after_the_window_and_into_the_stores`.
+- **Otherwise it is DROPPED whole**, and only by the registered fallback, per look (option A, §14 item 4; lead, item
+  20). If not every symbol is complete through the cutoff after the export, but some symbol is complete through that
+  cutoff + 3 months (the look's time reference is data, never a wall clock), **and at least 5 of the 10 symbols are
+  complete through the cutoff**, every symbol not complete through the cutoff is dropped whole from that look: all its
+  events leave that look's sample before any walk or cost is computed. With fewer than 5 complete the look WAITS, however
+  long: a look on a handful of symbols is not a look at this cell. A symbol dropped at look 1 can be back at look 2. The
+  rule reads data times only, never a wall clock or an outcome. Each look lists the dropped symbols. Test
+  `test_a_symbol_stalled_three_months_past_a_looks_cutoff_is_dropped_whole_from_that_look` (9, 6 and 5 complete drop; 4,
+  1 and 0 wait).
 - **Never due.** If look 2 is still not due 48 months after the seal, WY-F1 closes with no verdict (INVALID: never due).
-  `status` shows the date (`never_due_close`). The coordinator records the close in the ledger's study entry (§13). No
-  partial read, no new rule. A look-1 CONTINUE stays blinded for good.
+  **That close is procedural**: `status` shows the date (`never_due_close`); the coordinator records it in the ledger's
+  study entry (§13); the code does not refuse a later look, and a look that is due later still computes (test
+  `test_the_never_due_close_is_procedural_and_the_code_does_not_refuse_a_later_look`). No partial read, no new rule. A
+  look-1 CONTINUE stays blinded for good.
 - A look before its cutoff refuses **before any walk, placebo or cost is computed** (test
   `test_an_early_look_refuses_before_any_walk_or_cost_is_computed`). The log already holds the resolves' gross R (§6);
   the test proves a look computes nothing from them early, not that no outcome exists.
 - **Reported, not decisive:** the other three cost lines, the 95 % upper bound, AGAINST (look 2: two-sided p < 0.05 with a
   negative mean), below delta (upper bound < 0.20R), splits by symbol, group, type and set (`rt` / `added`), the log lag,
-  the late-logged count, the dropped symbols, the anchors verified, the repairs (§4: file, offset, size, sha256), the
-  log-only recomputation (§6).
+  the late-logged count and ids, the dropped symbols, the exports used (time and file hashes), every bar difference
+  between store and export (§8), the revision records (§4), the anchors verified, the repairs (§4: file, offset, size,
+  sha256), the log-only recomputation (§6).
 - Output: `docs/experiments/wyckoff-forward-wc15/wyckoff-forward-look1.json` and `...-look2.json` (WF `LOOK_OUT`).
-  Never overwritten: a look whose file exists, or has git history, refuses.
+  Never overwritten: a look whose file exists, or has git history, refuses. A look also runs ONCE when its file is gone:
+  see the look attempt (§8 item 8).
 
 **Measurement: RT §5, unchanged.**
 - Scored with EW `score` (EW:999) and `summarise` (EW:1179), the functions R1 used.
@@ -391,22 +546,48 @@ studies will edit `instruments.json`, `real_costs.py` and more. Another session 
    this seal and this fingerprint;
 2. the full replay of every window equals the log: nothing missing, nothing extra, no decision field changed;
 3. the truncation probe finds 0 violations, and checks at least one event when the sample is not empty;
-4. a FTMO 15m history export re-exported after the look's cutoff confirms the forward bars, **both ways** (WF
-   `history_check`, `history_problem`). Window = the store's bars from the seal to 96 bars after the cutoff bar. Per read
-   symbol:
+4. the look's FTMO 15m history export of ALL 10 symbols (§7: taken after the cutoff + 96 bars and taken into the
+   stores) confirms the forward bars, **both ways, bar by bar** (WF `history_check`, `export_replay`, `export_walks`,
+   `history_problem`). Window = the store's bars from the seal to 96 bars after the cutoff bar. Per read symbol:
    - the export reaches the window's last bar (an export taken too early checks nothing after its end);
    - it holds >= 95 % of the window's store bars, and >= 99 % of those at the same prices;
    - the store lacks <= 1 % of the export's bars inside the window (`HIST_MISSING_MAX`). A hole the live file skipped
      is MISSING, not EMPTY (CLAUDE.md §20);
-   - for every sampled event, from the first bar of its 300-bar window to 96 bars after its entry (its longest walk, so
-     no exit is needed), store and export hold the same bars at the same prices;
+   - **the detector replayed on the export** (lead decision 2026-10-04, §14 item 19; review note 10) over the store's span
+     gives the SAME event ids as the log for the events whose signal bar closes in [seal, cutoff], and for each the same
+     decision fields (not the store's line index, window hash or chain hash). The first check passed a doctored bar that
+     suppresses an event: the event is not in the log, so it has no span, and one bar differing in about 60,000 is 99.998
+     % agreement. Now it is caught, in the store or in the export (`only_in_export`, `only_in_log`, `changed`);
+   - **inside an event's span** (its 300-bar window to 96 bars after its entry, the longest walk) a difference is
+     tolerated only when it changes no decision field (the replay above) and no trade: each sampled trade walked on the
+     export has the same outcome, R, exit time and entry as the store's (WF `export_walks`; an OUTCOME comparison, so it
+     runs after the look attempt, item 8, and reports counts, never an R). The first check made the look INVALID on one
+     harmless difference inside any of about 40 spans (about 17,000 bars);
+   - **every difference is reported** (`differences`): the bar time, its kind (price, the store lacks the bar, the export
+     lacks it), the fields that differ, the spans it lies in, and whether a logged revision explains it (§4). No price;
    - the look records the export's `_exported_at_utc` and the sha256 of every file it read;
+   Tests, `ExportCheck`: a harmless difference in a span is reported and the look runs; a difference that changes a
+   decision, an export that suppresses an event, and a store that suppressed one (caught by the export; the old check
+   passed it) are refused; a difference that changes a trade is refused after the attempt.
 5. every logged resolve equals the scored trade;
-6. the canary (both looks, on synthetic bars) reproduces its sealed digest; the extract's fingerprint is the seal
-   commit's; the seal commit is one commit on the fingerprinted one, adding exactly the sealed file and the fingerprint;
-   the sealed file is committed and clean; the look's file has no history;
+6. the canary (both looks, on synthetic bars) reproduces its sealed digest (exact part exactly, derived part to 10
+   significant digits, §5); the extract's fingerprint is the seal commit's; the time-zone instants are the sealed ones
+   (§5); the seal commit is one commit on the fingerprinted one, adding exactly the sealed file and the fingerprint; the
+   sealed file is committed and clean; the look's file has no history, and the log holds no attempt of this look or a
+   later one (item 8);
 7. look 2 only: look 1's committed record is a CONTINUE of this seal and fingerprint, and its statistic and boundary
-   reproduce (§7).
+   reproduce (§7);
+8. **the look attempt** (lead decision 2026-10-04, §14 item 18; review note 9). The first check for "each look ONCE" was
+   that the look's file exists or has git history, so an uncommitted look-1 file could be deleted and look 1 run again
+   after filling a dropped symbol (a per-symbol lever). When every outcome-blind check above has passed, and BEFORE the
+   first outcome is computed (the export walks, then the sealed §5 measurement), the look appends a chained
+   `look_attempt` record to the log: the look, the cutoff, the rule, the symbols read and dropped, the exports' times, the
+   output path, the seal, the fingerprint, the time (WF `append_attempt`). From then on the look is SPENT: a second
+   attempt refuses (WF `require_no_attempt`) even if the first one's output file was deleted or never written, or the
+   first one refused after computing an outcome (a walk that differs, a resolve that disagrees: INVALID). `status` shows
+   attempted looks and any spent without a record. The cost: a look that fails an outcome-dependent check ends for good,
+   and the coordinator records WY-F1 as INVALID at that look (§13). A look that refuses earlier (an export too early, a
+   symbol incomplete, a replay that does not match) leaves no record and may run later. Tests, `LookAttempts`.
 
 A look cites the pre-registration by the sha256 of its text **at the seal** (`git show <seal>:<file>`), plus the current
 committed text's hash and every later commit that changed it (errata, disclosed; WF `prereg_record`).
@@ -417,9 +598,16 @@ committed text's hash and every later commit that changed it (errata, disclosed;
 - **Truncation probe** (WF `probe`). Each event is re-detected on the store CUT at its signal bar, with the window
   finding its own pivots. Every decision field must be identical. A detector that reads the next bar is caught (test
   `test_a_detector_that_reads_the_next_bar_is_caught`).
-- **Log lag.** A look reports lag = `logged_at` - signal close. Events logged more than 1 day late (a hole bridged by a
-  history re-export) are counted and listed as late-logged (WF `LATE_LOG_S`). They stay in the sample: their detection is
-  mechanical and replayed. The count is disclosed.
+- **Log lag.** A look reports lag = `logged_at` - signal close, its median and maximum. Events logged more than 1 day
+  late (a hole or a stalled feed bridged by a history export) are counted and listed as late-logged (WF `LATE_LOG_S`),
+  and the events whose window holds history-sourced bars after the seal are counted. They stay in the sample: their
+  detection is mechanical, replayed, and replayed again on the export. Both counts are disclosed, also in a blinded look
+  1. Test `test_the_owners_case_a_seal_on_history_that_ends_before_the_live_files_then_a_later_export_bridges_it`: four
+  symbols bridged late, six on time, all ten read, both looks.
+- **Revisions.** The store keeps each bar as first stored, so a decision or a resolve never uses a bar the broker revised
+  later; a look lists the revision records and flags the differences they explain (§4). A revised bar that changes a
+  decision field or a trade inside a sampled span makes the look INVALID (item 4): the first-stored record then differs
+  from what the broker finally holds in a way that matters.
 
 ## 9. Power (counts only, before any forward bar)
 
@@ -448,7 +636,9 @@ scratchpad; counts only):
 | 2.2 | +0.50R | 0.31 | 0.57 | **0.57** (0.57) | 0.04 |
 
 - Minimum detectable edge at 80 % power, two looks: 0.46R (SD 1.4), 0.72R (SD 2.2). Look 1 alone: 0.83R / 1.31R.
-- Under the null: P(PASS) = 0.10, of which 0.0044 at look 1.
+- Under the null, in the normal approximation: P(PASS) = 0.10, of which 0.0044 at look 1. For the registered statistic
+  the simulated false-pass rate is 0.074-0.136 and 0.0002-0.026 at look 1, by the shape of R and the clustering of
+  events (§7 table). The powers above are the normal approximation's too; they move with the same shape effects.
 - The seven symbols alone (11 / 34 events): two looks 0.40 / 0.27 for +0.25R (SD 1.4 / 2.2). The added three buy about
   0.02-0.05 of power.
 
@@ -463,12 +653,12 @@ scratchpad; counts only):
 
 | Result | Plain meaning | Next step |
 |---|---|---|
-| **PASS at look 1** | After 12 months, the 15m Spring/Shakeout long beat random entries with the same stop and target, after real FTMO cost, by a margin a fluke reaches about 1 time in 230 (p < about 0.0044). | WY-F1 ends. It becomes a forward-confirmed candidate. The owner may then decide to build it as an engine setup in a NEW Trading System version (CLAUDE.md §47), first on demo, with the 2.5R floor and the HTF gate as separate policy layers (RT §9). Nothing goes live from this study. |
+| **PASS at look 1** | After 12 months, the 15m Spring/Shakeout long beat random entries with the same stop and target, after real FTMO cost, by a margin a fluke reaches nominally 1 time in 230 (p < about 0.0044); simulated, 1 in 125 with same-week clustering and up to 1 in 53 with left-skewed R (§7). | WY-F1 ends. It becomes a forward-confirmed candidate. The owner may then decide to build it as an engine setup in a NEW Trading System version (CLAUDE.md §47), first on demo, with the 2.5R floor and the HTF gate as separate policy layers (RT §9). Nothing goes live from this study. |
 | **CONTINUE (look 1)** | Look 1 did not cross its (strict) boundary. Its estimate stays sealed. | Keep collecting to look 2. Nothing else changes. |
-| **PASS at look 2** | After 36 months, the same, with the whole remaining alpha. Over both looks a fluke passes 1 time in 10. | As PASS at look 1. |
+| **PASS at look 2** | After 36 months, the same, with the whole remaining alpha. Over both looks a fluke passes nominally 1 time in 10; simulated 1 in 7 to 1 in 14, by the shape of R and the clustering of events (§7). | As PASS at look 1. |
 | **NOT PASSED (look 2)** | No edge was shown on the forward bars. At this power it does not exclude +0.25R. | The cell stays unconfirmed. No new variant is tried on history (RT:323). Wyckoff's price-mechanical setups get no further forward stage unless the owner registers a new one (for the changed engine: WY-F2, §1). |
 | **NOT PASSED, AGAINST** (reported) | Price kept going through the shake, as on the metals before. | As NOT PASSED; logged for the edge families. |
-| **INVALID** (a §8 check failed) | The forward record cannot be trusted (a gap, a rewrite, a broken probe, a look-1 commitment that does not reproduce). | No verdict. The coordinator reports which check failed. Nothing is re-read on other data. |
+| **INVALID** (a §8 check failed) | The forward record cannot be trusted (a gap, a rewrite, a broken probe, a bar difference that changes an event or a trade, a look-1 commitment that does not reproduce). | No verdict. The coordinator reports which check failed. Nothing is re-read on other data. A look that failed after its attempt record (§8 item 8) is spent and never runs again. |
 | **Never due** (§7) | Look 2 was still not due 48 months after the seal. | WY-F1 closes with no verdict. The ledger records it (§13). |
 
 ## 11. Threats to validity
@@ -479,20 +669,45 @@ scratchpad; counts only):
   change, never enters WY-F1. WY-F1's verdict is then a statement about the OLD detector only, which may no longer be the
   engine the system runs. It cannot license the changed engine. A test of the changed engine is a separate registration
   (WY-F2).
-- **Two-look approximation (§7).** Exact for normal z statistics; the registered t / CR1 p-value is applied as a nominal
-  threshold. Simulated: 0.100-0.101 on normal values, conservative on skewed R values.
+- **The registered statistic does not hold the level (§7, corrected 2026-10-04).** The boundaries are exact for normal
+  z statistics; the registered t / CR1 p-value is applied as a nominal threshold. Simulated with the production code:
+  0.1025 on independent normal values, 0.111 with same-week bursts, 0.113 with heavy tails, 0.122-0.136 with left-skewed
+  R, 0.074-0.077 with right-skewed R; at look 1 up to 0.019 against 0.0044. A PASS carries a false-pass probability of up
+  to about 0.14. The statistic is kept as registered.
+- **The operating system's libraries (§5).** The math library and the time-zone database are not pinned by bytes. Derived
+  floats are rounded to 10 significant digits and the DST instants of 2025-2030 are pinned by behaviour, so an ulp-level
+  library change or a database update that moves no instant changes nothing. A library change beyond those bounds
+  refuses every cycle or look loudly (never silently). The look records' p-values can differ in the 16th digit from the
+  same look run on another system.
+- **Revisions (§4).** A bar the broker revises after the store took it stays as first stored and is logged; no decision or
+  resolve uses the revised bar. The look checks the store against the final export: a revision that changes a decision or
+  a trade inside a sampled span makes the look INVALID.
+- **Late logging (§7, §8).** Events of a symbol bridged by an export are logged late (the four indices after the seal,
+  JP225 and AUS200 until their live files exist). They are detected mechanically and replayed on the export, and the
+  look discloses their count, ids and lag. Late logging cannot move an event, but the log's timing for them proves
+  nothing; the committed anchors (monthly) do not cover them.
+- **A look is spent by an outcome-dependent failure (§8 item 8).** After the look-attempt record a failed outcome check
+  (a trade that differs on the export, a resolve that disagrees) ends that look for good: the price of making a second
+  attempt impossible. Early refusals leave no record.
+- **Never due is procedural (§7).** The code does not refuse a look after seal + 48 months; the coordinator closes the
+  study.
 - **A blinded look still says something.** CONTINUE tells everyone that look 1's estimate did not cross its strict
   boundary. That is inherent to any interim look.
 - **Costs.** The looks use the sealed 2026-09 spread tables and today's swap, as RT did. Real forward spreads are not
   recorded per bar. A change in FTMO's pricing would not be seen. The added three are cheap (§2), but UK100's mean
   spread proxy (0.23R) is the highest of the ten.
-- **Data revisions.** Each look checks the forward bars against a later history export (§8 item 4).
+- **Data revisions.** Each look checks the forward bars against a later history export, bar by bar, and replays the
+  detector on it (§8 item 4).
 - **Clock.** The bridge's measured offset can be wrong after a DST change. A shifted bar appends nothing (§4). A history
   re-export bridges it.
-- **Downtime.** A stalled symbol delays a look, and 3 months after that look's cutoff it is dropped whole from it (§7).
-  JP225 and AUS200 have no live 15m file today (§12 step 4); until the owner attaches ExportOHLCV they are STALLED (§4).
-- **A deliberate stall.** Someone who peeked at outcomes could stop a symbol's export to drop it (§7 fallback). Each look
-  lists dropped symbols, and the store shows when its last bar came.
+- **Downtime.** A stalled or holed symbol is filled by the look's export of all 10 symbols and READ, its events
+  late-logged (§7). It is dropped only if it is still incomplete after that export, once another symbol is complete
+  through the cutoff + 3 months and at least 5 of the 10 are complete (§7). JP225 and AUS200 have no live 15m file today
+  (§12 step 4); until the owner attaches ExportOHLCV they are STALLED (§4).
+- **A deliberate stall.** Someone who peeked at outcomes could stop a symbol's feed to drop it. A look needs an export of
+  all 10 symbols, so not exporting one blocks the look instead of dropping the symbol; an export fills a stalled store,
+  so only a symbol the broker cannot supply is dropped; at least 5 must be complete; a look cannot be run twice to try
+  another export (§8 item 8). Each look lists dropped symbols, and the store shows when its last bar came.
 - **The seal date is the committer's clock.** A back-dated seal would show up as large log lags on the first events
   (§8), and the committed anchors pin the history from then on.
 - **The tracer sees opens and executions, not `stat()` calls.** `extract_check` covers that gap before sealing (§5).
@@ -518,16 +733,23 @@ the drafting session.
    whose fingerprinted files are still R0's. If the pending `scripts/wyckoff_rules.py` change is merged into the
    sealing branch first, `fingerprint` refuses (`r0_drift`: "scripts/wyckoff_rules.py: differs from R0's code_sha256");
    then seal on a branch without it. After the seal the change may land freely: WY-F1 runs its extract.
-3. **History** (OWNER: ExportHistory.mq5 for the 15m bars of the 10 symbols; COORDINATOR: `scripts/import-mt5-history.py`
-   and the commit). Each series must end inside its live file's ~3-day span. The seal freezes this history as the stores'
-   start. In the e2e run of 2026-10-04 (§15), the history of US500, US30, USTEC and DE40 ended 2026-09-28 16:45Z, before
-   their live files start (2026-09-29 15:00Z), so the first cycle reported a hole for them. XAUUSD, XAGUSD, US2000 and
-   UK100 connected (their stores reached 2026-10-02). AUS200 and JP225 had no live file (step 4). Without the re-export
-   the first cycle reports a hole and waits.
+3. **History: seal on what is committed** (owner decision 2026-10-04, §14 item 9). Nobody waits for a re-export. The
+   committed 15m history of the 10 symbols is the sealed history; the stores start from it (seal - 90 days). In the e2e
+   run (§15) the history of US500, US30, USTEC and DE40 ends 2026-09-28 16:45Z, before their live files start
+   (2026-09-29 15:00Z): the first cycles report a hole for them and flag them NOT ADVANCING (§4). XAUUSD, XAGUSD,
+   US2000 and UK100 connect (their stores reach 2026-10-02). AUS200 and JP225 have no live file (step 4). **A later
+   export bridges the hole after the seal** (OWNER: ExportHistory.mq5 for the 15m bars; the coordinator added
+   US500.cash, US30.cash, US100.cash and GER40.cash to the MT5 export list; COORDINATOR: `scripts/import-mt5-history.py`,
+   the commit, then one `cycle`). The cycle takes in the bars after each store's end when the export holds the store's
+   last bars at the same prices, and the live file continues. The events the hole hid are logged LATE and disclosed at
+   each look (§7, §8); late logging moves no event. Until then the four stores wait. Test:
+   `test_the_owners_case_a_seal_on_history_that_ends_before_the_live_files_then_a_later_export_bridges_it`; e2e §15.
 4. **Live files** (OWNER). Attach ExportOHLCV to a 15m chart of **JP225.cash** and of **AUS200.cash**. Today
    `data/live/mt5-bridge/` has neither `ohlcv.JP225.cash.15m.json` nor `ohlcv.AUS200.cash.15m.json` (UK100 and US2000 have
-   theirs). Without them both are STALLED (§4): nothing is collected for them, and each look drops them whole 3 months
-   after its cutoff (§7).
+   theirs). Without them both are STALLED (§4): nothing is collected from a live file for them. Their stores stay at the
+   sealed history until a history export fills them. At each look the export of all 10 symbols fills them and they are
+   READ, every event of theirs logged late and disclosed (§7). Attaching ExportOHLCV changes what a look reads by
+   nothing; it makes their events timely and the lag small.
 5. **Pin Python, then fingerprint** (COORDINATOR; the owner allowed the pin, §14 item 6). Run `brew pin python@3.14`.
    Then, with the stable versioned interpreter (§5), run
    `/opt/homebrew/opt/python@3.14/bin/python3.14 scripts/research/wyckoff_forward.py fingerprint --out docs/experiments/wyckoff-forward-wc15/fingerprint.json`.
@@ -562,19 +784,26 @@ the drafting session.
    - The cycle log shows "OK wyckoff WY-F1: 'WY-F1: spawned pid N'". If the PREVIOUS cycle failed, the step is an EXIT
      line with that error, one cycle late. `status` shows the last cycle.
 9. Run `python3 scripts/research/wyckoff_forward.py cycle` once by hand (COORDINATOR). It builds the extract. Then run
-   `status`: JP225 and AUS200 show STALLED until step 4 is done.
+   `status`: US500, US30, USTEC and DE40 show NOT ADVANCING (the hole, step 3) and JP225 and AUS200 show STALLED (step
+   4) until a later export or the live files fix them.
 10. **Monthly** (COORDINATOR): `wyckoff_forward.py anchor`. Commit `anchors.jsonl` only after it printed the new line (§4).
-11. **Look 1** (seal + 12 months, once `status` shows look 1 due). OWNER: re-export the 15m history of the 10 symbols after
-    the cutoff + 96 bars (§8 item 4). COORDINATOR: import and commit it, run one `cycle` (it also drops an unterminated
-    last line, §4), then run
+11. **Look 1** (seal + 12 months). **Every look needs a history export of ALL 10 symbols** (§7). OWNER: after the
+    cutoff + 96 bars (about one trading day after the cutoff; `status` prints the cutoff), re-export the 15m history of
+    all 10 symbols with ExportHistory.mq5. COORDINATOR: import and commit it (`scripts/import-mt5-history.py`), run one
+    `cycle` (it takes the export into the stores and drops an unterminated last line, §4), run `status` (look 1 due; the
+    symbols the hole or a missing live file held back are now complete), then run
     `python3 scripts/research/wyckoff_forward.py read --look 1 --out docs/experiments/wyckoff-forward-wc15/wyckoff-forward-look1.json`.
-    Commit the look-1 record (blinded unless PASS) with the study entry's update (§13). On PASS, WY-F1 ends: remove the
-    step-8 line and run `brew unpin python@3.14`.
-12. **Look 2** (seal + 36 months, only after a committed look-1 CONTINUE). The same, with `read --look 2 --out
+    The look refuses, naming the reason, when an export is missing, too early, unusable or not yet taken in; such a
+    refusal spends nothing. Once its outcome-blind checks pass, the look is SPENT (§8 item 8): run it once, and do not
+    delete its file to run it again. Commit the look-1 record (blinded unless PASS) with the study entry's update (§13).
+    On PASS, WY-F1 ends: remove the step-8 line and run `brew unpin python@3.14`.
+12. **Look 2** (seal + 36 months, only after a committed look-1 CONTINUE). The same, with a fresh export of all 10
+    symbols after look 2's cutoff + 96 bars, and `read --look 2 --out
     docs/experiments/wyckoff-forward-wc15/wyckoff-forward-look2.json`. Commit the record with the study entry's update.
     WY-F1 ends: remove the step-8 line and run `brew unpin python@3.14`.
 13. **Never due** (seal + 48 months, when `status` shows look 2 not due): record the close in the study entry (§13),
-    remove the step-8 line, `brew unpin python@3.14`.
+    remove the step-8 line, `brew unpin python@3.14`. The close is procedural (§7): the code would still run a look that
+    became due later; the coordinator does not run it.
 
 ## 13. Budget and OOS exposure (CLAUDE.md §43, §44)
 
@@ -607,7 +836,9 @@ the drafting session.
   by hand, in the study entry: the trigger and a note naming the use. The coordinator then reports the look as exposed,
   not as untouched validation. No look consults the ledger.
 - **At each look** (§12 steps 11-12), in the commit that adds the look's file, the study entry records: the look, the
-  label (CONTINUE, PASS or NOT PASSED), the file and its sha256. After a PASS or look 2: status read.
+  label (CONTINUE, PASS or NOT PASSED), the file and its sha256. After a PASS or look 2: status read. A look attempted
+  without a record on disk (§8 item 8, `status` says so) is recorded the same way: INVALID, the look spent, the check
+  that refused it.
 - **If WY-F1 closes without a verdict** (§7 "never due", seal + 48 months): the study entry records status closed,
   INVALID: never due. The reservation is closed, not released: other studies use the same prices, and the log holds this
   cell's resolves, so the window never becomes validation data for this cell's choices.
@@ -624,8 +855,8 @@ The owner delegated independent work to the lead (the coordinating session) on 2
 2. **FRA40** -- lead, 2026-10-04. Stays out: R0 gives it no 15m dense start, and no dense rule is changed.
 3. **Symbols** -- lead, 2026-10-04. US2000, UK100 and JP225 are added unconditionally (WX §12.2 (a); WX §13 item 6):
    10 symbols. XPTUSD and XPDUSD stay out (spread). FRA40, EU50 and HK50 stay out (no dense-rule change).
-4. **A symbol that never completes** -- lead, 2026-10-04. Option (A), 3 months' grace, applied per look (§7). The
-   never-due close moves from seal + 24 months to seal + 48 months.
+4. **A symbol that never completes** -- lead, 2026-10-04. Option (A), 3 months' grace, applied per look (§7), with the
+   minimum of item 20. The never-due close moves from seal + 24 months to seal + 48 months.
 5. **The forward window in the ledger** -- lead, 2026-10-04. The study entry only; no reserved OOS period unless the
    ledger's reader gains a `reserved_for` field later (§13). It replaces the draft's options (A) `oos_untouched`, (B)
    `final_holdout` and (C) "a period once `reserved_for` exists".
@@ -639,6 +870,50 @@ The owner delegated independent work to the lead (the coordinating session) on 2
    enter WY-F1 and does not apply to it (§1, §5, §11). A forward test of the changed engine is a separate registration
    (proposed name WY-F2, not drafted now), never a re-seal of WY-F1.
 
+9. **Seal on the committed history** -- owner, 2026-10-04. Seal on the history already committed (US500, US30, USTEC and
+   DE40 end 2026-09-28 16:45Z; the live 15m files start 2026-09-29 15:00Z) without waiting for a re-export. A later
+   export bridges the hole after the seal (§12 step 3); the coordinator added US500.cash, US30.cash, US100.cash and
+   GER40.cash to the MT5 export list. JP225 and AUS200 have no live file yet (§12 step 4).
+
+The decisions below answer the final review of 2026-10-04 (11 items; its evidence is in the coordinator's scratchpad).
+Each is the lead's, taken on 2026-10-04.
+
+10. **Numbers** -- lead, 2026-10-04 (review item 1, the blocker). No look depends on a last-ulp value of the OS library.
+    Rows, counts and labels are hashed exactly. Every derived float that enters a hash, a commitment or a comparison (p,
+    upper_95, t, alpha, z, rho, the boundaries) is rounded to 10 significant digits. Look 1's boundary is compared with
+    `math.isclose(rel_tol=1e-9)`. The OS-library dependence is disclosed (§5, §11). The tie rule (a float within 1e-12 of
+    a rounding midpoint verifies under either rounding) is the implementation's way to keep the rounding itself from
+    being the last-ulp dependence.
+11. **Revisions** -- lead, 2026-10-04 (item 2). When the source holds the store's last bar and is contiguous but
+    disagrees on price, append the new bars and write a chained REVISION record (old and new values). Decisions and
+    resolves keep using the bars as first stored (point in time). Every look reports the revision records (§4). The
+    alignment rule that separates a revision from a shifted clock (agree on all held bars, or on at least 4 and on at
+    least as many as differ) is the implementation's.
+12. **The look's export** -- lead, 2026-10-04 (item 3). Fixed now, no discretion: every look requires a history export of
+    ALL 10 symbols taken after cutoff + 96 bars; a symbol complete through the cutoff after that export is read (its
+    events late-logged and disclosed); otherwise it is dropped whole (§7). §4, §7, §11 and §12 are aligned with the code.
+13. **NOT ADVANCING** -- lead, 2026-10-04 (item 4). `status` and the cycle summary flag a store that does not advance
+    while its live file exists, with `plan_append`'s reason and the store's last bar, and a stale live file (§4). The
+    72-hour staleness threshold (`STALE_LIVE_HOURS`) is the implementation's.
+14. **The canary's window** -- lead, 2026-10-04 (item 5). The canary's prefix is lengthened so the HTF gate runs on a
+    real-length window (at least 480 1H bars at the signal; now 523). The fingerprint has 17 executed files (§5).
+15. **Type-I statements** -- lead, 2026-10-04 (item 6). Every type-I statement in this draft is corrected with the
+    reviewer's simulated numbers. RT §5's statistic is kept; the inflation under same-week correlation, heavy tails and
+    left skew is disclosed (§7, §9, §10, §11).
+16. **Blinded look 1** -- lead, 2026-10-04 (item 7). `blind` drops the log record count and anything else from which the
+    resolve count can be derived (§6).
+17. **Time zone** -- lead, 2026-10-04 (item 8). The fingerprint records America/New_York's DST instants for 2025-2030 as
+    computed at the seal; every cycle and look refuses if the running system computes other instants (§5).
+18. **Look attempt** -- lead, 2026-10-04 (item 9). A chained look-attempt record is appended before a look computes any
+    outcome; a second attempt of the same look refuses even if the first output file was deleted (§8 item 8).
+19. **Export replay** -- lead, 2026-10-04 (item 10). The history check replays the detector on the export and requires the
+    same event ids as the log. Inside event spans a difference is tolerated if it changes no decision field and no R.
+    Every difference is reported (§8 item 4).
+20. **Late logging, never due, the fallback's minimum** -- lead, 2026-10-04 (item 11). A test reads late-logged events
+    (§8). The never-due close at seal + 48 months is procedural: the code does not refuse a later look (§7). The
+    3-month fallback may drop symbols only if at least 5 of the 10 are complete through the cutoff; otherwise the look
+    waits (§7).
+
 Recorded in WX §13 and noted here because they bear on WF1: the owner keeps forex parked, also for research ("Giữ forex
 đóng"); the lead does not run WY-X1 now. Neither changes WF1.
 
@@ -648,29 +923,48 @@ Recorded in WX §13 and noted here because they bear on WF1: the owner keeps for
   `anchor`, `fingerprint`, `read --look 1|2`. EW is imported, never modified. Until the seal, a test asserts every
   fingerprinted input is what R1 ran (`test_every_fingerprinted_input_is_what_the_sealed_retest_ran`); `cmd_fingerprint`
   refuses otherwise.
-- `scripts/tests/test_wyckoff_forward.py` (81 tests): synthetic and hand-built bars only. It covers the store, the
-  chain, a missing or unusable live file (STALLED, never empty), torn writes (an unterminated last line dropped and
-  logged; never a terminated line, never under a live writer), detection equivalence, the seal boundary, resolve and its
-  log-only fields (no bar beyond the walk; the HTF gate as A3 applies it; never in `status` or a cycle summary), the two
-  looks (the spending and boundaries against an independent computation; the type-I error under unsteady event rates;
-  the blinded look 1 and its commitment; the look files' round trip; look 2 only on a committed CONTINUE), each look's
-  cutoff and its per-look fallback, the early-look refusal, the truncation probe (including a leaky detector), replay
-  and resolve mismatches, the two-way history check (an early export, a store hole, one changed bar in an event's span),
-  anchors from git (`anchor` never appends after a torn line; a committed line that is not an anchor record refuses by
-  its commit), the fingerprint (R0 pin, the 13 executed files, both trace checks), the added symbols' dense starts (RT's
-  rule, outcome-blind), the interpreter pin (a stable versioned path; a patch upgrade collects, a minor change fails
-  every cycle), `extract_check` on a throwaway clone (and the extract without the `.mq5` adapters), the seal commit's
-  shape, the sealed pre-registration's hash, `status` without resolve counts, and the launcher (detached spawn, the
-  previous failure, a skip on a held lock, a checkout without the seal).
-- End to end, 2026-10-04, in a throwaway `--shared` clone of commit 0a0e87c plus this code (nothing committed in the
-  real repository; the coordinator's scratchpad `wyf1fin/e2e_v3.py`, log `wyf1fin/e2e_v3.log`), all 23 checks passed:
-  - a fingerprint on a commit that changed `scripts/wyckoff_rules.py` refuses (`r0_drift`) and writes nothing;
-  - the fingerprint (13 executed, 23 loaded, 151 data files) and `extract_check` (550 files) pass; seal commit;
-  - a detached cycle builds the stores of the 10 symbols and lists AUS200 and JP225 as STALLED; a second cycle adds
-    nothing;
+- `scripts/tests/test_wyckoff_forward.py` (118 tests): synthetic and hand-built bars only. It covers:
+  - the store: alignment, revisions and the old wedge, a missing or unusable live file (STALLED, never empty), NOT
+    ADVANCING (a hole, a stale file, a store that advanced from the export), the chain, torn writes (an unterminated last
+    line dropped and logged; never a terminated line, never under a live writer);
+  - detection equivalence, the seal boundary, resolve and its log-only fields (no bar beyond the walk; the HTF gate as A3
+    applies it, on a full window; never in `status` or a cycle summary);
+  - the two looks: the spending and boundaries against an independent computation; the type-I error under unsteady
+    event rates and, with the production statistic, under clustering and left skew; the blinded look 1 (no estimate, no
+    resolve count) and its commitment; the look files' round trip; look 2 only on a committed CONTINUE;
+  - the numbers (one ulp on a derived float, a rounding midpoint, a changed row, the Student-t tail, the boundary, a
+    look 2 over an ulp-different look 1, the canary digest) and the time-zone pin;
+  - each look's cutoff, its export rule (all 10 symbols, taken after the window and into the stores) and its per-look
+    fallback (at least 5 of 10), the early-look refusal, the truncation probe (including a leaky detector), replay and
+    resolve mismatches;
+  - the bar-by-bar history check and the detector replayed on the export (a harmless difference reported; a decision
+    change, a suppressed event in the export or in the store, and a changed trade refused);
+  - the look attempt (before any outcome; a second attempt refuses with no file), late-logged events read (the owner's
+    case, both looks), a stalled symbol filled at a look, the never-due close as procedure;
+  - anchors from git (`anchor` never appends after a torn line; a committed line that is not an anchor record refuses by
+    its commit), the fingerprint (R0 pin, the 17 executed files, both trace checks), the added symbols' dense starts (RT's
+    rule, outcome-blind), the interpreter pin (a stable versioned path; a patch upgrade collects, a minor change fails
+    every cycle), `extract_check` on a throwaway clone (and the extract without the `.mq5` adapters, and with another
+    time-zone pin), the seal commit's shape, the sealed pre-registration's hash, `status` without resolve counts, and
+    the launcher (detached spawn, the previous failure, a skip on a held lock, a checkout without the seal).
+- End to end, 2026-10-05, in a throwaway `--shared` clone of the real repository (nothing committed in the real
+  repository; the coordinator's scratchpad `wyf1fix/e2e_v4.py` with `e2e_synth.py` and `e2e_look.py`, log
+  `wyf1fix/e2e_v4.log`), all 73 checks passed. The clone's seal instant is back-dated to 2026-10-02T21:00Z, after the last
+  real bar the clone uses. Real committed history and live bars exist only before it (the real bridge keeps writing; the
+  clone's live copies are cut at that instant); everything after it is a SYNTHETIC scaled copy of the canary's Spring
+  scenario, so no market outcome is read from real data:
+  - the fingerprint (17 executed, 19 loaded, 151 data files, the DST instants pinned, `r0_drift` empty) and
+    `extract_check` pass; a fingerprint on a commit that changed `scripts/wyckoff_rules.py` refuses and writes nothing;
+  - the owner's case, first half: US500, US30, USTEC and DE40 (history ends 2026-09-28T16:45Z, their live files start
+    later) are NOT ADVANCING, with the hole and the store's last bar; AUS200 and JP225 are STALLED; the six others advance;
   - after commits that change `edge_wyckoff.py`, `instruments.json`, `real_costs.py` and `wyckoff_rules.py`, a cycle still
-    runs the sealed extract; so does one with PYTHONPATH at the live tree;
-  - a tampered extract, a rebuilt extract with a matching fingerprint, an edited store and a checkout without the seal
-    all refuse;
-  - `read --look 1` refuses (not due), `read --look 2` refuses (no committed look-1 record), a non-canonical `--out`
-    refuses, and no look file is written; `status --json` shows no log-only field.
+    runs the sealed extract; so does one with PYTHONPATH at the live tree; a tampered extract, a rebuilt extract with a
+    matching fingerprint, an extract that pins other DST instants, an edited store and a checkout without the seal all
+    refuse; `read` refuses (not due, no look-1 record, a non-canonical `--out`) and spends nothing;
+  - the owner's case, second half: a later export of nine symbols bridges the four holes (911 bars each) and fills AUS200;
+    JP225, not yet exported, keeps the look from being due and the refusal spends nothing; after its export the next cycle
+    fills it, and all ten post-seal events are logged 29 hours after their signal close;
+  - look 1 and look 2 run through the sealed `worker_read` under a synthetic plan (the plan is the only thing replaced;
+    every guard runs for real): all ten symbols read, the ten late-logged events disclosed, the export replay and the
+    export walks equal the store's, look 1 is blinded (no estimate, no resolve count) and its attempt record is the log's
+    last record; deleting look 1's file does not allow a second run; look 2 reproduces look 1's commitment.

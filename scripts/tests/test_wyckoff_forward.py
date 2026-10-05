@@ -296,22 +296,68 @@ class Bars(unittest.TestCase):
         self.assertEqual(got[0]["t"], t_at(96 * 5))
         self.assertTrue(all(b["src"] == "history" for b in got))
 
-    def test_a_source_appends_only_on_the_stores_last_bars_at_the_same_prices(self):
+    def test_a_source_appends_only_on_the_stores_last_bars_and_a_revised_bar_is_a_revision(self):
         bars = mk_bars(TEW.rising(40))
         store, src = bars[:30], [dict(b, src="live") for b in bars[20:]]
-        new, why = WF.plan_append(store, src, "live", "now")
-        self.assertIsNone(why)
+        new, why, revs = WF.plan_append(store, src, "live", "now")
+        self.assertEqual((why, revs), (None, []))
         self.assertEqual([b["t"] for b in new], [b["t"] for b in bars[30:]])
+        # A bar the source shows at another price is a REVISION: the new bars are appended, the store keeps its bar,
+        # and the caller gets (store bar, source bar) to log (WY-F1 §4; the old rule appended nothing here).
         revised = [dict(b, c=b["c"] + 0.5) if b["t"] == store[-2]["t"] else b for b in src]
-        self.assertEqual(WF.plan_append(store, revised, "live", "now")[0], [])
-        self.assertIn("disagrees", WF.plan_append(store, revised, "live", "now")[1])
+        new, why, revs = WF.plan_append(store, revised, "live", "now")
+        self.assertEqual((why, [b["t"] for b in new]), (None, [b["t"] for b in bars[30:]]))
+        self.assertEqual([(a["t"], a["c"], b["c"]) for a, b in revs],
+                         [(store[-2]["t"], store[-2]["c"], store[-2]["c"] + 0.5)])
+        # Too few agreeing bars, or more differing than agreeing, is no revision: a shifted clock or another series.
         shifted = [dict(b, t=WF._iso(WF._utc(b["t"]) + datetime.timedelta(hours=1))) for b in src]   # v1.02 after DST
-        self.assertEqual(WF.plan_append(store, shifted, "live", "now")[0], [])
+        new, why, revs = WF.plan_append(store, shifted, "live", "now")
+        self.assertEqual((new, revs), ([], []))
+        self.assertIn("disagrees", why)
+        other = [dict(b, o=b["o"] + 1, h=b["h"] + 1, l=b["l"] + 1, c=b["c"] + 1) for b in src]       # same times, another series
+        new, why, revs = WF.plan_append(store, other, "live", "now")
+        self.assertEqual((new, revs), ([], []))
+        self.assertIn("revisions need at least", why)
         hole = [b for b in src if b["t"] > bars[33]["t"]]
-        new, why = WF.plan_append(store, hole, "live", "now")
+        new, why, revs = WF.plan_append(store, hole, "live", "now")
         self.assertEqual(new, [])
         self.assertIn("hole", why)
-        self.assertEqual(WF.plan_append(store, src[:5], "live", "now"), ([], None))           # behind: silent
+        gap = [b for b in src if b["t"] != store[-2]["t"]]                                    # lacks a bar of the store's tail
+        new, why, _revs = WF.plan_append(store, gap, "live", "now")
+        self.assertEqual(new, [])
+        self.assertIn("lacks the store's bar", why)
+        self.assertEqual(WF.plan_append(store, src[:5], "live", "now"), ([], None, []))        # behind: silent
+        one = [dict(b, src="live") for b in bars[29:]]                                          # holds only the last bar
+        self.assertEqual([b["t"] for b in WF.plan_append(store, one, "live", "now")[0]], [b["t"] for b in bars[30:]])
+        one_bad = [dict(one[0], c=one[0]["c"] + 0.5)] + one[1:]                                 # and it differs: cannot tell
+        new, why, _revs = WF.plan_append(store, one_bad, "live", "now")
+        self.assertEqual(new, [])
+        self.assertIn("disagrees", why)
+
+    def test_a_revised_bar_never_wedges_a_store(self):
+        """The review's wedge: the broker revises a bar AFTER the store took it, while it is among the store's last bars.
+        Every later source (a live file, a history export) shows the revised bar, so the old rule never appended again.
+        Now each appends, and the bar stays as first stored (WY-F1 §4)."""
+        def bar(j, p):
+            return {"t": t_at(j), "o": p, "h": p + 1, "l": p - 1, "c": p + 0.5, "v": 1}
+        store = [bar(j, 100 + j) for j in range(10)]
+        truth = [dict(b) for b in store] + [bar(j, 100 + j) for j in range(10, 120)]
+        truth[8] = dict(truth[8], h=truth[8]["h"] + 0.25)                    # the server later revises bar 8
+        first = dict(store[8])
+        for live, hist in ((truth[5:25], truth[:30]), (truth[12:20 + 60], truth[:33]), (truth[60:100], truth[:50])):
+            for src, source in (("live", live), ("history", hist)):
+                new, why, revs = WF.plan_append(store, source, src, "now")
+                if source[0]["t"] > store[-1]["t"]:
+                    self.assertIn("hole", why)                               # a live file that starts after the store's end
+                    continue
+                self.assertIsNone(why, (src, why))
+                self.assertTrue(new, src)
+                self.assertEqual([(a["t"], b["h"] - a["h"]) for a, b in revs], [(t_at(8), 0.25)])
+        new, _why, _revs = WF.plan_append(store, truth[:60], "history", "now")
+        store = store + new                                                  # progress, and the store keeps its bar:
+        self.assertEqual(store[8], first)
+        new, why, revs = WF.plan_append(store, truth[:90], "history", "now")  # still revised there: still not wedged
+        self.assertEqual((why, len(new), len(revs)), (None, 30, 1))
 
     def test_after_downtime_the_history_export_bridges_the_hole_then_the_live_file_continues(self):
         d = tempfile.mkdtemp()
@@ -319,20 +365,24 @@ class Bars(unittest.TestCase):
         store = bars[:100]
         write_history(d, "XAUUSD", bars[:300])                   # a re-export: its final bar 299 is dropped
         write_live(d, "XAUUSD", bars[250:])                      # the live file starts after the store's end
-        add, notes, stalled = WF.accumulate_symbol("XAUUSD", store, d, d, {"instant": t_at(50)}, "now")
-        self.assertEqual((notes, stalled), ([], False))
+        acc = WF.accumulate_symbol("XAUUSD", store, d, d, {"instant": t_at(50)}, "now")
+        add = acc["add"]
+        self.assertEqual((acc["notes"], acc["stalled"], acc["not_advancing"]), ([], False, None))
         self.assertEqual([b["t"] for b in add], [b["t"] for b in bars[100:399]])
         self.assertEqual({b["src"] for b in add[:199]}, {"history"})
         self.assertEqual({b["src"] for b in add[199:]}, {"live"})
+        self.assertEqual(acc["last"], bars[398]["t"])
 
     def test_a_shifted_live_clock_appends_nothing_and_says_why(self):
         d = tempfile.mkdtemp()
         bars = mk_bars(TEW.rising(200))
         shifted = [dict(b, t=WF._iso(WF._utc(b["t"]) + datetime.timedelta(hours=1))) for b in bars[90:]]
         write_live(d, "XAUUSD", shifted, jitter=False)
-        add, notes, stalled = WF.accumulate_symbol("XAUUSD", bars[:100], d, d, {"instant": t_at(50)}, "now")
-        self.assertEqual((add, stalled), ([], False))                    # the feed is there; it does not connect
-        self.assertTrue(any("disagrees" in n for n in notes))
+        acc = WF.accumulate_symbol("XAUUSD", bars[:100], d, d, {"instant": t_at(50)}, "now")
+        self.assertEqual((acc["add"], acc["stalled"]), ([], False))      # the feed is there; it does not connect
+        self.assertTrue(any("disagrees" in n for n in acc["notes"]))
+        self.assertIn("disagrees", acc["not_advancing"])                 # flagged, with the store's last bar
+        self.assertIn(bars[99]["t"], acc["not_advancing"])
 
     def test_a_missing_or_unusable_live_file_is_stalled_never_an_empty_market(self):
         """CLAUDE.md §20: MISSING is never EMPTY. A symbol whose live 15m file is missing (JP225 and AUS200 today), or
@@ -341,20 +391,20 @@ class Bars(unittest.TestCase):
         d = tempfile.mkdtemp()
         bars = mk_bars(TEW.rising(200))
         store = bars[:100]
-        add, notes, stalled = WF.accumulate_symbol("JP225", store, d, d, {"instant": t_at(50)}, "now")
-        self.assertEqual((add, stalled), ([], True))
-        self.assertTrue(any(n.startswith("JP225: STALLED, no live 15m file") for n in notes), notes)
+        acc = WF.accumulate_symbol("JP225", store, d, d, {"instant": t_at(50)}, "now")
+        self.assertEqual((acc["add"], acc["stalled"], acc["not_advancing"]), ([], True, None))
+        self.assertTrue(any(n.startswith("JP225: STALLED, no live 15m file") for n in acc["notes"]), acc["notes"])
         for bad in ([], [dict(c, time="2026-06-01T00:07:00Z") for c in candles(bars[90:92])], candles(bars[150:151])):
             WF._write_json(os.path.join(d, WF.LIVE_DIR, "ohlcv.JP225.cash.15m.json"),
                            {"symbol": "JP225.cash", "timeframe": "15m", "candles": bad})     # empty / off-grid / forming
             got, note = WF.live_source(d, "JP225")
             self.assertIsNone(got)
             self.assertIn("STALLED", note)
-            self.assertEqual(WF.accumulate_symbol("JP225", store, d, d, {"instant": t_at(50)}, "now")[0::2],
-                             ([], True))
+            acc = WF.accumulate_symbol("JP225", store, d, d, {"instant": t_at(50)}, "now")
+            self.assertEqual((acc["add"], acc["stalled"]), ([], True))
         write_history(d, "JP225", bars[:180])                    # a history re-export still bridges bars, and says
-        add, notes, stalled = WF.accumulate_symbol("JP225", store, d, d, {"instant": t_at(50)}, "now")
-        self.assertEqual(([b["t"] for b in add], stalled), ([b["t"] for b in bars[100:179]], True))   # the feed is down
+        acc = WF.accumulate_symbol("JP225", store, d, d, {"instant": t_at(50)}, "now")
+        self.assertEqual(([b["t"] for b in acc["add"]], acc["stalled"]), ([b["t"] for b in bars[100:179]], True))   # feed down
         # The cycle lists it and adds nothing for it; status says STALLED; its store is never complete.
         root, seal = canary_root()
         os.remove(os.path.join(root, WF.LIVE_DIR, "ohlcv.JP225.cash.15m.json"))
@@ -796,21 +846,52 @@ class ReadRule(unittest.TestCase):
         self.assertEqual((r["cutoff"], r["rule"][:3]), ("2029-10-05T00:00:00Z", "T2:"))
 
     def test_a_symbol_stalled_three_months_past_a_looks_cutoff_is_dropped_whole_from_that_look(self):
+        """The fallback drops symbols only when at least DROP_MIN_COMPLETE (5) of the 10 are complete through the
+        cutoff; with fewer the look WAITS (WY-F1 §7, decision 2026-10-04)."""
+        names = "ABCDEFGHIJ"
         full, stalled = self.through("2028-01-05"), self.through("2027-04-01")
-        r = WF.due({"A": full, "B": stalled}, self.SEAL, 96, 1)
-        self.assertEqual((r["cutoff"], r["dropped"], r["rule"][:8]), ("2027-10-05T00:00:00Z", ["B"], "T1-drop:"))
-        self.assertEqual(r["grace_cutoff"], "2028-01-05T00:00:00Z")
+
+        def ten(complete, other=stalled):
+            return {n: (full if i < complete else other) for i, n in enumerate(names)}
+        for n_complete in (9, 6, 5):
+            r = WF.due(ten(n_complete), self.SEAL, 96, 1)
+            drop = list(names[n_complete:])
+            self.assertEqual((r["cutoff"], r["dropped"], r["rule"][:8]), ("2027-10-05T00:00:00Z", drop, "T1-drop:"))
+            self.assertEqual((r["complete_at_cutoff"], r["min_complete"]), (n_complete, 5))
+            self.assertIn(f"{n_complete} of 10 symbols complete", r["rule"])
+        self.assertEqual(WF.due(ten(5), self.SEAL, 96, 1)["grace_cutoff"], "2028-01-05T00:00:00Z")
+        for n_complete in (4, 1, 0):                         # fewer than 5 of the 10: the look waits, no one is dropped
+            r = WF.due(ten(n_complete), self.SEAL, 96, 1)
+            self.assertEqual((r["cutoff"], r["dropped"], r["rule"], r["complete_at_cutoff"]),
+                             (None, [], None, n_complete))
         early = self.through("2028-01-04")                                       # 12 months done, the grace not over
-        self.assertEqual(WF.due({"A": early, "B": stalled}, self.SEAL, 96, 1)["cutoff"], None)
-        self.assertEqual(WF.due({"A": full, "B": None}, self.SEAL, 96, 1)["dropped"], ["B"])     # never had a store
+        grace_not_over = {n: (early if i < 6 else stalled) for i, n in enumerate(names)}
+        self.assertIsNone(WF.due(grace_not_over, self.SEAL, 96, 1)["cutoff"])
+        never = ten(7) | {"J": None}                                                 # a symbol that never had a store
+        self.assertEqual(WF.due(never, self.SEAL, 96, 1)["dropped"], ["H", "I", "J"])
         no_grace = WF.look_plan(self.SEAL, grace_months=None)
-        self.assertIsNone(WF.due({"A": full, "B": stalled}, self.SEAL, 96, 1, no_grace)["cutoff"])
-        # Per look: B complete for look 1 and stalled before look 2 is read at look 1, dropped from look 2 only.
+        self.assertIsNone(WF.due(ten(9), self.SEAL, 96, 1, no_grace)["cutoff"])
+        # Per look: a symbol complete for look 1 and stalled before look 2 is read at look 1, dropped from look 2 only.
         late, mid = self.through("2030-01-05"), self.through("2028-06-01")
-        self.assertEqual(WF.due({"A": late, "B": mid}, self.SEAL, 96, 1)["dropped"], [])
-        r = WF.due({"A": late, "B": mid}, self.SEAL, 96, 2)
-        self.assertEqual((r["cutoff"], r["dropped"], r["rule"][:8]), ("2029-10-05T00:00:00Z", ["B"], "T2-drop:"))
-        self.assertIsNone(WF.due({"A": self.through("2030-01-04"), "B": mid}, self.SEAL, 96, 2)["cutoff"])
+        two = {n: (late if i < 6 else mid) for i, n in enumerate(names)}
+        self.assertEqual(WF.due(two, self.SEAL, 96, 1)["dropped"], [])
+        r = WF.due(two, self.SEAL, 96, 2)
+        self.assertEqual((r["cutoff"], r["dropped"], r["rule"][:8]), ("2029-10-05T00:00:00Z", list("GHIJ"), "T2-drop:"))
+        self.assertIsNone(WF.due(dict(two, A=self.through("2030-01-04"), B=self.through("2030-01-04"),
+                                      C=self.through("2030-01-04"), D=self.through("2030-01-04"),
+                                      E=self.through("2030-01-04"), F=self.through("2030-01-04")),
+                                 self.SEAL, 96, 2)["cutoff"])
+
+    def test_the_never_due_close_is_procedural_and_the_code_does_not_refuse_a_later_look(self):
+        """WY-F1 §7: seal + 48 months is a date the coordinator acts on (status shows it); nothing in the code refuses
+        a look after it -- a look whose stores are complete later still computes its cutoff."""
+        names = "ABCDEFGHIJ"
+        late = self.through("2031-03-01")                                         # complete far past seal + 48 months
+        r = WF.due({n: late for n in names}, self.SEAL, 96, 2)
+        self.assertEqual((r["cutoff"], r["dropped"]), ("2029-10-05T00:00:00Z", []))
+        close = WF.add_months(WF._utc(self.SEAL), WF.NEVER_DUE_MONTHS)
+        self.assertEqual(WF._iso(close), "2030-10-05T00:00:00Z")
+        self.assertGreater(WF._utc("2031-03-01T00:00:00Z"), close)
 
     def test_an_early_look_refuses_before_any_walk_or_cost_is_computed(self):
         # The canary root's log already holds resolve records (gross R): what this proves is that a look computes
@@ -984,7 +1065,9 @@ class Read(unittest.TestCase):
         self.assertEqual(set(out["history_check"]), set(WF.SYMBOLS))
         for h in out["history_check"].values():
             self.assertEqual((h["coverage"], h["agreement"], h["missing"], h["spans_end"], h["spans_checked"],
-                              h["span_mismatches"]), (1.0, 1.0, 0, True, 1, 0))
+                              h["differences"], h["span_differences"]), (1.0, 1.0, 0, True, 1, [], 0))
+            self.assertEqual((h["replay"]["ok"], h["replay"]["events"], h["replay"]["logged"]), (True, 1, 1))
+            self.assertEqual((h["walks"]["compared"], h["walks"]["differ"]), (1, 0))
             self.assertEqual(len(h["export"]["files"]), 1)                    # the export's files, hashed
         self.assertEqual((out["symbols_read"], out["symbols_dropped"]), (list(WF.SYMBOLS), []))
         self.assertIsNotNone(out["anchors"]["note"])                          # no committed anchor: disclosed
@@ -1134,19 +1217,7 @@ class Read(unittest.TestCase):
         self.assertIn("XAGUSD", str(cm.exception))
         self.assertIn("taken too early", str(cm.exception))                       # coverage alone is 0.986 here
 
-    def test_one_changed_bar_inside_an_events_span_refuses_though_agreement_passes(self):
-        d, seal = canary_root()
-        log, _ = WF.read_chain(WF._rt(d, "log.jsonl"))
-        sig = next(r["signal_time"] for r in log if r["kind"] == "event" and r["symbol"] == "XAGUSD")
-        p = os.path.join(d, WF.HIST_DIR, "ohlcv.XAGUSD.15m.json")
-        doc = json.load(open(p))
-        for c in doc["candles"]:
-            if c["time"] == sig:
-                c["close"] += 0.01
-        WF._write_json(p, doc)
-        with self.assertRaises(SystemExit) as cm:
-            read(d, seal)
-        self.assertIn("1 sampled event span(s) differ from the export, first XAGUSD", str(cm.exception))
+    # (the export replay and walk tests of a changed bar are in `ExportCheck`)
 
     def test_bars_the_store_lacks_are_missing_not_empty(self):
         root = tempfile.mkdtemp()
@@ -1165,7 +1236,7 @@ class Read(unittest.TestCase):
         h = WF.history_check("XAUUSD", bars[:-1], WF.series_of("XAUUSD", bars[:-1]), WF._utc(bars[250]["t"]),
                              WF.series_of("XAUUSD", bars[:-1]).avail[400], 96, root, spans=[("e", 200, 520)])
         self.assertIsNone(WF.history_problem(h))
-        self.assertEqual((h["spans_checked"], h["span_mismatches"]), (1, 0))
+        self.assertEqual((h["spans_checked"], h["span_differences"], h["differences"]), (1, 0, []))
 
     def test_a_dropped_symbol_leaves_the_sample_whole(self):
         d, seal = canary_root()
@@ -1316,18 +1387,23 @@ class Fingerprint(unittest.TestCase):
         self.assertEqual(fp["interpreter"]["minor"], "%d.%d" % sys.version_info[:2])
         need = {WF.SCRIPT, WF.EW_PATH, "scripts/wyckoff_rules.py", "scripts/backtest-methods.py", "scripts/real_costs.py"}
         self.assertTrue(need <= set(fp["exec"]), set(fp["exec"]))
-        self.assertEqual(set(fp["exec"]), need | {                          # 13 of the sealed re-test's 52 files:
+        self.assertEqual(set(fp["exec"]), need | {                          # 17 files, 15 of the sealed re-test's 52:
             "scripts/research/edge_census.py", "scripts/history_store.py", "scripts/instruments.py",
             "scripts/mt5_time.py", "scripts/normalized.py", "scripts/providers.py", "scripts/broker_symbols.py",
-            "scripts/live_rules.py"})                                       # the HTF gate's bias reader (WY-F1 §6)
+            "scripts/live_rules.py",                                        # the HTF gate's bias reader (WY-F1 §6) and,
+            "scripts/ict-scan.py", "scripts/structures.py", "scripts/htf_context.py", "scripts/i18n.py"})   # what it
+        self.assertEqual(len(fp["exec"]), 17)                               # runs on a FULL 1H window (the canary does)
         self.assertNotIn("docs/architecture/automation-config.json", fp["data"])     # HTF_METHODS is pinned
-        self.assertLess(len(fp["exec"]), len(E.CODE) // 3)                 # vs the sealed re-test's 52 files
+        self.assertLess(len(fp["exec"]), len(E.CODE) // 2)                 # vs the sealed re-test's 52 files
         self.assertNotIn("docs/architecture/instruments.json", fp["exec"])
         self.assertIn(WF.R0, fp["data"])
         self.assertTrue(all(WF._wanted(p) for s in ("exec", "load", "data") for p in fp[s]))
         self.assertEqual(set(fp["price_ref"]), set(WF.SYMBOLS))
         self.assertEqual((fp["canary"]["events"], fp["canary"]["rows"]), (len(WF.SYMBOLS), {"1": 10, "2": 10}))
+        self.assertEqual(set(fp["canary"]["htf_gate"]), {"True", "False"} & set(fp["canary"]["htf_gate"]))
+        self.assertNotIn("None", fp["canary"]["htf_gate"])                    # the gate judged: never "unknown"
         self.assertEqual(fp["digest"], WF.fp_digest(fp))
+        self.assertEqual(fp["tz"], WF.tz_pin())                               # the DST instants as computed at the seal
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(WF.canary(tmp)[0], fp["canary_sha256"])          # deterministic
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(WF.platform, "python_version",
@@ -1481,6 +1557,15 @@ class ExtractCheck(unittest.TestCase):
         with mock.patch.object(WF, "SNAPSHOT_ROOTS", roots), self.assertRaises(SystemExit) as cm:
             WF.extract_check(self.fp, self.clone, self.rev)
         self.assertIn(".mq5", str(cm.exception))                         # providers._validate (scripts/providers.py:63)
+
+    def test_a_fingerprint_whose_time_zone_pin_differs_cannot_run(self):
+        """A worker refuses when the system computes other DST instants than the fingerprint pinned (WY-F1 §5)."""
+        fp = json.loads(json.dumps(self.fp))
+        fp["tz"][WF.TZ_PIN_ZONE][0]["utc"] = "2025-03-16T07:00:00Z"
+        with self.assertRaises(SystemExit) as cm:
+            WF.extract_check(fp, self.clone, self.rev)
+        self.assertIn("time zone", str(cm.exception))
+        self.assertIn("computes other DST instants", str(cm.exception))
 
     def test_a_patch_upgrade_keeps_collecting_and_a_minor_change_refuses_loudly(self):
         """The pinned command, after a patch upgrade, runs every forward step to the sealed canary digest; after a minor
@@ -1730,6 +1815,855 @@ class Launcher(unittest.TestCase):
         with self.assertRaises(SystemExit) as cm:
             WF.materialize(root, WF.seal_info(root)["sha"])
         self.assertIn("has no", str(cm.exception))
+
+
+# ------------------------------------------------------------------------------------------------ canary helpers
+def canary_t(j, jitter=0):
+    """The canary's bar-open label j (WF.CANARY_START + 15 minutes x j)."""
+    return WF._iso(WF._utc(WF.CANARY_START) + datetime.timedelta(minutes=15 * j, seconds=jitter))
+
+
+def hist_path(d, sym):
+    return os.path.join(d, WF.HIST_DIR, f"ohlcv.{sym}.15m.json")
+
+
+def edit_history(d, sym, fn):
+    """Edit one symbol's history export (the file shape of `canary_data`): fn(candles dict list, doc)."""
+    p = hist_path(d, sym)
+    doc = json.load(open(p))
+    fn(doc["candles"], doc)
+    WF._write_json(p, doc)
+
+
+def canary_events(d):
+    log, _ = WF.read_chain(WF._rt(d, "log.jsonl"))
+    return {r["symbol"]: r for r in log if r["kind"] == "event"}
+
+
+def fresh_canary(doctor=None):
+    """A canary data root after one full cycle, built here (not copied), with `doctor(root)` applied to the files the
+    STORES are built from -- what a doctored bridge would have fed them."""
+    d = tempfile.mkdtemp(prefix="wyf1-fresh-")
+    seal = WF.canary_data(d)
+    if doctor:
+        doctor(d)
+    res = WF.cycle_core(d, seal, "fp", "2026-07-01T00:00:00Z", init_root=d)
+    WF.commit(res["writes"])
+    return d, seal
+
+
+def synthetic_rows(n=24, weeks=12):
+    """Fixed scored-row stand-ins with `weeks` ISO weeks: enough clusters for the Student-t tail."""
+    rows = []
+    for i in range(n):
+        r, plc = ((i * 7) % 13 - 5) / 4.0, ((i * 5) % 7 - 3) / 10.0
+        rows.append({"id": f"e{i}", "week": f"2027-W{10 + i * weeks // n:02d}", "R": r, "placebo": plc,
+                     "excess": r - plc, "cost": {"median_swap": 0.03, "median_noswap": 0.02, "p90_swap": 0.05,
+                                                 "p90_noswap": 0.04}})
+    return rows
+
+
+def ulp_up(f):
+    """A libm-like perturbation: the value one ulp up (a probability stays below 1 where it is not 1)."""
+    return lambda *a, **k: math.nextafter(f(*a, **k), math.inf)
+
+
+# ------------------------------------------------------------------------------------------------ numbers (WY-F1 §5)
+class Numbers(unittest.TestCase):
+    """Item 1 of the 2026-10-04 review: no look may depend on a last-ulp value of the OS math library. Rows, counts and
+    labels are hashed exactly (no OS math function computes them); a derived float enters a hash or a comparison rounded
+    to 10 significant digits."""
+
+    def test_sig10_rounds_to_ten_significant_digits_with_pythons_own_formatting(self):
+        self.assertEqual(WF.sig10(1.234567890123), 1.23456789)
+        self.assertEqual(WF.sig10(-0.000123456789012), -0.000123456789)
+        self.assertEqual(WF.sig10(123456789012.0), 123456789000.0)
+        self.assertEqual((WF.sig10(0.0), WF.sig10(7), WF.sig10("x")), (0.0, 7, "x"))
+        self.assertIsNone(WF.sig10(None))
+        self.assertIs(WF.sig10(True), True)
+        self.assertTrue(math.isinf(WF.sig10(math.inf)))
+        x = 0.123456789012345
+        self.assertEqual(WF.sig10(WF.sig10(x)), WF.sig10(x))                              # idempotent
+        self.assertEqual(WF.rounded({"a": [1.5, {"b": 2.123456789012}], "n": 3}),
+                         {"a": [1.5, {"b": 2.123456789}], "n": 3})
+
+    def test_one_ulp_on_a_derived_float_never_changes_what_a_commitment_verifies(self):
+        rnd = random.Random(20261004)
+        for _ in range(3000):
+            x = rnd.choice((1e-9, 1e-4, 1.0, 12.0, 3e5)) * rnd.uniform(0.1, 9.99)
+            for y in (math.nextafter(x, math.inf), math.nextafter(x, -math.inf)):
+                self.assertIn(WF.split_sha256({"rows": [1.5]}, {"p": x}), WF.split_digests({"rows": [1.5]}, {"p": y}))
+
+    def test_a_float_on_a_rounding_midpoint_verifies_under_either_rounding(self):
+        x = 1.0000000005                        # the 10-digit midpoint between 1.000000000 and 1.000000001
+        up, down = math.nextafter(x, math.inf), math.nextafter(x, -math.inf)
+        self.assertEqual({WF.sig10(x), WF.sig10(up), WF.sig10(down)}, {1.0, 1.000000001})   # one ulp flips the rounding
+        digests = {w: WF.split_sha256({}, {"p": w}) for w in (x, up, down)}
+        self.assertEqual(len(set(digests.values())), 2)
+        for w in (x, up, down):                                                              # ... and both are accepted
+            self.assertEqual(WF.split_digests({}, {"p": w}), set(digests.values()))
+        self.assertEqual(len(WF.tie_variants({"p": x})), 2)
+        self.assertEqual(len(WF.tie_variants({"p": 0.5, "q": 1.0})), 1)
+        with self.assertRaises(SystemExit):                                                  # the cap: never silent
+            WF.tie_variants({f"p{i}": x for i in range(WF.TIE_CAP + 1)})
+
+    def test_a_changed_row_never_verifies_and_a_real_change_of_a_derived_float_does_not_either(self):
+        rows, summary = [{"id": "a", "R": 1.25, "excess": 0.5}], {"p": 0.01, "upper_95": 0.7}
+        sha = WF.statistic_sha256({"rows": rows, "summary": summary})
+        self.assertTrue(WF.statistic_verifies({"rows": rows, "summary": summary}, sha))
+        for k in ("R", "excess"):                                       # one ulp of a ROW value: refused (exact part)
+            moved = [dict(rows[0], **{k: math.nextafter(rows[0][k], math.inf)})]
+            self.assertFalse(WF.statistic_verifies({"rows": moved, "summary": summary}, sha), k)
+        self.assertFalse(WF.statistic_verifies({"rows": rows + rows, "summary": summary}, sha))     # a row more
+        self.assertFalse(WF.statistic_verifies({"rows": [dict(rows[0], id="b")], "summary": summary}, sha))
+        for k in summary:                                                # an ulp of a derived float: verified
+            nudged = dict(summary, **{k: math.nextafter(summary[k], math.inf)})
+            self.assertTrue(WF.statistic_verifies({"rows": rows, "summary": nudged}, sha), k)
+            real = dict(summary, **{k: summary[k] * (1 + 1e-6)})         # a real change: refused
+            self.assertFalse(WF.statistic_verifies({"rows": rows, "summary": real}, sha), k)
+
+    def test_the_registered_p_value_under_an_ulp_different_student_t_still_verifies(self):
+        """edge_census.t_sf and t_quantile use lgamma, exp and log (the OS library): a statistic computed with a tail
+        one ulp off commits to the same sha256 as the real one (WF.statistic_verifies)."""
+        rows = synthetic_rows()
+        real = {"rows": rows, "summary": E.summarise(rows, E.FTMO_LINES)}
+        self.assertEqual(real["summary"]["weeks"], 12)
+        t_sf = E.EC.t_sf
+        with mock.patch.object(E.EC, "t_sf", ulp_up(t_sf)):
+            nudged = {"rows": rows, "summary": E.summarise(rows, E.FTMO_LINES)}
+        self.assertNotEqual(real["summary"]["p_one_sided"], nudged["summary"]["p_one_sided"])   # the ulp is there
+        self.assertTrue(WF.statistic_verifies(real, WF.statistic_sha256(nudged)))
+        self.assertTrue(WF.statistic_verifies(nudged, WF.statistic_sha256(real)))
+        with mock.patch.object(E.EC, "t_sf", lambda t, df: t_sf(t, df) * (1 + 1e-6)):           # a real change
+            moved = {"rows": rows, "summary": E.summarise(rows, E.FTMO_LINES)}
+        self.assertFalse(WF.statistic_verifies(real, WF.statistic_sha256(moved)))
+
+    def test_the_pass_test_compares_rounded_floats_and_look_ones_boundary_with_isclose(self):
+        thr, base = 0.0044, {"n": 5, "net_excess": 0.4}
+        self.assertFalse(WF.crossed(dict(base, p_one_sided=thr * (1 - 1e-13)), {"p_threshold": thr}))   # equal at 10 digits
+        self.assertTrue(WF.crossed(dict(base, p_one_sided=thr * (1 - 1e-6)), {"p_threshold": thr}))
+        self.assertFalse(WF.crossed(dict(base, net_excess=0.0, p_one_sided=0.0001), {"p_threshold": thr}))
+        b = WF.look1_boundary(14)
+        near = dict(b, z=math.nextafter(b["z"], math.inf), p_threshold=b["p_threshold"] * (1 + 1e-12),
+                    alpha_spent=math.nextafter(b["alpha_spent"], 0.0))
+        self.assertTrue(WF.boundary_matches(b, near))
+        self.assertFalse(WF.boundary_matches(b, dict(b, z=b["z"] * (1 + 1e-6))))
+        self.assertFalse(WF.boundary_matches(b, dict(b, n=15)))
+        self.assertFalse(WF.boundary_matches(b, None))
+        empty = WF.look1_boundary(0)
+        self.assertTrue(WF.boundary_matches(empty, dict(empty)))
+        self.assertFalse(WF.boundary_matches(empty, dict(empty, z=1.0)))
+        self.assertEqual(WF.BOUNDARY_REL_TOL, 1e-9)
+
+    def test_a_look_two_verifies_a_look_one_made_under_an_ulp_different_math_library(self):
+        d, seal = canary_root()
+        meta = {"study": WF.STUDY, "seal": seal, "fingerprint_digest": "fp"}
+        cdf = WF.norm_cdf
+        with mock.patch.object(WF, "norm_cdf", ulp_up(cdf)):                                # look 1, an ulp-off library
+            one = read(d, seal)
+        plain = read(d, seal)
+        self.assertNotEqual(one["boundary"]["alpha_spent"], plain["boundary"]["alpha_spent"])    # the ulp is there
+        self.assertTrue(WF.boundary_matches(plain["boundary"], one["boundary"]))
+        rec = json.loads(json.dumps(WF.blind(dict(one, meta=meta)), default=str))
+        two = read(d, seal, look=2, prior=WF.require_prior(rec, seal, "fp"))                 # look 2, the real one
+        self.assertEqual(two["look1"]["statistic_sha256"], rec["statistic_sha256"])
+        self.assertIn(two["verdict"]["label"], ("PASS", "NOT PASSED"))
+        self.assertEqual(two["look1"]["boundary"], rec["boundary"])           # look 2 uses look 1's COMMITTED boundary
+        # a row perturbed by one ulp refuses: look 1 committed to rows whose `excess` differs from the recomputation
+        real = E.score
+
+        def drift(*a, **k):
+            r, why = real(*a, **k)
+            return (dict(r, excess=math.nextafter(r["excess"], math.inf)), why) if r else (r, why)
+        bad = json.loads(json.dumps(WF.blind(dict(read(d, seal, score_fn=drift), meta=meta)), default=str))
+        with self.assertRaises(SystemExit) as cm:
+            read(d, seal, look=2, prior=bad)
+        self.assertIn("does not reproduce its committed sha256", str(cm.exception))
+
+    def test_the_canary_digest_survives_an_ulp_and_refuses_a_real_numeric_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            digest, _looks, body = WF.canary(tmp)
+        fp = {"canary_sha256": digest}
+        self.assertTrue(WF.canary_verifies(fp, body))
+        self.assertEqual(body["derived"]["numerics"]["summary"]["weeks"], 12)   # the fixed probe has a Student-t tail
+        t_sf, cdf = E.EC.t_sf, WF.norm_cdf
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(E.EC, "t_sf", ulp_up(t_sf)), \
+                mock.patch.object(WF, "norm_cdf", ulp_up(cdf)):
+            nudged_digest, _l, nudged = WF.canary(tmp)
+        self.assertTrue(WF.canary_verifies(fp, nudged))                        # a last-ulp library: every look still runs
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(E.EC, "t_sf", lambda t, df: t_sf(t, df) * 1.001):
+            _d, _l, moved = WF.canary(tmp)
+        self.assertFalse(WF.canary_verifies(fp, moved))                        # a real change: refused
+        exact = json.loads(json.dumps(body))
+        exact["exact"]["log"][0]["atr"] = math.nextafter(exact["exact"]["log"][0]["atr"], math.inf)
+        self.assertFalse(WF.canary_verifies(fp, exact))                        # the exact part is exact
+
+
+# ------------------------------------------------------------------------------------------------ revisions (WY-F1 §4)
+class Revisions(unittest.TestCase):
+    """Item 2: a bar the broker revises after the store took it is logged (chained), the store keeps its bar as first
+    stored, decisions and resolves use it, and every look reports the revisions."""
+
+    def single(self):
+        """One symbol (XAUUSD): history to bar 480, a live file bars 420-544 -> store 0..543, the Spring event at 492
+        logged and resolved from the entry bar 493 as first stored."""
+        d = tempfile.mkdtemp(prefix="wyf1-rev-")
+        bars = mk_bars(spring_tuples())
+        write_history(d, "XAUUSD", bars[:480])
+        write_live(d, "XAUUSD", bars[420:545])
+        seal = {"sha": "s", "instant": t_at(450)}
+        return d, bars, seal
+
+    def cycle(self, d, seal, now):
+        res = WF.cycle_core(d, seal, "fp", now, init_root=d, symbols=("XAUUSD",))
+        WF.commit(res["writes"])
+        return res["summary"]
+
+    def test_a_revised_bar_is_logged_once_per_price_the_store_keeps_it_and_resolves_stay_point_in_time(self):
+        d, bars, seal = self.single()
+        s1 = self.cycle(d, seal, "2026-06-20T00:00:00Z")
+        self.assertEqual((s1["new_events"], s1["revisions"]), (1, 0))
+        log, _ = WF.read_chain(WF._rt(d, "log.jsonl"))
+        (ev,) = [r for r in log if r["kind"] == "event"]
+        (rs,) = [r for r in log if r["kind"] == "resolve"]
+        e = ev["store_index"] + 1
+        self.assertEqual((e, rs["entry_time"]), (493, t_at(493)))
+        stored, _h = WF.read_chain(WF._rt(d, "bars", "XAUUSD.15m.jsonl"))
+        self.assertEqual(len(stored), 544)
+        # The broker revises the ENTRY bar's open (and later its high); every later live file shows it.
+        for upto, o_add, h_add, n_rev in ((560, 0.5, 0.0, 1), (580, 0.5, 0.0, 0), (588, 0.7, 0.2, 1)):
+            live = [dict(b, o=b["o"] + o_add, h=b["h"] + h_add) if b["t"] == t_at(493) else b for b in bars[480:upto]]
+            write_live(d, "XAUUSD", live)
+            s = self.cycle(d, seal, "2026-06-21T00:00:00Z")
+            self.assertEqual(s["revisions"], n_rev, (upto, s))              # once per distinct revised price
+        log, heads = WF.read_chain(WF._rt(d, "log.jsonl"))
+        revs = [r for r in log if r["kind"] == "revision"]
+        self.assertEqual(len(revs), 2)                                          # chained records, in the log's chain
+        r0 = revs[0]
+        self.assertEqual((r0["symbol"], r0["t"], r0["src"], r0["fields"]), ("XAUUSD", t_at(493), "live", ["o"]))
+        self.assertEqual((r0["store"]["o"], r0["source"]["o"]), (bars[493]["o"], bars[493]["o"] + 0.5))
+        self.assertEqual((r0["seal"], r0["fingerprint"]), (seal["sha"], "fp"))
+        self.assertEqual(revs[1]["fields"], ["o", "h"])
+        again, _ = WF.read_chain(WF._rt(d, "bars", "XAUUSD.15m.jsonl"))
+        self.assertEqual(len(again), 587)                                       # the store advanced past the revision
+        self.assertEqual(again[493]["o"], bars[493]["o"])                       # and kept the bar as first stored
+        self.assertEqual(again[:544], stored)
+        # Point in time: the resolve the log holds equals a recomputation from the store; the REVISED bar would give
+        # another entry and another R (so this proves something).
+        S = WF.series_of("XAUUSD", again)
+        redo = WF.resolve_record(S, ev, seal, "fp", rs["resolved_at"])
+        self.assertEqual({k: v for k, v in redo.items() if k not in WF.RESOLVE_STAMPS},
+                         {k: v for k, v in rs.items() if k not in WF.RESOLVE_STAMPS})
+        moved = [dict(b, o=b["o"] + 0.5) if b["t"] == t_at(493) else b for b in again]
+        other = WF.resolve_record(WF.series_of("XAUUSD", moved), ev, seal, "fp", "x")
+        self.assertNotEqual((other["entry"], other["R"]), (rs["entry"], rs["R"]))
+        # And the chain still verifies end to end (an edited revision record would break it).
+        self.assertEqual(len(heads), len(log))
+
+    def test_the_old_wedge_a_revised_bar_among_the_last_four_does_not_stop_the_store(self):
+        d, bars, seal = self.single()
+        self.cycle(d, seal, "2026-06-20T00:00:00Z")
+        live = [dict(b, h=b["h"] + 0.25) if b["t"] == t_at(541) else b for b in bars[480:600]]   # bar 541: in the last 4
+        write_live(d, "XAUUSD", live)
+        s = self.cycle(d, seal, "2026-06-21T00:00:00Z")
+        stored, _h = WF.read_chain(WF._rt(d, "bars", "XAUUSD.15m.jsonl"))
+        self.assertEqual((s["added_bars"]["XAUUSD"], len(stored), s["revisions"], s["not_advancing"]),
+                         (55, 599, 1, {}))                                       # the old rule appended nothing, forever
+        self.assertEqual(stored[541]["h"], bars[541]["h"])
+
+    def test_every_look_reports_the_revision_records(self):
+        d, seal = canary_root()
+        events = canary_events(d)
+        ev = events["XAGUSD"]
+        bars, heads = WF.read_chain(WF._rt(d, "bars", "XAGUSD.15m.jsonl"))
+        inside = bars[ev["store_index"] - 250]                        # a bar of the event's 300-bar window, far from
+        #                                                               its structure and from ATR20: a harmless one
+        outside = bars[len(bars) - 20]                                # a bar far after every span
+        recs = [WF.revision_record("XAGUSD", b, dict(b, h=b["h"] + 0.01), "live", seal, "fp", "2026-06-29T00:00:00Z")
+                for b in (inside, outside)]
+        log, lheads = WF.read_chain(WF._rt(d, "log.jsonl"))
+        WF.append_chain(WF._rt(d, "log.jsonl"), recs, lheads[-1])
+        out = read(d, seal)
+        rv = out["revisions"]
+        self.assertEqual((rv["records"], rv["per_symbol"]), (2, {"XAGUSD": 2}))
+        self.assertEqual([(x["symbol"], x["t"], x["fields"], x["in_a_sampled_span"]) for x in rv["list"]],
+                         [("XAGUSD", inside["t"], ["h"], True), ("XAGUSD", outside["t"], ["h"], False)])
+        self.assertIn("point in time", rv["note"])
+        # the look's bar-by-bar check says which differences a logged revision explains (the export is the truth here,
+        # so no difference exists in this file; the flag is set where one does)
+        self.assertEqual(out["history_check"]["XAGUSD"]["revised_differences"], 0)
+        edit_history(d, "XAGUSD", lambda cs, doc: [c.update(high=c["high"] + 0.01) for c in cs
+                                                   if c["time"] == inside["t"]])
+        out = read(d, seal)
+        diffs = out["history_check"]["XAGUSD"]["differences"]
+        self.assertEqual([(x["t"], x["kind"], x["fields"], x["revised"], x["spans"]) for x in diffs],
+                         [(inside["t"], "price", ["h"], True, [ev["id"]])])
+        # a blinded look 1 reports them too
+        self.assertEqual(WF.blind(dict(out, meta={}))["revisions"]["records"], 2)
+
+
+# ------------------------------------------------------------------------------------------------ NOT ADVANCING (§4)
+class NotAdvancing(unittest.TestCase):
+    """Item 4: a store that does not advance while its live file exists, and a stale live file, are flagged -- in the
+    cycle summary and in `status` -- with plan_append's reason and the store's last bar."""
+
+    def setUp(self):
+        self.d, self.seal = canary_root()
+        self.n = len(WF.canary_bars(0))
+        self.now = canary_t(self.n + 4)
+
+    def status(self, now=None):
+        with mock.patch.object(WF, "seal_info", lambda root=None: dict(self.seal, date="x")), \
+                mock.patch.object(WF, "committed_anchors", lambda root: []):
+            return WF.status(self.d, now=now or self.now)
+
+    def printed(self, st):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            WF._print_status(st)
+        return buf.getvalue()
+
+    def test_a_healthy_store_is_not_flagged_and_a_missing_file_is_stalled_not_advancing(self):
+        st = self.status()
+        self.assertEqual((st["not_advancing"], st["stalled"]), ({}, []))
+        self.assertNotIn("NOT ADVANCING", self.printed(st))
+        os.remove(os.path.join(self.d, WF.LIVE_DIR, "ohlcv.JP225.cash.15m.json"))
+        st = self.status()
+        self.assertEqual((st["stalled"], st["not_advancing"]), (["JP225"], {}))        # listed as STALLED, not twice
+
+    def test_a_hole_before_the_live_file_is_flagged_with_the_reason_and_the_stores_last_bar(self):
+        bars, _h = WF.read_chain(WF._rt(self.d, "bars", "DE40.15m.jsonl"))
+        rewrite_chain(WF._rt(self.d, "bars", "DE40.15m.jsonl"), bars[:2400])         # the store ends at bar 2399
+        live = os.path.join(self.d, WF.LIVE_DIR, "ohlcv.GER40.cash.15m.json")
+        doc = json.load(open(live))
+        WF._write_json(live, dict(doc, candles=[c for c in doc["candles"] if c["time"] >= canary_t(2500)]))
+        res = WF.cycle_core(self.d, self.seal, "fp", self.now, init_root=self.d)
+        why = res["summary"]["not_advancing"]
+        self.assertEqual(list(why), ["DE40"])
+        self.assertIn("hole: the store ends " + canary_t(2399), why["DE40"])
+        self.assertIn("the store's last bar is " + canary_t(2399), why["DE40"])
+        self.assertEqual((res["summary"]["added_bars"]["DE40"], res["summary"]["stalled"]), (0, []))
+        st = self.status()
+        self.assertEqual(list(st["not_advancing"]), ["DE40"])
+        self.assertEqual((st["symbols"]["DE40"]["next_cycle_adds"], st["symbols"]["DE40"]["stalled"]), (0, False))
+        self.assertIn("NOT ADVANCING DE40: " + why["DE40"], self.printed(st))
+        # ... and the export that bridges it is taken in: the history file reaches past the store's end
+        WF._write_json(live, doc)
+        res = WF.cycle_core(self.d, self.seal, "fp", self.now, init_root=self.d)
+        WF.commit(res["writes"])
+        self.assertEqual((res["summary"]["not_advancing"], res["summary"]["added_bars"]["DE40"] > 0), ({}, True))
+
+    def test_a_stale_live_file_is_flagged_only_when_older_than_the_threshold(self):
+        live = os.path.join(self.d, WF.LIVE_DIR, "ohlcv.XAUUSD.15m.json")
+        doc = json.load(open(live))
+        WF._write_json(live, dict(doc, candles=[c for c in doc["candles"] if c["time"] < canary_t(2450)]))
+        last = canary_t(2448)                                                         # its newest CLOSED bar
+        quiet = self.status(now=canary_t(2449 + 4 * 8))                               # about 8 hours later: a quiet market
+        self.assertEqual(quiet["not_advancing"], {})
+        late = self.status(now=canary_t(2449 + 4 * 80))                               # 80 hours later: stale
+        self.assertEqual(list(late["not_advancing"]), ["XAUUSD"])
+        self.assertIn("the live 15m file is stale: its newest closed bar " + last, late["not_advancing"]["XAUUSD"])
+        self.assertIn("the store's last bar is " + canary_t(self.n - 2), late["not_advancing"]["XAUUSD"])
+        self.assertIn("NOT ADVANCING XAUUSD", self.printed(late))
+        res = WF.cycle_core(self.d, self.seal, "fp", canary_t(2449 + 4 * 80), init_root=self.d)
+        self.assertEqual(list(res["summary"]["not_advancing"]), ["XAUUSD"])
+
+    def test_a_feed_that_advances_the_store_is_not_flagged_even_when_stale(self):
+        """The store took bars this cycle (from the history export), so it is advancing: no flag."""
+        live = os.path.join(self.d, WF.LIVE_DIR, "ohlcv.XAGUSD.15m.json")
+        doc = json.load(open(live))
+        WF._write_json(live, dict(doc, candles=[c for c in doc["candles"] if c["time"] < canary_t(2250)]))
+        bars, _h = WF.read_chain(WF._rt(self.d, "bars", "XAGUSD.15m.jsonl"))
+        rewrite_chain(WF._rt(self.d, "bars", "XAGUSD.15m.jsonl"), bars[:2200])          # behind the history export's end
+        res = WF.cycle_core(self.d, self.seal, "fp", canary_t(2700), init_root=self.d)    # the others' files are fresh
+        self.assertEqual(res["summary"]["not_advancing"], {})
+        self.assertGreater(res["summary"]["added_bars"]["XAGUSD"], 0)
+
+
+# ------------------------------------------------------------------------------------------------ canary gate (§5, §6)
+class CanaryGate(unittest.TestCase):
+    """Item 5: the canary runs the ICT HTF gate on a real-length window, so the fingerprint, the canary digest and
+    `extract_check` cover the gate's whole bias path."""
+
+    def test_every_canary_signal_has_a_full_live_1h_window_and_the_gate_judges(self):
+        d, _seal = canary_root()
+        log, _ = WF.read_chain(WF._rt(d, "log.jsonl"))
+        need = BT.lr.scan_spec("1H")[0]
+        self.assertEqual(need, 480)                                          # automation.SCAN_WINDOW["1H"]
+        events = [r for r in log if r["kind"] == "event"]
+        self.assertEqual(len(events), len(WF.SYMBOLS))
+        for r in events:
+            bars, _h = WF.read_chain(WF._rt(d, "bars", f"{r['symbol']}.15m.jsonl"))
+            S = WF.series_of(r["symbol"], bars)
+            c = WF.htf_candles(S, r["store_index"], 60)
+            self.assertGreaterEqual(len(c), need, r["symbol"])
+            self.assertIsNotNone(BT.lr.read_at(c, len(c) - 1, "1H", WF.HTF_METHODS), r["symbol"])   # not "unknown"
+            self.assertIn(WF.htf_gate(S, r["store_index"]), ((True, None), (False, None)))
+        resolves = [r for r in log if r["kind"] == "resolve"]
+        self.assertTrue(resolves and all(r["htf_gate"] in (True, False) and r["htf_gate_error"] is None
+                                         for r in resolves))
+
+    def test_the_gate_files_run_in_the_canary_so_the_fingerprint_names_them_as_executed(self):
+        if sealed_here():
+            self.skipTest("WY-F1 is sealed: its fingerprint is the committed one")
+        fp = working_fingerprint()
+        for f in ("scripts/ict-scan.py", "scripts/structures.py", "scripts/htf_context.py", "scripts/i18n.py"):
+            self.assertIn(f, fp["exec"])
+            self.assertNotIn(f, fp["load"])
+        self.assertEqual(sum(fp["canary"]["htf_gate"].values()), len(WF.SYMBOLS))
+
+
+# ------------------------------------------------------------------------------------------------ blinded look 1 (§7)
+class BlindRecord(unittest.TestCase):
+    def test_a_blinded_look_one_gives_no_resolve_count_and_no_estimate(self):
+        """Item 7: `blind` keeps an allowlist. The log's record count (records - events = the resolves, which `status`
+        hides on purpose), the anchored log length, the repair list and the log-only recomputation are dropped."""
+        d, seal = canary_root()
+        one = read(d, seal)
+        self.assertGreater(one["log"]["records"], one["replay"]["logged"])         # the full result gives it away
+        rec = json.loads(json.dumps(WF.blind(dict(one, meta={"study": WF.STUDY, "seal": seal,
+                                                               "fingerprint_digest": "fp"})), default=str))
+        self.assertEqual(rec["log"], {"head": one["log"]["head"]})                  # ... the blinded one does not
+        self.assertEqual(set(rec["anchors"]), {"verified", "last_committed", "note"})
+        self.assertEqual(set(rec["repairs"]), {"records", "files", "note"})
+        text = json.dumps(rec)
+        for leak in ("log_only_check", "log_records_anchored", "kept_records", "mismatches", '"statistic"', "net_excess",
+                     "p_one_sided", "upper_95", '"R"', "mean_R"):
+            self.assertNotIn(leak, text)
+        self.assertEqual(set(rec) - set(WF.BLIND_KEEP) - {"blinded"}, set())          # only the allowlist
+        self.assertTrue({"statistic", "log_only_check"} <= set(one) - set(rec))
+        self.assertEqual(rec["statistic_sha256"], one["statistic_sha256"])
+        self.assertEqual(rec["verdict"]["n"], one["verdict"]["n"])                    # the decision facts stay
+        for key in ("history_check", "revisions", "exports", "attempts", "late_logged", "boundary"):
+            self.assertIn(key, rec)                                                    # and what a reader audits with
+        for h in rec["history_check"].values():
+            self.assertEqual(h["walks"]["differ"], 0)                                  # counts of walks, never an R
+            self.assertNotIn("R", h["walks"])
+
+
+# ------------------------------------------------------------------------------------------------ time zone (§5)
+class TimeZonePin(unittest.TestCase):
+    """Item 8: the fingerprint pins the DST instants of America/New_York for 2025-2030 as computed at the seal (and the
+    FTMO server zone built on them); every cycle and look refuses when the running system computes others."""
+
+    def test_the_pin_is_the_dst_instants_not_file_bytes(self):
+        pin = WF.tz_pin()
+        ny = pin[WF.TZ_PIN_ZONE]
+        self.assertEqual(pin["years"], [2025, 2030])
+        self.assertEqual(len(ny), 12)                                                  # two a year, six years
+        self.assertIn({"utc": "2026-03-08T07:00:00Z", "before": -18000, "after": -14400}, ny)
+        self.assertIn({"utc": "2026-11-01T06:00:00Z", "before": -14400, "after": -18000}, ny)
+        server = pin["ftmo_server"]                                                    # the same instants, EET-sized steps
+        self.assertEqual([x["utc"] for x in server], [x["utc"] for x in ny])
+        self.assertEqual({(x["before"], x["after"]) for x in server}, {(7200, 10800), (10800, 7200)})
+        json.dumps(pin)                                                                # plain JSON: ints and strings
+        self.assertEqual(WF.tz_pin(), pin)
+
+    def test_a_system_that_computes_other_instants_refuses(self):
+        pin = WF.tz_pin()
+        WF.require_tz({"tz": pin})
+        moved = json.loads(json.dumps(pin))
+        moved[WF.TZ_PIN_ZONE][2]["utc"] = "2026-03-15T07:00:00Z"                       # the US rule moved a transition
+        with self.assertRaises(SystemExit) as cm:
+            WF.require_tz({"tz": moved})
+        self.assertIn(WF.TZ_PIN_ZONE, str(cm.exception))
+        self.assertIn("2026-03-08T07:00:00Z", str(cm.exception))
+        short = json.loads(json.dumps(pin))
+        del short["ftmo_server"][-1]
+        with self.assertRaises(SystemExit) as cm:
+            WF.require_tz({"tz": short})
+        self.assertIn("ftmo_server", str(cm.exception))
+        for none in ({}, {"tz": {}}, {"tz": None}):
+            with self.assertRaises(SystemExit) as cm:
+                WF.require_tz(none)
+            self.assertIn("pins no time-zone behaviour", str(cm.exception))
+        # behaviour, not bytes: a zone database that never moves the clock gives other instants whatever its files say
+        import zoneinfo
+        flat = lambda name: datetime.timezone(datetime.timedelta(hours=-5))            # noqa: E731
+        with mock.patch.object(zoneinfo, "ZoneInfo", flat), self.assertRaises(SystemExit) as cm:
+            WF.require_tz({"tz": pin})
+        self.assertIn(WF.TZ_PIN_ZONE, str(cm.exception))
+
+    def test_the_pin_is_part_of_the_fingerprints_identity(self):
+        pin = WF.tz_pin()
+        fp = {"exec": {}, "load": {}, "data": {}, "canary_sha256": "c", "tz": pin}
+        moved = json.loads(json.dumps(fp))
+        moved["tz"][WF.TZ_PIN_ZONE][0]["utc"] = "2025-03-16T07:00:00Z"
+        self.assertNotEqual(WF.fp_digest(fp), WF.fp_digest(moved))
+        self.assertEqual(WF.fp_digest(fp), WF.fp_digest(json.loads(json.dumps(fp))))
+
+
+# ------------------------------------------------------------------------------------------------ the look's export (§7, §8)
+class LookExport(unittest.TestCase):
+    """Items 3 and 11: every look needs a history export of ALL 10 symbols taken after its window; a stalled symbol the
+    export fills is read, its events late-logged and disclosed; the owner's case end to end on synthetic bars."""
+
+    HOLE = ("US500", "US30", "USTEC", "DE40")
+
+    def test_every_look_needs_an_export_of_all_ten_symbols_taken_after_the_window_and_into_the_stores(self):
+        d, seal = canary_root()
+        out = read(d, seal)
+        self.assertEqual(out["export_required_at"], canary_t(2100 + 1 + 96))            # the close of cutoff bar + 96
+        self.assertEqual({s: m["exported_at_utc"] for s, m in out["exports"].items()},
+                         {s: canary_t(WF.CANARY_HIST_END) for s in WF.SYMBOLS})
+        self.assertTrue(all(len(m["files"]) == 1 for m in out["exports"].values()))
+        # one symbol never exported: no look (nobody can leave a symbol out by not exporting it)
+        p = hist_path(d, "JP225")
+        os.rename(p, p + ".bak")
+        with self.assertRaises(SystemExit) as cm:
+            read(d, seal)
+        self.assertIn("needs a FTMO 15m history export of all 10 symbols", str(cm.exception))
+        self.assertIn("JP225: no 15m history export", str(cm.exception))
+        os.rename(p + ".bak", p)
+        # an export taken before the window's last bar closed
+        edit_history(d, "XAGUSD", lambda cs, doc: doc.update(_exported_at_utc=canary_t(2150)))
+        with self.assertRaises(SystemExit) as cm:
+            read(d, seal)
+        self.assertIn("XAGUSD: its export was taken at " + canary_t(2150), str(cm.exception))
+        edit_history(d, "XAGUSD", lambda cs, doc: doc.update(_exported_at_utc=canary_t(WF.CANARY_HIST_END)))
+        # an export the store has not taken in yet: one `cycle` first
+        bars, _h = WF.read_chain(WF._rt(d, "bars", "XAGUSD.15m.jsonl"))
+        rewrite_chain(WF._rt(d, "bars", "XAGUSD.15m.jsonl"), bars[:2290])
+        with self.assertRaises(SystemExit) as cm:
+            read(d, seal)
+        self.assertIn("XAGUSD: the export still extends its store by 9 bar(s) after " + canary_t(2289), str(cm.exception))
+        self.assertIn("run one `cycle` first", str(cm.exception))
+        res = WF.cycle_core(d, seal, "fp", "2026-07-02T00:00:00Z", init_root=d)
+        WF.commit(res["writes"])
+        self.assertEqual(read(d, seal)["sample"], 10)
+
+    def test_a_stalled_symbol_is_filled_by_the_looks_export_and_read_with_its_events_late(self):
+        """JP225 has no live file (STALLED today) and a sealed history that ends just after the seal. Its store does not
+        advance, so look 1 is not due. The look's export of all symbols reaches past the cutoff: the next cycle takes
+        it in, JP225 is then complete, READ (not dropped), and its event is late-logged and disclosed."""
+        d = tempfile.mkdtemp(prefix="wyf1-fill-")
+        seal = WF.canary_data(d)
+        full = json.load(open(hist_path(d, "JP225")))
+        WF._write_json(hist_path(d, "JP225"), dict(full, candles=full["candles"][:WF.CANARY_SEAL_BAR + 10],
+                                                   _exported_at_utc=canary_t(WF.CANARY_SEAL_BAR + 10)))
+        os.remove(os.path.join(d, WF.LIVE_DIR, "ohlcv.JP225.cash.15m.json"))
+        res = WF.cycle_core(d, seal, "fp", "2026-07-01T00:00:00Z", init_root=d)
+        WF.commit(res["writes"])
+        self.assertEqual(res["summary"]["stalled"], ["JP225"])
+        self.assertEqual(res["summary"]["new_events"], 9)                                # JP225's event is not there yet
+        with self.assertRaises(SystemExit) as cm:
+            read(d, seal)
+        self.assertIn("look 1 is not due", str(cm.exception))                            # a stalled symbol is never complete
+        WF._write_json(hist_path(d, "JP225"), full)                                      # the look's export of JP225
+        res = WF.cycle_core(d, seal, "fp", "2026-07-10T00:00:00Z", init_root=d)
+        WF.commit(res["writes"])
+        self.assertEqual((res["summary"]["stalled"], res["summary"]["new_events"]), (["JP225"], 1))   # the feed is down
+        self.assertGreater(res["summary"]["added_bars"]["JP225"], 200)                  # ... and the export fills it
+        out = read(d, seal)
+        self.assertEqual((out["symbols_read"], out["symbols_dropped"]), (list(WF.SYMBOLS), []))
+        self.assertEqual(out["sample"], 10)
+        late = canary_events(d)["JP225"]
+        self.assertEqual(late["logged_at"], "2026-07-10T00:00:00Z")
+        self.assertIn(late["id"], out["late_logged"]["ids"])
+        self.assertEqual(out["history_check"]["JP225"]["replay"]["ok"], True)
+
+    def test_the_owners_case_a_seal_on_history_that_ends_before_the_live_files_then_a_later_export_bridges_it(self):
+        """The coordinator's case (2026-10-04) on synthetic bars: US500, US30, USTEC and DE40 have a sealed history that
+        ends BEFORE the seal and a live file that starts later (a hole). Cycles report it (NOT ADVANCING) and log nothing
+        for them. Days later a re-exported history reaches past the look's window: the next cycle bridges it, their
+        post-seal events are logged LATE, and both looks read them with the lag disclosed (late-logged count and ids,
+        the lag's median and maximum, the events whose window holds history-sourced bars)."""
+        d = tempfile.mkdtemp(prefix="wyf1-owner-")
+        seal = WF.canary_data(d)                              # phase A: what the seal commit and the live files hold
+        for sym in WF.SYMBOLS:
+            doc = json.load(open(hist_path(d, sym)))
+            cut = 2000 if sym in self.HOLE else 2101
+            WF._write_json(hist_path(d, sym), dict(doc, candles=doc["candles"][:cut], _exported_at_utc=canary_t(cut)))
+            if sym not in self.HOLE:
+                os.remove(os.path.join(d, WF.LIVE_DIR, f"ohlcv.{BS.to_broker(sym)}.15m.json"))
+        a = WF.cycle_core(d, seal, "fp", canary_t(2101), init_root=d)
+        WF.commit(a["writes"])
+        self.assertEqual(sorted(a["summary"]["not_advancing"]), sorted(self.HOLE))     # the hole: flagged, with the reason
+        for sym in self.HOLE:
+            self.assertIn("hole: the store ends " + canary_t(1998), a["summary"]["not_advancing"][sym])
+        self.assertEqual(sorted(a["summary"]["stalled"]), sorted(set(WF.SYMBOLS) - set(self.HOLE)))
+        self.assertEqual(a["summary"]["new_events"], 6)                                 # the six logged theirs ON TIME
+        self.assertEqual(set(canary_events(d)), set(WF.SYMBOLS) - set(self.HOLE))
+        WF.canary_data(d)                                    # phase B: the re-exported history (to bar 2300) is imported
+        b = WF.cycle_core(d, seal, "fp", canary_t(2520), init_root=d)
+        WF.commit(b["writes"])
+        self.assertEqual(b["summary"]["not_advancing"], {})
+        self.assertEqual(b["summary"]["new_events"], 4)                                 # the four bridged: events logged LATE
+        self.assertEqual(set(canary_events(d)), set(WF.SYMBOLS))
+        out = read(d, seal)
+        late = sorted(canary_events(d)[s]["id"] for s in self.HOLE)
+        self.assertEqual(out["late_logged"]["ids"], late)
+        self.assertEqual(out["late_logged"]["events"], 4)
+        self.assertEqual(out["sample"], 10)                                              # the late events are READ
+        self.assertEqual(out["symbols_dropped"], [])
+        lag = out["log_lag_seconds"]
+        self.assertLess(lag["median"], WF.LATE_LOG_S)                                    # six on time ...
+        self.assertGreater(lag["max"], 100 * 3600)                                       # ... four about 106 hours late
+        self.assertGreaterEqual(out["events_with_post_seal_history_bars"], 4)
+        self.assertTrue(all(h["replay"]["ok"] and h["walks"]["differ"] == 0 for h in out["history_check"].values()))
+        meta = {"study": WF.STUDY, "seal": seal, "fingerprint_digest": "fp"}
+        rec = json.loads(json.dumps(WF.blind(dict(out, meta=meta)), default=str))
+        self.assertEqual(rec["late_logged"]["ids"], late)                                # a blinded look 1 discloses them
+        two = read(d, seal, look=2, prior=WF.require_prior(rec, seal, "fp"))
+        self.assertEqual((two["late_logged"]["events"], two["look1"]["statistic_sha256"]),
+                         (4, rec["statistic_sha256"]))                                   # and look 2 reproduces look 1
+
+
+# ------------------------------------------------------------------------------------------------ export replay (§8)
+class ExportCheck(unittest.TestCase):
+    """Item 10: the history check replays the detector on the export and requires the logged events; a difference inside
+    an event span is tolerated only when it changes no decision field and no trade; every difference is reported."""
+
+    def setUp(self):
+        self.d, self.seal = canary_root()
+        self.ev = canary_events(self.d)["XAGUSD"]
+        self.k = self.ev["store_index"]                                  # the spring bar is the signal bar (2092)
+
+    def edit(self, fn, d=None):
+        edit_history(d or self.d, "XAGUSD", lambda cs, doc: fn({c["time"]: c for c in cs}))
+
+    def test_a_harmless_difference_inside_an_events_span_is_reported_and_not_invalid(self):
+        sig, far = canary_t(self.k), canary_t(self.k - 250)
+        self.edit(lambda m: (m[sig].update(close=m[sig]["close"] + 0.01), m[far].update(high=m[far]["high"] + 0.0001)))
+        out = read(self.d, self.seal)
+        h = out["history_check"]["XAGUSD"]
+        self.assertEqual([(x["t"], x["kind"], x["fields"], x["spans"], x["revised"]) for x in h["differences"]],
+                         [(far, "price", ["h"], [self.ev["id"]], False), (sig, "price", ["c"], [self.ev["id"]], False)])
+        self.assertEqual((h["span_differences"], h["revised_differences"]), (2, 0))
+        self.assertEqual((h["replay"]["ok"], h["replay"]["only_in_export"], h["replay"]["only_in_log"],
+                          h["replay"]["changed"], h["walks"]["differ"]), (True, [], [], [], 0))
+        self.assertEqual((out["sample"], out["verdict"]["label"]), (10, "CONTINUE"))     # not INVALID: the look runs
+        self.assertIsNone(WF.history_problem(h))
+
+    def test_a_difference_in_a_bar_the_store_or_the_export_lacks_is_reported_by_kind(self):
+        gone = canary_t(self.k - 40)
+        d, seal = canary_root()
+        edit_history(d, "XAGUSD", lambda cs, doc: cs.__setitem__(slice(None), [c for c in cs if c["time"] != gone]))
+        bars, _h = WF.read_chain(WF._rt(d, "bars", "XAGUSD.15m.jsonl"))
+        S = WF.series_of("XAGUSD", bars)
+        h = WF.history_check("XAGUSD", bars, S, WF._utc(seal["instant"]), WF.canary_plan(seal)[0][0], 96, d,
+                             [(self.ev["id"], self.k - 299, self.k + 97)])
+        self.assertEqual([(x["t"], x["kind"], x["spans"]) for x in h["differences"]],
+                         [(gone, "export_lacks", [self.ev["id"]])])
+        self.assertLess(h["coverage"], 1.0)
+
+    def test_a_difference_that_changes_a_decision_makes_the_look_invalid(self):
+        spring = canary_t(self.k)
+        self.edit(lambda m: m[spring].update(low=m[spring]["low"] - 0.5))                  # spring_low and the stop move
+        with self.assertRaises(SystemExit) as cm:
+            read(self.d, self.seal)
+        self.assertIn("the detector replayed on the export does not give the logged events", str(cm.exception))
+        self.assertIn(self.ev["id"], str(cm.exception))
+        self.assertIn("a bar difference suppressed, created or changed an event", str(cm.exception))
+
+    def test_an_export_that_suppresses_an_event_is_caught(self):
+        spring = canary_t(self.k)
+        self.edit(lambda m: m[spring].update(low=min(m[spring]["open"], m[spring]["close"])))      # no spring any more
+        with self.assertRaises(SystemExit) as cm:
+            read(self.d, self.seal)
+        self.assertIn("only in the log", str(cm.exception))
+        self.assertIn(self.ev["id"], str(cm.exception))
+
+    def test_a_store_that_suppressed_an_event_is_caught_by_the_export(self):
+        """The review's case: bars doctored BEFORE they entered the store hide an event, so the log has none and no span
+        exists. One bar differs from the true export, which the old check (agreement >= 0.99, spans of logged events
+        only) passed. The detector replayed on the export finds the event the log lacks."""
+        spring = canary_t(self.k)
+
+        def hide(root):
+            self.edit(lambda m: m[spring].update(low=min(m[spring]["open"], m[spring]["close"])), d=root)
+        d, seal = fresh_canary(hide)
+        self.assertNotIn("XAGUSD", canary_events(d))                                        # the doctored store: no event
+        WF.canary_data(d)                                                                   # the later export is the truth
+        bars, _h = WF.read_chain(WF._rt(d, "bars", "XAGUSD.15m.jsonl"))
+        h = WF.history_check("XAGUSD", bars, WF.series_of("XAGUSD", bars), WF._utc(seal["instant"]),
+                             WF.canary_plan(seal)[0][0], 96, d, ())
+        self.assertGreaterEqual(h["agreement"], WF.HIST_AGREE_MIN)                          # the old rule's tests pass
+        self.assertEqual((h["span_differences"], len(h["differences"])), (0, 1))
+        self.assertIsNone(WF.history_problem(h))
+        with self.assertRaises(SystemExit) as cm:
+            read(d, seal)
+        self.assertIn("only in the export", str(cm.exception))
+        self.assertIn("XAGUSD|15m|", str(cm.exception))
+
+    def test_a_difference_that_changes_a_trade_makes_the_look_invalid_after_its_attempt(self):
+        """The exit bar of the event's trade lies after the look's cutoff, so no decision can change -- only the walk
+        does. That is an OUTCOME comparison, so it runs after the look-attempt record: the look is spent."""
+        log, _ = WF.read_chain(WF._rt(self.d, "log.jsonl"))
+        (rs,) = [r for r in log if r["kind"] == "resolve" and r["symbol"] == "XAGUSD"]
+        exit_t = rs["exit_time"]
+        self.assertGreater(WF._utc(exit_t), WF.canary_plan(self.seal)[0][0])
+        self.edit(lambda m: m[exit_t].update(open=100.0, high=100.0, low=100.0, close=100.0))     # the target is not hit
+        done = []
+        with self.assertRaises(SystemExit) as cm:
+            read(self.d, self.seal, attempt=lambda info: done.append(WF.append_attempt(
+                self.d, self.seal, "fp", 1, WF.LOOK_OUT[1], info, "2026-07-02T00:00:00Z")))
+        self.assertIn("walked on the history export differs from the store's (XAGUSD: 1 trade(s))", str(cm.exception))
+        self.assertEqual(len(done), 1)                                  # the attempt was recorded before the comparison
+        with self.assertRaises(SystemExit) as cm:
+            WF.require_no_attempt(self.d, 1)
+        self.assertIn("already attempted", str(cm.exception))
+
+
+# ------------------------------------------------------------------------------------------------ look attempts (§7)
+class LookAttempts(unittest.TestCase):
+    """Item 9: a chained look-attempt record is appended before the first outcome is computed; a second attempt of the
+    same look refuses even when the first one's output file is gone."""
+
+    def hook(self, d, seal, look=1, flag=None):
+        def attempt(info):
+            if flag is not None:
+                flag["done"] = True
+            return WF.append_attempt(d, seal, "fp", look, WF.LOOK_OUT[look], info, "2026-07-02T00:00:00Z")
+        return attempt
+
+    def test_the_attempt_comes_before_any_outcome_and_a_second_attempt_refuses_though_no_file_exists(self):
+        d, seal = canary_root()
+        flag = {"done": False}
+
+        def guard(real):
+            def wrapped(*a, **k):
+                if not flag["done"]:
+                    raise AssertionError("an outcome was computed before the look-attempt record")
+                return real(*a, **k)
+            return wrapped
+        with mock.patch.object(E, "walk_from", guard(E.walk_from)), mock.patch.object(E, "score", guard(E.score)), \
+                mock.patch.object(E, "Pricer", guard(E.Pricer)):
+            out = read(d, seal, attempt=self.hook(d, seal, 1, flag))
+        self.assertTrue(flag["done"])
+        log, heads = WF.read_chain(WF._rt(d, "log.jsonl"))
+        (att,) = WF.look_attempts(log)
+        self.assertEqual((att["kind"], att["look"], att["out"], att["seal"], att["fingerprint"]),
+                         ("look_attempt", 1, WF.LOOK_OUT[1], seal["sha"], "fp"))
+        self.assertEqual((att["symbols_read"], att["symbols_dropped"], att["cutoff"]),
+                         (list(WF.SYMBOLS), [], out["cutoff"]["cutoff"]))
+        self.assertEqual(att["exports"], {s: canary_t(WF.CANARY_HIST_END) for s in WF.SYMBOLS})
+        self.assertEqual(out["attempt"]["ch"], heads[-1])                  # chained: the log's last record
+        self.assertFalse(os.path.exists(os.path.join(d, WF.LOOK_OUT[1])))  # no output file was ever written ...
+        for call in (lambda: WF.require_no_attempt(d, 1),
+                     lambda: WF.append_attempt(d, seal, "fp", 1, WF.LOOK_OUT[1], {}, "t")):
+            with self.assertRaises(SystemExit) as cm:
+                call()                                                     # ... and the look still refuses
+            self.assertIn("already attempted", str(cm.exception))
+        WF.require_no_attempt(d, 2)                                       # look 2 is not blocked by look 1's attempt
+        WF.append_attempt(d, seal, "fp", 2, WF.LOOK_OUT[2], {"cutoff": "x"}, "t")
+        with self.assertRaises(SystemExit):
+            WF.require_no_attempt(d, 1)                                    # a later look ran: look 1 can never run
+        with self.assertRaises(SystemExit):
+            WF.require_no_attempt(d, 2)
+        # a cycle and the next look still read the log (the attempt records are part of its chain and stamps)
+        res = WF.cycle_core(d, seal, "fp", "2026-07-03T00:00:00Z", init_root=d)
+        self.assertEqual(res["summary"]["new_events"], 0)
+
+    def test_a_look_that_refuses_after_its_attempt_never_runs_again_and_status_says_so(self):
+        d, seal = canary_root()
+        real = E.score
+
+        def drift(*a, **k):
+            r, why = real(*a, **k)
+            return (dict(r, R=r["R"] + 1e-6), why) if r else (r, why)
+        with self.assertRaises(SystemExit) as cm:
+            read(d, seal, score_fn=drift, attempt=self.hook(d, seal))
+        self.assertIn("disagree with their logged resolve", str(cm.exception))
+        with self.assertRaises(SystemExit) as cm:
+            WF.require_no_attempt(d, 1)
+        self.assertIn("already attempted", str(cm.exception))
+        with mock.patch.object(WF, "seal_info", lambda root=None: dict(seal, date="x")), \
+                mock.patch.object(WF, "committed_anchors", lambda root: []):
+            st = WF.status(d, now=canary_t(len(WF.canary_bars(0)) + 4))
+        self.assertEqual((st["rule"]["spent_without_record"], st["rule"]["read_due"]), (["1"], False))
+        self.assertIn("1", st["rule"]["attempted"])
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            WF._print_status(st)
+        self.assertIn("look 1 was attempted without a record on disk: it never runs again", buf.getvalue())
+
+    def test_a_look_that_refuses_before_its_checks_pass_leaves_no_attempt_and_may_run_later(self):
+        d, seal = canary_root()
+        edit_history(d, "XAGUSD", lambda cs, doc: doc.update(_exported_at_utc=canary_t(2150)))      # an early export
+        with self.assertRaises(SystemExit):
+            read(d, seal, attempt=self.hook(d, seal))
+        self.assertEqual(WF.look_attempts(WF.read_chain(WF._rt(d, "log.jsonl"))[0]), [])
+        edit_history(d, "XAGUSD", lambda cs, doc: doc.update(_exported_at_utc=canary_t(WF.CANARY_HIST_END)))
+        out = read(d, seal, attempt=self.hook(d, seal))                                               # the right one
+        self.assertEqual(out["sample"], 10)
+        self.assertEqual(len(WF.look_attempts(WF.read_chain(WF._rt(d, "log.jsonl"))[0])), 1)
+
+
+# ------------------------------------------------------------------------------------------------ the type-I error (§7, §11)
+class TypeOneError(unittest.TestCase):
+    """Item 6: the boundaries are exact for normal z statistics (`TwoLooks`); the REGISTERED statistic (CR1 by ISO week,
+    a Student-t p applied as a nominal threshold) is not exactly alpha under same-week clustering, heavy tails or left
+    skew. A reduced version of the review's simulation, and the draft's disclosure of its numbers."""
+
+    @staticmethod
+    def value(rnd, dist):
+        if dist == "normal":
+            return rnd.gauss(0.0, 2.2)
+        if dist == "left":                      # R:R 0.5: win 0.5 w.p. 2/3, lose 1 w.p. 1/3 -- mean 0, left-skewed
+            return 0.5 if rnd.random() < 2 / 3 else -1.0
+        raise ValueError(dist)
+
+    @staticmethod
+    def p_one(vals, weeks):
+        mu, se, df = E.EC.cr1(vals, weeks)
+        return mu, (1.0 if not se else E.EC.t_sf(mu / se, df))
+
+    def rate(self, reps, seed, dist, burst_p, rho):
+        """Share of null runs that PASS at either look: 14 events a year for three years (Poisson), `burst_p` of them in
+        same-week bursts of 2-4 whose values share a common draw with probability `rho`; the production boundaries and
+        pass test (`look1_boundary`, `look2_boundary`, `crossed`), the production CR1 / Student-t p."""
+        rnd, hits, cache = random.Random(seed), 0, {}
+        for _ in range(reps):
+            ev = []                                                         # (ISO week, value, in look 1)
+            for t0, t1 in ((0.0, 52.0), (52.0, 156.0)):
+                lam = 14 * (t1 - t0) / 52.0
+                for _i in range(poisson(rnd, lam * (1 - burst_p))):
+                    w = rnd.uniform(t0, t1)
+                    ev.append((int(w), self.value(rnd, dist), w < 52.0))
+                for _i in range(poisson(rnd, lam * burst_p / 3.0)):
+                    w, common = rnd.uniform(t0, t1), self.value(rnd, dist)
+                    for _j in range(rnd.choice((2, 3, 4))):
+                        ev.append((int(w), common if rnd.random() < rho else self.value(rnd, dist), w < 52.0))
+            e1 = [(w, v) for w, v, first in ev if first]
+            n1, n2 = len(e1), len(ev)
+            b1 = WF.look1_boundary(n1)
+            if n1:
+                mu, p = self.p_one([v for _w, v in e1], [w for w, _v in e1])
+                if WF.crossed({"n": n1, "net_excess": mu, "p_one_sided": p}, b1):
+                    hits += 1
+                    continue
+            if (n1, n2) not in cache:
+                cache[(n1, n2)] = WF.look2_boundary(b1, n2, n1)
+            if n2:
+                mu, p = self.p_one([v for _w, v, _f in ev], [w for w, _v, _f in ev])
+                hits += WF.crossed({"n": n2, "net_excess": mu, "p_one_sided": p}, cache[(n1, n2)])
+        return hits / reps
+
+    def test_the_registered_statistic_is_near_alpha_on_iid_normal_values_and_above_it_under_clustering_and_left_skew(self):
+        reps = 4000
+        normal = self.rate(reps, 20261004, "normal", 0.0, 0.0)
+        self.assertLess(abs(normal - WF.ALPHA), 0.017, normal)                           # the review: 0.1025
+        clustered = self.rate(reps, 20261004, "normal", 0.4, 0.6)
+        self.assertGreater(clustered, 0.10, clustered)                                   # the review: 0.111
+        left = self.rate(reps, 20261004, "left", 0.0, 0.0)
+        self.assertGreater(left, 0.105, left)                                            # the review: 0.122
+        left_clustered = self.rate(reps, 20261004, "left", 0.4, 0.6)
+        self.assertGreater(left_clustered, 0.115, left_clustered)                        # the review: 0.136
+
+    def test_the_draft_discloses_the_simulated_inflation_and_no_longer_claims_exactly_alpha(self):
+        path = os.path.join(ROOT, WF.PREREG_DRAFT)
+        if not os.path.exists(path):
+            self.skipTest("the draft was retired after the seal; the sealed file carries the text")
+        text = open(path, encoding="utf-8").read()
+        for number in ("0.1025", "0.111", "0.113", "0.122", "0.136", "0.077", "0.074", "0.008"):
+            self.assertIn(number, text, number)                                          # the review's simulated rates
+        for stale in ("So the false-pass probability over both looks is exactly 0.10 for any n1 and n2",
+                      "a fluke reaches about 1 time in 230",
+                      "Simulated: 0.100-0.101 on normal values, conservative on skewed R values"):
+            self.assertNotIn(stale, text, stale)
+        for word in ("same-week", "heavy tails", "left-skewed"):
+            self.assertIn(word, text, word)
 
 
 if __name__ == "__main__":

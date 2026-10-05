@@ -31,9 +31,14 @@ How it stays point in time and tamper-evident without freezing the repository:
   than the bar inputs and its own output directories) writes nothing.
 - Bars (§4). One append-only, hash-chained 15m store per symbol. It is fed by the bridge's 15m file and the FTMO history
   export. Closed bars only. Times are snapped to the 15-minute grid (the v1.02 bridge stamps them +-1 s). A source appends
-  only when it holds the store's last bars at the same prices: a gap, a revised bar or a shifted clock appends nothing.
-  A missing or unusable live file is STALLED, never an empty market: nothing is appended from it, the symbol is listed
-  as stalled, and its store does not advance, so no look can count it complete (CLAUDE.md §20: MISSING is not EMPTY).
+  only when it holds the store's last bars and is ALIGNED with the store (`plan_append`): most of the store's last day
+  that it holds carries the same prices. A bar it shows at another price is a REVISION: the store keeps the bar as first
+  stored (decisions and resolves stay point in time), the new bars are appended, and a chained revision record (old and
+  new prices) goes to the log; every look reports them. A gap, a hole or a shifted clock (most bars differ) appends
+  nothing and says why. A missing or unusable live file is STALLED, never an empty market: nothing is appended from it
+  and the symbol is listed as stalled (CLAUDE.md §20: MISSING is not EMPTY). A store that does not advance while its live
+  file exists, or a stale live file, is NOT ADVANCING (`status`, the cycle summary), with the reason and the store's last
+  bar. A history export bridges a hole or a stalled feed; the events it uncovers are logged late and disclosed.
 - Torn writes (§4). A chain line ends with a newline. A worker killed during `commit` can leave an UNTERMINATED last
   line, which was never part of the chain: the read and `anchor` refuse it, nothing is appended after it, and the next
   cycle drops it -- only it, never a terminated line, never under a live writer's lock -- after logging the bytes in
@@ -46,20 +51,31 @@ How it stays point in time and tamper-evident without freezing the repository:
   the planned R:R, the entry-hour spread and the ICT HTF gate flag at the signal (backtest-methods.htf_bias_gate, as
   the ablation's A3 arm applies it), all from bars the resolve already uses. They never reach `status` or a cycle
   summary. No command prints an outcome before a look.
-- Read (§7, §8): two looks, at LOOK_MONTHS after the seal, on data complete for every symbol (a symbol still stalled
-  GRACE_MONTHS after a look's cutoff is dropped whole from that look); refused before. Lan-DeMets O'Brien-Fleming-type
-  alpha spending, one-sided ALPHA in total, the boundaries from the looks' ACTUAL event counts (`look1_boundary`,
+- Read (§7, §8): two looks, at LOOK_MONTHS after the seal. Every look needs a FTMO history export of ALL 10 symbols
+  taken after its cutoff + 96 bars, absorbed by a cycle (`export_problems`): a symbol complete through the cutoff is read
+  (events the export uncovered are late-logged and disclosed); otherwise the look waits, and from GRACE_MONTHS after the
+  cutoff, if at least DROP_MIN_COMPLETE symbols are complete, the rest are dropped whole. Lan-DeMets O'Brien-Fleming-
+  type alpha spending, one-sided ALPHA in total, the boundaries from the looks' ACTUAL event counts (`look1_boundary`,
   `look2_boundary`). PASS iff net excess > 0 and the look's boundary is crossed; NOT PASSED only at look 2. A look 1
-  that does not cross writes a BLINDED record (no estimate, only the sha256 of its statistic) and look 2 recomputes and
-  verifies it. Each look runs in a FRESH extract, checks the extract's fingerprint against the seal commit's, and the
-  anchors against git history. It replays every window and checks the replay against the log. It runs the truncation
-  probe and checks the bars against a later history export, both ways. Then it measures with the sealed re-test's §5
-  (edge_wyckoff.score / summarise).
-- Never due (§7): if look 2 is still not due NEVER_DUE_MONTHS after the seal, WY-F1 closes with no verdict (the
-  coordinator records it; `status` shows the date).
+  that does not cross writes a BLINDED record (`blind`: no estimate, no resolve count, only the sha256 of its statistic)
+  and look 2 recomputes and verifies it. Each look runs in a FRESH extract, checks the extract's fingerprint against the
+  seal commit's, and the anchors against git history. It replays every window and checks the replay against the log. It
+  runs the truncation probe and checks the bars against the export both ways, replaying the detector on the export
+  (`export_replay`). Only then, after a chained look-attempt record in the log (a look runs ONCE, even if its file is
+  lost), does it compute an outcome: the export's walks, then the sealed re-test's §5 (edge_wyckoff.score / summarise).
+- Never due (§7): if look 2 is still not due NEVER_DUE_MONTHS after the seal, WY-F1 closes with no verdict. That close
+  is PROCEDURAL: the coordinator records it (`status` shows the date); the code does not refuse a later look.
 - Interpreter (§5): the fingerprint pins the Python it was made with, by a stable versioned path (python3.14 outside
   Homebrew's Cellar, no patch release in it); every worker runs under it. A patch upgrade keeps collecting; another
   minor version refuses every cycle, recorded as a failure. The read's canary refuses any numeric change.
+- Numbers (§5): Python's math module takes erfc, exp, log, lgamma, sin and asin from the OS library, which a macOS update
+  may move by an ulp; pinning Python does not pin it. So rows, counts and labels -- the detector, the walk, the placebo
+  and the cost use no OS math function -- are hashed exactly, and a derived float (a p, a bound, a boundary, rho) enters
+  a hash or a comparison rounded to SIG_DIGITS significant digits (`sig10`); one within TIE_REL of a rounding midpoint
+  verifies under either rounding (`tie_variants`). Look 1's boundary is re-checked with math.isclose.
+- Time zone (§5): server days, slots and cost hours use America/New_York's DST instants from the OS time-zone database.
+  The fingerprint records the instants 2025-2030 as computed at the seal (`tz_pin`); every cycle and look refuses when
+  this system computes others.
 - Off the live path (§12): `spawn` starts `cycle` in its own session and returns at once, so research never delays the
   next cycle's demo ticks (CLAUDE.md §40). The previous cycle's failure is reported in the cycle log.
 
@@ -76,6 +92,7 @@ import hashlib
 import importlib.util
 import inspect
 import io
+import itertools
 import json
 import math
 import os
@@ -151,16 +168,38 @@ LOG_ONLY_KEYS = ("planned_rr", "spread_r_entry", "mfe_r", "mae_r", "bars_to_mfe"
 HTF_METHODS = ("ict",)
 WARMUP_DAYS = 90            # store bars before the seal: >= 60 dense-rule days + one 300-bar window + the dedup context
 SNAP_TOL_S = 60             # a source time more than this off the 15-minute grid refuses the source
-OVERLAP_BARS = 4            # a source appends only if it holds the store's last bars (up to this many) at the same prices
+OVERLAP_BARS = 4            # a source appends only if it holds the times of the store's last bars (up to this many)
+#: §4 alignment (decision 2026-10-04, lead): of the store's last ALIGN_BARS bars (one day) that a source holds, at least
+#: ALIGN_MIN and at least half must carry the same prices; the others are REVISIONS (logged, the store keeps its bars).
+#: A shifted clock or another series disagrees on nearly every bar and appends nothing.
+ALIGN_BARS, ALIGN_MIN = 96, 4
 PRICE_DP = 8                # price comparison precision (sources print 2-5 decimals)
+#: §4 NOT ADVANCING (decision 2026-10-04, lead): a live file whose newest closed bar is older than this before the cycle
+#: (or `status`) is stale -- the EA may have stopped. A weekend is about 49 hours; a long holiday can show here.
+STALE_LIVE_HOURS = 72
 HIST_COVER_MIN, HIST_AGREE_MIN = 0.95, 0.99   # §8: the read's check of the forward bars against a later history export
 #: §8: the most of the export's bars inside the checked window that the store may lack (MISSING is not EMPTY, CLAUDE.md
-#: §20). Inside every sampled event's span (its window to the end of its longest walk) the two must be identical.
+#: §20). Inside a sampled event's span (its window to the end of its longest walk) a difference is tolerated only when
+#: it changes no decision field and no walk (`export_replay`, `export_walks`); every difference is reported.
 HIST_MISSING_MAX = 0.01
-#: §7 fallback, per look (decision 2026-10-04, option A): once any symbol is complete through GRACE_MONTHS after a look's
-#: cutoff, a symbol still not complete through that cutoff is dropped WHOLE from that look (every event of it, before any
-#: outcome is computed). None = no fallback (the look stays not due; §7 closes the study NEVER_DUE_MONTHS after the seal).
+#: §7 fallback, per look (decisions 2026-10-04: option A; lead: the minimum below): once any symbol is complete through
+#: GRACE_MONTHS after a look's cutoff and at least DROP_MIN_COMPLETE of the 10 are complete through the cutoff, a symbol
+#: still not complete through it -- after the look's export of all 10 symbols (`export_problems`) -- is dropped WHOLE
+#: from that look (every event of it, before any outcome is computed). Fewer complete: the look waits. None = no
+#: fallback (the look stays not due; §7 closes the study NEVER_DUE_MONTHS after the seal, by procedure).
 GRACE_MONTHS = 3
+DROP_MIN_COMPLETE = 5
+#: §5 numbers (decision 2026-10-04, lead): a derived float enters a hash, a commitment or a comparison rounded to
+#: SIG_DIGITS significant digits (`sig10`); a float within TIE_REL (relative) of a rounding midpoint verifies under either
+#: rounding (`tie_variants`, at most TIE_CAP such floats in one body). Look 2 re-checks look 1's boundary within
+#: BOUNDARY_REL_TOL (math.isclose).
+SIG_DIGITS = 10
+TIE_REL = 1e-12
+TIE_CAP = 12
+BOUNDARY_REL_TOL = 1e-9
+#: §5 time zone (decision 2026-10-04, lead): the DST instants the fingerprint pins and every cycle and look recomputes.
+TZ_PIN_ZONE = "America/New_York"
+TZ_PIN_YEARS = (2025, 2030)
 #: The cycle worker's cap. `spawn` runs it detached from scripts/forward_cycle.py, so it no longer delays a tick; the cap
 #: stops a hung worker from holding the lock.
 WORKER_TIMEOUT_S = 120
@@ -182,6 +221,10 @@ DECISION_KEYS = ("id", "symbol", "tf", "cell", "leg", "side", "type", "sc_time",
                  "signal_time", "signal_close", "store_index", "tr_lo", "tr_hi", "ceiling", "spring_low", "stop", "target",
                  "phase_b_tests", "sloped", "path", "prev_dense", "atr", "window_first", "window_sha256",
                  "chain_at_signal")
+#: The decision fields without the store's provenance (its line index, the window's first bar time and hash, the chain
+#: hash): what the detector decided. The export replay must give these for every event (`export_replay`).
+DECISION_VALUE_KEYS = tuple(k for k in DECISION_KEYS
+                            if k not in ("store_index", "window_first", "window_sha256", "chain_at_signal"))
 GENESIS = hashlib.sha256(STUDY.encode()).hexdigest()
 
 
@@ -235,6 +278,90 @@ def add_months(d, n):
 
 def _rt(data_root, *parts):
     return os.path.join(data_root, RUNTIME, *parts)
+
+
+# ------------------------------------------------------------------------------------------------ numbers (WY-F1 §5)
+def sig10(x):
+    """`x` rounded to SIG_DIGITS (10) significant digits: Python's own float formatting ('%.9e', correctly rounded,
+    round-half-even on the exact binary value; CPython's dtoa, never the OS library), parsed back. The same double gives
+    the same result on every platform. None, bools, ints and non-finite values pass through. It is how a DERIVED float
+    -- one that went through an OS math function -- enters a hash, a commitment or a comparison. [WY-F1 §5]"""
+    if isinstance(x, float) and math.isfinite(x):
+        return float(f"{x:.{SIG_DIGITS - 1}e}")
+    return x
+
+
+def _json(obj):
+    """`obj` as plain JSON values (tuples -> lists, other types -> str), as a record holds it."""
+    return json.loads(json.dumps(obj, default=str))
+
+
+def rounded(obj):
+    """`obj` (JSON values) with every float rounded by `sig10`. [WY-F1 §5]"""
+    if isinstance(obj, dict):
+        return {k: rounded(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [rounded(v) for v in obj]
+    return sig10(obj)
+
+
+def _tie_pair(x):
+    """The two 10-digit roundings of a float that lies within TIE_REL of the midpoint between them (a last-ulp
+    difference in the OS math library could have given either), else None. About 1 float in 130 is such a float.
+    [WY-F1 §5]"""
+    if not isinstance(x, float) or not math.isfinite(x) or x == 0.0:
+        return None
+    a, b = sig10(x * (1.0 - TIE_REL)), sig10(x * (1.0 + TIE_REL))
+    return (a, b) if a != b else None
+
+
+def tie_variants(obj, cap=TIE_CAP):
+    """Every `rounded(obj)` that a last-ulp difference in its floats could have produced: one, unless some float lies
+    within TIE_REL of a rounding midpoint (`_tie_pair`); then each such float takes either rounding (2^k variants).
+    A drift of up to TIE_REL (about 4,500 ulps) can never change a rounding the variants do not cover. Refuses more than
+    `cap` such floats (expected: about 0.25 in a look's summary, about 1 in the canary's derived part). [WY-F1 §5]"""
+    obj = _json(obj)
+    ties = []
+
+    def walk(x, path):
+        if isinstance(x, dict):
+            for k in sorted(x):
+                walk(x[k], path + (k,))
+        elif isinstance(x, list):
+            for i, v in enumerate(x):
+                walk(v, path + (i,))
+        else:
+            p = _tie_pair(x)
+            if p:
+                ties.append((path, p))
+    walk(obj, ())
+    if len(ties) > cap:
+        raise SystemExit(f"refusing: {len(ties)} derived floats lie within {TIE_REL} of a 10-digit rounding midpoint "
+                         f"(at most {cap}) [WY-F1 §5]")
+    base = rounded(obj)
+    out = []
+    for pick in itertools.product((0, 1), repeat=len(ties)):
+        v = json.loads(json.dumps(base))
+        for (path, pair), j in zip(ties, pick):
+            node = v
+            for key in path[:-1]:
+                node = node[key]
+            node[path[-1]] = pair[j]
+        out.append(v)
+    return out
+
+
+def split_sha256(exact, derived):
+    """sha256 of a body whose `exact` part (rows, counts, labels, bar records) is hashed as it is and whose `derived`
+    part (summaries, boundaries) is rounded by `sig10`: the digest a fingerprint or a look commits to. [WY-F1 §5]"""
+    return hashlib.sha256(_canon({"exact": _json(exact), "derived": rounded(_json(derived))}).encode()).hexdigest()
+
+
+def split_digests(exact, derived):
+    """Every digest `split_sha256(exact, derived)` could have had under a last-ulp difference in a derived float
+    (`tie_variants`): a committed digest verifies iff it is one of them. The exact part never varies. [WY-F1 §5]"""
+    ex = _json(exact)
+    return {hashlib.sha256(_canon({"exact": ex, "derived": v}).encode()).hexdigest() for v in tie_variants(derived)}
 
 
 _EW = {}
@@ -611,52 +738,126 @@ def plan_init(source, seal_instant, at, warmup_days=WARMUP_DAYS):
 
 
 def plan_append(store, source, src, at):
-    """(bars to append, why-not or None) from one source: its closed bars after the store's last bar, but only when the
-    source holds the store's last OVERLAP_BARS bars (those inside its span) at the same prices. Contiguity is proven.
-    A source that is behind appends nothing silently. A gap, a revised bar or a shifted clock (the v1.02 bridge after a
-    DST change) appends nothing and says why. [WY-F1 §4]"""
+    """(bars to append, why-not or None, revisions) from one source: its closed bars after the store's last bar, but only
+    when the source holds the store's last bar and the times of its last OVERLAP_BARS bars (those inside the source's
+    span), and is ALIGNED: it agrees on every bar it holds of the store's last ALIGN_BARS, or, where some differ, on at
+    least ALIGN_MIN of them and on at least as many as differ. A bar it holds at another price is a REVISION, returned
+    as (store bar, source bar): the store keeps
+    its bar as first stored (point in time), the new bars are appended, and the caller logs the revision -- so a bar the
+    broker revised after it was stored never stops a store (the old rule appended nothing until the bar left the
+    overlap, which no later source let happen). A source that is behind appends nothing silently. A hole, a gap, or a
+    shifted clock or another series (the v1.02 bridge after a DST change: nearly every bar differs) appends nothing and
+    says why. [WY-F1 §4]"""
     if not store or not source or source[-1]["t"] <= store[-1]["t"]:
-        return [], None
+        return [], None, []
     last = store[-1]["t"]
     by_t = {b["t"]: b for b in source}
     if last not in by_t:
         if source[0]["t"] > last:
-            return [], f"hole: the store ends {last}, the {src} source starts {source[0]['t']} (re-export the history)"
-        return [], f"the {src} source lacks the store's last bar {last}"
-    tail = [b for b in store[-OVERLAP_BARS:] if b["t"] >= source[0]["t"]]
-    bad = [b["t"] for b in tail if b["t"] not in by_t or not same(b, by_t[b["t"]])]
-    if bad:
-        return [], f"the {src} source disagrees with the store at {bad[0]} (a revised bar or a shifted clock)"
-    return [dict(b, src=src, at=at) for b in source if b["t"] > last], None
+            return [], f"hole: the store ends {last}, the {src} source starts {source[0]['t']} (re-export the history)", []
+        return [], f"the {src} source lacks the store's last bar {last}", []
+    gap = [b["t"] for b in store[-OVERLAP_BARS:] if b["t"] >= source[0]["t"] and b["t"] not in by_t]
+    if gap:
+        return [], f"the {src} source lacks the store's bar {gap[0]} (a gap or a shifted clock)", []
+    held = [b for b in store[-ALIGN_BARS:] if b["t"] in by_t]
+    bad = [b for b in held if not same(b, by_t[b["t"]])]
+    if bad and (len(held) - len(bad) < ALIGN_MIN or len(bad) > len(held) - len(bad)):
+        return [], (f"the {src} source disagrees with the store on {len(bad)} of the {len(held)} bars it holds of the "
+                    f"store's last day, first {bad[0]['t']} (a shifted clock or another series; revisions need at "
+                    f"least {ALIGN_MIN} agreeing bars and at most as many differing ones)"), []
+    return [dict(b, src=src, at=at) for b in source if b["t"] > last], None, [(b, by_t[b["t"]]) for b in bad]
 
 
-def accumulate_symbol(sym, store, data_root, init_root, seal, at):
-    """(bars to append, notes, stalled): an empty store starts from the sealed history (`init_root`, the extract);
-    then the live file appends, and the history export under `data_root` is read only when the live file does not
-    connect (a hole after downtime, or a shifted clock) -- then the live file is tried again. `stalled` is True when
-    the live file is missing or unusable (`live_source`): a history export may still bridge bars, but the feed is down.
+def _stale(live, now):
+    """Why the live file is stale -- its newest closed bar closed more than STALE_LIVE_HOURS before `now` -- or None.
     [WY-F1 §4]"""
-    notes, add, cur = [], [], list(store)
+    try:
+        t_now = _utc(now)
+    except (AttributeError, TypeError, ValueError):     # not a time (a test's stand-in stamp): nothing to judge
+        return None
+    if not live:
+        return None
+    age = (t_now - _utc(live[-1]["t"]) - datetime.timedelta(minutes=MINUTES)).total_seconds() / 3600.0
+    if age <= STALE_LIVE_HOURS:
+        return None
+    return (f"the live 15m file is stale: its newest closed bar {live[-1]['t']} closed {age:.0f} h before {now} (the EA "
+            f"may have stopped; a weekend or holiday can show here)")
+
+
+def history_ahead(root, sym, last_t):
+    """Can the history export under `root` hold a bar after `last_t`? A split series says so in its small index.json
+    (`last`), read before any year part is parsed; a one-file series is read anyway (False only when it is missing).
+    [WY-F1 §4]"""
+    import history_store as HS
+    path, shape = HS.resolve(sym, TF, root=os.path.join(root, HIST_DIR))
+    if shape is None:
+        return False
+    if shape == "file":
+        return True
+    try:
+        last = _read_json(os.path.join(path, "index.json")).get("last")
+    except (OSError, ValueError):
+        return True
+    return not isinstance(last, str) or last > last_t
+
+
+def accumulate_symbol(sym, store, data_root, init_root, seal, at, now=None):
+    """What one cycle adds to a store: {"add": bars, "notes": [...], "stalled": bool, "revisions": [(store bar, source
+    bar, src)], "not_advancing": why or None, "last": the store's last bar after the cycle}. An empty store starts from
+    the sealed history (`init_root`, the extract); then the live file appends; and the history export under `data_root`
+    is read whenever the live file gave no new bar (a hole after downtime, a shifted clock, a stale or stopped feed, a
+    missing file): it bridges the bars the live file does not bring, and the live file is then tried again.
+    - `stalled`: the live file is missing or unusable (`live_source`); a history export may still bridge bars.
+    - `not_advancing` (the live file exists): the store took no bar from any source (the bars an empty store starts
+      from do not count) although the live file holds bars after its last one (plan_append's reason), or the live file
+      is stale (`_stale`, against `now`, default `at`) -- each with the store's last bar. [WY-F1 §4]"""
+    now = now or at
+    notes, add, cur, revs = [], [], list(store), []
     if not cur:
         src, note = history_source(init_root, sym, since=_iso(_utc(seal["instant"])
                                                                - datetime.timedelta(days=WARMUP_DAYS)))
         cur = plan_init(src, seal["instant"], at)
         add += cur
         if not cur:
-            return [], [note or f"{sym}: no sealed history to start the store from"], True
+            return {"add": [], "notes": [note or f"{sym}: no sealed history to start the store from"], "stalled": True,
+                    "revisions": [], "not_advancing": None, "last": None}
+    n_init = len(add)                       # the bars the store starts from are not an advance
     live, lnote = live_source(data_root, sym)
-    new, why = plan_append(cur, live, "live", at)
-    if new or (live and live[-1]["t"] <= cur[-1]["t"]):
-        return add + new, notes, False
-    hist, hnote = history_source(data_root, sym, since=cur[max(0, len(cur) - OVERLAP_BARS)]["t"])
-    hnew, hwhy = plan_append(cur, hist, "history", at)
+    new, why, rv = plan_append(cur, live, "live", at)
+    revs += [(a, b, "live") for a, b in rv]
+    if new:
+        cur, add = cur + new, add + new
+        return {"add": add, "notes": notes, "stalled": False, "revisions": revs, "last": cur[-1]["t"],
+                "not_advancing": None}
+    if history_ahead(data_root, sym, cur[-1]["t"]):
+        hist, hnote = history_source(data_root, sym, since=cur[max(0, len(cur) - ALIGN_BARS)]["t"])
+    else:
+        hist, hnote = [], None
+    hnew, hwhy, hrv = plan_append(cur, hist, "history", at)
+    revs += [(a, b, "history") for a, b in hrv]
     cur, add = cur + hnew, add + hnew
-    new2, why2 = plan_append(cur, live, "live", at)
-    add += new2
+    new2, why2, rv2 = plan_append(cur, live, "live", at)
+    revs += [(a, b, "live") for a, b in rv2]
+    cur, add = cur + new2, add + new2
     for msg in (lnote, why if not hnew else None, hnote if not hnew else None, hwhy, why2 if hnew else None):
         if msg:
             notes.append(msg if msg.startswith(sym) else f"{sym}: {msg}")
-    return add, notes, live is None
+    stuck = None
+    if live is not None and len(add) == n_init:
+        stuck = why if live[-1]["t"] > cur[-1]["t"] else _stale(live, now)
+    return {"add": add, "notes": notes, "stalled": live is None, "revisions": revs, "last": cur[-1]["t"],
+            "not_advancing": f"{stuck}; the store's last bar is {cur[-1]['t']}" if stuck else None}
+
+
+def revision_record(sym, old, new, src, seal, fp_digest, now):
+    """The chained log record of one revised bar (WY-F1 §4): the bar as the store holds it (first stored: what every
+    decision and resolve uses) and as the source now shows it, the fields that differ, the source and when it was seen.
+    [WY-F1 §4]"""
+    def px(b):
+        return {k: b.get(k) for k in PRICE_KEYS + ("v",)}
+    return {"kind": "revision", "study": STUDY, "symbol": sym, "t": old["t"], "src": src, "store": px(old),
+            "source": px(new), "fields": [k for k in PRICE_KEYS if round(old[k], PRICE_DP) != round(new[k], PRICE_DP)],
+            "seal": seal["sha"], "fingerprint": fp_digest, "python": platform.python_version(), "seen_at": now}
 
 
 def series_of(sym, bars, dense=None):
@@ -876,10 +1077,12 @@ def resolve_record(S, rec, seal, fp_digest, now):
 # ------------------------------------------------------------------------------------------------ one cycle (in memory)
 def cycle_core(data_root, seal, fp_digest, now, only=None, init_root=None, symbols=SYMBOLS):
     """One forward cycle, computed in memory: repair (a chain's UNTERMINATED last line, left by a worker killed during
-    `commit`, is planned for `drop_torn`), accumulate (closed 15m bars into each store), scan (new windows into the
-    log), resolve (logged events whose exit is now known). Returns {"writes": [...], "summary": {...}}; nothing is
-    written here (the worker writes after its trace check). The summary never counts resolves: a resolve a few bars
-    after its entry is a stop or a target, and the summary goes to the cycle log and last_cycle.json. [WY-F1 §4, §6]"""
+    `commit`, is planned for `drop_torn`), accumulate (closed 15m bars into each store; a revised bar is logged once per
+    new price as a `revision` record, `revision_record`), scan (new windows into the log), resolve (logged events whose
+    exit is now known). Returns {"writes": [...], "summary": {...}}; nothing is written here (the worker writes after
+    its trace check). The summary lists stalled and NOT ADVANCING symbols with the reason; it never counts resolves: a
+    resolve a few bars after its entry is a stop or a target, and the summary goes to the cycle log and
+    last_cycle.json. [WY-F1 §4, §6]"""
     init_root = init_root or CODE_ROOT
     torn, kept = {}, {}
 
@@ -891,19 +1094,31 @@ def cycle_core(data_root, seal, fp_digest, now, only=None, init_root=None, symbo
     log, log_heads = chain(log_path)
     logged = {r["id"] for r in log if r["kind"] == "event"}
     resolved = {r["id"] for r in log if r["kind"] == "resolve"}
+    seen = {(r["symbol"], r["t"], _canon(r["source"])) for r in log if r["kind"] == "revision"}
     cache_path = _rt(data_root, "scan.json")
     cache = _read_json(cache_path, {}) or {}
     ctx = det_ctx() if only in (None, "scan") else None
     writes, new_log, notes = [], [], []
-    summary = {"study": STUDY, "seal": seal["sha"][:12], "added_bars": {}, "new_events": 0, "stalled": []}
+    summary = {"study": STUDY, "seal": seal["sha"][:12], "added_bars": {}, "new_events": 0, "stalled": [],
+               "not_advancing": {}, "revisions": 0}
     for sym in symbols:
         bpath = _rt(data_root, "bars", f"{sym}.{TF}.jsonl")
         bars, heads = chain(bpath)
         if only in (None, "accumulate"):
-            add, nts, stalled = accumulate_symbol(sym, bars, data_root, init_root, seal, now)
-            notes += nts
-            if stalled:
+            acc = accumulate_symbol(sym, bars, data_root, init_root, seal, now)
+            add = acc["add"]
+            notes += acc["notes"]
+            if acc["stalled"]:
                 summary["stalled"].append(sym)
+            if acc["not_advancing"]:
+                summary["not_advancing"][sym] = acc["not_advancing"]
+            for old, new, src in acc["revisions"]:
+                rec = revision_record(sym, old, new, src, seal, fp_digest, now)
+                key = (sym, rec["t"], _canon(rec["source"]))
+                if key not in seen:
+                    seen.add(key)
+                    new_log.append(rec)
+                    summary["revisions"] += 1
             if add:
                 writes.append(("chain", bpath, add, heads[-1] if heads else GENESIS))
                 heads = heads + link_all(heads[-1] if heads else GENESIS, add)
@@ -1074,15 +1289,39 @@ def look2_boundary(b1, n2, n12, alpha=ALPHA):
 
 def crossed(summary, boundary):
     """The look's pass test: events read, mean net excess > 0 on the primary cost line, and its one-sided p (CR1 by ISO
-    week, Student-t with G - 1 df) below the boundary's nominal threshold. [WY-F1 §7]"""
-    return bool(summary.get("n")) and summary["net_excess"] > 0 and summary["p_one_sided"] < boundary["p_threshold"]
+    week, Student-t with G - 1 df) below the boundary's nominal threshold -- both compared rounded to 10 significant
+    digits (`sig10`), so an ulp of the OS math library never decides it. [WY-F1 §5, §7]"""
+    return (bool(summary.get("n")) and sig10(summary["net_excess"]) > 0
+            and sig10(summary["p_one_sided"]) < sig10(boundary["p_threshold"]))
 
 
 def statistic_sha256(stat):
-    """The commitment to a look's statistic: sha256 of its scored rows and summary (canonical JSON). A blinded look 1
-    publishes only this; look 2 recomputes the look-1 statistic and must reproduce it. [WY-F1 §7]"""
-    body = json.loads(json.dumps({"rows": stat["rows"], "summary": stat["summary"]}, default=str))
-    return hashlib.sha256(_canon(body).encode()).hexdigest()
+    """The commitment to a look's statistic: `split_sha256` of its scored rows and counts, exactly (no row value goes
+    through an OS math function), and its summary, its derived floats (p, bounds) rounded to 10 significant digits. A
+    blinded look 1 publishes only this; look 2 recomputes the look-1 statistic and must reproduce it
+    (`statistic_verifies`). [WY-F1 §5, §7]"""
+    return split_sha256({"rows": stat["rows"]}, {"summary": stat["summary"]})
+
+
+def statistic_verifies(stat, sha):
+    """Does the recomputed statistic reproduce the committed `sha`, allowing a derived float that lies within TIE_REL of
+    a rounding midpoint either rounding (`split_digests`)? One changed row value never does. [WY-F1 §5, §7]"""
+    return sha in split_digests({"rows": stat["rows"]}, {"summary": stat["summary"]})
+
+
+def boundary_matches(recomputed, committed):
+    """Look 1's committed boundary against the one its recomputed count gives: the count exactly, every float within
+    BOUNDARY_REL_TOL (math.isclose), z both None when no event was read. [WY-F1 §5, §7]"""
+    if not committed or recomputed["n"] != committed.get("n"):
+        return False
+    for k in ("t", "alpha_spent", "z", "p_threshold"):
+        a, b = recomputed.get(k), committed.get(k)
+        if a is None or b is None:
+            if a is not b:
+                return False
+        elif not math.isclose(a, b, rel_tol=BOUNDARY_REL_TOL, abs_tol=0.0):
+            return False
+    return True
 
 
 # ------------------------------------------------------------------------------------------------ the read (WY-F1 §7-§8)
@@ -1102,29 +1341,33 @@ def look_plan(seal_instant, months=LOOK_MONTHS, grace_months=GRACE_MONTHS):
     return [(add_months(s, m), add_months(s, m + grace_months) if grace_months is not None else None) for m in months]
 
 
-def due(series, seal_instant, HZ, look=1, plan=None):
+def due(series, seal_instant, HZ, look=1, plan=None, min_complete=DROP_MIN_COMPLETE):
     """OUTCOME-BLIND: is look `look` due, and where does its window end? Its cutoff is fixed (`look_plan`). Every symbol
     must be complete through it (HZ bars after it, so every walk is whole). The fallback (T-drop), per look: when not
-    every symbol is complete but some symbol is complete through the look's grace end, every symbol not complete
-    through the cutoff is dropped WHOLE from this look (`dropped`). Completeness is the store's own bars: a symbol
-    without a store, or whose store stopped advancing (a STALLED live file appends nothing), is never complete -- a
-    missing feed is never read as an empty market. It reads data times only, never a wall clock or an outcome.
+    every symbol is complete but some symbol is complete through the look's grace end AND at least `min_complete`
+    symbols (5 of the 10) are complete through the cutoff, every symbol not complete through the cutoff is dropped
+    WHOLE from this look (`dropped`); with fewer complete the look waits. Completeness is the store's own bars: a
+    symbol without a store, or whose store stopped advancing, is never complete -- a missing feed is never read as an
+    empty market. A look first takes a history export of all 10 symbols into the stores (`export_problems`), so a
+    stalled or holed store is filled before this is asked. It reads data times only, never a wall clock or an outcome.
     [WY-F1 §7]"""
     plan = plan or look_plan(seal_instant)
     t_cut, g_cut = plan[look - 1]
     ends = {sym: complete_through(S, HZ) for sym, S in series.items()}
     common = min(ends.values()) if ends and all(v is not None for v in ends.values()) else None
+    complete = sorted(s for s, v in ends.items() if v is not None and v >= t_cut)
     out = {"look": look, "t_cutoff": _iso(t_cut), "grace_cutoff": _iso(g_cut) if g_cut else None,
            "common_complete_through": _iso(common) if common else None,
-           "complete_through": {s: (_iso(v) if v else None) for s, v in ends.items()}, "dropped": []}
+           "complete_through": {s: (_iso(v) if v else None) for s, v in ends.items()}, "dropped": [],
+           "complete_at_cutoff": len(complete), "min_complete": min_complete}
     if common is not None and common >= t_cut:
         return dict(out, cutoff=_iso(t_cut), rule=f"T{look}: look {look}, cutoff {_iso(t_cut)}")
     reached = [v for v in ends.values() if v is not None]
-    if g_cut is not None and reached and max(reached) >= g_cut:
-        drop = sorted(s for s, v in ends.items() if v is None or v < t_cut)
+    if g_cut is not None and reached and max(reached) >= g_cut and len(complete) >= min_complete:
+        drop = sorted(s for s in ends if s not in complete)
         return dict(out, cutoff=_iso(t_cut), dropped=drop,
-                    rule=f"T{look}-drop: look {look}, cutoff {_iso(t_cut)}; not complete through it at the grace end "
-                         f"{_iso(g_cut)}, dropped whole: {', '.join(drop)}")
+                    rule=f"T{look}-drop: look {look}, cutoff {_iso(t_cut)}; {len(complete)} of {len(ends)} symbols "
+                         f"complete through it at the grace end {_iso(g_cut)}, dropped whole: {', '.join(drop)}")
     return dict(out, cutoff=None, rule=None)
 
 
@@ -1161,33 +1404,45 @@ def probe(sym, bars, heads, decs, ctx, fire_fn=None):
     return {"checked": checked, "violations": bad, "ok": checked > 0 and bad == 0, "first_violation": first}
 
 
-def history_check(sym, bars, S, seal_dt, cutoff_dt, HZ, hist_root, spans=()):
-    """The forward bars against a LATER FTMO history export, BOTH ways. The window is the store bars from the first one
-    closing at or after the seal to HZ bars after the cutoff bar. It reports:
+def load_export(root, sym, since):
+    """(closed bars, note, provenance) of the FTMO 15m history export under `root`, from `since`'s year on
+    (`history_source`, `history_meta`). [WY-F1 §8]"""
+    bars, note = history_source(root, sym, since=since)
+    return bars, note, history_meta(root, sym, since=since)
+
+
+def history_check(sym, bars, S, seal_dt, cutoff_dt, HZ, hist_root, spans=(), revised=(), export=None):
+    """The forward bars against a LATER FTMO history export, BOTH ways, bar by bar (OUTCOME-BLIND). The window is the
+    store bars from the first one closing at or after the seal to HZ bars after the cutoff bar. It reports:
     - coverage, the share of the window's store bars the export holds, and agreement, the share of those at the same
       prices;
     - missing, the export's bars inside the window's time span that the store lacks (a hole the live file skipped would
       otherwise pass with coverage 1.0);
     - spans_end, whether the export reaches the window's last bar (an export taken too early checks nothing after it);
-    - spans, `(event id, first index, last index)` store ranges -- each sampled event's 300-bar window to HZ bars after
-      its entry, its longest walk, so no exit is needed -- where store and export must hold the same bars at the same
-      prices;
-    - the export's _exported_at_utc and the sha256 of every file read. [WY-F1 §8]"""
+    - `differences`: EVERY bar where the two differ, in the window or in a sampled event's span (`spans`: (event id,
+      first index, last index) store ranges, each event's 300-bar window to HZ bars after its entry, its longest walk):
+      the bar time, the kind (price, store_lacks, export_lacks), the fields, the spans it lies in, and whether a logged
+      revision of that bar explains it (`revised`: bar times). No price is reported. A difference inside a span is not
+      refused here: `export_replay` (decisions) and `export_walks` (trades) decide whether it changed anything;
+    - the export's _exported_at_utc and the sha256 of every file read. `export` is a preloaded `load_export`.
+    [WY-F1 §8]"""
     lo = bisect.bisect_left(S.avail, seal_dt)
     j = bisect.bisect_right(S.avail, cutoff_dt) - 1
     win = bars[lo:min(len(bars), j + HZ + 1)]
     out = {"bars": len(win), "covered": 0, "agree": 0, "coverage": 0.0, "agreement": 0.0, "first_mismatch": None,
            "export_bars_in_window": 0, "missing": 0, "missing_share": 0.0, "first_missing": None,
            "window_last": win[-1]["t"] if win else None, "export_last": None, "spans_end": False,
-           "spans_checked": 0, "span_mismatches": 0, "first_span_mismatch": None, "export": None, "note": None}
+           "spans_checked": len(spans), "differences": [], "span_differences": 0, "revised_differences": 0,
+           "export": None, "note": None}
     if not win:
         return out
-    since = min([win[0]["t"]] + [bars[a]["t"] for _i, a, _b in spans])
-    hist, note = history_source(hist_root, sym, since=since)
-    meta = history_meta(hist_root, sym, since=since)
+    if export is None:
+        export = load_export(hist_root, sym, min([win[0]["t"]] + [bars[a]["t"] for _i, a, _b in spans]))
+    hist, note, meta = export
     htimes = [b["t"] for b in hist]
     hmap = {b["t"]: b for b in hist}
-    smap = {b["t"] for b in bars}
+    stimes = [b["t"] for b in bars]
+    smap = {b["t"]: b for b in bars}
     cov = [b for b in win if b["t"] in hmap]
     agr = [b for b in cov if same(b, hmap[b["t"]])]
     mis = next((b["t"] for b in cov if not same(b, hmap[b["t"]])), None)
@@ -1196,22 +1451,130 @@ def history_check(sym, bars, S, seal_dt, cutoff_dt, HZ, hist_root, spans=()):
         return hist[bisect.bisect_left(htimes, t0):bisect.bisect_right(htimes, t1)]
     h_in = export_in(win[0]["t"], win[-1]["t"])
     gone = [b["t"] for b in h_in if b["t"] not in smap]
-    bad = []
-    for ev_id, a, b in spans:
-        st, ht = bars[a:b + 1], export_in(bars[a]["t"], bars[b]["t"])
-        if [x["t"] for x in st] != [x["t"] for x in ht] or not all(same(x, y) for x, y in zip(st, ht)):
-            bad.append(ev_id)
+    times = set()
+    for t0, t1 in [(win[0]["t"], win[-1]["t"])] + [(bars[a]["t"], bars[b]["t"]) for _i, a, b in spans]:
+        times.update(stimes[bisect.bisect_left(stimes, t0):bisect.bisect_right(stimes, t1)])
+        times.update(x["t"] for x in export_in(t0, t1))
+    revised = set(revised)
+    diffs = []
+    for t in sorted(times):
+        sb, xb = smap.get(t), hmap.get(t)
+        if sb is not None and xb is not None:
+            if same(sb, xb):
+                continue
+            d = {"t": t, "kind": "price",
+                 "fields": [k for k in PRICE_KEYS if round(sb[k], PRICE_DP) != round(xb[k], PRICE_DP)]}
+        else:
+            d = {"t": t, "kind": "export_lacks" if xb is None else "store_lacks"}
+        d["spans"] = [i for i, a, b in spans if bars[a]["t"] <= t <= bars[b]["t"]]
+        d["revised"] = t in revised
+        diffs.append(d)
     return dict(out, covered=len(cov), agree=len(agr), coverage=len(cov) / len(win),
                 agreement=len(agr) / len(cov) if cov else 0.0, first_mismatch=mis,
                 export_bars_in_window=len(h_in), missing=len(gone),
                 missing_share=len(gone) / len(h_in) if h_in else 0.0, first_missing=gone[0] if gone else None,
                 export_last=htimes[-1] if htimes else None, spans_end=bool(htimes) and htimes[-1] >= win[-1]["t"],
-                spans_checked=len(spans), span_mismatches=len(bad), first_span_mismatch=bad[0] if bad else None,
-                export=meta, note=note)
+                differences=diffs, span_differences=sum(1 for d in diffs if d["spans"]),
+                revised_differences=sum(1 for d in diffs if d["revised"]), export=meta, note=note)
+
+
+def export_replay(sym, bars, export_bars, seal_dt, cutoff_dt, end_t, ctx, logged):
+    """OUTCOME-BLIND (detection only; WY-F1 §8 item 4, decision 2026-10-04): the detector replayed on the EXPORT's bars
+    over the store's own span (its first bar to `end_t`, the checked window's last bar), as the look replays the store,
+    against `logged` (event id -> decision, the log's = the store replay's) for the events whose signal bar closes in
+    [seal, cutoff]: the same ids, and for each the same DECISION_VALUE_KEYS. A doctored bar that suppresses or creates
+    an event, or a difference that changes a decision (a pivot, the trading range, ATR20, the previous day's density),
+    fails here; a harmless one passes. Returns (report, the export's Series for `export_walks`). [WY-F1 §8]"""
+    E = ew()
+    cfg, P, _sob = ctx
+    xb = [b for b in export_bars if bars[0]["t"] <= b["t"] <= end_t] if bars and end_t else []
+    want = {i: {k: d[k] for k in DECISION_VALUE_KEYS} for i, d in logged.items()
+            if d["symbol"] == sym and seal_dt <= _utc(d["signal_close"]) <= cutoff_dt}
+    if not xb:
+        return {"events": 0, "logged": len(want), "only_in_export": [], "only_in_log": sorted(want), "changed": [],
+                "ok": not want}, None
+    Sx = series_of(sym, xb)
+    got = {}
+    for ev in fire(Sx, 0, len(Sx), 0, ctx, E.W.pivot_index(Sx.H, Sx.L, P["pivot"])):
+        if seal_dt <= Sx.avail[ev["k"]] <= cutoff_dt:
+            d = decision(Sx, ev, xb, [None] * len(xb), cfg["window"])
+            got[d["id"]] = {k: d[k] for k in DECISION_VALUE_KEYS}
+    only_x, only_l = sorted(set(got) - set(want)), sorted(set(want) - set(got))
+    changed = sorted(i for i in set(got) & set(want) if _canon(got[i]) != _canon(want[i]))
+    return {"events": len(got), "logged": len(want), "only_in_export": only_x, "only_in_log": only_l,
+            "changed": changed, "ok": not (only_x or only_l or changed)}, Sx
+
+
+def trade_key(bt, S, e, dec, HZ):
+    """One event's trade on series S from entry bar e, as `resolve_record` and the sealed score take it: a skip, or
+    (outcome, R, exit time, entry). [WY-F1 §6, §8]"""
+    E = ew()
+    if e is None or e >= len(S):
+        return ("no_entry_bar",)
+    entry = S.O[e]
+    if not E.placeable(SIDE, entry, dec["stop"], dec["target"]):
+        return ("entry_beyond_stop_or_target", entry)
+    w = E.walk_from(bt, SIDE, entry, dec["stop"], dec["target"], S, e, HZ)
+    if w is None:
+        return ("no_risk", entry)
+    return (w["outcome"], w["R"], S.T[w["exit"]], entry)
+
+
+def export_walks(S, Sx, sample, HZ):
+    """OUTCOME (after the look's attempt record; WY-F1 §8 item 4): each sampled event's trade walked on the export's
+    bars must equal the store's -- the same skip, or the same outcome, R, exit time and entry. Counts only, never an R:
+    a difference refuses the look (INVALID), so a written record always holds `differ` 0. [WY-F1 §8]"""
+    E = ew()
+    bt = E.engine()
+    idx = {t: i for i, t in enumerate(Sx.T)} if Sx is not None else {}
+    bad = []
+    with E.walk_opts(bt):
+        for _sym, ev, d in sample:
+            e = ev["k"] + 1
+            mine = trade_key(bt, S, e, d, HZ)
+            theirs = trade_key(bt, Sx, idx.get(S.T[e]) if e < len(S) else None, d, HZ) if Sx is not None \
+                else ("no_export",)
+            if mine != theirs:
+                bad.append(d["id"])
+    return {"compared": len(sample), "differ": len(bad), "first": bad[0] if bad else None}
+
+
+def export_problems(hist_root, stores, symbols, t_req):
+    """OUTCOME-BLIND (WY-F1 §7, §8; decision 2026-10-04, lead): every look needs a FTMO 15m history export of ALL the
+    symbols -- read or dropped -- taken (`_exported_at_utc`) at or after `t_req`, the close of the last bar any read
+    symbol's window needs (its cutoff bar + HZ bars), usable, and taken INTO the stores: a store the export would still
+    extend (`plan_append`) refuses the look until one `cycle` has run. So a stalled or holed symbol is filled and read
+    when the broker has its bars, and no symbol can be left out by not exporting it. Returns ({sym: provenance},
+    [problems]). [WY-F1 §7]"""
+    meta, out = {}, []
+    for sym in symbols:
+        m = history_meta(hist_root, sym)
+        meta[sym] = {"exported_at_utc": m["exported_at_utc"], "files": m["files"]}
+        at = m["exported_at_utc"]
+        if not m["files"]:
+            out.append(f"{sym}: no 15m history export under {os.path.join(hist_root, HIST_DIR)}")
+            continue
+        try:
+            late_enough = bool(at) and _utc(at) >= t_req
+        except (AttributeError, TypeError, ValueError):
+            late_enough = False
+        if not late_enough:
+            out.append(f"{sym}: its export was taken at {at}, not at or after {_iso(t_req)}")
+            continue
+        bars = stores.get(sym, ([], []))[0]
+        hist, note = history_source(hist_root, sym, since=bars[max(0, len(bars) - ALIGN_BARS)]["t"] if bars else None)
+        if note and not hist:
+            out.append(f"{sym}: the export is unusable ({note})")
+            continue
+        new = plan_append(bars, hist, "history", "")[0] if bars else []
+        if new:
+            out.append(f"{sym}: the export still extends its store by {len(new)} bar(s) after {bars[-1]['t']} -- run "
+                       f"one `cycle` first")
+    return meta, out
 
 
 def history_problem(h):
-    """Why one symbol's history check fails, or None. [WY-F1 §8 item 4]"""
+    """Why one symbol's history check fails, or None (OUTCOME-BLIND). [WY-F1 §8 item 4]"""
     if not h["bars"]:
         return None
     if not h["spans_end"]:
@@ -1222,9 +1585,11 @@ def history_problem(h):
     if h["missing_share"] > HIST_MISSING_MAX:
         return (f"the store lacks {h['missing']} of the export's {h['export_bars_in_window']} bars in the window "
                 f"(first {h['first_missing']})")
-    if h["span_mismatches"]:
-        return (f"{h['span_mismatches']} sampled event span(s) differ from the export, first "
-                f"{h['first_span_mismatch']}")
+    rep = h.get("replay")
+    if rep is not None and not rep["ok"]:
+        return (f"the detector replayed on the export does not give the logged events (only in the export "
+                f"{rep['only_in_export'][:3]}, only in the log {rep['only_in_log'][:3]}, decision changed "
+                f"{rep['changed'][:3]}): a bar difference suppressed, created or changed an event")
     return None
 
 
@@ -1372,35 +1737,57 @@ def log_only_check(series, replay, resolves, seal, fp_digest):
 
 #: What a blinded look 1 keeps of its verdict (WY-F1 §7): the decision facts, never an estimate or a p.
 BLIND_VERDICT_KEYS = ("look", "label", "pass", "final", "crossed", "n", "t", "alpha_spent", "z_boundary", "p_threshold")
+#: What a BLINDED look-1 record keeps (WY-F1 §7; decision 2026-10-04, lead): an ALLOWLIST, so nothing from which an
+#: estimate or the resolve count could be derived leaves the worker. Never kept: the statistic; `log_only_check` (it
+#: counts the resolves); the log's record count (records - events = resolves); the anchors' log length and the repair
+#: list (a dropped line's offset and kept records count the log's lines). `blind` keeps their safe fields only.
+BLIND_KEEP = ("look", "cutoff", "sample", "replay", "probe", "history_check", "symbols_read", "symbols_dropped",
+              "anchors", "skipped", "boundary", "verdict", "statistic_sha256", "log_lag_seconds", "late_logged",
+              "events_with_post_seal_history_bars", "stores", "log", "repairs", "revisions", "exports",
+              "export_required_at", "attempt", "attempts", "meta")
 
 
 def blind(res):
-    """Look 1 that did not cross: its record with NO outcome -- no statistic, no estimate, no p -- only what the look
-    was decided on (outcome-blind) and `statistic_sha256`, the commitment look 2 must reproduce. [WY-F1 §7]"""
-    out = {k: v for k, v in res.items() if k != "statistic"}
+    """Look 1 that did not cross: its record with NO outcome -- no statistic, no estimate, no p, nothing that counts the
+    resolves -- only what the look was decided on (outcome-blind; `BLIND_KEEP`) and `statistic_sha256`, the commitment
+    look 2 must reproduce. [WY-F1 §7]"""
+    out = {k: res[k] for k in BLIND_KEEP if k in res}
     out["verdict"] = {k: res["verdict"][k] for k in BLIND_VERDICT_KEYS if k in res["verdict"]}
+    if "log" in res:
+        out["log"] = {"head": res["log"].get("head")}
+    if "anchors" in res:
+        out["anchors"] = {k: res["anchors"].get(k) for k in ("verified", "last_committed", "note")}
+    if "repairs" in res:
+        out["repairs"] = {k: res["repairs"].get(k) for k in ("records", "files", "note")}
     out["blinded"] = ("look 1 did not cross its boundary: its estimate stays sealed (statistic_sha256) until look 2 "
                       "recomputes, verifies and discloses it")
     return out
 
 
 def read_core(data_root, seal, fp_digest, look=1, plan=None, prior=None, cost_r=None, symbols=SYMBOLS,
-              hist_root=None, price_ref=None, score_fn=None, anchors=()):
-    """One look's computation, without its guards (`worker_read` adds them, the committed `anchors` and, for look 2,
-    look 1's committed record as `prior`). In order, refusing at the first failure: the chains and stamps; the anchors;
-    the full replay of every window against the log (outcome-blind); the look's due rule (outcome-blind -- an early
-    look refuses here, before any walk or cost is computed); the truncation probe; the history check; the price_ref
-    check; only then the sealed §5 measurement and the consistency of the logged resolves. A symbol the look drops
-    (T-drop) leaves its sample whole. Look 1: the boundary from its actual count (`look1_boundary`); PASS (final) if
-    crossed, else CONTINUE (`worker_read` writes it `blind`). Look 2: look 1's statistic is recomputed on look 1's
-    cutoff and symbols and must reproduce its committed sha256 (else INVALID: refused); the boundary from the actual
-    counts (`look2_boundary`); PASS or NOT PASSED. A chain with an unterminated last line refuses (a `cycle` drops it
-    first); the drops logged in repairs.jsonl are reported. [WY-F1 §4, §7, §8]"""
+              hist_root=None, price_ref=None, score_fn=None, anchors=(), attempt=None):
+    """One look's computation, without its guards (`worker_read` adds them: the committed `anchors`; for look 2, look 1's
+    committed record as `prior`; `attempt`, the hook that appends the chained look-attempt record). In order, refusing
+    at the first failure:
+    OUTCOME-BLIND -- the chains and stamps; the anchors; the full replay of every window against the log; the look's due
+    rule (an early look refuses here); the export of ALL the symbols, taken after the window and absorbed by a cycle
+    (`export_problems`); the truncation probe; the bars against the export both ways and the detector replayed on the
+    export (`history_check`, `export_replay`); the price_ref check. Then `attempt(info)`: from here on the look is
+    spent, even if it refuses.
+    OUTCOME -- each sampled trade walked on the export (`export_walks`); the sealed §5 measurement; the logged resolves.
+    A symbol the look drops (T-drop) leaves its sample whole. Look 1: the boundary from its actual count
+    (`look1_boundary`); PASS (final) if crossed, else CONTINUE (`worker_read` writes it `blind`). Look 2: look 1's
+    statistic is recomputed on look 1's cutoff and symbols and must reproduce its committed sha256 (`statistic_verifies`)
+    and boundary (`boundary_matches`), and must not cross it (look 1 said CONTINUE); look 2's boundary from look 1's
+    COMMITTED one and the actual counts (`look2_boundary`); PASS or NOT PASSED. A chain with an unterminated last line
+    refuses (a `cycle` drops it first). Reported: the repairs, the revisions and the look attempts in the log, the
+    exports, the late-logged events. [WY-F1 §4, §5, §7, §8]"""
     E = ew()
     HZ = horizon()
     ctx = det_ctx()
     cfg = ctx[0]
     seal_dt = _utc(seal["instant"])
+    hist_root = hist_root or data_root
     if look not in (1, 2):
         raise SystemExit(f"refusing: WY-F1 has looks 1 and 2, not {look!r} [WY-F1 §7]")
     if look == 2 and not (prior and prior.get("look") == 1 and prior.get("statistic_sha256")
@@ -1409,7 +1796,8 @@ def read_core(data_root, seal, fp_digest, look=1, plan=None, prior=None, cost_r=
         raise SystemExit("refusing: look 2 needs look 1's record (its cutoff, symbols, boundary and statistic "
                          "commitment) [WY-F1 §7]")
     log, log_heads = read_chain(_rt(data_root, "log.jsonl"))
-    stray = [r.get("id") for r in log if r.get("seal") != seal["sha"] or r.get("fingerprint") != fp_digest]
+    stray = [r.get("id") or r.get("kind") for r in log
+             if r.get("seal") != seal["sha"] or r.get("fingerprint") != fp_digest]
     if stray:
         raise SystemExit(f"refusing: {len(stray)} log record(s) were written under another seal or code fingerprint, "
                          f"first {stray[0]} [WY-F1 §5]")
@@ -1418,6 +1806,8 @@ def read_core(data_root, seal, fp_digest, look=1, plan=None, prior=None, cost_r=
     anchored = verify_anchors(anchors, log_heads, stores)
     logged = {r["id"]: r for r in log if r["kind"] == "event"}
     resolves = {r["id"]: r for r in log if r["kind"] == "resolve"}
+    revisions = [r for r in log if r["kind"] == "revision"]
+    attempts = [r for r in log if r["kind"] == "look_attempt"]
     series, replay = {}, {}
     for sym in symbols:
         bars, heads = stores[sym]
@@ -1440,11 +1830,20 @@ def read_core(data_root, seal, fp_digest, look=1, plan=None, prior=None, cost_r=
     rule = due(series, seal["instant"], HZ, look, plan)
     if rule["cutoff"] is None:
         raise SystemExit(f"refusing: look {look} is not due -- every symbol must be complete through its cutoff "
-                         f"{rule['t_cutoff']} (common complete time {rule['common_complete_through']}); a stalled symbol "
-                         f"is dropped only once another is complete through {rule['grace_cutoff']} [WY-F1 §7]")
+                         f"{rule['t_cutoff']} (common complete time {rule['common_complete_through']}); a symbol is "
+                         f"dropped only once another is complete through {rule['grace_cutoff']} and at least "
+                         f"{rule['min_complete']} are complete through the cutoff ({rule['complete_at_cutoff']} now) "
+                         f"[WY-F1 §7]")
     kept = [s for s in symbols if s not in rule["dropped"]]
     cut_dt = _utc(rule["cutoff"])
     sample = _sample(replay, series, kept, seal_dt, cut_dt)
+    t_req = max(series[s].avail[min(len(series[s]) - 1, bisect.bisect_right(series[s].avail, cut_dt) - 1 + HZ)]
+                for s in kept)
+    exports, eprob = export_problems(hist_root, stores, symbols, t_req)
+    if eprob:
+        raise SystemExit(f"refusing: look {look} needs a FTMO 15m history export of all {len(symbols)} symbols taken at "
+                         f"or after {_iso(t_req)} and taken into the stores by one `cycle` -- {len(eprob)} problem(s), "
+                         f"first {eprob[0]} [WY-F1 §7, §8]")
     probes = {}
     for sym in kept:
         bars, heads = stores[sym]
@@ -1453,21 +1852,39 @@ def read_core(data_root, seal, fp_digest, look=1, plan=None, prior=None, cost_r=
                                                                                     probes.values())}
     if pr["violations"] or (sample and not pr["checked"]):
         raise SystemExit(f"refusing: the truncation probe found {pr['violations']} violation(s) [WY-F1 §8]")
-    hist = {}
+    rev_t = collections.defaultdict(set)
+    for r in revisions:
+        rev_t[r["symbol"]].add(r["t"])
+    hist, xseries, span_t = {}, {}, set()
     for sym in kept:
         bars = stores[sym][0]
         spans = [(d["id"], ev["k"] - cfg["window"] + 1, min(len(bars) - 1, ev["k"] + 1 + HZ))
                  for s, ev, d in sample if s == sym]
-        hist[sym] = history_check(sym, bars, series[sym], seal_dt, cut_dt, HZ, hist_root or data_root, spans)
+        span_t.update((sym, bars[i]["t"]) for _id, a, b in spans for i in range(a, b + 1))
+        export = load_export(hist_root, sym, bars[0]["t"])
+        h = history_check(sym, bars, series[sym], seal_dt, cut_dt, HZ, hist_root, spans, rev_t[sym], export)
+        rep, xseries[sym] = export_replay(sym, bars, export[0], seal_dt, cut_dt, h["window_last"], ctx,
+                                          {i: d for i, (s_, _ev, d) in replay.items() if s_ == sym})
+        hist[sym] = dict(h, replay=rep)
     weak = {s: history_problem(h) for s, h in hist.items() if history_problem(h)}
     if weak:
         s0 = next(iter(weak))
         raise SystemExit(f"refusing: the forward bars of {', '.join(weak)} cannot be verified against the history export "
-                         f"({s0}: {weak[s0]}; re-export the 15m history after the cutoff) [WY-F1 §8]")
+                         f"({s0}: {weak[s0]}) [WY-F1 §8]")
     if price_ref is not None:
         cur = {s: _price_ref(s) for s in symbols}
         if cur != price_ref:
             raise SystemExit("refusing: real_costs.price_ref differs from the fingerprint's [WY-F1 §5]")
+    att = attempt({"look": look, "cutoff": rule["cutoff"], "rule": rule["rule"], "symbols_read": kept,
+                   "symbols_dropped": rule["dropped"], "export_required_at": _iso(t_req),
+                   "exports": {s: m["exported_at_utc"] for s, m in exports.items()}}) if attempt else None
+    # ---- OUTCOMES from here on: the look is spent (its attempt record is in the log) ----
+    for sym in kept:
+        hist[sym]["walks"] = export_walks(series[sym], xseries[sym], [x for x in sample if x[0] == sym], HZ)
+    moved = sorted(s for s, h in hist.items() if h["walks"]["differ"])
+    if moved:
+        raise SystemExit(f"refusing: a sampled trade walked on the history export differs from the store's ({moved[0]}: "
+                         f"{hist[moved[0]]['walks']['differ']} trade(s)) -- INVALID [WY-F1 §8]")
     pricer = E.Pricer("ftmo", cost_r=cost_r)
     score_fn = score_fn or E.score
     stat = measure(series, sample, rule["cutoff"], seal, pricer, score_fn)
@@ -1492,12 +1909,15 @@ def read_core(data_root, seal, fp_digest, look=1, plan=None, prior=None, cost_r=
         if mism:
             raise SystemExit(f"refusing: {len(mism)} look-1 event(s) disagree with their logged resolve record, first "
                              f"{mism[0]} [WY-F1 §8]")
-        if statistic_sha256(stat1) != prior["statistic_sha256"]:
+        if not statistic_verifies(stat1, prior["statistic_sha256"]):
             raise SystemExit("refusing: look 1's statistic, recomputed on its cutoff and symbols, does not reproduce "
                              "its committed sha256 -- INVALID [WY-F1 §7, §8]")
-        b1 = look1_boundary(stat1["summary"].get("n", 0))
-        if any(b1[k] != prior["boundary"].get(k) for k in ("n", "t", "alpha_spent", "p_threshold")):
+        raw1, b1 = look1_boundary(stat1["summary"].get("n", 0)), prior["boundary"]
+        if not boundary_matches(raw1, b1):
             raise SystemExit("refusing: look 1's boundary does not follow from its recomputed count [WY-F1 §7]")
+        if crossed(stat1["summary"], b1):
+            raise SystemExit("refusing: look 1's recomputed statistic crosses its committed boundary, but look 1 said "
+                             "CONTINUE -- INVALID [WY-F1 §7]")
         ids1, ids2 = {r["id"] for r in stat1["rows"]}, {r["id"] for r in rows}
         b = look2_boundary(b1, s.get("n", 0), len(ids1 & ids2))
         x = crossed(s, b)
@@ -1506,11 +1926,13 @@ def read_core(data_root, seal, fp_digest, look=1, plan=None, prior=None, cost_r=
                    "alpha_spent": b["alpha_spent"], "alpha_spent_look1": b1["alpha_spent"], "alpha_total": ALPHA,
                    "rho": b["rho"], "z_boundary": b["z"], "p_threshold": b["p_threshold"],
                    "net_excess": s.get("net_excess"), "p_one_sided": s.get("p_one_sided"), "upper_95": s.get("upper_95"),
-                   "against_the_book": bool(n) and s["net_excess"] < 0 and s["p_two_sided"] < E.AGAINST_P,
-                   "below_delta": bool(n) and s["upper_95"] is not None and s["upper_95"] < E.DELTA, "delta": E.DELTA}
+                   "against_the_book": bool(n) and sig10(s["net_excess"]) < 0 and sig10(s["p_two_sided"]) < E.AGAINST_P,
+                   "below_delta": bool(n) and s["upper_95"] is not None and sig10(s["upper_95"]) < E.DELTA,
+                   "delta": E.DELTA}
         out["look1"] = {"cutoff": prior["cutoff"], "symbols_read": prior["symbols_read"], "boundary": b1,
-                        "crossed": crossed(stat1["summary"], b1), "statistic_sha256": prior["statistic_sha256"],
-                        "commitment": "reproduced: the recomputed look-1 statistic has the committed sha256",
+                        "boundary_recomputed": raw1, "crossed": False, "statistic_sha256": prior["statistic_sha256"],
+                        "commitment": "reproduced: the recomputed look-1 statistic has the committed sha256 (its derived "
+                                      "floats rounded to 10 significant digits)",
                         "statistic": stat1}
     lags = sorted((_utc(logged[r["id"]]["logged_at"]) - _utc(logged[r["id"]]["signal_close"])).total_seconds()
                   for r in rows)
@@ -1534,6 +1956,14 @@ def read_core(data_root, seal, fp_digest, look=1, plan=None, prior=None, cost_r=
         "stores": {sym: ({"bars": len(b_), "head": h[-1], "first": b_[0]["t"], "last": b_[-1]["t"],
                           "src": dict(collections.Counter(x_.get("src") for x_ in b_))} if b_ else {"bars": 0})
                    for sym, (b_, h) in stores.items()},
+        "exports": exports, "export_required_at": _iso(t_req),
+        "revisions": {"records": len(revisions), "per_symbol": dict(collections.Counter(r["symbol"] for r in revisions)),
+                      "list": [{"symbol": r["symbol"], "t": r["t"], "src": r["src"], "fields": r["fields"],
+                                "seen_at": r["seen_at"], "in_a_sampled_span": (r["symbol"], r["t"]) in span_t}
+                               for r in revisions],
+                      "note": "bars a source showed at another price after the store took them; every decision and "
+                              "resolve uses the bar as first stored (point in time)"},
+        "attempt": att, "attempts": [{"look": a["look"], "at": a["at"]} for a in attempts],
         "log": {"records": len(log), "head": log_heads[-1] if log_heads else GENESIS},
         "repairs": {"records": len(repairs), "files": dict(collections.Counter(r.get("file") for r in repairs)),
                     "list": [{k: r.get(k) for k in ("file", "offset", "kept_records", "dropped_bytes",
@@ -1662,9 +2092,59 @@ def _hashes(root, paths):
 
 
 def fp_digest(fp):
-    """The fingerprint's identity, stamped on every record: sha256 over its file hashes and canary digest.
-    [WY-F1 §5]"""
-    return hashlib.sha256(_canon({k: fp[k] for k in ("exec", "load", "data", "canary_sha256")}).encode()).hexdigest()
+    """The fingerprint's identity, stamped on every record: sha256 over its file hashes, canary digest and time-zone
+    pin. [WY-F1 §5]"""
+    return hashlib.sha256(_canon({k: fp.get(k) for k in ("exec", "load", "data", "canary_sha256", "tz")}).encode()
+                          ).hexdigest()
+
+
+def _transitions(zone, years):
+    """The UTC offset changes of `zone` from the start of years[0] to the end of years[1]: [{"utc": instant, "before":
+    seconds, "after": seconds}], each instant to the second (a daily scan, then bisection; DST changes are months
+    apart). [WY-F1 §5]"""
+    def off(s):
+        return int(datetime.datetime.fromtimestamp(s, UTC).astimezone(zone).utcoffset().total_seconds())
+    s = int(datetime.datetime(years[0], 1, 1, tzinfo=UTC).timestamp())
+    end = int(datetime.datetime(years[1] + 1, 1, 1, tzinfo=UTC).timestamp())
+    out, cur = [], off(s)
+    while s < end:
+        n = min(s + 86400, end)
+        o = off(n)
+        if o != cur:
+            lo, hi = s, n
+            while hi - lo > 1:
+                mid = (lo + hi) // 2
+                lo, hi = (mid, hi) if off(mid) == cur else (lo, mid)
+            out.append({"utc": _iso(datetime.datetime.fromtimestamp(hi, UTC)), "before": cur, "after": o})
+            cur = o
+        s = n
+    return out
+
+
+def tz_pin(years=TZ_PIN_YEARS):
+    """The time-zone BEHAVIOUR this process computes, as the fingerprint pins it (WY-F1 §5; decision 2026-10-04, lead):
+    America/New_York's DST instants in `years` (zoneinfo, from the OS time-zone database -- no tzdata package is in the
+    extract) and the FTMO server zone's offset changes built on them (edge_wyckoff.series_zone("ftmo"): the zone of
+    every server day, placebo slot and cost hour). Behaviour, not file bytes: a database update that leaves these
+    instants alone changes nothing. [WY-F1 §5]"""
+    import zoneinfo
+    return {"years": list(years), TZ_PIN_ZONE: _transitions(zoneinfo.ZoneInfo(TZ_PIN_ZONE), years),
+            "ftmo_server": _transitions(ew().series_zone("ftmo"), years)}
+
+
+def require_tz(fp):
+    """Inside a worker: this system computes the fingerprint's time-zone instants (`tz_pin`). Otherwise every cycle and
+    look refuses -- server days, slots and cost hours would no longer be the sealed ones. [WY-F1 §5]"""
+    pin = (fp or {}).get("tz")
+    if not pin or not pin.get("years"):
+        raise SystemExit("refusing: the fingerprint pins no time-zone behaviour (tz) [WY-F1 §5]")
+    now = tz_pin(tuple(pin["years"]))
+    for key in (TZ_PIN_ZONE, "ftmo_server"):
+        if now.get(key) != pin.get(key):
+            a, b = pin.get(key) or [], now.get(key) or []
+            first = next((f"sealed {x} / now {y}" for x, y in itertools.zip_longest(a, b) if x != y), "")
+            raise SystemExit(f"refusing: this system's time zone {key} computes other DST instants than the sealed "
+                             f"fingerprint ({first}); server days, slots and cost hours would change [WY-F1 §5]")
 
 
 def sealed_history_files(root=CODE_ROOT):
@@ -1891,25 +2371,29 @@ def _rising(n, a=100.0, b=104.0):
 
 
 def canary_bars(i):
-    """One synthetic 15m series: a rising zigzag (never a downtrend), one accumulation with a Spring that reclaims on
-    its own bar (the shape of scripts/tests/test_edge_wyckoff.py scenario("spring")), its Phase D, a rising tail.
-    Prices scaled by the symbol's index so the series differ. [WY-F1 §5]"""
+    """One synthetic 15m series: a rising zigzag (never a downtrend) of 2000 bars, one accumulation with a Spring that
+    reclaims on its own bar (the shape of scripts/tests/test_edge_wyckoff.py scenario("spring")), its Phase D, a rising
+    tail. Prices scaled by the symbol's index so the series differ. The 2000-bar prefix gives the HTF gate its FULL live
+    1H window at every canary signal (about 520 hours; live_rules.read_at needs 480, automation.SCAN_WINDOW["1H"]), so
+    the canary -- and with it the fingerprint and `extract_check` -- runs the gate's whole bias path. [WY-F1 §5, §6]"""
     b = _leg(104, 102, 5) + _leg(102, 99, 5) + _leg(99, 101, 5) + _leg(101, 97, 5) + _leg(97, 100, 5)
     b += _leg(100, 90, 5) + _leg(90, 96, 5) + _leg(96, 80, 5) + _leg(80, 110, 6) + _leg(110, 85, 6) + _leg(85, 108, 6)
     b += _leg(108, 88, 6) + _leg(88, 106, 6) + _leg(106, 90, 6) + _leg(90, 100, 6) + _leg(100, 92, 6)
     b += _leg(92, 82, 4) + [(82, 82.5, 78, 81, 20.0)] + _leg(81, 86, 3, vol=5.0) + _leg(86, 108, 6)
     b += [(108, 114, 107.5, 113.5, 30.0), (113.5, 114.5, 112, 114, 10.0), (114, 114.2, 111, 111.5, 5.0),
           (111.5, 115, 113.2, 114.8, 10.0)] + _leg(114.8, 118, 5)
-    bars = _rising(1200) + b + _rising(400, 118, 122)
+    bars = _rising(CANARY_PREFIX) + b + _rising(400, 118, 122)
     off = 1.0 + 0.01 * i
     return [(o * off, h * off, lo * off, c * off, v) for (o, h, lo, c, v) in bars]
 
 
-CANARY_START, CANARY_SEAL_BAR, CANARY_HIST_END, CANARY_LIVE_FROM = "2026-06-01T00:00:00Z", 1250, 1500, 1400
-#: The canary's two look cutoffs: the CLOSE of these store bars (a synthetic plan inside the canary's ~18 days; the
+CANARY_PREFIX = 2000
+CANARY_START, CANARY_SEAL_BAR, CANARY_HIST_END, CANARY_LIVE_FROM = "2026-06-01T00:00:00Z", 2050, 2300, 2200
+#: The canary's two look cutoffs: the CLOSE of these store bars (a synthetic plan inside the canary's ~26 days; the
 #: registered plan is `look_plan`, LOOK_MONTHS after the seal). Both need HZ stored bars after them, and the history
-#: export (to bar CANARY_HIST_END - 2) must reach HZ bars after each, for the read's history check.
-CANARY_LOOK_BARS = (1300, 1400)
+#: export (to bar CANARY_HIST_END - 2, taken at bar CANARY_HIST_END) must reach HZ bars after each, for the read's
+#: history check and export rule.
+CANARY_LOOK_BARS = (2100, 2200)
 
 
 def canary_plan(seal=None):
@@ -1921,8 +2405,8 @@ def canary_plan(seal=None):
 
 def canary_data(tmp):
     """Writes the canary's data root under `tmp`: per symbol a history export (file shape) ending at bar
-    CANARY_HIST_END and a live 15m file from bar CANARY_LIVE_FROM with the bridge's +1 s stamps. Returns the seal.
-    [WY-F1 §5]"""
+    CANARY_HIST_END, `_exported_at_utc` that bar's open, and a live 15m file from bar CANARY_LIVE_FROM with the
+    bridge's +1 s stamps. Returns the seal. [WY-F1 §5]"""
     import broker_symbols as BS
     t0 = _utc(CANARY_START)
 
@@ -1933,19 +2417,40 @@ def canary_data(tmp):
         cs = [{"time": t(j), "open": o, "high": h, "low": lo, "close": c, "volume": v}
               for j, (o, h, lo, c, v) in enumerate(bars)]
         _write_json(os.path.join(tmp, HIST_DIR, f"ohlcv.{sym}.{TF}.json"),
-                    {"symbol": sym, "timeframe": TF, "candles": cs[:CANARY_HIST_END]})
+                    {"symbol": sym, "timeframe": TF, "_exported_at_utc": t(CANARY_HIST_END),
+                     "candles": cs[:CANARY_HIST_END]})
         live = [dict(c, time=t(j, j % 2)) for j, c in enumerate(cs) if j >= CANARY_LIVE_FROM]
         _write_json(os.path.join(tmp, LIVE_DIR, f"ohlcv.{BS.to_broker(sym)}.{TF}.json"),
                     {"symbol": BS.to_broker(sym), "timeframe": TF, "candles": live})
     return {"sha": "canary", "instant": t(CANARY_SEAL_BAR)}
 
 
+def canary_numerics():
+    """The derived numbers the canary's own ten events cannot exercise (they share one ISO week, so CR1 has one cluster
+    and no Student-t tail is computed): a FIXED statistic of 24 rows over 12 weeks through the registered summary
+    (edge_wyckoff.summarise: CR1, `t_sf`, the 95 % bound) and both looks' boundaries at the planning counts. Pure
+    arithmetic in, OS math functions inside: its digest part is rounded (`sig10`). [WY-F1 §5]"""
+    E = ew()
+    rows = []
+    for i in range(24):
+        r = ((i * 7) % 13 - 5) / 4.0
+        plc = ((i * 5) % 7 - 3) / 10.0
+        rows.append({"week": f"2027-W{10 + i // 2:02d}", "R": r, "placebo": plc, "excess": r - plc,
+                     "cost": {"median_swap": 0.03, "median_noswap": 0.02, "p90_swap": 0.05, "p90_noswap": 0.04}})
+    b1 = look1_boundary(PLAN_RATE)
+    return {"summary": E.summarise(rows, E.FTMO_LINES), "look1": b1,
+            "look2": look2_boundary(b1, PLAN_RATE + N_REST_PLAN, PLAN_RATE)}
+
+
 def canary(tmp, cost_r=None):
-    """Every forward step on synthetic bars, with the real detector, walk and cost: init, live append, scan, resolve
-    (the log-only fields included), then the read core at both looks of `canary_plan` -- look 2 with look 1's result as
-    its prior, so the commitment check and both boundaries run. Returns (sha256 of the records, rows, summaries and
-    boundaries, {look: read result}). Deterministic: wall clock fields are fixed, and the records' `python` stamp is
-    left out, so a routine Python patch upgrade does not lock a look out -- a numeric change still would. [WY-F1 §5]"""
+    """Every forward step on synthetic bars, with the real detector, walk, HTF gate and cost: init, live append, scan,
+    resolve (the log-only fields included), then the read core at both looks of `canary_plan` -- look 2 with look 1's
+    result as its prior, so the export rule, the export replay and walks, the commitment check and both boundaries run.
+    Returns (digest, {look: read result}, body). The body's EXACT part -- the log's records, each look's rows and label
+    -- is hashed as it is; its DERIVED part -- each look's summary and boundary -- rounded to 10 significant digits
+    (`split_sha256`); a look checks the sealed digest with `split_digests`, so a last-ulp change of the OS math library
+    passes and any real numeric change refuses. Deterministic: wall clock fields are fixed, and the records' `python`
+    stamp is left out, so a routine Python patch upgrade does not lock a look out. [WY-F1 §5]"""
     seal = canary_data(tmp)
     now = "2026-07-01T00:00:00Z"
     res = cycle_core(tmp, seal, "canary", now, init_root=tmp)
@@ -1955,12 +2460,20 @@ def canary(tmp, cost_r=None):
     looks[2] = read_core(tmp, seal, "canary", look=2, plan=plan, prior=looks[1], cost_r=cost_r)
     log, _ = read_chain(_rt(tmp, "log.jsonl"))
     keep = ("id", "R", "outcome", "exit_time", "excess", "placebo", "n_placebo", "cost", "net_excess")
-    body = {"log": [{k: v for k, v in r.items() if k != "python"} for r in log],
-            "looks": {str(n): {"rows": [{k: r.get(k) for k in keep} for r in out["statistic"]["rows"]],
-                               "summary": out["statistic"]["summary"], "boundary": out["boundary"],
-                               "label": out["verdict"]["label"], "statistic_sha256": out["statistic_sha256"]}
-                      for n, out in looks.items()}}
-    return hashlib.sha256(_canon(json.loads(json.dumps(body, default=str))).encode()).hexdigest(), looks
+    body = {"exact": {"log": [{k: v for k, v in r.items() if k != "python"} for r in log],
+                      "looks": {str(n): {"rows": [{k: r.get(k) for k in keep} for r in out["statistic"]["rows"]],
+                                         "label": out["verdict"]["label"], "sample": out["sample"]}
+                                for n, out in looks.items()}},
+            "derived": {"looks": {str(n): {"summary": out["statistic"]["summary"], "boundary": out["boundary"]}
+                                  for n, out in looks.items()},
+                        "numerics": canary_numerics()}}
+    body = _json(body)
+    return split_sha256(body["exact"], body["derived"]), looks, body
+
+
+def canary_verifies(fp, body):
+    """Does a re-run canary `body` reproduce the fingerprint's sealed `canary_sha256` (`split_digests`)? [WY-F1 §5]"""
+    return fp.get("canary_sha256") in split_digests(body["exact"], body["derived"])
 
 
 # ------------------------------------------------------------------------------------------------ git, seal, extract
@@ -2115,13 +2628,15 @@ def prereg_record(data_root, seal):
 
 # ------------------------------------------------------------------------------------------------ workers (sealed code)
 def worker_cycle(data_root, seal, only=None):
-    """In the sealed extract: trace, verify the fingerprint, run one cycle in memory, check what it touched, then
-    write. Prints a one-line JSON summary for scripts/forward_cycle.py's log. [WY-F1 §4, §5]"""
+    """In the sealed extract: trace, verify the fingerprint, the pinned Python and the time-zone instants, run one cycle
+    in memory, check what it touched, then write. Prints a one-line JSON summary for scripts/forward_cycle.py's log
+    (stalled and NOT ADVANCING symbols with their reasons). [WY-F1 §4, §5]"""
     tr = Tracer(CODE_ROOT).start()
     fp, digest = verify_fingerprint(CODE_ROOT)
     require_interpreter(fp)
     ew()
     tr.run_phase()
+    require_tz(fp)
     with _lock(data_root):
         _require_seal(data_root, seal, fp)
         require_committed_fingerprint(data_root, seal)
@@ -2132,6 +2647,7 @@ def worker_cycle(data_root, seal, only=None):
         commit(res["writes"])
     s = res["summary"]
     s["notes"] = s["notes"][:3] + ([f"+{len(s['notes']) - 3} more"] if len(s["notes"]) > 3 else [])
+    s["not_advancing"] = {k: v[:160] for k, v in s.get("not_advancing", {}).items()}     # `status` has them whole
     if extra:
         s["outside_exec"] = extra
     print(json.dumps(s, separators=(",", ":")))
@@ -2167,18 +2683,55 @@ def require_prior(prior, seal, digest):
     return prior
 
 
+def look_attempts(log, look=None):
+    """The chained look-attempt records in the log: all of them, or those of `look` and later. [WY-F1 §7]"""
+    return [r for r in log if r.get("kind") == "look_attempt" and (look is None or r.get("look", 0) >= look)]
+
+
+def _attempted(a):
+    return SystemExit(f"refusing: look {a.get('look')} was already attempted at {a.get('at')} (a chained look-attempt "
+                      f"record in {RUNTIME}/log.jsonl): each look runs ONCE, even when its output file is gone "
+                      f"[WY-F1 §7]")
+
+
+def require_no_attempt(data_root, look):
+    """Refuses when the log holds an attempt of this look or a later one (`look_attempts`). [WY-F1 §7]"""
+    prev = look_attempts(read_chain(_rt(data_root, "log.jsonl"))[0], look)
+    if prev:
+        raise _attempted(prev[0])
+
+
+def append_attempt(data_root, seal, fp_digest, look, rel, info, now):
+    """The chained look-attempt record (WY-F1 §7; decision 2026-10-04, lead), appended to the log after every
+    outcome-blind check passed and BEFORE any outcome is computed: what the look was decided on (`info`: cutoff, rule,
+    symbols read and dropped, the exports' times), the output path, the seal, the fingerprint and the time. From then on
+    the look is spent: a second attempt refuses (`require_no_attempt`), even if the first one's output file is deleted
+    or it refused after computing an outcome. Returns the record with its chain hash. [WY-F1 §7]"""
+    lp = _rt(data_root, "log.jsonl")
+    log, heads = read_chain(lp)
+    prev = look_attempts(log, look)
+    if prev:
+        raise _attempted(prev[0])
+    rec = dict(info, kind="look_attempt", study=STUDY, look=look, out=rel, seal=seal["sha"], fingerprint=fp_digest,
+               python=platform.python_version(), at=now)
+    return dict(rec, ch=append_chain(lp, [rec], heads[-1] if heads else GENESIS))
+
+
 def worker_read(data_root, seal, out, look=1):
     """In a FRESH extract of the seal (`cmd_read`): one look, ONCE, under every guard -- the sealed pre-registration
     committed and clean in the data root, its adding commit the seal, one commit on the fingerprinted one; the
-    fingerprint the seal commit's, every file verified, the pinned Python, the canary re-run to the same digest; the
-    hour frame; the look's canonical --out path with no git history; for look 2, look 1's committed record
-    (`require_prior`); the anchors from git; the trace check -- then `read_core`. A look 1 that does not cross is written
-    BLINDED (`blind`): no estimate leaves the worker, on disk or on screen. [WY-F1 §5, §7, §8]"""
+    fingerprint the seal commit's, every file verified, the pinned Python, the time-zone instants, the canary re-run to
+    its sealed digest (`canary_verifies`); the hour frame; the look's canonical --out path with no git history and no
+    attempt of it (or a later look) in the log; for look 2, look 1's committed record (`require_prior`); the anchors from
+    git -- then `read_core`, whose `attempt` hook re-checks the trace and appends the chained look-attempt record before
+    the first outcome (`append_attempt`); the trace check again before writing. A look 1 that does not cross is written
+    BLINDED (`blind`): no estimate and no resolve count leaves the worker, on disk or on screen. [WY-F1 §5, §7, §8]"""
     tr = Tracer(CODE_ROOT).start()
     fp, digest = verify_fingerprint(CODE_ROOT)
     require_interpreter(fp)
     E = ew()
     tr.run_phase()
+    require_tz(fp)
     if look not in LOOK_OUT:
         raise SystemExit(f"refusing: WY-F1 has looks {sorted(LOOK_OUT)}, not {look!r} [WY-F1 §7]")
     rel = LOOK_OUT[look]
@@ -2197,18 +2750,24 @@ def worker_read(data_root, seal, out, look=1):
         raise SystemExit(f"refusing: {PREREG} has uncommitted changes")
     _require_seal(data_root, seal, fp)
     require_committed_fingerprint(data_root, seal)
+    require_no_attempt(data_root, look)
     prior = require_prior(committed_record(data_root, LOOK_OUT[1]), seal, digest) if look == 2 else None
     prereg = prereg_record(data_root, seal)
     anchors = committed_anchors(data_root)
     E._require_hour_frame()
     with tempfile.TemporaryDirectory() as tmp:
-        cdig, _ = canary(tmp)
-    if cdig != fp["canary_sha256"]:
+        _cdig, _looks, body = canary(tmp)
+    if not canary_verifies(fp, body):
         raise SystemExit("refusing: the canary no longer reproduces its sealed digest (Python or a sealed input "
                          "changed) [WY-F1 §5]")
+
+    def attempt(info):
+        check_touched(tr, fp)                   # what ran so far is fingerprinted: else refuse BEFORE the attempt
+        check_outside(tr, data_root)
+        return append_attempt(data_root, seal, digest, look, rel, info, _now())
     with _lock(data_root):
         res = read_core(data_root, seal, digest, look=look, prior=prior, price_ref=fp.get("price_ref"),
-                        anchors=anchors)
+                        anchors=anchors, attempt=attempt)
         tr.stop()
         extra = check_touched(tr, fp)
         check_outside(tr, data_root)
@@ -2219,7 +2778,10 @@ def worker_read(data_root, seal, out, look=1):
                        "look": look, "look_months": list(LOOK_MONTHS), "alpha": ALPHA,
                        "spending": "Lan-DeMets O'Brien-Fleming-type, alpha(t) = 2 (1 - Phi(z_{1-alpha/2} / sqrt(t)))",
                        "plan_rate": PLAN_RATE, "n_rest_plan": N_REST_PLAN, "grace_months": GRACE_MONTHS,
-                       "never_due_months": NEVER_DUE_MONTHS, "outside_exec": extra,
+                       "drop_min_complete": DROP_MIN_COMPLETE, "never_due_months": NEVER_DUE_MONTHS,
+                       "never_due": "procedural: the coordinator closes WY-F1 then; the code does not refuse a later look",
+                       "numbers": {"sig_digits": SIG_DIGITS, "tie_rel": TIE_REL, "boundary_rel_tol": BOUNDARY_REL_TOL},
+                       "tz": fp.get("tz", {}).get("years"), "outside_exec": extra,
                        "measurement": "sealed re-test §5: edge_wyckoff.score / summarise, FTMO cost lines"}
         rec = look_record(res)
         E._dump(rec, want)
@@ -2258,15 +2820,17 @@ def look_line(res):
 
 
 def worker_canary(data_root):
-    """In an extract (`extract_check`, before sealing): the fingerprint verified, the canary run under the trace and
-    both trace checks; prints its digest. Synthetic bars only. [WY-F1 §5]"""
+    """In an extract (`extract_check`, before sealing): the fingerprint, the pinned Python and the time-zone instants
+    verified, the canary run under the trace and both trace checks; prints its digest. Synthetic bars only.
+    [WY-F1 §5]"""
     tr = Tracer(CODE_ROOT).start()
     fp, _digest = verify_fingerprint(CODE_ROOT)
     require_interpreter(fp)
     ew()
     tr.run_phase()
+    require_tz(fp)
     with tempfile.TemporaryDirectory() as tmp:
-        cdig, _ = canary(tmp)
+        cdig, _looks, _body = canary(tmp)
     tr.stop()
     check_touched(tr, fp)
     check_outside(tr, data_root)
@@ -2372,23 +2936,27 @@ class _Closes:
         return len(self.avail)
 
 
-def status(data_root=CODE_ROOT):
+def status(data_root=CODE_ROOT, now=None):
     """Counts only, and none that times an exit -- never an R, an outcome, a mean, a resolve count or a log-only field
     (WY-F1 §6: a resolve a few bars after its entry is a stop or a target). Per symbol: the store, the live file (a
-    missing or unusable one is STALLED, never an empty market), the complete-through time, the events, those kept
-    (dense previous day), entered, and past their longest walk (entry + H bars stored), with `unresolved_past_walk` (0
-    when healthy). Each look's state from `due` itself; the counted events (entered, placeable at the entry open, dense
-    previous day, ATR20 known) by the common complete time, as the read counts; the never-due close; which look records
-    exist. The pinned interpreter, the committed anchors, the last cycle, the repairs logged and pending (file names
-    only: a torn line's bytes can hold an R), the working tree's drift from the sealed executed files.
-    [WY-F1 §4, §6, §7, §12]"""
+    missing or unusable one is STALLED, never an empty market), NOT ADVANCING (`accumulate_symbol`: the live file exists
+    but the store takes no bar from it, or it is stale -- with the reason and the store's last bar), the bars the next
+    cycle would add, the complete-through time, the revisions logged, the events, those kept (dense previous day),
+    entered, and past their longest walk (entry + H bars stored), with `unresolved_past_walk` (0 when healthy). Each
+    look's state from `due` itself; the counted events (entered, placeable at the entry open, dense previous day, ATR20
+    known) by the common complete time, as the read counts; the never-due close (procedural); which look records exist
+    and which looks were attempted. The pinned interpreter, the committed anchors, the last cycle, the repairs logged and
+    pending (file names only: a torn line's bytes can hold an R), the working tree's drift from the sealed executed
+    files. `now` (default: the wall clock) judges a stale live file. [WY-F1 §4, §6, §7, §12]"""
     E = ew()
     s = seal_info(data_root)
     HZ = horizon()
+    now = now or _now()
     torn = {}
     log, log_heads = read_chain(_rt(data_root, "log.jsonl"), torn)
     ev = {r["id"]: r for r in log if r["kind"] == "event"}
     rs = {r["id"] for r in log if r["kind"] == "resolve"}
+    revs = collections.Counter(r["symbol"] for r in log if r["kind"] == "revision")
     out = {"study": STUDY, "cell": CELL, "sealed": s, "symbols": {}, "log": {"events": len(ev),
            "head": log_heads[-1] if log_heads else None}}
     series, closes = {}, []
@@ -2404,25 +2972,32 @@ def status(data_root=CODE_ROOT):
             if r["prev_dense"] and (r["atr"] or 0) > 0 and E.placeable(SIDE, bars[e]["o"], r["stop"], r["target"]):
                 closes.append(series[sym].avail[e])
         live, note = live_source(data_root, sym)
+        acc = accumulate_symbol(sym, bars, data_root, CODE_ROOT, s, now, now) if bars else None
         out["symbols"][sym] = {"bars": len(bars), "last": bars[-1]["t"] if bars else None,
                                "src": dict(collections.Counter(b.get("src") for b in bars)),
                                "complete_through": _iso(ct) if ct else None, "stalled": live is None,
                                "live_last_closed": live[-1]["t"] if live else None, "live_note": note,
+                               "not_advancing": acc["not_advancing"] if acc else None,
+                               "next_cycle_adds": len(acc["add"]) if acc else None, "revisions": revs.get(sym, 0),
                                "events": len(mine), "kept": sum(1 for r in mine if r["prev_dense"]),
                                "entered": len(entered), "past_walk": len(past),
                                "unresolved_past_walk": sum(1 for r in past if r["id"] not in rs),
                                "head": heads[-1] if heads else None}
     out["stalled"] = [sym for sym, v in out["symbols"].items() if v["stalled"]]
+    out["not_advancing"] = {sym: v["not_advancing"] for sym, v in out["symbols"].items() if v["not_advancing"]}
+    out["revisions"] = sum(revs.values())
     if s:
         plan = look_plan(s["instant"])
         looks = {str(n): due(series, s["instant"], HZ, n, plan) for n in (1, 2)}
         common = [complete_through(S, HZ) for S in series.values()]
         common = min(common) if common and all(c is not None for c in common) else None
         recs = {str(n): os.path.exists(os.path.join(data_root, p)) for n, p in LOOK_OUT.items()}
+        tried = {str(a["look"]): a["at"] for a in look_attempts(log)}
         nxt = next((n for n in ("1", "2") if not recs[n]), None)
         out["rule"] = {"looks": {n: dict(r, due=r["cutoff"] is not None) for n, r in looks.items()},
-                       "records": recs, "next_look": nxt,
-                       "read_due": nxt is not None and looks[nxt]["cutoff"] is not None,
+                       "records": recs, "attempted": tried, "next_look": nxt,
+                       "read_due": nxt is not None and nxt not in tried and looks[nxt]["cutoff"] is not None,
+                       "spent_without_record": [n for n in tried if not recs.get(n)],
                        "counted_events": sum(1 for c in closes if common is not None and c <= common),
                        "common_complete_through": _iso(common) if common else None,
                        "never_due_close": _iso(add_months(_utc(s["instant"]), NEVER_DUE_MONTHS))}
@@ -2445,8 +3020,8 @@ def status(data_root=CODE_ROOT):
                                            if not os.path.isfile(os.path.join(data_root, p))
                                            or _sha256(os.path.join(data_root, p)) != h)
         pin = pinned_interpreter(fp)
-        now = _command_version(pin["command"]) if pin.get("command") and os.path.exists(pin["command"]) else None
-        out["interpreter"] = dict(pin, now=now, ok=bool(now) and _minor(now) == pin.get("minor"))
+        cur = _command_version(pin["command"]) if pin.get("command") and os.path.exists(pin["command"]) else None
+        out["interpreter"] = dict(pin, now=cur, ok=bool(cur) and _minor(cur) == pin.get("minor"))
     return out
 
 
@@ -2457,18 +3032,26 @@ def _print_status(st):
         print(f"  {sym:7s} bars {v['bars']:6d} last {v['last']} complete-through {v['complete_through']} | events "
               f"{v['events']} (kept {v['kept']}, entered {v['entered']}, past walk {v['past_walk']}"
               + (f", UNRESOLVED past walk {v['unresolved_past_walk']}" if v["unresolved_past_walk"] else "") + ")"
+              + (f" | revisions {v['revisions']}" if v.get("revisions") else "")
               + (f" | {v['live_note']}" if v["live_note"] else ""))
     if st.get("stalled"):
         print(f"  STALLED (no usable live 15m file; nothing appended, never read as an empty market): "
               f"{', '.join(st['stalled'])}")
+    for sym, why in (st.get("not_advancing") or {}).items():
+        print(f"  NOT ADVANCING {sym}: {why}")
     r = st["rule"]
     if s:
         print(f"  counted events {r['counted_events']} by the common complete time {r['common_complete_through']}; "
-              f"never-due close {r['never_due_close']}")
+              f"never-due close {r['never_due_close']} (procedural: the coordinator closes WY-F1 then)")
         for n, lk in r["looks"].items():
-            print(f"  look {n}: cutoff {lk['t_cutoff']} (stalled symbols dropped once another is complete through "
-                  f"{lk['grace_cutoff']}); due {lk['due']}" + (f" -- {lk['rule']}" if lk["due"] else "")
+            print(f"  look {n}: cutoff {lk['t_cutoff']} (first export all 10 symbols after it + 96 bars and run one "
+                  f"cycle; a symbol still incomplete is dropped once another is complete through {lk['grace_cutoff']} "
+                  f"and at least {lk['min_complete']} are complete); due {lk['due']}"
+                  + (f" -- {lk['rule']}" if lk["due"] else "")
+                  + (f"; ATTEMPTED {r['attempted'][n]}" if n in r.get("attempted", {}) else "")
                   + ("; record written" if r["records"].get(n) else ""))
+        for n in r.get("spent_without_record") or []:
+            print(f"  ** look {n} was attempted without a record on disk: it never runs again (WY-F1 §7) **")
     lc = st.get("last_cycle")
     if lc:
         print(f"  last cycle {lc['at']}: " + ("ok" if lc["ok"] else f"FAILED -- {lc.get('error', '')[:300]}"))
@@ -2478,6 +3061,9 @@ def _print_status(st):
         print(f"  repairs: {rp.get('logged', 0)} unterminated last line(s) dropped and logged"
               + (f" (last {last.get('at')} in {last.get('file')})" if last else "")
               + (f"; pending, dropped by the next cycle: {', '.join(rp['pending'])}" if rp.get("pending") else ""))
+    if st.get("revisions"):
+        print(f"  revisions: {st['revisions']} bar(s) a source showed at another price after the store took them "
+              f"(the store keeps them as first stored; each look lists them)")
     a = st.get("anchors") or {}
     if s:
         print("  anchors: " + (a["error"] if "error" in a else f"{a['committed']} committed, last {a['last_committed']}"))
@@ -2551,11 +3137,13 @@ def _require_clean(root, paths, rev="HEAD"):
 def cmd_fingerprint(out, require_clean=True, cost_r=None):
     """BEFORE sealing, from the working tree: trace the canary through every forward step and record what it executes
     (run phase: `exec`, the narrow set), what else it loads (`load`), what it opens (`data`, plus every file of the
-    symbols' sealed 15m history), real_costs' price_ref per symbol, the canary's digest and the interpreter (pinned:
-    every worker runs it). Refuses unless every recorded file is inside SNAPSHOT_ROOTS and is what the sealed re-test's
-    R1 ran (`r0_drift`), and, with `require_clean` (the sealing run), tracked and clean, and the interpreter stable and
+    symbols' sealed 15m history), real_costs' price_ref per symbol, the canary's digest (`canary`: exact part hashed as
+    it is, derived floats rounded), the time-zone instants (`tz_pin`) and the interpreter (pinned: every worker runs
+    it). Refuses unless every recorded file is inside SNAPSHOT_ROOTS and is what the sealed re-test's R1 ran
+    (`r0_drift`), and, with `require_clean` (the sealing run), tracked and clean, and the interpreter stable and
     versioned (`interpreter_pin`, checked first). Run it with that path: /opt/homebrew/opt/python@3.14/bin/python3.14.
     [WY-F1 §5, §12 step 5]"""
+    import zoneinfo
     if os.path.exists(out):
         raise SystemExit(f"{out} exists; refusing to overwrite a fingerprint")
     if require_clean and os.path.abspath(out) != os.path.join(CODE_ROOT, FINGERPRINT):
@@ -2565,9 +3153,11 @@ def cmd_fingerprint(out, require_clean=True, cost_r=None):
     ew()
     tr.run_phase()
     with tempfile.TemporaryDirectory() as tmp:
-        digest, looks = canary(tmp, cost_r=cost_r)
+        digest, looks, body = canary(tmp, cost_r=cost_r)
+    tz = tz_pin()
     pref = {s: _price_ref(s) for s in SYMBOLS} if cost_r is None else None
     tr.stop()
+    gates = collections.Counter(str(r.get("htf_gate")) for r in body["exact"]["log"] if r.get("kind") == "resolve")
     run, code, data = tr.touched()
     data |= set(sealed_history_files(CODE_ROOT)) | {R0}         # inputs a warm process may have cached
     files = run | code | data
@@ -2584,9 +3174,11 @@ def cmd_fingerprint(out, require_clean=True, cost_r=None):
     fp = {"study": STUDY, "created": _now(), "git_head": head.decode().strip() if rc == 0 else None,
           "python": platform.python_version(), "interpreter": pin,
           "exec": _hashes(CODE_ROOT, run), "load": _hashes(CODE_ROOT, code),
-          "data": _hashes(CODE_ROOT, data), "price_ref": pref, "canary_sha256": digest,
+          "data": _hashes(CODE_ROOT, data), "price_ref": pref, "canary_sha256": digest, "tz": tz,
+          "tz_source": {"tzpath": list(zoneinfo.TZPATH), "note": "disclosed, not checked: the pin is the behaviour"},
           "canary": {"events": looks[1]["replay"]["events"],
-                     "rows": {str(n): x["statistic"]["summary"].get("n", 0) for n, x in looks.items()}},
+                     "rows": {str(n): x["statistic"]["summary"].get("n", 0) for n, x in looks.items()},
+                     "htf_gate": dict(gates)},
           "r0_pinned": sorted(f for f in files if f not in (SCRIPT, R0) and not f.startswith(HIST_DIR + "/")),
           "snapshot_roots": list(SNAPSHOT_ROOTS)}
     fp["digest"] = fp_digest(fp)
