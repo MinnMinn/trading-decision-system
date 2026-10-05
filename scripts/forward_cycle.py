@@ -8,6 +8,8 @@
 3. `fvg_forward.py scan` + `resolve`              forward PAPER record of every watched component
 4. `fvg_demo.py tick` once per account            DEMO orders for every account the executor drives (accounts.json), each
                                                   its own step: one account failing never stops another's exits
+5. `wyckoff_forward.py spawn`                     WY-F1 paper log, started DETACHED after the ticks (research; never waited
+                                                  for). Owner 2026-10-05; docs/plans/2026-10-04-wyckoff-forward-wc15-preregistration.md §12
 
 The accounts are ticked in the order scripts/dispatch_order.py gives for this cycle (sha256(cycle || account)): every
 account goes first about 1/N of the time, and the order of any past cycle can be recomputed from its timestamp.
@@ -96,6 +98,7 @@ def main():
         fd = _mod("fvg_demo", "scripts/fvg_demo.py")
         for account_id in tick_order(fd.executor_accounts()):
             _step(f"demo tick {account_id}", lambda a=account_id: fd.tick(account_id=a))
+        _step("wyckoff WY-F1", lambda: _mod("wyckoff_forward", "scripts/research/wyckoff_forward.py").cmd_spawn())
     finally:
         try:
             os.remove(LOCK)
