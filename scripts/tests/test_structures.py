@@ -40,6 +40,11 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import normalized as N  # noqa: E402
 import wyckoff_rules as W  # noqa: E402
 
+# The Wyckoff fixtures below (AUS200 4H slices) were chosen under v1 detection; W8 (CHoCH inside the SC-AR box, ON by
+# default since owner 2026-10-05) drops their only distribution record. Byte-identity and envelope shape are properties
+# of the wrapper, not of W8, so these tests run both sides with the SAME explicit W8-off PARAMS.
+V1_W8_OFF = dict(W.PARAMS, fx_w8_choch_in_box=False)
+
 
 def _load(name, mod):
     spec = importlib.util.spec_from_file_location(mod, os.path.join(ROOT, "scripts", name))
@@ -304,8 +309,8 @@ class WyckoffStructuresMatchDetect(unittest.TestCase):
 
     def test_wyckoff_records_equals_a_direct_detect_distributions_call(self):
         """The hot-path pass-through must be byte-identical to a direct call."""
-        got = structures.wyckoff_records(self.O, self.H, self.L, self.C, self.V, volume_kind="traded", side="short")
-        direct = W.detect_distributions(self.O, self.H, self.L, self.C, self.V, volume_kind="traded")
+        got = structures.wyckoff_records(self.O, self.H, self.L, self.C, self.V, P=V1_W8_OFF, volume_kind="traded", side="short")
+        direct = W.detect_distributions(self.O, self.H, self.L, self.C, self.V, P=V1_W8_OFF, volume_kind="traded")
         self.assertEqual(got, direct)
         self.assertGreaterEqual(len(direct), 1, "fixture must exercise at least one Wyckoff structure")
 
@@ -313,14 +318,14 @@ class WyckoffStructuresMatchDetect(unittest.TestCase):
         """This 600-bar AUS200 4H slice produces >=1 distribution record (verified interactively) but zero
         accumulation records, so the distribution side is what pins byte-identity here."""
         env = structures.wyckoff_structures(self.O, self.H, self.L, self.C, self.V, self.window, "4H",
-                                             volume_kind="traded", side="short")
-        direct = W.detect_distributions(self.O, self.H, self.L, self.C, self.V, volume_kind="traded")
+                                             P=V1_W8_OFF, volume_kind="traded", side="short")
+        direct = W.detect_distributions(self.O, self.H, self.L, self.C, self.V, P=V1_W8_OFF, volume_kind="traded")
         self.assertEqual(env["records"], direct)
         self.assertGreaterEqual(len(direct), 1, "fixture must exercise at least one Wyckoff structure")
 
     def test_records_is_the_same_list_wyckoff_rules_returned(self):
         env = structures.wyckoff_structures(self.O, self.H, self.L, self.C, self.V, self.window, "4H",
-                                             volume_kind="traded", side="short")
+                                             P=V1_W8_OFF, volume_kind="traded", side="short")
         self.assertIsInstance(env["records"], list)
         for r in env["records"]:
             self.assertIn("tr_lo", r)
@@ -328,7 +333,7 @@ class WyckoffStructuresMatchDetect(unittest.TestCase):
 
     def test_trading_range_events_are_timestamped_from_candles(self):
         env = structures.wyckoff_structures(self.O, self.H, self.L, self.C, self.V, self.window, "4H",
-                                             volume_kind="traded", side="short")
+                                             P=V1_W8_OFF, volume_kind="traded", side="short")
         self.assertGreater(len(env["structures"]), 0)
         for tr in env["structures"]:
             self.assertEqual(tr["kind"], "trading_range")
@@ -426,7 +431,7 @@ class A1bWyckoffPhases(unittest.TestCase):
         O = [x["open"] for x in self.window]; H = [x["high"] for x in self.window]
         L = [x["low"] for x in self.window]; C = [x["close"] for x in self.window]
         V = [x.get("volume", 0) for x in self.window]
-        self.env = structures.wyckoff_structures(O, H, L, C, V, self.window, "4H", volume_kind="traded", side="short")
+        self.env = structures.wyckoff_structures(O, H, L, C, V, self.window, "4H", P=V1_W8_OFF, volume_kind="traded", side="short")
 
     def test_every_trading_range_carries_at_least_phase_a_and_b(self):
         self.assertGreater(len(self.env["structures"]), 0)

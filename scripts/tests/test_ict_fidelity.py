@@ -75,10 +75,14 @@ class B1PivotWidthOneBarEachSide(unittest.TestCase):
         c[10] = bar(10, 100.0, 110.0, 99.0, 100.0)
         return c
 
-    def test_v1_default_excludes_the_one_bar_pivot(self):
+    def test_default_is_the_one_bar_pivot(self):
+        """analysis-params.json pivot_bars = 1 since owner 2026-10-05 (was 3: bar 7's higher high inside bar 10's
+        3-bar window disqualified bar 10). The default now equals fx_b1_pivot1, which became a no-op."""
+        self.assertEqual(self.scan.PIV, 1)
         a = self.scan.analyze(self.fixture(), 4, tf="1h", methods=("ict",))
         self.assertIn(7, a["pivots_high"])
-        self.assertNotIn(10, a["pivots_high"], "PIV=3: bar 7's higher high inside bar 10's window disqualifies it")
+        self.assertIn(10, a["pivots_high"])
+        self.assertEqual(a, self.scan.analyze(self.fixture(), 4, tf="1h", methods=("ict",), opts={"fx_b1_pivot1": True}))
 
     def test_fx_b1_pivot1_includes_it(self):
         a = self.scan.analyze(self.fixture(), 4, tf="1h", methods=("ict",), opts={"fx_b1_pivot1": True})

@@ -255,7 +255,10 @@ class ICT4ContinuesScanningAfterAGrab(unittest.TestCase):
     BTCUSDT 15m)."""
 
     def setUp(self):
+        # The fixture is built for 3-bar pivots (PIV below); the engine default is 1 bar since owner 2026-10-05.
+        # The grab/MSS property is width-independent, so the module is run at the fixture's own width.
         self.scan = load("ict-scan.py")
+        self.scan.PIV = 3
 
     def fixture(self):
         N, PIV = 25, 3
@@ -285,6 +288,7 @@ class ICT4ContinuesScanningAfterAGrab(unittest.TestCase):
 
     def test_pre_round2_code_loses_the_later_mss_entirely(self):
         orig = load_git_revision(PRE_ROUND2, "ict-scan.py")
+        orig.PIV = 3                                   # the fixture's width (see setUp)
         a = orig.analyze(self.fixture(), 4, tf="1h")
         self.assertEqual([m["i"] for m in a["mss"]], [22],
                          "pre-fix behaviour: bias reset to 0 on the grab, so the later displaced close at 24 "

@@ -114,8 +114,9 @@ class BaseSnapshot:
             # The session model is CONFIGURATION, not the code under test: both sides must read the same windows, or a
             # session change (sessions.json v3, owner 2026-10-05: London 02:00-05:00 New York) shows up as an "engine
             # difference" on every overlay that reads sessions (fx_b_pool, fx_b7).
-            shutil.copy(os.path.join(ROOT, "docs", "architecture", "sessions.json"),
-                        os.path.join(d, "docs", "architecture", "sessions.json"))
+            # Same for analysis-params.json (ICT pivot width 3 -> 1, owner 2026-10-05): a parameter both engines read.
+            for cfg in ("sessions.json", "analysis-params.json"):
+                shutil.copy(os.path.join(ROOT, "docs", "architecture", cfg), os.path.join(d, "docs", "architecture", cfg))
             os.symlink(os.path.join(ROOT, "data"), os.path.join(d, "data"))
             with open(os.path.join(d, "ref.py"), "w") as fh:
                 fh.write(REF_SCRIPT)

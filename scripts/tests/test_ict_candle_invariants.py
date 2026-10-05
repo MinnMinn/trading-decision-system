@@ -117,6 +117,7 @@ class IctInvariantsReDerivedFromCandles(unittest.TestCase):
                             "high": max(op, cl) + 0.1, "low": min(op, cl) - 0.1, "close": cl, "volume": 1})
             return out
         rising = candles([100 + k for k in range(60)])
+        rising[0]["low"] -= 1.0   # bars 0/1 had EQUAL lows, which a 1-bar pivot (default since 2026-10-05) reads as a swing low
         v = candles([200 - k for k in range(30)] + [170 + 2 * k for k in range(1, 61)])
         got = {}
         for name, c in (("rising", rising), ("v", v)):

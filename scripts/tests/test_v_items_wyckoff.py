@@ -385,7 +385,10 @@ class WTwTestWindowAndPhaseBSwings(unittest.TestCase):
     def test_baseline_params_copy_is_exactly_the_v1_copy(self):
         bt = _load("bt_v_wy_tw2", "backtest-methods.py")
         self.assertEqual(bt._wy_params(3), dict(W.PARAMS, spring_max_bars_outside=3, **bt._fx_detection_opts()))
-        self.assertEqual(bt._fx_detection_opts(), {k: False for k in bt._FX_WYCKOFF_DETECTION_KEYS})
+        # Baseline: W1-W5 False (v1); W8 True since owner 2026-10-05 ("bật cho cả setup hiện tại của Wyckoff").
+        self.assertEqual(bt._fx_detection_opts(),
+                         {k: k == "fx_w8_choch_in_box" for k in bt._FX_WYCKOFF_DETECTION_KEYS})
+        self.assertEqual(bt._wy_params(3), dict(W.PARAMS, spring_max_bars_outside=3), "baseline copy == PARAMS")
 
 
 class WMgmtBreakeven(unittest.TestCase):

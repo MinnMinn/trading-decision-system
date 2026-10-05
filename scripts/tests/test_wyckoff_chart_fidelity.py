@@ -34,6 +34,8 @@ def _load(name, mod):
 
 
 structures = _load("structures.py", "structures_fid")
+# v1 detection WITHOUT W8 (the default until 2026-10-05): the population the W8 tests compare against.
+V1_W8_OFF = dict(W.PARAMS, fx_w8_choch_in_box=False)
 cn = _load("check-narrative.py", "check_narrative_fid")
 ba = cn._ba   # check-narrative.py already loaded build-artifact.py; reuse it rather than paying for a second load
 
@@ -108,23 +110,14 @@ class W8ChochInsideBox(unittest.TestCase):
     """Finding 1 (WA p68-69): the confirming CHoCH must lie inside (or at the edge of) the SC->AR box; the ran-away
     guard runs before the LPS[C]/SOS test."""
 
-    def test_chart_detects_with_the_decision_params_and_w8_stays_off(self):
-        """ADR 0009 rule 1: the chart draws what the decision reads. W8 is an owner decision (§47), so the chart
-        neither filters with it nor lets it leak into the decision path."""
-        self.assertIs(W.PARAMS["fx_w8_choch_in_box"], False, "v1 decision semantics: W8 is an owner decision")
-        # Owner 2026-10-05 ("W8 cho chart, ok"): the chart follows the book; the engine keeps W8 off (stated
-        # exception to ADR 0009 while no Wyckoff system trades).
-        self.assertTrue(structures.ENVELOPE_PARAMS["fx_w8_choch_in_box"], "the chart must apply W8")
+    def test_w8_is_on_for_the_decision_path_and_the_chart(self):
+        """Owner 2026-10-05 ("bật cho cả setup hiện tại của Wyckoff"): W8 is ON in wyckoff_rules.PARAMS, in the
+        backtest OPTS and in the chart's PARAMS -- chart and decision read the same PARAMS (ADR 0009 rule 1)."""
+        self.assertIs(W.PARAMS["fx_w8_choch_in_box"], True)
+        self.assertIs(structures.ENVELOPE_PARAMS, W.PARAMS, "the chart must detect with the decision path's PARAMS")
         self.assertTrue(structures.W8_PARAMS["fx_w8_choch_in_box"])
-        # backtest-methods.py declares fx_w8_choch_in_box as a research key (2026-10-05), default False (v1); the
-        # live path never names it. Owner decision 2026-10-05: W8 stays off.
         bt = _load("backtest-methods.py", "bt_w8_default")
-        self.assertIs(bt.OPTS["fx_w8_choch_in_box"], False)
-        for f in ("live_rules.py", "strategy-runner.py", "fvg_demo.py"):
-            p = os.path.join(ROOT, "scripts", f)
-            if os.path.exists(p):
-                self.assertNotIn("fx_w8", open(p, encoding="utf-8").read(), f"{f} must not set W8 silently")
-                self.assertNotIn("W8_PARAMS", open(p, encoding="utf-8").read(), f)
+        self.assertIs(bt.OPTS["fx_w8_choch_in_box"], True)
 
     def test_outside_box_flag_matches_the_w8_filter(self):
         """Every v1 structure the W8 filter would drop at its first gate carries choch_outside_box=True, and every
@@ -134,7 +127,7 @@ class W8ChochInsideBox(unittest.TestCase):
             O, H, L, C, V = _arrays(rows)
             for side in ("long", "short"):
                 Hd = _det(rows, side)[1]
-                env = structures.wyckoff_structures(O, H, L, C, V, rows, tf, side=side, pit=False)
+                env = structures.wyckoff_structures(O, H, L, C, V, rows, tf, P=V1_W8_OFF, side=side, pit=False)
                 for s in env["structures"]:
                     lo, hi = (s["tr_lo"], s["tr_hi"]) if side == "long" else (-s["tr_hi"], -s["tr_lo"])
                     want = Hd[s["choch"]] > hi + W.PARAMS["choch_box_tol_tr"] * (hi - lo) + 1e-12
@@ -149,7 +142,7 @@ class W8ChochInsideBox(unittest.TestCase):
             O, H, L, C, V = _arrays(rows)
             for side in ("long", "short"):
                 Hd = _det(rows, side)[1]
-                for P, chart in ((structures.W8_PARAMS, True), (W.PARAMS, False)):
+                for P, chart in ((structures.W8_PARAMS, True), (V1_W8_OFF, False)):
                     for r in structures.wyckoff_records(O, H, L, C, V, P=P, side=side):
                         lo, hi = (r["tr_lo"], r["tr_hi"]) if side == "long" else (-r["tr_hi"], -r["tr_lo"])
                         inside = Hd[r["choch"]] <= hi + tol * (hi - lo) + 1e-12
@@ -212,7 +205,7 @@ class PointInTimePrefixRedetection(unittest.TestCase):
 
     def test_every_shipped_object_appears_exactly_at_its_available_at(self):
         objects = springs_after_reclaim = 0
-        for P in (structures.W8_PARAMS, W.PARAMS):
+        for P in (structures.W8_PARAMS, V1_W8_OFF):
             for name, sym, tf, side, rows, env in _envs(P, 300):
                 bar_of = {_iso(c, tf): i for i, c in enumerate(rows)}
                 cache = {}
@@ -282,7 +275,7 @@ class EngineObjectsOnData(unittest.TestCase):
 
     def test_invalidation_is_emitted_and_means_what_the_books_say(self):
         seen = 0
-        for P in (structures.W8_PARAMS, W.PARAMS):
+        for P in (structures.W8_PARAMS, V1_W8_OFF):
             for name, sym, tf, side, rows, env in _envs(P, 360):
                 Cd = _det(rows, side)[3]
                 for tr in env["structures"]:
@@ -305,7 +298,7 @@ class EngineObjectsOnData(unittest.TestCase):
 
     def test_lps_c_path_has_a_phase_c_and_an_lps_c_event(self):
         seen = 0
-        for P in (structures.W8_PARAMS, W.PARAMS):
+        for P in (structures.W8_PARAMS, V1_W8_OFF):
             for name, sym, tf, side, rows, env in _envs(P, 360):
                 for tr in env["structures"]:
                     if tr["path"] != "lps_c":
@@ -323,7 +316,7 @@ class EngineObjectsOnData(unittest.TestCase):
 
     def test_phase_e_starts_beyond_the_sos_leg_after_the_bu_and_the_range_ends(self):
         e_seen = ended = 0
-        for P in (structures.W8_PARAMS, W.PARAMS):
+        for P in (structures.W8_PARAMS, V1_W8_OFF):
             for name, sym, tf, side, rows, env in _envs(P, 360):
                 Hd, Cd = _det(rows, side)[1], _det(rows, side)[3]
                 times = [r["time"] for r in rows]
