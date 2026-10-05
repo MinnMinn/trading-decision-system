@@ -81,3 +81,34 @@ trading-systems.json/accounts.json in favour of v4 (append-only assignments). Do
   Wyckoff chart modules (test_wyckoff_chart_fidelity, test_structures, test_build_artifact, test_doc_citations,
   test_pit_page) pass.
 - Actions 2, 3 and 4 not started. Action 2 must be committed before 2026-10-12.
+
+## Owner decisions, later 2026-10-05 — supersede the W8/pivot lines above
+
+- "chuyển mặc định sang 1 nến" → `analysis-params.json` `project_defined.ict.pivot_bars` = 1 (engine default; owner
+  chose this knowing docs/audits/2026-10-05-ict-pivot-width-backtest.md favoured 3). `CHART_ICT_OPTS` is now redundant.
+- "W8 ... bật cho cả setup hiện tại của Wyckoff" → `wyckoff_rules.PARAMS fx_w8_choch_in_box=True`,
+  `backtest-methods.OPTS fx_w8_choch_in_box=True`, `stability-report.config_opts` True; `structures.ENVELOPE_PARAMS =
+  W.PARAMS` again (chart = decision, ADR 0009 holds again). Both are Trading-System-version significant for any ICT /
+  Wyckoff system (none is enabled). Past results stay reproducible from their recorded git sha.
+- Code changed and pushed in commit "Owner 2026-10-05: ICT pivot default 1 bar, W8 ON for Wyckoff setups (tests pending)".
+
+### Action 5 — update the tests that pinned the old defaults (PR #9 is NOT mergeable until done)
+
+Failing after the change (each pins "v1 = pivot 3" or "W8 default off"); update each to the new defaults, keeping the
+intent (a key still separates cache entries, the frozen copies are compared with the SAME params, etc.):
+- test_wyckoff_chart_fidelity: test_chart_detects_with_the_decision_params_and_w8_stays_off (assert W8 ON everywhere,
+  ENVELOPE_PARAMS is W.PARAMS), test_every_chart_record_has_its_choch_inside_the_box and
+  test_outside_box_flag_matches_the_w8_filter (compare W8-on vs an explicit `dict(W.PARAMS, fx_w8_choch_in_box=False)`).
+- test_wyckoff_fidelity: test_cache_key_is_widened_by_each_detection_key, test_cache_is_keyed_on_each_detection_fx_key
+  (×5) — they flip each key False→True; for fx_w8 the baseline is now True (flip True→False).
+- test_v_items_wyckoff: test_baseline_params_copy_is_exactly_the_v1_copy (`_fx_detection_opts()` is no longer all False).
+- test_structures: 4 tests comparing structures.wyckoff_records with a direct detect_* call without P (pass the same P).
+- test_wyckoff_detect_equivalence: test_random_series_match_frozen (frozen copy predates W8; pass P with W8 off to both,
+  or add W8-on equivalence).
+- test_ict_fidelity: test_v1_default_excludes_the_one_bar_pivot (v1 default is now 1 bar; fx_b1_pivot1 is a no-op).
+- test_audit_round2_ict (2) and test_ict_candle_invariants (1): fixtures built for 3-bar pivots; rebuild for 1-bar or
+  pass opts that reproduce the fixture's width.
+- Expect more in the full suite (earlier run with pivot 1 also failed test_pit_w7_b3 vacuity guards — thresholds need
+  re-measuring — and test_speed_equivalence ICT differentials: BaseSnapshot extracts BASE's analysis-params.json, so copy
+  the CURRENT analysis-params.json into the snapshot like sessions.json, then re-check the b1/pool "changes trades" tests).
+Then run the full suite (see "Open threads") and only then ask the owner to merge PR #9.

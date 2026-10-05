@@ -154,7 +154,7 @@ PARAMS = dict(
     fx_w2_st_below_sc=False,
     fx_w3_mSOW_spring=False,
     fx_w5_vp_abandon=False,
-    fx_w8_choch_in_box=False,
+    fx_w8_choch_in_box=True,    # owner 2026-10-05: W8 ON for the Wyckoff setups (was False = v1)
     choch_box_tol_tr=0.1,       # W8: CHoCH may sit at most this x TR above the AR border (project; WA p68-69 prints no tolerance)
     # V item W4a (module docstring "V ITEMS"): None = v1 Shakeout typing; an int = the lingering-closes threshold.
     fx_w4a_linger_closes=None,

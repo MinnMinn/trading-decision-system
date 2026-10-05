@@ -81,8 +81,8 @@
     "ict": {
       "_comment": "ICT detector parameters. The decks define the concepts, never these numbers (knowledge/ict/core-a.md section 5 and 6: no minimum FVG size, no 'relatively equal' tolerance, no displacement size). Declared here so scanner, drawing layer and backtest agree; every output that uses one labels it a project parameter.",
       "pivot_bars": {
-        "value": 3,
-        "_basis": "bars each side for a swing high/low in the engine's v1 default. The deck uses ONE bar each side (knowledge/ict/core-a.md section 2.5, 3. Liquidity p3); 3 was this project's noise filter. Owner decision 2026-10-05 ('Đồng ý cả 3'): the method's swing is the deck's 1 bar. It is applied through the fx_b1_pivot1 key, not by changing this v1 default, so every past v1 result keeps its meaning (CLAUDE.md §59): the chart passes it (scripts/build-artifact.py CHART_ICT_OPTS), every fund-search cell already fixes it ON (scripts/fund-search.py ADOPTED_F_KEYS), and any new ICT Trading System version must declare it. The live pilot (v1, no ICT system enabled: pilot-selection.json setups is empty) is unchanged."
+        "value": 1,
+        "_basis": "bars each side for a swing high/low: ONE, the deck's own width (knowledge/ict/core-a.md section 2.5, 3. Liquidity p3). Owner decision 2026-10-05 ('chuyển mặc định sang 1 nến'), made knowing the dev-data comparison favoured 3 (docs/audits/2026-10-05-ict-pivot-width-backtest.md). Results computed before this change used 3 and stay reproducible from their recorded code version (git sha)."
       },
       "equal_level_tolerance_pct": {
         "value": 0.08,

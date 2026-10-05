@@ -325,13 +325,10 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None, opts=Non
 # ------------------------------------------------------------------------------------------------- Wyckoff
 
 
-# The chart's detection parameters: the book's (owner 2026-10-05, "W8 cho chart, ok"). W8 = the CHoCH that licenses
-# the SC->AR box must lie inside it (WA p68-69; wyckoff_rules.py module docstring). The decision/backtest engine keeps
-# W8 OFF (docs/audits/2026-10-05-w8-backtest.md). This is a STATED exception to ADR 0009 rule 1 (chart = decision):
-# no mechanical Wyckoff system trades (pilot-selection.json `setups` is empty) and the chart is the owner's
-# discretionary tool. If a Wyckoff Trading System is ever enabled, chart and decision must share PARAMS again.
+# The chart's detection parameters = the decision path's (ADR 0009). Since 2026-10-05 W8 (CHoCH inside the SC->AR
+# box, WA p68-69) is ON for both (owner: "bật cho cả setup hiện tại của Wyckoff"), so W8_PARAMS equals W.PARAMS.
 W8_PARAMS = dict(W.PARAMS, fx_w8_choch_in_box=True)
-ENVELOPE_PARAMS = W8_PARAMS
+ENVELOPE_PARAMS = W.PARAMS
 
 
 def choch_outside_box(r, H, L, P=None, side="long"):

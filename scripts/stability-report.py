@@ -84,7 +84,7 @@ def config_opts(cfg, ict_target):
                 # the COMPLETE, honest bt.OPTS overlay a config applies -- not a hand-picked subset that could
                 # silently omit a scan-cache-relevant key (see _SCAN_RELEVANT_KEYS below).
                 fx_w1_tr_low_st=False, fx_w2_st_below_sc=False, fx_w3_mSOW_spring=False, fx_w5_vp_abandon=False,
-                fx_w7_htf_target=False, fx_w8_choch_in_box=False,
+                fx_w7_htf_target=False, fx_w8_choch_in_box=True,
                 # O1 (2026-09-30): v1 default; True = min_rr admission uses entry-knowable costs only.
                 fx_admission_entry_cost=False,
                 # C3 (2026-10-02): v1 default; True = walk() fills a stop at the worse of the stop and the bar open.
