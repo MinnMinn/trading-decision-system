@@ -21,7 +21,11 @@ colour with "outside SC–AR box (WA p68–69)". `structures.W8_PARAMS` keeps th
 W8 tests. The engine-grammar regression (`NarrativeContractOnEngineOutput`) found one such structure (SUIUSDT 2H
 distribution: CHoCH and an unconfirmed LPS[C] on one bar), which is exactly what the flag is for.
 
-**Owner decision 2026-10-05: W8 stays OFF ("Đồng ý bỏ W8").** Turning it on would reduce detected structures over the full
+**Owner decision 2026-10-05 (later the same day): W8 ON for the chart only** ("W8 cho chart, ok"): the charts are now
+the owner's discretionary tool and follow the book, so `structures.ENVELOPE_PARAMS = W8_PARAMS`; the decision/backtest
+engine keeps W8 off. Stated exception to ADR 0009 rule 1 while no Wyckoff system trades.
+
+**Owner decision 2026-10-05 (earlier): W8 stays OFF ("Đồng ý bỏ W8").** Turning it on would reduce detected structures over the full
 history from 13,088 to 2,990 (−77 %) and structures reaching a BU entry from 4,989 to 832 (−83 %); the backtest
 (docs/audits/2026-10-05-w8-backtest.md) found no improvement (mean net R negative in every variant, worse overall with
 W8). So wyckoff_rules.PARAMS keeps `fx_w8_choch_in_box=False`, the chart keeps drawing such structures with the

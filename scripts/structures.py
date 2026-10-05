@@ -325,14 +325,13 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None, opts=Non
 # ------------------------------------------------------------------------------------------------- Wyckoff
 
 
-# The chart's detection parameters ARE the decision path's (ADR 0009 rule 1: one structure source -- the chart draws
-# what the decision reads, never a stricter or looser set). W8 (CHoCH inside the SC->AR box, WA p68-69;
-# wyckoff_rules.py module docstring) is an owner decision that changes Trading System semantics (§47/§59), so until it
-# is approved the chart does not FILTER with it: every structure instead carries `choch_outside_box` and the page
-# marks such a CHoCH as off-textbook (docs/audits/2026-10-04-wyckoff-chart-fidelity.md finding 1). W8_PARAMS is the
-# candidate setting, read only by research and tests.
-ENVELOPE_PARAMS = W.PARAMS
+# The chart's detection parameters: the book's (owner 2026-10-05, "W8 cho chart, ok"). W8 = the CHoCH that licenses
+# the SC->AR box must lie inside it (WA p68-69; wyckoff_rules.py module docstring). The decision/backtest engine keeps
+# W8 OFF (docs/audits/2026-10-05-w8-backtest.md). This is a STATED exception to ADR 0009 rule 1 (chart = decision):
+# no mechanical Wyckoff system trades (pilot-selection.json `setups` is empty) and the chart is the owner's
+# discretionary tool. If a Wyckoff Trading System is ever enabled, chart and decision must share PARAMS again.
 W8_PARAMS = dict(W.PARAMS, fx_w8_choch_in_box=True)
+ENVELOPE_PARAMS = W8_PARAMS
 
 
 def choch_outside_box(r, H, L, P=None, side="long"):
@@ -576,7 +575,7 @@ def wyckoff_structures(O, H, L, C, V, candles, tf, P=None, volume_kind="traded",
 
     `candles` is the same OHLCV list O/H/L/C/V were built from (bar `i`'s time is `candles[i]["time"]`).
     `P`: detection parameters (None = wyckoff_rules.PARAMS, the decision path's v1 defaults; the chart passes
-    ENVELOPE_PARAMS, the same dict). Each structure also carries `choch_outside_box` (W8 as a flag).
+    ENVELOPE_PARAMS = W8_PARAMS, owner 2026-10-05). Each structure also carries `choch_outside_box` (W8 as a flag).
 
     Returns {"records": recs, "structures": [...]} where `recs` is EXACTLY what `wyckoff_records()` returned
     (same objects, not copied). Each trading_range structure carries `events`, `phases`, its end (`to`,

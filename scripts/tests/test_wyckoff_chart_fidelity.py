@@ -112,7 +112,9 @@ class W8ChochInsideBox(unittest.TestCase):
         """ADR 0009 rule 1: the chart draws what the decision reads. W8 is an owner decision (§47), so the chart
         neither filters with it nor lets it leak into the decision path."""
         self.assertIs(W.PARAMS["fx_w8_choch_in_box"], False, "v1 decision semantics: W8 is an owner decision")
-        self.assertIs(structures.ENVELOPE_PARAMS, W.PARAMS, "the chart must detect with the decision path's PARAMS")
+        # Owner 2026-10-05 ("W8 cho chart, ok"): the chart follows the book; the engine keeps W8 off (stated
+        # exception to ADR 0009 while no Wyckoff system trades).
+        self.assertTrue(structures.ENVELOPE_PARAMS["fx_w8_choch_in_box"], "the chart must apply W8")
         self.assertTrue(structures.W8_PARAMS["fx_w8_choch_in_box"])
         # backtest-methods.py declares fx_w8_choch_in_box as a research key (2026-10-05), default False (v1); the
         # live path never names it. Owner decision 2026-10-05: W8 stays off.

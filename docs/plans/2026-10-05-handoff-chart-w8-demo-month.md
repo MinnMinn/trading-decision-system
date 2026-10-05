@@ -16,7 +16,7 @@ MinnMinn/trading-decision-system#9 (open, not merged). Owner messages are quoted
   (docs/audits/2026-10-05-ict-pivot-width-backtest.md: 1 bar not better, nothing overwritten). Sessions v3 (London
   02:00–05:00 New York, index killzones). W8 stays off for decisions.
 
-## Action 1 — W8 on the chart (small)
+## Action 1 — W8 on the chart — DONE (structures.ENVELOPE_PARAMS = W8_PARAMS; tests pass)
 
 - `scripts/structures.py`: `ENVELOPE_PARAMS` is currently `W.PARAMS` (ADR 0009 "chart = decision"). Set it to
   `W8_PARAMS` (`dict(W.PARAMS, fx_w8_choch_in_box=True)`) and rewrite its comment: no mechanical Wyckoff system trades

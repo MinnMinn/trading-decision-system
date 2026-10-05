@@ -1151,8 +1151,8 @@ CHART_ICT_OPTS = {"fx_b1_pivot1": True}
 
 def wy_ship(rows, tf, sym, kind, side, P=None):
     """The shipped (chart/ladder) Wyckoff read of ONE side: the most recent trading_range by its own `available_at`,
-    from scripts/structures.py wyckoff_structures() with the chart's ENVELOPE_PARAMS -- the decision path's own
-    parameters (ADR 0009); W8 is shipped as the `choch_outside_box` flag, not applied as a filter (structures.py). Returns None when that side detected nothing. Every object carries the engine's point-in-time
+    from scripts/structures.py wyckoff_structures() with the chart's ENVELOPE_PARAMS -- the book's W8 applied
+    (owner 2026-10-05; the engine keeps it off, structures.py states the ADR 0009 exception). Returns None when that side detected nothing. Every object carries the engine's point-in-time
     `available_at` (structures._wy_availability): replay never shows a label, a phase end or an invalidation
     before a prefix run would have emitted it."""
     O = [r["open"] for r in rows]; H = [r["high"] for r in rows]; L = [r["low"] for r in rows]
