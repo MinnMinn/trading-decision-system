@@ -91,8 +91,10 @@ MIN_RR = trading_env.min_rr()
 #   fx_b6      B6     PROJECT rule: cancel the pending limit when the target trades before the fill (core-b.md §3.1
 #                     R3 is the invalidation idea, not an order-cancel rule)
 #   fx_b3      B3     bias timeframe: the entry TF (v1) or the TFA p5 higher-TF pairing (models.md §2.8)
-#   fx_b7      B7     indices only: entries inside a session-registry window only (docs/architecture/sessions.json v2,
-#                     NOT core-a.md R1's literal 02:00-05:00 EST windows; instant = fill bar OPEN, a proxy)
+#   fx_b7      B7     indices only: entries inside a session-registry window only (docs/architecture/sessions.json; since
+#                     v3, 2026-10-05, its london window IS core-a.md R1's 02:00-05:00 New York; instant = fill bar OPEN)
+#                     B-POOL and B7 read the registry, so sessions v3 changes their results vs v2 (the fund-search
+#                     declaration pins docs/architecture/ and refuses to run until re-declared)
 # B4 ("HTF level engaged before the LTF MSS") is NOT here: the sources never define an HTF level nor "engaged",
 # so no key is registered (docs/architecture/v-grid-ict.json states it as implemented=false).
 # `V_ICT` is what the ENGINE accepts (check_v_opts). docs/architecture/v-grid-ict.json is what the fund-search GRID

@@ -453,9 +453,10 @@ class BPOOL_ReferencePools(unittest.TestCase):
         self.assertFalse([p for p in self.kinds(self.on(c), "session_high") if p["level"] == 108.0])
 
     def test_an_unfinished_session_run_is_not_a_pool(self):
-        # PIT (mutation M7, part 2). The window ends inside the london run (08-11Z): last bar 10:00Z, unique high there.
+        # PIT (mutation M7, part 2). The window ends inside the london run (sessions.json v3: 02:00-05:00 New York =
+        # 07-10Z in January): last bar 09:00Z, unique high there.
         import sessions as S
-        c = self.hourly(2, spikes={24 + 10: (109.5, 100.0)})[:35]
+        c = self.hourly(2, spikes={24 + 9: (109.5, 100.0)})[:34]
         self.assertIn("london", S.active(c[-1]["time"]))
         on = self.on(c)
         self.assertFalse([p for p in self.kinds(on, "session_high") if p["level"] == 109.5])
