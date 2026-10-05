@@ -1430,6 +1430,32 @@
    "option_C_power_cost": "T1a's power at an equal 0.20 R_bar effect without a block effect: 88.0 % by day alone, 82.1 % under option C (the first Holm step, sign conditions aside; with them 0.87 -> 0.813); size under a year effect of sd 0.10: 10.0 % -> 6.5 % (lead decision 2026-10-05)"
   },
   "consequence": "a T1 pass is DISCOVERY-GRADE for the condition: a CANDIDATE row filter for fvg-book, a new setup version (CLAUDE.md §47), used on the demo only after TF passes and the owner approves; personal account: default NO (lead decision 2026-10-04)",
-  "lead_decisions": "2026-10-04: window B decisive, window A report-only; VC not used on the personal account by default; VC-X group B from 2024-03-01 only; D1 power statements of the full rule; D2 point-in-time decisive rows; D3 the 5m XAUUSD / XAGUSD history pinned; D4 the dry run re-run and traced, its git_head disclosed, the F4 G5 NR7 prior disclosed, the read refuses a pycache prefix. 2026-10-05: (1) option C: T1a passes only if its by-day rule passes AND its run-clustered p <= 0.05, at the power cost in power_at_seal.option_C_power_cost; a regime-level effect is for TF to confirm; (2) the whole-history dense rule decisive, the causal rule a sensitivity; (3) the paper log's refusals report-only; (4) the fix round's four additions kept (the causal-density sensitivity, the run-clustered T1a companion, the refusal-excluded block, the evidence files); (5) the dry-run JSON committed with its evidence, this ledger entry with the hypothesis_refinement records (option A), the CX field contract a refusal condition, the manifest coupling accepted"
+  "lead_decisions": "2026-10-04: window B decisive, window A report-only; VC not used on the personal account by default; VC-X group B from 2024-03-01 only; D1 power statements of the full rule; D2 point-in-time decisive rows; D3 the 5m XAUUSD / XAGUSD history pinned; D4 the dry run re-run and traced, its git_head disclosed, the F4 G5 NR7 prior disclosed, the read refuses a pycache prefix. 2026-10-05: (1) option C: T1a passes only if its by-day rule passes AND its run-clustered p <= 0.05, at the power cost in power_at_seal.option_C_power_cost; a regime-level effect is for TF to confirm; (2) the whole-history dense rule decisive, the causal rule a sensitivity; (3) the paper log's refusals report-only; (4) the fix round's four additions kept (the causal-density sensitivity, the run-clustered T1a companion, the refusal-excluded block, the evidence files); (5) the dry-run JSON committed with its evidence, this ledger entry with the hypothesis_refinement records (option A), the CX field contract a refusal condition, the manifest coupling accepted",
+  "results": {
+   "xau-holdout": {
+    "file": "docs/audits/2026-10-05-edge-vc-xau-holdout.json",
+    "commit": "676e365",
+    "T1a_volatility": false,
+    "T1a_diff_R_bar": -0.0227,
+    "T1a_by_day_p": 0.618,
+    "T1a_run_clustered_p": 0.666,
+    "T1b_hold_length": false,
+    "T1b_diff_R_bar": 0.0721,
+    "T1b_p": 0.14,
+    "reading": "NOT SHOWN (inconclusive for a G9-concentrated effect)",
+    "data_sensitive": false,
+    "T2_silver": "not run (no VR in window B)",
+    "report_only_window_A": {
+     "T1a_diff_R_bar": -0.0137,
+     "T1a_p": 0.699,
+     "T1b_diff_R_bar": 0.3004,
+     "T1b_t": 8.86,
+     "note": "partly exposed window; descriptive only"
+    },
+    "forward": "not scheduled: the forward read runs only if T1a or T1b passed",
+    "report": "docs/audits/2026-10-05-vc-volatility-condition.md"
+   }
+  },
+  "status": "read: xau-holdout NOT SHOWN; crypto part (VC-X) waits for CX"
  }
 }
