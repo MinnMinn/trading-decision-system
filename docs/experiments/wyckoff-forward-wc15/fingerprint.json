@@ -1,0 +1,524 @@
+{
+ "canary": {
+  "events": 10,
+  "htf_gate": {
+   "False": 10
+  },
+  "rows": {
+   "1": 10,
+   "2": 10
+  }
+ },
+ "canary_sha256": "7b63942ca1f43ed93a4c3688d44951dc7aa674ce7f3e68185e0744bd6bc2693a",
+ "created": "2026-10-05T06:19:06Z",
+ "data": {
+  "data/history/costs/ftmo/symbol-map.json": "df639b26bcf3f4cac2d1dd9b66b51841b6610185d9a53c4e9ae31b86f9175818",
+  "data/history/costs/ftmo/symbolspec.AUS200.cash.json": "5f12b91a7c5e53f63c02dae7c7a0646d5b1e0228c694ecfdf568434c6a38bcb5",
+  "data/history/costs/ftmo/symbolspec.GER40.cash.json": "b21ab237bfd0b50e5c94d4ac4083ab64b4a59bdfc7a4fcfd75ef95626a4e8d1a",
+  "data/history/costs/ftmo/symbolspec.JP225.cash.json": "417d26b1a5e1bc54c98f4b93f4e8d05fc49fb523e1e41013dc4108f90ec23eb6",
+  "data/history/costs/ftmo/symbolspec.UK100.cash.json": "0ff2e909bde153a4030a815f51fb97a3ed669c75056da6862887754e16e358ed",
+  "data/history/costs/ftmo/symbolspec.US100.cash.json": "84fa4b954ee09d36ea3eb68e38e3d5e7511a5c33d505022b06835410e2da2057",
+  "data/history/costs/ftmo/symbolspec.US2000.cash.json": "2d22d1bfbf944cc3d5e1d5c487d9fc278a4ae177ca7434c61522f30ee299472c",
+  "data/history/costs/ftmo/symbolspec.US30.cash.json": "7733a42680646cd481c7f9d4309e2eee83d96f1da3c6f98a105935c1ca4b27db",
+  "data/history/costs/ftmo/symbolspec.US500.cash.json": "4a862100c9de8b06d6cfd50f2ff31d8a3fde5d274ee990a11987d72f58f1f43f",
+  "data/history/costs/ftmo/symbolspec.XAGUSD.json": "70f016aa153fe9bcc586e5037556d78a7989d92dab35f029fae5a4b1eb6424f7",
+  "data/history/costs/ftmo/symbolspec.XAUUSD.json": "ea3cbf20dffc719d9f48f26b83e77357756c6c2d452277e9521b6d36ab743c53",
+  "data/history/ftmo/ohlcv.AUS200.15m/2019.json.gz": "b9916ff82528f2c4f4d9eb92f168e30458720a3961809c549d562ad3c688a00b",
+  "data/history/ftmo/ohlcv.AUS200.15m/2020.json.gz": "4bde6518781be0cf613664f9e006290935fa639a6b2339c2f02d2896595ad533",
+  "data/history/ftmo/ohlcv.AUS200.15m/2021.json.gz": "16cfaf8c851567e8232078ffd27599a84c7b69c53efc8a6da1b9560b72e8f8e6",
+  "data/history/ftmo/ohlcv.AUS200.15m/2022.json.gz": "b180c8b2d5d2bb201787e9791742ed677b2fe062868f3fddea013930879d3c28",
+  "data/history/ftmo/ohlcv.AUS200.15m/2023.json.gz": "b82994b858dcbc978c7244887e05b3c791d8fd1e578722fffcd277965e449d0b",
+  "data/history/ftmo/ohlcv.AUS200.15m/2024.json.gz": "1118a63a2dc9f785fd7aca15aad10490ff08d638910bef39002f8cc6827cd468",
+  "data/history/ftmo/ohlcv.AUS200.15m/2025.json.gz": "7b95cfc31cfb461859c296713d2a3d7eaea98909b2d3d9c6ed0e152af9e2d949",
+  "data/history/ftmo/ohlcv.AUS200.15m/2026.json.gz": "a3efcde02728c3c6eafa3f20bc6c9705bdaf26a75b9ce619a9ce30fe15b48524",
+  "data/history/ftmo/ohlcv.AUS200.15m/index.json": "e75c22c8d3ebfa4e4cb656cc331ca9fe1f51db3bf0b48ed31b9ea085673809b5",
+  "data/history/ftmo/ohlcv.DE40.15m/2017.json.gz": "f9ae4585b46477de53c6738ca3a1b58092d046449a5108da1940ae4aac97de0c",
+  "data/history/ftmo/ohlcv.DE40.15m/2018.json.gz": "ff71965bb0edf84952b4210a01d2bc6eda235e21d65dd878cd15d76eda284134",
+  "data/history/ftmo/ohlcv.DE40.15m/2019.json.gz": "40f79236673f941b06427b04754b02a1d88482c4b8f5584592bde4b0899e0e70",
+  "data/history/ftmo/ohlcv.DE40.15m/2020.json.gz": "c9919fb0fa70ce37df1349b6a0dc8f026f6b510d7b0224c598503790c30901a2",
+  "data/history/ftmo/ohlcv.DE40.15m/2021.json.gz": "38e1188446f041b8c7109fa1bc2929eed1c07960e45c405fc731fd9edc9f6c15",
+  "data/history/ftmo/ohlcv.DE40.15m/2022.json.gz": "505344c3f55370365730ee267b32da07c649bc7602edde70a93541b5bd639ab8",
+  "data/history/ftmo/ohlcv.DE40.15m/2023.json.gz": "edc95cab7cbd661a318fd0fa4caa52d2d3bf4e3d5175f47b5ceb1dc2dd9c940c",
+  "data/history/ftmo/ohlcv.DE40.15m/2024.json.gz": "e6bc0179457d90270385aeb13b27d1f54461e7917045f4d10c1a1808e47ef716",
+  "data/history/ftmo/ohlcv.DE40.15m/2025.json.gz": "979a696a0b073f6256ae0ea64c2c1fda2fc5eaa6956b2a4f45f3c02d7ccd5a7a",
+  "data/history/ftmo/ohlcv.DE40.15m/2026.json.gz": "b674159f68f1c8a6873513545856136664cc6a20fb4003d374f22e9d0c81b776",
+  "data/history/ftmo/ohlcv.DE40.15m/index.json": "8e3879435ec3a510e2a069032d0047d699593a878f4ef3a81c72040e55b930f5",
+  "data/history/ftmo/ohlcv.JP225.15m/2017.json.gz": "0bb751ec6bb9b3c1e72c913fc24f49f4e4a344ee8eda972babfbdc71d6c1e679",
+  "data/history/ftmo/ohlcv.JP225.15m/2018.json.gz": "5e6a6e660865913656dcd705b0ae7c0518788fb2d793e742752b364a75d3d075",
+  "data/history/ftmo/ohlcv.JP225.15m/2019.json.gz": "97ce40e0dcc48333d82c8ae6e3a851f5036367066fe569ae2b4c4e552dd54101",
+  "data/history/ftmo/ohlcv.JP225.15m/2020.json.gz": "1b5c2b356dd4f0f4263c0bb5832aabc131e16e5fa91b7d4e41caedcd840927d7",
+  "data/history/ftmo/ohlcv.JP225.15m/2021.json.gz": "8468a970087c593c69cf879f6595f63cd9e1589a770b3d5a3bd9ec45c281152c",
+  "data/history/ftmo/ohlcv.JP225.15m/2022.json.gz": "a8e931529ab83f571131c877d8cc1d1ac945ba5b2ee11fda9474d6a15c815420",
+  "data/history/ftmo/ohlcv.JP225.15m/2023.json.gz": "2c8d643c22d180d3857027b6a30affc15a24dc28bc031f577028c355cef57718",
+  "data/history/ftmo/ohlcv.JP225.15m/2024.json.gz": "baa7c82aaadd083024802b6b0399bfbd0014b2bdfe421fc486d845a59749389d",
+  "data/history/ftmo/ohlcv.JP225.15m/2025.json.gz": "a62967c6927679cf132cc9c1d29ff9747a80b02be0c91e374cb80b7f7b2170b4",
+  "data/history/ftmo/ohlcv.JP225.15m/2026.json.gz": "0efcf50a4e696fe402fcf3ae9e66d43000d658bcb1f1e57f4937173b85b79bdf",
+  "data/history/ftmo/ohlcv.JP225.15m/index.json": "17edc676a22a355b8c6ce4f222c348a34a2b5a453bb79fe2da4c7e27704ffe24",
+  "data/history/ftmo/ohlcv.UK100.15m/2017.json.gz": "b3b8aaa72eaa563a4ee6460e6ed0be1f31232464b912e671d95d4579c1b449d6",
+  "data/history/ftmo/ohlcv.UK100.15m/2018.json.gz": "a527f5e383fbc40fc9fcfca3f11982f6d49c9f5d0d1bec327a5b40f7a09462b6",
+  "data/history/ftmo/ohlcv.UK100.15m/2019.json.gz": "b1ed13fe94cace6ae1dce08251eb5cb8a4e88deef3af3d015bfe10c401bf61d4",
+  "data/history/ftmo/ohlcv.UK100.15m/2020.json.gz": "0712b1fdc339c79f285501df66166d5280bb64b3c3de2ad5ea09c48ee1f39b65",
+  "data/history/ftmo/ohlcv.UK100.15m/2021.json.gz": "8a645ee826a43d967a3de12fb5f6830699a5a5172e3636b6891e1a6554895ec5",
+  "data/history/ftmo/ohlcv.UK100.15m/2022.json.gz": "0c092ab4828a9ff708ce0fb00104b272967f486a905de1e53eb5429397dc4ecf",
+  "data/history/ftmo/ohlcv.UK100.15m/2023.json.gz": "eaab9349e68fbaf09ea54771eb530cc2f76703a179eb6c4408b814e409dd0ccf",
+  "data/history/ftmo/ohlcv.UK100.15m/2024.json.gz": "9767ef2cf3b0d15d9cb904e1f67622f0ae7767b470391732f91db5ffa0713047",
+  "data/history/ftmo/ohlcv.UK100.15m/2025.json.gz": "352a70905a6a31f7b65a258c448a3f240bd87b95ff22322de2856451f7f39897",
+  "data/history/ftmo/ohlcv.UK100.15m/2026.json.gz": "bd8aacd14d12daa45862fe4561645af540748db1b9cf912edbf7749afe54db62",
+  "data/history/ftmo/ohlcv.UK100.15m/index.json": "b1758bb64a9fccd6020a46efe3fecd388ee0df8672f38e9925aca9bcd09e565c",
+  "data/history/ftmo/ohlcv.US2000.15m/2018.json.gz": "d4e0e5b111f94c5df4f76ed0c674e5ee3c942749fd1f8c31751a0aad8a3ba455",
+  "data/history/ftmo/ohlcv.US2000.15m/2019.json.gz": "dfb096054fb3a62bbcebcd679df55ca7f283f2407bf20dccd0f41fc40bac37ff",
+  "data/history/ftmo/ohlcv.US2000.15m/2020.json.gz": "35d7d707a9012231f0a6ff9136b67423eb46dff7be020f4568d1e80ff77acda3",
+  "data/history/ftmo/ohlcv.US2000.15m/2021.json.gz": "331ba1405fae8ec2795c7b72a07491dc2268ed1319a5bdf758d3dd7c2960b6ad",
+  "data/history/ftmo/ohlcv.US2000.15m/2022.json.gz": "ae80c08dba82d9792bef637618701aca9b5ed91a7183fe85405f19ac47711d70",
+  "data/history/ftmo/ohlcv.US2000.15m/2023.json.gz": "547b08dfbdf5004de0c6e69382e5790e429aca3d2690e80d1cdf33ccc0e9a453",
+  "data/history/ftmo/ohlcv.US2000.15m/2024.json.gz": "ecfaa025a9d78743f800866d88f11d2f9217c53c4875d8a6527c140e9668bed5",
+  "data/history/ftmo/ohlcv.US2000.15m/2025.json.gz": "507e6cdd63ce49ae32eb3c7b1a07d5010bb41b082ec2717935d499799ad7ce7c",
+  "data/history/ftmo/ohlcv.US2000.15m/2026.json.gz": "eadce4ff38575e32540edcb2b3c76d3e61ee1b955ab5c52328f7af66a71d376e",
+  "data/history/ftmo/ohlcv.US2000.15m/index.json": "0a65c92c1e052b80d0222df6cbd04c25da0148665c3c61a18c5cbf1eeea992a4",
+  "data/history/ftmo/ohlcv.US30.15m/2019.json.gz": "21e2527df6fb196bf7b2df31fd5faf4beeffc88dcc3873b1a8e00ceee40cb177",
+  "data/history/ftmo/ohlcv.US30.15m/2020.json.gz": "a4aac46471b230f39adfc92225b00485e9830f1c1b661a36dba54f9665f29cf8",
+  "data/history/ftmo/ohlcv.US30.15m/2021.json.gz": "bebf29f0222d2d0e310377370e099e43e299a21ab5e3af584419a27fc35e267b",
+  "data/history/ftmo/ohlcv.US30.15m/2022.json.gz": "960a76134c1e436987baf806a131637b0fca135cc25eccaf88d125a8697a2a6f",
+  "data/history/ftmo/ohlcv.US30.15m/2023.json.gz": "47e36083a74d88d0741c5a2d46319c19cdd98c243fc75f130d9850a7ffe256c5",
+  "data/history/ftmo/ohlcv.US30.15m/2024.json.gz": "634cbe4057b51b30e58ca83ee012e56d259e85b5fa26f6ea31f801e8e0f0d07c",
+  "data/history/ftmo/ohlcv.US30.15m/2025.json.gz": "4170172d7603833ffb03dfbf51eff4b71184d0c33d02c54c2b7be824a2794249",
+  "data/history/ftmo/ohlcv.US30.15m/2026.json.gz": "038ce2740bd63dccbc00dae7238fbb02303b36bc294498eae9a92447f01a6c7a",
+  "data/history/ftmo/ohlcv.US30.15m/index.json": "cf214605dc60030a70faf9ccdb4b24a1a1f00bea10d5e611d40a012718b7ad9e",
+  "data/history/ftmo/ohlcv.US500.15m/2017.json.gz": "3b5dbac8624ee5fd5e37e649e005c029a16fa62b7bc0e2c4f3d3364bffe8e483",
+  "data/history/ftmo/ohlcv.US500.15m/2018.json.gz": "a4acee56352b45e336459f9e0f8060b87d6ad8b20f79f26fd862ada2a3744ca6",
+  "data/history/ftmo/ohlcv.US500.15m/2019.json.gz": "2a1ee911e6e13bbc376349c768f3619a9c0a9dd60f56589cdf5d1bf38a0618c2",
+  "data/history/ftmo/ohlcv.US500.15m/2020.json.gz": "f1ef05b3dc874e862db1242edf1c5e21ffd9a6a6b29ce7ecf9d142903e020c15",
+  "data/history/ftmo/ohlcv.US500.15m/2021.json.gz": "1cda38e2a1d96d52cf8b79348812501fdef8765e6756c26a62c920b831b3c9bf",
+  "data/history/ftmo/ohlcv.US500.15m/2022.json.gz": "58c98b6484f7c5b6af35938c05924acdb472bfb6f60b4b5965e0fd5774942abe",
+  "data/history/ftmo/ohlcv.US500.15m/2023.json.gz": "ed361e44722aacafcc41eae0c8ff1bc0709e3a3c839f41705438ee9580eb25d5",
+  "data/history/ftmo/ohlcv.US500.15m/2024.json.gz": "4d39633136bf7fd0c926c2f75bb0ef02fcc1bacdc9ee872649609b573479d6a3",
+  "data/history/ftmo/ohlcv.US500.15m/2025.json.gz": "cb87d3ad06e9610798a9b7d3afb8390b3dd12f295209ae0f001d9f7ae0d9f88d",
+  "data/history/ftmo/ohlcv.US500.15m/2026.json.gz": "bbf87f8738f9f8a8f1b84c08dfca615822e1845097c8250443fe0fbcf4883f13",
+  "data/history/ftmo/ohlcv.US500.15m/index.json": "71252933b0d4b5a3bc2b968baab6716550448c846017fca3ff2e76c3760e4da3",
+  "data/history/ftmo/ohlcv.USTEC.15m/2017.json.gz": "c6e10d7dcf0e54782d1196eb3d0bccef06c54d3f194c88d111db6b5426ab8ac0",
+  "data/history/ftmo/ohlcv.USTEC.15m/2018.json.gz": "630f373418ba10fdd3a5a79e196d25cb8948d66a39de0d64196b81518f9a704d",
+  "data/history/ftmo/ohlcv.USTEC.15m/2019.json.gz": "9aa1ca65529551b08df6eba831e4b93b5355d0a3b34024888db1962e194988c5",
+  "data/history/ftmo/ohlcv.USTEC.15m/2020.json.gz": "af24948517de72923904066496b02d54156dc50a213f0cfa2056c06bf5efefea",
+  "data/history/ftmo/ohlcv.USTEC.15m/2021.json.gz": "628eb9886124fef00fed501991643b70e1fe1f8326a587baeedde1fc38c38663",
+  "data/history/ftmo/ohlcv.USTEC.15m/2022.json.gz": "578ba88e83ce37b33a9b294173051c06a3e5c61a464a1da3c23154aab5f1d227",
+  "data/history/ftmo/ohlcv.USTEC.15m/2023.json.gz": "44a11656bab31459d0b882dd3a2ee7dd7c918f1234c0737eb14e25c808ce307d",
+  "data/history/ftmo/ohlcv.USTEC.15m/2024.json.gz": "9da7d2d5b3491132b6f21182ac0fc5e0bc80d52002fa25dea76b958774e50242",
+  "data/history/ftmo/ohlcv.USTEC.15m/2025.json.gz": "338b0b24af8f9627abda09291fddea83f46b0c1c41679d1eb1c020193772e0b8",
+  "data/history/ftmo/ohlcv.USTEC.15m/2026.json.gz": "1cc8d9e123f8b408ac80f493c3b4d29dac79c46372b092fa478526949cd95c4e",
+  "data/history/ftmo/ohlcv.USTEC.15m/index.json": "47c422f511c69706b3d7c8db7831c22c8242dd92304e6a9e4e4e7143639e66ab",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2008.json.gz": "6c8d302b92bd187ebfbf42b5c98f9c75920070acce538e72753ee706b300b26f",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2009.json.gz": "bae275a03f38337e8478e1c4d97d18eb2f052ef77040960069f168fa4e9c6523",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2010.json.gz": "096279ea39295d9d1ad5039828f514e1e8fd5ce81d493cd08bb64ffe59ba028a",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2011.json.gz": "6d5dbd6dc4dfc90bed4f93ca73ca53e02260a8d6959dbe4bb7b3fce540abde9e",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2012.json.gz": "1ad26b58926360ff6a1b051dd056b93d3f9af738cbbdffb9a75437f4597f25eb",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2013.json.gz": "04ae5c4ff5efb0d2404ad36a00875e1c97c24dd3d72434dd53a4ab90a057652e",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2014.json.gz": "f55ede95d3fdc9c9c1ab6a80c1aba27abc966057d50d117f6e216d00aa9d21df",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2015.json.gz": "d2114605da4e87da52ed7057b304a91f178e20ee3e3381344a1f066355d9d0ba",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2016.json.gz": "fbfe03d32f0637c2011ed5444a0018c0e537f326b8e2020886ed2c9c221d65c0",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2017.json.gz": "452b44dc1a434249ba3ed8d1339a251aa36371509a3c0300b63453f5c65d7675",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2018.json.gz": "29812c31e6a6501d1309fe6ff5d8b7db8bdba64f9238f2737b5cb33af48f58d9",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2019.json.gz": "98b1f8346fa932192bff1ab6ea49cef7e142a45a1ce2c0ca271bdae546a44897",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2020.json.gz": "d3035777153072047788b49253c42bea53cb6b8d8f78d6c0c9902ab2440e4541",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2021.json.gz": "d1f1aebd614d9ca613ee93177b68b34ab12ff460e9e5191be7e98ed3f718cf65",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2022.json.gz": "d09d3c66fdfad8f18b60886ab432c41a25b22e3c1319d4459e6c9195b6cb8c0b",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2023.json.gz": "6d713bade842234cf0e8e52200ba1ba82ab414ec55d247ec928567196cdeb701",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2024.json.gz": "86b5c30abc286373027bbbb6acf6de55190bd174c35eb136c448aae503f64511",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2025.json.gz": "66e2c63895cedeccb94d216bc983ec94258478df181f45c9105a06b4e7575341",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/2026.json.gz": "525f1c1265511a6a195d4712ec154bb92b6d674405e1a5564b6ae21669c19cd1",
+  "data/history/ftmo/ohlcv.XAGUSD.15m/index.json": "188592bcdc1880c9fc3877f6ac97f812afac01b5f11ccf2984852e4a1e2a466c",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2004.json.gz": "668638457124624985de4fd4e0c65397145ea77315d1252babb383f061d0e1d1",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2005.json.gz": "99059fe9d361e3e64866b4f45e8fe94cd0b3586aaf64be0b2b2802d575ccdd85",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2006.json.gz": "5c52a04e133a4be4b74390aeec676621d05f057729e8f827be73378eb67a97cc",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2007.json.gz": "c9e21762eca8b4c6be76284d79e265f3f0fab0f2fba785d952cff464f5d6e20e",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2008.json.gz": "6e5e4fb92ca60c81c90995b3052fb746424a9f0eef9a0d5284161e4613770ef1",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2009.json.gz": "549c109e9d5c86290b1351cf8a3f59ba96125a283286e888c75e84f45cf14436",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2010.json.gz": "287aca586d7594f34011fa2e0fe5d01c974e8ce7883ad7601909bf77d09df802",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2011.json.gz": "810c2a825623e642fa68e7a57e53172c41863d216284a57c0ff4ea5bec4046d0",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2012.json.gz": "00f3c1c8117fd22d0bb0cd57c8cac3353134ec9274beffde36725767837190df",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2013.json.gz": "8b3942e8f75fffe33dd188be25d4eedc931378119891cdcb5d294e7e97c5d242",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2014.json.gz": "91cfd3eb9ea04e452b216cc298121708949cd131351a3e1ab94f3bd47f4b8a79",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2015.json.gz": "1a97741dc3af03f4fa06ff9ad4f5d7ab7174a196addcc417556baea197ad0269",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2016.json.gz": "9fca9aa1037e38f912bab317be20ed17774ea5c88d1101939d9602b9991dfd78",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2017.json.gz": "5b542fad308b68598dd2115762a291021a95886c17fccc2ba9a6af1546461c0c",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2018.json.gz": "1580b1441fbf56d40190906863af2b89964cdb34b79c8d36b550188f360fb725",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2019.json.gz": "58f5efb465c951fb9ff55783b17a8591470f010efb289e3748e3d832ad4a8334",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2020.json.gz": "b19f6c35dc9e8b828e3fe6fef32ff107aca0fe7fd1828d719fe7faf79a0a5ed6",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2021.json.gz": "7ec87c08a8d86d167c9f997ec48d5d3db3ea1a421c0d17ced870e2e9317db4f9",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2022.json.gz": "a262a8cb409d795573f93cb20c54482b284dc56d7bb3edcd9e90a4f82ebd5be9",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2023.json.gz": "658942f3c78158fe1e8379236f3a787adaaf2319db053580f423ab3f833d46fb",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2024.json.gz": "dd798324457c4ae635fb166b5e3487ac2a56d617607c2bd7dc6f182cc11f8acc",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2025.json.gz": "a935350abf894df52c91be683de812d6ac2fc2b666e66059da0ef98d16cb3210",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/2026.json.gz": "528ea0fe683e6f59af376129b9a819059f94e195876e4b68f67da5edb4230fe4",
+  "data/history/ftmo/ohlcv.XAUUSD.15m/index.json": "1fd68dbd4d18edfeea1861321112f981c6318fd8b49f0528ee61dec59b61028d",
+  "docs/architecture/account-profiles.json": "551f9a3111eaeb1741e396e0f5459f3b657c1c84ae194e30a195189da946df6e",
+  "docs/architecture/analysis-params.json": "5cde25c1b9c3c35f154cdc5fbdf83d1a27c767589cbda721d0a28ab2d19958e3",
+  "docs/architecture/i18n.json": "8b48e9fcdb4ec646a947d276a0595ad424c728c48372dde55eeaa50e8831e254",
+  "docs/architecture/instruments.json": "f5de740394fc3312d73a8bf53aa69f729283bb38452d01f571ae52a915d84b5d",
+  "docs/architecture/methods.json": "30aaa27db94d92f70e327d5ffd00c1dd6f46e5809f1109052e287fc18ac84ae0",
+  "docs/architecture/performance-metrics.json": "f9a06c17a24d75692d6ea910ba39cc12d9dd50b7ffd4777fba548990f28bb103",
+  "docs/architecture/providers.json": "af1ff6e203743c8402438256eb0f1e9c2802271ac2863155823cd9f5bf02cef8",
+  "docs/architecture/research-validity.json": "b06264c8113c64c0844954a18f58746dd9dbe5b61c700d180e54f5e486723ae9",
+  "docs/architecture/risk-config.json": "0a4621240df31e19948f047b79055654b660247ae6d35ac90d77842662659598",
+  "docs/architecture/sessions.json": "8e2bbdabbaa67da822a7baad91681ba5f62936f32851363731af85b365e71e13",
+  "docs/architecture/trader-constraints.json": "07ea109e1639b3699e10c340150ebab4aa0387fc814f6951936c1babace9d39b",
+  "docs/architecture/trading-systems.json": "90d8be1858b49402e1196f425a94fc298910f58b0f3735aeb31802a7cc4f5acc",
+  "docs/experiments/wyckoff-retest-r0/edge-wyckoff-R0.json": "09e215902f012f14210577684f34e0c3fac50a6a0df76d55076992fa726655f9"
+ },
+ "digest": "12b870ccdee54cf58a4ab46a3ff4c9f210d313d4edce5a8229d77f27ade365ad",
+ "exec": {
+  "scripts/backtest-methods.py": "cf7d5fd55651e417dd196161657f1d00779f3d5145246d4865dc50d6b52fcca9",
+  "scripts/broker_symbols.py": "b5733acd7349c96d2a8544d6c1b160c699f2f34e3a8bfb10c61360b5d3f4ca96",
+  "scripts/history_store.py": "e0b6bebe9eb81c65b077bfa4c5064aaaa081ac290dd6f0fbdf7bcf147bd20de0",
+  "scripts/htf_context.py": "c1f7b994b43cb29bdcfc01dedf979362cb5d40e22f7034d2d4c765539edde05f",
+  "scripts/i18n.py": "9654c7a6c9d561ab028366f4a304098f88c92e4cdad7c6b40d1644d73c8186f0",
+  "scripts/ict-scan.py": "1209180c176d9109a7026ac6e22d7aa2718818b2556a3d2b611edde6e460ea90",
+  "scripts/instruments.py": "4dceb0425b3bd32b9e98848f565f0fcbe624ee6cf9ab30d7d5e88c0d4badf188",
+  "scripts/live_rules.py": "ff9727fee35fb512672c53736d0bd077b076591527dc5880f8762d8661123bc8",
+  "scripts/mt5_time.py": "2cfac8616eac158575ebb1350f763d72fdfdca076066fb4a05375859cc0f620a",
+  "scripts/normalized.py": "f76dd8e29513c4237425fcc0c4589c2881cd4538865bbbab27827e46790ca231",
+  "scripts/providers.py": "3afed187584f597bd81fbe66da058cd9dc2f4666bfdce973fcbb635aff8adfc3",
+  "scripts/real_costs.py": "572ec698d4931efb58cab12e8b0e6f20720da07baccad6c130ef239f8fd26e1c",
+  "scripts/research/edge_census.py": "e052dab288df80f613d9f4156ddacc10d892d4ed1ad62468b4f1d7d953e71afc",
+  "scripts/research/edge_wyckoff.py": "8bdeeccf9bb4bf1f403e64dfb90907bfbce0482de015c20f30c92a21539f8c14",
+  "scripts/research/wyckoff_forward.py": "92b3163f7038ff91379de2c09dc42ba3e5925dc7beecf69adf6ee0bf6face78b",
+  "scripts/structures.py": "c14e153c27bfffa0de1b18c2a573abfed921e378d523d5f2b7d46dcd2fd1ffd9",
+  "scripts/wyckoff_rules.py": "bc9dc00536c4e1a86a3e14d77773917b92b5855c20edeb1ec5201e7af13d2c40"
+ },
+ "extract_check": {
+  "canary_sha256": "7b63942ca1f43ed93a4c3688d44951dc7aa674ce7f3e68185e0744bd6bc2693a",
+  "files": 555,
+  "rev": "c61739ed646099e86cf30764e77abd295732bd25"
+ },
+ "git_head": "c61739ed646099e86cf30764e77abd295732bd25",
+ "interpreter": {
+  "command": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+  "minor": "3.14",
+  "realpath": "/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+  "version": "3.14.5"
+ },
+ "load": {
+  "scripts/account_profile.py": "2061c4654afe4535904dc15a22f4c30204fbcda01f71b95990ad1059ed0c79f8",
+  "scripts/automation.py": "1fba7e3eeef2eb633ae4569a56e9cc1a5560606e3cb488355498e2c24fc2688d",
+  "scripts/event_risk.py": "28c509331637cf6d6815da3b4dca892f7d97edbc031bfbc27feb1a79e4346524",
+  "scripts/method_purity.py": "8432c795b8c173f5978ed9cdec54af52abc96477d2d4a5ab6f616877113d8c7f",
+  "scripts/methods.py": "dc76537b6d7c79930c8473ebcf4e13d402a859b2dedeee8976f9014fa703ba69",
+  "scripts/performance.py": "d79d78bde35028abab176dbd3e3a23298fd1bb63e98eb86bbc3bd8ac2181883b",
+  "scripts/pit.py": "63e72161714481bfa55cbe425e71bea4a9a6ceea62718e92991fda28deb9e88f",
+  "scripts/quality.py": "a2f6af3b3b32f2b558c051b899d6a7124b1956babc2b4f083f110c26e7401eb5",
+  "scripts/repo_paths.py": "6bc8c64cdedd56582f96015a0e7579985794ea3906a7d6ebaa69b14aa72d4e61",
+  "scripts/research/edge_f3.py": "242dcde369eaf188892df3f42a9c72ee34fb47f0a11219e1c945a6060c8f8e12",
+  "scripts/research/edge_f4.py": "e5f6ec8ad60f943196b86c0a2dc0d42f8c4805af43380c1fe03ed84149bba25b",
+  "scripts/research/edge_h7x.py": "b503b94509c41a25af3bd859449c26bbd2c8713aa1d8038183bf66123502786d",
+  "scripts/research_validity.py": "e06d5fd02ed54f83f49f2742dfa9233f5d02d68666c4e01d72c0240a4d34d110",
+  "scripts/risk_model.py": "7b4131a53d7f768ae87580eda21fcdb6115fc8d363b9ca98cd6c7bebb5589a9e",
+  "scripts/sessions.py": "607c2c6eb547e9bf0950435e77c05c26eb06e1df022fce433e5267f8f719ecd2",
+  "scripts/snapshot.py": "e4b2474d924164cc73df127a03007e4bfc9e444a89ff33a37a9b6055049f4200",
+  "scripts/trader_constraints.py": "2109a79a0bf49679f65aec159bf0f8f2842cec06a664da9f4872f72c964dab4b",
+  "scripts/trading_env.py": "4c9a02a2cf559d1559f06dd4beb7f4f8c1702219d68ee4f3078a293ce061a92e",
+  "scripts/trading_system.py": "9ec6aea8f9920a7f56dec56f423fb99f27f46eb51320efaf3a5a29d2dd33f9d1"
+ },
+ "price_ref": {
+  "AUS200": {
+   "closes_sha256": "2f07bfbd0112f3f5d0eea61d4caddd451a23b5054744bf5aaf558b01c0706fff",
+   "n_bars": 100000,
+   "price_ref": 7773.0,
+   "window_utc": [
+    "2022-03-31T13:45:00Z",
+    "2026-09-28T15:15:00Z"
+   ]
+  },
+  "DE40": {
+   "closes_sha256": "c2ddc92bb448a7fea5ae5cf37e6386229d5efbb9b0c01b8074fc6bd605db2758",
+   "n_bars": 100000,
+   "price_ref": 18528.03,
+   "window_utc": [
+    "2022-06-07T01:00:00Z",
+    "2026-09-28T15:15:00Z"
+   ]
+  },
+  "JP225": {
+   "closes_sha256": "1b07cf67a314f7b6a7bee5fc32493e522deee05d5b58efe2a61bb971e85e5f9d",
+   "n_bars": 99999,
+   "price_ref": 38215.73,
+   "window_utc": [
+    "2022-07-06T06:30:00Z",
+    "2026-10-01T02:45:00Z"
+   ]
+  },
+  "UK100": {
+   "closes_sha256": "4c674d25c6ae531fcf6cbf9c65e30c46663feb108b6d2da3165857b5f812ec81",
+   "n_bars": 100000,
+   "price_ref": 8207.2,
+   "window_utc": [
+    "2022-05-25T14:15:00Z",
+    "2026-10-01T02:00:00Z"
+   ]
+  },
+  "US2000": {
+   "closes_sha256": "87a550a0713ea448e80ae97630577ca3a0bcc8a38ae73a2f0617bbb84e15212f",
+   "n_bars": 100000,
+   "price_ref": 2072.3100000000004,
+   "window_utc": [
+    "2022-07-05T08:15:00Z",
+    "2026-10-01T02:45:00Z"
+   ]
+  },
+  "US30": {
+   "closes_sha256": "24b077c65ebcc60907d30b2daf0831a5496fdbdc35f3777a2d50809a02654fe3",
+   "n_bars": 100000,
+   "price_ref": 40115.3,
+   "window_utc": [
+    "2022-07-03T23:00:00Z",
+    "2026-09-28T15:15:00Z"
+   ]
+  },
+  "US500": {
+   "closes_sha256": "e3598047a3b43059b81642d185e230b9a92b006347100c5823bb1ed71101ff38",
+   "n_bars": 100000,
+   "price_ref": 5488.65,
+   "window_utc": [
+    "2022-07-03T23:30:00Z",
+    "2026-09-28T15:15:00Z"
+   ]
+  },
+  "USTEC": {
+   "closes_sha256": "5c3bad9691c2a16acabc9778afc9557955893b1ea396922325c5be2fffd622e0",
+   "n_bars": 100000,
+   "price_ref": 19391.85,
+   "window_utc": [
+    "2022-07-04T00:15:00Z",
+    "2026-09-28T15:15:00Z"
+   ]
+  },
+  "XAGUSD": {
+   "closes_sha256": "b902ebb2f60d0628b393ec3b50162bb7323a91532b39d43e740c17703be00d38",
+   "n_bars": 100000,
+   "price_ref": 29.733,
+   "window_utc": [
+    "2022-07-05T17:00:00Z",
+    "2026-09-28T15:15:00Z"
+   ]
+  },
+  "XAUUSD": {
+   "closes_sha256": "965b990cd14e4afeefdca7efb5dfd4736b04963966a0665dd4afe0305686dde7",
+   "n_bars": 100000,
+   "price_ref": 2471.98,
+   "window_utc": [
+    "2022-07-06T05:00:00Z",
+    "2026-09-28T15:15:00Z"
+   ]
+  }
+ },
+ "python": "3.14.5",
+ "r0_pinned": [
+  "data/history/costs/ftmo/symbol-map.json",
+  "data/history/costs/ftmo/symbolspec.AUS200.cash.json",
+  "data/history/costs/ftmo/symbolspec.GER40.cash.json",
+  "data/history/costs/ftmo/symbolspec.JP225.cash.json",
+  "data/history/costs/ftmo/symbolspec.UK100.cash.json",
+  "data/history/costs/ftmo/symbolspec.US100.cash.json",
+  "data/history/costs/ftmo/symbolspec.US2000.cash.json",
+  "data/history/costs/ftmo/symbolspec.US30.cash.json",
+  "data/history/costs/ftmo/symbolspec.US500.cash.json",
+  "data/history/costs/ftmo/symbolspec.XAGUSD.json",
+  "data/history/costs/ftmo/symbolspec.XAUUSD.json",
+  "docs/architecture/account-profiles.json",
+  "docs/architecture/analysis-params.json",
+  "docs/architecture/i18n.json",
+  "docs/architecture/instruments.json",
+  "docs/architecture/methods.json",
+  "docs/architecture/performance-metrics.json",
+  "docs/architecture/providers.json",
+  "docs/architecture/research-validity.json",
+  "docs/architecture/risk-config.json",
+  "docs/architecture/sessions.json",
+  "docs/architecture/trader-constraints.json",
+  "docs/architecture/trading-systems.json",
+  "scripts/account_profile.py",
+  "scripts/automation.py",
+  "scripts/backtest-methods.py",
+  "scripts/broker_symbols.py",
+  "scripts/event_risk.py",
+  "scripts/history_store.py",
+  "scripts/htf_context.py",
+  "scripts/i18n.py",
+  "scripts/ict-scan.py",
+  "scripts/instruments.py",
+  "scripts/live_rules.py",
+  "scripts/method_purity.py",
+  "scripts/methods.py",
+  "scripts/mt5_time.py",
+  "scripts/normalized.py",
+  "scripts/performance.py",
+  "scripts/pit.py",
+  "scripts/providers.py",
+  "scripts/quality.py",
+  "scripts/real_costs.py",
+  "scripts/repo_paths.py",
+  "scripts/research/edge_census.py",
+  "scripts/research/edge_f3.py",
+  "scripts/research/edge_f4.py",
+  "scripts/research/edge_h7x.py",
+  "scripts/research/edge_wyckoff.py",
+  "scripts/research_validity.py",
+  "scripts/risk_model.py",
+  "scripts/sessions.py",
+  "scripts/snapshot.py",
+  "scripts/structures.py",
+  "scripts/trader_constraints.py",
+  "scripts/trading_env.py",
+  "scripts/trading_system.py",
+  "scripts/wyckoff_rules.py"
+ ],
+ "snapshot_roots": [
+  "scripts",
+  "docs/architecture",
+  "data/history/costs",
+  "data/history/ftmo",
+  "docs/experiments/wyckoff-retest-r0/edge-wyckoff-R0.json",
+  "docs/experiments/wyckoff-forward-wc15/fingerprint.json",
+  "docs/plans/2026-10-04-wyckoff-forward-wc15-preregistration.md",
+  "integrations/mt5/ExportOHLCV.mq5",
+  "integrations/mt5/ExportHistory.mq5"
+ ],
+ "study": "WY-F1",
+ "tz": {
+  "America/New_York": [
+   {
+    "after": -14400,
+    "before": -18000,
+    "utc": "2025-03-09T07:00:00Z"
+   },
+   {
+    "after": -18000,
+    "before": -14400,
+    "utc": "2025-11-02T06:00:00Z"
+   },
+   {
+    "after": -14400,
+    "before": -18000,
+    "utc": "2026-03-08T07:00:00Z"
+   },
+   {
+    "after": -18000,
+    "before": -14400,
+    "utc": "2026-11-01T06:00:00Z"
+   },
+   {
+    "after": -14400,
+    "before": -18000,
+    "utc": "2027-03-14T07:00:00Z"
+   },
+   {
+    "after": -18000,
+    "before": -14400,
+    "utc": "2027-11-07T06:00:00Z"
+   },
+   {
+    "after": -14400,
+    "before": -18000,
+    "utc": "2028-03-12T07:00:00Z"
+   },
+   {
+    "after": -18000,
+    "before": -14400,
+    "utc": "2028-11-05T06:00:00Z"
+   },
+   {
+    "after": -14400,
+    "before": -18000,
+    "utc": "2029-03-11T07:00:00Z"
+   },
+   {
+    "after": -18000,
+    "before": -14400,
+    "utc": "2029-11-04T06:00:00Z"
+   },
+   {
+    "after": -14400,
+    "before": -18000,
+    "utc": "2030-03-10T07:00:00Z"
+   },
+   {
+    "after": -18000,
+    "before": -14400,
+    "utc": "2030-11-03T06:00:00Z"
+   }
+  ],
+  "ftmo_server": [
+   {
+    "after": 10800,
+    "before": 7200,
+    "utc": "2025-03-09T07:00:00Z"
+   },
+   {
+    "after": 7200,
+    "before": 10800,
+    "utc": "2025-11-02T06:00:00Z"
+   },
+   {
+    "after": 10800,
+    "before": 7200,
+    "utc": "2026-03-08T07:00:00Z"
+   },
+   {
+    "after": 7200,
+    "before": 10800,
+    "utc": "2026-11-01T06:00:00Z"
+   },
+   {
+    "after": 10800,
+    "before": 7200,
+    "utc": "2027-03-14T07:00:00Z"
+   },
+   {
+    "after": 7200,
+    "before": 10800,
+    "utc": "2027-11-07T06:00:00Z"
+   },
+   {
+    "after": 10800,
+    "before": 7200,
+    "utc": "2028-03-12T07:00:00Z"
+   },
+   {
+    "after": 7200,
+    "before": 10800,
+    "utc": "2028-11-05T06:00:00Z"
+   },
+   {
+    "after": 10800,
+    "before": 7200,
+    "utc": "2029-03-11T07:00:00Z"
+   },
+   {
+    "after": 7200,
+    "before": 10800,
+    "utc": "2029-11-04T06:00:00Z"
+   },
+   {
+    "after": 10800,
+    "before": 7200,
+    "utc": "2030-03-10T07:00:00Z"
+   },
+   {
+    "after": 7200,
+    "before": 10800,
+    "utc": "2030-11-03T06:00:00Z"
+   }
+  ],
+  "years": [
+   2025,
+   2030
+  ]
+ },
+ "tz_source": {
+  "note": "disclosed, not checked: the pin is the behaviour",
+  "tzpath": [
+   "/usr/share/zoneinfo",
+   "/usr/lib/zoneinfo",
+   "/usr/share/lib/zoneinfo",
+   "/etc/zoneinfo"
+  ]
+ }
+}
