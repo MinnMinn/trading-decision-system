@@ -255,9 +255,11 @@ class WyckoffDifferential(_DiffMixin, unittest.TestCase):
 
 
 class IctPoolKeyChangesTrades(_DiffSetup, unittest.TestCase):
-    """fx_b_pool='on' really changes the trades on this slice (XAGUSD 15m, 20,000 bars), so a group key that dropped it
-    would hand the pool-on overlay the pool-off analysis and fail here."""
-    SYM, TF, METHOD, BARS = "XAGUSD", "15m", "ICT", 20000
+    """fx_b_pool='on' really changes the trades on this slice (XAGUSD 15m, 30,000 bars), so a group key that dropped it
+    would hand the pool-on overlay the pool-off analysis and fail here. 20,000 bars until sessions.json v3
+    (2026-10-05): under the v3 London window the pool no longer changed a trade on that shorter slice (measured: 9/9,
+    6/6, 3/3 equal on XAGUSD 12k / US500 20k / XAUUSD 20k; XAGUSD 30k: 16 vs 17 trades)."""
+    SYM, TF, METHOD, BARS = "XAGUSD", "15m", "ICT", 30000
     overlays = staticmethod(lambda: [dict(_fixed()), dict(_fixed(), fx_b_pool="on"),
                                      dict(_fixed(), fx_b_pool="on", fx_b_ex="ce")])
 
