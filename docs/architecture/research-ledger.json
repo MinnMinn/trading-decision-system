@@ -1115,5 +1115,48 @@
    "T_v4_mean_R": -0.009,
    "report": "docs/audits/2026-10-05-claude-ict-discretionary.md"
   }
+ },
+ "wyckoff_forward_wc15": {
+  "preregistration": "docs/plans/2026-10-04-wyckoff-forward-wc15-preregistration.md",
+  "draft": "docs/plans/2026-10-04-wyckoff-forward-wc15-preregistration-DRAFT.md",
+  "seal": {
+   "commit": "c0f54aedeb5f2dff40a8742d71520ffb4f8cdb87",
+   "instant": "2026-10-05T06:19:53Z",
+   "fingerprinted_parent": "c61739ed646099e86cf30764e77abd295732bd25",
+   "fingerprint": "docs/experiments/wyckoff-forward-wc15/fingerprint.json",
+   "fingerprint_digest": "12b870ccdee54cf58a4ab46a3ff4c9f210d313d4edce5a8229d77f27ade365ad",
+   "interpreter": "/opt/homebrew/opt/python@3.14/bin/python3.14 (3.14.5; brew pin python@3.14)"
+  },
+  "parent_study": "wyckoff_retest (W-C-long-15m: INCONCLUSIVE, +0.25R net, n 63, p 0.18)",
+  "cell": "W-C-long-15m (Spring / Shakeout long, the re-test's engine as R0 read it)",
+  "symbols": [
+   "XAUUSD",
+   "XAGUSD",
+   "US500",
+   "US30",
+   "USTEC",
+   "DE40",
+   "AUS200",
+   "US2000",
+   "UK100",
+   "JP225"
+  ],
+  "family": "WF1",
+  "hypotheses": 1,
+  "confirmatory_tests": 1,
+  "read_rule": "two looks at seal + 12 and + 36 months; Lan-DeMets O'Brien-Fleming-type spending, one-sided alpha 0.10 in total, boundaries from the actual event counts; PASS iff net excess > 0 and the look's boundary is crossed; NOT PASSED only at look 2; never-due close at seal + 48 months (procedural)",
+  "log_only": [
+   "mfe_r",
+   "mae_r",
+   "bars_to_mfe",
+   "htf_gate",
+   "planned_rr",
+   "spread_r_entry"
+  ],
+  "status": "collecting",
+  "reservation": "FTMO 15m bars of the 10 symbols that close at or after the seal instant, reserved for this cell's two looks (in words only: no oos.periods entry, §13)",
+  "state_at_seal": "US500, US30, USTEC, DE40 committed 15m history ends 2026-09-28 16:45Z (NOT ADVANCING until an export bridges it); JP225 and AUS200 have no live 15m file (STALLED)",
+  "exposure_records": [],
+  "looks": []
  }
 }
