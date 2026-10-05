@@ -1,19 +1,22 @@
 {
   "_comment": "THE single source of truth for the session model (CLAUDE.md §21). Before 2026-09-18 these windows existed as six hand-kept copies -- the table in docs/architecture/session-model.md §2, Python literals in scripts/journal.py session_of(), a `const SESSIONS` array in scripts/chart.js, a `const KZ_WEIGHT` map beside it, the `session` enum in schemas/trade-file.schema.json, and the weight table in session-model.md §3 -- with no generator and no drift test between any of them. §21 asks for sessions that are configurable and historically reproducible; a markdown table is neither. scripts/sessions.py is the ONE reader, scripts/sync-sessions.py regenerates the derived spots, and scripts/tests/test_sessions.py fails the build on drift. Adding or changing a session = edit THIS file, run `python3 scripts/sync-sessions.py --write`, done.",
   "_rationale": "The WHY of every number here -- why the windows are these windows, why asia is 20:00-00:00 New York, why metals get a full London weight and crypto never gets one -- stays in docs/architecture/session-model.md, which this file does not duplicate. That document is the decision record; this file is the machine-readable form of its conclusions.",
-  "version": 2,
+  "version": 3,
+  "_version_history": [
+    {"version": 3, "date": "2026-10-05", "change": "london: 08:00-11:00 Europe/London -> 02:00-05:00 America/New_York (the decks' killzone); weights: + indices (london/ny_am/ny_pm full, asia none)", "approval": "owner, chat 2026-10-05: 'Đồng ý cả 3'"}
+  ],
   "_version_why": "Bumped whenever a window, zone, weight or gate changes. A session label is stamped on every journalled trade, so changing a window silently re-labels history: a trade recorded as `ny_am` under one model and `off` under the next is the same trade with two different facts attached. CLAUDE.md §11 wants a configuration snapshot to be able to say WHICH model produced a label, and §59 treats a session-rule change as potentially Trading System version significant. Bump this and the label stops being ambiguous.",
   "reference_clock": "exchange-local, converted per date",
   "_reference_clock_why": "session-model.md §1. Windows are defined in the opening market's own clock and converted to UTC for the date in question, so they follow daylight saving. A fixed UTC hour is correct in summer only -- the 08:30 America/New_York macro release is 12:30Z in winter and 11:30Z in summer.",
   "sessions": {
     "_comment": "`start`/`end` are local hours in `zone`, end-exclusive, and may cross midnight (end <= start means the window runs into the next local day). `precedence` breaks a tie when a timestamp falls in more than one window and a caller needs ONE label; lower wins. It is declared here rather than left to the order of an if/elif chain, which is how an overlap gets silently resolved (CLAUDE.md §19's objection, applied to sessions). `display` is the short label the chart legend draws; it is here so the page and the journal cannot disagree about what to call a window.",
     "london": {
-      "zone": "Europe/London",
+      "zone": "America/New_York",
       "display": "LDN",
-      "start": 8.0,
-      "end": 11.0,
+      "start": 2.0,
+      "end": 5.0,
       "precedence": 1,
-      "what": "London open through the LBMA morning gold fix (10:30 London)"
+      "what": "The decks' London killzone, 02:00-05:00 New York (knowledge/ict/core-a.md §2.1, '1. Killzones p3'). Owner decision 2026-10-05 (v3): replaces the project's 08:00-11:00 Europe/London window (London open through the LBMA morning fix)."
     },
     "ny_am": {
       "zone": "America/New_York",
@@ -62,7 +65,14 @@
       "ny_am": "full",
       "ny_pm": "full",
       "asia": "none"
-    }
+    },
+    "indices": {
+      "london": "full",
+      "ny_am": "full",
+      "ny_pm": "full",
+      "asia": "none"
+    },
+    "_indices_why": "Owner decision 2026-10-05 (v3): the decks' indices killzone set is London, NY AM 08:30-11:00 and NY PM 13:30-16:00 (knowledge/ict/core-a.md §2.1); until v3 indices had no row and fell to _default (no timing credit, no shading). AUS200 trades in the Asian session and is weighted with the other indices for now."
   },
   "gates": {
     "_comment": "Conditions under which NO session credit is awarded, whatever the clock says. session-model.md §4.",

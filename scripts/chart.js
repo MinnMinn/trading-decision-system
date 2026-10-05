@@ -24,12 +24,12 @@ const OPEN=0, HIGH=1, LOW=2, CLOSE=3, VOL=4, ISO=5;
 // 2026-09-12 (docs/audits/2026-09-12-ict-pdf-recheck.md). Numeric thresholds are PROJECT PARAMETERS from
 // analysis-params.json project_defined.ict (the decks define concepts, not numbers). Candle times are UTC ISO strings;
 // sessions convert to the exchange-local zone per date (docs/architecture/session-model.md §1) so they follow DST.
-const SESSIONS = [{key:'london',name:'LDN',tz:'Europe/London',a:8,b:11},{key:'ny_am',name:'NY AM',tz:'America/New_York',a:8.5,b:11},{key:'ny_pm',name:'NY PM',tz:'America/New_York',a:13.5,b:16},{key:'asia',name:'ASIA',tz:'America/New_York',a:20,b:24}];
+const SESSIONS = [{key:'london',name:'LDN',tz:'America/New_York',a:2,b:5},{key:'ny_am',name:'NY AM',tz:'America/New_York',a:8.5,b:11},{key:'ny_pm',name:'NY PM',tz:'America/New_York',a:13.5,b:16},{key:'asia',name:'ASIA',tz:'America/New_York',a:20,b:24}];
 // Keyed by instruments.json display.asset_class (I.display(sym)['asset_class']), which defaults to the market.
 // (A `forex` key existed here 2026-09-17..2026-09-27, full weight on london/ny_am -- the London and NY
 // killzones are FX concepts to begin with, docs/architecture/session-model.md cites forexop for exactly this.
 // Removed with the `forex` market itself -- see docs/architecture/instruments.json history.)
-const KZ_WEIGHT = {crypto:{london:'reduced',ny_am:'reduced',ny_pm:'none',asia:'none'}, metals:{london:'full',ny_am:'full',ny_pm:'full',asia:'none'}, default:{london:'none',ny_am:'none',ny_pm:'none',asia:'none'}};
+const KZ_WEIGHT = {crypto:{london:'reduced',ny_am:'reduced',ny_pm:'none',asia:'none'}, metals:{london:'full',ny_am:'full',ny_pm:'full',asia:'none'}, indices:{london:'full',ny_am:'full',ny_pm:'full',asia:'none'}, default:{london:'none',ny_am:'none',ny_pm:'none',asia:'none'}};
 // Pool label keys by the engine's pool `type` ([BSL/high, SSL/low]); only the two types ict_json() can actually
 // emit (core-a.md §2.7). Session/PDH-PDL pools exist only behind fx_b_pool, which the chart never sets.
 const POOL_LABEL = {equal:['chart.pool.equal_highs','chart.pool.equal_lows'], old:['chart.pool.old_high','chart.pool.old_low']};

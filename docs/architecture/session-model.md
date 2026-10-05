@@ -35,7 +35,7 @@ convenience, not an authority: if it disagrees with `sessions.json`, the JSON is
 
 | Label | Local window | Zone | What it is |
 |---|---|---|---|
-| `london` | 08:00–11:00 | Europe/London | London open through the LBMA morning gold fix (10:30 London) |
+| `london` | 02:00–05:00 | America/New_York | The decks' London killzone (`knowledge/ict/core-a.md` §2.1). Until v3 (2026-10-05) 08:00–11:00 Europe/London, London open through the LBMA morning fix |
 | `ny_am` | 08:30–11:00 | America/New_York | US macro release time (CPI, NFP, EIA) through the first 90 minutes of the equity session |
 | `ny_pm` | 13:30–16:00 | America/New_York | Afternoon session into the equity close |
 | `asia` | 20:00–00:00 | America/New_York | The decks' own Asia killzone (`1. Killzones p3`). Used for the Asian session high/low liquidity levels (`knowledge/ict/core-a.md` §2.9) and for journalling; carries no timing credit for any instrument. **Chosen by measurement 2026-09-12** — see below |
@@ -61,8 +61,13 @@ As with §2, the table below is a reader's convenience and `sessions.json` is th
 |---|---|---|---|---|
 | XAUUSD, XAGUSD | full | full | full | none |
 | BTCUSDT, ETHUSDT, SOLUSDT | reduced | reduced | none | none |
+| US500, US30, USTEC, DE40, FRA40, AUS200 | full | full | full | none |
 
-**Why metals get a full London weight.** Gold and silver have a physical London fixing at 10:30 London. (USOIL/UKOIL carried `reduced`/`full`/`full`/`none` here until 2026-09-27, when both were deleted from the instrument registry entirely -- see `docs/architecture/instruments.json` history. Crude's pricing centre and its scheduled inventory catalyst, the EIA petroleum status report Wednesdays 10:30 New York, were both American, which is why oil's London weight was `reduced` where metals' is `full`; the row is kept only as this note now that no instrument reads it. Indices, added the same day oil was removed, have no row here at all -- `sessions.json` `weights` has no `indices` key, so they fall back to `_default` (`none` everywhere) until someone measures a weight for them; a pre-existing gap, not something this removal changed.)
+**Why metals get a full London weight.** Gold and silver have a physical London fixing at 10:30 London. (USOIL/UKOIL carried `reduced`/`full`/`full`/`none` here until 2026-09-27, when both were deleted from the instrument registry entirely -- see `docs/architecture/instruments.json` history. Crude's pricing centre and its scheduled inventory catalyst, the EIA petroleum status report Wednesdays 10:30 New York, were both American, which is why oil's London weight was `reduced` where metals' is `full`; the row is kept only as this note now that no instrument reads it. Indices, added the same day oil was removed, had no row until v3.)
+
+**Why indices get full London / NY AM / NY PM weights (v3, owner decision 2026-10-05).** The decks' indices killzone set is London, NY AM 08:30–11:00 and NY PM 13:30–16:00 (`knowledge/ict/core-a.md` §2.1); before v3 indices fell to `_default` and earned no timing credit. AUS200 trades in the Asian session and is weighted with the other indices for now -- a choice, not a measurement.
+
+**Why `london` is 02:00–05:00 New York (v3, owner decision 2026-10-05).** It is the decks' own London killzone. The project's earlier 08:00–11:00 Europe/London window (London open through the 10:30 LBMA fix) was a choice; for most of the year the two differ by one hour (02:00 New York = 07:00 London), and in the weeks when US and UK daylight saving disagree by two. Defined in the New York zone so it follows the decks' clock through those weeks.
 
 **Why crypto never gets a full weight.** Crypto has no exchange open and trades continuously, so no window carries the structural meaning a killzone is supposed to carry. The reduced weights reflect that institutional crypto flow does cluster around the equity session, but that observation is not in any ingested source. If measurement later shows no edge in these windows, set crypto to `none` everywhere rather than defending the model.
 
@@ -101,8 +106,7 @@ CLAUDE.md §21 names both as first-class. Neither existed before `sessions.json`
 - **Overlaps.** `sessions.active(t)` returns *every* window an instant is inside, in the registry's declared
   `precedence` order; `sessions.primary(t)` collapses that to the one label a trade file records. The old
   `journal.session_of` was an if/elif chain, so an overlap would have been resolved by branch order — a rule
-  nobody wrote down. Today's four windows do not overlap (London 08:00–11:00 local is 13:30–16:00 London while
-  NY AM runs), so this changes no label today. It exists so that moving a window later cannot introduce a
+  nobody wrote down. Today's four windows do not overlap (London 02:00–05:00 New York ends before NY AM opens at 08:30), so this changes no label today. It exists so that moving a window later cannot introduce a
   silent resolution.
 - **Custom sessions.** Adding one is a data edit plus `sync-sessions.py --write`. The loader validates that the
   zone is a real IANA zone, that the hours are in range, that the window is not zero-width, that no two windows
