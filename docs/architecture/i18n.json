@@ -1159,8 +1159,8 @@
       "vi": "EQ của dealing range BSL↔SSL gần nhất · premium trên / discount dưới (vẽ từ nến cả hai biên đã tồn tại)"
     },
     "legend.killzone": {
-      "en": "time windows: LDN = session window (project, sessions.json) · NY AM / NY PM per session-model (½ = reduced weight)",
-      "vi": "khung giờ: LDN = cửa sổ phiên (dự án, sessions.json) · NY AM / NY PM theo session-model (½ = trọng số giảm)"
+      "en": "time windows: LDN = London killzone 02:00–05:00 New York (deck) · NY AM / NY PM per session-model (½ = reduced weight)",
+      "vi": "khung giờ: LDN = killzone London 02:00–05:00 giờ New York (tài liệu) · NY AM / NY PM theo session-model (½ = trọng số giảm)"
     },
     "legend.killzone_off": {
       "en": "session / killzone windows: not drawn for this timeframe or market",

@@ -324,8 +324,9 @@ class DisplayLocaleNeverReachesComputation(unittest.TestCase):
         precisely because it is only ever presentation."""
         src = open(os.path.join(ROOT, "scripts", "chart.js"), encoding="utf-8").read()
         sessions = src[src.index("const SESSIONS ="):src.index("\n", src.index("const SESSIONS ="))]
-        self.assertIn("Europe/London", sessions)
-        self.assertIn("America/New_York", sessions)
+        zones = set(re.findall(r"tz:'([^']+)'", sessions))
+        self.assertTrue(zones and all("/" in z for z in zones), zones)
+        self.assertIn("America/New_York", zones)
 
 
 class InteractionTimeTextFollowsTheLanguage(unittest.TestCase):

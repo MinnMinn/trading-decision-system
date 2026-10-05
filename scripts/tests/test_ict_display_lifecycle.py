@@ -397,17 +397,20 @@ class Items8to10Legend(unittest.TestCase):
         i18n = json.load(open(os.path.join(ROOT, "docs", "architecture", "i18n.json"), encoding="utf-8"))
         self.msgs = i18n.get("messages", i18n)
 
-    def test_london_window_is_called_a_project_session_window(self):
-        self.assertIn("session window (project", self.msgs["legend.killzone"]["en"])
-        self.assertNotIn("killzone LDN", self.msgs["legend.killzone"]["en"])
+    def test_london_window_is_named_as_the_decks_killzone(self):
+        """sessions.json v3 (owner 2026-10-05): LDN is the decks' London killzone, 02:00-05:00 New York."""
+        self.assertIn("London killzone 02:00–05:00 New York (deck)", self.msgs["legend.killzone"]["en"])
+        self.assertNotIn("session window (project", self.msgs["legend.killzone"]["en"])
 
     @unittest.skipUnless(shutil.which("node"), "node not on PATH")
     def test_killzone_legend_follows_d_kz_and_the_asset_weights(self):
         out = _node("console.log(JSON.stringify([T.legendHtml('ict',{kz:true,market:'crypto'},{}),"
-                    "T.legendHtml('ict',{kz:false,market:'crypto'},{}),T.legendHtml('ict',{kz:true,market:'indices'},{})]))")
+                    "T.legendHtml('ict',{kz:false,market:'crypto'},{}),T.legendHtml('ict',{kz:true,market:'no_such_class'},{}),"
+                    "T.legendHtml('ict',{kz:true,market:'indices'},{})]))")
         self.assertIn("legend.killzone<", out[0])
         self.assertIn("legend.killzone_off", out[1])
         self.assertIn("legend.killzone_off", out[2], "an asset class with all-'none' weights draws no band")
+        self.assertIn("legend.killzone<", out[3], "indices are weighted since sessions.json v3")
 
     def test_build_artifact_passes_d_kz(self):
         src = open(os.path.join(ROOT, "scripts", "build-artifact.py"), encoding="utf-8").read()

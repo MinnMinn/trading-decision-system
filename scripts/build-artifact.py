@@ -1095,7 +1095,7 @@ def ict_json(rows, tf):
     is passed as ict-scan.py's own CLI default (4): nothing `ict_structures()` returns for the chart (pivots,
     pools, sweeps, MSS, FVGs, dealing range, bias) is affected by it (structures.py module docstring, "Hot-path
     / cold-path split" -- `recent` only scopes `analyze()`'s own `events` list, which this never reads)."""
-    env = structures.ict_structures(rows, 4, tf, methods=("ict",))
+    env = structures.ict_structures(rows, 4, tf, methods=("ict",), opts=CHART_ICT_OPTS)
     return {"structures": env["structures"], "dealing_range": env["dealing_range"], "bias": env["bias"]}
 
 
@@ -1140,6 +1140,13 @@ def _wy_event_label(e, side, rows, kind, tick):
     # the candidate marker closes the label ('SOS[D]?' convention; check-narrative.py _label_confirmed reads the end)
     q = "?" if e.get("confirmed") is False else ""
     return f'{name} {fmtn(rows[e["i"]]["high"] if top else rows[e["i"]]["low"], kind)}{q}', top
+
+
+# The ICT reading the chart draws (owner decision 2026-10-05): swings 1 bar each side, the deck's width
+# (knowledge/ict/core-a.md §2.5), through ict-scan.py's fx_b1_pivot1 -- the same key every fund-search cell fixes ON,
+# so the chart shows what the research decision reads. analysis-params.json pivot_bars keeps the engine's v1 default
+# (3) so past v1 results keep their meaning (§59); the disabled v1 pilot is the only reader of that default.
+CHART_ICT_OPTS = {"fx_b1_pivot1": True}
 
 
 def wy_ship(rows, tf, sym, kind, side, P=None):
@@ -1618,7 +1625,7 @@ def build(style, out, snap=None, narrative_path=None, allow_impure=False, check_
     # have gone stale the first time one was tuned. Reading them here is what scripts/tests/test_i18n.py's
     # "numbers come from code" check is for: it found this while the translation was being written.
     ict_p = params.get("ict", {})
-    scan_p = dict(pivot=(ict_p.get("pivot_bars") or {}).get("value", 3),
+    scan_p = dict(pivot=1 if CHART_ICT_OPTS.get("fx_b1_pivot1") else (ict_p.get("pivot_bars") or {}).get("value", 3),
                   eqtol=f'{(ict_p.get("equal_level_tolerance_pct") or {}).get("value", 0.08):g}%',
                   fvgmin=f'{(ict_p.get("fvg_min_size_median_ratio") or {}).get("value", 0.6):g}')
     # lane facts chart.js reads instead of hand-keeping its own copy (Task 10b item 4)

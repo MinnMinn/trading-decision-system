@@ -114,7 +114,11 @@ class W8ChochInsideBox(unittest.TestCase):
         self.assertIs(W.PARAMS["fx_w8_choch_in_box"], False, "v1 decision semantics: W8 is an owner decision")
         self.assertIs(structures.ENVELOPE_PARAMS, W.PARAMS, "the chart must detect with the decision path's PARAMS")
         self.assertTrue(structures.W8_PARAMS["fx_w8_choch_in_box"])
-        for f in ("backtest-methods.py", "live_rules.py", "strategy-runner.py", "fvg_demo.py"):
+        # backtest-methods.py declares fx_w8_choch_in_box as a research key (2026-10-05), default False (v1); the
+        # live path never names it. Owner decision 2026-10-05: W8 stays off.
+        bt = _load("backtest-methods.py", "bt_w8_default")
+        self.assertIs(bt.OPTS["fx_w8_choch_in_box"], False)
+        for f in ("live_rules.py", "strategy-runner.py", "fvg_demo.py"):
             p = os.path.join(ROOT, "scripts", f)
             if os.path.exists(p):
                 self.assertNotIn("fx_w8", open(p, encoding="utf-8").read(), f"{f} must not set W8 silently")

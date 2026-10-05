@@ -171,8 +171,11 @@ def ict_analysis(window, recent, tf, methods=("ict",), opts=None):
     return ict_scan.analyze(window, recent, tf=tf, methods=methods, opts=opts)
 
 
-def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
+def ict_structures(window, recent, tf, methods=("ict",), analysis=None, opts=None):
     """The ICT structures `window` already implies, wrapped from scripts/ict-scan.py `analyze()`.
+
+    `opts`: ict-scan.py fx_ options forwarded to `analyze()` (the chart passes fx_b1_pivot1, owner decision
+    2026-10-05); None = v1.
 
     `analysis`: a caller that already ran `analyze()` for this window (scripts/live_rules.py's `bias_at` reuses
     `read_at`'s facts the same way) passes the result through instead of paying for a second scan -- this is
@@ -182,7 +185,10 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
     EXACTLY what `analyze()` returned (same object, not copied) -- a caller that only wants the raw dict (every
     existing reader of `analyze()`'s output) can keep using `env["analysis"]` unchanged, or call `ict_analysis()`
     directly and skip building this envelope entirely."""
-    a = analysis if analysis is not None else ict_analysis(window, recent, tf, methods=methods)
+    a = analysis if analysis is not None else ict_analysis(window, recent, tf, methods=methods, opts=opts)
+    # The pivot half-width the analysis actually used: ict-scan.py reads 1 under fx_b1_pivot1 (the deck's width),
+    # else PIV. Every confirmation delay below must use the SAME width, or availability is wrong (late at 3 vs 1).
+    piv = 1 if (opts or {}).get("fx_b1_pivot1") and "ict" in methods else PIV
     structs = []
     n = len(window)
     # Display-only lifecycle (ICT chart-fidelity audit 2026-10-04, items 3-4): ict-scan.py's own forward scans past
@@ -196,10 +202,10 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
     for i in a.get("pivots_high", []):
         # Confirmation delay: a PIV-bar pivot is not confirmable until bar i+PIV closes (module docstring).
         structs.append({"kind": "pivot_high", "i": i, "price": window[i]["high"],
-                         "formed_at": _formed(window, i), "available_at": _avail(window, min(i + PIV, n - 1), tf)})
+                         "formed_at": _formed(window, i), "available_at": _avail(window, min(i + piv, n - 1), tf)})
     for i in a.get("pivots_low", []):
         structs.append({"kind": "pivot_low", "i": i, "price": window[i]["low"],
-                         "formed_at": _formed(window, i), "available_at": _avail(window, min(i + PIV, n - 1), tf)})
+                         "formed_at": _formed(window, i), "available_at": _avail(window, min(i + piv, n - 1), tf)})
 
     for k, p in enumerate(a["pools"]):
         # Formation fields only (module docstring, "Pool objects carry FORMATION fields only") -- state/swept/
@@ -210,7 +216,7 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
         # break, never a "swept" wick-and-hold), timestamped at that confirming bar, same as the separate
         # closed_through structure object below carries.
         to = p.get("to", p["from"])
-        pool_available_at = _avail(window, min(to + PIV, n - 1), tf)
+        pool_available_at = _avail(window, min(to + piv, n - 1), tf)
         # S5: an object can never be invalidated before it is available (CLAUDE.md §8) -- clamp to available_at.
         pool_invalidated_at = (max(_avail(window, p["closed_at"], tf), pool_available_at)
                                 if p.get("state") == "closed_through" and p.get("closed_at") is not None else None)
@@ -242,7 +248,7 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
         # (`dep_pivots`), and `disp` may rest on an FVG that needs its third candle (`disp_conf_i`). available_at
         # is therefore the LATEST of those bars -- never the MSS bar alone. A record from an analysis that
         # predates the dependency fields falls back to its own bar (unchanged behaviour).
-        conf = max([m["i"], m.get("disp_conf_i", m["i"])] + [q + PIV for q in m.get("dep_pivots", ())])
+        conf = max([m["i"], m.get("disp_conf_i", m["i"])] + [q + piv for q in m.get("dep_pivots", ())])
         structs.append(dict(m, kind="mss", formed_at=_formed(window, m["i"]),
                              available_at=_avail(window, min(conf, n - 1), tf), confirm_i=conf))
 
@@ -270,13 +276,13 @@ def ict_structures(window, recent, tf, methods=("ict",), analysis=None):
     dr_formed_at, dr_available_at = _ts(window, n - 1, tf)
 
     def _edge_i(level, pool_kind):
-        """The bar from which this dealing-range edge existed: the availability bar (to + PIV) of the resting
+        """The bar from which this dealing-range edge existed: the availability bar (to + piv) of the resting
         pool analyze() chose for it (same filter as analyze()'s own `above`/`below`), else -- the window-extreme
         fallback (dr_source mixed/window) -- the extreme's own bar. Regrouping engine output, not detection."""
         for p in a["pools"]:
             if (p["kind"] == pool_kind and p["level"] == level and p["swept"] < 0
                     and p.get("state") != "closed_through"):
-                return min(p.get("to", p["from"]) + PIV, n - 1)
+                return min(p.get("to", p["from"]) + piv, n - 1)
         ext = [r["high"] for r in window] if pool_kind == "BSL" else [r["low"] for r in window]
         return ext.index(level) if level in ext else 0
 

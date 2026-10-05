@@ -49,9 +49,9 @@ class TheWindowsAreWhatTheyWere(unittest.TestCase):
             def lh(tz):
                 lt = t.astimezone(zoneinfo.ZoneInfo(tz))
                 return lt.hour + lt.minute / 60
-            if 8 <= lh("Europe/London") < 11:
-                return "london"
             ny = lh("America/New_York")
+            if 2 <= ny < 5:          # v3 (owner 2026-10-05): the decks' London killzone; v2 was 08-11 Europe/London
+                return "london"
             if 8.5 <= ny < 11:
                 return "ny_am"
             if 13.5 <= ny < 16:
@@ -89,10 +89,14 @@ class ItIsDstAware(unittest.TestCase):
         self.assertEqual(S.primary("2026-01-15T12:30:00Z"), "off")
         self.assertEqual(S.primary("2026-07-15T12:30:00Z"), "ny_am")
 
-    def test_the_london_window_moves_with_british_summer_time(self):
-        self.assertEqual(S.primary("2026-01-15T08:30:00Z"), "london")   # 08:30 GMT
-        self.assertEqual(S.primary("2026-07-15T08:30:00Z"), "london")   # 09:30 BST
-        self.assertEqual(S.primary("2026-07-15T06:30:00Z"), "off")      # 07:30 BST, before the window opens
+    def test_the_london_killzone_follows_the_new_york_clock(self):
+        """v3: 02:00-05:00 America/New_York (the decks' killzone), so it moves with US, not UK, daylight saving."""
+        self.assertEqual(S.primary("2026-01-15T07:30:00Z"), "london")   # 02:30 EST
+        self.assertEqual(S.primary("2026-01-15T06:30:00Z"), "off")      # 01:30 EST, before the window opens
+        self.assertEqual(S.primary("2026-07-15T06:30:00Z"), "london")   # 02:30 EDT
+        self.assertEqual(S.primary("2026-07-15T09:30:00Z"), "off")      # 05:30 EDT, after it closes
+        # 2026-03-09..03-27: the US is on EDT, the UK still on GMT -- the window follows New York (06:00Z start).
+        self.assertEqual(S.primary("2026-03-16T06:30:00Z"), "london")   # 02:30 EDT = 06:30 GMT
 
     def test_the_spring_forward_day_has_no_gap_and_no_double_count(self):
         """US DST starts 2026-03-08. Walk the whole day a minute at a time: every instant gets exactly one
@@ -135,8 +139,8 @@ class OverlapsAreDeclaredNotAccidental(unittest.TestCase):
         """Proved on a throwaway registry rather than asserted about the current one, which has no overlap."""
         import tempfile
         data = load_registry()
-        data["sessions"]["late_london"] = {"zone": "Europe/London", "display": "LDN2", "start": 10.0,
-                                           "end": 12.0, "precedence": 0, "what": "test overlap"}
+        data["sessions"]["late_london"] = {"zone": "America/New_York", "display": "LDN2", "start": 4.0,
+                                           "end": 6.0, "precedence": 0, "what": "test overlap"}
         for cls, m in data["weights"].items():
             if isinstance(m, dict) and not cls.endswith("_why"):
                 m["late_london"] = "none"
@@ -150,7 +154,7 @@ class OverlapsAreDeclaredNotAccidental(unittest.TestCase):
             s = importlib.util.spec_from_file_location("sess_ov", os.path.join(tmp, "scripts", "sessions.py"))
             mod = importlib.util.module_from_spec(s)
             s.loader.exec_module(mod)
-            at = "2026-01-15T10:30:00Z"                       # 10:30 London: inside both windows
+            at = "2026-01-15T09:30:00Z"                       # 04:30 New York: inside both windows
             self.assertEqual(set(mod.active(at)), {"london", "late_london"}, "an overlap was swallowed")
             self.assertEqual(mod.primary(at), "late_london", "precedence 0 did not win")
 
