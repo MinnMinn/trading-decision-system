@@ -112,3 +112,9 @@ intent (a key still separates cache entries, the frozen copies are compared with
   re-measuring — and test_speed_equivalence ICT differentials: BaseSnapshot extracts BASE's analysis-params.json, so copy
   the CURRENT analysis-params.json into the snapshot like sessions.json, then re-check the b1/pool "changes trades" tests).
 Then run the full suite (see "Open threads") and only then ask the owner to merge PR #9.
+- Full-suite run on the head BEFORE the W8/pivot-default commit (sessions v3 + 1-bar chart): only test_pit_page (since
+  fixed) and test_speed_equivalence failed — IctDifferential: test_bar_chunking_changes_nothing (×2),
+  test_overlay_order_does_not_matter, test_scan_many_equals_n_independent_scans_of_the_old_engine,
+  test_worker_count_independence (×2). Not yet root-caused; first suspect: those ICT overlays read the session registry
+  (fx_b7 / fx_b_pool) and BaseSnapshot vs current differ in more than sessions.json — re-run after Action 5 and diff
+  `ref` vs `scan_many` for one overlay.
