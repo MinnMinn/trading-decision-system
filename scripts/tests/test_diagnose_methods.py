@@ -112,6 +112,10 @@ class InstrumentationChangesNothing(unittest.TestCase):
         self.assertEqual(summ["unique_setups_reaching"]["booked"], len(trades))
 
     def test_wyckoff_book(self):
+        # The slice was chosen under v1 detection; W8 (ON by default since owner 2026-10-05) books no trade on it, and
+        # "instrumentation changes nothing" needs trades to compare -- so this check runs with W8 off.
+        dm.EXTRA_OVERLAY["fx_w8_choch_in_box"] = False
+        self.addCleanup(dm.EXTRA_OVERLAY.pop, "fx_w8_choch_in_box", None)
         summ, trades = self._check("WYCKOFF-BOOK")
         self.assertEqual(sum(summ["booked_by_leg"].values()), len(trades))
         self.assertEqual(summ["walk_calls"].get("trade", 0), len(trades))

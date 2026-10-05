@@ -55,6 +55,49 @@ def _load(name, path):
 
 BT = _load("bt_pit_w7_b3", os.path.join(SCRIPTS, "backtest-methods.py"))
 FS = _load("fund_search_pit_w7_b3", os.path.join(SCRIPTS, "fund-search.py"))
+
+
+# The synthetic scenarios below plant ICT setups for 3-bar pivots and Wyckoff Phase-D legs for v1 detection (W8 off).
+# The owner's 2026-10-05 defaults (pivot_bars 1, W8 ON) leave too few planted objects for the non-vacuity floors
+# (B3 accepts 5 < 20, B-POOL levels 41 < 100, the W7 control fires on 0 legs). Point-in-time integrity does not depend
+# on the pivot width or on W8, so the module runs at the scenarios' own parameters.
+_SAVED = {}
+
+
+def _piv_modules():
+    """Every loaded ict-scan copy (and structures, which mirrors its width) -- fund-search / backtest-methods may each
+    hold their own module object."""
+    import types
+    seen, out, todo = set(), [], [BT, FS] + list(sys.modules.values())
+    while todo:
+        m = todo.pop()
+        if not isinstance(m, types.ModuleType) or id(m) in seen:
+            continue
+        seen.add(id(m))
+        if hasattr(m, "PIV") and (hasattr(m, "analyze") or hasattr(m, "ict_structures")):
+            out.append(m)
+        if m in (BT, FS) or getattr(m, "__name__", "").startswith(("bt", "lr", "live_rules", "structures", "fund")):
+            todo.extend(v for v in vars(m).values() if isinstance(v, types.ModuleType))
+    return out
+
+
+def setUpModule():
+    _SAVED["piv"] = [(m, m.PIV) for m in _piv_modules()]
+    _SAVED["opts"] = [(b, b.OPTS["fx_w8_choch_in_box"]) for b in (BT, getattr(FS, "bt", None)) if b is not None and hasattr(b, "OPTS")]
+    _SAVED["w8_params"] = BT.W.PARAMS["fx_w8_choch_in_box"]
+    for m, _ in _SAVED["piv"]:
+        m.PIV = 3
+    for b, _ in _SAVED["opts"]:
+        b.OPTS["fx_w8_choch_in_box"] = False
+    BT.W.PARAMS["fx_w8_choch_in_box"] = False
+
+
+def tearDownModule():
+    for m, v in _SAVED["piv"]:
+        m.PIV = v
+    for b, v in _SAVED["opts"]:
+        b.OPTS["fx_w8_choch_in_box"] = v
+    BT.W.PARAMS["fx_w8_choch_in_box"] = _SAVED["w8_params"]
 SYM = "XAUUSD"                                   # a tick-volume symbol, the fund's own symbol
 MINUTES = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1H": 60}
 UTC = datetime.timezone.utc

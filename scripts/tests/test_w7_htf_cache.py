@@ -46,6 +46,23 @@ def _load(name, path):
 
 BT = _load("bt_w7_cache_test", os.path.join(SCRIPTS, "backtest-methods.py"))
 FROZEN = _load("wyckoff_rules_frozen_85bbc08_w7", os.path.join(HERE, "fixtures", "wyckoff_rules_frozen_85bbc08.py"))
+
+
+# The frozen references predate W8 (CHoCH inside the SC-AR box, ON by default since owner 2026-10-05). These tests pin
+# the W7 cache / prefix speed-up as EQUIVALENT to the per-call original, so both sides run with W8 off for the module;
+# W8 itself is pinned by test_wyckoff_chart_fidelity.
+_W8_SAVED = {}
+
+
+def setUpModule():
+    _W8_SAVED["opts"], _W8_SAVED["params"] = BT.OPTS["fx_w8_choch_in_box"], BT.W.PARAMS["fx_w8_choch_in_box"]
+    BT.OPTS["fx_w8_choch_in_box"] = False
+    BT.W.PARAMS["fx_w8_choch_in_box"] = False
+
+
+def tearDownModule():
+    BT.OPTS["fx_w8_choch_in_box"] = _W8_SAVED["opts"]
+    BT.W.PARAMS["fx_w8_choch_in_box"] = _W8_SAVED["params"]
 assert BT.HTF_OF[LTF] == HTF
 
 
