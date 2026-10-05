@@ -167,6 +167,11 @@
       "trigger": "candidate_selection",
       "experiment_id": null,
       "note": "docs/experiments/prop-search-2026-09-27/ -- 180 sealed CLAUDE.md §42 records, plan_hash 8137a8b1a76ce16118519037fd9baf77449bfc51c6c5f807c52c42df08b2028d (docs/experiments/prop-search-2026-09-27/plan.json). Read and scored every trade in this window against two prop-firm pass rules to select candidates (docs/plans/2026-09-27-prop-setup-search-preregistration.md)."
+     },
+     {
+      "trigger": "hypothesis_refinement",
+      "experiment_id": null,
+      "note": "VC-P1 (docs/plans/2026-10-04-vc-volatility-condition-preregistration.md §3, §5.4): the gold / silver stop-width quartile table that produced the VC hypothesis read 2018 onwards, this window included (docs/audits/2026-10-04-personal-account.md:47-55). EXPOSED for VC; never a VC test."
      }
     ]
    },
@@ -183,6 +188,11 @@
       "trigger": "candidate_selection",
       "experiment_id": null,
       "note": "edge families F2-F5 exposed reads selected the H7 / G9 survivors on 2024-03-01 -> 2026-09-28 (docs/audits/2026-10-02-edge-followup-exposed.md, 2026-10-02-edge-f3.md, 2026-10-02-edge-f4.md, 2026-10-02-edge-f5.md)."
+     },
+     {
+      "trigger": "hypothesis_refinement",
+      "experiment_id": null,
+      "note": "VC-P1 (docs/plans/2026-10-04-vc-volatility-condition-preregistration.md §3, §5.4): the gold / silver stop-width quartile table that produced the VC hypothesis read 2018 onwards, this window included (docs/audits/2026-10-04-personal-account.md:47-55). EXPOSED for VC; never a VC test."
      }
     ]
    }
@@ -1158,5 +1168,268 @@
   "state_at_seal": "US500, US30, USTEC, DE40 committed 15m history ends 2026-09-28 16:45Z (NOT ADVANCING until an export bridges it); JP225 and AUS200 have no live 15m file (STALLED)",
   "exposure_records": [],
   "looks": []
+ },
+ "vc_volatility_condition": {
+  "preregistration": "docs/plans/2026-10-04-vc-volatility-condition-preregistration.md",
+  "tag": "[VC-P1]",
+  "draft": "docs/plans/2026-10-04-vc-volatility-condition-preregistration-DRAFT.md",
+  "code": "scripts/research/edge_vc.py; every file of edge_vc.CODE is listed with its sha256 in the sealed text §11",
+  "dataset": {
+   "XAUUSD|5m": "aab48876789b946e2b1a2176b0fe09c85be1505004285c1a54880b6ac2b55180",
+   "XAGUSD|5m": "120866d22e351b68f1fe468b7d13d44f8bb1ce0e7f772307e47fffcd9bc5fb52"
+  },
+  "dry_run": {
+   "file": "docs/experiments/vc-p1-dryrun/edge-vc-dryrun.json",
+   "sha256": "0d003b4ab0f22156ef9b85d71fd64935639b74a3014658553df90676e69c8fac",
+   "outcome_blind": "traced against an allowlist: no exit walk, cost or R ran; of fvg_forward.py only holes, _dt and _vol_fresh started (sealed text §7)",
+   "git_head": "6887d5f2b860f1f7af844749c18f57e4fd4a1a59",
+   "code_uncommitted_at_the_dry_run": [
+    "scripts/research/edge_vc.py",
+    "scripts/tests/test_edge_vc.py"
+   ],
+   "evidence_dir": "docs/experiments/vc-p1-dryrun/",
+   "evidence_sha256": {
+    "edge-vc-dryrun.json": "0d003b4ab0f22156ef9b85d71fd64935639b74a3014658553df90676e69c8fac",
+    "vc-dryrun-trace.json": "c6f9d8698f52abcd3d34afc8aff71e8cdcfc9e47108f5c499c4ed01c529f1e7b",
+    "vc_dryrun_probe.py": "7835db1617825664a1e9726cdfe1552a103eb1da9d7e97d008518bc35f2a8c02",
+    "vc-regime-sim.json": "3d935060c90b93e26f9f3554f9810db1364552de12829d07f1c0dcf3af29829f",
+    "vc_regime_sim.py": "6c7e9cfc477030722777bb083c4eda0ede24edaaa8c71b4a285a108093890888"
+   }
+  },
+  "parent": "fvg-book v4: H7_XAUUSD_eod and G9_XAUUSD_eod at stop_k 1.4 (docs/architecture/trading-systems.json)",
+  "origin": "post hoc, on EXPOSED data: mean R by stop-width quartile 'since 2018' (docs/audits/2026-10-04-personal-account.md:47-55 at f76d6fa; no committed code)",
+  "definition": "decisive rows POINT IN TIME (lead decision D2 2026-10-04; sealed text §1-§2): edge_census.Series(sigma_every_day=True) events and VR, a signal on a server day's last bar dropped (as the paper log), stop k x sigma x sqrt(bars to the rollover on the clock) x price, book_sim's exit walk via fvg_forward.resolve_row; the research-mode book_sim rows are report-only",
+  "hypotheses": [
+   "VC-a: the per-bar R of the H7 / G9 trend trades is higher on HIGH-volatility days (sigma_5m above the median of the previous 250 dense days that have one; F3 H5's rule, point in time)",
+   "VC-b: the per-bar R is higher for entries before the component's median entry slot (more bars left in the server day)"
+  ],
+  "tests": {
+   "T1": {
+    "members": [
+     "T1a",
+     "T1b"
+    ],
+    "data": "window B",
+    "holm_m": 2,
+    "alpha_one_sided": 0.05,
+    "gate": "Holm, AND True-half mean R_net > 0, AND the balanced difference > 0 in both gold components; T1a ALSO needs the same contrast with the VR runs as clusters (T1a_run_clustered: CR1 by run, Student-t with min(runs per side x half cell) - 1 df) at one-sided p <= 0.05, and fails when that test cannot be computed (option C, lead decision 2026-10-05)",
+    "statistic": "side-balanced difference of nb-weighted R_bar cell means; T1a switched from R_gross at the seal (window B HIGH-LOW planned-bar gap 0.12 on the clock count, 0.149 on the stored count; rule: > 0.10)"
+   },
+   "secondary": {
+    "members": [
+     "T2",
+     "T3"
+    ],
+    "holm_m": 2,
+    "alpha_one_sided": 0.05,
+    "statistic": "side-balanced R_gross",
+    "note": "T2 is not run in window B (no silver trade with a VR before 2008-12-10): p = 1. T3 reads crypto only after every scheduled CX read."
+   },
+   "TF": {
+    "members": "the T1 sub-tests that passed (at most 2)",
+    "alpha_holm": 0.1,
+    "data": "the paper log's H7 / G9 XAUUSD rows at stop_k 1.4 entering from the server day after the seal commit's server day"
+   }
+  },
+  "reading_of_T1": {
+   "pass": "DISCOVERY-GRADE for the condition; TF on forward data is its confirmation",
+   "no_pass": "NOT SHOWN (inconclusive for a G9-concentrated effect); never 'lead closed' (lead decision D1)",
+   "t1a_run_condition": "a T1a whose by-day rule passed but whose run-clustered test did not (p > 0.05 or not computable) does not pass; the reading says so and the JSON keeps T1a_by_day and T1a_run_clustered_p (option C, lead decision 2026-10-05)",
+   "regime_level_effect": "T1a's halves are 8 runs of consecutive days in window B: whether a T1a pass is a property of the VR condition or of window B's regimes is for TF to confirm (lead decision 2026-10-05)",
+   "data_sensitive": "if the research-mode rows or the causal-density rows give another T1a / T1b verdict than the decisive rows: DATA-SENSITIVE: not decisive (no pass / fail changes; lead decision D2)"
+  },
+  "report_only_blocks": [
+   "research_mode_report_only",
+   "causal_density_report_only",
+   "excluding_paper_log_refusals_report_only",
+   "report_k2",
+   "report_only_window_A"
+  ],
+  "decisive_companion": "T1a_run_clustered: part of T1a's pass rule (option C, lead decision 2026-10-05); window A's copy (report_only_window_A.T1a_run_clustered) is report-only",
+  "confirmatory_tests_max": 6,
+  "reads": {
+   "xau-holdout": "once, after the seal",
+   "crypto": "once, after every scheduled CX read",
+   "forward": "once, at >= 150 closed rows or 365 days after the seal, and only if T1a or T1b passed"
+  },
+  "windows": {
+   "B_decisive": {
+    "symbols": [
+     "XAUUSD"
+    ],
+    "entry_days_before": "2008-12-10",
+    "first_day_with_a_vr": "2005-12-13",
+    "trades_with_vr": {
+     "H7_XAUUSD_eod": 302,
+     "G9_XAUUSD_eod": 460
+    },
+    "hold_medians_dry_run": {
+     "H7_XAUUSD_eod": 637.5,
+     "G9_XAUUSD_eod": 875.0
+    },
+    "paper_log_would_refuse": {
+     "H7_XAUUSD_eod": {
+      "hole": 43,
+      "stale_vol": 32,
+      "high": 61,
+      "low": 14,
+      "long_hold": 36,
+      "short_hold": 39
+     },
+     "G9_XAUUSD_eod": {
+      "hole": 65,
+      "stale_vol": 48,
+      "high": 85,
+      "low": 28,
+      "long_hold": 53,
+      "short_hold": 60
+     }
+    },
+    "vr_runs": {
+     "high": 4,
+     "low": 4
+    },
+    "vr_run_days_median": {
+     "high": 150.5,
+     "low": 47.0
+    },
+    "trades_by_year": {
+     "2005": {
+      "high": 0,
+      "low": 9
+     },
+     "2006": {
+      "high": 186,
+      "low": 29
+     },
+     "2007": {
+      "high": 85,
+      "low": 175
+     },
+     "2008": {
+      "high": 274,
+      "low": 4
+     }
+    },
+    "causal_density_sample": {
+     "H7_XAUUSD_eod": {
+      "events": 487,
+      "high": 279,
+      "low": 153,
+      "no_vr": 55,
+      "no_sigma": 0
+     },
+     "G9_XAUUSD_eod": {
+      "events": 708,
+      "high": 394,
+      "low": 227,
+      "no_vr": 87,
+      "no_sigma": 14
+     }
+    },
+    "research_mode_would_drop": {
+     "H7_XAUUSD_eod": 39,
+     "G9_XAUUSD_eod": 59
+    },
+    "grade_for_vc": "UNREAD-FOR-H",
+    "ledger_period": "cfd-development-pre-2024-03 (development, unchanged)",
+    "after_the_read": "read once for VC: no later VC test may use it"
+   },
+   "A_report_only": {
+    "symbols": [
+     "XAUUSD",
+     "XAGUSD"
+    ],
+    "entry_days_before": "2018-01-01",
+    "trades_with_vr": {
+     "XAUUSD": 3278,
+     "XAGUSD": 1404
+    },
+    "grade_for_vc": "window B's part as above; 2008-12-10 -> 2017-12-31 PARTLY EXPOSED: every personal-account replay (skip, floor, floor_cap, the fixed 100 USD cap) drops or sizes trades by an absolute stop width on 2008-12-10 -> 2026-10-02 (docs/audits/2026-10-04-personal-account.json meta.common_span)",
+    "ledger_period": "cfd-development-pre-2024-03 (development, unchanged)",
+    "after_the_read": "read report-only for VC; it never changes a verdict"
+   },
+   "exposed_for_vc": {
+    "symbols": [
+     "XAUUSD",
+     "XAGUSD"
+    ],
+    "days": [
+     "2018-01-01",
+     "2026-10-02"
+    ],
+    "grade_for_vc": "EXPOSED",
+    "trigger": "hypothesis_refinement",
+    "why": "the hypothesis came from these years (the quartile table above)",
+    "ledger_periods": {
+     "cfd-development-pre-2024-03": "its 2018-01-01 -> 2024-02-29 part: development data cannot become exposed (scripts/research_ledger.py:201-204), so it is recorded here only",
+     "cfd-prop-search-2024-03-2025-03": "exposure record appended (hypothesis_refinement)",
+     "cfd-2025-03-to-2026-09": "exposure record appended (hypothesis_refinement)"
+    },
+    "undeclared_span": "2026-09-28 -> 2026-10-02 lies in no ledger period; recorded here only",
+    "never_a_vc_test": true
+   }
+  },
+  "after_vcx": "the CX windows VC-X reads that CX retired unread (its read JSON `retired_windows_read`) become EXPOSED for H7 / G9 on crypto (trigger hypothesis_refinement); recorded in the commit that adds the crypto read",
+  "power_at_seal": {
+   "sd_R": 0.75,
+   "pooled_test_mde_R": {
+    "T1a": 0.18,
+    "T1b": 0.16
+   },
+   "pooled_test_mde_R_same_day_bound": {
+    "T1a": 0.21,
+    "T1b": 0.19
+   },
+   "full_rule_power": {
+    "T1a equal_0.20": "independent 0.868, same-day bound 0.735",
+    "T1a equal_0.10": "independent 0.333, same-day bound 0.253",
+    "T1a shape_2018_G9_0.21_H7_0.04": "independent 0.466, same-day bound 0.4",
+    "T1a G9_only_0.21": "independent 0.333, same-day bound 0.3",
+    "T1b equal_0.20": "independent 0.92, same-day bound 0.836",
+    "T1b equal_0.10": "independent 0.39, same-day bound 0.311",
+    "T1b shape_2018_G9_0.21_H7_0.04": "independent 0.517, same-day bound 0.46",
+    "T1b G9_only_0.21": "independent 0.365, same-day bound 0.34",
+    "T1a equal_0.20, option C": "0.813 (regime simulation, trades independent, no block effect; by day there 0.87)",
+    "T1a equal_0.10, option C": "0.3 (regime simulation, trades independent, no block effect; by day there 0.351)",
+    "T1a shape_2018_G9_0.21_H7_0.04, option C": "0.407 (regime simulation, trades independent, no block effect; by day there 0.457)",
+    "T1a G9_only_0.21, option C": "0.317 (regime simulation, trades independent, no block effect; by day there 0.347)"
+   },
+   "full_rule_power_effects_R_bar": {
+    "equal_0.20": {
+     "H7_XAUUSD_eod": 0.2,
+     "G9_XAUUSD_eod": 0.2
+    },
+    "equal_0.10": {
+     "H7_XAUUSD_eod": 0.1,
+     "G9_XAUUSD_eod": 0.1
+    },
+    "shape_2018_G9_0.21_H7_0.04": {
+     "H7_XAUUSD_eod": 0.04,
+     "G9_XAUUSD_eod": 0.21
+    },
+    "G9_only_0.21": {
+     "H7_XAUUSD_eod": 0.0,
+     "G9_XAUUSD_eod": 0.21
+    }
+   },
+   "regime_block_sensitivity": {
+    "what": "synthetic outcomes on window B's real layout (docs/experiments/vc-p1-dryrun/vc_regime_sim.py, result vc-regime-sim.json, sha256 in dry_run.evidence_sha256): share of replications with one-sided p <= 0.025 (the first Holm step; nominal 2.5 %) for T1a by day and T1b, and for T1a under option C (lead decision 2026-10-05: by day p <= 0.025 AND by VR run p <= 0.05; its sign conditions aside), with a block effect of sd tau (R_bar units) drawn per calendar year or per VR run, and a 0.20 R_bar effect for the power columns",
+    "reps": 2000,
+    "delta_R_bar": 0.2,
+    "none_0.0": "T1a size by day 2.6 %, option C 2.1 %; power at 0.20 by day 88.0 %, option C 82.1 %; T1b size 2.5 %, power 92.1 %",
+    "year_0.05": "T1a size by day 5.2 %, option C 3.9 %; power at 0.20 by day 84.2 %, option C 77.4 %; T1b size 2.8 %, power 92.7 %",
+    "year_0.1": "T1a size by day 10.0 %, option C 6.5 %; power at 0.20 by day 76.8 %, option C 67.0 %; T1b size 2.1 %, power 91.9 %",
+    "year_0.2": "T1a size by day 25.4 %, option C 13.6 %; power at 0.20 by day 65.6 %, option C 51.0 %; T1b size 2.9 %, power 91.1 %",
+    "run_0.05": "T1a size by day 5.7 %, option C 3.6 %; power at 0.20 by day 84.6 %, option C 74.5 %; T1b size 2.5 %, power 91.7 %",
+    "run_0.1": "T1a size by day 11.8 %, option C 5.9 %; power at 0.20 by day 76.2 %, option C 55.1 %; T1b size 2.4 %, power 92.7 %",
+    "run_0.2": "T1a size by day 25.8 %, option C 10.2 %; power at 0.20 by day 64.6 %, option C 32.2 %; T1b size 2.6 %, power 89.9 %"
+   },
+   "full_rule_power_method": "edge_vc.rule_power: 20000 draws, seed 7; Holm m = 2 with the other sub-test null, AND both gold components' balanced differences > 0 (the net-R condition taken as met)",
+   "note": "power ~0.8 only for an equal effect of >= 0.2 R in both components; ~0.4-0.5 for an effect concentrated in G9 (the 2018+ shape); a T1 fail reads NOT SHOWN (inconclusive for a G9-concentrated effect), never 'lead closed'; TF stays the confirmation of a pass (sealed text §7, §9; lead decision D1)",
+   "option_C_power_cost": "T1a's power at an equal 0.20 R_bar effect without a block effect: 88.0 % by day alone, 82.1 % under option C (the first Holm step, sign conditions aside; with them 0.87 -> 0.813); size under a year effect of sd 0.10: 10.0 % -> 6.5 % (lead decision 2026-10-05)"
+  },
+  "consequence": "a T1 pass is DISCOVERY-GRADE for the condition: a CANDIDATE row filter for fvg-book, a new setup version (CLAUDE.md §47), used on the demo only after TF passes and the owner approves; personal account: default NO (lead decision 2026-10-04)",
+  "lead_decisions": "2026-10-04: window B decisive, window A report-only; VC not used on the personal account by default; VC-X group B from 2024-03-01 only; D1 power statements of the full rule; D2 point-in-time decisive rows; D3 the 5m XAUUSD / XAGUSD history pinned; D4 the dry run re-run and traced, its git_head disclosed, the F4 G5 NR7 prior disclosed, the read refuses a pycache prefix. 2026-10-05: (1) option C: T1a passes only if its by-day rule passes AND its run-clustered p <= 0.05, at the power cost in power_at_seal.option_C_power_cost; a regime-level effect is for TF to confirm; (2) the whole-history dense rule decisive, the causal rule a sensitivity; (3) the paper log's refusals report-only; (4) the fix round's four additions kept (the causal-density sensitivity, the run-clustered T1a companion, the refusal-excluded block, the evidence files); (5) the dry-run JSON committed with its evidence, this ledger entry with the hypothesis_refinement records (option A), the CX field contract a refusal condition, the manifest coupling accepted"
  }
 }
