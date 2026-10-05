@@ -239,6 +239,10 @@ few deep paths reach the minimum lot (about 120 more trades out of 2.4 million; 
   rows here as optimistic and the `skip` rows as pessimistic: a cap takes wide-stop days that `skip` cuts. The fixed
   cap takes one only while its minimum lot risks <= 100 USD, and from 10,000 USD up it cuts them like `skip`
   (historical skips: v4 33, v3 313; §5.5).
+  **VC result (2026-10-05, docs/audits/2026-10-05-vc-volatility-condition.md): NOT SHOWN.** No volatility effect on
+  the clean window (-0.023 R_bar, p 0.62); early entries earned more but not significantly there (+0.072, p 0.14), and
+  much more on the partly exposed 2008-12 -> 2017 window (+0.30, report-only). So the cap's gain is neither confirmed
+  nor refuted: keep reading the cap rows as optimistic and the half-edge rows as the planning rows.
 - **Not:** silver alone (under the fixed cap it fails survival: P(DD >= 50 %) 7.2 % at half edge), or v4 + silver
   (UNTESTED, P(DD >= 25 %) 45 %, BLOWN paths at edge x 0). Silver's minimum lot is too large for 5,000 USD (§5.3 item 4).
 - **Labels still apply.** v4 is POLICY-EXPOSED, and the cap rule was chosen after seeing `floor`. It is a CANDIDATE: a
