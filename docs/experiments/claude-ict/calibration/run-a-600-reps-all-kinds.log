@@ -1,0 +1,6 @@
+XAUUSD  market orders  1700 fill 1.00 replicates 600: P(p<0.05) primary 0.05 mirror 0.045
+XAUUSD  limit  orders  1700 fill 0.67 replicates 600: P(p<0.05) primary 0.06833333333333333 mirror 0.04
+XAUUSD  stop   orders  1700 fill 0.67 replicates 600: P(p<0.05) primary 0.04666666666666667 mirror 0.05
+US500   market orders  2550 fill 1.00 replicates 600: P(p<0.05) primary 0.05333333333333334 mirror 0.06666666666666667
+US500   limit  orders  2550 fill 0.66 replicates 600: P(p<0.05) primary 0.09833333333333333 mirror 0.05333333333333334
+US500   stop   orders  2550 fill 0.67 replicates 600: P(p<0.05) primary 0.02 mirror 0.04833333333333333

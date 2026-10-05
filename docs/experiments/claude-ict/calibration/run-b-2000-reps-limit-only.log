@@ -1,0 +1,2 @@
+XAUUSD  limit  orders  1700 fill 0.67 replicates 2000: P(p<0.05) primary 0.065 mirror 0.0495
+US500   limit  orders  2550 fill 0.66 replicates 2000: P(p<0.05) primary 0.131 mirror 0.049
