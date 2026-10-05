@@ -73,3 +73,11 @@ trading-systems.json/accounts.json in favour of v4 (append-only assignments). Do
   only when run in parallel with each other (they write the same config file) — run them alone before calling it real.
 - Safety constraints unchanged: demo only, risk ≤ 1 % (risk-config.json), allowlist = instruments.json, never commit
   config/env.*.
+
+## Status at handoff (end of 2026-10-05 session)
+
+- Action 1 done. Full suite on the head before Action 1: 136/137 modules OK; the one failure (test_pit_page, the chart
+  now reads 1-bar ICT swings) is fixed. test_speed_equivalence result of that run not yet read. After Action 1 the
+  Wyckoff chart modules (test_wyckoff_chart_fidelity, test_structures, test_build_artifact, test_doc_citations,
+  test_pit_page) pass.
+- Actions 2, 3 and 4 not started. Action 2 must be committed before 2026-10-12.
