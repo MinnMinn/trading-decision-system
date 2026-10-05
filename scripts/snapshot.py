@@ -378,7 +378,7 @@ def backtest_config_snapshot(bt, *, timeframes, methods, configs=None, fee_pct=N
                                      # _fires_from) and default to v1 (False) -- the live/pilot path never sets
                                      # them, so a residual snapshot never claims one was applied that was not.
                                      "fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring",
-                                     "fx_w5_vp_abandon", "fx_w7_htf_target",
+                                     "fx_w5_vp_abandon", "fx_w7_htf_target", "fx_w8_choch_in_box",
                                      # O1 (2026-09-30): simulate()'s min_rr admission cost basis; default v1.
                                      "fx_admission_entry_cost",
                                      # C3 (2026-10-02): walk()'s stop-fill rule on a gap; default v1.

@@ -549,7 +549,8 @@ class DetectionKeysSeparateTheScanCache(unittest.TestCase):
         detection key must run detection twice, each under its own key value; a repeat of either is a cache hit."""
         bt = _load("bt_fx_cachekey", "backtest-methods.py")
         self.assertEqual(bt._FX_WYCKOFF_DETECTION_KEYS,
-                         ("fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon"))
+                         ("fx_w1_tr_low_st", "fx_w2_st_below_sc", "fx_w3_mSOW_spring", "fx_w5_vp_abandon",
+                          "fx_w8_choch_in_box"))
         self._scan_fixture(bt)
         calls = self._spy(bt)
         for k in bt._FX_WYCKOFF_DETECTION_KEYS:
