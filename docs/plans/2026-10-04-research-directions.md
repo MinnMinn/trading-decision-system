@@ -153,7 +153,7 @@ Every entry carries the same fields; "Earlier" appears where an earlier round li
 - **Honest prior.** Weak (~5-10 % to survive all reads). Every transfer of H7 / G9 outside gold and silver failed: F5
   0 / 27 (docs/audits/2026-10-02-edge-f5.md:6), H7x 0 / 2 (docs/audits/2026-10-04-crypto-cfd-phase.md:19).
 
-### 3. NEWS-FLAT -- be flat across HIGH US releases (policy lever on fvg-book v4) [NOT DRAFTED, pending]
+### 3. NEWS-FLAT -- be flat across HIGH US releases (policy lever on fvg-book v4) [DRAFTED 2026-10-04, not sealed: docs/plans/2026-10-04-news-flat-preregistration-DRAFT.md [NF-P1]; calendar data/calendar/us-high-impact-releases.json]
 
 - **Earlier.** This is the pending owner step A2 (docs/audits/2026-10-04-crypto-cfd-phase.md:48-49; vol-schedule.md §4,
   option 2). Not killed; no reopening needed.
